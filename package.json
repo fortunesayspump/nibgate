@@ -2,12 +2,11 @@
   "name": "nibgate-workspace",
   "version": "0.1.0",
   "private": true,
-  "description": "Workspace for Nibgate marketing, app, CLI, and demo projects.",
+  "description": "Workspace for the Nibgate app, CLI, and demo projects.",
   "type": "module",
   "workspaces": [
     "app",
     "cli",
-    "marketing",
     "demo-projects/*"
   ],
   "scripts": {
@@ -15,7 +14,6 @@
     "dev:app": "npm run build:app && npm --workspace app run app",
     "dev:app:api": "npm --workspace app run app",
     "dev:app:web": "npm --workspace app run web",
-    "dev:marketing": "npm --workspace marketing run dev",
     "dev:demo:blog": "npm --workspace @nibgate/demo-blog run dev",
     "build:app": "npm --workspace app run web:build",
     "routes": "npm --workspace cli run routes"

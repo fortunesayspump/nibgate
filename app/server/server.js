@@ -8,6 +8,7 @@ import { createGateway } from '../../cli/packages/core/gateway.js';
 import { createCircleGatewayMiddleware, createGatewayBuyer } from '../../cli/packages/core/payments.js';
 import { createStateStore } from '../../cli/packages/core/state.js';
 import { articlePage, audioPage, protectedRoutePage } from './demo/views.js';
+import { marketingPage } from './marketing.js';
 
 export async function createApp(config, options = {}) {
   const app = express();
@@ -86,6 +87,10 @@ export async function createApp(config, options = {}) {
   });
 
   app.get('/', (_req, res) => {
+    res.send(marketingPage({ cssHref: webAssets.cssHref }));
+  });
+
+  app.get('/app', (_req, res) => {
     if (process.env.NIBGATE_PANEL_DEV === 'true') {
       return res.type('html').send(`<!doctype html>
 <html lang="en">

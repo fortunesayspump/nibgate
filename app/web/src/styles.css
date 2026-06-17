@@ -22,6 +22,13 @@ body {
   font-family: "Arial Rounded MT Bold", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+body.site-shell-marketing {
+  background:
+    radial-gradient(circle at top left, rgba(255, 40, 81, 0.16), transparent 28%),
+    linear-gradient(180deg, #171723 0, #111117 420px),
+    var(--bg);
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -90,6 +97,12 @@ a {
   padding: 42px 28px 74px;
 }
 
+.marketing-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 28px 80px;
+}
+
 .eyebrow {
   margin: 0 0 12px;
   color: var(--brand);
@@ -121,6 +134,39 @@ a {
   letter-spacing: 0;
 }
 
+.marketing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 18px;
+  align-items: stretch;
+  padding: 24px;
+  border: 2px solid var(--line);
+  border-bottom-width: 5px;
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.marketing-copy h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: 74px;
+  line-height: 0.95;
+}
+
+.marketing-lede {
+  max-width: 700px;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1.6;
+}
+
+.marketing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
 .panel-copy {
   max-width: 720px;
   color: var(--muted);
@@ -150,13 +196,25 @@ a {
   gap: 12px;
 }
 
+.marketing-preview {
+  display: grid;
+  align-content: start;
+  border: 2px solid var(--line);
+  border-bottom-width: 5px;
+  border-radius: 8px;
+  background: #14141d;
+  overflow: hidden;
+}
+
 .earnings,
 .mini-stat,
 .metrics > div,
 .status-grid article,
 .route-card,
 .table-section,
-.empty-state {
+.empty-state,
+.marketing-grid article,
+.platform-strip span {
   border: 2px solid var(--line);
   border-bottom-width: 5px;
   border-radius: 8px;
@@ -205,6 +263,48 @@ a {
   flex-wrap: wrap;
   gap: 10px;
   margin: 0 0 18px;
+}
+
+.marketing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.marketing-grid article {
+  min-height: 190px;
+  padding: 22px;
+}
+
+.marketing-grid strong {
+  color: var(--green);
+  font-size: 13px;
+}
+
+.marketing-grid h2 {
+  margin: 48px 0 8px;
+  font-size: 24px;
+}
+
+.marketing-grid p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.platform-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.platform-strip span {
+  padding: 9px 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .button {
@@ -256,6 +356,23 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
+}
+
+.preview-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.preview-row:last-child {
+  border-bottom: 0;
+}
+
+.preview-row span {
+  color: var(--muted);
 }
 
 .metrics > div,
@@ -543,11 +660,14 @@ dd {
   }
 
   .dashboard,
+  .marketing-page,
   .article-layout {
     padding: 28px 18px 52px;
   }
 
+  .marketing-hero,
   .panel-hero,
+  .marketing-grid,
   .metrics,
   .status-grid,
   .routes-grid,
@@ -559,6 +679,7 @@ dd {
     padding: 18px;
   }
 
+  .marketing-copy h1,
   .panel-hero h1,
   .article h1 {
     font-size: 42px;

@@ -16,13 +16,13 @@ function shell({ title, body, active = 'demo', cssHref = '/assets/styles.css' })
 <body>
   <header class="topbar">
     <a class="brand" href="/">
-      <span class="brand-mark">M</span>
+      <span class="brand-mark">N</span>
       <span>Nibgate</span>
     </a>
     <nav>
-      <a href="/">App</a>
+      <a href="/">Home</a>
+      <a href="/app">App</a>
       <a class="${active === 'demo' ? 'active' : ''}" href="/demo/ghost/the-agent-economy">Demo Article</a>
-      <a href="http://localhost:3001">Marketing</a>
       <a href="/.well-known/nibgate.json">Agent Metadata</a>
     </nav>
   </header>

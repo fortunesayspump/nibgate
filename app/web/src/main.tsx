@@ -111,9 +111,9 @@ function App() {
           <span>Nibgate</span>
         </a>
         <nav>
-          <a className="active" href="/">App</a>
+          <a href="/">Home</a>
+          <a className="active" href="/app">App</a>
           <a href="/demo/ghost/the-agent-economy">Demo Article</a>
-          <a href="http://localhost:3001">Marketing</a>
           <a href="/.well-known/nibgate.json">Agent Metadata</a>
         </nav>
       </header>

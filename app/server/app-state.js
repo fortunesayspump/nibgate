@@ -21,6 +21,13 @@ export function createAppState(config, store) {
       buyerConfigured: gateway.paymentProvider.buyerConfigured,
       buyerChain: gateway.paymentProvider.buyerChain
     },
+    hub: {
+      apiBaseUrl: config.hub?.apiBaseUrl || '',
+      siteId: config.hub?.siteId || '',
+      verifyToken: config.hub?.verifyToken ? 'configured' : '',
+      lastSyncAt: config.hub?.lastSyncAt || '',
+      lastEventAt: config.hub?.lastEventAt || ''
+    },
     routes: config.routes,
     payments: store.listPayments(),
     totals: {

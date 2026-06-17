@@ -3,12 +3,14 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { unlockedContent } from '../../cli/packages/core/content.js';
+import { buildSiteManifest, buildVerificationFile, emitEventToHub } from '../../cli/packages/core/hub.js';
 import { rootDir } from '../../cli/packages/core/config.js';
 import { createGateway } from '../../cli/packages/core/gateway.js';
 import { createCircleGatewayMiddleware, createGatewayBuyer } from '../../cli/packages/core/payments.js';
 import { createStateStore } from '../../cli/packages/core/state.js';
 import { articlePage, audioPage, protectedRoutePage } from './demo/views.js';
 import { createAppState } from './app-state.js';
+import { connectSite, getHubSummary, ingestHubEvent, syncSiteManifest, verifySiteOwnership } from './hub-handlers.js';
 import { marketingPage } from './marketing.js';
 
 export async function createApp(config, options = {}) {
@@ -24,6 +26,21 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use('/assets', express.static(path.join(appDist, 'assets')));
+
+  function currentConfig() {
+    return options.loadLiveConfig ? options.loadLiveConfig() : config;
+  }
+
+  async function forwardHubEvent(event) {
+    const liveConfig = currentConfig();
+    if (!liveConfig.hub?.siteId || !liveConfig.hub?.siteToken) return;
+
+    try {
+      await emitEventToHub(liveConfig, event);
+    } catch (error) {
+      console.warn(`Nibgate hub event failed: ${error.message}`);
+    }
+  }
 
   function setUnlockCookie(res, routeId, token) {
     res.cookie(`nibgate_unlock_${routeId}`, token, {
@@ -63,7 +80,32 @@ export async function createApp(config, options = {}) {
   }
 
   app.get('/api/app/state', (_req, res) => {
-    res.json(createAppState(config, store));
+    res.json(createAppState(currentConfig(), store));
+  });
+
+  app.get('/api/hub/summary', async (_req, res) => {
+    const result = await getHubSummary();
+    res.status(result.status).json(result.body);
+  });
+
+  app.post('/api/hub/sites/connect', async (req, res) => {
+    const result = await connectSite(req, req.body);
+    res.status(result.status).json(result.body);
+  });
+
+  app.post('/api/hub/sites/sync', async (req, res) => {
+    const result = await syncSiteManifest(req, req.body);
+    res.status(result.status).json(result.body);
+  });
+
+  app.post('/api/hub/sites/verify', async (req, res) => {
+    const result = await verifySiteOwnership(req, req.body);
+    res.status(result.status).json(result.body);
+  });
+
+  app.post('/api/hub/events', async (req, res) => {
+    const result = await ingestHubEvent(req, req.body);
+    res.status(result.status).json(result.body);
   });
 
   app.get('/', (_req, res) => {
@@ -91,10 +133,25 @@ export async function createApp(config, options = {}) {
   });
 
   function manifestHandler(_req, res) {
-    res.json(gateway.agentManifest());
+    res.json(buildSiteManifest(currentConfig()));
   }
 
   app.get('/.well-known/nibgate.json', manifestHandler);
+  app.get('/.well-known/nibgate-verify.txt', (_req, res) => {
+    res.type('text/plain').send(buildVerificationFile(currentConfig()));
+  });
+  app.get('/api/nibgate/status', (_req, res) => {
+    const liveConfig = currentConfig();
+    res.json({
+      site: {
+        name: liveConfig.site.name,
+        origin: liveConfig.site.origin
+      },
+      hub: liveConfig.hub,
+      manifestUrl: `${liveConfig.site.origin}/.well-known/nibgate.json`,
+      verificationUrl: `${liveConfig.site.origin}/.well-known/nibgate-verify.txt`
+    });
+  });
 
   app.get('/api/content/:id/price', (req, res) => {
     const route = gateway.routeById(req.params.id);
@@ -151,6 +208,28 @@ export async function createApp(config, options = {}) {
     const { token, payment } = gateway.recordPayment(route, 'human', route.price, {
       provider: gateway.paymentProvider.mode
     });
+    void forwardHubEvent({
+      type: 'payment_completed',
+      resourceId: route.id,
+      actor: 'human',
+      value: route.price,
+      currency: route.currency,
+      metadata: {
+        routePath: route.path,
+        paymentId: payment.id
+      }
+    });
+    void forwardHubEvent({
+      type: 'resource_unlock',
+      resourceId: route.id,
+      actor: 'human',
+      value: route.price,
+      currency: route.currency,
+      metadata: {
+        routePath: route.path,
+        paymentId: payment.id
+      }
+    });
     if (req.accepts('html')) {
       setUnlockCookie(res, route.id, token);
       return res.redirect(route.path);
@@ -188,6 +267,30 @@ export async function createApp(config, options = {}) {
           setUnlockCookie(res, route.id, token);
         }
 
+        void forwardHubEvent({
+          type: 'payment_completed',
+          resourceId: route.id,
+          actor,
+          value: amount,
+          currency: route.currency,
+          metadata: {
+            routePath: route.path,
+            paymentId: payment.id,
+            transaction: req.payment?.transaction || ''
+          }
+        });
+        void forwardHubEvent({
+          type: 'resource_unlock',
+          resourceId: route.id,
+          actor,
+          value: amount,
+          currency: route.currency,
+          metadata: {
+            routePath: route.path,
+            paymentId: payment.id
+          }
+        });
+
         return res.json({
           ...unlockedContent(route, config, payment.id),
           unlockToken: token,
@@ -206,11 +309,27 @@ export async function createApp(config, options = {}) {
 
   app.get('/demo/audio/midnight-protocol', (req, res) => {
     const route = gateway.routeByPath(req.path);
+    void forwardHubEvent({
+      type: 'resource_view',
+      resourceId: route.id,
+      actor: 'human',
+      metadata: {
+        routePath: route.path
+      }
+    });
     return res.send(audioPage({ route, assets: webAssets }));
   });
 
   app.get('/demo/ghost/the-agent-economy', (req, res) => {
     const route = gateway.routeByPath(req.path);
+    void forwardHubEvent({
+      type: 'resource_view',
+      resourceId: route.id,
+      actor: 'human',
+      metadata: {
+        routePath: route.path
+      }
+    });
     return res.send(articlePage({ req, route, gateway, assets: webAssets }));
   });
 

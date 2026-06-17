@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadConfig } from '../packages/core/config.js';
+import { loadConfig, writeConfig, withConfigDefaults } from '../packages/core/config.js';
+import { buildSiteManifest, connectSiteToHub, emitEventToHub, verifySiteWithHub, syncSiteWithHub } from '../packages/core/hub.js';
 import { createPaymentProvider, createGatewayBuyer } from '../packages/core/payments.js';
 import { startAppServer } from '../../app/server/start.js';
 
@@ -16,6 +17,12 @@ Usage:
   nibgate init       Create nibgate.config.json in this project
   nibgate dev        Run the Nibgate app and gateway locally
   nibgate routes     Print protected route config
+  nibgate manifest   Print the public site manifest JSON
+  nibgate status     Show local site and hub connection status
+  nibgate connect    Register this site with the Nibgate hub
+  nibgate sync       Send the current manifest to the Nibgate hub
+  nibgate verify     Ask the hub to verify site ownership
+  nibgate event      Emit a signed test event to the hub
   nibgate balance    Show buyer wallet and Gateway balances
   nibgate deposit    Deposit buyer USDC into Gateway balance
 
@@ -37,6 +44,21 @@ function defaultConfig() {
       origin: 'http://localhost:3000',
       creatorWallet: 'arc_testnet:replace_me',
       platformFeeBps: 600
+    },
+    payments: {
+      mode: 'demo',
+      sellerAddress: '',
+      facilitatorUrl: 'https://gateway-api-testnet.circle.com',
+      networks: ['eip155:5042002']
+    },
+    hub: {
+      apiBaseUrl: process.env.NIBGATE_HUB_URL || 'http://localhost:3000',
+      siteId: '',
+      siteToken: '',
+      verifyToken: '',
+      publicSiteUrl: 'http://localhost:3000',
+      lastSyncAt: '',
+      lastEventAt: ''
     },
     routes: [
       {
@@ -65,8 +87,18 @@ function getRuntimeConfig() {
   try {
     return loadConfig().config;
   } catch {
-    return defaultConfig();
+    return withConfigDefaults(defaultConfig());
   }
+}
+
+function requireHubConnection() {
+  const loaded = loadConfig();
+  if (!loaded.config.hub.siteId || !loaded.config.hub.siteToken) {
+    console.error('This site is not connected to the Nibgate hub yet. Run `nibgate connect` first.');
+    process.exit(1);
+  }
+
+  return loaded;
 }
 
 async function getGatewayBuyerOrExit() {
@@ -119,7 +151,7 @@ if (command === 'init') {
     process.exit(1);
   }
 
-  fs.writeFileSync(localConfigPath, `${JSON.stringify(defaultConfig(), null, 2)}\n`);
+  writeConfig(localConfigPath, defaultConfig());
   console.log(`Created ${localConfigPath}`);
   process.exit(0);
 }
@@ -133,6 +165,84 @@ if (command === 'dev') {
     const unit = route.unit ? `/${route.unit}` : '';
     console.log(`- ${route.id}: ${route.path} -> ${route.price} ${route.currency}${unit}`);
   }
+} else if (command === 'manifest') {
+  const { config } = loadConfig();
+  console.log(JSON.stringify(buildSiteManifest(config), null, 2));
+} else if (command === 'status') {
+  const { config, configPath } = loadConfig();
+  console.log(`Config: ${configPath}`);
+  console.log(`Site: ${config.site.name}`);
+  console.log(`Origin: ${config.site.origin}`);
+  console.log(`Manifest: ${config.site.origin.replace(/\/$/, '')}/.well-known/nibgate.json`);
+  console.log(`Verification: ${config.site.origin.replace(/\/$/, '')}/.well-known/nibgate-verify.txt`);
+  console.log(`Hub API: ${config.hub.apiBaseUrl}`);
+  console.log(`Hub site id: ${config.hub.siteId || '(not connected)'}`);
+  if (config.hub.lastSyncAt) console.log(`Last sync: ${config.hub.lastSyncAt}`);
+  if (config.hub.lastEventAt) console.log(`Last event: ${config.hub.lastEventAt}`);
+} else if (command === 'connect') {
+  const loaded = loadConfig();
+  const result = await connectSiteToHub(loaded.config);
+  const nextConfig = {
+    ...loaded.config,
+    hub: {
+      ...loaded.config.hub,
+      apiBaseUrl: loaded.config.hub.apiBaseUrl,
+      siteId: result.siteId,
+      siteToken: result.siteToken,
+      verifyToken: result.verifyToken
+    }
+  };
+  writeConfig(loaded.configPath, nextConfig);
+  console.log(`Connected ${loaded.config.site.origin} to ${loaded.config.hub.apiBaseUrl}`);
+  console.log(`Site ID: ${result.siteId}`);
+  console.log(`Verification token saved to nibgate.config.json`);
+} else if (command === 'sync') {
+  const loaded = requireHubConnection();
+  const result = await syncSiteWithHub(loaded.config);
+  const nextConfig = {
+    ...loaded.config,
+    hub: {
+      ...loaded.config.hub,
+      lastSyncAt: result.lastSyncAt || new Date().toISOString()
+    }
+  };
+  writeConfig(loaded.configPath, nextConfig);
+  console.log(`Synced ${result.resourceCount} resources to the hub.`);
+  console.log(`Verified: ${result.verified ? 'yes' : 'no'}`);
+} else if (command === 'verify') {
+  const loaded = requireHubConnection();
+  const result = await verifySiteWithHub(loaded.config);
+  console.log(`Verification status: ${result.verified ? 'verified' : 'pending'}`);
+  console.log(`Resources discovered: ${result.resourceCount}`);
+} else if (command === 'event') {
+  const loaded = requireHubConnection();
+  const eventType = process.argv[3];
+  const resourceId = process.argv[4];
+  const value = process.argv[5];
+
+  if (!eventType || !resourceId) {
+    console.error('Usage: nibgate event <resource_view|resource_unlock|payment_completed> <resourceId> [value]');
+    process.exit(1);
+  }
+
+  const result = await emitEventToHub(loaded.config, {
+    type: eventType,
+    resourceId,
+    value: value || undefined,
+    currency: value ? 'USDC' : undefined,
+    metadata: {
+      source: 'cli'
+    }
+  });
+  const nextConfig = {
+    ...loaded.config,
+    hub: {
+      ...loaded.config.hub,
+      lastEventAt: result.lastEventAt || new Date().toISOString()
+    }
+  };
+  writeConfig(loaded.configPath, nextConfig);
+  console.log(`Event accepted for ${resourceId}.`);
 } else if (command === 'balance') {
   const buyer = await getGatewayBuyerOrExit();
   const [wallet, gateway] = await Promise.all([

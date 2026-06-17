@@ -11,6 +11,15 @@
     "facilitatorUrl": "https://gateway-api-testnet.circle.com",
     "networks": ["eip155:5042002"]
   },
+  "hub": {
+    "apiBaseUrl": "http://localhost:3000",
+    "siteId": "",
+    "siteToken": "",
+    "verifyToken": "",
+    "publicSiteUrl": "http://localhost:3000",
+    "lastSyncAt": "",
+    "lastEventAt": ""
+  },
   "routes": [
     {
       "id": "ghost-article-001",

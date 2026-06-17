@@ -160,15 +160,25 @@ Nibgate use cases:
 
 ## Draft Build Plan
 
-### Phase 1: Local Panel and x402 Demo
+### Phase 1: Local site package and x402 demo
 
-- Keep `apps/panel` as the local creator control surface.
+- Keep the installable package as the creator-site runtime.
 - Add real x402 middleware for one protected article.
 - Add buyer/agent script that discovers price, pays, and fetches content.
-- Store payments in SQLite instead of memory.
 - Keep route config in `nibgate.config.json`.
+- Expose `/.well-known/nibgate.json` and site verification assets.
 
-### Phase 2: WordPress Adapter
+### Phase 2: Hub indexing and analytics
+
+- Create hub endpoints for:
+  - site connect
+  - site verify
+  - manifest sync
+  - event ingestion
+- Store site/resource metadata and aggregated stats in a durable hub store.
+- Show discovery and creator metrics in the public Nibgate app.
+
+### Phase 3: WordPress Adapter
 
 - Build a WordPress plugin that talks to the Nibgate app.
 - Plugin features:
@@ -178,14 +188,14 @@ Nibgate use cases:
   - Unlock button component.
   - Server-side callback to verify access.
 
-### Phase 3: Ghost Adapter
+### Phase 4: Ghost Adapter
 
 - Build a Ghost theme snippet and custom integration.
 - Use Ghost tags or metadata to mark paid articles.
 - Proxy protected post routes through Nibgate.
 - Add `.well-known/nibgate.json` for agent discovery.
 
-### Phase 4: Media Proof
+### Phase 5: Media Proof
 
 - Start with a simulated audio route.
 - Add listen-session lifecycle:
@@ -196,7 +206,7 @@ Nibgate use cases:
   - finalize payment
 - Then test against Navidrome or Jellyfin.
 
-### Phase 5: Agent Mode
+### Phase 6: Agent Mode
 
 - Add a machine-readable manifest:
   - resource id

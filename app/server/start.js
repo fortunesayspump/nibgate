@@ -9,7 +9,7 @@ export function startAppServer() {
   const { config, statePath } = loadConfig();
   const port = Number(process.env.PORT || 3000);
 
-  return createApp(config, { statePath }).then((app) => app.listen(port, () => {
+  return createApp(config, { statePath, loadLiveConfig: () => loadConfig().config }).then((app) => app.listen(port, () => {
     console.log(`Nibgate app running at http://localhost:${port}`);
   }));
 }

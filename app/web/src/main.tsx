@@ -42,6 +42,13 @@ type AppState = {
     buyerConfigured: boolean;
     buyerChain: string;
   };
+  hub: {
+    apiBaseUrl: string;
+    siteId: string;
+    verifyToken: string;
+    lastSyncAt: string;
+    lastEventAt: string;
+  };
   routes: RouteConfig[];
   payments: Payment[];
   totals: {
@@ -180,6 +187,16 @@ function App() {
             <p className="eyebrow">Protected surface</p>
             <h2>{routesByType.join(', ')}</h2>
             <p>{state.site.name}</p>
+          </article>
+          <article>
+            <p className="eyebrow">Hub connection</p>
+            <h2>{state.hub.siteId ? 'Connected' : 'Not connected'}</h2>
+            <p>{state.hub.siteId ? `Site ID: ${state.hub.siteId}` : 'Run `nibgate connect`, then `nibgate sync`, to publish this site into the hub.'}</p>
+          </article>
+          <article>
+            <p className="eyebrow">Hub sync</p>
+            <h2>{state.hub.lastSyncAt ? 'Synced' : 'Pending'}</h2>
+            <p>{state.hub.lastSyncAt ? `Last sync: ${new Date(state.hub.lastSyncAt).toLocaleString()}` : state.hub.apiBaseUrl}</p>
           </article>
         </section>
 

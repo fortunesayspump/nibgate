@@ -2,6 +2,11 @@
 
 Nibgate is a paid-access layer for the open web.
 
+The product has two connected halves:
+
+- the `nibgate` package that creators install on their own site
+- the Nibgate hub app at `nibgate.xyz` that indexes published resources and displays discovery, views, unlocks, revenue, and performance
+
 The product now has three clear parts:
 
 - `app/` - the public site and the main Nibgate web product
@@ -43,6 +48,7 @@ The CLI owns:
 - route protection and gateway logic
 - x402 and Circle Gateway integration
 - local buyer balance/deposit helpers
+- hub connection, manifest publishing, site verification, and event signing
 
 ### `demo-projects/`
 
@@ -78,6 +84,12 @@ During local development:
 
 ```bash
 npm run routes
+npx nibgate manifest
+npx nibgate status
+npx nibgate connect
+npx nibgate sync
+npx nibgate verify
+npx nibgate event resource_view premium-article
 npx nibgate balance
 npx nibgate deposit 1.0
 ```
@@ -89,6 +101,57 @@ npx nibgate init
 npx nibgate dev
 npx nibgate routes
 ```
+
+## Package to Hub Flow
+
+When a creator installs `nibgate` on their own site, the package is responsible for:
+
+1. exposing `/.well-known/nibgate.json`
+2. exposing `/.well-known/nibgate-verify.txt`
+3. protecting paid routes locally
+4. optionally sending signed events to the hub
+
+The hub is responsible for:
+
+1. registering the site
+2. verifying domain ownership
+3. fetching and indexing resource metadata
+4. ingesting events for views, unlocks, revenue, and performance
+
+In other words, the creator keeps the real content and payment enforcement on their own domain, while the hub stores only the metadata and aggregates needed for discovery and analytics.
+
+### Local Connect Flow
+
+```bash
+npx nibgate init
+npx nibgate connect
+npx nibgate sync
+npx nibgate verify
+```
+
+After that, the local site exposes:
+
+- `/.well-known/nibgate.json`
+- `/.well-known/nibgate-verify.txt`
+- `/api/nibgate/status`
+
+And the local or hosted hub exposes:
+
+- `POST /api/hub/sites/connect`
+- `POST /api/hub/sites/sync`
+- `POST /api/hub/sites/verify`
+- `POST /api/hub/events`
+- `GET /api/hub/summary`
+
+## Storage Model
+
+Right now the repo includes a file-backed demo hub store for development.
+
+- creator content still lives on the creator site
+- public resource metadata can be fetched live from creator manifests
+- hub-side stats and connection records are stored locally in `.nibgate/hub.json`
+
+For production `nibgate.xyz`, durable analytics and verification history will need a proper external store such as Postgres, Supabase, or another hosted database/KV layer. That is the honest version if the public hub is meant to persist views, unlocks, revenue, and site registrations.
 
 ## Live Payment Mode
 

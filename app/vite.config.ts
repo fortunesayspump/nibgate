@@ -3,5 +3,9 @@ import webConfig from './web/vite.config';
 
 export default defineConfig({
   ...webConfig,
-  root: './web'
+  root: './web',
+  build: {
+    ...webConfig.build,
+    outDir: '../dist'
+  }
 });

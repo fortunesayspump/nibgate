@@ -15,7 +15,7 @@ export async function createApp(config, options = {}) {
   const gateway = createGateway(config, store);
   const circleGateway = await createCircleGatewayMiddleware(gateway.paymentProvider);
   const gatewayBuyer = await createGatewayBuyer(gateway.paymentProvider);
-  const appDist = path.join(rootDir, 'app', 'web', 'dist');
+  const appDist = resolveAppDist();
   const webAssets = resolveWebAssets(appDist);
 
   app.use(express.json());
@@ -49,6 +49,15 @@ export async function createApp(config, options = {}) {
         cssHref: '/assets/styles.css'
       };
     }
+  }
+
+  function resolveAppDist() {
+    const preferredDist = path.join(rootDir, 'app', 'dist');
+    if (fs.existsSync(path.join(preferredDist, 'index.html'))) {
+      return preferredDist;
+    }
+
+    return path.join(rootDir, 'app', 'web', 'dist');
   }
 
   app.get('/api/app/state', (_req, res) => {

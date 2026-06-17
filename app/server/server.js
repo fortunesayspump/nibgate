@@ -8,6 +8,7 @@ import { createGateway } from '../../cli/packages/core/gateway.js';
 import { createCircleGatewayMiddleware, createGatewayBuyer } from '../../cli/packages/core/payments.js';
 import { createStateStore } from '../../cli/packages/core/state.js';
 import { articlePage, audioPage, protectedRoutePage } from './demo/views.js';
+import { createAppState } from './app-state.js';
 import { marketingPage } from './marketing.js';
 
 export async function createApp(config, options = {}) {
@@ -62,28 +63,7 @@ export async function createApp(config, options = {}) {
   }
 
   app.get('/api/app/state', (_req, res) => {
-    res.json({
-      site: {
-        name: config.site.name,
-        origin: config.site.origin,
-        platformFeeBps: config.site.platformFeeBps
-      },
-      provider: {
-        mode: gateway.paymentProvider.mode,
-        displayName: gateway.paymentProvider.displayName,
-        sellerAddress: gateway.paymentProvider.sellerAddress,
-        networks: gateway.paymentProvider.networks,
-        facilitatorUrl: gateway.paymentProvider.facilitatorUrl,
-        buyerConfigured: gateway.paymentProvider.buyerConfigured,
-        buyerChain: gateway.paymentProvider.buyerChain
-      },
-      routes: config.routes,
-      payments: store.listPayments(),
-      totals: {
-        unlocks: store.listUnlocks().length,
-        earnings: gateway.totalEarnings()
-      }
-    });
+    res.json(createAppState(config, store));
   });
 
   app.get('/', (_req, res) => {

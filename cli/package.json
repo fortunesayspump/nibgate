@@ -1,0 +1,21 @@
+{
+  "name": "nibgate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nibgate CLI and gateway runtime for x402 nanopayments on sites, media, APIs, and agent-readable content.",
+  "type": "module",
+  "bin": {
+    "nibgate": "./bin/nibgate.js"
+  },
+  "scripts": {
+    "dev": "node bin/nibgate.js dev",
+    "routes": "node bin/nibgate.js routes"
+  },
+  "dependencies": {
+    "@circle-fin/x402-batching": "^3.0.4",
+    "@x402/core": "^2.15.0",
+    "@x402/evm": "^2.15.0",
+    "nanoid": "^5.1.5",
+    "viem": "^2.52.2"
+  }
+}

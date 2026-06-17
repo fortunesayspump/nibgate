@@ -1,0 +1,77 @@
+{
+  "site": {
+    "name": "Nibgate Demo Journal",
+    "origin": "http://localhost:3000",
+    "creatorWallet": "arc_testnet:creator_9x7u_demo_wallet",
+    "platformFeeBps": 600
+  },
+  "payments": {
+    "mode": "demo",
+    "sellerAddress": "",
+    "facilitatorUrl": "https://gateway-api-testnet.circle.com",
+    "networks": ["eip155:5042002"]
+  },
+  "routes": [
+    {
+      "id": "ghost-article-001",
+      "path": "/demo/ghost/the-agent-economy",
+      "originUrl": "http://localhost:4100/articles/premium-agent-economy",
+      "title": "The Agent Economy Needs Native Payments",
+      "type": "article",
+      "price": "0.005",
+      "agentPrice": "0.001",
+      "currency": "USDC",
+      "network": "arc-testnet",
+      "license": "Paid personal read access with citation allowed after unlock.",
+      "splits": [
+        {
+          "label": "Author",
+          "wallet": "arc_testnet:author_wallet_demo",
+          "bps": 8800
+        },
+        {
+          "label": "Editor",
+          "wallet": "arc_testnet:editor_wallet_demo",
+          "bps": 600
+        }
+      ]
+    },
+    {
+      "id": "demo-blog-premium-001",
+      "path": "/protected/demo-blog/premium-agent-economy",
+      "originUrl": "http://localhost:4100/articles/premium-agent-economy",
+      "title": "Premium Agent Economy",
+      "type": "article",
+      "price": "0.005",
+      "agentPrice": "0.001",
+      "currency": "USDC",
+      "network": "arc-testnet",
+      "license": "Paid read access with citation allowed after unlock.",
+      "splits": [
+        {
+          "label": "Demo Author",
+          "wallet": "arc_testnet:demo_author_wallet",
+          "bps": 9400
+        }
+      ]
+    },
+    {
+      "id": "navidrome-track-001",
+      "path": "/demo/audio/midnight-protocol",
+      "title": "Midnight Protocol",
+      "type": "audio",
+      "price": "0.001",
+      "unit": "minute",
+      "currency": "USDC",
+      "network": "arc-testnet",
+      "license": "Paid streaming access while metered session is active.",
+      "splits": [
+        {
+          "label": "Artist",
+          "wallet": "arc_testnet:artist_wallet_demo",
+          "bps": 9400
+        }
+      ]
+    }
+  ]
+}

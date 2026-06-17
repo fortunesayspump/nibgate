@@ -1,0 +1,24 @@
+{
+  "name": "@nibgate/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "app": "node server/start.js",
+    "web": "vite --host 0.0.0.0 --port 5173 web",
+    "web:build": "vite build web"
+  },
+  "dependencies": {
+    "@circle-fin/x402-batching": "^3.0.4",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "viem": "^2.52.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16"
+  }
+}

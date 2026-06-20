@@ -1,10 +1,9 @@
-import path from 'node:path';
-import { buildSiteManifest, buildVerificationFile } from '../../../cli/packages/core/hub.js';
+import { buildSiteManifest, buildVerificationFile } from '../../../packages/cli/src/core/hub.js';
 import { createAppState } from '../app-state.js';
-import { marketingPage } from '../marketing.js';
+import { marketingPage, marketingRoutePage } from '../marketing.js';
 
 export function registerAppRoutes(app, context) {
-  const { store, appDist, webAssets, getConfig } = context;
+  const { store, webAssets, getConfig } = context;
 
   app.get('/api/app/state', (_req, res) => {
     res.json(createAppState(getConfig(), store));
@@ -14,24 +13,14 @@ export function registerAppRoutes(app, context) {
     res.send(marketingPage({ cssHref: webAssets.cssHref }));
   });
 
-  app.get('/app', (_req, res) => {
-    if (process.env.NIBGATE_PANEL_DEV === 'true') {
-      return res.type('html').send(`<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nibgate App</title>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="http://localhost:5173/@vite/client"></script>
-  <script type="module" src="http://localhost:5173/src/main.tsx"></script>
-</body>
-</html>`);
-    }
+  app.get('/about', (_req, res) => {
+    res.send(marketingPage({ cssHref: webAssets.cssHref, activePath: '/about' }));
+  });
 
-    return res.sendFile(path.join(appDist, 'index.html'));
+  app.get(['/blog', '/features', '/get-started'], (req, res) => {
+    const page = marketingRoutePage({ cssHref: webAssets.cssHref, path: req.path });
+    if (!page) return res.status(404).send('Not found');
+    return res.send(page);
   });
 
   app.get('/.well-known/nibgate.json', (_req, res) => {

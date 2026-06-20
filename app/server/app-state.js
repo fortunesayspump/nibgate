@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { loadConfig, rootDir } from '../../cli/packages/core/config.js';
-import { createGateway } from '../../cli/packages/core/gateway.js';
-import { createStateStore } from '../../cli/packages/core/state.js';
+import { loadConfig, rootDir } from '../../packages/cli/src/core/config.js';
+import { createGateway } from '../../packages/cli/src/core/gateway.js';
+import { createStateStore } from '../../packages/cli/src/core/state.js';
 
 export function createAppState(config, store) {
   const gateway = createGateway(config, store);

@@ -1,14 +1,14 @@
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import path from 'node:path';
-import { rootDir } from '../../cli/packages/core/config.js';
-import { createGateway } from '../../cli/packages/core/gateway.js';
-import { createCircleGatewayMiddleware, createGatewayBuyer } from '../../cli/packages/core/payments.js';
-import { createStateStore } from '../../cli/packages/core/state.js';
+import { rootDir } from '../../packages/cli/src/core/config.js';
+import { createGateway } from '../../packages/cli/src/core/gateway.js';
+import { createCircleGatewayMiddleware, createGatewayBuyer } from '../../packages/cli/src/core/payments.js';
+import { createStateStore } from '../../packages/cli/src/core/state.js';
 import { createHubEventForwarder } from './hub-events.js';
+import { registerExampleRoutes } from './routes/example-routes.js';
 import { registerAppRoutes } from './routes/app-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
-import { registerDemoRoutes } from './routes/demo-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
 import { createConfigResolver, resolveAppDist, resolveWebAssets } from './runtime.js';
 
@@ -27,6 +27,8 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use('/assets', express.static(path.join(appDist, 'assets')));
+  app.use('/fonts', express.static(path.join(appDist, 'fonts')));
+  app.use('/images', express.static(path.join(appDist, 'images')));
 
   const context = {
     store,
@@ -42,7 +44,7 @@ export async function createApp(config, options = {}) {
   registerHubRoutes(app);
   registerAppRoutes(app, context);
   registerContentRoutes(app, context);
-  registerDemoRoutes(app, context);
+  registerExampleRoutes(app, context);
 
   return app;
 }

@@ -78,10 +78,10 @@ These are intentionally small and metadata-oriented. They should describe what h
 
 This repo now includes:
 
-- shared manifest and signing helpers in `cli/packages/core/hub.js`
+- shared manifest and signing helpers in `packages/cli/src/core/hub.js`
 - local creator-site manifest and verification endpoints in the app runtime
 - hub API endpoints for connect, sync, verify, and event ingestion
-- a file-backed demo hub store for development
+- a file-backed local hub store for development
 
 ## Production note
 

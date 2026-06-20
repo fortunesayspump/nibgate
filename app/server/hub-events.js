@@ -1,4 +1,4 @@
-import { emitEventToHub } from '../../cli/packages/core/hub.js';
+import { emitEventToHub } from '../../packages/cli/src/core/hub.js';
 
 export function createHubEventForwarder(getConfig) {
   return async function forwardHubEvent(event) {

@@ -2,20 +2,22 @@
   "name": "nibgate-workspace",
   "version": "0.1.0",
   "private": true,
-  "description": "Workspace for the Nibgate app, CLI, and demo projects.",
+  "description": "Workspace for the Nibgate app, CLI package, and example origin sites.",
   "type": "module",
   "workspaces": [
     "app",
-    "cli",
-    "demo-projects/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
-    "dev:cli": "npm --workspace cli run dev",
+    "dev:cli": "npm --workspace nibgate run dev",
     "dev:app": "npm run build:app && npm --workspace app run app",
     "dev:app:api": "npm --workspace app run app",
+    "dev:explore": "npm run build:app && npm --workspace app run explore",
+    "dev:explore:api": "npm --workspace app run explore",
     "dev:app:web": "npm --workspace app run web",
-    "dev:demo:blog": "npm --workspace @nibgate/demo-blog run dev",
+    "dev:example:blog": "npm --workspace @nibgate/example-blog run dev",
     "build:app": "npm --workspace app run web:build",
-    "routes": "npm --workspace cli run routes"
+    "routes": "npm --workspace nibgate run routes"
   }
 }

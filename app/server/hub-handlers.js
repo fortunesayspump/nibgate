@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { createHubStore } from './hub-store.js';
-import { verifySignedEnvelope } from '../../cli/packages/core/hub.js';
+import { verifySignedEnvelope } from '../../packages/cli/src/core/hub.js';
 
 function badRequest(message, status = 400) {
   return { status, body: { error: message } };

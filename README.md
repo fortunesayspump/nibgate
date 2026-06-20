@@ -2,57 +2,43 @@
 
 Nibgate is a paid-access layer for the open web.
 
-The product has two connected halves:
-
-- the `nibgate` package that creators install on their own site
-- the Nibgate hub app at `nibgate.xyz` that indexes published resources and displays discovery, views, unlocks, revenue, and performance
-
-The product now has three clear parts:
-
-- `app/` - the public site and the main Nibgate web product
-- `cli/` - the installable CLI and gateway runtime
-- `demo-projects/` - example origin sites used for testing
+Creators install the `nibgate` package on their own site. `nibgate.xyz` is the main product site, and `/explore` is the public network surface for exploration, publishing, analytics, and onboarding.
 
 ## Repo Layout
 
 ```txt
-app/            Nibgate web app
-cli/            npm package, gateway runtime, shared core
-demo-projects/  sample origin apps
-docs/           notes and architecture docs
+app/          deployable web product and hub API
+packages/     publishable npm packages
+examples/     local origin sites used for integration testing
+docs/         architecture and build notes
+ideas/        product thinking and planning
 ```
 
-## What Lives Where
+## Workspace Shape
 
 ### `app/`
 
-The app is both the public site and the product surface we are growing into:
+The app is the single deployable product:
 
-- discovery
-- onboarding
-- paid resource presentation
-- reader and creator experience
+- `/` public marketing and product entry
+- `/explore` creator and public network surface
+- `/api/hub/*` hub connection, sync, verification, and event ingestion
+- paid example routes for local testing
 
-Right now it hosts:
+### `packages/cli/`
 
-- `/` for the public landing page
-- `/app` for the operational app UI
-- demo routes and the main local runtime at `http://localhost:3000`
-
-### `cli/`
-
-The CLI owns:
+The CLI package owns:
 
 - `npx nibgate`
 - config generation
 - route protection and gateway logic
 - x402 and Circle Gateway integration
-- local buyer balance/deposit helpers
-- hub connection, manifest publishing, site verification, and event signing
+- manifest generation
+- hub connection, sync, verification, and signed events
 
-### `demo-projects/`
+### `examples/`
 
-These are disposable example origin apps, not product code.
+These are origin apps that simulate creator-owned sites. They exist to validate the install flow and protected content flow without polluting product code.
 
 ## Run
 
@@ -62,25 +48,27 @@ Install once:
 npm install
 ```
 
-Run the app:
+Start the app:
 
 ```bash
 npm run dev:app
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-Run the demo blog:
+Start the example origin:
 
 ```bash
-npm run dev:demo:blog
+npm run dev:example:blog
 ```
 
-Open [http://localhost:4100](http://localhost:4100).
+Open:
+
+- [http://localhost:3000](http://localhost:3000)
+- [http://localhost:3000/explore](http://localhost:3000/explore)
+- [http://localhost:4100](http://localhost:4100)
 
 ## CLI
 
-During local development:
+Useful local commands:
 
 ```bash
 npm run routes
@@ -94,7 +82,7 @@ npx nibgate balance
 npx nibgate deposit 1.0
 ```
 
-Packaged shape:
+Package-facing shape:
 
 ```bash
 npx nibgate init
@@ -102,13 +90,13 @@ npx nibgate dev
 npx nibgate routes
 ```
 
-## Package to Hub Flow
+## Product Flow
 
 When a creator installs `nibgate` on their own site, the package is responsible for:
 
 1. exposing `/.well-known/nibgate.json`
 2. exposing `/.well-known/nibgate-verify.txt`
-3. protecting paid routes locally
+3. protecting paid routes on the origin
 4. optionally sending signed events to the hub
 
 The hub is responsible for:
@@ -118,9 +106,9 @@ The hub is responsible for:
 3. fetching and indexing resource metadata
 4. ingesting events for views, unlocks, revenue, and performance
 
-In other words, the creator keeps the real content and payment enforcement on their own domain, while the hub stores only the metadata and aggregates needed for discovery and analytics.
+That keeps real content and enforcement on the creator domain while the hub stores only the metadata and aggregates needed for discovery and analytics.
 
-### Local Connect Flow
+## Local Connect Flow
 
 ```bash
 npx nibgate init
@@ -129,13 +117,13 @@ npx nibgate sync
 npx nibgate verify
 ```
 
-After that, the local site exposes:
+Local site endpoints:
 
 - `/.well-known/nibgate.json`
 - `/.well-known/nibgate-verify.txt`
 - `/api/nibgate/status`
 
-And the local or hosted hub exposes:
+Hub endpoints:
 
 - `POST /api/hub/sites/connect`
 - `POST /api/hub/sites/sync`
@@ -145,17 +133,17 @@ And the local or hosted hub exposes:
 
 ## Storage Model
 
-Right now the repo includes a file-backed demo hub store for development.
+The current hub store is file-backed for development:
 
 - creator content still lives on the creator site
-- public resource metadata can be fetched live from creator manifests
-- hub-side stats and connection records are stored locally in `.nibgate/hub.json`
+- resource metadata can be fetched live from creator manifests
+- local stats and connection records are stored in `.nibgate/hub.json`
 
-For production `nibgate.xyz`, durable analytics and verification history will need a proper external store such as Postgres, Supabase, or another hosted database/KV layer. That is the honest version if the public hub is meant to persist views, unlocks, revenue, and site registrations.
+For production `nibgate.xyz`, durable analytics and verification history still need a real external store such as Postgres, Supabase, or another hosted database/KV layer.
 
-## Live Payment Mode
+## Payments
 
-Demo mode is the default:
+Example mode is the default:
 
 ```bash
 NIBGATE_PAYMENT_MODE=demo npm run dev:app
@@ -171,7 +159,7 @@ NIBGATE_BUYER_CHAIN=arcTestnet \
 npm run dev:app
 ```
 
-To inspect or top up Gateway balance:
+Gateway balance helpers:
 
 ```bash
 NIBGATE_PAYMENT_MODE=circle-gateway \
@@ -185,11 +173,11 @@ NIBGATE_BUYER_CHAIN=arcTestnet \
 npx nibgate deposit 1.0
 ```
 
-## Current Demo URLs
+## Local URLs
 
 - Home: `http://localhost:3000`
-- App: `http://localhost:3000/app`
-- Demo article: `http://localhost:3000/demo/ghost/the-agent-economy`
-- Protected demo route: `http://localhost:3000/protected/demo-blog/premium-agent-economy`
-- Demo blog origin: `http://localhost:4100`
+- Explore: `http://localhost:3000/explore`
+- Example article: `http://localhost:3000/demo/ghost/the-agent-economy`
+- Protected example route: `http://localhost:3000/protected/demo-blog/premium-agent-economy`
+- Example origin: `http://localhost:4100`
 - Agent manifest: `http://localhost:3000/.well-known/nibgate.json`

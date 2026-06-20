@@ -1,4 +1,4 @@
-import { unlockedContent } from '../../../cli/packages/core/content.js';
+import { unlockedContent } from '../../../packages/cli/src/core/content.js';
 import { unlockEventPayloads } from '../hub-events.js';
 
 function setUnlockCookie(res, routeId, token) {
@@ -32,7 +32,7 @@ export function registerContentRoutes(app, context) {
       if (!gatewayBuyer) {
         return res.status(503).json({
           error: 'Live buyer is not configured',
-          detail: 'Set NIBGATE_BUYER_PRIVATE_KEY to enable the real browser demo unlock flow.'
+          detail: 'Set NIBGATE_BUYER_PRIVATE_KEY to enable the real browser unlock flow.'
         });
       }
 

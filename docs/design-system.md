@@ -316,8 +316,8 @@ Nibgate is one web product, not separate public and app sites:
 
 - `/` is the public homepage.
 - `/explore` is the public network and product surface.
-- `/signin` is the shared account doorway for creators and operators.
-- The home page can show `Sign in` and `Start selling` because they point into the product flow, not because home itself has a separate account system.
+- `/signin` is the shared wallet connection doorway for creators and operators.
+- The home page can show `Connect wallet` and `Connect site` because those point into the product flow, not because home itself has a separate email/password account system.
 
 Explore code should remain segregated under `app/explore/`, but routes should mount under the main app server so local and production URLs match.
 

@@ -85,7 +85,7 @@ export function featuresRouteContent() {
   <div class="override hidden relative mx-auto h-96 w-full max-w-6xl overflow-hidden bg-pink p-8 rounded-full border lg:block">
     <div class="relative z-10 flex h-full flex-col justify-between border border-black bg-pink rounded-full px-8">
       <div class="-mt-3 justify-between px-32 flex">
-        ${['Open Account', 'Add Product', 'Start Selling']
+        ${['Connect Wallet', 'Connect Site', 'Publish Route']
           .map((label) => `<div class="flex h-6 items-center bg-pink pr-6 gap-x-3"><img class="h-6 w-6 -translate-x-3 -translate-y-px" src="${featureAsset('arrowhead-right.svg')}" /><div class="text-xl xl:text-2xl">${label}</div></div>`)
           .join('')}
       </div>
@@ -133,10 +133,10 @@ ${splitBand({
 <div class="relative overflow-hidden">
   <div class="flex transition-transform duration-300 ease-in-out">
     ${[
-      ['motionbynick.png', 'motionbynick', 'I like to move fast and test new ideas. Nibgate lets me experiment without managing a complicated store.', 'Nick sells motion design tutorials'],
-      ['stephsmithio.png', 'stephsmithio', 'Nibgate lets creators be creators. It handles unlocks, visibility, and payment flow so you can stick to what you know best.', 'Steph sells informational courses'],
-      ['dvassallo.png', 'dvassallo', 'I upload the work, set a price, and start selling on the internet. The product stays simple.', 'Daniel sells entrepreneurial courses and tools'],
-      ['boringbotlab.png', 'boringbotlab', 'Nibgate makes it easier to sell digital products online and gives sellers the surface they need to grow.', 'Setu sells Cinema4D material packs']
+      ['motionbynick.png', 'motionbynick', 'I like to move fast and test new ideas. Nibgate lets me experiment without managing a complicated store.', 'Nick publishes motion design tutorials'],
+      ['stephsmithio.png', 'stephsmithio', 'Nibgate lets creators be creators. It handles unlocks, visibility, and payment flow so you can stick to what you know best.', 'Steph publishes informational courses'],
+      ['dvassallo.png', 'dvassallo', 'I upload the work, set a price, and let wallets unlock it from my site. The product stays simple.', 'Daniel publishes entrepreneurial courses and tools'],
+      ['boringbotlab.png', 'boringbotlab', 'Nibgate makes it easier to publish digital products online and gives creators the surface they need to grow.', 'Setu publishes Cinema4D material packs']
     ].map(([image, handle, quote, caption]) => creatorSlide({ image, handle, quote, caption })).join('')}
   </div>
 </div>
@@ -144,7 +144,7 @@ ${splitBand({
 ${featureIntro({
   eyebrow: 'Payment Integrations',
   title: 'Money, incoming',
-  copy: "Once you get set up, it's easy to ring the register. Here's how you can sell and get paid, fast."
+  copy: "Once your wallet and site are connected, paid routes can unlock with normal crypto-native checkout."
 })}
 
 ${splitBand({
@@ -178,8 +178,8 @@ ${splitBand({
   titleColor: 'text-purple',
   border: 'border-y',
   textItems: [
-    ['Generate access', 'Selling software or private routes? Nibgate can protect what buyers unlock.'],
-    ['Sell multiple versions', 'Offer different paid formats, tiers, or route bundles.'],
+    ['Generate access', 'Publishing software or private routes? Nibgate can protect what buyers unlock.'],
+    ['Offer multiple versions', 'Offer different paid formats, tiers, or route bundles.'],
     ['Protect your work', 'Keep paid content behind a real unlock flow and make access auditable.']
   ]
 })}
@@ -187,7 +187,7 @@ ${splitBand({
 ${featureIntro({
   eyebrow: 'Comprehensive Platform',
   title: 'From start to finesse',
-  copy: 'A package, app, examples, and discovery layer so you can start selling in seconds.'
+  copy: 'A package, app, examples, and discovery layer so you can connect a wallet and publish paid routes quickly.'
 })}
 
 ${splitBand({
@@ -198,7 +198,7 @@ ${splitBand({
   extras: `<img alt="Easy sticker with handwritten text" class="absolute -right-10 -top-10 w-32 transform-gpu md:w-36" data-parallax="true" src="${featureAsset('easy.svg')}" /><img alt="Decorative price tag sticker" class="absolute -bottom-10 -left-10 w-40 transform-gpu md:w-48" data-parallax="true" src="${featureAsset('price-tag.svg')}" />`,
   textItems: [
     ['Tools to get going fast', 'Create paid routes quickly or embed the Nibgate package onto an existing site.'],
-    ['Sell anything', "We don't limit your ideas. Articles, files, tools, APIs, or memberships can all fit."],
+    ['Publish anything', "We don't limit your ideas. Articles, files, tools, APIs, or memberships can all fit."],
     ['Bring your friends', 'Route your existing audience to a familiar domain and let the hub amplify what is public.']
   ]
 })}
@@ -221,7 +221,7 @@ ${splitBand({
   <h2 class="text-4xl font-medium sm:text-5xl lg:text-7xl">
     Share your work. <br> Someone out there needs it.
   </h2>
-  ${offsetAnchor('Start selling')}
+  ${offsetAnchor('Connect your site', '/get-started')}
 </div>`;
 }
 
@@ -274,22 +274,22 @@ export function signinRouteContent() {
   return `<section class="bg-gray px-8 py-20 md:py-28 lg:px-[4vw]">
   <div class="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
     <div class="space-y-8">
-      <div class="text-xl font-medium">Nibgate account</div>
-      <h1 class="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Sign in to manage what people unlock.</h1>
-      <p class="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Creator accounts will connect your site manifest, Arc testnet payment setup, route analytics, and Explore presence in one place.</p>
+      <div class="text-xl font-medium">Wallet identity</div>
+      <h1 class="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Connect a wallet to manage what people unlock.</h1>
+      <p class="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate will use your wallet as the creator identity for site manifests, Arc testnet payment setup, route analytics, and Explore presence.</p>
       <div class="flex flex-wrap gap-4">
-        <a href="/get-started" class="nibgate-soft-cta">Set up your site</a>
+        <a href="/get-started" class="nibgate-soft-cta">Connect your site</a>
         <a href="/explore" class="nibgate-soft-cta nibgate-soft-cta-secondary">Browse Explore</a>
       </div>
     </div>
     <div class="nibgate-signin-panel bg-black p-6 text-white md:p-8">
       <div class="nibgate-signin-panel-inner space-y-5 bg-white/10 p-6">
-        <div>
-          <label class="mb-2 block text-sm font-medium uppercase tracking-[0.08em]" for="signin-email">Email</label>
-          <input id="signin-email" class="nibgate-signin-input w-full border-0 bg-white px-4 py-4 text-lg text-black" type="email" placeholder="you@example.com" />
+        <div class="space-y-2">
+          <p class="text-sm font-medium uppercase tracking-[0.08em] text-white/70">Creator wallet</p>
+          <p class="text-xl leading-8">Connect the wallet that should own your Nibgate creator profile.</p>
         </div>
-        <button class="nibgate-signin-button w-full bg-[var(--nib-olive)] px-5 py-4 text-lg font-medium text-black" type="button">Continue</button>
-        <p class="text-sm leading-6 text-white/70">Account auth is the next product layer. For now, install the package and run the Arc testnet demo locally.</p>
+        <button class="nibgate-signin-button w-full bg-[var(--nib-olive)] px-5 py-4 text-lg font-medium text-black" type="button" data-wallet-connect>Connect wallet</button>
+        <p class="text-sm leading-6 text-white/70" data-wallet-status>Use a wallet-enabled browser. Full creator dashboard actions will unlock after wallet identity is connected.</p>
       </div>
     </div>
   </div>

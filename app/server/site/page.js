@@ -33,9 +33,9 @@ export function sitePage({ cssHref, activePath = '/' } = {}) {
   return renderSiteDocument({
     cssHref,
     activePath,
-    title: 'Nibgate - earn from gated content',
+    title: 'Nibgate - wallet-native paid content',
     description:
-      'Nibgate helps creators sell gated content from their own websites and publish paid routes into a public discovery hub.',
+      'Nibgate helps creators publish wallet-unlocked content from their own websites and surface paid routes in public discovery.',
     content: homepageContent()
   });
 }
@@ -146,6 +146,36 @@ function renderSiteDocument({ cssHref, activePath, title, description, content }
               }, 1200);
             } catch (error) {
               snippet.classList.remove('has-copied');
+            }
+          });
+        });
+
+        document.querySelectorAll('[data-wallet-connect]').forEach(function(button) {
+          button.addEventListener('click', async function() {
+            const status = document.querySelector('[data-wallet-status]');
+            const provider = window.ethereum;
+
+            if (!provider?.request) {
+              if (status) status.textContent = 'No browser wallet found. Open Nibgate in a wallet-enabled browser to connect.';
+              return;
+            }
+
+            button.setAttribute('disabled', 'true');
+            const previousLabel = button.textContent;
+            button.textContent = 'Connecting...';
+            if (status) status.textContent = 'Approve the wallet connection request.';
+
+            try {
+              const accounts = await provider.request({ method: 'eth_requestAccounts' });
+              const account = Array.isArray(accounts) ? String(accounts[0] || '') : '';
+              if (!account) throw new Error('No wallet account was returned.');
+              const compact = account.length > 12 ? account.slice(0, 6) + '...' + account.slice(-4) : account;
+              button.textContent = compact;
+              if (status) status.textContent = 'Wallet connected. Creator setup will use this address as your Nibgate identity.';
+            } catch (error) {
+              button.textContent = previousLabel;
+              button.removeAttribute('disabled');
+              if (status) status.textContent = error?.message || 'Wallet connection was cancelled.';
             }
           });
         });

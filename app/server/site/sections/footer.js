@@ -147,8 +147,8 @@ export function footerSection({ siteOrigin = '', showThemeToggle = false } = {})
             <a class="footer__icon-link footer__icon-link--sponsor" href="${resolveHref('/get-started', siteOrigin)}">
               ${icon('money', 'footer__icon')}
               <div class="footer__icon-link-content">
-                <h2 class="footer__icon-link-heading">Start with Nibgate</h2>
-                <p class="mini-meta">Install the package, protect a route, and publish paid content from your own site.</p>
+                <h2 class="footer__icon-link-heading">Connect your site</h2>
+                <p class="mini-meta">Install the package, protect a route, and connect wallet-native paid content from your own site.</p>
               </div>
             </a>
           </li>

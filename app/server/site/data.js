@@ -13,7 +13,7 @@ export const siteRoutes = {
     eyebrow: 'Blog',
     heading: 'Notes on content, payments, and agent-native publishing.',
     copy:
-      'Product updates, implementation notes, and essays about selling digital work from your own domain.',
+      'Product updates, implementation notes, and essays about wallet-native paid work on your own domain.',
     cards: [
       ['Launching the hub', 'How installed widgets can make independent sites discoverable.'],
       ['x402 in normal UX', 'What a user should see when a paid route asks for a payment.'],
@@ -23,7 +23,7 @@ export const siteRoutes = {
   '/features': {
     title: 'Nibgate Features',
     eyebrow: 'Features',
-    heading: 'Everything needed to sell protected content from your own site.',
+    heading: 'Everything needed to unlock protected content from your own site.',
     copy:
       'Install the package, define paid routes, verify your site, and let the hub reflect what is live.',
     cards: [
@@ -35,21 +35,21 @@ export const siteRoutes = {
   '/get-started': {
     title: 'Get Started with Nibgate',
     eyebrow: 'Get started',
-    heading: 'Install Nibgate, protect a route, and publish your first paid resource.',
+    heading: 'Install Nibgate, connect your wallet, and publish your first paid route.',
     copy:
       'Start with the package, define the content you want to gate, then connect your site to the discovery layer when it is ready.',
     cards: [
       ['Install the package', 'Run npm install nibgate in the project that owns your content.'],
       ['Define paid routes', 'Choose writing, media, downloads, or agent-readable endpoints and set the price.'],
-      ['Go live', 'Publish from your own domain while Nibgate handles unlocks and discovery signals.']
+      ['Go live', 'Publish from your own domain while Nibgate handles wallet unlocks and discovery signals.']
     ]
   },
   '/signin': {
-    title: 'Sign in to Nibgate',
-    eyebrow: 'Sign in',
-    heading: 'Manage creator-owned paid content from one account.',
+    title: 'Connect wallet to Nibgate',
+    eyebrow: 'Connect wallet',
+    heading: 'Manage creator-owned paid routes from your wallet.',
     copy:
-      'Connect your site manifest, Arc testnet payment setup, route analytics, and Explore presence.'
+      'Connect your wallet, site manifest, Arc testnet payment setup, route analytics, and Explore presence.'
   }
 };
 
@@ -87,7 +87,7 @@ export const testimonials = [
     role: 'Sells content tutorials',
     image: 'steph-full.png',
     quote:
-      'For years, I had a goal to develop passive income streams, but struggled to make that a reality. Last year, I started selling informational products on Nibgate and since then have made $10k+ per month building products that I love.'
+      'For years, I had a goal to develop passive income streams, but struggled to make that a reality. Last year, I started publishing informational products on Nibgate and since then have made $10k+ per month building products that I love.'
   },
   {
     name: 'trendsvc',
@@ -101,6 +101,6 @@ export const testimonials = [
     role: 'Sells business insights and expertise',
     image: 'daniel-full.png',
     quote:
-      'I love Nibgate because it cannot be any simpler. I upload a file, set a price, and I can start selling on the internet. The money I make from my sales lands directly in my account.'
+      'I love Nibgate because it cannot be any simpler. I upload a file, set a price, and people unlock it from my site. The money I make from my paid routes lands directly in my wallet.'
   }
 ];

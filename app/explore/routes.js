@@ -11,7 +11,7 @@ export function createExploreRoutes(basePath = '/explore') {
     wishlists: route('/wishlists'),
     creators: route('/creators'),
     signin: '/signin',
-    startSelling: '/get-started'
+    connectSite: '/get-started'
   };
 }
 

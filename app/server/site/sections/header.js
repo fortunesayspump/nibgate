@@ -33,8 +33,8 @@ export function headerSection({ activePath = '/' } = {}) {
         <nav class="nibgate-header-nav nibgate-header-nav-desktop" aria-label="Primary navigation">
           ${navList(activePath)}
         </nav>
-        <a class="nibgate-header-login" href="/signin">Sign in</a>
-        <a class="nibgate-header-cta" href="/get-started">Start selling</a>
+        <a class="nibgate-header-login" href="/signin">Connect wallet</a>
+        <a class="nibgate-header-cta" href="/get-started">Connect site</a>
         <button class="nibgate-header-menu" type="button" data-toggle="mobile-menu" aria-label="Open menu" aria-expanded="false">
           <span data-menu-line="1"></span>
           <span data-menu-line="2"></span>
@@ -44,8 +44,8 @@ export function headerSection({ activePath = '/' } = {}) {
 
     <nav class="nibgate-header-mobile" id="mobile-menu" aria-label="Mobile navigation">
       ${navList(activePath)}
-      <a class="nibgate-header-mobile-login" href="/signin">Sign in</a>
-      <a class="nibgate-header-mobile-cta" href="/get-started">Start selling</a>
+      <a class="nibgate-header-mobile-login" href="/signin">Connect wallet</a>
+      <a class="nibgate-header-mobile-cta" href="/get-started">Connect site</a>
     </nav>
   </header>`;
 }

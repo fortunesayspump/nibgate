@@ -9,7 +9,7 @@
   "scripts": {
     "app": "node server/start.js",
     "web": "vite --config vite.config.ts --host 0.0.0.0 --port 5173",
-    "web:build": "vite build --config vite.config.ts"
+    "web:build": "vite build --config vite.config.ts && node scripts/generate-static-pages.js"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.0.4",

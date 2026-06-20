@@ -6,6 +6,7 @@ export default defineConfig({
   root: './web',
   build: {
     ...webConfig.build,
-    outDir: '../dist'
+    outDir: '../dist',
+    emptyOutDir: true
   }
 });

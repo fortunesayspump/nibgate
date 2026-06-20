@@ -3,7 +3,7 @@ import { featureSection } from './sections/features.js';
 import { footerSection } from './sections/footer.js';
 import { headerSection } from './sections/header.js';
 import { heroSection } from './sections/hero.js';
-import { blogRouteContent, featuresRouteContent, signinRouteContent } from './route-pages.js';
+import { blogRouteContent, featuresRouteContent, getStartedRouteContent, signinRouteContent } from './route-pages.js';
 
 function homepageContent() {
   return `${heroSection()}
@@ -17,6 +17,7 @@ export function siteRoutePage({ cssHref, path }) {
   const routeContent = {
     '/blog': blogRouteContent,
     '/features': featuresRouteContent,
+    '/get-started': getStartedRouteContent,
     '/signin': signinRouteContent
   }[path];
 

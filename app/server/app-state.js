@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { loadConfig, rootDir } from '../../packages/cli/src/core/config.js';
+import { loadConfig, rootDir, withConfigDefaults } from '../../packages/cli/src/core/config.js';
 import { createGateway } from '../../packages/cli/src/core/gateway.js';
 import { createStateStore } from '../../packages/cli/src/core/state.js';
 
@@ -38,7 +38,27 @@ export function createAppState(config, store) {
 }
 
 export function loadAppState() {
-  const { config, statePath } = loadConfig();
+  let config;
+  let statePath;
+
+  try {
+    ({ config, statePath } = loadConfig());
+  } catch {
+    config = withConfigDefaults({
+      site: {
+        name: 'Nibgate',
+        origin: process.env.NIBGATE_SITE_ORIGIN || 'https://nibgate.xyz'
+      },
+      payments: {
+        mode: 'demo',
+        sellerAddress: '',
+        facilitatorUrl: 'https://gateway-api-testnet.circle.com',
+        networks: ['eip155:5042002']
+      },
+      routes: []
+    });
+  }
+
   const store = createStateStore(statePath || path.join(rootDir, '.nibgate', 'state.json'));
   return createAppState(config, store);
 }

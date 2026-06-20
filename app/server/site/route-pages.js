@@ -270,6 +270,34 @@ export function blogRouteContent() {
 </section>`;
 }
 
+export function getStartedRouteContent() {
+  return `<section class="bg-gray px-8 py-20 md:py-28 lg:px-[4vw]">
+  <div class="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+    <div class="space-y-8">
+      <div class="text-xl font-medium">Connect your site</div>
+      <h1 class="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Install the package, protect a route, and publish to Explore.</h1>
+      <p class="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate starts on your own domain. Connect a wallet, expose a route manifest, and let people unlock paid content without moving your work into a marketplace.</p>
+      <div class="flex flex-wrap gap-4">
+        <a href="/signin" class="nibgate-soft-cta">Connect wallet</a>
+        <a href="/features" class="nibgate-soft-cta nibgate-soft-cta-secondary">View features</a>
+      </div>
+    </div>
+    <div class="grid gap-4">
+      ${[
+        ['1', 'Install Nibgate', 'Run npm install nibgate in the project that owns your content.'],
+        ['2', 'Define paid routes', 'Choose writing, media, downloads, or agent-readable endpoints and set the price.'],
+        ['3', 'Verify ownership', 'Publish the manifest and verification file from your own domain.'],
+        ['4', 'Appear in Explore', 'Send signed popularity and unlock events so the public hub can reflect what is live.']
+      ].map(([step, title, copy]) => `<article class="bg-white p-6 md:p-8">
+        <div class="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--nib-olive)] text-lg font-medium text-black">${step}</div>
+        <h2 class="mb-3 text-3xl font-medium md:text-4xl">${title}</h2>
+        <p class="text-lg leading-8">${copy}</p>
+      </article>`).join('')}
+    </div>
+  </div>
+</section>`;
+}
+
 export function signinRouteContent() {
   return `<section class="bg-gray px-8 py-20 md:py-28 lg:px-[4vw]">
   <div class="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">

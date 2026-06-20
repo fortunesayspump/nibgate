@@ -7,12 +7,14 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        app: path.resolve(__dirname, 'index.html'),
-        'unlock-client': path.resolve(__dirname, 'src/unlock-client.ts')
+        styles: path.resolve(__dirname, 'src/styles.css')
       },
       output: {
-        entryFileNames(chunkInfo) {
-          if (chunkInfo.name === 'unlock-client') return 'assets/unlock-client.js';
+        assetFileNames(assetInfo) {
+          if (assetInfo.name === 'styles.css') return 'assets/styles.css';
+          return 'assets/[name]-[hash][extname]';
+        },
+        entryFileNames() {
           return 'assets/[name]-[hash].js';
         }
       }

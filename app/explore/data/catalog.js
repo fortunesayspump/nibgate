@@ -10,7 +10,7 @@ export const categories = [
   ['Self Improvement', 'All Self Improvement', 'Fitness', 'Meditation', 'Productivity'],
   ['Software Development', 'All Software Development', 'Apps', 'Code', 'Programming'],
   ['Education', 'All Education', 'Courses', 'Workbooks', 'Certification Exams'],
-  ['Business & Money', 'All Business & Money', 'Investing', 'Marketing', 'Templates'],
+  ['Business & Money', 'All Business & Money', 'Investing', 'Growth', 'Templates'],
   ['More', 'Writing', 'Comics', 'Photography', 'Games']
 ];
 

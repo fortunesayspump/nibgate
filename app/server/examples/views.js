@@ -1,6 +1,6 @@
 import { escapeHtml } from '../../../packages/cli/src/shared/html.js';
 
-const exploreOrigin = process.env.EXPLORE_ORIGIN || 'http://localhost:3001';
+const exploreOrigin = '/explore';
 
 function shell({ title, body, active = 'demo', cssHref = '/assets/styles.css' }) {
   const unlockClientSrc = process.env.NIBGATE_PANEL_DEV === 'true'

@@ -1,7 +1,18 @@
-export const exploreRoutes = {
-  home: '/',
-  products: '/products',
-  categories: '/categories',
-  wishlists: '/wishlists',
-  creators: '/creators'
-};
+const trimTrailingSlash = (path) => (path.length > 1 ? path.replace(/\/+$/, '') : path);
+
+export function createExploreRoutes(basePath = '/explore') {
+  const base = trimTrailingSlash(basePath || '');
+  const route = (path = '') => `${base}${path}` || '/';
+
+  return {
+    home: route(''),
+    products: route('/products'),
+    categories: route('/categories'),
+    wishlists: route('/wishlists'),
+    creators: route('/creators'),
+    signin: '/signin',
+    startSelling: '/get-started'
+  };
+}
+
+export const exploreRoutes = createExploreRoutes();

@@ -79,15 +79,15 @@ function linkAttrs(href) {
     : '';
 }
 
-function resolveHref(href, marketingOrigin = '') {
-  if (!marketingOrigin || !href.startsWith('/')) return href;
-  return `${marketingOrigin.replace(/\/$/, '')}${href}`;
+function resolveHref(href, siteOrigin = '') {
+  if (!siteOrigin || !href.startsWith('/')) return href;
+  return `${siteOrigin.replace(/\/$/, '')}${href}`;
 }
 
-function menuColumn({ id, title, links }, marketingOrigin = '') {
+function menuColumn({ id, title, links }, siteOrigin = '') {
   const items = links
     .map(([label, href]) => {
-      const resolvedHref = resolveHref(href, marketingOrigin);
+      const resolvedHref = resolveHref(href, siteOrigin);
       return `<li class="footer-menu__item">
       <a class="footer-menu__link" href="${resolvedHref}"${linkAttrs(resolvedHref)}>${label}</a>
     </li>`;
@@ -131,12 +131,12 @@ function icon(id, className) {
   return `<svg class="${className}" aria-hidden="true"><use xlink:href="#${id}"></use></svg>`;
 }
 
-export function footerSection({ marketingOrigin = '', showThemeToggle = false } = {}) {
+export function footerSection({ siteOrigin = '', showThemeToggle = false } = {}) {
   return `<footer class="app__footer footer">
     ${footerSprite}
     <nav class="footer-menu" aria-label="Footer menu">
       <div class="footer-menu__grid grid">
-        ${footerMenus.map((menu) => menuColumn(menu, marketingOrigin)).join('')}
+        ${footerMenus.map((menu) => menuColumn(menu, siteOrigin)).join('')}
       </div>
     </nav>
 
@@ -144,7 +144,7 @@ export function footerSection({ marketingOrigin = '', showThemeToggle = false } 
       <div class="grid">
         <ul class="footer__links-wrap">
           <li class="footer__link-item">
-            <a class="footer__icon-link footer__icon-link--sponsor" href="${resolveHref('/get-started', marketingOrigin)}">
+            <a class="footer__icon-link footer__icon-link--sponsor" href="${resolveHref('/get-started', siteOrigin)}">
               ${icon('money', 'footer__icon')}
               <div class="footer__icon-link-content">
                 <h2 class="footer__icon-link-heading">Start with Nibgate</h2>

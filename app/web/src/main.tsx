@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const EXPLORE_ORIGIN = 'http://localhost:3001';
+const EXPLORE_PATH = '/explore';
 
 type RouteConfig = {
   id: string;
@@ -161,7 +161,7 @@ function App() {
         </div>
         <nav>
           <a href="/">Home</a>
-          <a className="active" href={EXPLORE_ORIGIN}>Explore</a>
+          <a className="active" href={EXPLORE_PATH}>Explore</a>
           <a href="/api/nibgate/status">Site Status</a>
           <a href="/.well-known/nibgate.json">Agent Metadata</a>
           <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle visual theme">
@@ -377,8 +377,8 @@ function App() {
         <div className="site-footer-inner">
           <a className="site-footer-wordmark" href="/">NIBGATE</a>
           <div className="site-footer-links">
-            <a href={EXPLORE_ORIGIN}>Explore</a>
-            <a href={`${EXPLORE_ORIGIN}/products`}>Products</a>
+            <a href={EXPLORE_PATH}>Explore</a>
+            <a href={`${EXPLORE_PATH}/products`}>Products</a>
             <a href="/.well-known/nibgate.json">Manifest</a>
             <a href="/api/nibgate/status">Status</a>
           </div>

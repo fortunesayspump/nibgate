@@ -20,7 +20,7 @@ ideas/        product thinking and planning
 
 The app is the single deployable product:
 
-- `/` public marketing and product entry
+- `/` public home and product entry
 - `/explore` creator and public network surface
 - `/api/hub/*` hub connection, sync, verification, and event ingestion
 - paid example routes for local testing

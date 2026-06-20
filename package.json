@@ -13,8 +13,6 @@
     "dev:cli": "npm --workspace nibgate run dev",
     "dev:app": "npm run build:app && npm --workspace app run app",
     "dev:app:api": "npm --workspace app run app",
-    "dev:explore": "npm run build:app && npm --workspace app run explore",
-    "dev:explore:api": "npm --workspace app run explore",
     "dev:app:web": "npm --workspace app run web",
     "dev:example:blog": "npm --workspace @nibgate/example-blog run dev",
     "build:app": "npm --workspace app run web:build",

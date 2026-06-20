@@ -1,4 +1,4 @@
-export const exploreOrigin = process.env.EXPLORE_ORIGIN || 'http://localhost:3001';
+export const exploreOrigin = '/explore';
 
 export const navItems = [
   ['Explore', exploreOrigin],
@@ -7,7 +7,7 @@ export const navItems = [
   ['About', '/about']
 ];
 
-export const marketingRoutes = {
+export const siteRoutes = {
   '/blog': {
     title: 'Nibgate Blog',
     eyebrow: 'Blog',
@@ -43,6 +43,13 @@ export const marketingRoutes = {
       ['Define paid routes', 'Choose writing, media, downloads, or agent-readable endpoints and set the price.'],
       ['Go live', 'Publish from your own domain while Nibgate handles unlocks and discovery signals.']
     ]
+  },
+  '/signin': {
+    title: 'Sign in to Nibgate',
+    eyebrow: 'Sign in',
+    heading: 'Manage creator-owned paid content from one account.',
+    copy:
+      'Connect your site manifest, Arc testnet payment setup, route analytics, and Explore presence.'
   }
 };
 

@@ -1,31 +1,26 @@
-import { marketingRoutes } from './data.js';
+import { siteRoutes } from './data.js';
 import { featureSection } from './sections/features.js';
 import { footerSection } from './sections/footer.js';
 import { headerSection } from './sections/header.js';
 import { heroSection } from './sections/hero.js';
-import { blogRouteContent, featuresRouteContent } from './route-pages.js';
-import { testimonialsSection, possibilitiesSection } from './sections/social-proof.js';
-import { statSection, waySection } from './sections/way.js';
+import { blogRouteContent, featuresRouteContent, signinRouteContent } from './route-pages.js';
 
 function homepageContent() {
   return `${heroSection()}
-${featureSection()}
-${waySection()}
-${statSection()}
-${testimonialsSection()}
-${possibilitiesSection()}`;
+${featureSection()}`;
 }
 
-export function marketingRoutePage({ cssHref, path }) {
-  const route = marketingRoutes[path];
+export function siteRoutePage({ cssHref, path }) {
+  const route = siteRoutes[path];
   if (!route) return null;
 
   const routeContent = {
     '/blog': blogRouteContent,
-    '/features': featuresRouteContent
+    '/features': featuresRouteContent,
+    '/signin': signinRouteContent
   }[path];
 
-  return renderMarketingDocument({
+  return renderSiteDocument({
     cssHref,
     activePath: path,
     title: `${route.title} - Nibgate`,
@@ -34,8 +29,8 @@ export function marketingRoutePage({ cssHref, path }) {
   });
 }
 
-export function marketingPage({ cssHref, activePath = '/' } = {}) {
-  return renderMarketingDocument({
+export function sitePage({ cssHref, activePath = '/' } = {}) {
+  return renderSiteDocument({
     cssHref,
     activePath,
     title: 'Nibgate - earn from gated content',
@@ -45,7 +40,7 @@ export function marketingPage({ cssHref, activePath = '/' } = {}) {
   });
 }
 
-function renderMarketingDocument({ cssHref, activePath, title, description, content }) {
+function renderSiteDocument({ cssHref, activePath, title, description, content }) {
   const localCss = cssHref ? `<link rel="stylesheet" href="${cssHref}" />` : '';
   const nibgateCss = '<link rel="stylesheet" href="/assets/nibgate/vite/assets/entrypoints/design-BqOKWsBS.css" />';
 
@@ -56,20 +51,32 @@ function renderMarketingDocument({ cssHref, activePath, title, description, cont
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title}</title>
     <meta name="description" content="${description}" />
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem('nibgate-theme');
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const theme = savedTheme === 'light' || savedTheme === 'dark'
+            ? savedTheme
+            : (prefersDark ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch {}
+      })();
+    </script>
     ${localCss}
     ${nibgateCss}
   </head>
-  <body class="group/body">
+  <body class="group/body" data-default-theme="light">
     <div id="design-settings" data-settings="{&quot;font&quot;:{&quot;name&quot;:&quot;ABC Favorit&quot;,&quot;url&quot;:&quot;/assets/nibgate/fonts/ABCFavorit-Regular.woff2&quot;}}" style="display: none;"></div>
     <div class="flex flex-col lg:flex-row min-h-screen">
       <main class="flex-1 flex flex-col">
         <div class="flex-1 flex flex-col">
-          <div class="block bg-white text-black font-['ABC_Favorit'] text-base font-normal leading-relaxed tracking-tight">
+          <div class="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
             ${headerSection({ activePath })}
             <div class="overflow-hidden">
               <div class="bg-gray min-h-screen">
                 ${content}
-                ${footerSection({ showThemeToggle: false })}
+                ${footerSection({ showThemeToggle: true })}
               </div>
             </div>
           </div>
@@ -79,6 +86,33 @@ function renderMarketingDocument({ cssHref, activePath, title, description, cont
     <script>
       function addInteractivity() {
         if (window._nibgateHomepageInteractivityAdded) return;
+        const root = document.documentElement;
+        const body = document.body;
+        const themeToggle = document.getElementById('nibgate-theme');
+
+        function applyTheme(theme) {
+          root.dataset.theme = theme;
+          body.dataset.theme = theme;
+          try {
+            localStorage.setItem('nibgate-theme', theme);
+          } catch {}
+
+          if (themeToggle) {
+            const isLight = theme === 'light';
+            themeToggle.setAttribute('aria-pressed', String(isLight));
+            themeToggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+          }
+        }
+
+        let savedTheme = null;
+        try {
+          savedTheme = localStorage.getItem('nibgate-theme');
+        } catch {}
+        const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme
+          : root.dataset.theme || body.dataset.defaultTheme || 'light';
+
+        applyTheme(initialTheme);
 
         const mobileMenuToggle = document.querySelector('[data-toggle="mobile-menu"]');
         const mobileMenu = document.querySelector('#mobile-menu');
@@ -114,6 +148,10 @@ function renderMarketingDocument({ cssHref, activePath, title, description, cont
               snippet.classList.remove('has-copied');
             }
           });
+        });
+
+        themeToggle?.addEventListener('click', function() {
+          applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
         });
 
         window._nibgateHomepageInteractivityAdded = true;

@@ -111,7 +111,7 @@ export function placeholderTile(label, { size = 240 } = {}) {
   `);
 }
 
-export function marketingImagePlaceholder(path) {
+export function siteImagePlaceholder(path) {
   const label = titleWords(path.split('/').pop() || 'Nibgate');
 
   if (path.includes('/creators/')) {

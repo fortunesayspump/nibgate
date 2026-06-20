@@ -1,12 +1,12 @@
-import { arrowIconDataUri, marketingImagePlaceholder, placeholderAvatar } from '../shared/placeholders.js';
+import { arrowIconDataUri, siteImagePlaceholder, placeholderAvatar } from '../shared/placeholders.js';
 
 const featureAsset = (name) => (
   name === 'arrowhead-right.svg'
     ? arrowIconDataUri('right')
-    : marketingImagePlaceholder(`features/${name}`)
+    : siteImagePlaceholder(`features/${name}`)
 );
 const creatorAsset = (name) => placeholderAvatar(name, { size: 420 });
-const exploreOrigin = process.env.EXPLORE_ORIGIN || 'http://localhost:3001';
+const exploreOrigin = '/explore';
 
 function offsetAnchor(label, href = exploreOrigin) {
   return `<a class="nibgate-soft-cta" href="${href}">${label}</a>`;
@@ -266,6 +266,32 @@ export function blogRouteContent() {
 <section class="bg-gray px-4 py-8 md:px-8 md:py-12 lg:px-[4vw]">
   <div class="mx-auto grid max-w-6xl grid-cols-1 gap-4 lg:grid-cols-2">
     ${posts.map(blogPost).join('')}
+  </div>
+</section>`;
+}
+
+export function signinRouteContent() {
+  return `<section class="bg-gray px-8 py-20 md:py-28 lg:px-[4vw]">
+  <div class="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+    <div class="space-y-8">
+      <div class="text-xl font-medium">Nibgate account</div>
+      <h1 class="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Sign in to manage what people unlock.</h1>
+      <p class="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Creator accounts will connect your site manifest, Arc testnet payment setup, route analytics, and Explore presence in one place.</p>
+      <div class="flex flex-wrap gap-4">
+        <a href="/get-started" class="nibgate-soft-cta">Set up your site</a>
+        <a href="/explore" class="nibgate-soft-cta nibgate-soft-cta-secondary">Browse Explore</a>
+      </div>
+    </div>
+    <div class="nibgate-signin-panel bg-black p-6 text-white md:p-8">
+      <div class="nibgate-signin-panel-inner space-y-5 bg-white/10 p-6">
+        <div>
+          <label class="mb-2 block text-sm font-medium uppercase tracking-[0.08em]" for="signin-email">Email</label>
+          <input id="signin-email" class="nibgate-signin-input w-full border-0 bg-white px-4 py-4 text-lg text-black" type="email" placeholder="you@example.com" />
+        </div>
+        <button class="nibgate-signin-button w-full bg-[var(--nib-olive)] px-5 py-4 text-lg font-medium text-black" type="button">Continue</button>
+        <p class="text-sm leading-6 text-white/70">Account auth is the next product layer. For now, install the package and run the Arc testnet demo locally.</p>
+      </div>
+    </div>
   </div>
 </section>`;
 }

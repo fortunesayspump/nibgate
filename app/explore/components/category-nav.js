@@ -1,8 +1,8 @@
 import { escapeHtml } from '../../../packages/cli/src/shared/html.js';
 import { categories } from '../data/catalog.js';
-import { exploreRoutes } from '../routes.js';
+import { createExploreRoutes } from '../routes.js';
 
-function categoryLink([label, ...items]) {
+function categoryLink([label, ...items], exploreRoutes) {
   const isActive = label === 'All';
   const moreChevron = label === 'More'
     ? '<svg class="explore-category-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="m12 15.41 5.71-5.7-1.42-1.42-4.29 4.3-4.29-4.3-1.42 1.42z"/></svg>'
@@ -20,8 +20,10 @@ function categoryLink([label, ...items]) {
   </div>`;
 }
 
-export function categoryNav() {
+export function categoryNav({ basePath = '/explore' } = {}) {
+  const exploreRoutes = createExploreRoutes(basePath);
+
   return `<nav class="explore-categories" aria-label="Explore categories" role="menubar">
-    ${categories.map(categoryLink).join('')}
+    ${categories.map((category) => categoryLink(category, exploreRoutes)).join('')}
   </nav>`;
 }

@@ -1,9 +1,13 @@
 import { escapeHtml } from '../../packages/cli/src/shared/html.js';
-import { exploreHeader } from './components/header.js';
+import { exploreControls } from './components/controls.js';
 import { exploreRouteContent } from './router.js';
-import { footerSection } from '../server/marketing/sections/footer.js';
+import { headerSection } from '../server/site/sections/header.js';
+import { footerSection } from '../server/site/sections/footer.js';
 
-export function explorePage({ cssHref = '/assets/styles.css', marketingOrigin, path = '/' } = {}) {
+export function explorePage({ cssHref = '/assets/styles.css', siteOrigin, path = '/', basePath = '/explore' } = {}) {
+  const localCss = cssHref ? `<link rel="stylesheet" href="${escapeHtml(cssHref)}" />` : '';
+  const nibgateCss = '<link rel="stylesheet" href="/assets/nibgate/vite/assets/entrypoints/design-BqOKWsBS.css" />';
+
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -12,14 +16,39 @@ export function explorePage({ cssHref = '/assets/styles.css', marketingOrigin, p
     <title>Nibgate Explore</title>
     <meta name="description" content="Explore paid resources, routes, and creator-owned products on Nibgate." />
     <link rel="icon" href="/assets/nibgate/images/logo-g.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="${escapeHtml(cssHref)}" />
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem('nibgate-theme');
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const theme = savedTheme === 'light' || savedTheme === 'dark'
+            ? savedTheme
+            : (prefersDark ? 'dark' : 'light');
+          document.documentElement.dataset.theme = theme;
+        } catch {}
+      })();
+    </script>
+    ${localCss}
+    ${nibgateCss}
   </head>
-  <body class="explore-body" data-default-theme="dark">
-    ${exploreHeader()}
-    <main class="explore-main">
-      ${exploreRouteContent(path)}
-    </main>
-    ${footerSection({ marketingOrigin, showThemeToggle: true })}
+  <body class="group/body" data-default-theme="light">
+    <div id="design-settings" data-settings="{&quot;font&quot;:{&quot;name&quot;:&quot;ABC Favorit&quot;,&quot;url&quot;:&quot;/assets/nibgate/fonts/ABCFavorit-Regular.woff2&quot;}}" style="display: none;"></div>
+    <div class="flex flex-col lg:flex-row min-h-screen">
+      <main class="flex-1 flex flex-col">
+        <div class="flex-1 flex flex-col">
+          <div class="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
+            ${headerSection({ activePath: '/explore' })}
+            <div class="overflow-hidden">
+              <div class="explore-body explore-main" role="main">
+                ${exploreControls({ basePath })}
+                ${exploreRouteContent(path)}
+              </div>
+              ${footerSection({ siteOrigin, showThemeToggle: true })}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
     <script>
       (() => {
         const root = document.documentElement;
@@ -41,9 +70,18 @@ export function explorePage({ cssHref = '/assets/styles.css', marketingOrigin, p
         const savedTheme = localStorage.getItem('nibgate-theme');
         const initialTheme = savedTheme === 'light' || savedTheme === 'dark'
           ? savedTheme
-          : body.dataset.defaultTheme || 'dark';
+          : root.dataset.theme || body.dataset.defaultTheme || 'light';
 
         applyTheme(initialTheme);
+
+        const mobileMenuToggle = document.querySelector('[data-toggle="mobile-menu"]');
+        const mobileMenu = document.querySelector('#mobile-menu');
+
+        mobileMenuToggle?.addEventListener('click', () => {
+          const isOpen = mobileMenu?.classList.toggle('is-visible');
+          mobileMenuToggle.classList.toggle('is-open', Boolean(isOpen));
+          mobileMenuToggle.setAttribute('aria-expanded', String(Boolean(isOpen)));
+        });
 
         const closeAll = (except) => {
           document.querySelectorAll('.explore-category-wrap.is-open').forEach((item) => {
@@ -74,7 +112,13 @@ export function explorePage({ cssHref = '/assets/styles.css', marketingOrigin, p
             openItem(item);
           });
           item.addEventListener('pointerenter', () => openItem(item));
+          item.addEventListener('pointerleave', () => closeItem(item));
           item.addEventListener('focusin', () => openItem(item));
+          item.addEventListener('focusout', () => {
+            window.setTimeout(() => {
+              if (!item.contains(document.activeElement)) closeItem(item);
+            }, 0);
+          });
         });
 
         document.addEventListener('pointerdown', (event) => {

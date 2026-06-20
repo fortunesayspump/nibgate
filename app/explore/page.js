@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../packages/cli/src/shared/html.js';
+import { escapeHtml } from 'nibgate/src/shared/html.js';
 import { exploreControls } from './components/controls.js';
 import { exploreRouteContent } from './router.js';
 import { headerSection } from '../server/site/sections/header.js';

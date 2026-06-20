@@ -1,10 +1,10 @@
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import path from 'node:path';
-import { rootDir } from '../../packages/cli/src/core/config.js';
-import { createGateway } from '../../packages/cli/src/core/gateway.js';
-import { createCircleGatewayMiddleware, createGatewayBuyer } from '../../packages/cli/src/core/payments.js';
-import { createStateStore } from '../../packages/cli/src/core/state.js';
+import { rootDir } from 'nibgate/src/core/config.js';
+import { createGateway } from 'nibgate/src/core/gateway.js';
+import { createCircleGatewayMiddleware, createGatewayBuyer } from 'nibgate/src/core/payments.js';
+import { createStateStore } from 'nibgate/src/core/state.js';
 import { createHubEventForwarder } from './hub-events.js';
 import { registerExampleRoutes } from './routes/example-routes.js';
 import { registerAppRoutes } from './routes/app-routes.js';

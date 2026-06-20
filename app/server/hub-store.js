@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { rootDir } from '../../packages/cli/src/core/config.js';
+import { rootDir } from 'nibgate/src/core/config.js';
 
 function defaultHubState() {
   return {

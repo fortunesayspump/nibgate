@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { loadConfig, rootDir, withConfigDefaults } from '../../packages/cli/src/core/config.js';
-import { createGateway } from '../../packages/cli/src/core/gateway.js';
-import { createStateStore } from '../../packages/cli/src/core/state.js';
+import { loadConfig, rootDir, withConfigDefaults } from 'nibgate/src/core/config.js';
+import { createGateway } from 'nibgate/src/core/gateway.js';
+import { createStateStore } from 'nibgate/src/core/state.js';
 
 export function createAppState(config, store) {
   const gateway = createGateway(config, store);

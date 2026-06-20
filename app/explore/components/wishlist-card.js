@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../../packages/cli/src/shared/html.js';
+import { escapeHtml } from 'nibgate/src/shared/html.js';
 import { creatorAvatar, wishlistTile } from '../assets.js';
 import { exploreRoutes } from '../routes.js';
 

@@ -1,4 +1,4 @@
-import { unlockedContent } from '../../../packages/cli/src/core/content.js';
+import { unlockedContent } from 'nibgate/src/core/content.js';
 import { unlockEventPayloads } from '../hub-events.js';
 
 function setUnlockCookie(res, routeId, token) {

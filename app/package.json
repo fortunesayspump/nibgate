@@ -15,6 +15,7 @@
     "@circle-fin/x402-batching": "^3.0.4",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
+    "nibgate": "file:../packages/cli",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "viem": "^2.52.2"

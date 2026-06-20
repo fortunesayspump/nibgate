@@ -1,4 +1,4 @@
-import { buildSiteManifest, buildVerificationFile } from '../../../packages/cli/src/core/hub.js';
+import { buildSiteManifest, buildVerificationFile } from 'nibgate/src/core/hub.js';
 import { explorePage } from '../../explore/page.js';
 import { createAppState } from '../app-state.js';
 import { sitePage, siteRoutePage } from '../site.js';

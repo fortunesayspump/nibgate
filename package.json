@@ -4,6 +4,9 @@
   "private": true,
   "description": "Workspace for the Nibgate app, CLI package, and example origin sites.",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "workspaces": [
     "app",
     "packages/*",

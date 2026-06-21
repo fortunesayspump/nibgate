@@ -5,6 +5,11 @@ export function walletConnectScript() {
         try {
           const cached = JSON.parse(localStorage.getItem('nibgate-wallet-cache'));
           if (cached && cached.isConnected) {
+            if (window.location.pathname === '/') {
+              window.location.replace('/explore');
+              return;
+            }
+            
             document.querySelectorAll('[data-wallet-connect]').forEach(el => {
               el.textContent = cached.address;
               el.dataset.connected = 'true';
@@ -73,11 +78,33 @@ export function walletConnectScript() {
           }
         });
 
+        // Track if user explicitly clicked connect
+        document.addEventListener('click', (e) => {
+          if (e.target.closest('[data-wallet-connect]') && e.target.closest('[data-wallet-connect]').dataset.connected !== 'true') {
+            sessionStorage.setItem('nibgate-wants-redirect', 'true');
+          }
+        });
+
         // Subscribe to connection state
         if (modal.subscribeProvider) {
           modal.subscribeProvider(async (state) => {
             const isConnected = state.isConnected;
             const address = state.address;
+            
+            // Redirect Logic
+            if (isConnected) {
+              const wantsRedirect = sessionStorage.getItem('nibgate-wants-redirect') === 'true';
+              if (wantsRedirect) {
+                sessionStorage.removeItem('nibgate-wants-redirect');
+                if (window.location.pathname !== '/explore' && !window.location.pathname.startsWith('/dashboard')) {
+                  window.location.href = '/explore';
+                  return;
+                }
+              } else if (window.location.pathname === '/') {
+                window.location.replace('/explore');
+                return;
+              }
+            }
             
             // Handle Connect Wallet container
             document.querySelectorAll('[data-wallet-container]').forEach(container => {

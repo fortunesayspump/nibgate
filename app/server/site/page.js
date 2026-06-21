@@ -77,9 +77,9 @@ function renderSiteDocument({ cssHref, activePath, title, description, content }
           <div class="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
             ${headerSection({ activePath })}
             <div class="overflow-hidden">
-              <div class="bg-gray min-h-screen">
-                ${content}
-                ${footerSection({ showThemeToggle: true })}
+              <div class="bg-gray min-h-screen flex flex-col">
+                <div class="flex-1">${content}</div>
+                ${activePath !== '/dashboard' ? footerSection({ showThemeToggle: true }) : ''}
               </div>
             </div>
           </div>

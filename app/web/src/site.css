@@ -133,13 +133,10 @@ body[data-theme="dark"] .nibgate-primary-nav-link {
 }
 body:not([data-theme="dark"]) .nibgate-primary-nav-link:hover,
 body:not([data-theme="dark"]) .nibgate-primary-nav-link:focus-visible,
-body:not([data-theme="dark"]) .nibgate-primary-nav-link.is-active,
 html[data-theme="dark"] .nibgate-primary-nav-link:hover,
 html[data-theme="dark"] .nibgate-primary-nav-link:focus-visible,
-html[data-theme="dark"] .nibgate-primary-nav-link.is-active,
 body[data-theme="dark"] .nibgate-primary-nav-link:hover,
-body[data-theme="dark"] .nibgate-primary-nav-link:focus-visible,
-body[data-theme="dark"] .nibgate-primary-nav-link.is-active {
+body[data-theme="dark"] .nibgate-primary-nav-link:focus-visible {
   color: currentColor;
   border-color: currentColor;
 }

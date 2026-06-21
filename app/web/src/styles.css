@@ -426,3 +426,28 @@ td {
   padding: 12px;
   border-bottom: 1px solid #E2E8F0;
 }
+
+/* Custom Sidebar Styles */
+.dashboard-sidebar {
+  background-color: #E7EFE4;
+  color: #111111;
+  border-right: 1px solid rgba(17, 17, 17, 0.1);
+}
+.dashboard-link {
+  color: #111111;
+  opacity: 0.8;
+  transition: all 0.15s ease;
+}
+.dashboard-link:hover, .dashboard-link.active {
+  background-color: #7C9A6D;
+  color: #111111;
+  opacity: 1;
+}
+.dashboard-start-btn {
+  background-color: #234E45;
+  color: #ffffff;
+  transition: all 0.15s ease;
+}
+.dashboard-start-btn:hover {
+  background-color: #1A3C34;
+}

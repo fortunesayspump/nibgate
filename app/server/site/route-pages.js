@@ -346,36 +346,36 @@ const bottomLinks = [
 export function dashboardRouteContent() {
   return `<div class="flex flex-1 flex-col lg:flex-row min-h-[80vh] border-t border-dark-gray/50 bg-white">
     <!-- Sidebar -->
-    <nav aria-label="Main" class="flex flex-col overflow-x-hidden overflow-y-auto bg-white border-r border-dark-gray/50 text-black lg:static lg:w-64">
+    <nav aria-label="Main" class="flex flex-col overflow-x-hidden overflow-y-auto dashboard-sidebar lg:static lg:w-64">
       
       <section class="flex flex-col flex-1 py-4">
         ${[
           ...navLinks.map(link => `
-            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium hover:bg-gray hover:text-white border-y border-transparent hover:border-dark-gray/50 transition-colors ${link.name === 'Home' ? 'bg-gray text-black font-semibold' : ''}">
+            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium dashboard-link ${link.name === 'Home' ? 'active font-semibold' : ''}">
               <span>${link.name}</span>
             </a>
           `),
           '<div class="flex-1"></div>',
           ...bottomLinks.map(link => `
-            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium hover:bg-gray hover:text-white border-y border-transparent hover:border-dark-gray/50 transition-colors">
+            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium dashboard-link">
               <span>${link.name}</span>
             </a>
           `)
         ].join('')}
       </section>
-      <footer class="mt-auto hidden lg:block border-t border-dark-gray/50">
-        <a href="/dashboard" class="flex items-center px-6 py-4 font-bold hover:bg-gray bg-gray text-black transition-colors">
+      <footer class="mt-auto hidden lg:block border-t" style="border-color: rgba(17,17,17,0.1);">
+        <a href="/dashboard" class="flex items-center px-6 py-4 font-bold dashboard-start-btn">
           Start selling
         </a>
-        <a href="/help" class="flex items-center px-6 py-4 font-medium hover:bg-gray hover:text-white border-t border-dark-gray/50 transition-colors">
+        <a href="/help" class="flex items-center px-6 py-4 font-medium dashboard-link border-t" style="border-color: rgba(17,17,17,0.1);">
           Help
         </a>
-        <button class="w-full flex items-center justify-between border-t border-dark-gray/50 px-6 py-4 hover:bg-gray cursor-pointer text-left font-medium">
+        <button class="w-full flex items-center justify-between border-t px-6 py-4 cursor-pointer text-left font-medium dashboard-link" style="border-color: rgba(17,17,17,0.1); background: transparent; border-left: 0; border-right: 0; border-bottom: 0;">
           <div class="flex items-center truncate">
-            <img class="aspect-square w-6 shrink-0 rounded-full border border-dark-gray/50 mr-3" src="/assets/nibgate/images/placeholder-avatar.svg" alt="Avatar">
+            <img class="aspect-square w-6 shrink-0 rounded-full border mr-3" style="border-color: rgba(17,17,17,0.2);" src="/assets/nibgate/images/placeholder-avatar.svg" alt="Avatar">
             Fortune Eze
           </div>
-          <span>↓</span>
+          <span style="opacity: 0.5;">↓</span>
         </button>
       </footer>
     </nav>

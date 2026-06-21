@@ -4,7 +4,7 @@ import { featuredCard } from '../components/product-card.js';
 export function featuredSection() {
   return `<section class="featured-section" aria-labelledby="featured-title">
     <header class="explore-section-heading">
-      <h1 id="featured-title">Featured products</h1>
+      <h1 id="featured-title">Featured content</h1>
       <div class="explore-pager">
         <button type="button" aria-label="Previous featured product">&lt;</button>
         <span>1 / 8</span>

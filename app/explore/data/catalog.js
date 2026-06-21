@@ -20,109 +20,117 @@ export const contentTypes = ['Articles', 'Music', 'Images', 'Video'];
 
 const featuredProductSeeds = [
   {
-    title: 'MAGIC MONTHLY by Christian Grace',
-    summary: 'Welcome to Magic Monthly by Christian Grace. There are currently over 100 original hard-hitting mag...',
+    type: 'Article',
+    title: 'Magic Monthly: Notes for Paid Publishing',
+    summary: 'A monthly field guide on building a sharper paid publication without moving your audience off-site.',
     creator: 'Christian Grace',
     price: '£12.99 a month',
-    rating: '4.9',
-    reviews: '390'
+    meta: '8 min read',
+    unlocks: '390 unlocks'
   },
   {
+    type: 'Writing',
     title: 'Atravesando el Desierto',
-    summary: 'Una guia para quienes ya no pueden seguir dormidos. Formato fisico: https://www.amazon.es/dp/B0GLQ...',
+    summary: 'A longform guide for readers moving through a difficult creative season with more clarity.',
     creator: 'Javier',
     price: '€14.99',
-    rating: '4.5',
-    reviews: '6'
+    meta: 'Private essay',
+    unlocks: '86 unlocks'
   },
   {
-    title: 'Awake (Audiobook Edition): The Practice of Critical Thinking in an Age of Soft Lies',
-    summary: 'Are you reacting, or are you thinking? In an age of algorithmic outrage, soft lies, and constant d...',
+    type: 'Music',
+    title: 'Awake: Audiobook Edition',
+    summary: 'A spoken audio release on attention, soft lies, and how to think before the feed thinks for you.',
     creator: 'House of El',
     price: '£14.95',
-    rating: '4.6',
-    reviews: '7'
+    meta: '2 hr 18 min',
+    unlocks: '121 unlocks'
   },
   {
+    type: 'Video',
     title: 'The Real Fermentation System',
-    summary: 'Bold Flavor. Real Gut Health. Zero Guesswork. Create confident ferments with a simple kitchen system...',
+    summary: 'A focused video course for creating confident ferments with a simple kitchen system.',
     creator: 'David Levitsky',
     price: '$57',
-    rating: '5.0',
-    reviews: '6'
+    meta: '42 min video',
+    unlocks: '64 unlocks'
   },
   {
-    title: 'Hacking with Swift+',
-    summary: 'The ultimate investment for your Swift programming career! Hacking with Swift+ is a subscription s...',
+    type: 'Article',
+    title: 'Hacking with Swift+: Route Notes',
+    summary: 'A technical publishing archive for Swift developers who want practical paid programming notes.',
     creator: 'Paul Hudson',
     price: '$20 a month',
-    rating: '4.9',
-    reviews: '297',
+    meta: 'Updated weekly',
+    unlocks: '297 unlocks',
     topCreator: true
   },
   {
-    title: 'GSonic Immersive version 1.1.7 - 11 June 2026',
-    summary: 'GSonic Immersive is a home cinema measurement tool that can capture impulse responses for every...',
+    type: 'Music',
+    title: 'GSonic Immersive 1.1.7',
+    summary: 'A sound measurement toolkit and audio walkthrough for tuning home cinema spaces.',
     creator: 'S Guer',
     price: '$74.99',
-    rating: '5.0',
-    reviews: '30'
+    meta: 'Audio toolkit',
+    unlocks: '132 unlocks'
   },
   {
-    title: 'MANGA MEGAPACK - 3000+ Anime-Style Brushes',
-    summary: 'The ultimate brush pack for Procreate, Clip Studio Paint and Photoshop. Create clean, professional...',
+    type: 'Image',
+    title: 'Manga Megapack: Brush Studies',
+    summary: 'A visual pack for making clean anime-style panels, covers, and production-ready illustration work.',
     creator: 'MANGA BRUSH',
     price: '$0+',
-    rating: '4.9',
-    reviews: '17'
+    meta: '3000+ assets',
+    unlocks: '517 unlocks'
   },
   {
+    type: 'Music',
     title: 'GMaudio Ducker 1.6',
-    summary: 'GMaudio Ducker is the only sample accurate side-chain tool for Ableton Live. Designed for ease of...',
+    summary: 'A precise Ableton Live audio utility for clean side-chain movement in creator-made tracks.',
     creator: 'Robert K//Groov Mekanik',
     price: '$18+',
-    rating: '4.9',
-    reviews: '89'
+    meta: 'Ableton pack',
+    unlocks: '89 unlocks'
   }
 ];
 
 const marketProductSeeds = [
-  ['Writing: The Agent Economy Field Notes', 'Mira Stone', '$8', '4.8', '91'],
-  ['Article: How x402 Changes Paid Content', 'Ayo Labs', '$4', '4.9', '47'],
-  ['Image Pack: Neon Interface Textures', 'Kemi Studio', '$12', '4.7', '63'],
-  ['Video: Building a Paid Route in 20 Minutes', 'Nibgate Studio', '$15', '5.0', '34'],
-  ['Music: Midnight API Loops', 'Sound Route', '$9', '4.8', '118'],
-  ['Writing: Notes on Independent Publishing', 'Ada Vale', '$6', '4.6', '39'],
-  ['Article: Creator Analytics Without the Noise', 'Northstar Desk', '$5', '4.9', '52'],
-  ['Image: Editorial Cover System', 'Framewell', '$18', '5.0', '28'],
-  ['Video: Launching Your First Premium Drop', 'Launch Room', '$20', '4.8', '74'],
-  ['Music: Ambient Checkout Cues', 'Low Signal', '$7', '4.7', '43'],
-  ['Writing: A Small Internet Manifesto', 'June Paper', '$10', '4.9', '86'],
-  ['Article: Payment-Gated APIs for Writers', 'Protocol Press', '$6', '4.8', '58'],
-  ['Image Pack: Grain, Glass, and Gradients', 'Pixel Yard', '$14', '4.9', '102'],
-  ['Video: Selling Research as a Product', 'Signal School', '$24', '4.8', '69'],
-  ['Music: Creator Intro Stingers', 'Warm Audio Club', '$11', '4.6', '37'],
-  ['Writing: Paid Essays Starter Kit', 'Longform Supply', '$19', '5.0', '44'],
-  ['Article: Designing Content Licenses', 'Rights Lab', '$5', '4.5', '31'],
-  ['Image: Product Mockup Backdrops', 'Still Goods', '$16', '4.9', '77'],
-  ['Video: Founder Updates People Finish', 'Studio Ledger', '$12', '4.7', '55'],
-  ['Music: Minimal Podcast Beds', 'Quiet Channel', '$13', '4.8', '82'],
-  ['Writing: Newsletter Operating Manual', 'Dispatch House', '$17', '4.8', '96'],
-  ['Article: The New Creator Stack', 'Builder Notes', '$7', '4.7', '48'],
-  ['Image: Social Launch Templates', 'Visual Ops', '$15', '4.9', '143'],
-  ['Video: Turning Posts Into Paid Libraries', 'Archive Club', '$22', '4.8', '61'],
-  ['Music: Shortform Motion Pack', 'Tempo Goods', '$10', '4.9', '88'],
-  ['Writing: Research Notes Template', 'Field Desk', '$9', '4.7', '57'],
-  ['Article: Pricing Your First Drop', 'Market Letter', '$5', '4.6', '66'],
-  ['Image: Cover Art Starter Set', 'Canvas Room', '$21', '5.0', '119'],
-  ['Video: Premium Tutorial Structure', 'Course Cut', '$18', '4.8', '73'],
-  ['Music: Warm Synth Mini Pack', 'Patch Notes', '$12', '4.9', '41'],
-  ['Writing: Subscriber Research Bundle', 'Reader Signal', '$25', '4.8', '64'],
-  ['Article: Launch Pages That Convert', 'Web Letter', '$8', '4.7', '53'],
-  ['Image: Clean Product Thumbnails', 'Grid Supply', '$13', '4.9', '92'],
-  ['Video: Creator Analytics Walkthrough', 'Metric Studio', '$19', '4.8', '46'],
-  ['Music: Soft UI Notification Sounds', 'Interface Audio', '$6', '4.5', '38'],
-  ['Writing: Private Feed Playbook', 'Membership Works', '$29', '5.0', '75']
+  ['Writing: The Agent Economy Field Notes', 'Mira Stone', '$8', '11 min read'],
+  ['Article: How x402 Changes Paid Content', 'Ayo Labs', '$4', '6 min read'],
+  ['Image: Neon Interface Textures', 'Kemi Studio', '$12', '24 images'],
+  ['Video: Building a Paid Route in 20 Minutes', 'Nibgate Studio', '$15', '20 min'],
+  ['Music: Midnight API Loops', 'Sound Route', '$9', '18 loops'],
+  ['Writing: Notes on Independent Publishing', 'Ada Vale', '$6', '9 min read'],
+  ['Article: Creator Analytics Without the Noise', 'Northstar Desk', '$5', '7 min read'],
+  ['Image: Editorial Cover System', 'Framewell', '$18', '12 covers'],
+  ['Video: Launching Your First Premium Drop', 'Launch Room', '$20', '31 min'],
+  ['Music: Ambient Checkout Cues', 'Low Signal', '$7', '9 cues'],
+  ['Writing: A Small Internet Manifesto', 'June Paper', '$10', 'Essay'],
+  ['Article: Payment-Gated APIs for Writers', 'Protocol Press', '$6', '8 min read'],
+  ['Image: Grain, Glass, and Gradients', 'Pixel Yard', '$14', '36 images'],
+  ['Video: Selling Research as a Product', 'Signal School', '$24', '44 min'],
+  ['Music: Creator Intro Stingers', 'Warm Audio Club', '$11', '16 stingers'],
+  ['Writing: Paid Essays Starter Kit', 'Longform Supply', '$19', 'Template'],
+  ['Article: Designing Content Licenses', 'Rights Lab', '$5', '5 min read'],
+  ['Image: Product Mockup Backdrops', 'Still Goods', '$16', '18 backdrops'],
+  ['Video: Founder Updates People Finish', 'Studio Ledger', '$12', '16 min'],
+  ['Music: Minimal Podcast Beds', 'Quiet Channel', '$13', '7 tracks'],
+  ['Writing: Newsletter Operating Manual', 'Dispatch House', '$17', 'Guide'],
+  ['Article: The New Creator Stack', 'Builder Notes', '$7', '10 min read'],
+  ['Image: Social Launch Templates', 'Visual Ops', '$15', '20 templates'],
+  ['Video: Turning Posts Into Paid Libraries', 'Archive Club', '$22', '28 min'],
+  ['Music: Shortform Motion Pack', 'Tempo Goods', '$10', '22 sounds'],
+  ['Writing: Research Notes Template', 'Field Desk', '$9', 'Template'],
+  ['Article: Pricing Your First Drop', 'Market Letter', '$5', '6 min read'],
+  ['Image: Cover Art Starter Set', 'Canvas Room', '$21', '15 covers'],
+  ['Video: Premium Tutorial Structure', 'Course Cut', '$18', '24 min'],
+  ['Music: Warm Synth Mini Pack', 'Patch Notes', '$12', '12 presets'],
+  ['Writing: Subscriber Research Bundle', 'Reader Signal', '$25', 'Bundle'],
+  ['Article: Launch Pages That Convert', 'Web Letter', '$8', '9 min read'],
+  ['Image: Clean Content Thumbnails', 'Grid Supply', '$13', '30 thumbnails'],
+  ['Video: Creator Analytics Walkthrough', 'Metric Studio', '$19', '21 min'],
+  ['Music: Soft UI Notification Sounds', 'Interface Audio', '$6', '14 sounds'],
+  ['Writing: Private Feed Playbook', 'Membership Works', '$29', 'Playbook']
 ];
 
 export const wishlists = [
@@ -167,12 +175,24 @@ export const featuredProducts = featuredProductSeeds.map((product) => ({
   avatar: creatorAvatar(product.creator)
 }));
 
-export const marketProducts = marketProductSeeds.map(([title, creator, price, rating, reviews]) => [
-  title,
-  creator,
-  price,
-  rating,
-  reviews,
-  marketArt(title),
-  creatorAvatar(creator)
-]);
+function normalizeType(type) {
+  if (type === 'Image Pack') return 'Image';
+  return type;
+}
+
+export const marketProducts = marketProductSeeds.map(([rawTitle, creator, price, meta], index) => {
+  const [rawType, ...titleParts] = rawTitle.split(': ');
+  const title = titleParts.join(': ') || rawTitle;
+  const type = normalizeType(rawType);
+
+  return {
+    title,
+    type,
+    creator,
+    price,
+    meta,
+    unlocks: `${34 + ((index * 17) % 140)} unlocks`,
+    image: marketArt(rawTitle),
+    avatar: creatorAvatar(creator)
+  };
+});

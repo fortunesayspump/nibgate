@@ -11,6 +11,9 @@
   --explore-header-bg: #10110e;
   --explore-header-fg: #f3efe7;
   --explore-search-bg: #0f100d;
+  --explore-search-fg: #f3efe7;
+  --explore-search-muted: rgba(243, 239, 231, 0.56);
+  --explore-search-border: rgba(243, 239, 231, 0.18);
   --explore-card-bg: #20221c;
   --explore-card-raised: #282b24;
   --explore-menu-bg: #a9c69a;
@@ -35,7 +38,10 @@ html[data-theme="light"] .explore-body {
   --explore-blue: #E7EFE4;
   --explore-header-bg: #10110e;
   --explore-header-fg: #f4f4f0;
-  --explore-search-bg: #0f100d;
+  --explore-search-bg: #ffffff;
+  --explore-search-fg: #111111;
+  --explore-search-muted: rgba(17, 17, 17, 0.52);
+  --explore-search-border: rgba(17, 17, 17, 0.18);
   --explore-card-bg: #ffffff;
   --explore-card-raised: #f6f4ee;
   --explore-menu-bg: #E7EFE4;
@@ -73,10 +79,10 @@ html[data-theme="light"] .explore-body {
   flex: 1 1 auto;
   align-items: center;
   gap: 8px;
-  border: var(--explore-border-width) solid rgba(255, 255, 255, 0.14);
+  border: var(--explore-border-width) solid var(--explore-search-border);
   border-radius: var(--nib-radius-action, 6px);
   background: var(--explore-search-bg);
-  color: var(--explore-header-fg);
+  color: var(--explore-search-fg);
   padding: 0 16px;
 }
 
@@ -89,7 +95,7 @@ html[data-theme="light"] .explore-body {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
-  color: color-mix(in srgb, var(--explore-header-fg) 52%, transparent);
+  color: var(--explore-search-muted);
 }
 
 .explore-search label {
@@ -106,7 +112,7 @@ html[data-theme="light"] .explore-body {
   border: 0;
   border-radius: var(--nib-radius-action, 6px);
   background: transparent;
-  color: var(--explore-header-fg);
+  color: var(--explore-search-fg);
   flex: 1 1 auto;
   font: inherit;
   outline: none;
@@ -114,7 +120,7 @@ html[data-theme="light"] .explore-body {
 }
 
 .explore-search input::placeholder {
-  color: color-mix(in srgb, var(--explore-header-fg) 52%, transparent);
+  color: var(--explore-search-muted);
 }
 
 .explore-search input:focus {
@@ -179,7 +185,7 @@ html[data-theme="light"] .explore-body {
 
 .explore-category.active {
   background: var(--explore-search-bg);
-  color: var(--explore-header-fg);
+  color: var(--explore-search-fg);
 }
 
 html[data-theme="light"] .explore-category:hover,

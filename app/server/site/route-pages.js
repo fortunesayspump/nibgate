@@ -54,7 +54,7 @@ function splitBand({ image, imageAlt, imageBg, textItems, titleColor, reverse = 
 
 function creatorSlide({ image, handle, quote, caption }) {
   return `<div class="flex w-full flex-none">
-  <div class="w-full flex flex-col bg-pink py-16 lg:flex-row">
+  <div class="w-full flex flex-col bg-gray py-16 lg:flex-row">
     <div class="flex items-center justify-center mb-16 lg:mb-0 lg:w-1/2">
       <div class="relative flex flex-col items-center justify-center">
         <img src="${creatorAsset(image)}" alt="${handle} portrait" class="w-full max-w-xs lg:max-w-sm xl:max-w-xl">
@@ -75,18 +75,18 @@ function creatorSlide({ image, handle, quote, caption }) {
 }
 
 export function featuresRouteContent() {
-  return `<header class="relative flex flex-col items-center justify-center h-auto bg-yellow text-center gap-20 px-8 pt-16 pb-20 md:pt-20 md:pb-24 lg:pt-28 lg:pb-36">
+  return `<header class="relative flex flex-col items-center justify-center h-auto bg-gray text-center gap-20 px-8 pt-16 pb-20 md:pt-20 md:pb-24 lg:pt-28 lg:pb-36">
   <div class="flex flex-col max-w-2xl gap-8 lg:gap-10 lg:max-w-3xl">
     <div class="text-xl md:text-2xl">Product features</div>
     <h1 class="text-5xl font-medium md:text-6xl md:leading-[0.9] lg:text-8xl">Built for new beginnings</h1>
     <div class="text-xl md:text-2xl">Nibgate is a powerful, simple toolkit that puts paid content, verification, and discovery tools at your fingertips.</div>
   </div>
 
-  <div class="override hidden relative mx-auto h-96 w-full max-w-6xl overflow-hidden bg-pink p-8 rounded-full border lg:block">
-    <div class="relative z-10 flex h-full flex-col justify-between border border-black bg-pink rounded-full px-8">
+  <div class="override hidden relative mx-auto h-96 w-full max-w-6xl overflow-hidden bg-gray p-8 rounded-full border lg:block">
+    <div class="relative z-10 flex h-full flex-col justify-between border border-dark-gray/50 bg-gray rounded-full px-8">
       <div class="-mt-3 justify-between px-32 flex">
         ${['Connect Wallet', 'Connect Site', 'Publish Route']
-          .map((label) => `<div class="flex h-6 items-center bg-pink pr-6 gap-x-3"><img class="h-6 w-6 -translate-x-3 -translate-y-px" src="${featureAsset('arrowhead-right.svg')}" /><div class="text-xl xl:text-2xl">${label}</div></div>`)
+          .map((label) => `<div class="flex h-6 items-center bg-gray pr-6 gap-x-3"><img class="h-6 w-6 -translate-x-3 -translate-y-px" src="${featureAsset('arrowhead-right.svg')}" /><div class="text-xl xl:text-2xl">${label}</div></div>`)
           .join('')}
       </div>
       <div class="flex justify-around space-x-4">
@@ -97,7 +97,7 @@ export function featuresRouteContent() {
       </div>
       <div class="-mb-3 justify-between px-32 flex">
         ${['Repeat', 'Get paid']
-          .map((label) => `<div class="flex h-6 items-center bg-pink pl-6 gap-x-3"><div class="text-xl xl:text-2xl">${label}</div><img class="h-6 w-6 translate-x-3 translate-y-px rotate-180" alt="" src="${featureAsset('arrowhead-right.svg')}" /></div>`)
+          .map((label) => `<div class="flex h-6 items-center bg-gray pl-6 gap-x-3"><div class="text-xl xl:text-2xl">${label}</div><img class="h-6 w-6 translate-x-3 translate-y-px rotate-180" alt="" src="${featureAsset('arrowhead-right.svg')}" /></div>`)
           .join('')}
       </div>
     </div>
@@ -118,8 +118,8 @@ ${featureIntro({
 ${splitBand({
   image: 'home-feature-4.svg',
   imageAlt: 'Illustration showing customizable store options',
-  imageBg: 'bg-orange',
-  titleColor: 'text-orange',
+  imageBg: 'bg-gray',
+  titleColor: 'text-white',
   reverse: true,
   extras: `<img class="absolute -bottom-28 -left-10 w-24 transform-gpu md:-bottom-24 md:-left-32 md:w-44" data-parallax="true" alt="Thumbs up icon" src="${featureAsset('thumbsup.svg')}" />`,
   border: 'border-y',
@@ -150,8 +150,8 @@ ${featureIntro({
 ${splitBand({
   image: 'features-3.svg',
   imageAlt: 'Illustration showing payment integrations',
-  imageBg: 'bg-purple',
-  titleColor: 'text-purple',
+  imageBg: 'bg-gray',
+  titleColor: 'text-white',
   textItems: [
     ['Create simple memberships', "Give customers access to paid content for as long as they're subscribed."],
     ['Set up subscriptions', 'Let customers pay over time with recurring access.'],
@@ -162,8 +162,8 @@ ${splitBand({
 ${splitBand({
   image: 'features-4.svg',
   imageAlt: 'Illustration showing payment integrations',
-  imageBg: 'bg-purple',
-  titleColor: 'text-purple',
+  imageBg: 'bg-gray',
+  titleColor: 'text-white',
   reverse: true,
   textItems: [
     ['Say yes to different currencies', 'Increase opportunities by accepting payments from a broader audience.'],
@@ -174,8 +174,8 @@ ${splitBand({
 ${splitBand({
   image: 'features-5.svg',
   imageAlt: 'Illustration showing license keys',
-  imageBg: 'bg-purple',
-  titleColor: 'text-purple',
+  imageBg: 'bg-gray',
+  titleColor: 'text-white',
   border: 'border-y',
   textItems: [
     ['Generate access', 'Publishing software or private routes? Nibgate can protect what buyers unlock.'],
@@ -193,8 +193,8 @@ ${featureIntro({
 ${splitBand({
   image: 'features-6.svg',
   imageAlt: 'Illustration showing various creator tools and features',
-  imageBg: 'bg-orange',
-  titleColor: 'text-orange',
+  imageBg: 'bg-gray',
+  titleColor: 'text-white',
   extras: `<img alt="Easy sticker with handwritten text" class="absolute -right-10 -top-10 w-32 transform-gpu md:w-36" data-parallax="true" src="${featureAsset('easy.svg')}" /><img alt="Decorative price tag sticker" class="absolute -bottom-10 -left-10 w-40 transform-gpu md:w-48" data-parallax="true" src="${featureAsset('price-tag.svg')}" />`,
   textItems: [
     ['Tools to get going fast', 'Create paid routes quickly or embed the Nibgate package onto an existing site.'],
@@ -206,8 +206,8 @@ ${splitBand({
 ${splitBand({
   image: 'sales-graph.svg',
   imageAlt: 'Interactive graph showing sales analytics and growth metrics',
-  imageBg: 'bg-yellow',
-  titleColor: 'text-orange',
+  imageBg: 'bg-gray',
+  titleColor: 'text-white',
   reverse: true,
   extras: `<img alt="Decorative clapping hands sticker" class="absolute -bottom-24 -right-8 w-32 transform-gpu sm:-bottom-20 sm:-right-20 sm:w-52 md:-bottom-24 md:-right-24 lg:-bottom-24 lg:-right-24" data-parallax="true" src="${featureAsset('clapping.svg')}" />`,
   textItems: [
@@ -217,7 +217,7 @@ ${splitBand({
   ]
 })}
 
-<div class="flex flex-col items-center justify-center text-center bg-pink gap-8 px-8 py-16 lg:px-[4vw] lg:py-24 lg:gap-16">
+<div class="flex flex-col items-center justify-center text-center bg-gray gap-8 px-8 py-16 lg:px-[4vw] lg:py-24 lg:gap-16">
   <h2 class="text-4xl font-medium sm:text-5xl lg:text-7xl">
     Share your work. <br> Someone out there needs it.
   </h2>
@@ -242,7 +242,7 @@ const posts = [
 
 function blogPost([title, date, tag], index) {
   const featured = index === 0;
-  return `<a href="/blog" class="group no-underline text-black border border-black bg-white hover:bg-pink transition-colors ${featured ? 'lg:col-span-2' : ''}">
+  return `<a href="/blog" class="group no-underline text-black border border-dark-gray/50 bg-white hover:bg-gray transition-colors ${featured ? 'lg:col-span-2' : ''}">
   <article class="flex h-full flex-col justify-between gap-10 p-6 md:p-8 ${featured ? 'min-h-[28rem]' : 'min-h-72'}">
     <div class="flex items-center justify-between gap-4 text-base">
       <span>${tag}</span>
@@ -258,7 +258,7 @@ function blogPost([title, date, tag], index) {
 }
 
 export function blogRouteContent() {
-  return `<section class="bg-yellow px-8 py-16 md:py-24 lg:px-[4vw]">
+  return `<section class="bg-gray px-8 py-16 md:py-24 lg:px-[4vw]">
   <div class="mx-auto max-w-6xl">
     <h1 class="text-6xl font-medium leading-none md:text-8xl lg:text-[11rem]">Blog</h1>
   </div>
@@ -278,7 +278,7 @@ export function getStartedRouteContent() {
       <h1 class="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Install the package, protect a route, and publish to Explore.</h1>
       <p class="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate starts on your own domain. Connect a wallet, expose a route manifest, and let people unlock paid content without moving your work into a marketplace.</p>
       <div class="flex flex-wrap gap-4">
-        <a href="/signin" class="nibgate-soft-cta">Connect wallet</a>
+        <button type="button" data-wallet-connect class="nibgate-soft-cta border-none cursor-pointer">Connect wallet</button>
         <a href="/features" class="nibgate-soft-cta nibgate-soft-cta-secondary">View features</a>
       </div>
     </div>
@@ -289,7 +289,7 @@ export function getStartedRouteContent() {
         ['3', 'Verify ownership', 'Publish the manifest and verification file from your own domain.'],
         ['4', 'Appear in Explore', 'Send signed popularity and unlock events so the public hub can reflect what is live.']
       ].map(([step, title, copy]) => `<article class="bg-white p-6 md:p-8">
-        <div class="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--nib-olive)] text-lg font-medium text-black">${step}</div>
+        <div class="mb-5 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black text-white text-lg font-medium text-black">${step}</div>
         <h2 class="mb-3 text-3xl font-medium md:text-4xl">${title}</h2>
         <p class="text-lg leading-8">${copy}</p>
       </article>`).join('')}
@@ -310,16 +310,119 @@ export function signinRouteContent() {
         <a href="/explore" class="nibgate-soft-cta nibgate-soft-cta-secondary">Browse Explore</a>
       </div>
     </div>
-    <div class="nibgate-signin-panel bg-black p-6 text-white md:p-8">
+    <div class="nibgate-signin-panel bg-graylack p-6 text-white md:p-8">
       <div class="nibgate-signin-panel-inner space-y-5 bg-white/10 p-6">
         <div class="space-y-2">
           <p class="text-sm font-medium uppercase tracking-[0.08em] text-white/70">Creator wallet</p>
           <p class="text-xl leading-8">Connect the wallet that should own your Nibgate creator profile.</p>
         </div>
-        <button class="nibgate-signin-button w-full bg-[var(--nib-olive)] px-5 py-4 text-lg font-medium text-black" type="button" data-wallet-connect>Connect wallet</button>
+        <button class="nibgate-signin-button w-full bg-black text-white px-5 py-4 text-lg font-medium text-black" type="button" data-wallet-connect>Connect wallet</button>
         <p class="text-sm leading-6 text-white/70" data-wallet-status>Use a wallet-enabled browser. Full creator dashboard actions will unlock after wallet identity is connected.</p>
       </div>
     </div>
   </div>
 </section>`;
+}
+
+const navLinks = [
+  { name: 'Home', path: '/dashboard' },
+  { name: 'Profile', path: '/profile' },
+  { name: 'Products', path: '/products' },
+  { name: 'Collaborators', path: '/collaborators' },
+  { name: 'Checkout', path: '/checkout/discounts' },
+  { name: 'Emails', path: '/emails' },
+  { name: 'Workflows', path: '/workflows' },
+  { name: 'Sales', path: '/customers' },
+  { name: 'Analytics', path: '/dashboard/sales' },
+  { name: 'Affiliates', path: '/affiliates' },
+  { name: 'Payouts', path: '/payouts' },
+];
+
+const bottomLinks = [
+  { name: 'Discover', path: '/discover' },
+  { name: 'Library', path: '/library' }
+];
+
+export function dashboardRouteContent() {
+  return `<div class="flex flex-1 flex-col lg:flex-row min-h-[80vh] border-t border-dark-gray/50 bg-white">
+    <!-- Sidebar -->
+    <nav aria-label="Main" class="flex flex-col overflow-x-hidden overflow-y-auto bg-white border-r border-dark-gray/50 text-black lg:static lg:w-64">
+      
+      <section class="flex flex-col flex-1 py-4">
+        ${[
+          ...navLinks.map(link => `
+            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium hover:bg-gray hover:text-white border-y border-transparent hover:border-dark-gray/50 transition-colors ${link.name === 'Home' ? 'bg-gray text-black font-semibold' : ''}">
+              <span>${link.name}</span>
+            </a>
+          `),
+          '<div class="flex-1"></div>',
+          ...bottomLinks.map(link => `
+            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium hover:bg-gray hover:text-white border-y border-transparent hover:border-dark-gray/50 transition-colors">
+              <span>${link.name}</span>
+            </a>
+          `)
+        ].join('')}
+      </section>
+      <footer class="mt-auto hidden lg:block border-t border-dark-gray/50">
+        <a href="/dashboard" class="flex items-center px-6 py-4 font-bold hover:bg-gray bg-gray text-black transition-colors">
+          Start selling
+        </a>
+        <a href="/help" class="flex items-center px-6 py-4 font-medium hover:bg-gray hover:text-white border-t border-dark-gray/50 transition-colors">
+          Help
+        </a>
+        <button class="w-full flex items-center justify-between border-t border-dark-gray/50 px-6 py-4 hover:bg-gray cursor-pointer text-left font-medium">
+          <div class="flex items-center truncate">
+            <img class="aspect-square w-6 shrink-0 rounded-full border border-dark-gray/50 mr-3" src="/assets/nibgate/images/placeholder-avatar.svg" alt="Avatar">
+            Fortune Eze
+          </div>
+          <span>↓</span>
+        </button>
+      </footer>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex flex-1 flex-col overflow-y-auto bg-gray">
+      
+      
+      <div class="p-4 md:p-8 space-y-12">
+        <!-- Getting Started -->
+        <section class="space-y-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-3xl font-medium">Getting started</h2>
+            <button class="font-medium hover:underline cursor-pointer bg-grayransparent border-none">Dismiss</button>
+          </div>
+          <div class="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            ${['Welcome aboard', 'Showtime', 'Build your tribe', 'Make an impression'].map((title, i) => `
+              <button class="flex flex-col items-start gap-5 border border-dark-gray/50 bg-white rounded-2xl hover:bg-gray shadow-1 hover:shadow-md transition-all p-6 text-left cursor-pointer" type="button">
+                <div class="flex items-center justify-center w-12 h-12 rounded-full border border-dark-gray/50 bg-black text-white text-lg font-medium">${i + 1}</div>
+                <div>
+                  <h3 class="leading-tight font-medium text-2xl mb-2">${title}</h3>
+                  <p class="text-base text-black/60">Setup step description</p>
+                </div>
+              </button>
+            `).join('')}
+          </div>
+        </section>
+
+        <!-- Your Sites -->
+        <section class="space-y-6">
+          <h2 class="text-3xl font-medium">Your Sites Analytics</h2>
+          <div class="grid w-full grid-cols-1 gap-4 lg:grid-cols-3">
+            <div class="border border-dark-gray/50 bg-white p-8 rounded-2xl shadow-1 hover:shadow-md transition-shadow">
+              <h3 class="text-base text-black/60 font-medium tracking-wide uppercase">Total Earnings</h3>
+              <p class="text-5xl font-medium tracking-tight mt-4">0.00 USDC</p>
+            </div>
+            <div class="border border-dark-gray/50 bg-white p-8 rounded-2xl shadow-1 hover:shadow-md transition-shadow">
+              <h3 class="text-base text-black/60 font-medium tracking-wide uppercase">Active Unlocks</h3>
+              <p class="text-5xl font-medium tracking-tight mt-4">0</p>
+            </div>
+            <div class="border border-dark-gray/50 bg-white p-8 rounded-2xl shadow-1 hover:shadow-md transition-shadow">
+              <h3 class="text-base text-black/60 font-medium tracking-wide uppercase">Total Views</h3>
+              <p class="text-5xl font-medium tracking-tight mt-4">0</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>`;
 }

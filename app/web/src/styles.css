@@ -147,7 +147,9 @@ html, body {
 .rounded-3xl,
 .rounded-2xl,
 .rounded-xl { border-radius: var(--nib-radius-card, 8px); }
-
+.shadow-1 { box-shadow: var(--nib-shadow-1); }
+.shadow-2 { box-shadow: var(--nib-shadow-2); }
+.shadow-3 { box-shadow: var(--nib-shadow-3); }
 /* Text styling */
 .text-black { color: var(--nib-page-fg, #000000); }
 .text-white { color: var(--nib-footer-fg, #FFFFFF); }

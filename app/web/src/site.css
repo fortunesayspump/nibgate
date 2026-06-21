@@ -125,16 +125,10 @@ body[data-theme="dark"] .nibgate-header-logo img {
 }
 body:not([data-theme="dark"]) .nibgate-header-logo,
 body:not([data-theme="dark"]) .nibgate-primary-nav-link,
-body:not([data-theme="dark"]) .nibgate-header-login,
-body:not([data-theme="dark"]) .nibgate-header-mobile-login,
 html[data-theme="dark"] .nibgate-header-logo,
 html[data-theme="dark"] .nibgate-primary-nav-link,
-html[data-theme="dark"] .nibgate-header-login,
-html[data-theme="dark"] .nibgate-header-mobile-login,
 body[data-theme="dark"] .nibgate-header-logo,
-body[data-theme="dark"] .nibgate-primary-nav-link,
-body[data-theme="dark"] .nibgate-header-login,
-body[data-theme="dark"] .nibgate-header-mobile-login {
+body[data-theme="dark"] .nibgate-primary-nav-link {
   color: currentColor;
 }
 body:not([data-theme="dark"]) .nibgate-primary-nav-link:hover,
@@ -310,7 +304,7 @@ body[data-theme="dark"] .nibgate-primary-nav-link.is-active {
 .nibgate-header-mobile-login,
 .nibgate-header-cta,
 .nibgate-header-mobile-cta {
-  color: currentColor;
+  color: var(--nib-ink);
   font-family: var(--font-display, "Kumbh Sans", "ABC Favorit", Arial, sans-serif);
   font-size: 18px;
   font-weight: 500;
@@ -362,6 +356,103 @@ body[data-theme="dark"] .nibgate-header-cta:hover,
 body[data-theme="dark"] .nibgate-header-cta:focus-visible {
   color: #10110e;
   background: #f3efe7;
+}
+
+/* Wallet Dropdown */
+.nibgate-wallet-container {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.nibgate-wallet-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0;
+  width: 100%;
+  background: #f3efe7;
+  border: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  z-index: 100;
+  overflow: hidden;
+  display: none !important;
+  flex-direction: column;
+}
+
+/* Open on hover if connected or for balance */
+.nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
+.nibgate-wallet-container:focus-within [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
+.nibgate-wallet-container:hover [data-balance-text] + .nibgate-wallet-dropdown,
+.nibgate-wallet-container:focus-within [data-balance-text] + .nibgate-wallet-dropdown {
+  display: flex !important;
+}
+
+/* Force the button hover state when the container is hovered */
+.nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"],
+.nibgate-wallet-container:hover [data-balance-text] {
+  background: #f3efe7 !important;
+  color: #10110e !important;
+}
+
+.nibgate-wallet-dropdown.mobile-dropdown {
+  position: static;
+  width: 100%;
+  margin-top: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.nibgate-wallet-dropdown .dropdown-item {
+  padding: 16px 24px;
+  color: #10110e;
+  text-decoration: none;
+  font-family: var(--font-display, "Kumbh Sans", "ABC Favorit", Arial, sans-serif);
+  font-size: 18px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  text-align: center;
+  cursor: pointer;
+  border-top: 1px solid rgba(17, 17, 17, 0.05);
+  transition: background 0.2s, color 0.2s;
+}
+
+.nibgate-wallet-dropdown .dropdown-item:first-child {
+  border-top: none;
+}
+
+.nibgate-wallet-dropdown .dropdown-item:hover,
+.nibgate-wallet-dropdown .dropdown-item:focus-visible {
+  background: rgba(17, 17, 17, 0.05);
+  color: var(--nib-olive);
+}
+
+html[data-theme="dark"] .nibgate-wallet-dropdown,
+body[data-theme="dark"] .nibgate-wallet-dropdown {
+  background: #f3efe7;
+}
+
+html[data-theme="dark"] .nibgate-wallet-dropdown.mobile-dropdown,
+body[data-theme="dark"] .nibgate-wallet-dropdown.mobile-dropdown {
+  background: transparent;
+}
+
+.nibgate-wallet-dropdown .dropdown-disconnect {
+  color: var(--nib-teal);
+}
+
+html[data-theme="dark"] .nibgate-wallet-dropdown,
+body[data-theme="dark"] .nibgate-wallet-dropdown {
+  background: var(--nib-surface);
+  border-color: var(--nib-border-soft);
+}
+
+html[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item:hover,
+body[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item:hover {
+  background: var(--nib-surface-soft);
 }
 .nibgate-header-menu {
   color: currentColor;

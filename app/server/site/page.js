@@ -3,7 +3,8 @@ import { featureSection } from './sections/features.js';
 import { footerSection } from './sections/footer.js';
 import { headerSection } from './sections/header.js';
 import { heroSection } from './sections/hero.js';
-import { blogRouteContent, featuresRouteContent, getStartedRouteContent, signinRouteContent } from './route-pages.js';
+import { blogRouteContent, featuresRouteContent, getStartedRouteContent, signinRouteContent, dashboardRouteContent } from './route-pages.js';
+import { walletConnectScript } from './wallet-connect.js';
 
 function homepageContent() {
   return `${heroSection()}
@@ -18,7 +19,8 @@ export function siteRoutePage({ cssHref, path }) {
     '/blog': blogRouteContent,
     '/features': featuresRouteContent,
     '/get-started': getStartedRouteContent,
-    '/signin': signinRouteContent
+    '/signin': signinRouteContent,
+    '/dashboard': dashboardRouteContent
   }[path];
 
   return renderSiteDocument({
@@ -151,36 +153,6 @@ function renderSiteDocument({ cssHref, activePath, title, description, content }
           });
         });
 
-        document.querySelectorAll('[data-wallet-connect]').forEach(function(button) {
-          button.addEventListener('click', async function() {
-            const status = document.querySelector('[data-wallet-status]');
-            const provider = window.ethereum;
-
-            if (!provider?.request) {
-              if (status) status.textContent = 'No browser wallet found. Open Nibgate in a wallet-enabled browser to connect.';
-              return;
-            }
-
-            button.setAttribute('disabled', 'true');
-            const previousLabel = button.textContent;
-            button.textContent = 'Connecting...';
-            if (status) status.textContent = 'Approve the wallet connection request.';
-
-            try {
-              const accounts = await provider.request({ method: 'eth_requestAccounts' });
-              const account = Array.isArray(accounts) ? String(accounts[0] || '') : '';
-              if (!account) throw new Error('No wallet account was returned.');
-              const compact = account.length > 12 ? account.slice(0, 6) + '...' + account.slice(-4) : account;
-              button.textContent = compact;
-              if (status) status.textContent = 'Wallet connected. Creator setup will use this address as your Nibgate identity.';
-            } catch (error) {
-              button.textContent = previousLabel;
-              button.removeAttribute('disabled');
-              if (status) status.textContent = error?.message || 'Wallet connection was cancelled.';
-            }
-          });
-        });
-
         themeToggle?.addEventListener('click', function() {
           applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
         });
@@ -194,6 +166,7 @@ function renderSiteDocument({ cssHref, activePath, title, description, content }
         addInteractivity();
       }
     </script>
+    ${walletConnectScript()}
   </body>
 </html>`;
 }

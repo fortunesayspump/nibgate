@@ -50,6 +50,12 @@ export const siteRoutes = {
     heading: 'Manage creator-owned paid routes from your wallet.',
     copy:
       'Connect your wallet, site manifest, Arc testnet payment setup, route analytics, and Explore presence.'
+  },
+  '/dashboard': {
+    title: 'Creator Dashboard - Nibgate',
+    eyebrow: 'Dashboard',
+    heading: 'Manage your profile and wallet.',
+    copy: 'View your connected wallet identity, balances, and registered sites.'
   }
 };
 

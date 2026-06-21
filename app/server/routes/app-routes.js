@@ -30,7 +30,7 @@ export function registerAppRoutes(app, context) {
     }));
   });
 
-  app.get(['/blog', '/features', '/get-started', '/signin'], (req, res) => {
+  app.get(['/blog', '/features', '/get-started', '/signin', '/dashboard'], (req, res) => {
     const page = siteRoutePage({ cssHref: webAssets.cssHref, path: req.path });
     if (!page) return res.status(404).send('Not found');
     return res.send(page);

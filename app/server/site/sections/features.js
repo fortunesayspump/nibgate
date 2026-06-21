@@ -35,7 +35,7 @@ export function featureSection() {
       <div class="mx-auto max-w-5xl">
         <div class="flex flex-col items-start gap-7 text-left md:items-center md:text-center">
           <div class="text-lg font-medium lg:text-xl">Creator-owned payments</div>
-          <h2 class="text-5xl font-medium md:text-6xl lg:text-7xl xl:text-8xl">Sell protected work from the site you already own</h2>
+          <h2 class="text-4xl font-medium md:text-5xl lg:text-6xl">Sell protected work from the site you already own</h2>
           <div class="max-w-3xl text-lg md:text-2xl lg:leading-10 xl:text-3xl">Nibgate gives paid writing, media, files, and agent routes a clean unlock flow without turning your website into someone else's marketplace.</div>
         </div>
       </div>
@@ -44,8 +44,8 @@ export function featureSection() {
     ${splitBand({
       image: 'about/ukulele.png',
       alt: 'Paid content illustration',
-      imageBg: 'bg-orange',
-      color: 'text-orange',
+      imageBg: 'bg-gray',
+      color: 'text-white',
       reverse: true,
       items: [
         ['Protect the route', 'Pick the article, download, video, song, image, or API route that should unlock after payment.'],
@@ -54,7 +54,7 @@ export function featureSection() {
       ]
     })}
 
-    <div class="relative overflow-hidden bg-pink">
+    <div class="relative overflow-hidden bg-white">
       <div class="mx-auto grid max-w-6xl gap-12 px-8 py-16 md:px-12 lg:grid-cols-2 lg:items-center lg:py-24">
         <div class="flex items-center justify-center">
           <img class="h-auto w-full max-w-md" alt="Route manifest illustration" src="${imagePath('about/make-your-road.svg')}" />
@@ -70,8 +70,8 @@ export function featureSection() {
     ${splitBand({
       image: 'about/sell-anywhere.png',
       alt: 'Payments illustration',
-      imageBg: 'bg-purple',
-      color: 'text-purple',
+      imageBg: 'bg-gray',
+      color: 'text-white',
       items: [
         ['Take Arc payments', 'Use x402-friendly payment gates on Arc testnet for people, agents, and paid routes.'],
         ['Ship with the package', 'Install the library, map your protected paths, and test the Arc unlock flow locally.'],
@@ -79,8 +79,8 @@ export function featureSection() {
       ]
     })}
 
-    <div class="flex flex-col items-center justify-center gap-8 bg-yellow px-8 py-16 text-center lg:px-[4vw] lg:py-24 lg:gap-16">
-      <h2 class="text-4xl font-medium sm:text-5xl lg:text-7xl">Start with one paid route.<br>Grow from there.</h2>
+    <div class="flex flex-col items-center justify-center gap-8 bg-white px-8 py-16 text-center lg:px-[4vw] lg:py-24 lg:gap-16">
+      <h2 class="text-4xl font-medium sm:text-5xl lg:text-6xl">Start with one paid route.<br>Grow from there.</h2>
       <p class="max-w-2xl text-xl md:text-2xl">Run the first demo on Arc testnet, then bring the same route manifest into discovery.</p>
       <div class="flex flex-col gap-4 sm:flex-row">
         <a class="nibgate-soft-cta" href="/get-started">Get started</a>

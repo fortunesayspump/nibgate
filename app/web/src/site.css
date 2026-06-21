@@ -330,7 +330,7 @@ body[data-theme="dark"] .nibgate-primary-nav-link.is-active {
 }
 html[data-theme="dark"] .nibgate-header-login,
 body[data-theme="dark"] .nibgate-header-login {
-  background: var(--nib-surface-soft);
+  background: #2f3d29;
 }
 .nibgate-header-cta {
   background: var(--nib-olive);

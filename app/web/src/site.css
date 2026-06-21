@@ -311,7 +311,6 @@ body[data-theme="dark"] .nibgate-primary-nav-link.is-active {
 .nibgate-header-login,
 .nibgate-header-cta {
   white-space: nowrap;
-  border-left: 1px solid #f3efe747;
   justify-content: center;
   align-items: center;
   min-height: 80px;
@@ -321,16 +320,17 @@ body[data-theme="dark"] .nibgate-primary-nav-link.is-active {
     color 0.2s;
   display: none;
 }
-html[data-theme="dark"] .nibgate-header-login,
-html[data-theme="dark"] .nibgate-header-cta,
-body[data-theme="dark"] .nibgate-header-login,
-body[data-theme="dark"] .nibgate-header-cta {
-  border-left-color: #f3efe759;
+.nibgate-header-login {
+  background: #D8E2D4;
 }
 .nibgate-header-login:hover,
 .nibgate-header-login:focus-visible {
   background: var(--nib-olive);
   color: #111;
+}
+html[data-theme="dark"] .nibgate-header-login,
+body[data-theme="dark"] .nibgate-header-login {
+  background: var(--nib-surface-soft);
 }
 .nibgate-header-cta {
   background: var(--nib-olive);
@@ -380,9 +380,7 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
 
 /* Open on hover if connected or for balance */
 .nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
-.nibgate-wallet-container:focus-within [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
-.nibgate-wallet-container:hover [data-balance-text] + .nibgate-wallet-dropdown,
-.nibgate-wallet-container:focus-within [data-balance-text] + .nibgate-wallet-dropdown {
+.nibgate-wallet-container:hover [data-balance-text] + .nibgate-wallet-dropdown {
   display: flex !important;
 }
 
@@ -447,9 +445,16 @@ body[data-theme="dark"] .nibgate-wallet-dropdown {
   border-color: var(--nib-border-soft);
 }
 
+html[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item,
+body[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item {
+  color: #f3efe7;
+  border-top-color: rgba(243, 239, 231, 0.05);
+}
+
 html[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item:hover,
 body[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item:hover {
   background: var(--nib-surface-soft);
+  color: var(--nib-olive);
 }
 .nibgate-header-menu {
   color: currentColor;

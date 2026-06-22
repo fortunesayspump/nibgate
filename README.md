@@ -1,29 +1,31 @@
 # Nibgate
 
-Nibgate is a paid-access layer for the open web.
+Nibgate is a paid-access layer and discovery engine for the open web.
 
-Creators install the `nibgate` package on their own site. `nibgate.xyz` is the main product site, and `/explore` is the public network surface for exploration, publishing, analytics, and onboarding.
+It consists of two massive parts:
+1. **The Package**: Creators (bloggers, photographers, musicians) install the `nibgate` npm package on their own personal websites. It automatically gates premium content (images, articles) behind an X402 crypto paywall (e.g., 0.01 cents per unlock). 
+2. **The Hub**: `nibgate.xyz` acts as the central Discovery Search Engine. When a creator installs the package, their website becomes a node that streams analytics and content metadata back to the Hub via a `manifest.json`. Users can search for content across all independent creator sites from this one central place.
 
 ## Repo Layout
 
 ```txt
-app/          deployable web product and hub API
-packages/     publishable npm packages
-examples/     local origin sites used for integration testing
-docs/         architecture and build notes
-ideas/        product thinking and planning
+backend/      Express SSR server, Prisma DB, API routes
+frontend/     Optimized static CSS pipeline and assets
+packages/     Publishable npm packages (e.g., the CLI tool and payment gateway)
+demo/         Isolated mock creator site for integration testing
+docs/         Architecture and build notes
+ideas/        Product thinking and planning
 ```
 
 ## Workspace Shape
 
-### `app/`
+### `backend/` & `frontend/` (The Hub)
 
-The app is the single deployable product:
+The Hub is 100% Server-Side Rendered (SSR) for absolute maximum speed and SEO. It acts as the central directory:
 
-- `/` public home and product entry
-- `/explore` creator and public network surface
-- `/api/hub/*` hub connection, sync, verification, and event ingestion
-- paid example routes for local testing
+- `/explore` The discovery masonry grid indexing all creator content.
+- `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
+- `/api/hub/*` Hub connection, sync, verification, and event ingestion.
 
 ### `packages/cli/`
 
@@ -48,16 +50,16 @@ Install once:
 npm install
 ```
 
-Start the app:
+Start the app (Hub Backend + Frontend assets):
 
 ```bash
-npm run dev:app
+npm run dev:backend
 ```
 
-Start the example origin:
+Start the example creator origin (Mock Site):
 
 ```bash
-npm run dev:example:blog
+npm run dev:demo
 ```
 
 Open:

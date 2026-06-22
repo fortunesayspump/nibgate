@@ -81,8 +81,9 @@ This repo now includes:
 - shared manifest and signing helpers in `packages/cli/src/core/hub.js`
 - local creator-site manifest and verification endpoints in the app runtime
 - hub API endpoints for connect, sync, verify, and event ingestion
-- a file-backed local hub store for development
+- **Prisma ORM** for persistent, strongly-typed storage of users, sessions, and indexed content.
+- **SIWE Authentication** (Sign-In with Ethereum) for Creators to manage their sites.
 
 ## Production note
 
-File-backed storage is enough to prove the package-to-hub flow locally, but it is not enough for a durable hosted hub. If `nibgate.xyz` is the real public app, the hub layer should move to a persistent external data store before launch.
+We currently use a `sqlite` file-backed database (`dev.db`) for rapid local iteration. When launching `nibgate.xyz` to production (e.g. Vercel), the Prisma provider in `schema.prisma` will be swapped to `postgresql` connecting to a scalable, persistent Edge Postgres instance.

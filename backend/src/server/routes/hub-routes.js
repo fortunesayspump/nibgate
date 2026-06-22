@@ -71,10 +71,40 @@ export function registerHubRoutes(app) {
         
         const text = await response.text();
         if (text.trim() === website.verifyToken) {
-          // Success!
+          
+          // --- BEGIN METADATA EXTRACTION ---
+          let ogImageUrl = null;
+          let description = website.description;
+          try {
+            const homeRes = await fetch(\`https://\${website.domain}\`);
+            const html = await homeRes.text();
+            
+            // Extract OG Image
+            const ogMatch = html.match(/<meta\\s+(?:property|name)=["']og:image["']\\s+content=["']([^"']+)["']/i);
+            if (ogMatch && ogMatch[1]) {
+               ogImageUrl = ogMatch[1].startsWith('/') ? \`https://\${website.domain}\${ogMatch[1]}\` : ogMatch[1];
+            }
+            
+            // Extract Meta Description if missing
+            if (!description) {
+               const descMatch = html.match(/<meta\\s+name=["']description["']\\s+content=["']([^"']+)["']/i);
+               if (descMatch && descMatch[1]) description = descMatch[1];
+            }
+          } catch(e) {
+            console.log('Failed to scrape metadata:', e.message);
+          }
+          
+          const faviconUrl = \`https://www.google.com/s2/favicons?domain=\${website.domain}&sz=128\`;
+          // --- END METADATA EXTRACTION ---
+
           await db.website.update({
             where: { id: website.id },
-            data: { isVerified: true }
+            data: { 
+              isVerified: true,
+              faviconUrl,
+              ogImageUrl,
+              description
+            }
           });
           return res.json({ success: true, verified: true });
         } else {

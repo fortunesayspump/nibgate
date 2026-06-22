@@ -455,42 +455,52 @@ export function dashboardRouteContent() {
           }
 
           container.innerHTML = data.websites.map(site => \`
-            <div class="border p-6 rounded-2xl shadow-1 space-y-4" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-              <div class="flex justify-between items-start">
-                <div>
-                  <h3 class="text-2xl font-medium">\${site.name}</h3>
-                  <a href="https://\${site.domain}" target="_blank" class="text-blue-500 hover:underline">\${site.domain}</a>
-                </div>
-                <span class="px-3 py-1 rounded-full text-sm font-medium \${site.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                  \${site.isVerified ? 'Verified' : 'Pending Verification'}
-                </span>
-              </div>
+            <div class="border rounded-2xl shadow-1 overflow-hidden space-y-0" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
               
-              <div class="grid grid-cols-2 gap-4 pt-4 border-t" style="border-color: var(--nib-border-soft);">
-                <div>
-                  <div class="text-sm font-medium opacity-70">Indexed Items</div>
-                  <div class="text-xl font-medium">\${site._count.content || 0}</div>
+              \${site.ogImageUrl ? \`<div class="h-32 w-full bg-cover bg-center" style="background-image: url('\${site.ogImageUrl}')"></div>\` : \`<div class="h-16 w-full bg-gray-100 border-b"></div>\`}
+              
+              <div class="p-6 space-y-4">
+                <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-3">
+                    \${site.faviconUrl ? \`<img src="\${site.faviconUrl}" class="w-8 h-8 rounded bg-white shadow-sm" alt="favicon" />\` : ''}
+                    <div>
+                      <h3 class="text-2xl font-medium">\${site.name}</h3>
+                      <a href="https://\${site.domain}" target="_blank" class="text-blue-500 hover:underline">\${site.domain}</a>
+                    </div>
+                  </div>
+                  <span class="px-3 py-1 rounded-full text-sm font-medium \${site.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                    \${site.isVerified ? 'Verified' : 'Pending'}
+                  </span>
                 </div>
-              </div>
-
-              \${!site.isVerified ? \`
-                <div class="bg-gray p-4 rounded mt-4 space-y-3">
-                  <p class="text-sm font-medium">Action Required: Verify Domain</p>
-                  <p class="text-sm opacity-80">1. Place the following text in a file on your server.</p>
-                  <div class="bg-white p-2 border rounded font-mono text-xs break-all">\${site.verifyToken}</div>
-                  <p class="text-sm opacity-80">2. Ensure it is accessible at:<br/><code>https://\${site.domain}/.well-known/nibgate-verify.txt</code></p>
-                  <button onclick="verifySite('\${site.id}')" class="mt-2 bg-black text-white px-4 py-2 text-sm rounded w-full cursor-pointer hover:bg-gray-800">Verify Now</button>
-                </div>
-              \` : \`
-                <div class="bg-gray p-4 rounded mt-4 space-y-2">
-                  <p class="text-sm font-medium">API Site Token</p>
-                  <p class="text-sm opacity-80">Use this Bearer token to authenticate sync requests.</p>
-                  <div class="relative">
-                    <input type="password" value="\${site.siteToken}" readonly class="w-full bg-white p-2 border rounded font-mono text-xs" />
-                    <button onclick="this.previousElementSibling.type='text'" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-gray-200 px-2 py-1 rounded cursor-pointer">Reveal</button>
+                
+                \${site.description ? \`<p class="text-sm opacity-80 border-l-2 pl-3" style="border-color: var(--nib-border-soft);">\${site.description}</p>\` : ''}
+                
+                <div class="grid grid-cols-2 gap-4 pt-4 border-t" style="border-color: var(--nib-border-soft);">
+                  <div>
+                    <div class="text-sm font-medium opacity-70">Indexed Items</div>
+                    <div class="text-xl font-medium">\${site._count.content || 0}</div>
                   </div>
                 </div>
-              \`}
+
+                \${!site.isVerified ? \`
+                  <div class="bg-gray p-4 rounded mt-4 space-y-3">
+                    <p class="text-sm font-medium">Action Required: Verify Domain</p>
+                    <p class="text-sm opacity-80">1. Place the following text in a file on your server.</p>
+                    <div class="bg-white p-2 border rounded font-mono text-xs break-all">\${site.verifyToken}</div>
+                    <p class="text-sm opacity-80">2. Ensure it is accessible at:<br/><code>https://\${site.domain}/.well-known/nibgate-verify.txt</code></p>
+                    <button onclick="verifySite('\${site.id}')" class="mt-2 bg-black text-white px-4 py-2 text-sm rounded w-full cursor-pointer hover:bg-gray-800">Verify Now</button>
+                  </div>
+                \` : \`
+                  <div class="bg-gray p-4 rounded mt-4 space-y-2">
+                    <p class="text-sm font-medium">API Site Token</p>
+                    <p class="text-sm opacity-80">Use this Bearer token to authenticate sync requests.</p>
+                    <div class="relative">
+                      <input type="password" value="\${site.siteToken}" readonly class="w-full bg-white p-2 border rounded font-mono text-xs" />
+                      <button onclick="this.previousElementSibling.type='text'" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-gray-200 px-2 py-1 rounded cursor-pointer">Reveal</button>
+                    </div>
+                  </div>
+                \`}
+              </div>
             </div>
           \`).join('');
         } catch (err) {

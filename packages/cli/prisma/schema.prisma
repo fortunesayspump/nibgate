@@ -43,6 +43,8 @@ model Website {
   isVerified  Boolean   @default(false)
   verifyToken String
   siteToken   String    @unique
+  faviconUrl  String?
+  ogImageUrl  String?
   createdAt   DateTime  @default(now())
   content     Content[]
   metrics     Metric[]

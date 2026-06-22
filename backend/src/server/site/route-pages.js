@@ -358,41 +358,32 @@ export function dashboardRouteContent() {
       
       <!-- Sites Panel -->
       <div id="panel-sites" class="dashboard-panel active p-4 md:p-8 space-y-12">
-        <!-- Getting Started -->
         <section class="space-y-6">
-          <div class="flex items-center justify-between">
-            <h2 class="text-3xl font-medium">Getting started</h2>
-            <button class="font-medium hover:underline cursor-pointer border-none bg-transparent" style="color: var(--nib-page-fg);">Dismiss</button>
-          </div>
-          <div class="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            ${['Welcome aboard', 'Showtime', 'Build your tribe', 'Make an impression'].map((title, i) => `
-              <button class="flex flex-col items-start gap-5 border rounded-2xl shadow-1 transition-all p-6 text-left cursor-pointer hover:shadow-md" type="button" style="background: var(--nib-surface); border-color: var(--nib-border-soft); color: var(--nib-page-fg);">
-                <div class="flex items-center justify-center w-12 h-12 rounded-full border text-lg font-medium" style="background: var(--nib-surface-soft); border-color: var(--nib-border-soft); color: var(--nib-page-fg);">${i + 1}</div>
-                <div>
-                  <h3 class="leading-tight font-medium text-2xl mb-2">${title}</h3>
-                  <p class="text-base" style="color: var(--nib-page-muted);">Setup step description</p>
-                </div>
-              </button>
-            `).join('')}
+          <h2 class="text-3xl font-medium">Register a New Website</h2>
+          <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+            <form id="register-site-form" class="space-y-4 max-w-xl">
+              <div>
+                <label class="block text-sm font-medium mb-1">Domain Name</label>
+                <input type="text" id="site-domain" placeholder="e.g., photos.clinton.com" required class="w-full p-3 border rounded bg-transparent" style="border-color: var(--nib-border-soft); color: var(--nib-page-fg);">
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Display Name</label>
+                <input type="text" id="site-name" placeholder="e.g., Clinton's Portfolio" required class="w-full p-3 border rounded bg-transparent" style="border-color: var(--nib-border-soft); color: var(--nib-page-fg);">
+              </div>
+              <button type="submit" class="bg-black text-white px-6 py-3 font-medium cursor-pointer rounded">Register Website</button>
+              <div id="register-error" class="text-red-500 text-sm mt-2 hidden"></div>
+            </form>
           </div>
         </section>
 
-        <!-- Your Sites -->
         <section class="space-y-6">
-          <h2 class="text-3xl font-medium">Your Sites Analytics</h2>
-          <div class="grid w-full grid-cols-1 gap-4 lg:grid-cols-3">
-            <div class="border p-8 rounded-2xl shadow-1 transition-shadow hover:shadow-md" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-              <h3 class="text-base font-medium tracking-wide uppercase" style="color: var(--nib-page-muted);">Total Earnings</h3>
-              <p class="text-5xl font-medium tracking-tight mt-4">0.00 USDC</p>
-            </div>
-            <div class="border p-8 rounded-2xl shadow-1 transition-shadow hover:shadow-md" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-              <h3 class="text-base font-medium tracking-wide uppercase" style="color: var(--nib-page-muted);">Active Unlocks</h3>
-              <p class="text-5xl font-medium tracking-tight mt-4">0</p>
-            </div>
-            <div class="border p-8 rounded-2xl shadow-1 transition-shadow hover:shadow-md" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-              <h3 class="text-base font-medium tracking-wide uppercase" style="color: var(--nib-page-muted);">Total Views</h3>
-              <p class="text-5xl font-medium tracking-tight mt-4">0</p>
-            </div>
+          <div class="flex items-center justify-between">
+            <h2 class="text-3xl font-medium">Your Registered Sites</h2>
+            <button onclick="loadSites()" class="font-medium hover:underline cursor-pointer border-none bg-transparent" style="color: var(--nib-page-fg);">Refresh</button>
+          </div>
+          <div id="sites-list" class="grid w-full grid-cols-1 gap-6 xl:grid-cols-2">
+            <!-- Dynamic Content -->
+            <p style="color: var(--nib-page-muted);">Loading your sites...</p>
           </div>
         </section>
       </div>
@@ -448,8 +439,121 @@ export function dashboardRouteContent() {
       }
 
       window.addEventListener('hashchange', switchTab);
-      // Run on initial load
       switchTab();
+
+      // Dashboard App Logic
+      window.loadSites = async function() {
+        const container = document.getElementById('sites-list');
+        try {
+          const res = await fetch('/api/hub/sites');
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to load');
+          
+          if (data.websites.length === 0) {
+            container.innerHTML = '<p>You have not registered any websites yet.</p>';
+            return;
+          }
+
+          container.innerHTML = data.websites.map(site => \`
+            <div class="border p-6 rounded-2xl shadow-1 space-y-4" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="text-2xl font-medium">\${site.name}</h3>
+                  <a href="https://\${site.domain}" target="_blank" class="text-blue-500 hover:underline">\${site.domain}</a>
+                </div>
+                <span class="px-3 py-1 rounded-full text-sm font-medium \${site.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                  \${site.isVerified ? 'Verified' : 'Pending Verification'}
+                </span>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4 pt-4 border-t" style="border-color: var(--nib-border-soft);">
+                <div>
+                  <div class="text-sm font-medium opacity-70">Indexed Items</div>
+                  <div class="text-xl font-medium">\${site._count.content || 0}</div>
+                </div>
+              </div>
+
+              \${!site.isVerified ? \`
+                <div class="bg-gray p-4 rounded mt-4 space-y-3">
+                  <p class="text-sm font-medium">Action Required: Verify Domain</p>
+                  <p class="text-sm opacity-80">1. Place the following text in a file on your server.</p>
+                  <div class="bg-white p-2 border rounded font-mono text-xs break-all">\${site.verifyToken}</div>
+                  <p class="text-sm opacity-80">2. Ensure it is accessible at:<br/><code>https://\${site.domain}/.well-known/nibgate-verify.txt</code></p>
+                  <button onclick="verifySite('\${site.id}')" class="mt-2 bg-black text-white px-4 py-2 text-sm rounded w-full cursor-pointer hover:bg-gray-800">Verify Now</button>
+                </div>
+              \` : \`
+                <div class="bg-gray p-4 rounded mt-4 space-y-2">
+                  <p class="text-sm font-medium">API Site Token</p>
+                  <p class="text-sm opacity-80">Use this Bearer token to authenticate sync requests.</p>
+                  <div class="relative">
+                    <input type="password" value="\${site.siteToken}" readonly class="w-full bg-white p-2 border rounded font-mono text-xs" />
+                    <button onclick="this.previousElementSibling.type='text'" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs bg-gray-200 px-2 py-1 rounded cursor-pointer">Reveal</button>
+                  </div>
+                </div>
+              \`}
+            </div>
+          \`).join('');
+        } catch (err) {
+          container.innerHTML = \`<p class="text-red-500">Error: \${err.message}</p>\`;
+        }
+      };
+
+      window.verifySite = async function(websiteId) {
+        try {
+          const res = await fetch('/api/hub/site/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ websiteId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert('Domain verified successfully!');
+            loadSites();
+          } else {
+            alert('Verification failed: ' + (data.error || 'Unknown error'));
+          }
+        } catch (err) {
+          alert('Network error during verification');
+        }
+      };
+
+      const form = document.getElementById('register-site-form');
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const errDiv = document.getElementById('register-error');
+          errDiv.classList.add('hidden');
+          
+          const payload = {
+            domain: document.getElementById('site-domain').value,
+            name: document.getElementById('site-name').value
+          };
+          
+          try {
+            const res = await fetch('/api/hub/site/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+              form.reset();
+              loadSites();
+            } else {
+              errDiv.textContent = data.error || 'Failed to register';
+              errDiv.classList.remove('hidden');
+            }
+          } catch (err) {
+            errDiv.textContent = 'Network error';
+            errDiv.classList.remove('hidden');
+          }
+        });
+      }
+
+      // Check if logged in before loading
+      if (window.nibgateAuthenticated !== false) {
+          setTimeout(loadSites, 500); // Wait for auth state to settle
+      }
     })();
   </script>`;
 }

@@ -20,6 +20,7 @@ model User {
   avatarUrl     String?
   createdAt     DateTime  @default(now())
   sessions      Session[]
+  websites      Website[]
 }
 
 model Session {
@@ -30,4 +31,40 @@ model Session {
   nonce     String?  // Temporary nonce for SIWE login challenges
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model Website {
+  id          String    @id @default(uuid())
+  domain      String    @unique
+  name        String
+  description String?
+  ownerId     String
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  content     Content[]
+  metrics     Metric[]
+}
+
+model Content {
+  id          String   @id @default(uuid())
+  websiteId   String
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  imageUrl    String?
+  url         String
+  price       Float    // Price to unlock in USDC
+  createdAt   DateTime @default(now())
+  metrics     Metric[]
+}
+
+model Metric {
+  id          String   @id @default(uuid())
+  type        String   // e.g., 'view', 'unlock'
+  contentId   String?
+  content     Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  websiteId   String
+  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  revenue     Float?   // Revenue earned (if type == 'unlock')
+  createdAt   DateTime @default(now())
 }

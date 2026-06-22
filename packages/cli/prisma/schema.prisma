@@ -52,6 +52,8 @@ model Content {
   title       String
   description String?
   imageUrl    String?
+  contentType String   @default("image") // e.g., 'image', 'video', 'audio', 'article'
+  tags        String?  // Comma-separated tags for the search engine
   url         String
   price       Float    // Price to unlock in USDC
   createdAt   DateTime @default(now())

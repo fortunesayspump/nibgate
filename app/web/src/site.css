@@ -308,7 +308,23 @@ body[data-theme="dark"] .nibgate-primary-nav-link.is-active {
   line-height: 1.1;
   text-decoration: none;
 }
-.nibgate-header-login,
+.nibgate-header-login {
+  white-space: nowrap;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+  width: 145px;
+  max-width: 145px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  padding: 0 16px;
+  transition:
+    background 0.2s,
+    color 0.2s;
+  display: none;
+}
+
 .nibgate-header-cta {
   white-space: nowrap;
   justify-content: center;
@@ -367,7 +383,8 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
   top: 100%;
   right: 0;
   margin-top: 0;
-  width: 100%;
+  min-width: 100%;
+  width: max-content;
   background: #f3efe7;
   border: none;
   border-radius: 0 0 6px 6px;

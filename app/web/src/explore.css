@@ -641,10 +641,20 @@ html[data-theme="light"] .explore-art {
 }
 
 .market-card {
-  display: grid;
+  display: flex;
   min-height: 0;
   flex-direction: column;
-  grid-template-rows: auto 1fr auto;
+  background: var(--explore-card-bg);
+  border: var(--explore-border-width) solid var(--explore-border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.market-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
 }
 
 .market-art {
@@ -655,21 +665,23 @@ html[data-theme="light"] .explore-art {
   aspect-ratio: 4 / 3;
   flex: 0 0 auto;
   margin: 0;
-  border-bottom: 1px solid var(--explore-border);
   background: var(--explore-card-raised);
   overflow: hidden;
 }
 
 .market-card header {
   min-height: 0;
-  border-bottom: 1px solid var(--explore-border);
-  padding: 18px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .market-card footer {
-  min-height: 56px;
-  flex: 0 0 56px;
-  padding: 12px 18px;
+  padding: 0 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .content-card-article .market-art,
@@ -779,7 +791,7 @@ html[data-theme="light"] .explore-art {
 }
 
 .wishlist-section {
-  margin-top: 133px;
+  margin-top: 16px;
 }
 
 .wishlist-card {

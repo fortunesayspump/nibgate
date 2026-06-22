@@ -13,9 +13,17 @@ export function walletConnectScript() {
             document.querySelectorAll('[data-wallet-connect]').forEach(el => {
               el.textContent = cached.address;
               el.dataset.connected = 'true';
+              if (cached.fullAddress) {
+                el.dataset.address = cached.fullAddress;
+                window.nibgateWalletAddress = cached.fullAddress;
+              }
             });
             document.querySelectorAll('[data-balance-text]').forEach(el => {
-              el.textContent = cached.balance;
+              const selected = cached.selectedToken || 'native';
+              el.setAttribute('data-native', cached.balance || '0.00 USDC');
+              el.setAttribute('data-gateway', cached.gatewayBalance || '0.00 USDC');
+              el.setAttribute('data-selected-token', selected);
+              el.textContent = el.getAttribute('data-' + selected);
             });
             document.querySelectorAll('[data-wallet-dropdown]').forEach(dropdown => {
               dropdown.innerHTML = \`
@@ -26,8 +34,8 @@ export function walletConnectScript() {
             document.querySelectorAll('[data-balance-dropdown]').forEach(dropdown => {
               dropdown.classList.add('nibgate-wallet-dropdown');
               dropdown.innerHTML = \`
-                <button type="button" class="dropdown-item" data-token-select="native">Arc Testnet USDC</button>
-                <button type="button" class="dropdown-item" data-token-select="gateway">Gateway</button>
+                <button type="button" class="dropdown-item" data-token-select="native" style="font-weight: 500; color: var(--nib-teal);">ARC Testnet</button>
+                <button type="button" class="dropdown-item" data-token-select="gateway" style="font-weight: 500;">Gateway</button>
               \`;
             });
           }
@@ -90,6 +98,7 @@ export function walletConnectScript() {
           modal.subscribeProvider(async (state) => {
             const isConnected = state.isConnected;
             const address = state.address;
+            if (address) window.nibgateWalletAddress = address;
             
             // Redirect Logic
             if (isConnected) {
@@ -114,6 +123,7 @@ export function walletConnectScript() {
               if (isConnected && address) {
                 button.textContent = address.slice(0, 6) + '...' + address.slice(-4);
                 button.dataset.connected = 'true';
+                button.dataset.address = address;
                 if (dropdown) dropdown.innerHTML = \`
                   <a href="/dashboard" class="dropdown-item">Dashboard</a>
                   <button type="button" class="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
@@ -146,19 +156,40 @@ export function walletConnectScript() {
                   const ethersProvider = new ethers.providers.Web3Provider(walletProvider);
                   const rawBalance = await ethersProvider.getBalance(address);
                   const formattedBalance = ethers.utils.formatEther(rawBalance);
-                  const roundedBalance = parseFloat(formattedBalance).toFixed(2);
+                  const numBalance = parseFloat(formattedBalance);
+                  const roundedBalance = new Intl.NumberFormat('en-US', {
+                    notation: "compact",
+                    maximumFractionDigits: 2
+                  }).format(numBalance);
                   
-                  // Mock Gateway Balance until contract is provided
-                  const gatewayBalance = "0.00";
+                  // Fetch real Gateway Balance from Circle Contract on Arc Testnet
+                  let numGatewayBalance = 0;
+                  try {
+                    const GATEWAY_WALLET_ADDRESS = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+                    const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
+                    const GATEWAY_ABI = ["function availableBalance(address token, address depositor) view returns (uint256)"];
+                    // Force the use of Arc Testnet RPC directly so it never fails if the user's wallet is out of sync or on the wrong chain
+                    const arcProvider = new ethers.providers.JsonRpcProvider('https://rpc.testnet.arc.network');
+                    const gatewayContract = new ethers.Contract(GATEWAY_WALLET_ADDRESS, GATEWAY_ABI, arcProvider);
+                    const rawGatewayBalance = await gatewayContract.availableBalance(USDC_ADDRESS, address);
+                    numGatewayBalance = parseFloat(ethers.utils.formatUnits(rawGatewayBalance, 6)); // USDC has 6 decimals
+                  } catch (e) {
+                    console.error("Gateway fetch failed, defaulting to 0", e);
+                  }
                   
-                  if (profileBalance) profileBalance.textContent = gatewayBalance + ' Gateway';
+                  const gatewayBalance = new Intl.NumberFormat('en-US', {
+                    notation: "compact",
+                    maximumFractionDigits: 2
+                  }).format(numGatewayBalance);
+                  
+                  if (profileBalance) profileBalance.textContent = roundedBalance + ' USDC';
                   if (profileNetwork) profileNetwork.textContent = 'Arc Testnet';
                   
                   balanceContainers.forEach(container => {
                     const textEl = container.querySelector('[data-balance-text]');
                     if (textEl) {
                       textEl.setAttribute('data-native', roundedBalance + ' USDC');
-                      textEl.setAttribute('data-gateway', gatewayBalance + ' Gateway');
+                      textEl.setAttribute('data-gateway', gatewayBalance + ' USDC');
                       
                       const selected = textEl.getAttribute('data-selected-token') || 'native';
                       textEl.textContent = textEl.getAttribute('data-' + selected);
@@ -168,7 +199,10 @@ export function walletConnectScript() {
                         localStorage.setItem('nibgate-wallet-cache', JSON.stringify({
                           isConnected: true,
                           address: address.slice(0, 6) + '...' + address.slice(-4),
-                          balance: roundedBalance + ' USDC'
+                          fullAddress: address,
+                          balance: roundedBalance + ' USDC',
+                          gatewayBalance: gatewayBalance + ' USDC',
+                          selectedToken: selected
                         }));
                       } catch(e) {}
                       
@@ -176,7 +210,7 @@ export function walletConnectScript() {
                       if (dropdown) {
                         dropdown.classList.add('nibgate-wallet-dropdown');
                         dropdown.innerHTML = \`
-                          <button type="button" class="dropdown-item" data-token-select="native">Arc Testnet USDC</button>
+                          <button type="button" class="dropdown-item" data-token-select="native">ARC Testnet</button>
                           <button type="button" class="dropdown-item" data-token-select="gateway">Gateway</button>
                         \`;
                         // Highlight active dropdown item
@@ -220,7 +254,7 @@ export function walletConnectScript() {
         }
 
         // Set up event delegation since DOM is rewritten
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', async function(e) {
           const target = e.target.closest('button, a');
           if (!target) return;
           
@@ -228,6 +262,60 @@ export function walletConnectScript() {
             e.preventDefault();
             if (target.dataset.connected !== 'true') {
               if (modal) modal.open();
+            } else {
+              let fullAddress = window.nibgateWalletAddress || target.dataset.address || target.getAttribute('data-address');
+              
+              // If it's missing or truncated, ask Ethers.js directly!
+              if (!fullAddress || fullAddress.includes('...')) {
+                try {
+                  if (modal && modal.getWalletProvider) {
+                    const wp = modal.getWalletProvider();
+                    if (wp) {
+                      const provider = new ethers.providers.Web3Provider(wp);
+                      fullAddress = await provider.getSigner().getAddress();
+                      window.nibgateWalletAddress = fullAddress; // Save it
+                    }
+                  }
+                } catch(err) {
+                  console.error("Failed to extract full address from provider", err);
+                }
+              }
+              
+              if (fullAddress && !fullAddress.includes('...')) {
+                console.log("Copying address:", fullAddress);
+                const copyFallback = () => {
+                  const textArea = document.createElement("textarea");
+                  textArea.value = fullAddress;
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  try { document.execCommand("copy"); } catch (err) { console.error("Fallback copy failed", err); }
+                  document.body.removeChild(textArea);
+                };
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(fullAddress).catch(err => {
+                    console.error("Clipboard API failed, using fallback", err);
+                    copyFallback();
+                  });
+                } else {
+                  copyFallback();
+                }
+
+                const originalText = target.dataset.originalText || target.textContent;
+                target.dataset.originalText = originalText;
+                
+                // Lock the exact pixel width so the button doesn't shrink when the text gets shorter
+                const currentWidth = target.offsetWidth;
+                target.style.width = currentWidth + 'px';
+                
+                target.textContent = "Copied!";
+                setTimeout(() => {
+                  if (target.textContent === "Copied!") {
+                    target.textContent = target.dataset.originalText;
+                    target.style.width = ''; // Release the lock
+                  }
+                }, 1500);
+              }
             }
           } else if (target.hasAttribute('data-wallet-disconnect')) {
             e.preventDefault();
@@ -241,7 +329,14 @@ export function walletConnectScript() {
               const textEl = bContainer.querySelector('[data-balance-text]');
               if (textEl) {
                 textEl.setAttribute('data-selected-token', token);
-                textEl.textContent = textEl.getAttribute('data-' + token);
+                textEl.textContent = textEl.getAttribute('data-' + token) || '0.00 USDC';
+                
+                // Instantly update cache with new selected token
+                try {
+                  const cached = JSON.parse(localStorage.getItem('nibgate-wallet-cache') || '{}');
+                  cached.selectedToken = token;
+                  localStorage.setItem('nibgate-wallet-cache', JSON.stringify(cached));
+                } catch(e) {}
               }
               bContainer.querySelectorAll('[data-token-select]').forEach(btn => {
                 if (btn.dataset.tokenSelect === token) {

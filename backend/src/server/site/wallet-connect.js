@@ -100,6 +100,50 @@ export function walletConnectScript() {
             const address = state.address;
             if (address) window.nibgateWalletAddress = address;
             
+            // --- SIWE AUTHENTICATION FLOW ---
+            if (isConnected && address && !window.nibgateAuthenticated) {
+              try {
+                // Check if already authenticated via secure cookie
+                const meRes = await fetch('/api/auth/me');
+                const meData = await meRes.json();
+                
+                if (meData.authenticated) {
+                  window.nibgateAuthenticated = true;
+                } else {
+                  // Request Nonce
+                  const nonceRes = await fetch('/api/auth/nonce');
+                  const { messageTemplate } = await nonceRes.json();
+                  
+                  // Request Signature
+                  const walletProvider = modal.getWalletProvider();
+                  const ethersProvider = new ethers.providers.Web3Provider(walletProvider);
+                  const signer = ethersProvider.getSigner();
+                  const signature = await signer.signMessage(messageTemplate);
+                  
+                  // Verify Signature
+                  const verifyRes = await fetch('/api/auth/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address, signature })
+                  });
+                  
+                  if (verifyRes.ok) {
+                    window.nibgateAuthenticated = true;
+                  } else {
+                    throw new Error('Verification failed');
+                  }
+                }
+              } catch (err) {
+                console.error('SIWE Auth Failed:', err);
+                if (modal.disconnect) modal.disconnect();
+                return; // Stop UI update
+              }
+            }
+            if (!isConnected) {
+              window.nibgateAuthenticated = false;
+            }
+            // --- END SIWE FLOW ---
+            
             // Redirect Logic
             if (isConnected) {
               const wantsRedirect = sessionStorage.getItem('nibgate-wants-redirect') === 'true';
@@ -319,6 +363,8 @@ export function walletConnectScript() {
             }
           } else if (target.hasAttribute('data-wallet-disconnect')) {
             e.preventDefault();
+            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(e) {}
+            window.nibgateAuthenticated = false;
             if (modal && modal.disconnect) modal.disconnect();
           } else if (target.hasAttribute('data-token-select')) {
             e.preventDefault();

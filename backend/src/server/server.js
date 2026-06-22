@@ -7,6 +7,7 @@ import { createCircleGatewayMiddleware, createGatewayBuyer } from 'nibgate/src/c
 import { createStateStore } from 'nibgate/src/core/state.js';
 import { createHubEventForwarder } from './hub-events.js';
 import { registerAppRoutes } from './routes/app-routes.js';
+import { registerAuthRoutes } from './routes/auth-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
 import { createConfigResolver, resolveAppDist, resolveWebAssets } from './runtime.js';
@@ -42,6 +43,7 @@ export async function createApp(config, options = {}) {
 
   registerHubRoutes(app);
   registerAppRoutes(app, context);
+  registerAuthRoutes(app);
   registerContentRoutes(app, context);
 
   return app;

@@ -12,9 +12,14 @@
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.0.4",
+    "@prisma/client": "^5.22.0",
     "@x402/core": "^2.15.0",
     "@x402/evm": "^2.15.0",
+    "cookie": "^1.1.1",
     "nanoid": "^5.1.5",
     "viem": "^2.52.2"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
   }
 }

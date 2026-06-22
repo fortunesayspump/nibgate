@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// NOTE: We are using SQLite for rapid local development.
+// When you deploy to production on Vercel, change this provider to "postgresql"
+// and update the DATABASE_URL in your environment variables to point to your Vercel Postgres instance.
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  walletAddress String    @unique
+  username      String?
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  sessions      Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  nonce     String?  // Temporary nonce for SIWE login challenges
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}

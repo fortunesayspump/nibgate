@@ -58,22 +58,99 @@ export function featuredCard(product) {
   </article>`;
 }
 
-export function marketCard(product) {
-  const contentType = typeClass(product.type);
-
-  return `<article class="market-card content-card-${contentType}">
-    <figure class="market-art">
-      <img src="${escapeHtml(product.image)}" alt="" loading="lazy" />
-      ${mediaOverlay(product)}
-    </figure>
-    <header>
-      <span class="content-type">${escapeHtml(product.type)}</span>
-      <a href="${exploreRoutes.products}" aria-label="${escapeHtml(product.title)}"><h3>${escapeHtml(product.title)}</h3></a>
-      ${creatorRow(product)}
-      ${contentMeta(product)}
-    </header>
-    <footer>
-      ${priceTag(product.price)}
-    </footer>
+export function articleCard(product) {
+  const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
+  
+  return `<article class="article-card">
+    <div class="article-header">
+      <img class="article-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(product.creator)}" loading="lazy" />
+      <div class="article-author-info">
+        <span class="article-author-name">${escapeHtml(product.creator || 'Creator')}</span>
+        <span class="article-meta-time">4 hours ago</span>
+      </div>
+    </div>
+    <div class="article-body">
+      <img class="article-media" src="${escapeHtml(product.image)}" alt="Article cover" loading="lazy" />
+      <div class="article-content">
+        <h3 class="article-title">${escapeHtml(product.title)}</h3>
+        <p class="article-summary">${escapeHtml(product.summary || 'No description available for this content.')}</p>
+      </div>
+    </div>
+    <div class="article-footer">
+      <div class="article-socials">
+        <button class="article-action" aria-label="Like">♡ 52</button>
+        <button class="article-action" aria-label="Comment">🗨 16</button>
+      </div>
+      <button class="article-action" aria-label="Share">➦</button>
+    </div>
   </article>`;
 }
+
+export function marketCard(product) {
+  const contentType = typeClass(product.type);
+  const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
+
+  // Mocking dynamic natural aspect ratios for masonry layout
+  const mockRatios = ['16/9', '4/5', '1/1', '3/4', '4/3', '5/4'];
+  const randomRatio = mockRatios[Math.floor(Math.random() * mockRatios.length)];
+
+  // Inject the random ratio onto the container so the image sizes it naturally
+  return `<article class="market-card content-card-${contentType}">
+    <div class="market-media" style="aspect-ratio: ${randomRatio};">
+      <img class="market-thumbnail" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.title)}" loading="lazy" />
+      
+      ${product.type === 'Video' ? `
+      <div class="market-play-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </div>` : ''}
+
+      ${product.type === 'Music' ? `
+      <div class="market-music-player">
+        <button class="music-play-btn" aria-label="Play">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </button>
+        <div class="music-waveform">
+          ${'<i></i>'.repeat(40)}
+        </div>
+      </div>` : ''}
+
+      <div class="market-overlay">
+        <div class="market-badges">
+          <span class="market-badge">${escapeHtml(product.type)}</span>
+          <div class="market-actions">
+            <button class="market-action-btn" aria-label="Like" onclick="event.preventDefault();">♡</button>
+            <button class="market-action-btn" aria-label="Bookmark" onclick="event.preventDefault();">⚑</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="market-info">
+      <div class="market-info-header">
+        <h3 class="market-title">${escapeHtml(product.title)}</h3>
+        <span class="market-price">${escapeHtml(product.price)}</span>
+      </div>
+      
+      <p class="market-summary">${escapeHtml(product.summary || 'No description available for this content.')}</p>
+      
+      <div class="market-info-footer">
+        <a class="market-creator" href="${exploreRoutes.creators}">
+          <img class="market-avatar" src="${escapeHtml(avatar)}" alt="Creator" />
+          <span class="market-creator-name">${escapeHtml(product.creator || 'Creator')}</span>
+        </a>
+      </div>
+    </div>
+  </article>`;
+}
+
+export function exploreCard(product) {
+  if (product.type === 'Article' || product.type === 'Writing') {
+    return articleCard(product);
+  }
+  return marketCard(product);
+}
+

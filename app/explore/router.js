@@ -4,10 +4,10 @@ import { exploreHomePage } from './pages/home.js';
 import { productsPage } from './pages/products.js';
 import { wishlistsPage } from './pages/wishlists.js';
 
-export function exploreRouteContent(path) {
-  if (path === '/products') return productsPage();
-  if (path === '/categories') return categoriesPage();
-  if (path === '/wishlists') return wishlistsPage();
-  if (path === '/creators') return creatorsPage();
-  return exploreHomePage();
+export function exploreRouteContent(path, controlsHtml = '') {
+  if (path === '/products') return controlsHtml + productsPage();
+  if (path === '/categories') return controlsHtml + categoriesPage();
+  if (path === '/wishlists') return controlsHtml + wishlistsPage();
+  if (path === '/creators') return controlsHtml + creatorsPage();
+  return exploreHomePage(controlsHtml);
 }

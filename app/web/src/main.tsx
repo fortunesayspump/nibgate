@@ -227,38 +227,33 @@ function App() {
               </div>
             </header>
 
-            <section className="routes-list">
+            <section className="media-grid">
               {filteredRoutes.length > 0 ? (
                 filteredRoutes.map((route) => (
-                  <article className="route-card" key={route.id}>
-                    <div className="route-card-main">
-                      <div className="route-tags-row">
-                        <span className="route-badge">{route.type}</span>
-                        {route.unit ? <span className="unit-badge">Per {route.unit}</span> : null}
-                        {route.license ? <span className="license-badge">{route.license}</span> : null}
-                      </div>
-                      <h3>{route.title}</h3>
-                      <p className="route-summary">{route.path}</p>
-                      {route.originUrl ? (
-                        <p className="origin">
-                          <span className="origin-label">Origin:</span> <code>{route.originUrl}</code>
-                        </p>
-                      ) : null}
+                  <article className="media-card" key={route.id} onClick={() => window.location.href = route.path}>
+                    <img className="media-thumbnail" src={`https://picsum.photos/seed/${route.id}/800/600`} alt={route.title} />
+                    
+                    <div className="media-play-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
                     </div>
-                    <div className="route-card-side">
-                      <div className="route-price-box">
-                        <div className="price-item">
-                          <span className="price-label">Standard</span>
-                          <strong>{route.price} {route.currency}</strong>
-                        </div>
-                        <div className="price-item">
-                          <span className="price-label">Agent Rate</span>
-                          <strong>{route.agentPrice || route.price} {route.currency}</strong>
+
+                    <div className="media-overlay">
+                      <div className="media-badges">
+                        <span className="media-badge">{route.type.toUpperCase()}</span>
+                        <div className="media-actions">
+                          <button className="media-action-btn" aria-label="Like" onClick={(e) => { e.stopPropagation(); }}>♡</button>
+                          <button className="media-action-btn" aria-label="Bookmark" onClick={(e) => { e.stopPropagation(); }}>⚑</button>
                         </div>
                       </div>
-                      <div className="route-actions">
-                        <a className="button secondary-action" href={`/api/content/${route.id}/price`}>x402 JSON</a>
-                        <a className="button primary-action" href={route.path}>View resource</a>
+                      
+                      <div className="media-footer">
+                        <div className="media-creator">
+                          <img className="media-avatar" src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${route.id}`} alt="Creator" />
+                          <span className="media-title">{route.title}</span>
+                        </div>
+                        <span className="media-badge">{route.price} {route.currency}</span>
                       </div>
                     </div>
                   </article>

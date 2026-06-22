@@ -41,8 +41,7 @@ export function explorePage({ cssHref = '/assets/styles.css', siteOrigin, path =
             ${headerSection({ activePath: '/explore' })}
             <div class="overflow-hidden">
               <div class="explore-body explore-main" role="main">
-                ${exploreControls({ basePath })}
-                ${exploreRouteContent(path)}
+                ${exploreRouteContent(path, exploreControls({ basePath }))}
               </div>
               ${footerSection({ siteOrigin, showThemeToggle: true })}
             </div>
@@ -142,6 +141,17 @@ export function explorePage({ cssHref = '/assets/styles.css', siteOrigin, path =
           const nextTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
           applyTheme(nextTheme);
         });
+
+        // Interactive Tabs Mockup
+        const typeTabs = document.querySelectorAll('.type-tabs button');
+        typeTabs.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            // Toggle active state
+            const isActive = btn.classList.toggle('active');
+            btn.setAttribute('aria-pressed', String(isActive));
+          });
+        });
+
       })();
     </script>
     ${walletConnectScript()}

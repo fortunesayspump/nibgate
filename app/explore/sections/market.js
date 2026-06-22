@@ -1,4 +1,4 @@
-import { marketCard } from '../components/product-card.js';
+import { exploreCard } from '../components/product-card.js';
 import { contentTypes, marketProducts, sortTabs } from '../data/catalog.js';
 
 export function marketSection() {
@@ -17,7 +17,7 @@ export function marketSection() {
     <div class="market-layout">
       <div class="market-products">
         <div class="market-grid">
-          ${marketProducts.map(marketCard).join('')}
+          ${marketProducts.map(exploreCard).join('')}
         </div>
         <div class="market-load-more">
           <button type="button">Load more</button>

@@ -325,79 +325,52 @@ export function signinRouteContent() {
 }
 
 const navLinks = [
-  { name: 'Home', path: '/dashboard' },
-  { name: 'Profile', path: '/profile' },
-  { name: 'Products', path: '/products' },
-  { name: 'Collaborators', path: '/collaborators' },
-  { name: 'Checkout', path: '/checkout/discounts' },
-  { name: 'Emails', path: '/emails' },
-  { name: 'Workflows', path: '/workflows' },
-  { name: 'Sales', path: '/customers' },
-  { name: 'Analytics', path: '/dashboard/sales' },
-  { name: 'Affiliates', path: '/affiliates' },
-  { name: 'Payouts', path: '/payouts' },
+  { name: 'Profile', path: '#profile', id: 'profile' },
+  { name: 'Contents', path: '#contents', id: 'contents' },
+  { name: 'Sites', path: '#sites', id: 'sites' },
+  { name: 'Analytics', path: '#analytics', id: 'analytics' },
+  { name: 'Earnings', path: '#earnings', id: 'earnings' }
 ];
 
-const bottomLinks = [
-  { name: 'Discover', path: '/discover' },
-  { name: 'Library', path: '/library' }
-];
+const bottomLinks = [];
 
 export function dashboardRouteContent() {
-  return `<div class="flex flex-1 flex-col lg:flex-row min-h-[80vh] border-t border-dark-gray/50 bg-white">
+  return `
+  <style>
+    /* Hide the global footer and lock window scroll for the app-like dashboard layout */
+    .nibgate-site-footer { display: none !important; }
+    body { overflow: hidden; }
+  </style>
+  <div class="flex flex-1 flex-col lg:flex-row h-[calc(100vh-80px)] border-t" style="background: var(--nib-page-bg); color: var(--nib-page-fg); border-color: var(--nib-border-soft);">
     <!-- Sidebar -->
-    <nav aria-label="Main" class="flex flex-col overflow-x-hidden overflow-y-auto dashboard-sidebar lg:static lg:w-64">
-      
-      <section class="flex flex-col flex-1 py-4">
-        ${[
-          ...navLinks.map(link => `
-            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium dashboard-link ${link.name === 'Home' ? 'active font-semibold' : ''}">
-              <span>${link.name}</span>
-            </a>
-          `),
-          '<div class="flex-1"></div>',
-          ...bottomLinks.map(link => `
-            <a title="${link.name}" href="${link.path}" class="flex items-center px-6 py-4 no-underline font-medium dashboard-link">
-              <span>${link.name}</span>
-            </a>
-          `)
-        ].join('')}
-      </section>
-      <footer class="mt-auto hidden lg:block border-t" style="border-color: rgba(17,17,17,0.1);">
-        <a href="/dashboard" class="flex items-center px-6 py-4 font-bold dashboard-start-btn">
-          Start selling
-        </a>
-        <a href="/help" class="flex items-center px-6 py-4 font-medium dashboard-link border-t" style="border-color: rgba(17,17,17,0.1);">
-          Help
-        </a>
-        <button class="w-full flex items-center justify-between border-t px-6 py-4 cursor-pointer text-left font-medium dashboard-link" style="border-color: rgba(17,17,17,0.1); background: transparent; border-left: 0; border-right: 0; border-bottom: 0;">
-          <div class="flex items-center truncate">
-            <img class="aspect-square w-6 shrink-0 rounded-full border mr-3" style="border-color: rgba(17,17,17,0.2);" src="/assets/nibgate/images/placeholder-avatar.svg" alt="Avatar">
-            Fortune Eze
-          </div>
-          <span style="opacity: 0.5;">↓</span>
-        </button>
-      </footer>
+    <nav aria-label="Main" class="flex flex-col dashboard-sidebar border-r lg:w-48" style="border-color: var(--nib-border-soft); background: var(--nib-page-bg);">
+      ${[
+        ...navLinks.map((link, index) => `
+          <a title="${link.name}" href="${link.path}" class="dashboard-box box-${index} flex-1 no-underline w-full h-full" data-tab="${link.id}">
+            <span>${link.name}</span>
+          </a>
+        `)
+      ].join('')}
     </nav>
 
     <!-- Main Content -->
-    <main class="flex flex-1 flex-col overflow-y-auto bg-gray">
+    <main class="flex flex-col overflow-y-auto dashboard-main-content" style="background: var(--nib-page-bg);">
       
-      
-      <div class="p-4 md:p-8 space-y-12">
+      <!-- Sites Panel -->
+      <div id="panel-sites" class="dashboard-panel active p-4 md:p-8 space-y-12">
         <!-- Getting Started -->
         <section class="space-y-6">
           <div class="flex items-center justify-between">
             <h2 class="text-3xl font-medium">Getting started</h2>
-            <button class="font-medium hover:underline cursor-pointer bg-grayransparent border-none">Dismiss</button>
+            <button class="font-medium hover:underline cursor-pointer border-none bg-transparent" style="color: var(--nib-page-fg);">Dismiss</button>
           </div>
           <div class="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             ${['Welcome aboard', 'Showtime', 'Build your tribe', 'Make an impression'].map((title, i) => `
-              <button class="flex flex-col items-start gap-5 border border-dark-gray/50 bg-white rounded-2xl hover:bg-gray shadow-1 hover:shadow-md transition-all p-6 text-left cursor-pointer" type="button">
-                <div class="flex items-center justify-center w-12 h-12 rounded-full border border-dark-gray/50 bg-black text-white text-lg font-medium">${i + 1}</div>
+              <button class="flex flex-col items-start gap-5 border rounded-2xl shadow-1 transition-all p-6 text-left cursor-pointer hover:shadow-md" type="button" style="background: var(--nib-surface); border-color: var(--nib-border-soft); color: var(--nib-page-fg);">
+                <div class="flex items-center justify-center w-12 h-12 rounded-full border text-lg font-medium" style="background: var(--nib-surface-soft); border-color: var(--nib-border-soft); color: var(--nib-page-fg);">${i + 1}</div>
                 <div>
                   <h3 class="leading-tight font-medium text-2xl mb-2">${title}</h3>
-                  <p class="text-base text-black/60">Setup step description</p>
+                  <p class="text-base" style="color: var(--nib-page-muted);">Setup step description</p>
                 </div>
               </button>
             `).join('')}
@@ -408,21 +381,75 @@ export function dashboardRouteContent() {
         <section class="space-y-6">
           <h2 class="text-3xl font-medium">Your Sites Analytics</h2>
           <div class="grid w-full grid-cols-1 gap-4 lg:grid-cols-3">
-            <div class="border border-dark-gray/50 bg-white p-8 rounded-2xl shadow-1 hover:shadow-md transition-shadow">
-              <h3 class="text-base text-black/60 font-medium tracking-wide uppercase">Total Earnings</h3>
+            <div class="border p-8 rounded-2xl shadow-1 transition-shadow hover:shadow-md" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+              <h3 class="text-base font-medium tracking-wide uppercase" style="color: var(--nib-page-muted);">Total Earnings</h3>
               <p class="text-5xl font-medium tracking-tight mt-4">0.00 USDC</p>
             </div>
-            <div class="border border-dark-gray/50 bg-white p-8 rounded-2xl shadow-1 hover:shadow-md transition-shadow">
-              <h3 class="text-base text-black/60 font-medium tracking-wide uppercase">Active Unlocks</h3>
+            <div class="border p-8 rounded-2xl shadow-1 transition-shadow hover:shadow-md" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+              <h3 class="text-base font-medium tracking-wide uppercase" style="color: var(--nib-page-muted);">Active Unlocks</h3>
               <p class="text-5xl font-medium tracking-tight mt-4">0</p>
             </div>
-            <div class="border border-dark-gray/50 bg-white p-8 rounded-2xl shadow-1 hover:shadow-md transition-shadow">
-              <h3 class="text-base text-black/60 font-medium tracking-wide uppercase">Total Views</h3>
+            <div class="border p-8 rounded-2xl shadow-1 transition-shadow hover:shadow-md" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+              <h3 class="text-base font-medium tracking-wide uppercase" style="color: var(--nib-page-muted);">Total Views</h3>
               <p class="text-5xl font-medium tracking-tight mt-4">0</p>
             </div>
           </div>
         </section>
       </div>
+
+      <!-- Profile Panel -->
+      <div id="panel-profile" class="dashboard-panel p-4 md:p-8 space-y-6">
+        <h2 class="text-3xl font-medium">Creator Profile</h2>
+        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <p class="text-lg" style="color: var(--nib-page-muted);">Customize your storefront presence and avatar here.</p>
+        </div>
+      </div>
+
+      <!-- Contents Panel -->
+      <div id="panel-contents" class="dashboard-panel p-4 md:p-8 space-y-6">
+        <h2 class="text-3xl font-medium">Your Contents</h2>
+        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <p class="text-lg" style="color: var(--nib-page-muted);">Manage your digital products, courses, and unlockables.</p>
+        </div>
+      </div>
+
+      <!-- Analytics Panel -->
+      <div id="panel-analytics" class="dashboard-panel p-4 md:p-8 space-y-6">
+        <h2 class="text-3xl font-medium">Deep Analytics</h2>
+        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <p class="text-lg" style="color: var(--nib-page-muted);">View detailed charts and conversion metrics over time.</p>
+        </div>
+      </div>
+
+      <!-- Earnings Panel -->
+      <div id="panel-earnings" class="dashboard-panel p-4 md:p-8 space-y-6">
+        <h2 class="text-3xl font-medium">Earnings & Payouts</h2>
+        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <p class="text-lg" style="color: var(--nib-page-muted);">Review your USDC balances and trigger on-chain withdrawals.</p>
+        </div>
+      </div>
+
     </main>
-  </div>`;
+  </div>
+  <script>
+    (function() {
+      function switchTab() {
+        const hash = window.location.hash || '#sites';
+        const id = hash.replace('#', '');
+        
+        document.querySelectorAll('.dashboard-panel').forEach(panel => {
+          panel.classList.remove('active');
+        });
+        
+        const targetPanel = document.getElementById('panel-' + id);
+        if (targetPanel) {
+          targetPanel.classList.add('active');
+        }
+      }
+
+      window.addEventListener('hashchange', switchTab);
+      // Run on initial load
+      switchTab();
+    })();
+  </script>`;
 }

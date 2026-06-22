@@ -8,21 +8,21 @@
   --nib-soft: #e7efe4;
   --nib-border-soft: #11111124;
   --nib-page-bg: #f4f4f0;
-  --nib-page-fg: #111;
+  --nib-page-fg: #0a0a0a;
   --nib-page-muted: #44423d;
-  --nib-surface: #fff;
-  --nib-surface-soft: #f6f4ee;
-  --nib-surface-raised: #fff;
-  --nib-header-bg: #111;
-  --nib-header-fg: #f4f4f0;
-  --nib-header-border: #ffffff24;
+  --nib-surface: #ffffff;
+  --nib-surface-soft: #f0eee6;
+  --nib-surface-raised: #ffffff;
+  --nib-header-bg: #111111;
+  --nib-header-fg: #ffffff;
+  --nib-header-border: rgba(0, 0, 0, 0.08);
   --nib-footer-menu-bg: #f6f4ee;
-  --nib-footer-menu-fg: #111;
-  --nib-footer-bg: #111;
-  --nib-footer-fg: #fff;
+  --nib-footer-menu-fg: #0a0a0a;
+  --nib-footer-bg: #111111;
+  --nib-footer-fg: #ffffff;
   --nib-footer-muted: #c8c8c8;
-  --nib-code-bg: #111;
-  --nib-code-fg: #fff;
+  --nib-code-bg: #111111;
+  --nib-code-fg: #ffffff;
   --nib-focus: #0f766e;
   --nib-border-width: 1px;
   --nib-radius-control: 4px;
@@ -44,21 +44,21 @@ html[data-theme="dark"] {
   --nib-soft: #243326;
   --nib-border-soft: #f3efe729;
   --nib-page-bg: #171813;
-  --nib-page-fg: #f3efe7;
+  --nib-page-fg: #f4f4f0;
   --nib-page-muted: #b9b2a6;
   --nib-surface: #20221c;
   --nib-surface-soft: #242820;
   --nib-surface-raised: #282b24;
   --nib-header-bg: #10110e;
-  --nib-header-fg: #f3efe7;
-  --nib-header-border: #f3efe729;
-  --nib-footer-menu-bg: #22271f;
-  --nib-footer-menu-fg: #f3efe7;
+  --nib-header-fg: #f4f4f0;
+  --nib-header-border: rgba(244, 244, 240, 0.15);
+  --nib-footer-menu-bg: #20221c;
+  --nib-footer-menu-fg: #f4f4f0;
   --nib-footer-bg: #10110e;
-  --nib-footer-fg: #f3efe7;
+  --nib-footer-fg: #f4f4f0;
   --nib-footer-muted: #aaa397;
-  --nib-code-bg: #0f100d;
-  --nib-code-fg: #f3efe7;
+  --nib-code-bg: #10110e;
+  --nib-code-fg: #f4f4f0;
   --nib-focus: #a9c69a;
   --nib-border-width: 1px;
   --nib-radius-control: 4px;
@@ -1115,8 +1115,8 @@ body[data-theme="dark"] .nibgate-hero-flower {
 }
 html[data-theme="dark"] .nibgate-hero-flower-outline,
 body[data-theme="dark"] .nibgate-hero-flower-outline {
-  background: #10110e;
-  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.28));
+  background: rgba(255, 255, 255, 0.25);
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.4));
 }
 .code-snippet {
   box-sizing: border-box;

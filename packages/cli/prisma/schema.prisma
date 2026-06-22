@@ -40,6 +40,9 @@ model Website {
   description String?
   ownerId     String
   owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isVerified  Boolean   @default(false)
+  verifyToken String
+  siteToken   String    @unique
   createdAt   DateTime  @default(now())
   content     Content[]
   metrics     Metric[]

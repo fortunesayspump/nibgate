@@ -61,7 +61,7 @@ export function registerHubRoutes(app) {
       }
 
       // Check the .well-known/nibgate-verify.txt file
-      const verificationUrl = \`https://\${website.domain}/.well-known/nibgate-verify.txt\`;
+      const verificationUrl = `https://${website.domain}/.well-known/nibgate-verify.txt`;
       
       try {
         const response = await fetch(verificationUrl);
@@ -76,25 +76,25 @@ export function registerHubRoutes(app) {
           let ogImageUrl = null;
           let description = website.description;
           try {
-            const homeRes = await fetch(\`https://\${website.domain}\`);
+            const homeRes = await fetch(`https://${website.domain}`);
             const html = await homeRes.text();
             
             // Extract OG Image
-            const ogMatch = html.match(/<meta\\s+(?:property|name)=["']og:image["']\\s+content=["']([^"']+)["']/i);
+            const ogMatch = html.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i);
             if (ogMatch && ogMatch[1]) {
-               ogImageUrl = ogMatch[1].startsWith('/') ? \`https://\${website.domain}\${ogMatch[1]}\` : ogMatch[1];
+               ogImageUrl = ogMatch[1].startsWith('/') ? `https://${website.domain}${ogMatch[1]}` : ogMatch[1];
             }
             
             // Extract Meta Description if missing
             if (!description) {
-               const descMatch = html.match(/<meta\\s+name=["']description["']\\s+content=["']([^"']+)["']/i);
+               const descMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
                if (descMatch && descMatch[1]) description = descMatch[1];
             }
           } catch(e) {
             console.log('Failed to scrape metadata:', e.message);
           }
           
-          const faviconUrl = \`https://www.google.com/s2/favicons?domain=\${website.domain}&sz=128\`;
+          const faviconUrl = `https://www.google.com/s2/favicons?domain=${website.domain}&sz=128`;
           // --- END METADATA EXTRACTION ---
 
           await db.website.update({
@@ -113,7 +113,7 @@ export function registerHubRoutes(app) {
       } catch (err) {
         // Fallback for local development testing (http instead of https)
         if (website.domain.includes('localhost')) {
-            const localResponse = await fetch(\`http://\${website.domain}/.well-known/nibgate-verify.txt\`);
+            const localResponse = await fetch(`http://${website.domain}/.well-known/nibgate-verify.txt`);
             const localText = await localResponse.text();
             if (localText.trim() === website.verifyToken) {
                 await db.website.update({ where: { id: website.id }, data: { isVerified: true }});
@@ -132,7 +132,7 @@ export function registerHubRoutes(app) {
     try {
       // Expecting standard Bearer token
       const authHeader = req.headers.authorization || '';
-      const tokenMatch = authHeader.match(/^Bearer\\s+(.*)$/);
+      const tokenMatch = authHeader.match(/^Bearer\s+(.*)$/);
       const siteToken = tokenMatch ? tokenMatch[1] : null;
 
       if (!siteToken) {

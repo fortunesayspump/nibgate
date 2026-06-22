@@ -326,8 +326,8 @@ export function signinRouteContent() {
 
 const navLinks = [
   { name: 'Profile', path: '#profile', id: 'profile' },
-  { name: 'Contents', path: '#contents', id: 'contents' },
   { name: 'Sites', path: '#sites', id: 'sites' },
+  { name: 'Contents', path: '#contents', id: 'contents' },
   { name: 'Analytics', path: '#analytics', id: 'analytics' },
   { name: 'Earnings', path: '#earnings', id: 'earnings' }
 ];
@@ -343,7 +343,7 @@ export function dashboardRouteContent() {
   </style>
   <div class="flex flex-1 flex-col lg:flex-row h-[calc(100vh-80px)] border-t" style="background: var(--nib-page-bg); color: var(--nib-page-fg); border-color: var(--nib-border-soft);">
     <!-- Sidebar -->
-    <nav aria-label="Main" class="flex flex-col dashboard-sidebar border-r lg:w-48" style="border-color: var(--nib-border-soft); background: var(--nib-page-bg);">
+    <nav aria-label="Main" class="flex flex-col dashboard-sidebar lg:w-48" style="background: var(--nib-page-bg);">
       ${[
         ...navLinks.map((link, index) => `
           <a title="${link.name}" href="${link.path}" class="dashboard-box box-${index} flex-1 no-underline w-full h-full" data-tab="${link.id}">
@@ -389,34 +389,150 @@ export function dashboardRouteContent() {
       </div>
 
       <!-- Profile Panel -->
-      <div id="panel-profile" class="dashboard-panel p-4 md:p-8 space-y-6">
-        <h2 class="text-3xl font-medium">Creator Profile</h2>
-        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-          <p class="text-lg" style="color: var(--nib-page-muted);">Customize your storefront presence and avatar here.</p>
+      <div id="panel-profile" class="dashboard-panel p-4 md:p-8 space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <h2 class="text-3xl font-medium">Creator Profile</h2>
+          <button class="bg-black text-white px-6 py-2 font-medium rounded cursor-pointer">Save Changes</button>
+        </div>
+        <div class="border p-8 rounded-2xl shadow-1 space-y-8" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <div class="flex items-center gap-6">
+            <div class="w-24 h-24 rounded-full bg-gray-200 border-2 overflow-hidden flex items-center justify-center text-gray-500 text-sm">Avatar</div>
+            <button class="px-4 py-2 border rounded font-medium hover:opacity-70 cursor-pointer" style="border-color: var(--nib-border-soft);">Upload New Avatar</button>
+          </div>
+          <div class="space-y-4 max-w-xl">
+            <div>
+              <label class="block text-sm font-medium mb-1">Display Name</label>
+              <input type="text" value="Clinton" class="w-full p-3 border rounded bg-transparent" style="border-color: var(--nib-border-soft); color: var(--nib-page-fg);">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Bio</label>
+              <textarea rows="3" class="w-full p-3 border rounded bg-transparent" placeholder="Tell your audience about yourself..." style="border-color: var(--nib-border-soft); color: var(--nib-page-fg);"></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Connected Wallet</label>
+              <input type="text" value="0x8f7b...3c2a" readonly class="w-full p-3 border rounded bg-transparent opacity-50" style="border-color: var(--nib-border-soft); color: var(--nib-page-fg);">
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Contents Panel -->
-      <div id="panel-contents" class="dashboard-panel p-4 md:p-8 space-y-6">
-        <h2 class="text-3xl font-medium">Your Contents</h2>
-        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-          <p class="text-lg" style="color: var(--nib-page-muted);">Manage your digital products, courses, and unlockables.</p>
+      <div id="panel-contents" class="dashboard-panel p-4 md:p-8 space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <h2 class="text-3xl font-medium">Your Contents</h2>
+          <button class="bg-black text-white px-6 py-2 font-medium rounded cursor-pointer">Sync Manifest</button>
+        </div>
+        <div class="border rounded-2xl shadow-1 overflow-hidden" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b text-sm opacity-80" style="border-color: var(--nib-border-soft);">
+                <th class="p-4 font-medium">Item</th>
+                <th class="p-4 font-medium">Type</th>
+                <th class="p-4 font-medium">Price</th>
+                <th class="p-4 font-medium text-right">Unlocks</th>
+              </tr>
+            </thead>
+            <tbody class="text-base divide-y" style="border-color: var(--nib-border-soft);">
+              <tr class="hover:opacity-70 transition-colors">
+                <td class="p-4 font-medium">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-200 rounded"></div>
+                    Advanced Photography Setup
+                  </div>
+                </td>
+                <td class="p-4">Article</td>
+                <td class="p-4">1.50 USDC</td>
+                <td class="p-4 text-right">42</td>
+              </tr>
+              <tr class="hover:opacity-70 transition-colors">
+                <td class="p-4 font-medium">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-200 rounded"></div>
+                    Wedding Presets Vol 1
+                  </div>
+                </td>
+                <td class="p-4">Download</td>
+                <td class="p-4">15.00 USDC</td>
+                <td class="p-4 text-right">128</td>
+              </tr>
+              <tr class="hover:opacity-70 transition-colors">
+                <td class="p-4 font-medium">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-200 rounded"></div>
+                    Behind the Scenes Video
+                  </div>
+                </td>
+                <td class="p-4">Video</td>
+                <td class="p-4">5.00 USDC</td>
+                <td class="p-4 text-right">16</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="p-4 text-center text-sm opacity-60 border-t" style="border-color: var(--nib-border-soft);">
+            These items are automatically synced from your verified websites.
+          </div>
         </div>
       </div>
 
       <!-- Analytics Panel -->
-      <div id="panel-analytics" class="dashboard-panel p-4 md:p-8 space-y-6">
+      <div id="panel-analytics" class="dashboard-panel p-4 md:p-8 space-y-6 hidden">
         <h2 class="text-3xl font-medium">Deep Analytics</h2>
-        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-          <p class="text-lg" style="color: var(--nib-page-muted);">View detailed charts and conversion metrics over time.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="border p-6 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+            <div class="text-sm opacity-70 mb-2 font-medium">Total Views</div>
+            <div class="text-4xl font-bold">12,405</div>
+            <div class="text-green-500 text-sm mt-2 font-medium">↑ 14% this week</div>
+          </div>
+          <div class="border p-6 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+            <div class="text-sm opacity-70 mb-2 font-medium">Unlock Rate</div>
+            <div class="text-4xl font-bold">4.2%</div>
+            <div class="text-green-500 text-sm mt-2 font-medium">↑ 1.1% this week</div>
+          </div>
+          <div class="border p-6 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+            <div class="text-sm opacity-70 mb-2 font-medium">Top Traffic Source</div>
+            <div class="text-2xl font-bold mt-2">Explore Page</div>
+            <div class="text-gray-500 text-sm mt-2 font-medium">68% of volume</div>
+          </div>
+        </div>
+        <div class="border p-8 rounded-2xl shadow-1 h-64 flex items-center justify-center text-gray-400" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          [ Interactive Chart Area Placeholder ]
         </div>
       </div>
 
       <!-- Earnings Panel -->
-      <div id="panel-earnings" class="dashboard-panel p-4 md:p-8 space-y-6">
-        <h2 class="text-3xl font-medium">Earnings & Payouts</h2>
-        <div class="border p-8 rounded-2xl shadow-1" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
-          <p class="text-lg" style="color: var(--nib-page-muted);">Review your USDC balances and trigger on-chain withdrawals.</p>
+      <div id="panel-earnings" class="dashboard-panel p-4 md:p-8 space-y-6 hidden">
+        <div class="flex items-center justify-between">
+          <h2 class="text-3xl font-medium">Earnings & Payouts</h2>
+          <button class="bg-black text-white px-6 py-2 font-medium rounded cursor-pointer shadow-md transform hover:-translate-y-px transition">Withdraw USDC</button>
+        </div>
+        <div class="border p-10 rounded-2xl shadow-1 text-center space-y-4" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <div class="text-sm font-medium uppercase tracking-widest opacity-60">Available Balance</div>
+          <div class="text-6xl md:text-8xl font-bold tracking-tighter">2,053.00 <span class="text-3xl opacity-50">USDC</span></div>
+          <div class="text-sm opacity-70">Ready to withdraw to your connected wallet instantly on X402 Network.</div>
+        </div>
+        <h3 class="text-xl font-medium pt-4">Recent Transactions</h3>
+        <div class="border rounded-2xl shadow-1 overflow-hidden" style="background: var(--nib-surface); border-color: var(--nib-border-soft);">
+          <div class="p-4 border-b flex justify-between items-center hover:opacity-70" style="border-color: var(--nib-border-soft);">
+            <div>
+              <div class="font-medium">Unlock: Wedding Presets Vol 1</div>
+              <div class="text-sm opacity-60">Today, 2:45 PM</div>
+            </div>
+            <div class="font-medium text-green-600">+15.00 USDC</div>
+          </div>
+          <div class="p-4 border-b flex justify-between items-center hover:opacity-70" style="border-color: var(--nib-border-soft);">
+            <div>
+              <div class="font-medium">Unlock: Advanced Photography Setup</div>
+              <div class="text-sm opacity-60">Today, 11:20 AM</div>
+            </div>
+            <div class="font-medium text-green-600">+1.50 USDC</div>
+          </div>
+          <div class="p-4 flex justify-between items-center hover:opacity-70">
+            <div>
+              <div class="font-medium">Withdrawal</div>
+              <div class="text-sm opacity-60">Yesterday, 9:00 AM</div>
+            </div>
+            <div class="font-medium text-gray-500">-500.00 USDC</div>
+          </div>
         </div>
       </div>
 
@@ -425,17 +541,30 @@ export function dashboardRouteContent() {
   <script>
     (function() {
       function switchTab() {
-        const hash = window.location.hash || '#sites';
+        const hash = window.location.hash || '#profile';
         const id = hash.replace('#', '');
         
+        // Hide all panels
         document.querySelectorAll('.dashboard-panel').forEach(panel => {
           panel.classList.remove('active');
+          panel.classList.add('hidden');
         });
         
+        // Show target panel
         const targetPanel = document.getElementById('panel-' + id);
         if (targetPanel) {
+          targetPanel.classList.remove('hidden');
           targetPanel.classList.add('active');
         }
+
+        // Update active sidebar tab class
+        document.querySelectorAll('.dashboard-sidebar a').forEach(tab => {
+          if (tab.getAttribute('data-tab') === id) {
+            tab.classList.add('active');
+          } else {
+            tab.classList.remove('active');
+          }
+        });
       }
 
       window.addEventListener('hashchange', switchTab);

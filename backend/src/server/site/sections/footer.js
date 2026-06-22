@@ -1,10 +1,16 @@
-const exploreOrigin = '';
+import { exploreOrigin } from '../data.js';
 
 const footerMenus = [
   {
     id: 'project-menu',
     title: 'Project',
     links: [
+      ['Why Nibgate?', '/about'],
+      ['Features', '/features'],
+      ['Get started', '/get-started'],
+      ['Payments', '/features'],
+      ['Discovery', exploreOrigin],
+      ['Security', '/features'],
       ['Manifest', '/.well-known/nibgate.json'],
       ['Status', '/api/nibgate/status']
     ]

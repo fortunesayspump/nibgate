@@ -1,20 +1,39 @@
 import { buildSiteManifest, buildVerificationFile } from 'nibgate/src/core/hub.js';
 import { explorePage } from '../../../../frontend/src/explore/page.js';
+import { createAppState } from '../app-state.js';
+import { sitePage, siteRoutePage } from '../site.js';
 
-const EXPLORE_ROUTE_PATHS = ['/', '/explore', '/explore/products', '/explore/categories', '/explore/wishlists', '/explore/creators'];
+const EXPLORE_ROUTE_PATHS = ['/explore', '/explore/products', '/explore/categories', '/explore/wishlists', '/explore/creators'];
 
 export function registerAppRoutes(app, context) {
-  const { webAssets, getConfig } = context;
+  const { store, webAssets, getConfig } = context;
+
+  app.get('/api/app/state', (_req, res) => {
+    res.json(createAppState(getConfig(), store));
+  });
+
+  app.get('/', (_req, res) => {
+    res.send(sitePage({ cssHref: webAssets.cssHref }));
+  });
+
+  app.get('/about', (_req, res) => {
+    res.send(sitePage({ cssHref: webAssets.cssHref, activePath: '/about' }));
+  });
 
   app.get(EXPLORE_ROUTE_PATHS, (req, res) => {
-    // If the path is exactly '/' or '/explore', it maps to the explore root '/'
-    const explorePath = req.path === '/' ? '/' : (req.path.replace(/^\/explore/, '') || '/');
+    const explorePath = req.path.replace(/^\/explore/, '') || '/';
     res.send(explorePage({
       cssHref: webAssets.cssHref,
       siteOrigin: '',
       path: explorePath,
-      basePath: req.path.startsWith('/explore') ? '/explore' : ''
+      basePath: '/explore'
     }));
+  });
+
+  app.get(['/blog', '/features', '/get-started', '/signin', '/dashboard'], (req, res) => {
+    const page = siteRoutePage({ cssHref: webAssets.cssHref, path: req.path });
+    if (!page) return res.status(404).send('Not found');
+    return res.send(page);
   });
 
   app.get('/.well-known/nibgate.json', (_req, res) => {

@@ -1,3 +1,5 @@
+import { exploreOrigin } from '../data.js';
+
 function navItem({ label, href, activePath }) {
   const isActive = href === activePath;
   const activeClass = isActive ? ' is-active' : '';
@@ -9,7 +11,10 @@ function navItem({ label, href, activePath }) {
 
 function navList(activePath = '/') {
   const items = [
-    { label: 'Explore', href: '/' }
+    { label: 'Explore', href: exploreOrigin },
+    { label: 'Blog', href: '/blog' },
+    { label: 'Features', href: '/features' },
+    { label: 'About', href: '/about' }
   ];
 
   return `<ul class="nibgate-primary-nav">${items.map((item) => navItem({ ...item, activePath })).join('')}</ul>`;

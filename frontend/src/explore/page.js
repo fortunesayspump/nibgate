@@ -1,9 +1,9 @@
 import { escapeHtml } from 'nibgate/src/shared/html.js';
 import { exploreControls } from './components/controls.js';
 import { exploreRouteContent } from './router.js';
-import { headerSection } from '../server/site/sections/header.js';
-import { footerSection } from '../server/site/sections/footer.js';
-import { walletConnectScript } from '../server/site/wallet-connect.js';
+import { headerSection } from '../../../backend/src/server/site/sections/header.js';
+import { footerSection } from '../../../backend/src/server/site/sections/footer.js';
+import { walletConnectScript } from '../../../backend/src/server/site/wallet-connect.js';
 
 export function explorePage({ cssHref = '/assets/styles.css', siteOrigin, path = '/', basePath = '/explore' } = {}) {
   const localCss = cssHref ? `<link rel="stylesheet" href="${escapeHtml(cssHref)}" />` : '';

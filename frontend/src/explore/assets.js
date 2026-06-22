@@ -1,4 +1,4 @@
-import { placeholderArt, placeholderAvatar, placeholderTile } from '../server/shared/placeholders.js';
+import { placeholderArt, placeholderAvatar, placeholderTile } from '../../../backend/src/server/shared/placeholders.js';
 
 export function featuredArt(title) {
   return placeholderArt(title, { kicker: 'Featured', width: 760, height: 760 });

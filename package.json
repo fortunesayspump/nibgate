@@ -8,17 +8,17 @@
     "node": "22.x"
   },
   "workspaces": [
-    "app",
-    "packages/*",
-    "examples/*"
+    "frontend",
+    "backend",
+    "packages/*"
   ],
   "scripts": {
+    "dev": "npm run build:frontend && npm run dev:backend",
+    "dev:demo": "npm --prefix demo install && npm --prefix demo run dev",
     "dev:cli": "npm --workspace nibgate run dev",
-    "dev:app": "npm run build:app && npm --workspace app run app",
-    "dev:app:api": "npm --workspace app run app",
-    "dev:app:web": "npm --workspace app run web",
-    "dev:example:blog": "npm --workspace @nibgate/example-blog run dev",
-    "build:app": "npm --workspace app run web:build",
+    "dev:backend": "npm --workspace @nibgate/backend run dev",
+    "dev:frontend": "npm --workspace @nibgate/frontend run dev",
+    "build:frontend": "npm --workspace @nibgate/frontend run build",
     "routes": "npm --workspace nibgate run routes"
   }
 }

@@ -2,17 +2,30 @@
   "name": "@nibgate/frontend",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "engines": {
-    "node": "22.x"
-  },
   "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0 --port 5173",
-    "build": "vite build --config vite.config.ts"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@tanstack/react-query": "^5.101.0",
+    "lucide-react": "^1.21.0",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "siwe": "^3.0.0",
+    "viem": "^2.53.1",
+    "wagmi": "^3.6.18"
+  },
   "devDependencies": {
-    "typescript": "^5.9.3",
-    "vite": "^6.4.1"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

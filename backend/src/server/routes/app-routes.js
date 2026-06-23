@@ -1,5 +1,5 @@
 import { buildSiteManifest, buildVerificationFile } from 'nibgate/src/core/hub.js';
-import { explorePage } from '../../../../frontend/src/explore/page.js';
+
 import { createAppState } from '../app-state.js';
 import { sitePage, siteRoutePage } from '../site.js';
 
@@ -21,13 +21,7 @@ export function registerAppRoutes(app, context) {
   });
 
   app.get(EXPLORE_ROUTE_PATHS, (req, res) => {
-    const explorePath = req.path.replace(/^\/explore/, '') || '/';
-    res.send(explorePage({
-      cssHref: webAssets.cssHref,
-      siteOrigin: '',
-      path: explorePath,
-      basePath: '/explore'
-    }));
+    res.redirect(`http://localhost:3001${req.originalUrl}`);
   });
 
   app.get(['/blog', '/features', '/get-started', '/signin', '/dashboard'], (req, res) => {

@@ -1,4 +1,4 @@
-import { featuredProducts } from "../../../../explore/data/catalog.js";
+import { featuredProducts } from "../_data/catalog";
 import { FeaturedCard } from "./ProductCard";
 
 export default function FeaturedSection() {

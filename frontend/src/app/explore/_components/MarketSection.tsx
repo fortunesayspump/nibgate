@@ -1,4 +1,4 @@
-import { contentTypes, marketProducts, sortTabs } from "../../../../explore/data/catalog.js";
+import { contentTypes, marketProducts, sortTabs } from "../_data/catalog";
 import { ExploreCard } from "./ProductCard";
 
 export default function MarketSection() {

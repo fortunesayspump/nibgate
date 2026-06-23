@@ -17,8 +17,8 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
-        <script
-          suppressHydrationWarning
+        <Script
+          id="theme-script"
           dangerouslySetInnerHTML={{
             __html: `
               try {

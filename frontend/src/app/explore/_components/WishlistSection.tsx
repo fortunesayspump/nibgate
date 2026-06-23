@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { wishlists } from "../../../../explore/data/catalog.js";
-import { creatorAvatar, wishlistTile } from "../../../../explore/assets.js";
+import { wishlists } from "../_data/catalog";
+import { creatorAvatar, wishlistTile } from "../_data/assets";
 
 const documentIcon = (
   <svg className="explore-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">

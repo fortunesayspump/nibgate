@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { categories } from "../../../explore/data/catalog.js";
+import { categories } from "../_data/catalog";
 
 function CategoryNav() {
   const pathname = usePathname();

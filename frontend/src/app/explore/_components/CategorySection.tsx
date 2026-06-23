@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { categories } from "../../../../explore/data/catalog.js";
+import { categories } from "../_data/catalog";
 
 export default function CategorySection() {
   return (

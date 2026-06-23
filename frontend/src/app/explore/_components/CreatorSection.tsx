@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { featuredProducts, marketProducts } from "../../../../explore/data/catalog.js";
+import { featuredProducts, marketProducts } from "../_data/catalog";
 
 export default function CreatorSection() {
   const creators = Array.from(

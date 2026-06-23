@@ -1296,10 +1296,10 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
 }
 .nibgate-soft-cta:hover,
 .nibgate-soft-cta:focus-visible {
-  background: var(--nib-plum);
+  background: var(--nib-olive);
   box-shadow: var(--nib-shadow-2);
-  color: #fff;
-  border-color: #2e1f5e38;
+  color: #10110e;
+  border-color: rgba(17, 17, 17, 0.18);
 }
 .nibgate-signin-panel,
 .nibgate-signin-panel-inner {
@@ -1333,9 +1333,9 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
 .nibgate-chip-link:hover,
 .nibgate-chip-link:focus-visible {
   box-shadow: var(--nib-shadow-2);
-  color: var(--nib-plum);
+  color: var(--nib-olive);
   background: #fff;
-  border-color: #2e1f5e29;
+  border-color: rgba(124, 154, 109, 0.29);
 }
 html[data-theme="dark"] .nibgate-chip-link,
 body[data-theme="dark"] .nibgate-chip-link {
@@ -1371,9 +1371,9 @@ body[data-theme="dark"] .nibgate-chip-link:focus-visible {
 .nibgate-creator-pill:hover,
 .nibgate-creator-pill:focus-visible {
   box-shadow: var(--nib-shadow-3);
-  color: var(--nib-plum);
+  color: var(--nib-olive);
   background: #fff;
-  border-color: #2e1f5e2e;
+  border-color: rgba(124, 154, 109, 0.29);
 }
 html[data-theme="dark"] .nibgate-creator-pill,
 body[data-theme="dark"] .nibgate-creator-pill {

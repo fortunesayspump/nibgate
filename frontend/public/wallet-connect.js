@@ -68,6 +68,7 @@ function initWalletConnect() {
       enableEIP6963: true,
       enableInjected: true,
       enableCoinbase: true,
+      enableWalletConnect: false,
     }),
     chains: [arcTestnet],
     projectId,

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "./ThemeToggle";
 
 const footerMenus = [
   {
@@ -192,6 +193,8 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
                 </form>
               </div>
             </div>
+
+            {showThemeToggle && <ThemeToggle />}
           </div>
 
           <p className="footer__credit">

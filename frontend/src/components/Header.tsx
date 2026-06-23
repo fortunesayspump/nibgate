@@ -44,6 +44,11 @@ export default function Header() {
             </ul>
           </nav>
 
+          <div className="nibgate-wallet-container" data-balance-container>
+            <button type="button" className="nibgate-header-login" data-balance-text>0.00 USDC</button>
+            <div className="hidden-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
+          </div>
+
           <WalletButton />
 
           <button
@@ -79,6 +84,11 @@ export default function Header() {
             </li>
           ))}
         </ul>
+
+        <div className="nibgate-wallet-container" data-balance-container style={{ width: "100%" }}>
+          <button type="button" className="nibgate-header-mobile-login" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }} data-balance-text>0.00 USDC</button>
+          <div className="hidden-dropdown mobile-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
+        </div>
 
         <WalletButtonMobile />
       </nav>

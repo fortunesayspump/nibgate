@@ -2,10 +2,10 @@
 
 import { useAppKit, useAppKitAccount, useDisconnect as useAppKitDisconnect } from '@reown/appkit/react'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
-import { useAccount, useChainId, useDisconnect, useSwitchChain } from 'wagmi'
+import { useState } from 'react'
+import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { useBalance } from 'wagmi'
 import { arcTestnet } from '../lib/wagmi'
-import { getConnectedChainId, isArcTestnetChainId } from '../lib/chains'
 
 function shortAddress(address: `0x${string}`) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -18,75 +18,61 @@ function isHexAddress(address?: string): address is `0x${string}` {
 export function WalletButton() {
   const { open } = useAppKit()
   const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
-  const { address, chainId, isConnected } = useAccount()
-  const activeChainId = useChainId()
+  const { address, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const { disconnect: disconnectAppKit } = useAppKitDisconnect()
-  const { switchChain, isPending: isSwitching } = useSwitchChain()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
   const appKitAddress = isHexAddress(appKitAccount.address) ? appKitAccount.address : undefined
   const displayAddress = address ?? appKitAddress
   const isWalletConnected = isConnected || Boolean(appKitAccount.isConnected && appKitAddress)
-  const connectedChainId = getConnectedChainId(chainId, activeChainId)
-  const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
 
-  useEffect(() => {
-    if (!menuOpen) return
+  const handleDisconnect = () => {
+    disconnect()
+    void disconnectAppKit({ namespace: 'eip155' })
+  }
 
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
+  const handleCopy = () => {
+    if (!displayAddress) return
+    const fallback = () => {
+      const ta = document.createElement('textarea')
+      ta.value = displayAddress
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy') } catch {}
+      document.body.removeChild(ta)
     }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(displayAddress).catch(fallback)
+    } else {
+      fallback()
     }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [menuOpen])
-
-  if (isWalletConnected && displayAddress && isWrongChain) {
-    return (
-      <button className="nibgate-header-cta" type="button" onClick={() => switchChain({ chainId: arcTestnet.id })}>
-        {isSwitching ? 'Switching...' : 'Switch to Arc'}
-      </button>
-    )
   }
 
   if (isWalletConnected && displayAddress) {
     return (
-      <div className="nibgate-wallet-container" data-wallet-container ref={menuRef}>
-        <button className="nibgate-header-cta" type="button" onClick={() => setMenuOpen((value) => !value)}>
+      <div className="nibgate-wallet-container" data-wallet-container>
+        <button
+          className="nibgate-header-cta"
+          type="button"
+          data-wallet-connect
+          data-connected="true"
+          data-address={displayAddress}
+          onClick={handleCopy}
+        >
           {shortAddress(displayAddress)}
         </button>
-        {menuOpen ? (
-          <div className="nibgate-wallet-dropdown" style={{ display: 'block' }}>
-            <Link href="/dashboard" className="dropdown-item" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-            <button
-              type="button"
-              className="dropdown-item dropdown-disconnect"
-              onClick={() => {
-                setMenuOpen(false)
-                disconnect()
-                void disconnectAppKit({ namespace: 'eip155' })
-              }}
-            >
-              Disconnect
-            </button>
-          </div>
-        ) : null}
+        <div className="nibgate-wallet-dropdown" data-wallet-dropdown>
+          <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
+          <button type="button" className="dropdown-item dropdown-disconnect" onClick={handleDisconnect}>
+            Disconnect
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="nibgate-wallet-container" data-wallet-container>
-      <button className="nibgate-header-cta" type="button" onClick={() => open()}>
+      <button className="nibgate-header-cta" type="button" data-wallet-connect onClick={() => open()}>
         Connect wallet
       </button>
     </div>
@@ -96,75 +82,44 @@ export function WalletButton() {
 export function WalletButtonMobile() {
   const { open } = useAppKit()
   const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
-  const { address, chainId, isConnected } = useAccount()
-  const activeChainId = useChainId()
+  const { address, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
   const { disconnect: disconnectAppKit } = useAppKitDisconnect()
-  const { switchChain, isPending: isSwitching } = useSwitchChain()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
   const appKitAddress = isHexAddress(appKitAccount.address) ? appKitAccount.address : undefined
   const displayAddress = address ?? appKitAddress
   const isWalletConnected = isConnected || Boolean(appKitAccount.isConnected && appKitAddress)
-  const connectedChainId = getConnectedChainId(chainId, activeChainId)
-  const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
 
-  useEffect(() => {
-    if (!menuOpen) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [menuOpen])
-
-  if (isWalletConnected && displayAddress && isWrongChain) {
-    return (
-      <button className="nibgate-header-mobile-cta" style={{ width: '100%' }} type="button" onClick={() => switchChain({ chainId: arcTestnet.id })}>
-        {isSwitching ? 'Switching...' : 'Switch to Arc'}
-      </button>
-    )
+  const handleDisconnect = () => {
+    disconnect()
+    void disconnectAppKit({ namespace: 'eip155' })
   }
 
   if (isWalletConnected && displayAddress) {
     return (
-      <div className="nibgate-wallet-container" data-wallet-container style={{ width: '100%' }} ref={menuRef}>
-        <button className="nibgate-header-mobile-cta" style={{ width: '100%' }} type="button" onClick={() => setMenuOpen((value) => !value)}>
+      <div className="nibgate-wallet-container" data-wallet-container style={{ width: '100%' }}>
+        <button
+          className="nibgate-header-mobile-cta"
+          style={{ width: '100%' }}
+          type="button"
+          data-wallet-connect
+          data-connected="true"
+          data-address={displayAddress}
+        >
           {shortAddress(displayAddress)}
         </button>
-        {menuOpen ? (
-          <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: 'block' }}>
-            <Link href="/dashboard" className="dropdown-item" onClick={() => setMenuOpen(false)}>Dashboard</Link>
-            <button
-              type="button"
-              className="dropdown-item dropdown-disconnect"
-              onClick={() => {
-                setMenuOpen(false)
-                disconnect()
-                void disconnectAppKit({ namespace: 'eip155' })
-              }}
-            >
-              Disconnect
-            </button>
-          </div>
-        ) : null}
+        <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: 'flex' }}>
+          <Link href="/dashboard" className="dropdown-item" onClick={() => {}}>Dashboard</Link>
+          <button type="button" className="dropdown-item dropdown-disconnect" onClick={handleDisconnect}>
+            Disconnect
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="nibgate-wallet-container" data-wallet-container style={{ width: '100%' }}>
-      <button className="nibgate-header-mobile-cta" style={{ width: '100%' }} type="button" onClick={() => open()}>
+      <button className="nibgate-header-mobile-cta" style={{ width: '100%' }} type="button" data-wallet-connect onClick={() => open()}>
         Connect wallet
       </button>
     </div>
@@ -181,7 +136,7 @@ export function ConnectedWalletButton({ className }: { className?: string }) {
 
   if (isWalletConnected && displayAddress) {
     return (
-      <button type="button" data-wallet-connect className={className} style={{ pointerEvents: 'none', opacity: 0.7 }}>
+      <button type="button" className={className} style={{ pointerEvents: 'none', opacity: 0.7 }}>
         {shortAddress(displayAddress)}
       </button>
     )

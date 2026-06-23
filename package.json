@@ -13,7 +13,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "prisma generate --schema=./packages/cli/prisma/schema.prisma",
+    "postinstall": "npx prisma generate --schema=./packages/cli/prisma/schema.prisma",
     "build": "npm run build:frontend",
     "dev": "npm run build:frontend && npm run dev:backend",
     "dev:demo": "npm --prefix demo install && npm --prefix demo run dev",

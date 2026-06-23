@@ -10,33 +10,8 @@ export default function SitesPage() {
   const loadSites = async () => {
     setLoading(true);
     try {
-      // In a real scenario, this would call your actual Next.js API route or external backend.
-      // Since the backend is being decoupled, we'll mock the fetch response for now to preserve UI structure.
-      // const res = await fetch('/api/hub/sites');
-      // const data = await res.json();
-      
-      // Mock data representing what the API returns
-      const data = {
-        success: true,
-        websites: [
-          {
-            id: '1',
-            domain: 'photos.clinton.com',
-            name: 'Clinton Photography',
-            isVerified: true,
-            siteToken: 'tk_live_1982739182739812739',
-            _count: { content: 12 }
-          },
-          {
-            id: '2',
-            domain: 'presets.clinton.com',
-            name: 'Clinton Presets',
-            isVerified: false,
-            verifyToken: 'nibgate-verify=abc123xyz890',
-            _count: { content: 0 }
-          }
-        ]
-      };
+      const res = await fetch('/api/hub/sites');
+      const data = await res.json();
 
       if (!data.success) throw new Error(data.error || 'Failed to load');
       setSites(data.websites || []);

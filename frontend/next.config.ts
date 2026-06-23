@@ -5,11 +5,11 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:3000/api/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/api/:path*`,
       },
       {
         source: "/.well-known/:path*",
-        destination: "http://localhost:3000/.well-known/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/.well-known/:path*`,
       },
     ];
   },

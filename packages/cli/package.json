@@ -17,9 +17,7 @@
     "@x402/evm": "^2.15.0",
     "cookie": "^1.1.1",
     "nanoid": "^5.1.5",
+    "prisma": "^5.22.0",
     "viem": "^2.52.2"
-  },
-  "devDependencies": {
-    "prisma": "^5.22.0"
   }
 }

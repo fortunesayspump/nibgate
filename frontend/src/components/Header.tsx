@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 
-export default function Header({ activePath = "/" }: { activePath?: string }) {
+export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const activePath = usePathname();
 
   const navItems = [
     { label: "Explore", href: "/explore" },
@@ -41,10 +43,17 @@ export default function Header({ activePath = "/" }: { activePath?: string }) {
           </nav>
 
           {/* Web3 Connect (Placeholder for Wagmi/SIWE) */}
-          <div className="nibgate-wallet-container">
-            <button className="nibgate-header-cta" type="button">
-              Connect wallet
-            </button>
+          <div className="nibgate-wallet-container" data-balance-container>
+            <button type="button" className="nibgate-header-login" data-balance-text>0.00 USDC</button>
+            <div className="hidden-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
+          </div>
+          
+          <div className="nibgate-wallet-container" data-wallet-container>
+            <button className="nibgate-header-cta" type="button" data-wallet-connect>Connect wallet</button>
+            <div className="nibgate-wallet-dropdown" data-wallet-dropdown style={{ display: "none" }}>
+              <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
+              <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
+            </div>
           </div>
 
           <button
@@ -80,10 +89,17 @@ export default function Header({ activePath = "/" }: { activePath?: string }) {
             </li>
           ))}
         </ul>
-        <div className="nibgate-wallet-container" style={{ width: "100%" }}>
-          <button className="nibgate-header-mobile-cta" style={{ width: "100%" }} type="button">
-            Connect wallet
-          </button>
+        <div className="nibgate-wallet-container" data-balance-container style={{ width: "100%" }}>
+          <button type="button" className="nibgate-header-mobile-login" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }} data-balance-text>0.00 USDC</button>
+          <div className="hidden-dropdown mobile-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
+        </div>
+        
+        <div className="nibgate-wallet-container" data-wallet-container style={{ width: "100%" }}>
+          <button className="nibgate-header-mobile-cta" style={{ width: "100%" }} type="button" data-wallet-connect>Connect wallet</button>
+          <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: "none" }}>
+            <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
+            <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
+          </div>
         </div>
       </nav>
     </header>

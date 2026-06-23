@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import SvgSprite from "@/components/SvgSprite";
 import "../styles/styles.css";
 
@@ -44,6 +45,7 @@ export default function RootLayout({
             </div>
           </main>
         </div>
+        <Script src="/wallet-connect.js" strategy="lazyOnload" type="module" />
       </body>
     </html>
   );

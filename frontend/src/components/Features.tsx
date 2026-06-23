@@ -20,7 +20,7 @@ export default function Features() {
 
       <div className="flex flex-col overflow-hidden lg:flex-row">
         <div className="flex items-center justify-center bg-gray p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 lg:order-2 xl:p-32">
-          <div className="relative w-full max-w-[320px]">
+          <div className="relative max-w-xl">
             <img className="h-auto w-full" alt="Paid content illustration" src="/assets/nibgate/illustrations/undraw/posts.svg" />
           </div>
         </div>
@@ -67,7 +67,7 @@ export default function Features() {
 
       <div className="flex flex-col overflow-hidden lg:flex-row">
         <div className="flex items-center justify-center bg-gray p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 xl:p-32">
-          <div className="relative w-full max-w-[280px]">
+          <div className="relative max-w-xl">
             <img className="h-auto w-full" alt="Payments illustration" src="/assets/nibgate/illustrations/undraw/payments.svg" />
           </div>
         </div>

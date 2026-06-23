@@ -165,6 +165,8 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
                   </li>
                 </ul>
               </div>
+
+              {showThemeToggle && <ThemeToggle />}
             </div>
 
             <div className="sign-up-form sign-up-form--footer" id="newsletter">
@@ -193,8 +195,6 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
                 </form>
               </div>
             </div>
-
-            {showThemeToggle && <ThemeToggle />}
           </div>
 
           <p className="footer__credit">

@@ -43,10 +43,12 @@ export function walletConnectScript() {
       })();
     </script>
     <script type="module">
-      import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers5@4.1.11?bundle';
+      import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers5@5.0.13?bundle';
       import { ethers } from 'https://esm.sh/ethers@5.7.2';
       
       let modal;
+      const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? '' : 'https://api.nibgate.xyz';
 
       function initWalletConnect() {
         const projectId = '09580756f3c5f13c5f1aeb2faa9b1696';
@@ -104,14 +106,14 @@ export function walletConnectScript() {
             if (isConnected && address && !window.nibgateAuthenticated) {
               try {
                 // Check if already authenticated via secure cookie
-                const meRes = await fetch('/api/auth/me');
+                const meRes = await fetch(apiBase + '/api/auth/me');
                 const meData = await meRes.json();
                 
                 if (meData.authenticated) {
                   window.nibgateAuthenticated = true;
                 } else {
                   // Request Nonce
-                  const nonceRes = await fetch('/api/auth/nonce');
+                  const nonceRes = await fetch(apiBase + '/api/auth/nonce');
                   const { messageTemplate } = await nonceRes.json();
                   
                   // Request Signature
@@ -121,7 +123,7 @@ export function walletConnectScript() {
                   const signature = await signer.signMessage(messageTemplate);
                   
                   // Verify Signature
-                  const verifyRes = await fetch('/api/auth/verify', {
+                  const verifyRes = await fetch(apiBase + '/api/auth/verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ walletAddress: address, signature })
@@ -363,7 +365,7 @@ export function walletConnectScript() {
             }
           } else if (target.hasAttribute('data-wallet-disconnect')) {
             e.preventDefault();
-            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(e) {}
+            try { await fetch(apiBase + '/api/auth/logout', { method: 'POST' }); } catch(e) {}
             window.nibgateAuthenticated = false;
             if (modal && modal.disconnect) modal.disconnect();
           } else if (target.hasAttribute('data-token-select')) {

@@ -39,10 +39,13 @@
   } catch(e) {}
 })();
 
-import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers5@4.1.11?bundle';
+import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers5@5.0.13?bundle';
 import { ethers } from 'https://esm.sh/ethers@5.7.2';
 
 let modal;
+
+const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '' : 'https://api.nibgate.xyz';
 
 function initWalletConnect() {
   const projectId = '09580756f3c5f13c5f1aeb2faa9b1696';
@@ -101,7 +104,7 @@ function initWalletConnect() {
       if (isConnected && address && !window.nibgateAuthenticated) {
         try {
           // Check if already authenticated via secure cookie
-          const meRes = await fetch('/api/auth/me');
+          const meRes = await fetch(apiBase + '/api/auth/me');
           const meText = await meRes.text();
           let meData;
           try { meData = JSON.parse(meText); } catch(e) { throw new Error('GET /api/auth/me returned: ' + meText.slice(0, 100)); }
@@ -110,7 +113,7 @@ function initWalletConnect() {
             window.nibgateAuthenticated = true;
           } else {
             // Request Nonce
-            const nonceRes = await fetch('/api/auth/nonce');
+            const nonceRes = await fetch(apiBase + '/api/auth/nonce');
             const nonceText = await nonceRes.text();
             let nonceData;
             try { nonceData = JSON.parse(nonceText); } catch(e) { throw new Error('GET /api/auth/nonce returned: ' + nonceText.slice(0, 100)); }
@@ -123,7 +126,7 @@ function initWalletConnect() {
             const signature = await signer.signMessage(messageTemplate);
             
             // Verify Signature
-            const verifyRes = await fetch('/api/auth/verify', {
+            const verifyRes = await fetch(apiBase + '/api/auth/verify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ walletAddress: address, signature })
@@ -365,7 +368,7 @@ function initWalletConnect() {
       }
     } else if (target.hasAttribute('data-wallet-disconnect')) {
       e.preventDefault();
-      try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(e) {}
+      try { await fetch(apiBase + '/api/auth/logout', { method: 'POST' }); } catch(e) {}
       window.nibgateAuthenticated = false;
       if (modal && modal.disconnect) modal.disconnect();
     } else if (target.hasAttribute('data-token-select')) {

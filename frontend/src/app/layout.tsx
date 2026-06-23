@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import SvgSprite from "@/components/SvgSprite";
+import { Providers } from "./providers";
 import "../styles/styles.css";
 
 export const metadata: Metadata = {
@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="light" suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id="theme-script"
           dangerouslySetInnerHTML={{
             __html: `
@@ -36,16 +36,17 @@ export default function RootLayout({
       <body className="group/body" data-default-theme="light">
         <SvgSprite />
         <div id="design-settings" style={{ display: "none" }}></div>
-        <div className="flex flex-col lg:flex-row min-h-screen">
-          <main className="flex-1 flex flex-col">
-            <div className="flex-1 flex flex-col">
-              <div className="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
-                {children}
+        <Providers>
+          <div className="flex flex-col lg:flex-row min-h-screen">
+            <main className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col">
+                <div className="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
+                  {children}
+                </div>
               </div>
-            </div>
-          </main>
-        </div>
-        <Script src="/wallet-connect.js" strategy="lazyOnload" type="module" />
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   );

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { ConnectedWalletButton } from "@/components/WalletButton";
 
 export default function GetStartedPage() {
   return (
@@ -15,7 +16,7 @@ export default function GetStartedPage() {
           <h1 className="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Install the package, protect a route, and publish to Explore.</h1>
           <p className="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate starts on your own domain. Connect a wallet, expose a route manifest, and let people unlock paid content without moving your work into a marketplace.</p>
           <div className="flex flex-wrap gap-4">
-            <button type="button" data-wallet-connect className="nibgate-soft-cta border-none cursor-pointer">Connect wallet</button>
+            <ConnectedWalletButton className="nibgate-soft-cta border-none cursor-pointer" />
             <Link href="/features" className="nibgate-soft-cta nibgate-soft-cta-secondary">View features</Link>
           </div>
         </div>

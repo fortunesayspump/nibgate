@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { WalletButton, WalletButtonMobile } from "@/components/WalletButton";
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -43,19 +44,7 @@ export default function Header() {
             </ul>
           </nav>
 
-          {/* Web3 Connect (Placeholder for Wagmi/SIWE) */}
-          <div className="nibgate-wallet-container" data-balance-container>
-            <button type="button" className="nibgate-header-login" data-balance-text>0.00 USDC</button>
-            <div className="hidden-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
-          </div>
-          
-          <div className="nibgate-wallet-container" data-wallet-container>
-            <button className="nibgate-header-cta" type="button" data-wallet-connect>Connect wallet</button>
-            <div className="nibgate-wallet-dropdown" data-wallet-dropdown style={{ display: "none" }}>
-              <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
-              <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
-            </div>
-          </div>
+          <WalletButton />
 
           <button
             className={`nibgate-header-menu ${isMobileMenuOpen ? "is-open" : ""}`}
@@ -90,18 +79,8 @@ export default function Header() {
             </li>
           ))}
         </ul>
-        <div className="nibgate-wallet-container" data-balance-container style={{ width: "100%" }}>
-          <button type="button" className="nibgate-header-mobile-login" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }} data-balance-text>0.00 USDC</button>
-          <div className="hidden-dropdown mobile-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
-        </div>
-        
-        <div className="nibgate-wallet-container" data-wallet-container style={{ width: "100%" }}>
-          <button className="nibgate-header-mobile-cta" style={{ width: "100%" }} type="button" data-wallet-connect>Connect wallet</button>
-          <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: "none" }}>
-            <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
-            <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
-          </div>
-        </div>
+
+        <WalletButtonMobile />
       </nav>
     </header>
     <div style={{ height: "80px", width: "100%", flex: "0 0 auto" }} aria-hidden="true" />

@@ -57,9 +57,6 @@
   --red: #FF3E30; /* Red accent */
   --success: #00C853;
   
-  --border: #000000;
-  --border-width: var(--nib-border-width, 1px);
-  
   --border-width: var(--nib-border-width, 1px);
   
   --transition-speed: 0.15s;

@@ -102,14 +102,19 @@ function initWalletConnect() {
         try {
           // Check if already authenticated via secure cookie
           const meRes = await fetch('/api/auth/me');
-          const meData = await meRes.json();
+          const meText = await meRes.text();
+          let meData;
+          try { meData = JSON.parse(meText); } catch(e) { throw new Error('GET /api/auth/me returned: ' + meText.slice(0, 100)); }
           
           if (meData.authenticated) {
             window.nibgateAuthenticated = true;
           } else {
             // Request Nonce
             const nonceRes = await fetch('/api/auth/nonce');
-            const { messageTemplate } = await nonceRes.json();
+            const nonceText = await nonceRes.text();
+            let nonceData;
+            try { nonceData = JSON.parse(nonceText); } catch(e) { throw new Error('GET /api/auth/nonce returned: ' + nonceText.slice(0, 100)); }
+            const { messageTemplate } = nonceData;
             
             // Request Signature
             const walletProvider = modal.getWalletProvider();

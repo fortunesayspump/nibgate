@@ -13,7 +13,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build:frontend",
+    "build": "echo 'no root build needed'",
     "dev": "npm run build:frontend && npm run dev:backend",
     "dev:demo": "npm --prefix demo install && npm --prefix demo run dev",
     "dev:cli": "npm --workspace nibgate run dev",

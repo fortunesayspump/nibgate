@@ -43,9 +43,27 @@ import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers
 import { ethers } from 'https://esm.sh/ethers@5.7.2';
 
 let modal;
+let ready = false;
+const clickQueue = [];
 
-const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? '' : 'https://api.nibgate.xyz';
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-wallet-connect]') && e.target.closest('[data-wallet-connect]').dataset.connected !== 'true') {
+    if (!ready) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      clickQueue.push(() => {
+        const btn = e.target.closest('[data-wallet-connect]');
+        if (btn && btn.dataset.connected !== 'true' && modal) {
+          sessionStorage.setItem('nibgate-wants-redirect', 'true');
+          modal.open();
+        }
+      });
+      return;
+    }
+  }
+}, true);
+
+const apiBase = '';
 
 function initWalletConnect() {
   const projectId = '09580756f3c5f13c5f1aeb2faa9b1696';
@@ -85,6 +103,10 @@ function initWalletConnect() {
       '--w3m-container-border-radius': '8px',
     }
   });
+
+  ready = true;
+  let queued;
+  while (queued = clickQueue.shift()) queued();
 
   // Track if user explicitly clicked connect
   document.addEventListener('click', (e) => {

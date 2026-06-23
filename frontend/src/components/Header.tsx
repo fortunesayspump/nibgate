@@ -16,7 +16,8 @@ export default function Header() {
   ];
 
   return (
-    <header className="nibgate-site-header">
+    <>
+      <header className="nibgate-site-header">
       <div className="nibgate-header-inner">
         <div className="nibgate-header-identity">
           <Link className="nibgate-header-logo" href="/" aria-label="Nibgate home">
@@ -103,5 +104,7 @@ export default function Header() {
         </div>
       </nav>
     </header>
+    <div style={{ height: "80px", width: "100%", flex: "0 0 auto" }} aria-hidden="true" />
+    </>
   );
 }

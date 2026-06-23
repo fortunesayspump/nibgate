@@ -98,7 +98,7 @@ html[data-theme="dark"] {
   width: 100%;
   flex: 0 0 auto;
   min-height: 80px;
-  position: sticky;
+  position: fixed;
   top: 0;
 }
 html[data-theme="dark"] body,

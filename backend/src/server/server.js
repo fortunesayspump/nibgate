@@ -10,7 +10,7 @@ import { registerAppRoutes } from './routes/app-routes.js';
 import { registerAuthRoutes } from './routes/auth-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
-import { createConfigResolver, resolveAppDist, resolveWebAssets } from './runtime.js';
+import { createConfigResolver } from './runtime.js';
 
 export async function createApp(config, options = {}) {
   const app = express();
@@ -18,8 +18,6 @@ export async function createApp(config, options = {}) {
   const gateway = createGateway(config, store);
   const circleGateway = await createCircleGatewayMiddleware(gateway.paymentProvider);
   const gatewayBuyer = await createGatewayBuyer(gateway.paymentProvider);
-  const appDist = resolveAppDist();
-  const webAssets = resolveWebAssets(appDist);
   const getConfig = createConfigResolver(config, options.loadLiveConfig);
   const forwardHubEvent = createHubEventForwarder(getConfig);
 
@@ -33,8 +31,6 @@ export async function createApp(config, options = {}) {
     gateway,
     circleGateway,
     gatewayBuyer,
-    appDist,
-    webAssets,
     getConfig,
     forwardHubEvent
   };

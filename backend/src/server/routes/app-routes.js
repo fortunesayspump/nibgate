@@ -3,7 +3,7 @@ import { buildSiteManifest, buildVerificationFile } from 'nibgate/src/core/hub.j
 import { createAppState } from '../app-state.js';
 
 export function registerAppRoutes(app, context) {
-  const { store, webAssets, getConfig } = context;
+  const { store, getConfig } = context;
 
   app.get('/api/app/state', (_req, res) => {
     res.json(createAppState(getConfig(), store));

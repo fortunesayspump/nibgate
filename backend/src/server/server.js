@@ -26,10 +26,7 @@ export async function createApp(config, options = {}) {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
-  app.use('/assets', express.static(path.join(appDist, 'assets')));
-  app.use('/fonts', express.static(path.join(appDist, 'fonts')));
-  app.use('/images', express.static(path.join(appDist, 'images')));
-  app.use('/test.css', express.static(path.join(rootDir, 'frontend', 'test.css')));
+
 
   const context = {
     store,

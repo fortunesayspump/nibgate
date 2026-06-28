@@ -42,7 +42,7 @@ export default function ContentsPage() {
     <div className="space-y-6 p-4 md:p-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-medium">Your Contents</h2>
-        <button onClick={loadContent} className="rounded bg-black px-6 py-2 font-medium text-white">
+        <button onClick={() => loadContent()} className="rounded bg-black px-6 py-2 font-medium text-white">
           Refresh
         </button>
       </div>

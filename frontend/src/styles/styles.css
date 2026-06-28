@@ -547,7 +547,6 @@ td {
 /* Active tab uses a strong left border and bold text instead of color changes */
 .dashboard-box.active {
   opacity: 1;
-  font-weight: 700;
   border-left: 6px solid rgba(0, 0, 0, 0.7);
 }
 

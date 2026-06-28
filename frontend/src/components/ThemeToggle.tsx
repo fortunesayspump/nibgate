@@ -1,17 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    // Initialize state from HTML attribute set by the blocking inline script
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document === "undefined") return "light";
     const currentTheme = document.documentElement.dataset.theme as "light" | "dark";
-    if (currentTheme) {
-      setTheme(currentTheme);
-    }
-  }, []);
+    return currentTheme || "light";
+  });
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";

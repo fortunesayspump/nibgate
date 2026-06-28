@@ -12,7 +12,7 @@ export default function Features() {
             </h2>
             <div className="max-w-3xl text-lg md:text-2xl lg:leading-10 xl:text-3xl">
               Nibgate gives paid writing, media, files, and agent routes a clean unlock flow without
-              turning your website into someone else's marketplace.
+              turning your website into someone else&apos;s marketplace.
             </div>
           </div>
         </div>
@@ -21,7 +21,7 @@ export default function Features() {
       <div className="flex flex-col overflow-hidden lg:flex-row">
         <div className="flex items-center justify-center bg-gray p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 lg:order-2 xl:p-32">
           <div className="relative max-w-xl">
-            <img className="h-auto w-full" alt="Paid content illustration" src="/assets/nibgate/illustrations/undraw/posts.svg" />
+            <img className="h-auto w-full" alt="Paid content illustration" src="/illustrations/undraw/posts.svg" />
           </div>
         </div>
         <div className="flex items-center justify-center bg-black p-8 py-16 text-white sm:p-12 md:p-16 lg:w-1/2 xl:p-32">
@@ -51,7 +51,7 @@ export default function Features() {
       <div className="relative overflow-hidden bg-white">
         <div className="mx-auto grid max-w-6xl gap-12 px-8 py-16 md:px-12 lg:grid-cols-2 lg:items-center lg:py-24">
           <div className="flex items-center justify-center">
-            <img className="h-auto w-full max-w-md" alt="Route manifest illustration" src="/assets/nibgate/illustrations/undraw/user-flow.svg" />
+            <img className="h-auto w-full max-w-md" alt="Route manifest illustration" src="/illustrations/undraw/user-flow.svg" />
           </div>
           <div className="max-w-xl space-y-8">
             <h2 className="text-4xl font-medium sm:text-5xl lg:text-7xl">Publish once. Show up in discovery.</h2>
@@ -68,7 +68,7 @@ export default function Features() {
       <div className="flex flex-col overflow-hidden lg:flex-row">
         <div className="flex items-center justify-center bg-gray p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 xl:p-32">
           <div className="relative max-w-xl">
-            <img className="h-auto w-full" alt="Payments illustration" src="/assets/nibgate/illustrations/undraw/payments.svg" />
+            <img className="h-auto w-full" alt="Payments illustration" src="/illustrations/undraw/payments.svg" />
           </div>
         </div>
         <div className="flex items-center justify-center bg-black p-8 py-16 text-white sm:p-12 md:p-16 lg:w-1/2 xl:p-32">

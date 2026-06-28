@@ -26,13 +26,21 @@ export default function MarketSection() {
       <div className="market-layout">
         <div className="market-products">
           <div className="market-grid">
-            {marketProducts.map((product: any, i: number) => (
-              <ExploreCard key={i} product={product} />
-            ))}
+            {marketProducts.length === 0 ? (
+              <div className="rounded-[8px] border border-black/10 p-8 text-center">
+                <p>No synced content is available yet.</p>
+              </div>
+            ) : (
+              marketProducts.map((product, i) => (
+                <ExploreCard key={i} product={product} />
+              ))
+            )}
           </div>
-          <div className="market-load-more">
-            <button type="button">Load more</button>
-          </div>
+          {marketProducts.length > 0 && (
+            <div className="market-load-more">
+              <button type="button">Load more</button>
+            </div>
+          )}
         </div>
       </div>
     </section>

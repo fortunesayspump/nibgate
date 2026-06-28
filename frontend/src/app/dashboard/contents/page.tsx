@@ -1,64 +1,88 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type DashboardContent = {
+  id: string;
+  title: string;
+  contentType: string;
+  price: number;
+  metrics: number;
+  websiteName: string;
+  websiteDomain: string;
+};
+
 export default function ContentsPage() {
+  const [content, setContent] = useState<DashboardContent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadContent({ showLoading = true } = {}) {
+    if (showLoading) setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hub/dashboard/content");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to load content");
+      setContent(data.content || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load content");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void (async () => {
+      await loadContent({ showLoading: false });
+    })();
+  }, []);
+
   return (
-    <div className="p-4 md:p-8 space-y-6">
+    <div className="space-y-6 p-4 md:p-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-medium">Your Contents</h2>
-        <button className="bg-black text-white px-6 py-2 font-medium rounded cursor-pointer">Sync Manifest</button>
+        <button onClick={loadContent} className="rounded bg-black px-6 py-2 font-medium text-white">
+          Refresh
+        </button>
       </div>
-      
-      {/* 
-        Bug Fix: Removed 'border' on the wrapper to prevent double borders with the table rows.
-        Bug Fix: Added color: var(--nib-page-fg) to the thead to ensure visibility in dark mode.
-      */}
-      <div className="rounded-2xl shadow-1 overflow-hidden" style={{ background: 'var(--nib-surface)', border: '1px solid var(--nib-border-soft)' }}>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b text-sm opacity-80" style={{ borderColor: 'var(--nib-border-soft)', color: 'var(--nib-page-fg)' }}>
-              <th className="p-4 font-medium">Item</th>
-              <th className="p-4 font-medium">Type</th>
-              <th className="p-4 font-medium">Price</th>
-              <th className="p-4 font-medium text-right">Unlocks</th>
-            </tr>
-          </thead>
-          <tbody className="text-base divide-y" style={{ borderColor: 'var(--nib-border-soft)' }}>
-            <tr className="hover:opacity-70 transition-colors">
-              <td className="p-4 font-medium">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded"></div>
-                  Advanced Photography Setup
-                </div>
-              </td>
-              <td className="p-4">Article</td>
-              <td className="p-4">1.50 USDC</td>
-              <td className="p-4 text-right">42</td>
-            </tr>
-            <tr className="hover:opacity-70 transition-colors">
-              <td className="p-4 font-medium">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded"></div>
-                  Wedding Presets Vol 1
-                </div>
-              </td>
-              <td className="p-4">Download</td>
-              <td className="p-4">15.00 USDC</td>
-              <td className="p-4 text-right">128</td>
-            </tr>
-            <tr className="hover:opacity-70 transition-colors">
-              <td className="p-4 font-medium">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded"></div>
-                  Behind the Scenes Video
-                </div>
-              </td>
-              <td className="p-4">Video</td>
-              <td className="p-4">5.00 USDC</td>
-              <td className="p-4 text-right">16</td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="p-4 text-center text-sm opacity-60 border-t" style={{ borderColor: 'var(--nib-border-soft)' }}>
-          These items are automatically synced from your verified websites.
-        </div>
+
+      <div className="rounded-2xl border shadow-1" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }}>
+        {loading ? (
+          <p className="p-8 text-center opacity-70">Loading content...</p>
+        ) : error ? (
+          <p className="p-8 text-center text-red-500">{error}</p>
+        ) : content.length === 0 ? (
+          <div className="p-8 text-center">
+            <h3 className="text-2xl font-medium">No synced content yet</h3>
+            <p className="mx-auto mt-3 max-w-xl opacity-70">
+              Content will appear here after a verified site syncs its Nibgate manifest.
+            </p>
+          </div>
+        ) : (
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b text-sm opacity-80" style={{ borderColor: "var(--nib-border-soft)" }}>
+                <th className="p-4 font-medium">Item</th>
+                <th className="p-4 font-medium">Site</th>
+                <th className="p-4 font-medium">Type</th>
+                <th className="p-4 font-medium">Price</th>
+                <th className="p-4 text-right font-medium">Events</th>
+              </tr>
+            </thead>
+            <tbody>
+              {content.map((item) => (
+                <tr key={item.id} className="border-b" style={{ borderColor: "var(--nib-border-soft)" }}>
+                  <td className="p-4 font-medium">{item.title}</td>
+                  <td className="p-4 opacity-80">{item.websiteName || item.websiteDomain}</td>
+                  <td className="p-4">{item.contentType}</td>
+                  <td className="p-4">{item.price.toFixed(2)} USDC</td>
+                  <td className="p-4 text-right">{item.metrics}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

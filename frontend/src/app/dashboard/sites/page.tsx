@@ -2,10 +2,23 @@
 
 import { useEffect, useState } from "react";
 
+type DashboardSite = {
+  id: string;
+  name: string;
+  domain: string;
+  isVerified: boolean;
+  verifyToken: string;
+  siteToken: string;
+  _count: {
+    content: number;
+  };
+};
+
 export default function SitesPage() {
-  const [sites, setSites] = useState<any[]>([]);
+  const [sites, setSites] = useState<DashboardSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const loadSites = async () => {
     setLoading(true);
@@ -15,24 +28,61 @@ export default function SitesPage() {
 
       if (!data.success) throw new Error(data.error || 'Failed to load');
       setSites(data.websites || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load sites");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSites();
+    void (async () => {
+      await loadSites();
+    })();
   }, []);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    alert("Site registration mocked in this preview.");
+    setError("");
+    setMessage("");
+
+    const formData = new FormData(e.currentTarget);
+    const domain = String(formData.get("domain") || "");
+    const name = String(formData.get("name") || "");
+
+    try {
+      const res = await fetch("/api/hub/site/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, name }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to register website");
+      setMessage("Website registered. Add the verification file, then run Verify.");
+      e.currentTarget.reset();
+      await loadSites();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to register website");
+    }
   };
 
-  const handleVerify = (id: string) => {
-    alert("Verification ping mocked for site " + id);
+  const handleVerify = async (id: string) => {
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/hub/site/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ websiteId: id }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Verification failed");
+      setMessage("Website verified.");
+      await loadSites();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed");
+    }
   };
 
   return (
@@ -43,12 +93,14 @@ export default function SitesPage() {
           <form onSubmit={handleRegister} className="space-y-4 max-w-xl">
             <div>
               <label className="block text-sm font-medium mb-1">Domain Name</label>
-              <input type="text" placeholder="e.g., photos.clinton.com" required className="w-full p-3 border rounded bg-transparent" style={{ borderColor: 'var(--nib-border-soft)', color: 'var(--nib-page-fg)' }} />
+              <input name="domain" type="text" placeholder="e.g., creator.example.com" required className="w-full p-3 border rounded bg-transparent" style={{ borderColor: 'var(--nib-border-soft)', color: 'var(--nib-page-fg)' }} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Display Name</label>
-              <input type="text" placeholder="e.g., Clinton's Portfolio" required className="w-full p-3 border rounded bg-transparent" style={{ borderColor: 'var(--nib-border-soft)', color: 'var(--nib-page-fg)' }} />
+              <input name="name" type="text" placeholder="e.g., Creator Studio" required className="w-full p-3 border rounded bg-transparent" style={{ borderColor: 'var(--nib-border-soft)', color: 'var(--nib-page-fg)' }} />
             </div>
+            {message && <p className="text-sm font-medium text-green-600">{message}</p>}
+            {error && <p className="text-sm font-medium text-red-500">{error}</p>}
             <button type="submit" className="bg-black text-white px-6 py-3 font-medium cursor-pointer rounded">Register Website</button>
           </form>
         </div>

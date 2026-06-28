@@ -25,7 +25,7 @@ export default function Header() {
         <div className="nibgate-header-identity">
           <Link className="nibgate-header-logo" href="/" aria-label="Nibgate home">
             <BrandLogo />
-            <span style={{ fontSize: "34px", fontWeight: 400, fontFamily: "var(--font-display, 'Kumbh Sans', 'ABC Favorit', Arial, sans-serif)", letterSpacing: "0" }}>
+            <span className="nibgate-header-text-wordmark">
               <span style={{ color: "var(--nib-olive)" }}>n</span>
               <span style={{ color: "var(--nib-olive)" }}>i</span>
               <span style={{ color: "var(--nib-olive)" }}>b</span>

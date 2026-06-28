@@ -7,7 +7,7 @@ export default function CategorySection() {
       <h1 id="categories-title">Categories</h1>
       <div className="explore-directory-grid">
         {categories
-          .map((c: any) => c[0])
+          .map((categoryGroup) => categoryGroup[0])
           .filter((c: string) => c !== "All")
           .map((category: string) => (
             <Link key={category} href="/explore/products">

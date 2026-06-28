@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 
 let apiUrl = (process.env.NEXT_PUBLIC_API_URL || "https://api.nibgate.xyz").replace(/\/+$/, '');
 if (!/^https?:\/\//.test(apiUrl)) apiUrl = 'https://' + apiUrl;

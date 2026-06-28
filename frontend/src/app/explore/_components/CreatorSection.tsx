@@ -4,9 +4,9 @@ import { featuredProducts, marketProducts } from "../_data/catalog";
 export default function CreatorSection() {
   const creators = Array.from(
     new Set([
-      ...featuredProducts.map((p: any) => p.creator),
-      ...marketProducts.map((p: any) => p.creator)
-    ])
+      ...featuredProducts.map((product) => product.creator),
+      ...marketProducts.map((product) => product.creator)
+    ].filter((creator): creator is string => Boolean(creator)))
   ).slice(0, 12);
 
   return (

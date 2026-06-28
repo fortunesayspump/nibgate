@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ExploreProduct } from "../_data/catalog";
 
 const topCreatorBadge = (
   <span className="top-creator-badge" aria-label="Top creator">
@@ -31,7 +32,7 @@ function typeClass(type: string) {
   return String(type || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
-export function FeaturedCard({ product }: { product: any }) {
+export function FeaturedCard({ product }: { product: ExploreProduct }) {
   const contentType = typeClass(product.type);
 
   return (
@@ -65,7 +66,7 @@ export function FeaturedCard({ product }: { product: any }) {
   );
 }
 
-export function ArticleCard({ product }: { product: any }) {
+export function ArticleCard({ product }: { product: ExploreProduct }) {
   const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
   
   return (
@@ -95,7 +96,7 @@ export function ArticleCard({ product }: { product: any }) {
   );
 }
 
-export function MarketCard({ product }: { product: any }) {
+export function MarketCard({ product }: { product: ExploreProduct }) {
   const contentType = typeClass(product.type);
   const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
 
@@ -158,7 +159,7 @@ export function MarketCard({ product }: { product: any }) {
   );
 }
 
-export function ExploreCard({ product }: { product: any }) {
+export function ExploreCard({ product }: { product: ExploreProduct }) {
   if (product.type === 'Article' || product.type === 'Writing') {
     return <ArticleCard product={product} />;
   }

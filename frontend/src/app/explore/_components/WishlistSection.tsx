@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { wishlists } from "../_data/catalog";
-import { creatorAvatar, wishlistTile } from "../_data/assets";
+import { type Wishlist, wishlists } from "../_data/catalog";
 
 const documentIcon = (
   <svg className="explore-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
@@ -21,12 +20,12 @@ const followIcon = (
   </svg>
 );
 
-function WishlistCard({ wishlist }: { wishlist: any }) {
+function WishlistCard({ wishlist }: { wishlist: Wishlist }) {
   return (
     <article className="wishlist-card">
       <figure className="wishlist-mosaic" aria-hidden="true">
         {wishlist.images.map((image: string, index: number) => (
-          <img key={index} src={wishlistTile(wishlist.title || image, index)} alt="" loading="lazy" data-tile={index + 1} />
+          <span key={image || index} data-tile={index + 1} />
         ))}
       </figure>
       <section className="wishlist-copy">
@@ -34,7 +33,6 @@ function WishlistCard({ wishlist }: { wishlist: any }) {
           <Link href="/explore/wishlists"><h3>{wishlist.title}</h3></Link>
           {wishlist.copy && <p>{wishlist.copy}</p>}
           <Link className="wishlist-creator" href="/explore/creators">
-            <img src={creatorAvatar(wishlist.creator)} alt="" loading="lazy" />
             <span>{wishlist.creator}</span>
           </Link>
         </header>
@@ -51,11 +49,15 @@ function WishlistCard({ wishlist }: { wishlist: any }) {
 }
 
 export default function WishlistSection() {
+  if (wishlists.length === 0) {
+    return null;
+  }
+
   return (
     <section className="wishlist-section" aria-labelledby="wishlist-title">
       <h2 id="wishlist-title">Wishlists you might like</h2>
       <div className="wishlist-grid">
-        {wishlists.map((wishlist: any, index: number) => (
+        {wishlists.map((wishlist, index) => (
           <WishlistCard key={index} wishlist={wishlist} />
         ))}
       </div>

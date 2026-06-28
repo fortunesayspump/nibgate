@@ -9,7 +9,7 @@
 
 @font-face {
   font-family: 'ABC Favorit';
-  src: url('/assets/nibgate/fonts/ABCFavorit-Regular.woff2') format('woff2');
+  src: url('/fonts/ABCFavorit-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
 }
@@ -483,12 +483,12 @@ td {
   top: 80px;
   bottom: 0;
   left: 0;
-  width: 14rem !important;
+  width: 248px !important;
   z-index: 10;
 }
 .dashboard-main-content {
-  margin-left: 14rem;
-  width: calc(100% - 14rem);
+  margin-left: 248px;
+  width: calc(100% - 248px);
   min-height: calc(100vh - 80px);
 }
 .dashboard-panel {
@@ -506,12 +506,40 @@ td {
   font-weight: 500;
   min-height: 80px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
   border-left: 6px solid transparent;
+  padding: 0 16px;
   transition: background 0.2s, color 0.2s, opacity 0.2s;
   width: 100%;
+}
+
+.dashboard-box-label {
+  display: block;
+  font-size: 20px;
+  line-height: 1.1;
+  transition: transform 0.2s;
+}
+
+.dashboard-box-icon {
+  width: 22px;
+  height: 22px;
+  margin-bottom: 8px;
+  color: currentColor;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.dashboard-box-description {
+  display: block;
+  margin-top: 6px;
+  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-family: var(--font-ui, "ABC Favorit", Arial, sans-serif);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  transition: color 0.2s, transform 0.2s;
 }
 
 .dashboard-box.box-0 { background-color: #A3C293; } /* Solid Mint Green */
@@ -542,4 +570,20 @@ html[data-theme="dark"] .dashboard-box:hover,
 body[data-theme="dark"] .dashboard-box:hover {
   background-color: var(--nib-olive);
   color: #111 !important;
+}
+
+.dashboard-box:hover .dashboard-box-icon,
+.dashboard-box:focus-visible .dashboard-box-icon {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.dashboard-box:hover .dashboard-box-label,
+.dashboard-box:focus-visible .dashboard-box-label {
+  transform: translateY(-1px);
+}
+
+.dashboard-box:hover .dashboard-box-description,
+.dashboard-box:focus-visible .dashboard-box-description {
+  color: currentColor;
+  transform: translateY(1px);
 }

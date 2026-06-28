@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-const featureAsset = (name: string) => `/assets/nibgate/images/features/${name}`;
-const creatorAsset = (name: string) => `/assets/nibgate/images/creators/${name}`;
-const undrawAsset = (name: string) => `/assets/nibgate/illustrations/undraw/${name}`;
+const featureAsset = (name: string) => `/illustrations/features/${name}`;
+const undrawAsset = (name: string) => `/illustrations/undraw/${name}`;
 
 function featureIntro({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
   return (
@@ -18,13 +17,31 @@ function featureIntro({ eyebrow, title, copy }: { eyebrow: string; title: string
   );
 }
 
-function SplitBand({ image, imageAlt, imageBg, textItems, titleColor, reverse = false, border = 'border-t', extras = null }: any) {
+function SplitBand({
+  image,
+  imageAlt,
+  imageBg,
+  textItems,
+  titleColor,
+  reverse = false,
+  border = 'border-t',
+  extras = null
+}: {
+  image: string;
+  imageAlt: string;
+  imageBg: string;
+  textItems: Array<[string, string]>;
+  titleColor: string;
+  reverse?: boolean;
+  border?: string;
+  extras?: React.ReactNode;
+}) {
   const imageOrder = reverse ? 'lg:order-2' : '';
   return (
     <div className={`flex flex-col overflow-hidden lg:flex-row ${border}`}>
       <div className={`flex items-center justify-center ${imageBg} p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 ${imageOrder} xl:p-32`}>
         <div className="relative max-w-xl">
-          <img className="h-auto w-full" data-parallax="true" alt={imageAlt} src={image.startsWith('/assets') ? image : featureAsset(image)} />
+          <img className="h-auto w-full" data-parallax="true" alt={imageAlt} src={image.startsWith('/illustrations') ? image : featureAsset(image)} />
           {extras}
         </div>
       </div>

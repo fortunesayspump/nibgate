@@ -7,7 +7,8 @@
     "node": "22.x"
   },
   "scripts": {
-    "dev": "node src/server/start.js"
+    "dev": "node src/server/start.js",
+    "start": "node src/server/start.js"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.0.4",

@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import SigninFlow from "@/components/SigninFlow";
 
 export default function SigninPage() {
   return (
@@ -20,14 +22,9 @@ export default function SigninPage() {
           </div>
         </div>
         <div className="nibgate-signin-panel bg-black p-6 text-white md:p-8 rounded-2xl">
-          <div className="nibgate-signin-panel-inner space-y-5 bg-white/10 p-6 rounded-xl">
-            <div className="space-y-2">
-              <p className="text-sm font-medium uppercase tracking-[0.08em] text-white/70">Creator wallet</p>
-              <p className="text-xl leading-8 text-white">Connect the wallet that should own your Nibgate creator profile.</p>
-            </div>
-            <button className="w-full bg-white text-black px-5 py-4 text-lg font-medium rounded-lg cursor-pointer hover:bg-gray-200 transition-colors" type="button" data-wallet-connect>Connect wallet</button>
-            <p className="text-sm leading-6 text-white/70" data-wallet-status>Use a wallet-enabled browser. Full creator dashboard actions will unlock after wallet identity is connected.</p>
-          </div>
+          <Suspense fallback={<div className="bg-white/10 p-6 rounded-xl text-white/70">Loading wallet sign-in...</div>}>
+            <SigninFlow />
+          </Suspense>
         </div>
       </div>
         </section>

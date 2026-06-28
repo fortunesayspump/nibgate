@@ -17,18 +17,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...(config.resolve.alias ?? {}),
-      accounts: path.resolve(__dirname, 'src/lib/empty-accounts.ts'),
-    }
-    return config
-  },
-  turbopack: {
-    resolveAlias: {
-      accounts: './src/lib/empty-accounts.ts',
-    },
-  },
 };
 
 export default nextConfig;

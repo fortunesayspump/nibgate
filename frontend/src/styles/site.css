@@ -4,6 +4,10 @@
   --nib-paper: #f6f4ee;
   --nib-plum: #2e1f5e;
   --nib-olive: #7c9a6d;
+  --nib-logo-mark: #2e1f5e;
+  --nib-logo-wordmark: #7c9a6d;
+  --nib-logo-mark-accent: #1f5f5b;
+  --nib-logo-wordmark-accent: #678d5c;
   --nib-teal: #0f766e;
   --nib-soft: #e7efe4;
   --nib-border-soft: #11111124;
@@ -40,6 +44,10 @@ html[data-theme="dark"] {
   --nib-paper: #171813;
   --nib-plum: #b7a9e8;
   --nib-olive: #a9c69a;
+  --nib-logo-mark: #b7a9e8;
+  --nib-logo-wordmark: #a9c69a;
+  --nib-logo-mark-accent: #84b0aa;
+  --nib-logo-wordmark-accent: #d8f5e5;
   --nib-teal: #67c8bd;
   --nib-soft: #243326;
   --nib-border-soft: #f3efe729;
@@ -117,11 +125,6 @@ body[data-theme="dark"] .nibgate-header-mobile {
 body:not([data-theme="dark"]) .nibgate-header-mobile {
   color: #f3efe7;
   background: #10110e;
-}
-body:not([data-theme="dark"]) .nibgate-header-logo img,
-html[data-theme="dark"] .nibgate-header-logo img,
-body[data-theme="dark"] .nibgate-header-logo img {
-  filter: brightness(0) invert();
 }
 body:not([data-theme="dark"]) .nibgate-header-logo,
 body:not([data-theme="dark"]) .nibgate-primary-nav-link,
@@ -224,6 +227,7 @@ body[data-theme="dark"] .footer-menu {
 .nibgate-header-logo {
   color: currentColor;
   align-items: center;
+  gap: 8px;
   width: auto;
   height: 80px;
   font-family: var(--font-display, "Kumbh Sans", "ABC Favorit", Arial, sans-serif);
@@ -234,16 +238,74 @@ body[data-theme="dark"] .footer-menu {
   text-decoration: none;
   display: flex;
 }
-.nibgate-header-logo span {
-  display: block;
-  transform: translateY(-1px);
+.nibgate-header-logo .nibgate-header-icon,
+.nibgate-header-logo .nibgate-header-icon svg {
+  display: inline-block;
 }
-.nibgate-header-logo img {
-  object-fit: contain;
-  object-position: left center;
+.nibgate-header-logo .nibgate-header-icon {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.nibgate-header-logo .nibgate-header-icon svg,
+.nibgate-header-logo .nibgate-header-icon img {
   width: 100%;
-  height: 38px;
+  height: 100%;
+  object-fit: contain;
   display: block;
+}
+.nibgate-header-icon .nibgate-logo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.nibgate-header-logo .nibgate-logo-part-main {
+  fill: var(--nib-logo-mark);
+}
+
+/* NProgress bar */
+#nprogress {
+  pointer-events: none;
+}
+#nprogress .bar {
+  background: var(--nib-olive);
+  position: fixed;
+  z-index: 99999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+}
+#nprogress .peg {
+  display: block;
+  position: absolute;
+  right: 0;
+  width: 100px;
+  height: 100%;
+  opacity: 1;
+  transform: rotate(3deg) translate(0, -4px);
+}
+
+.nibgate-header-wordmark {
+  width: 140px;
+  height: 40px;
+  display: inline-block;
+}
+
+.nibgate-header-wordmark svg,
+.nibgate-header-wordmark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.nibgate-wordmark-part-nib {
+  fill: var(--nib-logo-wordmark);
+}
+.nibgate-wordmark-part-gate {
+  fill: var(--nib-logo-wordmark-accent);
 }
 .nibgate-header-actions {
   justify-content: flex-end;
@@ -391,7 +453,7 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
   box-shadow: 0 8px 16px rgba(0,0,0,0.1);
   z-index: 100;
   overflow: hidden;
-  display: none !important;
+  display: none;
   flex-direction: column;
 }
 

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
+import BrandLogo from "./BrandLogo";
 import { WalletButton, WalletButtonMobile } from "@/components/WalletButton";
+
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -22,7 +24,14 @@ export default function Header() {
       <div className="nibgate-header-inner">
         <div className="nibgate-header-identity">
           <Link className="nibgate-header-logo" href="/" aria-label="Nibgate home">
-            <span>nibgate</span>
+            <BrandLogo />
+            <span style={{ fontSize: "34px", fontWeight: 400, fontFamily: "var(--font-display, 'Kumbh Sans', 'ABC Favorit', Arial, sans-serif)", letterSpacing: "0" }}>
+              <span style={{ color: "var(--nib-olive)" }}>n</span>
+              <span style={{ color: "var(--nib-olive)" }}>i</span>
+              <span style={{ color: "var(--nib-olive)" }}>b</span>
+              <span style={{ color: "var(--nib-header-fg)" }}>g</span>
+              <span style={{ color: "var(--nib-header-fg)" }}>ate</span>
+            </span>
           </Link>
         </div>
 
@@ -43,11 +52,6 @@ export default function Header() {
               ))}
             </ul>
           </nav>
-
-          <div className="nibgate-wallet-container" data-balance-container>
-            <button type="button" className="nibgate-header-login" data-balance-text>0.00 USDC</button>
-            <div className="hidden-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
-          </div>
 
           <WalletButton />
 
@@ -84,12 +88,6 @@ export default function Header() {
             </li>
           ))}
         </ul>
-
-        <div className="nibgate-wallet-container" data-balance-container style={{ width: "100%" }}>
-          <button type="button" className="nibgate-header-mobile-login" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }} data-balance-text>0.00 USDC</button>
-          <div className="hidden-dropdown mobile-dropdown" data-balance-dropdown style={{ display: "none" }}></div>
-        </div>
-
         <WalletButtonMobile />
       </nav>
     </header>

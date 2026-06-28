@@ -15,7 +15,7 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Main" className="flex flex-col dashboard-sidebar lg:w-48" style={{ background: 'var(--nib-page-bg)' }}>
+    <nav aria-label="Main" className="flex flex-col dashboard-sidebar" style={{ background: 'var(--nib-page-bg)' }}>
       {navLinks.map((link, index) => {
         const isActive = pathname === link.path || pathname.startsWith(link.path + '/');
         return (

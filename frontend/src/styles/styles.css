@@ -483,12 +483,12 @@ td {
   top: 80px;
   bottom: 0;
   left: 0;
-  width: 12rem !important;
+  width: 14rem !important;
   z-index: 10;
 }
 .dashboard-main-content {
-  margin-left: 12rem;
-  width: calc(100% - 12rem);
+  margin-left: 14rem;
+  width: calc(100% - 14rem);
   min-height: calc(100vh - 80px);
 }
 .dashboard-panel {

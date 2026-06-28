@@ -27,9 +27,9 @@ export const arcTestnet = defineChain({
   testnet: true,
 })
 
-export const appKitProjectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID?.trim() || '09580756f3c5f13c5f1aeb2faa9b1696'
+export const appKitProjectId = '09580756f3c5f13c5f1aeb2faa9b1696'
 
-const rpcUrl = process.env.NEXT_PUBLIC_ARC_RPC_URL || arcTestnet.rpcUrls.default.http[0]
+const rpcUrl = 'https://rpc.testnet.arc.network'
 
 const connectors = [
   injected(),

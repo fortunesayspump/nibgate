@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
+import NavigationProgress from "@/components/NavigationProgress";
 import { Providers } from "./providers";
 import "../styles/styles.css";
 
@@ -7,6 +9,13 @@ export const metadata: Metadata = {
   title: "Nibgate - wallet-native paid content",
   description:
     "Nibgate helps creators publish wallet-unlocked content from their own websites and surface paid routes in public discovery.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
 };
 
 export default function RootLayout({
@@ -31,9 +40,12 @@ export default function RootLayout({
               } catch {}
             `,
           }}
-        />
+        ></script>
       </head>
       <body className="group/body" data-default-theme="light">
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <SvgSprite />
         <div id="design-settings" style={{ display: "none" }}></div>
         <Providers>

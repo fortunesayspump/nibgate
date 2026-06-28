@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { ConnectedWalletButton } from "@/components/WalletButton";
 
 export default function SigninPage() {
   return (
@@ -26,7 +25,7 @@ export default function SigninPage() {
               <p className="text-sm font-medium uppercase tracking-[0.08em] text-white/70">Creator wallet</p>
               <p className="text-xl leading-8 text-white">Connect the wallet that should own your Nibgate creator profile.</p>
             </div>
-            <ConnectedWalletButton className="w-full bg-white text-black px-5 py-4 text-lg font-medium rounded-lg cursor-pointer hover:bg-gray-200 transition-colors" />
+            <button className="w-full bg-white text-black px-5 py-4 text-lg font-medium rounded-lg cursor-pointer hover:bg-gray-200 transition-colors" type="button" data-wallet-connect>Connect wallet</button>
             <p className="text-sm leading-6 text-white/70" data-wallet-status>Use a wallet-enabled browser. Full creator dashboard actions will unlock after wallet identity is connected.</p>
           </div>
         </div>

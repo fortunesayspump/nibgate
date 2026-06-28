@@ -21,5 +21,8 @@
     "dev:frontend": "npm --workspace @nibgate/frontend run dev",
     "build:frontend": "npm --workspace @nibgate/frontend run build",
     "routes": "npm --workspace nibgate run routes"
+  },
+  "dependencies": {
+    "accounts": "^0.14.11"
   }
 }

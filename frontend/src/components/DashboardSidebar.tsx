@@ -25,7 +25,7 @@ export default function DashboardSidebar() {
             key={link.id}
             title={link.name}
             href={link.path}
-            className={`dashboard-box box-${index} no-underline w-full ${isActive ? 'active' : ''}`}
+            className={`dashboard-box box-${index} flex-1 no-underline w-full h-full ${isActive ? 'active' : ''}`}
             data-tab={link.id}
           >
             <Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} />

@@ -102,10 +102,6 @@ export function WalletButton() {
     })
   }, [open, disconnect, disconnectAppKit])
 
-  if (isWrongChain) {
-    return null
-  }
-
   return (
     <>
       <div className="nibgate-wallet-container" data-balance-container>
@@ -176,10 +172,6 @@ export function WalletButtonMobile() {
       window.nibgateWalletAddress = displayAddress
     }
   }, [isWalletConnected, displayAddress])
-
-  if (isWrongChain) {
-    return null
-  }
 
   return (
     <>

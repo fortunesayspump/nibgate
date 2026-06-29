@@ -621,7 +621,7 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
             />
             {lines.map((line) => <Area key={`${line.key}-area`} type="monotone" dataKey={line.key} stroke="none" fill={line.color} fillOpacity={0.08} />)}
             {lines.map((line) => (
-              <Line key={line.key} type="monotone" dataKey={line.key} name={line.label} stroke={line.color} strokeWidth={4} dot={{ r: 4, fill: line.color }} activeDot={{ r: 8, onClick: (_event, payload) => onPointClick?.(payload.payload) }} />
+              <Line key={line.key} type="monotone" dataKey={line.key} name={line.label} stroke={line.color} strokeWidth={4} dot={{ r: 4, fill: line.color }} activeDot={{ r: 8 }} />
             ))}
           </ReLineChart>
         </ResponsiveContainer>

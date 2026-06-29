@@ -82,15 +82,24 @@ model Content {
   id          String   @id @default(uuid())
   websiteId   String
   website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  externalId  String?
   title       String
   description String?
   imageUrl    String?
   contentType String   @default("article") // music, video, article, image
   tags        String?  // Comma-separated tags for the search engine
   url         String
+  path        String?
+  currency    String   @default("USDC")
   price       Float    // Price to unlock in USDC
+  lastSeenAt  DateTime?
   createdAt   DateTime @default(now())
   metrics     Metric[]
+
+  @@unique([websiteId, externalId])
+  @@unique([websiteId, url])
+  @@index([contentType])
+  @@index([createdAt])
 }
 
 model Metric {

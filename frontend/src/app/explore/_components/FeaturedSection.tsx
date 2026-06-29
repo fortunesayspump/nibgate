@@ -1,7 +1,9 @@
-import { featuredProducts } from "../_data/catalog";
+import type { ExploreProduct } from "../_data/catalog";
 import { FeaturedCard } from "./ProductCard";
 
-export default function FeaturedSection() {
+export default function FeaturedSection({ products }: { products: ExploreProduct[] }) {
+  const featuredProducts = products.slice(0, 4);
+
   if (featuredProducts.length === 0) {
     return (
       <section className="featured-section" aria-labelledby="featured-title">

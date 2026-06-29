@@ -32,21 +32,43 @@ function typeClass(type: string) {
   return String(type || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
+function productHref(product: ExploreProduct) {
+  return product.url || "/explore/products";
+}
+
+function productImage(product: ExploreProduct) {
+  return product.image || `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(product.title || "nibgate")}`;
+}
+
+function TagPills({ tags = [] }: { tags?: string[] }) {
+  if (!tags.length) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {tags.slice(0, 3).map((tag) => (
+        <Link key={tag} href={`/explore/products?q=${encodeURIComponent(tag)}`} className="rounded-full border border-black/10 bg-white/55 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.08em] opacity-75 transition hover:opacity-100">
+          {tag}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export function FeaturedCard({ product }: { product: ExploreProduct }) {
   const contentType = typeClass(product.type);
 
   return (
     <article className={`explore-feature-card content-card-${contentType}`}>
       <figure className="explore-art">
-        <img src={product.image} alt="" loading="lazy" />
+        <img src={productImage(product)} alt="" loading="lazy" />
         {product.type === 'Video' && playIcon}
         {product.type === 'Music' && waveform}
       </figure>
       <section className="explore-card-copy">
         <header>
           <span className="content-type">{product.type}</span>
-          <Link href="/explore/products"><h2>{product.title}</h2></Link>
+          <Link href={productHref(product)}><h2>{product.title}</h2></Link>
           <small>{product.summary}</small>
+          <TagPills tags={product.tags} />
           <Link className="explore-creator" href="/explore/creators">
             {product.avatar && <img src={product.avatar} alt="" loading="lazy" />}
             {product.creator}
@@ -79,10 +101,11 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
         </div>
       </div>
       <div className="article-body">
-        <img className="article-media" src={product.image} alt="Article cover" loading="lazy" />
+        <img className="article-media" src={productImage(product)} alt="Article cover" loading="lazy" />
         <div className="article-content">
           <h3 className="article-title">{product.title}</h3>
           <p className="article-summary">{product.summary || 'No description available for this content.'}</p>
+          <TagPills tags={product.tags} />
         </div>
       </div>
       <div className="article-footer">
@@ -106,7 +129,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
   return (
     <article className={`market-card content-card-${contentType}`}>
       <div className="market-media" style={{ aspectRatio: randomRatio }}>
-        <img className="market-thumbnail" src={product.image} alt={product.title} loading="lazy" />
+        <img className="market-thumbnail" src={productImage(product)} alt={product.title} loading="lazy" />
         
         {product.type === 'Video' && (
           <div className="market-play-icon">
@@ -142,11 +165,12 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
       
       <div className="market-info">
         <div className="market-info-header">
-          <h3 className="market-title">{product.title}</h3>
+          <Link href={productHref(product)}><h3 className="market-title">{product.title}</h3></Link>
           <span className="market-price">{product.price}</span>
         </div>
         
         <p className="market-summary">{product.summary || 'No description available for this content.'}</p>
+        <TagPills tags={product.tags} />
         
         <div className="market-info-footer">
           <Link className="market-creator" href="/explore/creators">

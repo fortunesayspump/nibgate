@@ -1,22 +1,56 @@
-import { contentTypes, marketProducts, sortTabs } from "../_data/catalog";
+"use client";
+
+import { useMemo, useState } from "react";
+import { contentTypes, sortTabs, type ExploreProduct } from "../_data/catalog";
 import { ExploreCard } from "./ProductCard";
 
-export default function MarketSection() {
+function sortKey(label: string) {
+  return label.toLowerCase().replaceAll(" ", "-").replace("&", "");
+}
+
+function sortProducts(products: ExploreProduct[], sort: string) {
+  return [...products].sort((a, b) => {
+    if (sort === "best-sellers") {
+      const aUnlocks = Number.parseInt(a.unlocks || "0", 10) || 0;
+      const bUnlocks = Number.parseInt(b.unlocks || "0", 10) || 0;
+      return (bUnlocks - aUnlocks) || ((b.revenue || 0) - (a.revenue || 0));
+    }
+    if (sort === "hot-new") {
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    }
+    return ((b.views || 0) + (b.revenue || 0) * 20) - ((a.views || 0) + (a.revenue || 0) * 20);
+  });
+}
+
+export default function MarketSection({ products }: { products: ExploreProduct[] }) {
+  const [sort, setSort] = useState("trending");
+  const [activeType, setActiveType] = useState("All");
+  const [visibleCount, setVisibleCount] = useState(12);
+  const filteredProducts = useMemo(() => {
+    const typed = activeType === "All" ? products : products.filter((product) => product.type === activeType);
+    return sortProducts(typed, sort);
+  }, [products, sort, activeType]);
+  const visibleProducts = filteredProducts.slice(0, visibleCount);
+
   return (
     <section className="market-section" aria-labelledby="market-title">
       <div className="market-heading">
         <h2 id="market-title">Explore content</h2>
         <div className="market-controls" aria-label="Explore content controls">
           <div className="sort-tabs" role="radiogroup" aria-label="Sort content">
-            {sortTabs.map((tab: string, index: number) => (
-              <button key={tab} className={index === 0 ? "active" : ""} type="button" aria-pressed={index === 0 ? "true" : "false"}>
-                {tab}
-              </button>
-            ))}
+            {sortTabs.map((tab: string) => {
+              const key = sortKey(tab);
+              const normalizedKey = key === "hot--new" ? "hot-new" : key;
+              return (
+                <button key={tab} onClick={() => setSort(normalizedKey)} className={sort === normalizedKey ? "active" : ""} type="button" aria-pressed={sort === normalizedKey ? "true" : "false"}>
+                  {tab}
+                </button>
+              );
+            })}
           </div>
           <div className="type-tabs" aria-label="Filter by content type">
             {contentTypes.map((type: string) => (
-              <button key={type} className="active" type="button" aria-pressed="true">
+              <button key={type} onClick={() => { setActiveType(type); setVisibleCount(12); }} className={activeType === type ? "active" : ""} type="button" aria-pressed={activeType === type ? "true" : "false"}>
                 {type}
               </button>
             ))}
@@ -26,21 +60,21 @@ export default function MarketSection() {
       <div className="market-layout">
         <div className="market-products">
           <div className="market-grid">
-            {marketProducts.length === 0 ? (
+            {visibleProducts.length === 0 ? (
               <div className="rounded-[8px] border border-black/10 p-8 text-center">
                 <p>No tracked content is available yet.</p>
               </div>
             ) : (
-              marketProducts.map((product, i) => (
-                <ExploreCard key={i} product={product} />
+              visibleProducts.map((product, i) => (
+                <ExploreCard key={product.id || i} product={product} />
               ))
             )}
           </div>
-          {marketProducts.length > 0 && (
+          {visibleCount < filteredProducts.length ? (
             <div className="market-load-more">
-              <button type="button">Load more</button>
+              <button type="button" onClick={() => setVisibleCount((count) => count + 12)}>Load more</button>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </section>

@@ -9,9 +9,10 @@ export const categories = [
 
 export const sortTabs = ["Trending", "Best Sellers", "Hot & New"];
 
-export const contentTypes = ["Articles", "Music", "Images", "Video"];
+export const contentTypes = ["All", "Article", "Music", "Image", "Video"];
 
 export type ExploreProduct = {
+  id?: string;
   type: string;
   title: string;
   summary?: string;
@@ -19,9 +20,14 @@ export type ExploreProduct = {
   price: string;
   meta?: string;
   unlocks?: string;
+  tags?: string[];
   image?: string;
   avatar?: string;
   topCreator?: boolean;
+  url?: string;
+  views?: number;
+  revenue?: number;
+  createdAt?: string;
 };
 
 export type Wishlist = {
@@ -32,9 +38,5 @@ export type Wishlist = {
   followers: string;
   images: string[];
 };
-
-export const featuredProducts: ExploreProduct[] = [];
-
-export const marketProducts: ExploreProduct[] = [];
 
 export const wishlists: Wishlist[] = [];

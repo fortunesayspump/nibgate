@@ -182,38 +182,56 @@ function absoluteResourceUrl(website, resource = {}, fallbackUrl = '') {
   return `${originFor(website.domain)}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
+function cleanTags(value) {
+  const tags = Array.isArray(value)
+    ? value
+    : String(value || '').split(',');
+  return tags
+    .map((tag) => String(tag || '').trim().toLowerCase())
+    .filter(Boolean)
+    .filter((tag, index, all) => all.indexOf(tag) === index)
+    .slice(0, 12);
+}
+
+function contentDataFor(website, payload = {}) {
+  const resource = payload.resource || {};
+  const url = absoluteResourceUrl(website, resource, payload.url);
+  const externalId = String(resource.id || resource.contentId || resource.slug || '').trim() || null;
+  const title = String(resource.title || payload.title || url).trim() || 'Untitled resource';
+  const contentType = normalizeContentType(resource.type || resource.contentType);
+  const tags = cleanTags(resource.tags || payload.tags);
+  const pathValue = resource.path || resource.route || payload.path || null;
+  return {
+    externalId,
+    title,
+    description: resource.description || payload.description || null,
+    imageUrl: resource.imageUrl || resource.image || payload.imageUrl || null,
+    contentType,
+    tags: tags.join(','),
+    url,
+    path: pathValue,
+    currency: resource.currency || payload.currency || 'USDC',
+    price: Number.parseFloat(resource.price || payload.price || resource.amount || payload.amount || '0') || 0,
+    lastSeenAt: new Date()
+  };
+}
+
 async function upsertTrackedContent(website, payload = {}) {
   const resource = payload.resource || {};
   const hasResourceSignal = resource.id || resource.url || resource.path || resource.title || payload.event === 'content_registered' || payload.event === 'resource_view' || payload.event === 'resource_unlock';
   if (!hasResourceSignal) return null;
 
-  const url = absoluteResourceUrl(website, resource, payload.url);
-  const idSeed = resource.id || resource.slug || url;
+  const data = contentDataFor(website, payload);
+  const idSeed = data.externalId || data.url;
   const contentId = crypto.createHash('md5').update(website.id + idSeed).digest('hex');
-  const title = String(resource.title || payload.title || url).trim() || 'Untitled resource';
-  const contentType = normalizeContentType(resource.type || resource.contentType);
 
   return db.content.upsert({
     where: { id: contentId },
-    update: {
-      title,
-      description: resource.description || null,
-      imageUrl: resource.imageUrl || resource.image || null,
-      contentType,
-      tags: Array.isArray(resource.tags) ? resource.tags.join(',') : (resource.tags || null),
-      url,
-      price: Number.parseFloat(resource.price || payload.price || '0') || 0
-    },
+    update: data,
     create: {
       id: contentId,
       websiteId: website.id,
-      title,
-      description: resource.description || null,
-      imageUrl: resource.imageUrl || resource.image || null,
-      contentType,
-      tags: Array.isArray(resource.tags) ? resource.tags.join(',') : (resource.tags || null),
-      url,
-      price: Number.parseFloat(resource.price || payload.price || '0') || 0
+      ...data
     }
   });
 }
@@ -261,13 +279,20 @@ function serializeContent(content) {
     websiteDomain: content.website?.domain || '',
     websiteVerified: content.website?.isVerified || false,
     websiteVerificationStatus: content.website?.verificationStatus || '',
+    websiteFaviconUrl: content.website?.faviconUrl || '',
+    websiteOgImageUrl: content.website?.ogImageUrl || '',
     title: content.title,
     description: content.description || '',
     imageUrl: content.imageUrl || '',
     contentType: content.contentType,
     tags: content.tags || '',
+    tagList: cleanTags(content.tags),
     url: content.url,
+    path: content.path || '',
+    currency: content.currency || 'USDC',
     price: content.price,
+    externalId: content.externalId || '',
+    lastSeenAt: content.lastSeenAt || null,
     createdAt: content.createdAt,
     metrics: content._count?.metrics || metrics.length || 0,
     views,
@@ -906,24 +931,45 @@ export function registerHubRoutes(app) {
     }
   });
 
-  app.get('/api/hub/explore/content', async (_req, res) => {
+  app.get('/api/hub/explore/content', async (req, res) => {
     try {
+      const q = String(req.query.q || '').trim();
+      const type = normalizeContentType(req.query.type || '');
+      const requestedType = String(req.query.type || '').trim().toLowerCase();
+      const sort = String(req.query.sort || 'trending').trim().toLowerCase();
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '60', 10) || 60, 1), 100);
       const content = await db.content.findMany({
         where: {
-          website: { isVerified: true, deletedAt: null }
+          website: { isVerified: true, deletedAt: null },
+          ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
+          ...(q ? {
+            OR: [
+              { title: { contains: q } },
+              { description: { contains: q } },
+              { tags: { contains: q } },
+              { website: { name: { contains: q } } },
+              { website: { domain: { contains: q } } }
+            ]
+          } : {})
         },
-          include: {
-            website: true,
-            metrics: true,
-            _count: { select: { metrics: true } }
-          },
+        include: {
+          website: true,
+          metrics: true,
+          _count: { select: { metrics: true } }
+        },
         orderBy: { createdAt: 'desc' },
-        take: 60
+        take: limit
+      });
+      const serialized = content.map(serializeContent);
+      const sorted = serialized.sort((a, b) => {
+        if (sort === 'best-sellers') return (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
+        if (sort === 'hot-new') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
       });
 
       res.json({
         success: true,
-        content: content.map(serializeContent)
+        content: sorted
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch explore content' });

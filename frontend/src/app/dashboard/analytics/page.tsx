@@ -617,7 +617,7 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
             <Tooltip
               cursor={{ stroke: "rgba(0,0,0,0.22)", strokeWidth: 1 }}
               contentStyle={{ borderRadius: 18, borderColor: "var(--nib-border-soft)", background: "var(--nib-surface)", boxShadow: "0 18px 50px rgba(0,0,0,0.14)" }}
-              formatter={(value: number, name: string) => [Number(value).toLocaleString(), name]}
+              formatter={formatTooltipValue}
             />
             {lines.map((line) => <Area key={`${line.key}-area`} type="monotone" dataKey={line.key} stroke="none" fill={line.color} fillOpacity={0.08} />)}
             {lines.map((line) => (
@@ -636,6 +636,10 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
 function chartPayload(state: unknown) {
   const payload = (state as { activePayload?: Array<{ payload?: Record<string, number | string> }> } | null)?.activePayload?.[0]?.payload;
   return payload || null;
+}
+
+function formatTooltipValue(value: unknown, name: unknown) {
+  return [Number(value || 0).toLocaleString(), String(name || "")];
 }
 function PeriodModal({ title, point, onClose }: { title: string; point: { label: string; views?: number; unlocks?: number; revenue?: number }; onClose: () => void }) {
   return (

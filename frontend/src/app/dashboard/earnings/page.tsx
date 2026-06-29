@@ -547,7 +547,7 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
             <Tooltip
               cursor={{ stroke: "rgba(0,0,0,0.22)", strokeWidth: 1 }}
               contentStyle={{ borderRadius: 18, borderColor: "var(--nib-border-soft)", background: "var(--nib-surface)", boxShadow: "0 18px 50px rgba(0,0,0,0.14)" }}
-              formatter={(value: number, name: string) => [name === "Revenue" || name === "revenue" ? `${Number(value).toFixed(2)} USDC` : Number(value).toLocaleString(), name]}
+              formatter={formatTooltipValue}
             />
             {lines.map((line) => <Area key={`${line.key}-area`} type="monotone" dataKey={line.key} stroke="none" fill={line.color} fillOpacity={0.08} />)}
             {lines.map((line) => (
@@ -566,6 +566,12 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
 function chartPayload(state: unknown) {
   const payload = (state as { activePayload?: Array<{ payload?: Record<string, number | string> }> } | null)?.activePayload?.[0]?.payload;
   return payload || null;
+}
+
+function formatTooltipValue(value: unknown, name: unknown) {
+  const label = String(name || "");
+  const amount = Number(value || 0);
+  return [label === "Revenue" || label === "revenue" ? `${amount.toFixed(2)} USDC` : amount.toLocaleString(), label];
 }
 
 function EarningsPeriodModal({ point, onClose }: { point: { label: string; revenue: number; unlocks: number }; onClose: () => void }) {

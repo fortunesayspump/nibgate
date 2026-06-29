@@ -721,7 +721,7 @@ function rangeLabels(range: string) {
 }
 
 function normalizeContentMix(mix: Array<{ label: string; value: number; color?: string }>, content: ContentMetric[]) {
-  const source = mix.length > 0
+  const source: Array<{ label: string; value: number; color?: string }> = mix.length > 0
     ? mix
     : Array.from(content.reduce((map, item) => {
       const type = String(item.type || "article").toLowerCase();

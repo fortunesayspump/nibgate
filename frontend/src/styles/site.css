@@ -300,10 +300,12 @@ body[data-theme="dark"] .footer-menu {
 }
 
 .nibgate-header-wordmark {
-  width: 82px;
-  height: 26px;
-  display: inline-block;
-  flex: 0 0 82px;
+  width: 124px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 124px;
+  transform: translateY(3px);
 }
 
 .nibgate-header-wordmark svg,

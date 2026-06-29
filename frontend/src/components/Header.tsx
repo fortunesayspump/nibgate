@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import BrandLogo from "./BrandLogo";
+import BrandWordmark from "./BrandWordmark";
 import { WalletButton, WalletButtonMobile } from "@/components/WalletButton";
 
 
@@ -25,13 +26,7 @@ export default function Header() {
         <div className="nibgate-header-identity">
           <Link className="nibgate-header-logo" href="/" aria-label="Nibgate home">
             <BrandLogo />
-            <span className="nibgate-header-text-wordmark">
-              <span style={{ color: "var(--nib-olive)" }}>n</span>
-              <span style={{ color: "var(--nib-olive)" }}>i</span>
-              <span style={{ color: "var(--nib-olive)" }}>b</span>
-              <span style={{ color: "var(--nib-header-fg)" }}>g</span>
-              <span style={{ color: "var(--nib-header-fg)" }}>ate</span>
-            </span>
+            <BrandWordmark />
           </Link>
         </div>
 

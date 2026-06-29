@@ -607,7 +607,10 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
     <div className="mt-6 overflow-hidden rounded-3xl border p-3" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-page-bg)" }}>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <ReLineChart data={data} margin={{ top: 20, right: 18, bottom: 6, left: 0 }} onClick={(state) => state?.activePayload?.[0]?.payload && onPointClick?.(state.activePayload[0].payload)}>
+          <ReLineChart data={data} margin={{ top: 20, right: 18, bottom: 6, left: 0 }} onClick={(state) => {
+            const payload = chartPayload(state);
+            if (payload) onPointClick?.(payload);
+          }}>
             <CartesianGrid stroke="rgba(0,0,0,0.08)" vertical={false} />
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "rgba(0,0,0,0.55)", fontSize: 12 }} />
             <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgba(0,0,0,0.45)", fontSize: 12 }} />
@@ -628,6 +631,11 @@ function LineChart({ data, lines, onPointClick }: { data: Array<Record<string, n
       </div>
     </div>
   );
+}
+
+function chartPayload(state: unknown) {
+  const payload = (state as { activePayload?: Array<{ payload?: Record<string, number | string> }> } | null)?.activePayload?.[0]?.payload;
+  return payload || null;
 }
 function PeriodModal({ title, point, onClose }: { title: string; point: { label: string; views?: number; unlocks?: number; revenue?: number }; onClose: () => void }) {
   return (

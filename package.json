@@ -16,13 +16,15 @@
     "build": "echo 'no root build needed'",
     "dev": "npm run build:frontend && npm run dev:backend",
     "dev:demo": "npm --prefix demo install && npm --prefix demo run dev",
-    "dev:cli": "npm --workspace nibgate run dev",
+    "dev:cli": "npm --workspace @nibgate/cli run dev",
     "dev:backend": "npm --workspace @nibgate/backend run dev",
     "dev:frontend": "npm --workspace @nibgate/frontend run dev",
     "build:frontend": "npm --workspace @nibgate/frontend run build",
-    "routes": "npm --workspace nibgate run routes"
+    "routes": "npm --workspace @nibgate/cli run routes"
   },
-  "dependencies": {
-    "accounts": "^0.14.11"
+  "pnpm": {
+    "overrides": {
+      "accounts": "file:packages/accounts-shim"
+    }
   }
 }

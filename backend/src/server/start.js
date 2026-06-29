@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from 'nibgate/src/core/config.js';
+import { loadConfig } from '@nibgate/cli/src/core/config.js';
 import { createApp } from './server.js';
 
 const __filename = fileURLToPath(import.meta.url);

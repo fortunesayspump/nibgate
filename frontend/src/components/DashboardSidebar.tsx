@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { BarChart3, CircleDollarSign, FileLock2, Globe2, UserRound } from "lucide-react";
 
 const navLinks = [
-  { name: 'Profile', path: '/dashboard/profile', id: 'profile', Icon: UserRound },
-  { name: 'Sites', path: '/dashboard/sites', id: 'sites', Icon: Globe2 },
-  { name: 'Contents', path: '/dashboard/contents', id: 'contents', Icon: FileLock2 },
-  { name: 'Analytics', path: '/dashboard/analytics', id: 'analytics', Icon: BarChart3 },
-  { name: 'Earnings', path: '/dashboard/earnings', id: 'earnings', Icon: CircleDollarSign }
+  { name: 'Profile', description: 'Creator setup', path: '/dashboard/profile', id: 'profile', Icon: UserRound },
+  { name: 'Sites', description: 'Connected origins', path: '/dashboard/sites', id: 'sites', Icon: Globe2 },
+  { name: 'Contents', description: 'Protected routes', path: '/dashboard/contents', id: 'contents', Icon: FileLock2 },
+  { name: 'Analytics', description: 'Views and unlocks', path: '/dashboard/analytics', id: 'analytics', Icon: BarChart3 },
+  { name: 'Earnings', description: 'Revenue flow', path: '/dashboard/earnings', id: 'earnings', Icon: CircleDollarSign }
 ];
 
 export default function DashboardSidebar() {
@@ -30,6 +30,7 @@ export default function DashboardSidebar() {
           >
             <Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} />
             <span className="dashboard-box-label">{link.name}</span>
+            <span className="dashboard-box-description">{link.description}</span>
           </Link>
         );
       })}

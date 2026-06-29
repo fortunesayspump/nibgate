@@ -2,16 +2,17 @@
 
 Nibgate is a paid-access layer and discovery engine for the open web.
 
-It consists of two massive parts:
-1. **The Package**: Creators (bloggers, photographers, musicians) install the `nibgate` npm package on their own personal websites. It automatically gates premium content (images, articles) behind an X402 crypto paywall (e.g., 0.01 cents per unlock). 
-2. **The Hub**: `nibgate.xyz` acts as the central Discovery Search Engine. When a creator installs the package, their website becomes a node that streams analytics and content metadata back to the Hub via a `manifest.json`. Users can search for content across all independent creator sites from this one central place.
+It consists of three connected parts:
+1. **The Widget**: Creators paste one script on their site. It proves domain ownership, creates visitor/session context, and sends browser-safe analytics to Nibgate.
+2. **The Package**: Creators install the `nibgate` npm package to gate actual content on their own site. The package knows the content, unlock, and payment lifecycle, then reports those events through the widget bridge.
+3. **The Hub**: `nibgate.xyz` is the creator dashboard, discovery surface, and analytics layer. It verifies sites, stores content metadata, aggregates metrics, and shows profile/site/content/earnings data.
 
 ## Repo Layout
 
 ```txt
 backend/      Express SSR server, Prisma DB, API routes
 frontend/     Optimized static CSS pipeline and assets
-packages/     Publishable npm packages (e.g., the CLI tool and payment gateway)
+packages/     Nibgate npm package and internal tooling
 demo/         Isolated mock creator site for integration testing
 docs/         Architecture and build notes
 ideas/        Product thinking and planning
@@ -27,16 +28,34 @@ The Hub is 100% Server-Side Rendered (SSR) for absolute maximum speed and SEO. I
 - `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
 - `/api/hub/*` Hub connection, sync, verification, and event ingestion.
 
+### `packages/nibgate/`
+
+This is the public creator package. It is intentionally tiny and browser-first:
+
+```bash
+npm install nibgate
+```
+
+It owns:
+
+- `gate(...)`
+- `nibgate.content(...)`
+- `nibgate.view(...)`
+- `nibgate.unlockStarted(...)`
+- `nibgate.unlockCompleted(...)`
+- `nibgate.paymentCompleted(...)`
+- queueing events until the Hub widget is ready
+- normalizing content types to `music`, `video`, `article`, and `image`
+
 ### `packages/cli/`
 
-The CLI package owns:
+The CLI package is private internal tooling for local development and future setup automation. It owns:
 
 - `npx nibgate`
 - config generation
 - route protection and gateway logic
 - x402 and Circle Gateway integration
-- manifest generation
-- hub connection, sync, verification, and signed events
+- hub connection, domain verification, and widget/package content events
 
 ### `examples/`
 
@@ -74,10 +93,8 @@ Useful local commands:
 
 ```bash
 npm run routes
-npx nibgate manifest
 npx nibgate status
 npx nibgate connect
-npx nibgate sync
 npx nibgate verify
 npx nibgate event resource_view premium-article
 npx nibgate balance
@@ -94,52 +111,189 @@ npx nibgate routes
 
 ## Product Flow
 
+Nibgate uses a widget-first event architecture:
+
+```txt
+Creator site
+  Hub widget
+    - verifies ownership
+    - owns siteId/token/session context
+    - sends events to the backend
+
+  Nibgate package
+    - gates real creator content
+    - knows content metadata and unlock/payment lifecycle
+    - calls window.nibgateHub when content is viewed, unlocked, or paid for
+
+Nibgate backend
+  - validates siteId/token/origin
+  - stores content metadata
+  - stores metric events
+  - aggregates dashboard data
+```
+
 When a creator installs `nibgate` on their own site, the package is responsible for:
 
-1. exposing `/.well-known/nibgate.json`
-2. exposing `/.well-known/nibgate-verify.txt`
-3. protecting paid routes on the origin
-4. optionally sending signed events to the hub
+1. protecting paid routes and gated content on the creator origin
+2. handling x402/Circle unlock logic
+3. registering content metadata for `music`, `video`, `article`, and `image`
+4. emitting content-level events such as `resource_view`, `unlock_started`, `unlock_completed`, and `payment_completed`
+5. passing resource ids, titles, prices, and paths to the Hub widget when users interact with protected content
+
+The Hub widget is responsible for:
+
+1. proving site ownership with one script tag on the creator domain
+2. automatically sending page views
+3. detecting content markers from `data-nibgate-*` attributes or `nibgate:*` meta tags
+4. exposing `window.nibgateHub.registerContent(...)`, `window.nibgateHub.track(...)`, and unlock/payment helpers so the package can stream individual resource events
+5. attaching site id, public token, visitor id, session id, URL, path, referrer, and scroll depth before sending to the backend
 
 The hub is responsible for:
 
 1. registering the site
-2. verifying domain ownership
-3. fetching and indexing resource metadata
-4. ingesting events for views, unlocks, revenue, and performance
+2. verifying domain ownership by fetching the creator homepage and checking for the widget token
+3. ingesting events for page views, content views, unlocks, revenue, and performance
+4. indexing resource metadata from streamed package/widget events
 
 That keeps real content and enforcement on the creator domain while the hub stores only the metadata and aggregates needed for discovery and analytics.
 
 ## Local Connect Flow
 
-```bash
-npx nibgate init
-npx nibgate connect
-npx nibgate sync
-npx nibgate verify
+1. Sign in to the Hub with a wallet.
+2. Add a site from the dashboard.
+3. Copy the generated widget script.
+4. Paste it into the creator site HTML.
+5. Deploy the creator site.
+6. Click verify in the Hub.
+
+Widget snippet shape:
+
+```html
+<script
+  async
+  src="https://nibgate.xyz/widget.js"
+  data-nibgate-site="SITE_ID"
+  data-nibgate-token="PUBLIC_SITE_TOKEN"
+></script>
 ```
 
-Local site endpoints:
+Content-level registration and tracking should be emitted by the package through the widget:
 
-- `/.well-known/nibgate.json`
-- `/.well-known/nibgate-verify.txt`
-- `/api/nibgate/status`
+```js
+import { gate } from 'nibgate';
+
+const premiumGuide = gate({
+  id: "premium-guide",
+  title: "Premium Guide",
+  type: "article",
+  price: "0.01",
+  path: "/premium-guide"
+});
+
+premiumGuide.content();
+premiumGuide.view();
+
+await premiumGuide.unlock(async () => {
+  // Run payment and server-side verification here.
+  return {
+    paymentId: "payment_123",
+    paymentProvider: "arc-testnet",
+    txHash: "0x...",
+    chainExplorerUrl: "https://testnet.arcscan.app/tx/0x...",
+    revenue: 0.01,
+    currency: "USDC"
+  };
+});
+```
+
+The lower-level bridge remains available for advanced integrations:
+
+```js
+import { nibgate } from 'nibgate';
+
+nibgate.unlockCompleted("premium-guide", {
+  revenue: 0.01,
+  currency: "USDC"
+});
+```
+
+The package talks to `window.nibgateHub` under the hood. If creator code runs before the async widget finishes loading, package events are queued in the browser and flushed when the widget becomes available.
+
+Server-side protection lives under `nibgate/server`:
+
+```js
+import { createNibgateServer } from 'nibgate/server';
+
+const nibgateServer = createNibgateServer({
+  secret: process.env.NIBGATE_SECRET,
+  recipient: process.env.NIBGATE_SELLER_ADDRESS,
+  async verifyPayment({ payment }) {
+    // Plug Circle/x402 verification here.
+    return Boolean(payment.paymentId);
+  }
+});
+
+export const GET = nibgateServer.protect({
+  id: "premium-guide",
+  title: "Premium Guide",
+  type: "article",
+  price: "0.01",
+  path: "/premium-guide"
+}, async () => {
+  return new Response("Premium content");
+});
+```
+
+Earnings are non-custodial. The package/server flow should send payment to the receiving address configured for that creator site. One creator can connect multiple sites, and each site can use a different receiver. Nibgate Hub stores the payment/unlock records for analytics and accounting; it does not custody funds or expose a withdraw flow.
+
+Receipt handling is provider-aware:
+
+- Circle Gateway payments should store `paymentProvider: "circle-gateway"`, `paymentId`, and `receiptUrl` only if Circle or the gateway integration returns a real receipt URL.
+- Arc testnet payments should store `paymentProvider: "arc-testnet"`, `txHash`, `chainId`, and optionally `chainExplorerUrl` for the Arcscan transaction page.
+- If neither a Circle receipt URL nor an Arc explorer URL exists, the hub shows the internal recorded payment id/hash instead of inventing a fake receipt.
+
+Or declared in markup:
+
+```html
+<article
+  data-nibgate-resource
+  data-nibgate-id="premium-guide"
+  data-nibgate-title="Premium Guide"
+  data-nibgate-type="article"
+  data-nibgate-price="0.01"
+>
+  ...
+</article>
+```
 
 Hub endpoints:
 
-- `POST /api/hub/sites/connect`
-- `POST /api/hub/sites/sync`
-- `POST /api/hub/sites/verify`
-- `POST /api/hub/events`
-- `GET /api/hub/summary`
+- `POST /api/hub/sites/register`
+- `POST /api/hub/sites/:websiteId/verify`
+- `POST /api/hub/track`
+- `GET /api/hub/sites`
+- `GET /api/hub/dashboard/content`
+- `GET /api/hub/dashboard/analytics`
+- `GET /api/hub/dashboard/earnings`
+
+## Tracking Model
+
+The widget does not treat a whole site as one undifferentiated blob. It can record:
+
+- page views for each route where the script loads
+- resource views when a page has `data-nibgate-resource` markup or `nibgate:*` meta tags
+- package events when the installed `nibgate` runtime calls `window.nibgateHub.track(...)`
+- unlock and payment events tied to a specific resource id
+
+That means one domain can have many tracked resources, but Nibgate content types are intentionally limited to `music`, `video`, `article`, and `image`.
 
 ## Storage Model
 
-The current hub store is file-backed for development:
+The current local hub store is SQLite through Prisma:
 
 - creator content still lives on the creator site
-- resource metadata can be fetched live from creator manifests
-- local stats and connection records are stored in `.nibgate/hub.json`
+- resource metadata is created or updated from streamed widget/package events
+- local stats and connection records are stored in the development database
 
 For production `nibgate.xyz`, durable analytics and verification history still need a real external store such as Postgres, Supabase, or another hosted database/KV layer.
 
@@ -182,4 +336,4 @@ npx nibgate deposit 1.0
 - Example article: `http://localhost:3000/demo/ghost/the-agent-economy`
 - Protected example route: `http://localhost:3000/protected/demo-blog/premium-agent-economy`
 - Example origin: `http://localhost:4100`
-- Agent manifest: `http://localhost:3000/.well-known/nibgate.json`
+- Hub widget: `http://localhost:3000/widget.js`

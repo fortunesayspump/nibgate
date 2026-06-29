@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createApp } from '../server/server.js';
-import { loadConfig, rootDir, withConfigDefaults } from 'nibgate/src/core/config.js';
+import { loadConfig, rootDir, withConfigDefaults } from '@nibgate/cli/src/core/config.js';
 
 let appPromise;
 

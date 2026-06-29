@@ -538,6 +538,17 @@ td {
   transition: transform 0.2s, opacity 0.2s;
 }
 
+.dashboard-box-description {
+  display: block;
+  margin-top: 6px;
+  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-family: var(--font-ui, "ABC Favorit", Arial, sans-serif);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  transition: color 0.2s, transform 0.2s;
+}
+
 .dashboard-box.box-0 { background-color: #A3C293; } /* Solid Mint Green */
 .dashboard-box.box-1 { background-color: #D39EAD; } /* Dusty Rose */
 .dashboard-box.box-2 { background-color: #9AB1C6; } /* Steel Blue */
@@ -575,4 +586,81 @@ body[data-theme="dark"] .dashboard-box:hover {
 .dashboard-box:hover .dashboard-box-label,
 .dashboard-box:focus-visible .dashboard-box-label {
   transform: translateY(-1px);
+}
+
+.dashboard-box:hover .dashboard-box-description,
+.dashboard-box:focus-visible .dashboard-box-description {
+  color: currentColor;
+  transform: translateY(1px);
+}
+
+.dashboard-drawer-backdrop {
+  animation: dashboard-backdrop-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-drawer-panel {
+  animation: dashboard-drawer-in-mobile 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (width >= 768px) {
+  .dashboard-drawer-panel {
+    animation-name: dashboard-drawer-in-desktop;
+  }
+}
+
+.dashboard-modal-backdrop {
+  animation: dashboard-backdrop-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-modal-card {
+  animation: dashboard-modal-in 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+@keyframes dashboard-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dashboard-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dashboard-drawer-in-desktop {
+  from {
+    opacity: 0;
+    transform: translateX(44px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes dashboard-drawer-in-mobile {
+  from {
+    opacity: 0;
+    transform: translateY(34px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

@@ -9,7 +9,7 @@ export default function FeaturedSection() {
           <h1 id="featured-title">Featured content</h1>
         </header>
         <div className="rounded-[8px] border border-black/10 p-8 text-center">
-          <p>No featured content has been synced yet.</p>
+          <p>No featured content has been tracked yet.</p>
         </div>
       </section>
     );

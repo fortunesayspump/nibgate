@@ -1,0 +1,9 @@
+{
+  "name": "accounts",
+  "version": "0.0.0-nibgate-shim",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  }
+}

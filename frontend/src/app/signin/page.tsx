@@ -15,7 +15,7 @@ export default function SigninPage() {
         <div className="space-y-8">
           <div className="text-xl font-medium">Wallet identity</div>
           <h1 className="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Connect a wallet to manage what people unlock.</h1>
-          <p className="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate will use your wallet as the creator identity for site manifests, Arc testnet payment setup, route analytics, and Explore presence.</p>
+          <p className="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate will use your wallet as the creator identity for connected sites, Arc testnet payment setup, route analytics, and Explore presence.</p>
           <div className="flex flex-wrap gap-4">
             <Link href="/get-started" className="nibgate-soft-cta">Connect your site</Link>
             <Link href="/explore" className="nibgate-soft-cta nibgate-soft-cta-secondary">Browse Explore</Link>

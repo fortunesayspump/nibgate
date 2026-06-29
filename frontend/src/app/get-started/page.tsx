@@ -13,7 +13,7 @@ export default function GetStartedPage() {
         <div className="space-y-8">
           <div className="text-xl font-medium">Connect your site</div>
           <h1 className="max-w-3xl text-6xl font-medium leading-none md:text-7xl lg:text-8xl">Install the package, protect a route, and publish to Explore.</h1>
-          <p className="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate starts on your own domain. Connect a wallet, expose a route manifest, and let people unlock paid content without moving your work into a marketplace.</p>
+          <p className="max-w-2xl text-xl leading-8 md:text-2xl md:leading-9">Nibgate starts on your own domain. Connect a wallet, add one widget script, and let people unlock paid content without moving your work into a marketplace.</p>
           <div className="flex flex-wrap gap-4">
             <button type="button" data-wallet-connect className="nibgate-soft-cta border-none cursor-pointer">Connect wallet</button>
             <Link href="/features" className="nibgate-soft-cta nibgate-soft-cta-secondary">View features</Link>
@@ -23,7 +23,7 @@ export default function GetStartedPage() {
           {[
             ['1', 'Install Nibgate', 'Run npm install nibgate in the project that owns your content.'],
             ['2', 'Define paid routes', 'Choose writing, media, downloads, or agent-readable endpoints and set the price.'],
-            ['3', 'Verify ownership', 'Publish the manifest and verification file from your own domain.'],
+            ['3', 'Verify ownership', 'Publish the widget script from your own domain.'],
             ['4', 'Appear in Explore', 'Send signed popularity and unlock events so the public hub can reflect what is live.']
           ].map(([step, title, copy], index) => (
             <article key={index} className="bg-white p-6 md:p-8">

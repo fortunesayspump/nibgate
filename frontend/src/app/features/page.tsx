@@ -155,7 +155,7 @@ export default function FeaturesPage() {
         reverse={true}
         textItems={[
           ['Say yes to different currencies', 'Increase opportunities by accepting payments from a broader audience.'],
-          ["Don't sweat verification", 'Use manifests and site verification so the hub can trust what is live.']
+          ["Don't sweat verification", 'Use one widget script so the hub can verify ownership and receive live content events.']
         ]}
       />
 

@@ -166,14 +166,14 @@ Nibgate use cases:
 - Add real x402 middleware for one protected article.
 - Add buyer/agent script that discovers price, pays, and fetches content.
 - Keep route config in `nibgate.config.json`.
-- Expose `/.well-known/nibgate.json` and site verification assets.
+- Add the Hub widget script for domain verification and event streaming.
 
 ### Phase 2: Hub indexing and analytics
 
 - Create hub endpoints for:
   - site connect
   - site verify
-  - manifest sync
+  - widget/package event ingestion
   - event ingestion
 - Store site/resource metadata and aggregated stats in a durable hub store.
 - Show discovery and creator metrics in the public Nibgate app.
@@ -193,7 +193,7 @@ Nibgate use cases:
 - Build a Ghost theme snippet and custom integration.
 - Use Ghost tags or metadata to mark paid articles.
 - Proxy protected post routes through Nibgate.
-- Add `.well-known/nibgate.json` for agent discovery.
+- Add the Hub widget and resource event hooks for discovery.
 
 ### Phase 5: Media Proof
 
@@ -208,7 +208,7 @@ Nibgate use cases:
 
 ### Phase 6: Agent Mode
 
-- Add a machine-readable manifest:
+- Add machine-readable resource metadata through package/widget events:
   - resource id
   - price
   - accepted currency/network

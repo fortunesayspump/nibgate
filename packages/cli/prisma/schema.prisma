@@ -17,10 +17,29 @@ model User {
   id            String    @id @default(uuid())
   walletAddress String    @unique
   username      String?
+  bio           String?
   avatarUrl     String?
+  coverUrl      String?
+  websiteUrl    String?
+  twitterUrl    String?
+  instagramUrl  String?
+  tiktokUrl     String?
+  youtubeUrl    String?
   createdAt     DateTime  @default(now())
   sessions      Session[]
+  wallets       Wallet[]
   websites      Website[]
+}
+
+model Wallet {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address    String   @unique
+  chainId    Int?
+  isPrimary  Boolean  @default(false)
+  verifiedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
 }
 
 model Session {
@@ -41,11 +60,20 @@ model Website {
   ownerId     String
   owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   isVerified  Boolean   @default(false)
+  verificationStatus String @default("pending")
+  lastVerifiedAt DateTime?
+  lastVerificationCheckAt DateTime?
+  verificationFailureReason String?
   verifyToken String
   siteToken   String    @unique
   faviconUrl  String?
   ogImageUrl  String?
+  lastScanAt  DateTime?
+  lastScanStatus String?
+  lastScanError  String?
+  lastSyncAt  DateTime?
   createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
   content     Content[]
   metrics     Metric[]
 }
@@ -57,7 +85,7 @@ model Content {
   title       String
   description String?
   imageUrl    String?
-  contentType String   @default("image") // e.g., 'image', 'video', 'audio', 'article'
+  contentType String   @default("article") // music, video, article, image
   tags        String?  // Comma-separated tags for the search engine
   url         String
   price       Float    // Price to unlock in USDC
@@ -67,11 +95,22 @@ model Content {
 
 model Metric {
   id          String   @id @default(uuid())
-  type        String   // e.g., 'view', 'unlock'
+  type        String   // normalized category: 'view', 'unlock', 'payment', 'engagement', 'time'
+  eventName   String?  // raw event name: page_view, resource_view, unlock_started, unlock_completed, payment_completed, time_spent
   contentId   String?
   content     Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
   websiteId   String
   website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   revenue     Float?   // Revenue earned (if type == 'unlock')
+  currency    String?
+  path        String?
+  url         String?
+  referrer    String?
+  userAgent   String?
+  visitorId   String?
+  sessionId   String?
+  durationMs  Int?
+  scrollDepth Float?
+  metadata    String?
   createdAt   DateTime @default(now())
 }

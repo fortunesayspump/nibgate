@@ -51,12 +51,12 @@ export default function Features() {
       <div className="relative overflow-hidden bg-white">
         <div className="mx-auto grid max-w-6xl gap-12 px-8 py-16 md:px-12 lg:grid-cols-2 lg:items-center lg:py-24">
           <div className="flex items-center justify-center">
-            <img className="h-auto w-full max-w-md" alt="Route manifest illustration" src="/illustrations/undraw/user-flow.svg" />
+            <img className="h-auto w-full max-w-md" alt="Widget tracking illustration" src="/illustrations/undraw/user-flow.svg" />
           </div>
           <div className="max-w-xl space-y-8">
             <h2 className="text-4xl font-medium sm:text-5xl lg:text-7xl">Publish once. Show up in discovery.</h2>
             <p className="text-xl md:text-2xl">
-              A public manifest tells Nibgate what can be previewed, priced, categorized, and measured while the paid payload stays private.
+              A small widget lets Nibgate verify your domain and receive page, content, unlock, and revenue events while the paid payload stays private.
             </p>
             <Link className="nibgate-soft-cta" href="/explore">
               Open explore
@@ -100,7 +100,7 @@ export default function Features() {
           Start with one paid route.<br />Grow from there.
         </h2>
         <p className="max-w-2xl text-xl md:text-2xl">
-          Run the first demo on Arc testnet, then bring the same route manifest into discovery.
+          Run the first demo on Arc testnet, then stream the same protected content activity into discovery.
         </p>
         <div className="flex flex-col gap-4 sm:flex-row">
           <Link className="nibgate-soft-cta" href="/get-started">

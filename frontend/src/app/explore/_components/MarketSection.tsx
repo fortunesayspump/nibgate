@@ -28,7 +28,7 @@ export default function MarketSection() {
           <div className="market-grid">
             {marketProducts.length === 0 ? (
               <div className="rounded-[8px] border border-black/10 p-8 text-center">
-                <p>No synced content is available yet.</p>
+                <p>No tracked content is available yet.</p>
               </div>
             ) : (
               marketProducts.map((product, i) => (

@@ -1286,3 +1286,38 @@ html[data-theme="light"] .explore-art {
   0% { transform: scaleY(0.4); opacity: 0.5; }
   100% { transform: scaleY(1); opacity: 1; }
 }
+
+/* Explore ordering/empty-state polish */
+.explore-main > .explore-controls {
+  margin-top: 0;
+}
+
+.explore-search input {
+  display: block;
+  padding: 0;
+  gap: 0;
+}
+
+.explore-empty-state {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  border: 1px solid var(--explore-border);
+  border-radius: var(--nib-radius-panel, 8px);
+  background: var(--explore-card-bg);
+  color: var(--explore-muted);
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.explore-empty-state p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.market-empty-state {
+  width: 100%;
+  column-span: all;
+}

@@ -1,5 +1,6 @@
 import FeaturedSection from "./_components/FeaturedSection";
 import MarketSection from "./_components/MarketSection";
+import ExploreControls from "./_components/ExploreControls";
 import WishlistSection from "./_components/WishlistSection";
 import { getExploreProducts } from "./_data/explore-content";
 
@@ -9,6 +10,7 @@ export default async function ExploreHome() {
   return (
     <>
       <FeaturedSection products={products} />
+      <ExploreControls />
       <MarketSection products={products} />
       <WishlistSection />
     </>

@@ -94,7 +94,7 @@ export default function GetStartedPage() {
                 <div className="text-xl md:text-2xl">Dashboard flow</div>
                 <h2 className="mt-5 max-w-4xl text-5xl font-medium leading-none md:text-6xl lg:text-7xl">What fills in after setup</h2>
               </div>
-              <Link href="/docs" className="nibgate-soft-cta nibgate-soft-cta-secondary">Read docs</Link>
+              <Link href="https://docs.nibgate.xyz" className="nibgate-soft-cta nibgate-soft-cta-secondary">Read docs</Link>
             </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {dashboardItems.map(([title, copy]) => (

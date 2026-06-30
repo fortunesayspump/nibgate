@@ -1,5 +1,0 @@
-import InfoPage from "@/components/InfoPage";
-
-export default function DocsPage() {
-  return <InfoPage eyebrow="Documentation" title="Build with Nibgate from install to indexed content." copy="The full docs now live on docs.nibgate.xyz. Use the main site for the product overview, then jump into the docs when you need implementation details." primaryCta={["Open docs", "https://docs.nibgate.xyz"]} secondaryCta={["Quick start", "https://docs.nibgate.xyz/quick-start"]} cards={[["Package", "Use npm install nibgate in the app that owns your paid content."], ["Widget", "Paste one script to verify the domain and bridge page activity to the hub."], ["Dashboard", "Manage profile, sites, contents, analytics, and earnings from one creator account."]]} sections={[["Data flow", "The creator site remains the source of truth. The package controls gating and payment logic; the widget helps verify ownership and stream public activity."], ["Explore flow", "Verified sites can publish content metadata so Nibgate can show searchable, categorized products in Explore."]]} />;
-}

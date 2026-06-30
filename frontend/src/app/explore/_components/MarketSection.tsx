@@ -61,7 +61,7 @@ export default function MarketSection({ products }: { products: ExploreProduct[]
         <div className="market-products">
           <div className="market-grid">
             {visibleProducts.length === 0 ? (
-              <div className="rounded-[8px] border border-black/10 p-8 text-center">
+              <div className="explore-empty-state market-empty-state">
                 <p>No tracked content is available yet.</p>
               </div>
             ) : (

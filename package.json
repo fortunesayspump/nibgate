@@ -8,6 +8,7 @@
     "node": "22.x"
   },
   "workspaces": [
+    "docs",
     "frontend",
     "backend",
     "packages/*"
@@ -18,7 +19,9 @@
     "dev:demo": "npm --prefix demo install && npm --prefix demo run dev",
     "dev:cli": "npm --workspace @nibgate/cli run dev",
     "dev:backend": "npm --workspace @nibgate/backend run dev",
+    "dev:docs": "npm --workspace @nibgate/docs run dev",
     "dev:frontend": "npm --workspace @nibgate/frontend run dev",
+    "build:docs": "npm --workspace @nibgate/docs run build",
     "build:frontend": "npm --workspace @nibgate/frontend run build",
     "routes": "npm --workspace @nibgate/cli run routes"
   },

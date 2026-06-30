@@ -1,0 +1,5 @@
+import InfoPage from "@/components/InfoPage";
+
+export default function PrivacyPage() {
+  return <InfoPage eyebrow="Privacy" title="Creator data should be useful without being messy." copy="Nibgate stores the profile, site, content, analytics, and payment-event metadata needed to run the dashboard and Explore. Protected content remains on the creator's own site." primaryCta={["Contact us", "mailto:hello@nibgate.xyz"]} secondaryCta={["Read terms", "/terms"]} sections={[["What we collect", "Wallet identity, profile details, connected sites, verification status, public content metadata, page activity, unlock events, and receipt references."], ["What stays with you", "The private content itself, payment receiver configuration, and protected route logic live in your own site package and infrastructure."], ["Cookies and local state", "The frontend may use local browser storage for theme, wallet connection, and normal app session behavior."], ["Questions", "Email hello@nibgate.xyz for privacy questions, correction requests, or account-related support."]]} />;
+}

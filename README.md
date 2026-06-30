@@ -1,11 +1,27 @@
 # Nibgate
 
-Nibgate is a paid-access layer and discovery engine for the open web.
+Nibgate is a verified content discovery, unlock, and reputation layer for creator-owned work.
 
-It consists of three connected parts:
-1. **The Widget**: Creators paste one script on their site. It proves domain ownership, creates visitor/session context, and sends browser-safe analytics to Nibgate.
-2. **The Package**: Creators install the `nibgate` npm package to gate actual content on their own site. The package knows the content, unlock, and payment lifecycle, then reports those events through the widget bridge.
+Creators keep their content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content without moving it into a closed marketplace.
+
+## Product Thesis
+
+The open web needs a content discovery standard for paid, high-quality resources. Search can find pages, marketplaces can host inventory, and payment rails can unlock access, but creators still need one trusted layer that says:
+
+1. this domain is controlled by this creator
+2. this content exists at this route
+3. this content can be unlocked by humans or agents
+4. this creator has real reputation signals from verified activity
+5. this payment history routes directly to the creator's configured receiver
+
+Nibgate is that layer. The creator-owned site remains the source of truth, while the hub becomes the public index, analytics surface, and reputation graph around verified content.
+
+It consists of four connected parts:
+
+1. **The Widget**: Creators paste one script on their site. It proves domain ownership, creates visitor/session context, and sends browser-safe page activity to Nibgate.
+2. **The Package**: Creators install the `nibgate` npm package to gate real content on their own site. The package knows the content, unlock, and payment lifecycle, then reports those events through the widget bridge.
 3. **The Hub**: `nibgate.xyz` is the creator dashboard, discovery surface, and analytics layer. It verifies sites, stores content metadata, aggregates metrics, and shows profile/site/content/earnings data.
+4. **The Discovery Layer**: Explore, public profiles, content metadata, receipts, and reputation signals make verified creator content readable by people and AI agents.
 
 ## Repo Layout
 
@@ -14,8 +30,9 @@ backend/      Express SSR server, Prisma DB, API routes
 frontend/     Optimized static CSS pipeline and assets
 packages/     Nibgate npm package and internal tooling
 demo/         Isolated mock creator site for integration testing
-docs/         Architecture and build notes
-ideas/        Product thinking and planning
+docs/         Nextra docs site for docs.nibgate.xyz
+internal-docs/ Architecture, research, design-system notes, and planning
+ideas/        Product thinking and experiments
 ```
 
 ## Workspace Shape
@@ -111,7 +128,7 @@ npx nibgate routes
 
 ## Product Flow
 
-Nibgate uses a widget-first event architecture:
+Nibgate uses a verified discovery event architecture:
 
 ```txt
 Creator site
@@ -130,6 +147,7 @@ Nibgate backend
   - stores content metadata
   - stores metric events
   - aggregates dashboard data
+  - updates discovery and reputation signals
 ```
 
 When a creator installs `nibgate` on their own site, the package is responsible for:
@@ -155,7 +173,23 @@ The hub is responsible for:
 3. ingesting events for page views, content views, unlocks, revenue, and performance
 4. indexing resource metadata from streamed package/widget events
 
-That keeps real content and enforcement on the creator domain while the hub stores only the metadata and aggregates needed for discovery and analytics.
+That keeps real content and enforcement on the creator domain while the hub stores only the metadata, events, receipts, and aggregates needed for discovery, analytics, earnings, and reputation.
+
+## Discovery and Reputation
+
+Nibgate discovery is not just a public gallery. It is the index of verified creator-owned content that humans and agents can trust enough to browse, cite, unlock, and route payments toward.
+
+The hub can rank and filter content using:
+
+1. verified domain ownership
+2. content type: `music`, `video`, `article`, or `image`
+3. creator profile and username
+4. page views, content views, unlock attempts, and paid unlocks
+5. direct x402 or Arc testnet receipt metadata
+6. freshness, tags, source routes, and referral signals
+7. future human and agent feedback tied to real interactions
+
+Reputation should be earned from verified activity, not vanity metrics. That means creator trust can grow from actual unlocks, payment receipts, returning viewers, useful agent feedback, and content quality signals connected back to the source domain.
 
 ## Local Connect Flow
 

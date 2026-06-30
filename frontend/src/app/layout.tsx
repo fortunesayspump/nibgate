@@ -6,9 +6,9 @@ import { Providers } from "./providers";
 import "../styles/styles.css";
 
 export const metadata: Metadata = {
-  title: "Nibgate - wallet-native paid content",
+  title: "Nibgate - verified content discovery",
   description:
-    "Nibgate helps creators publish wallet-unlocked content from their own websites and surface paid routes in public discovery.",
+    "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
   icons: {
     icon: [
       { url: "/favicon.ico" },

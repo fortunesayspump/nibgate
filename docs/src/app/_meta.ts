@@ -1,4 +1,12 @@
 export default {
+  "---overview": {
+    type: "separator",
+    title: "Overview",
+  },
+  overview: "What is Nibgate?",
+  architecture: "Architecture",
+  "agent-discovery": "Agent discovery",
+  reputation: "Reputation",
   "---setup": {
     type: "separator",
     title: "Setup",

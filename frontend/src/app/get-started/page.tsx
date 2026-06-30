@@ -16,7 +16,7 @@ const dashboardItems = [
   ["Contents", "Music, video, article, and image entries discovered from verified sites."],
   ["Analytics", "Views, unlocks, sources, timelines, and content-level performance."],
   ["Earnings", "Payment receipts, receiver addresses, revenue trends, and unlock history."],
-  ["Explore", "The public discovery layer for verified paid content and agent-readable routes."],
+  ["Explore", "The public discovery and reputation layer for verified paid content and agent-readable routes."],
 ];
 
 export default function GetStartedPage() {
@@ -28,10 +28,10 @@ export default function GetStartedPage() {
           <div className="flex max-w-4xl flex-col items-center gap-8 lg:gap-10">
             <div className="text-xl md:text-2xl">Get started</div>
             <h1 className="text-5xl font-medium leading-[0.95] md:text-6xl lg:text-8xl">
-              Connect your site. Gate your work. Show up in Explore.
+              Connect your site. Gate your work. Show up in verified discovery.
             </h1>
             <p className="max-w-3xl text-xl leading-8 md:text-2xl md:leading-9">
-              Nibgate starts on your own domain. Add the widget for verification, install the package for paid routes, and let your dashboard collect content, analytics, and earnings signals.
+              Nibgate starts on your own domain. Add the widget for verification, install the package for paid routes, and let your dashboard collect content, analytics, earnings, and reputation signals.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <button type="button" data-wallet-connect className="nibgate-soft-cta border-none cursor-pointer">Connect wallet</button>

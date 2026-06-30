@@ -1,0 +1,50 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Agent discovery
+
+Nibgate can make paid content discoverable to AI agents without exposing protected content. Agents get structured metadata, verified source context, price information, and unlock routes.
+
+<Callout type="info">
+The goal is not for agents to scrape everything. The goal is for creators to publish structured, verified content metadata that agents can discover and act on safely.
+</Callout>
+
+## Why agents need a discovery layer
+
+Agents need to answer questions like:
+
+- What content exists?
+- Who published it?
+- Is the source verified?
+- What does it cost to unlock?
+- What type of content is it?
+- Has it been useful to other users or agents?
+- Where can the agent unlock or cite it?
+
+## Agent-readable content cards
+
+<Cards>
+  <Cards.Card title="Source" href="/verify-site">
+    Verified domain, creator identity, site health, and ownership status.
+  </Cards.Card>
+  <Cards.Card title="Metadata" href="/content-events">
+    Type, title, summary, tags, price, currency, URL, and preview image.
+  </Cards.Card>
+  <Cards.Card title="Signals" href="/analytics-events">
+    Views, unlocks, conversion, feedback, receipts, and freshness.
+  </Cards.Card>
+  <Cards.Card title="Action" href="/payments-receipts">
+    Unlock route, payment rail, receipt link, and post-unlock reference.
+  </Cards.Card>
+</Cards>
+
+## Relationship to agent registries
+
+Agent identity and reputation standards focus on whether an agent can be identified, trusted, or validated. Nibgate focuses on the content side: verified sources, content quality, unlock events, and feedback tied to real interactions.
+
+## Discovery surfaces
+
+Agents can discover content through Explore, public metadata APIs, search filters, tags, content type routes, creator profiles, and future machine-readable manifests.
+
+## Quality over raw indexing
+
+Nibgate should prefer verified, useful, paid content over noisy indexing. Ranking can use verified interactions rather than only clicks or self-reported metadata.

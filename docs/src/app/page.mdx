@@ -2,13 +2,30 @@ import { Cards, Callout } from 'nextra/components'
 
 # Nibgate Docs
 
-Build paid routes on your own domain with the Nibgate package, hub widget, site verification, content metadata, analytics events, and payment receipts.
+Nibgate is a verified content discovery and unlock layer for creator-owned paid content. Creators keep content on their own sites, while Nibgate verifies sources, indexes public metadata, and helps humans and agents discover quality work.
 
 <Callout type="info" emoji="✦">
-Nibgate is split into two jobs: the **package** gates and unlocks content on the creator site, while the **hub** verifies domains, indexes public metadata, and shows analytics.
+Start with the overview if you want the product model. Jump to quick start if you are ready to integrate the widget and package.
 </Callout>
 
-## Start here
+## Overview
+
+<Cards>
+  <Cards.Card title="What is Nibgate?" href="/overview" arrow>
+    Learn the core product model: creator-owned content, verified sources, discovery, unlocks, and reputation.
+  </Cards.Card>
+  <Cards.Card title="Architecture" href="/architecture" arrow>
+    Understand the creator site, package, widget, backend, dashboard, and Explore surfaces.
+  </Cards.Card>
+  <Cards.Card title="Agent discovery" href="/agent-discovery" arrow>
+    See how agents can discover structured content metadata and unlock useful resources.
+  </Cards.Card>
+  <Cards.Card title="Reputation" href="/reputation" arrow>
+    Learn how feedback and quality signals can be grounded in verified interactions.
+  </Cards.Card>
+</Cards>
+
+## Setup
 
 <Cards>
   <Cards.Card title="Quick start" href="/quick-start" arrow>
@@ -49,18 +66,3 @@ Nibgate is split into two jobs: the **package** gates and unlocks content on the
     See paid articles, music drops, video resources, and agent-readable routes.
   </Cards.Card>
 </Cards>
-
-## Mental model
-
-Nibgate should be easy for creators and precise for developers. The creator keeps the site, receiver address, and protected content. Nibgate receives enough verified metadata and event data to make the creator dashboard useful.
-
-## Core flow
-
-1. Creator connects wallet and creates a profile.
-2. Creator registers the website origin.
-3. Dashboard generates a site id and verification token.
-4. Creator pastes the widget on the site.
-5. Backend verifies ownership and keeps checking health.
-6. Creator installs the package and protects routes.
-7. Package sends content, unlock, and receipt events.
-8. Dashboard and Explore use verified data only.

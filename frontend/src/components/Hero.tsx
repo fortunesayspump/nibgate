@@ -10,15 +10,15 @@ export default function Hero() {
           <div className="nibgate-hero-inner">
             <hgroup>
               <h1 className="nibgate-hero-heading">
-                Create content worth<br />unlocking
+                Create content worth<br />discovering
               </h1>
-              <p className="nibgate-hero-subheading">Wallet-native paid content, on your site.</p>
+              <p className="nibgate-hero-subheading">Verified paid content, on your site.</p>
             </hgroup>
 
             <div className="nibgate-hero-intro">
               <p>
-                It is simple, creator-owned, and built for x402 payments on Arc testnet, so people and
-                agents can unlock protected routes from your own website.
+                Nibgate verifies creator-owned sites, indexes structured content metadata, and helps
+                humans and agents discover, unlock, and build reputation around quality work.
               </p>
             </div>
           </div>

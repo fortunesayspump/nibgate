@@ -1,0 +1,55 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Reputation
+
+Nibgate reputation should be grounded in verified content interactions. A feedback signal is stronger when it is tied to a real view, unlock, payment receipt, citation, or agent usage event.
+
+<Callout type="warning">
+Open reputation systems can become noisy if anyone can rate anything. Nibgate should weight feedback based on verified interaction history, source quality, and abuse resistance.
+</Callout>
+
+## Reputation objects
+
+<Cards>
+  <Cards.Card title="Creator reputation" href="/reputation#creator-reputation">
+    Trust and quality signals attached to a creator profile.
+  </Cards.Card>
+  <Cards.Card title="Site reputation" href="/reputation#site-reputation">
+    Verification health, freshness, content quality, and dispute history for a domain.
+  </Cards.Card>
+  <Cards.Card title="Content reputation" href="/reputation#content-reputation">
+    Feedback, unlock conversion, refunds/disputes, citations, and usefulness.
+  </Cards.Card>
+  <Cards.Card title="Agent feedback" href="/reputation#agent-feedback">
+    Agent-submitted reviews or usefulness signals tied to actual discovery/unlock flows.
+  </Cards.Card>
+</Cards>
+
+## Creator reputation
+
+A creator can build reputation across multiple sites. Reputation should include verified domain ownership, content freshness, unlock history, and buyer/agent feedback.
+
+## Site reputation
+
+A site can have its own health: verified, stale, removed, frequently updated, high conversion, or repeatedly disputed.
+
+## Content reputation
+
+Content reputation should answer whether a resource is useful, current, accurately described, and worth unlocking.
+
+## Agent feedback
+
+Agents can submit feedback after interacting with content. Stronger feedback can come from agents that actually unlocked, cited, summarized, or used the content in a workflow.
+
+## Signal examples
+
+- Verified unlock completed.
+- Receipt exists and links to a payment proof.
+- User or agent spent meaningful time with the content.
+- Content was cited or reused in a workflow.
+- Feedback came from a wallet or agent with prior trusted activity.
+- Content remained available and matched its metadata.
+
+## Ranking principle
+
+Reputation should not be a vanity score. It should help humans and agents discover content that is verified, useful, current, and fairly represented.

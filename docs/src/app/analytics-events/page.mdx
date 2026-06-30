@@ -1,0 +1,60 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Track analytics events
+
+Analytics combines widget activity and package events into site, content, and route-level dashboards.
+
+<Callout type="info">
+The goal is not just totals. Creators need timeline filters, content-specific detail views, traffic sources, conversion, and historical comparisons.
+</Callout>
+
+## Event families
+
+<Cards>
+  <Cards.Card title="Page activity" href="/analytics-events#page-activity">
+    Views, referrers, paths, device hints, and time-on-page signals.
+  </Cards.Card>
+  <Cards.Card title="Content activity" href="/analytics-events#content-activity">
+    Impressions, preview clicks, content opens, and route-level engagement.
+  </Cards.Card>
+  <Cards.Card title="Unlock flow" href="/analytics-events#unlock-flow">
+    Unlock starts, paid unlocks, failed unlocks, and conversion rate.
+  </Cards.Card>
+</Cards>
+
+## Page activity
+
+The widget can track views, referrers, path, device hints, and time-on-page style signals.
+
+```ts
+nibgate.track.page({
+  path: "/members/post",
+  referrer: document.referrer,
+  title: document.title
+})
+```
+
+## Content activity
+
+The package can report impressions, preview clicks, unlock starts, unlock completions, failed unlocks, and receipt references.
+
+```ts
+nibgate.track.content({
+  externalId: "post_123",
+  event: "impression"
+})
+```
+
+## Unlock flow
+
+A normal unlock funnel should produce enough data to answer:
+
+- How many people viewed the content?
+- How many clicked unlock?
+- How many paid successfully?
+- Which source sent the highest-converting traffic?
+- Which content earned the most over time?
+
+## Dashboard metrics
+
+The creator dashboard should show timeline filters, traffic sources, top content, unlock conversion, receipt drilldowns, and earnings trends.

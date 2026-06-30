@@ -1,0 +1,40 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Verify a site
+
+A site starts pending, becomes verified when the widget is found, and can be rechecked to make sure the widget still exists.
+
+## States
+
+- `pending`: site was registered but ownership is not verified yet.
+- `verified`: widget was found on the registered origin.
+- `stale`: widget was previously verified but is missing or failing health checks.
+- `archived`: creator removed the site from active dashboard and Explore surfaces.
+
+## Verification process
+
+<Steps>
+### Register origin
+
+The dashboard creates the site record and token.
+
+### Crawl homepage
+
+The backend fetches the registered origin and checks for the Nibgate widget marker.
+
+### Mark verified
+
+If the token matches, the site can stream content and activity events.
+
+### Recheck health
+
+Scheduled checks make sure verified sites do not silently remove the widget.
+</Steps>
+
+<Callout type="warning">
+If the widget is removed after verification, the site should eventually become stale and stop contributing new public discovery events until the widget returns.
+</Callout>
+
+## Removal behavior
+
+Removing a site should hide it from active dashboard and Explore views. Historical metrics stay archived for reporting and audit context.

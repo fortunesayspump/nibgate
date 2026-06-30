@@ -1,0 +1,48 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Install the Nibgate package
+
+Use the package inside the app that owns the paid content. The package is the unlock and event bridge, not just a metrics helper.
+
+## Install
+
+```bash
+npm install nibgate
+```
+
+<Callout type="warning">
+Do not put backend secrets, private signing keys, or privileged payment credentials in browser code. Server-only event submission should happen from your backend or trusted server route.
+</Callout>
+
+## What the package owns
+
+- Gating protected resources.
+- Defining price, currency, content type, and receiver metadata.
+- Starting unlock flows.
+- Reporting unlock completion or failure.
+- Sending content metadata to the hub.
+- Reporting receipts for dashboard analytics.
+
+## Recommended integration
+
+<Steps>
+### Configure the site
+
+Keep the `siteId`, public origin, and API base in environment variables.
+
+### Define content
+
+Every gated resource should have a stable external id, content type, title, URL, price, and currency.
+
+### Gate access
+
+Protect the route or resource before serving the paid content.
+
+### Emit events
+
+Send content upserts, impressions, unlock starts, unlock completions, and receipts to the Nibgate backend.
+</Steps>
+
+## Browser versus server
+
+The browser can display unlock UI and page activity. The server should own anything that proves payment, signs trusted events, or talks with privileged credentials.

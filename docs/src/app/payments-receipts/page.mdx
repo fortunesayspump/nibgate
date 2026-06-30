@@ -1,0 +1,45 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Payments and receipts
+
+Nibgate earnings are payment analytics, not withdrawals. Funds should flow through the creator site's configured receiver.
+
+## Payment model
+
+The creator package controls the receiver address. A creator can run multiple sites, and each site can use a different payment destination.
+
+<Callout type="important">
+Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock.
+</Callout>
+
+## Receipt types
+
+<Cards>
+  <Cards.Card title="x402 gateway receipt" href="/payments-receipts#x402-gateway-receipt" />
+  <Cards.Card title="Arc testnet receipt" href="/payments-receipts#arc-testnet-receipt" />
+</Cards>
+
+## x402 gateway receipt
+
+Use this when the unlock flow completes through a gateway-style x402 payment flow. Store the gateway receipt id or proof URL when available.
+
+## Arc testnet receipt
+
+Use this when the payment can link to an Arc testnet transaction hash or Arcscan URL.
+
+## Event payload
+
+Unlock completion events should include:
+
+- `amount`
+- `currency`
+- `receiver`
+- `siteId`
+- `contentId` or `externalId`
+- `transactionHash` or `gatewayReceiptId`
+- `chainExplorerUrl` when available
+- `paidAt`
+
+## Earnings dashboard
+
+The dashboard should group earnings by site, receiver, content, currency, and time range. Clicking a receipt should open the source transaction or gateway receipt when available.

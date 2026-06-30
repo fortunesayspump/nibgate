@@ -1,0 +1,66 @@
+import { Cards, Callout } from 'nextra/components'
+
+# Nibgate Docs
+
+Build paid routes on your own domain with the Nibgate package, hub widget, site verification, content metadata, analytics events, and payment receipts.
+
+<Callout type="info" emoji="✦">
+Nibgate is split into two jobs: the **package** gates and unlocks content on the creator site, while the **hub** verifies domains, indexes public metadata, and shows analytics.
+</Callout>
+
+## Start here
+
+<Cards>
+  <Cards.Card title="Quick start" href="/quick-start" arrow>
+    Connect wallet, register a site, paste the widget, install the package, and publish the first event.
+  </Cards.Card>
+  <Cards.Card title="Install package" href="/install-package" arrow>
+    Add Nibgate to the app that owns your paid content and wire server-safe unlock logic.
+  </Cards.Card>
+  <Cards.Card title="Hub widget" href="/widget" arrow>
+    Paste one script to verify ownership and stream browser-side activity signals.
+  </Cards.Card>
+</Cards>
+
+## Data bridge
+
+<Cards>
+  <Cards.Card title="Verify a site" href="/verify-site" arrow>
+    Understand pending, verified, stale, and archived site states.
+  </Cards.Card>
+  <Cards.Card title="Content events" href="/content-events" arrow>
+    Send article, image, music, and video metadata for Explore and dashboard indexing.
+  </Cards.Card>
+  <Cards.Card title="Analytics events" href="/analytics-events" arrow>
+    Track views, impressions, unlock starts, unlocks, sources, and timelines.
+  </Cards.Card>
+</Cards>
+
+## Reference
+
+<Cards>
+  <Cards.Card title="Payments and receipts" href="/payments-receipts" arrow>
+    Track x402-style and Arc testnet receipts without turning Nibgate into custody.
+  </Cards.Card>
+  <Cards.Card title="API reference" href="/api-reference" arrow>
+    See the backend surfaces the dashboard, widget, and package talk to.
+  </Cards.Card>
+  <Cards.Card title="Examples" href="/examples" arrow>
+    See paid articles, music drops, video resources, and agent-readable routes.
+  </Cards.Card>
+</Cards>
+
+## Mental model
+
+Nibgate should be easy for creators and precise for developers. The creator keeps the site, receiver address, and protected content. Nibgate receives enough verified metadata and event data to make the creator dashboard useful.
+
+## Core flow
+
+1. Creator connects wallet and creates a profile.
+2. Creator registers the website origin.
+3. Dashboard generates a site id and verification token.
+4. Creator pastes the widget on the site.
+5. Backend verifies ownership and keeps checking health.
+6. Creator installs the package and protects routes.
+7. Package sends content, unlock, and receipt events.
+8. Dashboard and Explore use verified data only.

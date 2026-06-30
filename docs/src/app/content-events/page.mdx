@@ -1,0 +1,51 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Send content metadata
+
+Content metadata tells Nibgate what paid resources exist without copying the protected resource itself.
+
+## Supported types
+
+<Cards>
+  <Cards.Card title="Article" href="/content-events#article" />
+  <Cards.Card title="Image" href="/content-events#image" />
+  <Cards.Card title="Music" href="/content-events#music" />
+  <Cards.Card title="Video" href="/content-events#video" />
+</Cards>
+
+## Minimum payload
+
+Send a stable external id, type, title, URL, price, currency, tags, and optional preview image.
+
+```ts
+nibgate.content.upsert({
+  externalId: "post_123",
+  type: "article",
+  title: "Paid research note",
+  url: "https://creator.com/research",
+  price: "2.00",
+  currency: "USDC",
+  tags: ["research", "ai"]
+})
+```
+
+## Recommended fields
+
+| Field | Purpose |
+| --- | --- |
+| `externalId` | Stable id from the creator app. |
+| `type` | One of `article`, `image`, `music`, `video`. |
+| `title` | Public content title. |
+| `url` | Public route where the resource can be unlocked. |
+| `price` | Display and analytics price. |
+| `currency` | Usually `USDC` for current flows. |
+| `tags` | Search and Explore filtering. |
+| `previewImage` | Public image shown in Explore. |
+
+<Callout type="important">
+The creator site remains the source of truth. Nibgate stores metadata for search, analytics, and Explore, not the protected paid file itself.
+</Callout>
+
+## Content lifecycle
+
+Content can be upserted repeatedly. Use the same `externalId` so Nibgate updates the same content record instead of creating duplicates.

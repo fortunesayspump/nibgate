@@ -1,0 +1,63 @@
+import { Cards, Callout, Steps } from 'nextra/components'
+
+# Examples
+
+Common ways creators can use Nibgate for paid content and agent-readable resources.
+
+<Cards>
+  <Cards.Card title="Paid article" href="/examples#paid-article" />
+  <Cards.Card title="Music drop" href="/examples#music-drop" />
+  <Cards.Card title="Video course" href="/examples#video-course" />
+  <Cards.Card title="Agent route" href="/examples#agent-route" />
+</Cards>
+
+<Callout type="info">
+A good Nibgate example should always show three things: the protected resource, the public metadata sent to the hub, and the receipt emitted after unlock.
+</Callout>
+
+## Paid article
+
+Protect a premium article route, report article metadata, and stream unlock receipts into earnings.
+
+```ts
+nibgate.content.upsert({
+  externalId: "article_launch_note",
+  type: "article",
+  title: "Launch note for paid subscribers",
+  url: "https://creator.com/launch-note",
+  price: "1.50",
+  currency: "USDC"
+})
+```
+
+## Music drop
+
+Publish public metadata for a track, gate the full audio, and show unlock/conversion analytics in the dashboard.
+
+## Video course
+
+Index the public course page, then gate individual lessons, downloads, or bonus clips behind unlocks.
+
+## Agent route
+
+Expose a paid API or data route that humans and AI agents can discover through verified metadata.
+
+## Example checklist
+
+<Steps>
+### Register the site
+
+The origin must be verified before public discovery events are trusted.
+
+### Publish content metadata
+
+Send a stable external id, content type, public URL, price, and tags.
+
+### Gate the resource
+
+The creator app should protect the actual paid file, post, route, or API.
+
+### Emit unlock receipt
+
+After payment completes, send the receipt reference so earnings analytics can link back to proof.
+</Steps>

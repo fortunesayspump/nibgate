@@ -1,0 +1,62 @@
+import { Callout, Cards } from 'nextra/components'
+
+# API reference
+
+The backend receives verification, content, analytics, and earnings events from the widget, package, and dashboard.
+
+<Callout type="warning">
+Endpoint names can still move while the backend settles. Treat this page as the intended public shape and keep implementation docs updated as routes stabilize.
+</Callout>
+
+## Base URL
+
+```txt
+https://api.nibgate.xyz
+```
+
+## API groups
+
+<Cards>
+  <Cards.Card title="Status" href="/api-reference#status" />
+  <Cards.Card title="Sites" href="/api-reference#site-registration" />
+  <Cards.Card title="Events" href="/api-reference#event-ingestion" />
+  <Cards.Card title="Explore" href="/api-reference#explore-content" />
+</Cards>
+
+## Status
+
+Use the status endpoint to confirm the service is online.
+
+```http
+GET /api/nibgate/status
+```
+
+## Site registration
+
+Dashboard APIs create sites, issue verification tokens, recheck widget health, and archive removed sites.
+
+```http
+POST /api/hub/sites
+GET /api/hub/sites
+POST /api/hub/sites/:siteId/verify
+DELETE /api/hub/sites/:siteId
+```
+
+## Event ingestion
+
+Widget and package event routes should reject unknown origins, removed sites, stale verification, and malformed content ids.
+
+```http
+POST /api/hub/events/page
+POST /api/hub/events/content
+POST /api/hub/events/unlock
+POST /api/hub/events/receipt
+```
+
+## Explore content
+
+Explore reads verified content metadata from the backend.
+
+```http
+GET /api/hub/explore/content?q=music&type=music&sort=trending
+```

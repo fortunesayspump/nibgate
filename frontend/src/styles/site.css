@@ -97,17 +97,24 @@ html[data-theme="dark"] {
 }
 .nibgate-site-surface {
   font-family: var(--font-ui, "ABC Favorit", Arial, sans-serif);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 .nibgate-site-header {
   z-index: 50;
   color: #f3efe7;
   background: #10110e;
   border-bottom: 0;
-  width: 100%;
+  width: auto;
+  max-width: 100dvw;
+  overflow-x: clip;
   flex: 0 0 auto;
   min-height: 80px;
   position: fixed;
   top: 0;
+  right: 0;
+  left: 0;
 }
 html[data-theme="dark"] body,
 body[data-theme="dark"] {
@@ -211,6 +218,9 @@ body[data-theme="dark"] .footer-menu {
 .nibgate-header-inner {
   justify-content: space-between;
   align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 80px;
   min-height: 80px;
   max-height: 80px;
@@ -229,6 +239,8 @@ body[data-theme="dark"] .footer-menu {
   align-items: center;
   gap: 6px;
   width: auto;
+  min-width: 0;
+  max-width: 100%;
   height: 80px;
   font-family: var(--font-display, "Kumbh Sans", "ABC Favorit", Arial, sans-serif);
   font-size: 34px;
@@ -301,6 +313,7 @@ body[data-theme="dark"] .footer-menu {
 
 .nibgate-header-wordmark {
   width: 124px;
+  max-width: calc(100dvw - 112px);
   height: 38px;
   display: inline-flex;
   align-items: center;
@@ -587,22 +600,26 @@ body[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item:hover {
   z-index: 49;
   color: #f3efe7;
   visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
   background: #10110e;
   border-bottom: 1px solid #f3efe747;
   flex-direction: column;
   gap: 0;
   max-height: calc(100svh - 80px);
   transition:
-    transform 0.2s,
+    opacity 0.2s,
     visibility 0.2s;
   display: flex;
   position: fixed;
   inset: 80px 0 auto;
   overflow-y: auto;
-  transform: translate(100%);
+  transform: translateZ(0);
 }
 .nibgate-site-header .nibgate-header-mobile.is-visible {
   visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
   transform: translateZ(0);
 }
 .nibgate-header-mobile .nibgate-primary-nav {

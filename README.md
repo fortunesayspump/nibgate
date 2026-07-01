@@ -215,9 +215,20 @@ The hub can rank and filter content using:
 6. freshness, tags, source routes, and referral signals
 7. future human and agent feedback tied to real interactions
 
-Reputation should start at the content level. Each article, image, music drop, video, or paid route earns its own content reputation from verified activity. Public content reputation can be shown as a 0-5 star rating. Site reputation and creator reputation then roll up from those content scores plus verification health, consistency, receipts, and feedback.
+Reputation should start at the content level. Each article, image, music drop, video, or paid route earns its own content reputation from wallets or agents that actually unlocked it.
 
-Creator reputation should be a 1-100 score for the wallet/account that owns verified sites and the content under them. That means creator trust can grow from actual unlocks, payment receipts, returning viewers, useful agent feedback, and content quality signals connected back to the source domain. It also means a creator can have a strong overall reputation while a specific new piece is still earning trust.
+The intended unlock model remains creator-site native:
+
+1. creator publishes content metadata from their own site
+2. buyer or agent pays/unlocks the content through x402, Gateway, direct wallet payment, or another site-owned rail
+3. the package reports the unlock/payment receipt to Nibgate
+4. the verified receipt makes that wallet eligible to rate
+5. the wallet submits an onchain or attested rating
+6. Nibgate indexes the rating event/proof and updates reputation
+
+Public content reputation can be shown as a `0.0-5.0` star rating. Site reputation and creator reputation then roll up from content ratings plus verification health, consistency, receipts, and source quality.
+
+Creator reputation should be a `1-100` score for the wallet/account that owns verified sites and the content under them. That means creator trust can grow from actual unlocks, payment receipts, ratings from eligible wallets/agents, useful agent feedback, and content quality signals connected back to the source domain. It also means a creator can have a strong overall reputation while a specific new piece is still earning trust.
 
 ## Local Connect Flow
 

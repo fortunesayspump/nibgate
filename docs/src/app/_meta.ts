@@ -5,6 +5,7 @@ export default {
   },
   overview: "What is Nibgate?",
   architecture: "Architecture",
+  lifecycle: "End-to-end lifecycle",
   "agent-discovery": "Agent discovery",
   reputation: "Reputation",
   "---setup": {

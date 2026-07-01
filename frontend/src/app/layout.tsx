@@ -34,9 +34,9 @@ export default function RootLayout({
         <SvgSprite />
         <div id="design-settings" style={{ display: "none" }}></div>
         <Providers>
-          <div className="flex flex-col lg:flex-row min-h-screen">
-            <main className="flex-1 flex flex-col">
-              <div className="flex-1 flex flex-col">
+          <div className="flex min-w-0 flex-col lg:flex-row min-h-screen">
+            <main className="flex min-w-0 flex-1 flex-col">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <div className="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
                   {children}
                 </div>

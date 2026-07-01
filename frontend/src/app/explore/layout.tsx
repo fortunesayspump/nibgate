@@ -9,10 +9,10 @@ export default function ExploreLayout({
   return (
     <>
       <Header />
-      <div className="overflow-hidden">
-        <div className="explore-body explore-main min-h-screen flex flex-col" role="main">
+      <div className="explore-page-shell">
+        <main className="explore-body explore-main" role="main">
           {children}
-        </div>
+        </main>
         <Footer showThemeToggle={true} />
       </div>
     </>

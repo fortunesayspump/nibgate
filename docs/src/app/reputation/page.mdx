@@ -1,89 +1,163 @@
-import { Callout, Cards } from 'nextra/components'
+import { Callout, Cards, Steps } from 'nextra/components'
 
 # Reputation
 
-Nibgate reputation should be grounded in verified content interactions. A feedback signal is stronger when it is tied to a real view, unlock, payment receipt, citation, or agent usage event.
+Nibgate reputation starts with content. A creator should not earn abstract trust points just for existing; trust should come from paid unlocks, receipts, onchain ratings, and verified source health attached to actual resources.
 
-<Callout type="warning">
-Open reputation systems can become noisy if anyone can rate anything. Nibgate should weight feedback based on verified interaction history, source quality, and abuse resistance.
+<Callout type="important">
+Unlocks stay creator-site native by default. The creator site/package handles x402, Gateway, or wallet payment flows. Nibgate verifies and indexes the receipt, then enables reputation actions after unlock eligibility is proven.
 </Callout>
 
 ## Reputation hierarchy
 
-Content reputation is the primary score. A creator should not get trust points in the abstract; their reputation should be earned from the quality, accuracy, unlock history, receipts, and feedback attached to actual resources.
-
-In public content cards, content reputation can be shown as a familiar 0-5 star rating. Under the hood, that rating can still be computed from verified views, unlocks, payment receipts, feedback, citations, and freshness.
-
-Site reputation and creator reputation then roll up from content reputation.
+Content reputation is the primary score. Site reputation and creator reputation roll up from content reputation.
 
 ```txt
-Content reputation
-  -> contributes to site reputation
-  -> contributes to creator reputation
+verified unlock/payment receipt
+  -> eligible wallet or agent
+  -> onchain content rating
+  -> content reputation, 0.0-5.0 stars
+  -> site reputation, 1-100
+  -> creator reputation, 1-100
 ```
 
-That means a creator can have a strong overall reputation while a specific new piece is still unproven. It also means one excellent piece can start improving a newer creator's reputation without pretending the whole account is already fully trusted.
+A creator can have a strong overall reputation while a specific new piece is still unproven. A new creator can also build trust quickly if their content earns strong ratings from wallets or agents that actually unlocked the work.
 
 ## Reputation objects
 
 <Cards>
   <Cards.Card title="Content reputation" href="/reputation#content-reputation">
-    The core score for a specific article, image, music drop, video, or paid route.
+    A 0.0-5.0 star score for a specific article, image, music drop, video, or paid route.
   </Cards.Card>
   <Cards.Card title="Site reputation" href="/reputation#site-reputation">
-    The rollup for a verified domain based on its content quality and verification health.
+    A 1-100 score for a verified domain, based on content quality and source health.
   </Cards.Card>
   <Cards.Card title="Creator reputation" href="/reputation#creator-reputation">
-    The rollup across a creator's verified sites and content catalog.
+    A 1-100 score for the wallet/account that owns verified sites and their content.
   </Cards.Card>
-  <Cards.Card title="Agent feedback" href="/reputation#agent-feedback">
-    Agent-submitted reviews or usefulness signals tied to actual discovery/unlock flows.
+  <Cards.Card title="Agent ratings" href="/reputation#agent-ratings">
+    Ratings from agent wallets after verified unlock/payment flows.
   </Cards.Card>
 </Cards>
 
+## Rating rule
+
+A rating should only be accepted after a verified unlock.
+
+The rule is:
+
+```txt
+No verified unlock receipt -> no rating accepted
+```
+
+The default unlock path does not need to go through a Nibgate payment contract. A creator site can keep using x402, Gateway, or direct wallet payment flows. The package reports the receipt, Nibgate verifies/indexes it, and the wallet becomes eligible to rate.
+
+## Onchain rating model
+
+The rating itself can be an onchain event after eligibility is proven.
+
+```solidity
+rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, bytes unlockProof)
+```
+
+Recommended encoding:
+
+- `contentId`: deterministic hash of site, route, and resource id.
+- `rating`: `1-50`, where `45` means `4.5` stars.
+- `reviewHash`: optional hash of a text review stored offchain.
+- `unlockProof`: proof or attestation that the wallet unlocked the content.
+- `msg.sender`: wallet or agent wallet that paid/unlocked.
+
+The proof can be a Nibgate/creator attestation, an indexed x402 receipt, or a future onchain unlock receipt if a site chooses to use a contract-based unlock rail.
+
+## End-to-end rating flow
+
+<Steps>
+### Publish content
+
+The creator site uses the Nibgate package to publish metadata for a paid resource.
+
+### Unlock content
+
+A viewer or agent pays through the creator site's wallet-native flow: x402, Gateway, direct wallet payment, or another supported rail.
+
+### Report receipt
+
+The package reports the unlock/payment receipt to Nibgate with the buyer wallet, content id, amount, provider, and receipt reference.
+
+### Verify eligibility
+
+Nibgate verifies/indexes the receipt and marks that wallet or agent as eligible to rate the content.
+
+### Rate onchain
+
+The wallet submits a rating transaction using its unlock proof.
+
+### Index rating event
+
+Nibgate indexes the rating event and updates content stars.
+
+### Roll up reputation
+
+Content stars affect site reputation and creator reputation.
+</Steps>
+
 ## Content reputation
 
-Content reputation should answer whether a resource is useful, current, accurately described, and worth unlocking.
+Content reputation answers whether a specific resource is useful, current, accurately described, and worth unlocking.
 
-It can include:
+Public content cards can show a familiar `0.0-5.0` star rating. Under the hood, the score should come primarily from ratings submitted by wallets or agents that actually unlocked the content.
 
-- verified views
-- content views
-- unlock attempts
+Supporting signals can include:
+
 - completed unlocks
 - payment receipts
+- onchain rating events
+- verified views
+- unlock attempts
 - time spent
-- repeat visitors
 - citations
-- human feedback
-- agent feedback
 - stale or misleading metadata penalties
 
 ## Site reputation
 
 A site can have its own health: verified, stale, removed, frequently updated, high conversion, or repeatedly disputed.
 
-Site reputation should be a weighted rollup from the content hosted on that domain plus source health signals like active widget checks, valid ownership, payment consistency, and content freshness.
+Site reputation should be a weighted rollup from content ratings on that domain plus source health signals like active widget checks, valid ownership, payment consistency, and content freshness.
 
 ## Creator reputation
 
-A creator can build reputation across multiple sites. Creator reputation should be a weighted rollup from content reputation and site reputation, not a standalone vanity score.
+Creator reputation is a 1-100 score attached to the wallet/account that owns verified sites.
 
-Creator reputation should be a 1-100 score attached to the creator wallet/account that owns verified sites. It can include consistency over time, number of verified useful resources, unlock success, buyer/agent feedback, and penalties from broken, removed, or misleading content.
+It should roll up from:
 
-## Agent feedback
+- content star ratings
+- site reputation
+- number of verified useful resources
+- unlock success
+- payment receipt quality
+- buyer/agent rating history
+- penalties from broken, removed, or misleading content
 
-Agents can submit feedback after interacting with content. Stronger feedback can come from agents that actually unlocked, cited, summarized, or used the content in a workflow.
+## Agent ratings
 
-## Signal examples
+Agents can rate content after unlocking it, using the same eligibility and rating path as human wallets.
 
-- Verified unlock completed.
-- Receipt exists and links to a payment proof.
-- User or agent spent meaningful time with the content.
-- Content was cited or reused in a workflow.
-- Feedback came from a wallet or agent with prior trusted activity.
-- Content remained available and matched its metadata.
+This gives Nibgate a content-side reputation layer that complements agent identity systems: agents can discover content, pay/unlock it, rate it, and later prove that feedback came from an accountable wallet.
 
-## Ranking principle
+## Why not mint every content item?
 
-Reputation should not be a vanity score. It should help humans and agents discover content that is verified, useful, current, and fairly represented.
+Minting each content item adds too much setup and implies ownership semantics that Nibgate does not need.
+
+The better default is:
+
+```txt
+content stays on creator site
+content id is deterministic
+unlock/payment stays creator-site native
+receipt proves rating eligibility
+rating/reputation can be onchain or attested
+Nibgate indexes and rolls up reputation
+```
+
+That keeps creator setup simple while making ratings and reputation progressively verifiable.

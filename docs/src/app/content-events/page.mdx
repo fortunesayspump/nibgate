@@ -49,3 +49,29 @@ The creator site remains the source of truth. Nibgate stores metadata for search
 ## Content lifecycle
 
 Content can be upserted repeatedly. Use the same `externalId` so Nibgate updates the same content record instead of creating duplicates.
+
+## Deterministic content id
+
+For reputation and rating contracts, every content item should resolve to a stable content id.
+
+A practical shape is:
+
+```txt
+contentId = hash(chainId, creatorWallet, domain, path, externalId)
+```
+
+The creator should not need to mint each content item. The package can derive this id from the verified site and resource metadata, then use it for unlock receipts, rating eligibility, and rating events.
+
+## Rating handoff
+
+After a wallet or agent unlocks a resource, the package can expose a rating flow. Unlock/payment remains creator-site native; the receipt makes the wallet eligible to rate.
+
+```ts
+await nibgate.rate({
+  externalId: "post_123",
+  rating: 4.5,
+  review: "Useful and accurately described."
+})
+```
+
+Under the hood, the package should resolve the content id, check unlock eligibility from the indexed receipt, and either submit a rating transaction or create an attested rating proof depending on the site configuration.

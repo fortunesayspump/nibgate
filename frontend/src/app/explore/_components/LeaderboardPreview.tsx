@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { apiUrl } from "@/lib/api";
 
-type Creator = { id: string; rank: number; name: string; reputationScore: number; unlocks: number; contentCount: number };
+type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore: number; unlocks: number; contentCount: number };
+
+function creatorAvatar(creator: Creator) {
+  return creator.avatarUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(creator.name || creator.walletAddress || "Creator")}`;
+}
 
 async function getCreators() {
   try {
@@ -25,10 +29,15 @@ export default async function LeaderboardPreview() {
       <div className="leaderboard-preview-grid">
         {creators.length ? creators.map((creator) => (
           <article key={creator.id} className="leaderboard-preview-card">
-            <span>#{creator.rank}</span>
-            <h3>{creator.name}</h3>
+            <div className="leaderboard-preview-card-top">
+              <span className="leaderboard-preview-rank">#{creator.rank}</span>
+              <img src={creatorAvatar(creator)} alt="" loading="lazy" />
+            </div>
+            <div>
+              <h3>{creator.name}</h3>
+              <p>{creator.contentCount} content · {creator.unlocks} unlocks</p>
+            </div>
             <strong>{creator.reputationScore}/100</strong>
-            <p>{creator.contentCount} content · {creator.unlocks} unlocks</p>
           </article>
         )) : <p className="explore-empty-state">No creators ranked yet.</p>}
       </div>

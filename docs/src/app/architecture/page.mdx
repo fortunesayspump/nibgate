@@ -64,3 +64,19 @@ The package reports views, unlocks, receipts, and content updates.
 
 The hub turns verified interactions into content/source quality signals.
 </Steps>
+
+## Reputation architecture
+
+Nibgate should not require creators to mint each content item or route every payment through a Nibgate contract. Content remains on the creator site, and the creator site/package remains responsible for the unlock/payment flow.
+
+The reputation layer can be split into three parts:
+
+1. `Content identity`: deterministic content ids derived from verified site metadata.
+2. `Unlock eligibility`: verified x402, Gateway, direct wallet, or future onchain payment receipts indexed by Nibgate.
+3. `Rating proof`: onchain or attested ratings accepted only from wallets or agents with verified unlock eligibility.
+
+Nibgate then indexes receipts and rating events and computes:
+
+- content reputation as `0.0-5.0` stars
+- site reputation as `1-100`
+- creator reputation as `1-100`

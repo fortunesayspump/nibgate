@@ -1,0 +1,165 @@
+import { Callout, Steps } from 'nextra/components'
+
+# End-to-end lifecycle
+
+This is the full Nibgate chain from creator setup to public discovery, analytics, earnings, and reputation.
+
+<Callout type="important">
+The creator site remains the source of truth. Nibgate verifies the source, indexes metadata and receipts, and builds discovery/reputation around that creator-owned content.
+</Callout>
+
+## Flow summary
+
+```txt
+creator wallet
+  -> verified site
+  -> package-installed content
+  -> public metadata
+  -> Explore discovery
+  -> creator-site unlock/payment
+  -> receipt indexed by Nibgate
+  -> rating eligibility
+  -> rating proof/event
+  -> content/site/creator reputation
+  -> dashboard + leaderboards
+```
+
+## Step-by-step
+
+<Steps>
+### Creator signs into the hub
+
+The creator connects a wallet on `nibgate.xyz`. That wallet becomes the creator account for profile, sites, contents, analytics, earnings, and reputation.
+
+### Creator registers a site
+
+The creator adds a domain in the dashboard. Nibgate creates a `siteId`, public verification token, and widget script.
+
+### Creator adds the widget
+
+The creator pastes the widget into their site HTML.
+
+```html
+<script
+  async
+  src="https://nibgate.xyz/widget.js"
+  data-nibgate-site="SITE_ID"
+  data-nibgate-token="PUBLIC_SITE_TOKEN"
+></script>
+```
+
+Nibgate checks the homepage for the token. If found, the site becomes verified.
+
+### Creator installs the package
+
+Inside the creator site/app:
+
+```bash
+npm install nibgate
+```
+
+The package is used where paid content lives.
+
+### Creator defines content
+
+The creator marks resources as gated content.
+
+```ts
+import { gate } from "nibgate"
+
+const guide = gate({
+  id: "premium-guide",
+  title: "Premium Guide",
+  type: "article",
+  price: "0.01",
+  currency: "USDC",
+  path: "/premium-guide"
+})
+```
+
+The protected content stays on the creator site. Nibgate stores public metadata for discovery, not the private paid file itself.
+
+### Package reports content metadata
+
+The package/widget sends metadata to Nibgate: content id, type, title, route, price, tags, preview image, verified site, and creator wallet.
+
+This lets the content appear in dashboard contents, Explore, search, categories, and leaderboards.
+
+### Viewer or agent discovers content
+
+A human or AI agent finds the content on Explore, leaderboards, creator profiles, site pages, search, or category filters.
+
+Public cards can show type, title, creator/site, price, thumbnail, unlock signals, and content reputation stars.
+
+### Viewer opens the creator site
+
+The viewer follows the content route back to the creator-owned domain. Nibgate does not host the protected content.
+
+### Creator site handles unlock/payment
+
+Unlock remains creator-site native. The site can use x402, Gateway, direct wallet payment, Arc testnet, or another supported payment rail.
+
+The creator site/package controls receiver address, price, payment verification, and unlock access. Nibgate does not custody funds.
+
+### Package reports unlock/payment receipt
+
+After payment succeeds, the package reports the receipt to Nibgate.
+
+```ts
+guide.unlockCompleted({
+  buyerWallet: "0x...",
+  paymentProvider: "x402",
+  txHash: "0x...",
+  receiptHash: "0x...",
+  amount: "0.01",
+  currency: "USDC"
+})
+```
+
+Nibgate indexes the content id, site id, creator wallet, buyer wallet when available, provider, receipt reference, amount, and timestamp.
+
+### Buyer or agent becomes eligible to rate
+
+Rule:
+
+```txt
+No verified unlock receipt -> no rating
+```
+
+Once the receipt is indexed and verified, that wallet or agent becomes eligible to rate the content.
+
+### Rating is submitted
+
+The eligible wallet can submit a rating proof or onchain rating event, depending on the site/product configuration.
+
+```ts
+await guide.rate({
+  rating: 4.5,
+  review: "Useful and accurately described."
+})
+```
+
+The package resolves the content id, checks unlock eligibility, and handles the rating submission path.
+
+### Reputation updates
+
+Nibgate indexes rating signals and computes:
+
+- content reputation as `0.0-5.0` stars
+- site reputation as `1-100`
+- creator reputation as `1-100`
+
+### Creator dashboard updates
+
+The dashboard updates profile reputation, verified site health, tracked content, analytics, earnings receipts, and content reputation.
+
+### Explore and leaderboards update
+
+Public discovery updates with fresh content cards, category filtering, search, creator/site/content leaderboards, and reputation rankings.
+</Steps>
+
+## One-line version
+
+```txt
+Creator installs package -> verifies site -> publishes metadata -> users/agents discover on Nibgate -> unlock on creator site -> package reports receipt -> eligible wallets rate -> Nibgate indexes reputation -> Explore, leaderboards, and dashboard update.
+```

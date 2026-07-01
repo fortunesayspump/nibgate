@@ -78,7 +78,9 @@ The public `nibgate` package owns route protection, payment challenge metadata, 
 
 This is an origin app that behaves like a creator-owned site. It exists to validate the install flow, DB-backed content mapping, package events, and protected content flow without polluting hub code.
 
-The demo includes compact examples for database/custom CMS blogs, MDX/frontmatter posts, headless CMS entries, static teaser pages with protected APIs, media/file routes, and agent-readable API routes.
+The demo includes compact routes for database/custom CMS blogs, MDX/frontmatter posts, headless CMS entries, static teaser pages with protected APIs, media/file routes, and agent-readable API routes.
+
+It also includes full mini projects under `demo/projects/*` so each publishing style can be run and tested as its own creator-owned app.
 
 ## Run
 

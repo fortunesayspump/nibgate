@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { getPageMap } from "nextra/page-map";
 import { Layout, Navbar, Footer } from "nextra-theme-docs";
+import { Suspense } from "react";
+import NavigationProgress from "./navigation-progress";
 import "nextra-theme-docs/style.css";
 import "./globals.css";
 
@@ -44,6 +46,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <body>
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <Layout
           navbar={navbar}
           footer={footer}

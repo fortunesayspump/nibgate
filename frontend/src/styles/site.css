@@ -111,10 +111,7 @@ html[data-theme="dark"] {
   overflow-x: clip;
   flex: 0 0 auto;
   min-height: 80px;
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
+  position: relative;
 }
 html[data-theme="dark"] body,
 body[data-theme="dark"] {

@@ -37,7 +37,7 @@ export default function RootLayout({
           <div className="flex min-w-0 flex-col lg:flex-row min-h-screen">
             <main className="flex min-w-0 flex-1 flex-col">
               <div className="flex min-w-0 flex-1 flex-col">
-                <div className="nibgate-site-surface block bg-white text-black text-base font-normal leading-relaxed tracking-tight">
+                <div className="nibgate-site-surface block text-black text-base font-normal leading-relaxed tracking-tight">
                   {children}
                 </div>
               </div>

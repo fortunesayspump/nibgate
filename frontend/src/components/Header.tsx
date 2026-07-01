@@ -87,7 +87,6 @@ export default function Header() {
         <WalletButtonMobile />
       </nav>
     </header>
-    <div style={{ height: "80px", width: "100%", flex: "0 0 auto" }} aria-hidden="true" />
     </>
   );
 }

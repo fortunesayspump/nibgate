@@ -28,6 +28,25 @@ const waveform = (
   </span>
 );
 
+const articleLinkIcon = (
+  <span className="market-center-icon article-link-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L10.9 5.03" />
+      <path d="M14 11a5 5 0 0 0-7.07 0L4.81 13.12a5 5 0 0 0 7.07 7.07l1.22-1.22" />
+    </svg>
+  </span>
+);
+
+const imageDownloadIcon = (
+  <span className="market-center-icon image-download-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4v11" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 20h14" />
+    </svg>
+  </span>
+);
+
 function typeClass(type: string) {
   return String(type || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
@@ -53,6 +72,22 @@ function TagPills({ tags = [] }: { tags?: string[] }) {
   );
 }
 
+function ReputationStars({ score, stars }: { score?: number; stars?: number }) {
+  const rating = typeof stars === "number" ? stars : (typeof score === "number" ? Math.max(0, Math.min(5, Math.round((score / 20) * 10) / 10)) : null);
+  if (rating === null) return null;
+  const percent = Math.max(0, Math.min(100, (rating / 5) * 100));
+  return (
+    <span className="content-rating" title={`Content reputation: ${rating.toFixed(1)} out of 5 stars`}>
+      <span className="content-rating-stars" aria-hidden="true">
+        <span className="content-rating-empty">☆☆☆☆☆</span>
+        <span className="content-rating-fill" style={{ width: `${percent}%` }}>★★★★★</span>
+      </span>
+      <span className="content-rating-value">{rating.toFixed(1)}</span>
+      <span className="sr-only">{rating.toFixed(1)} out of 5 stars</span>
+    </span>
+  );
+}
+
 export function FeaturedCard({ product }: { product: ExploreProduct }) {
   const contentType = typeClass(product.type);
 
@@ -65,21 +100,22 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
       </figure>
       <section className="explore-card-copy">
         <header>
-          <span className="content-type">{product.type}</span>
+          <div className="content-card-badges">
+            <span className="content-type">{product.type}</span>
+            <ReputationStars score={product.reputationScore} stars={product.reputationStars} />
+          </div>
           <Link href={productHref(product)}><h2>{product.title}</h2></Link>
           <small>{product.summary}</small>
           <TagPills tags={product.tags} />
           <Link className="explore-creator" href="/explore/creators">
             {product.avatar && <img src={product.avatar} alt="" loading="lazy" />}
             {product.creator}
-            {product.topCreator && topCreatorBadge}
           </Link>
         </header>
         <footer>
           <div className="content-meta">
-            <span>{product.type}</span>
-            {product.meta && <span>{product.meta}</span>}
             {product.unlocks && <span>{product.unlocks}</span>}
+            <ReputationStars score={product.reputationScore} stars={product.reputationStars} />
           </div>
           <span className="unlock-price" aria-label={`Price ${product.price}`}>{product.price}</span>
         </footer>
@@ -97,7 +133,7 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
         <img className="article-avatar" src={avatar} alt={product.creator} loading="lazy" />
         <div className="article-author-info">
           <span className="article-author-name">{product.creator || 'Creator'}</span>
-          <span className="article-meta-time">4 hours ago</span>
+          <span className="article-meta-time">Content reputation {product.reputationScore || 0}</span>
         </div>
       </div>
       <div className="article-body">
@@ -110,10 +146,9 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
       </div>
       <div className="article-footer">
         <div className="article-socials">
-          <button className="article-action" aria-label="Like">♡ 52</button>
-          <button className="article-action" aria-label="Comment">🗨 16</button>
+          <span className="article-action">{product.unlocks || "0 unlocks"}</span>
         </div>
-        <button className="article-action" aria-label="Share">➦</button>
+        <Link className="article-action" href={productHref(product)}>Open</Link>
       </div>
     </article>
   );
@@ -152,13 +187,12 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
           </div>
         )}
 
+        {product.type === 'Article' && articleLinkIcon}
+        {product.type === 'Image' && imageDownloadIcon}
+
         <div className="market-overlay">
           <div className="market-badges">
             <span className="market-badge">{product.type}</span>
-            <div className="market-actions">
-              <button className="market-action-btn" aria-label="Like" onClick={(e) => e.preventDefault()}>♡</button>
-              <button className="market-action-btn" aria-label="Bookmark" onClick={(e) => e.preventDefault()}>⚑</button>
-            </div>
           </div>
         </div>
       </div>
@@ -177,6 +211,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
             <img className="market-avatar" src={avatar} alt="Creator" />
             <span className="market-creator-name">{product.creator || 'Creator'}</span>
           </Link>
+          <ReputationStars score={product.reputationScore} stars={product.reputationStars} />
         </div>
       </div>
     </article>
@@ -184,8 +219,5 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
 }
 
 export function ExploreCard({ product }: { product: ExploreProduct }) {
-  if (product.type === 'Article' || product.type === 'Writing') {
-    return <ArticleCard product={product} />;
-  }
   return <MarketCard product={product} />;
 }

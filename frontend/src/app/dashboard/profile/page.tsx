@@ -14,6 +14,9 @@ type Profile = {
   instagramUrl: string;
   tiktokUrl: string;
   youtubeUrl: string;
+  creatorReputation?: number;
+  verifiedSites?: number;
+  trackedContent?: number;
   createdAt: string;
 };
 
@@ -63,7 +66,7 @@ export default function ProfilePage() {
         const res = await fetch("/api/hub/dashboard/profile");
         const data = await res.json();
         if (!data.success) throw new Error(data.error || "Failed to load profile");
-        setProfile(data.profile);
+        setProfile((current) => ({ ...(current || data.profile), ...data.profile }));
         setUsername(data.profile.username || "");
         setBio(data.profile.bio || "");
         setAvatarUrl(data.profile.avatarUrl || "");
@@ -112,7 +115,7 @@ export default function ProfilePage() {
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to save profile");
-      setProfile(data.profile);
+      setProfile((current) => ({ ...(current || data.profile), ...data.profile }));
       setUsername(data.profile.username || "");
       setBio(data.profile.bio || "");
       setAvatarUrl(data.profile.avatarUrl || "");
@@ -239,6 +242,21 @@ export default function ProfilePage() {
               Edit Profile
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border p-5 shadow-1" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }}>
+          <div className="text-sm font-medium opacity-65">Creator reputation</div>
+          <div className="mt-2 text-4xl font-medium">{profile?.creatorReputation || 1}<span className="text-lg opacity-50">/100</span></div>
+        </div>
+        <div className="rounded-2xl border p-5 shadow-1" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }}>
+          <div className="text-sm font-medium opacity-65">Verified sites</div>
+          <div className="mt-2 text-4xl font-medium">{profile?.verifiedSites || 0}</div>
+        </div>
+        <div className="rounded-2xl border p-5 shadow-1" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }}>
+          <div className="text-sm font-medium opacity-65">Tracked content</div>
+          <div className="mt-2 text-4xl font-medium">{profile?.trackedContent || 0}</div>
         </div>
       </div>
 

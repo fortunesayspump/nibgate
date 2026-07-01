@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
 import NavigationProgress from "@/components/NavigationProgress";
+import ThemeBootstrap from "@/components/ThemeBootstrap";
 import { Providers } from "./providers";
 import "../styles/styles.css";
 
@@ -25,24 +26,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-theme="light" suppressHydrationWarning>
-      <head>
-        <script
-          id="theme-script"
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                const savedTheme = localStorage.getItem('nibgate-theme');
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const theme = savedTheme === 'light' || savedTheme === 'dark'
-                  ? savedTheme
-                  : (prefersDark ? 'dark' : 'light');
-                document.documentElement.dataset.theme = theme;
-              } catch {}
-            `,
-          }}
-        ></script>
-      </head>
       <body className="group/body" data-default-theme="light">
+        <ThemeBootstrap />
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>

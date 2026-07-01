@@ -29,6 +29,7 @@ model User {
   sessions      Session[]
   wallets       Wallet[]
   websites      Website[]
+  blogPosts     BlogPost[]
 }
 
 model Wallet {
@@ -122,4 +123,25 @@ model Metric {
   scrollDepth Float?
   metadata    String?
   createdAt   DateTime @default(now())
+}
+
+
+model BlogPost {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  title        String
+  excerpt      String?
+  bodyMarkdown String
+  tag          String?
+  tags         String?
+  coverUrl     String?
+  status       String   @default("draft")
+  publishedAt  DateTime?
+  authorId     String
+  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([authorId])
 }

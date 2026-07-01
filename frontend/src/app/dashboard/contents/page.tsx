@@ -19,6 +19,8 @@ type DashboardContent = {
   unlocks: number;
   revenue: number;
   avgDurationMs: number;
+  reputationScore?: number;
+  reputationStars?: number;
   websiteName: string;
   websiteDomain: string;
   websiteVerified: boolean;
@@ -176,7 +178,7 @@ export default function ContentsPage() {
                   <MiniStat label="Views" value={item.views} />
                   <MiniStat label="Unlocks" value={item.unlocks} />
                   <MiniStat label="Revenue" value={item.revenue.toFixed(2)} />
-                  <MiniStat label="Avg" value={formatDuration(item.avgDurationMs)} />
+                  <MiniStat label="Reputation" value={stars(item.reputationStars)} />
                 </div>
               </button>
             ))}
@@ -200,7 +202,7 @@ export default function ContentsPage() {
               <Stat label="Views" value={selected.views} />
               <Stat label="Unlocks" value={selected.unlocks} />
               <Stat label="Revenue" value={`${selected.revenue.toFixed(2)} USDC`} />
-              <Stat label="Avg time" value={formatDuration(selected.avgDurationMs)} />
+              <Stat label="Reputation" value={stars(selected.reputationStars)} />
             </div>
 
             <div className="mt-6 space-y-4">
@@ -269,4 +271,9 @@ function formatDuration(ms: number) {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   return `${minutes}m ${seconds % 60}s`;
+}
+
+function stars(value?: number) {
+  const rating = Math.max(0, Math.min(5, value || 0));
+  return "★".repeat(rating) + "☆".repeat(5 - rating);
 }

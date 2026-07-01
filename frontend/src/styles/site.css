@@ -234,7 +234,7 @@ body[data-theme="dark"] .footer-menu {
   font-size: 34px;
   font-weight: 500;
   line-height: 1;
-  letter-spacing: 0;
+  letter-spacing: var(--nib-title-letter-spacing, -0.055em);
   text-decoration: none;
   display: flex;
 }
@@ -1174,11 +1174,11 @@ body[data-theme="dark"] .nibgate-header-mobile-cta {
   width: 100%;
   color: var(--nib-page-fg);
   font-family: var(--font-display, "Kumbh Sans", "ABC Favorit", Arial, sans-serif);
-  letter-spacing: 0;
+  letter-spacing: var(--nib-title-letter-spacing, -0.055em);
   margin: 0 0 20px;
   font-size: clamp(48px, 11vw, 64px);
   font-weight: 500;
-  line-height: 0.94;
+  line-height: var(--nib-title-line-height, 0.92);
 }
 .nibgate-hero-subheading {
   max-width: 680px;
@@ -1529,7 +1529,7 @@ body[data-theme="dark"] .nibgate-creator-pill:focus-visible {
   .nibgate-hero-heading {
     max-width: 780px;
     font-size: clamp(56px, 7vw, 72px);
-    line-height: 0.92;
+    line-height: var(--nib-title-line-height, 0.92);
   }
   .nibgate-hero-subheading {
     font-size: clamp(30px, 4vw, 36px);
@@ -1587,7 +1587,7 @@ body[data-theme="dark"] .nibgate-creator-pill:focus-visible {
     width: 110%;
     max-width: 92vw;
     font-size: 88px;
-    line-height: 0.9;
+    line-height: var(--nib-title-line-height, 0.92);
   }
   .nibgate-hero-subheading {
     font-size: 34px;

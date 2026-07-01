@@ -104,6 +104,32 @@ Open:
 - [http://localhost:3000/explore](http://localhost:3000/explore)
 - [http://localhost:4100](http://localhost:4100)
 
+## Environment
+
+Backend variables:
+
+```bash
+CORS_ORIGIN=https://nibgate.xyz,http://localhost:3001
+BLOG_OWNER_WALLET=0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12
+```
+
+`BLOG_OWNER_WALLET` is the single signed wallet that can create, edit, publish, draft, or delete posts from `/dashboard/blog`. No other wallet can access the editor APIs.
+
+Frontend variables:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.nibgate.xyz
+```
+
+When running locally, point `NEXT_PUBLIC_API_URL` at the local backend so `/api/*` rewrites and public server-rendered blog pages read from the same API.
+
+After changing the Prisma schema, sync the database and regenerate the client before running the backend:
+
+```bash
+npm --workspace @nibgate/cli exec prisma db push
+npm --workspace @nibgate/cli exec prisma generate
+```
+
 ## CLI
 
 Useful local commands:
@@ -189,7 +215,9 @@ The hub can rank and filter content using:
 6. freshness, tags, source routes, and referral signals
 7. future human and agent feedback tied to real interactions
 
-Reputation should be earned from verified activity, not vanity metrics. That means creator trust can grow from actual unlocks, payment receipts, returning viewers, useful agent feedback, and content quality signals connected back to the source domain.
+Reputation should start at the content level. Each article, image, music drop, video, or paid route earns its own content reputation from verified activity. Public content reputation can be shown as a 0-5 star rating. Site reputation and creator reputation then roll up from those content scores plus verification health, consistency, receipts, and feedback.
+
+Creator reputation should be a 1-100 score for the wallet/account that owns verified sites and the content under them. That means creator trust can grow from actual unlocks, payment receipts, returning viewers, useful agent feedback, and content quality signals connected back to the source domain. It also means a creator can have a strong overall reputation while a specific new piece is still earning trust.
 
 ## Local Connect Flow
 

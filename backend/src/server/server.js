@@ -9,6 +9,7 @@ import { createStateStore } from '@nibgate/cli/src/core/state.js';
 import { createHubEventForwarder } from './hub-events.js';
 import { registerAppRoutes } from './routes/app-routes.js';
 import { registerAuthRoutes } from './routes/auth-routes.js';
+import { registerBlogRoutes } from './routes/blog-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
 import { registerUploadRoutes } from './routes/upload-routes.js';
@@ -69,6 +70,7 @@ export async function createApp(config, options = {}) {
   };
 
   registerHubRoutes(app);
+  registerBlogRoutes(app);
   registerUploadRoutes(app);
   registerAppRoutes(app, context);
   registerAuthRoutes(app);

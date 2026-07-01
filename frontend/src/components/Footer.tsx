@@ -27,6 +27,7 @@ const footerMenus = [
       ["Music", "/explore/music"],
       ["Video", "/explore/video"],
       ["Creators", "/explore/creators"],
+      ["Leaderboards", "/leaderboards"],
       ["Best sellers", "/explore/best-sellers"],
       ["Hot & new", "/explore/hot-new"],
       ["Agent routes", "/explore/agent-routes"],

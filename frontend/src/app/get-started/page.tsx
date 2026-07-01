@@ -27,7 +27,7 @@ export default function GetStartedPage() {
         <section className="relative flex flex-col items-center justify-center bg-gray px-8 pb-20 pt-16 text-center md:pb-24 md:pt-20 lg:px-[4vw] lg:pb-36 lg:pt-28">
           <div className="flex max-w-4xl flex-col items-center gap-8 lg:gap-10">
             <div className="text-xl md:text-2xl">Get started</div>
-            <h1 className="text-5xl font-medium leading-[0.95] md:text-6xl lg:text-8xl">
+            <h1 className="nibgate-display-title text-5xl font-medium md:text-6xl lg:text-8xl">
               Connect your site. Gate your work. Show up in verified discovery.
             </h1>
             <p className="max-w-3xl text-xl leading-8 md:text-2xl md:leading-9">

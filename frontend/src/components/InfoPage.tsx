@@ -38,7 +38,7 @@ export default function InfoPage({ eyebrow, title, copy, primaryCta, secondaryCt
           <div className="mx-auto max-w-6xl">
             <div className="max-w-4xl space-y-8">
               <p className="text-xl font-medium">{eyebrow}</p>
-              <h1 className="text-5xl font-medium leading-none md:text-7xl lg:text-8xl">{title}</h1>
+              <h1 className="nibgate-display-title text-5xl font-medium md:text-7xl lg:text-8xl">{title}</h1>
               <p className="max-w-3xl text-xl leading-8 md:text-2xl md:leading-9">{copy}</p>
               {(primaryCta || secondaryCta) && (
                 <div className="flex flex-wrap gap-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { contentTypes, sortTabs, type ExploreProduct } from "../_data/catalog";
 import { ExploreCard } from "./ProductCard";
 
@@ -22,20 +22,44 @@ function sortProducts(products: ExploreProduct[], sort: string) {
   });
 }
 
+function categoryMatches(product: ExploreProduct, category: string) {
+  if (category === "All") return true;
+  const clean = category.toLowerCase();
+  const haystack = [product.type, product.title, product.summary || "", ...(product.tags || [])].join(" ").toLowerCase();
+  if (clean === "writing" || clean === "articles") return product.type === "Article";
+  if (clean === "media") return ["Music", "Image", "Video"].includes(product.type);
+  if (clean === "images") return product.type === "Image";
+  return haystack.includes(clean);
+}
+
 export default function MarketSection({ products }: { products: ExploreProduct[] }) {
   const [sort, setSort] = useState("trending");
   const [activeType, setActiveType] = useState("All");
+  const [activeCategory, setActiveCategory] = useState("All");
   const [visibleCount, setVisibleCount] = useState(12);
+
+  useEffect(() => {
+    const onCategory = (event: Event) => {
+      const category = (event as CustomEvent<{ category?: string }>).detail?.category || "All";
+      setActiveCategory(category);
+      setVisibleCount(12);
+    };
+    window.addEventListener("nibgate:explore-category", onCategory);
+    return () => window.removeEventListener("nibgate:explore-category", onCategory);
+  }, []);
+
   const filteredProducts = useMemo(() => {
-    const typed = activeType === "All" ? products : products.filter((product) => product.type === activeType);
+    const categorized = products.filter((product) => categoryMatches(product, activeCategory));
+    const typed = activeType === "All" ? categorized : categorized.filter((product) => product.type === activeType);
     return sortProducts(typed, sort);
-  }, [products, sort, activeType]);
+  }, [products, sort, activeType, activeCategory]);
   const visibleProducts = filteredProducts.slice(0, visibleCount);
+  const title = activeCategory === "All" ? "Explore content" : activeCategory;
 
   return (
     <section className="market-section" aria-labelledby="market-title">
       <div className="market-heading">
-        <h2 id="market-title">Explore content</h2>
+        <h2 id="market-title">{title}</h2>
         <div className="market-controls" aria-label="Explore content controls">
           <div className="sort-tabs" role="radiogroup" aria-label="Sort content">
             {sortTabs.map((tab: string) => {

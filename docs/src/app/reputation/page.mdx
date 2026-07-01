@@ -8,34 +8,68 @@ Nibgate reputation should be grounded in verified content interactions. A feedba
 Open reputation systems can become noisy if anyone can rate anything. Nibgate should weight feedback based on verified interaction history, source quality, and abuse resistance.
 </Callout>
 
+## Reputation hierarchy
+
+Content reputation is the primary score. A creator should not get trust points in the abstract; their reputation should be earned from the quality, accuracy, unlock history, receipts, and feedback attached to actual resources.
+
+In public content cards, content reputation can be shown as a familiar 0-5 star rating. Under the hood, that rating can still be computed from verified views, unlocks, payment receipts, feedback, citations, and freshness.
+
+Site reputation and creator reputation then roll up from content reputation.
+
+```txt
+Content reputation
+  -> contributes to site reputation
+  -> contributes to creator reputation
+```
+
+That means a creator can have a strong overall reputation while a specific new piece is still unproven. It also means one excellent piece can start improving a newer creator's reputation without pretending the whole account is already fully trusted.
+
 ## Reputation objects
 
 <Cards>
-  <Cards.Card title="Creator reputation" href="/reputation#creator-reputation">
-    Trust and quality signals attached to a creator profile.
+  <Cards.Card title="Content reputation" href="/reputation#content-reputation">
+    The core score for a specific article, image, music drop, video, or paid route.
   </Cards.Card>
   <Cards.Card title="Site reputation" href="/reputation#site-reputation">
-    Verification health, freshness, content quality, and dispute history for a domain.
+    The rollup for a verified domain based on its content quality and verification health.
   </Cards.Card>
-  <Cards.Card title="Content reputation" href="/reputation#content-reputation">
-    Feedback, unlock conversion, refunds/disputes, citations, and usefulness.
+  <Cards.Card title="Creator reputation" href="/reputation#creator-reputation">
+    The rollup across a creator's verified sites and content catalog.
   </Cards.Card>
   <Cards.Card title="Agent feedback" href="/reputation#agent-feedback">
     Agent-submitted reviews or usefulness signals tied to actual discovery/unlock flows.
   </Cards.Card>
 </Cards>
 
-## Creator reputation
+## Content reputation
 
-A creator can build reputation across multiple sites. Reputation should include verified domain ownership, content freshness, unlock history, and buyer/agent feedback.
+Content reputation should answer whether a resource is useful, current, accurately described, and worth unlocking.
+
+It can include:
+
+- verified views
+- content views
+- unlock attempts
+- completed unlocks
+- payment receipts
+- time spent
+- repeat visitors
+- citations
+- human feedback
+- agent feedback
+- stale or misleading metadata penalties
 
 ## Site reputation
 
 A site can have its own health: verified, stale, removed, frequently updated, high conversion, or repeatedly disputed.
 
-## Content reputation
+Site reputation should be a weighted rollup from the content hosted on that domain plus source health signals like active widget checks, valid ownership, payment consistency, and content freshness.
 
-Content reputation should answer whether a resource is useful, current, accurately described, and worth unlocking.
+## Creator reputation
+
+A creator can build reputation across multiple sites. Creator reputation should be a weighted rollup from content reputation and site reputation, not a standalone vanity score.
+
+Creator reputation should be a 1-100 score attached to the creator wallet/account that owns verified sites. It can include consistency over time, number of verified useful resources, unlock success, buyer/agent feedback, and penalties from broken, removed, or misleading content.
 
 ## Agent feedback
 

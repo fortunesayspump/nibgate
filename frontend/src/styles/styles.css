@@ -664,3 +664,8 @@ body[data-theme="dark"] .dashboard-box:hover {
     transform: translateY(0) scale(1);
   }
 }
+
+.nibgate-display-title {
+  letter-spacing: var(--nib-title-letter-spacing, -0.055em);
+  line-height: var(--nib-title-line-height, 0.92);
+}

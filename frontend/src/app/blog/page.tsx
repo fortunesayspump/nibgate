@@ -1,56 +1,125 @@
 import Link from "next/link";
 
-const posts = [
-  ['You can now unlock creator work with one click', 'June 18, 2026', 'Product'],
-  ['Shoppers now see paid routes in their local context', 'June 4, 2026', 'Explore'],
-  ['How we use verification to keep the hub trustworthy', 'April 1, 2026', 'Engineering'],
-  ["What we shipped, what's next, and our 2026 roadmap", 'March 3, 2026', 'Company'],
-  ['New Feature: Creator analytics for better membership insights', 'February 4, 2026', 'Product'],
-  ['Automatically apply launch discounts to paid drops', 'January 31, 2026', 'Growth'],
-  ['Customizable receipts and post-unlock messages', 'January 13, 2026', 'Product'],
-  ['Introducing: Nibgate Tax Center', 'December 22, 2025', 'Company'],
-  ['Featuring launch deals on the Nibgate hub', 'November 27, 2025', 'Explore'],
-  ['Creator spotlight: how a side project became paid content', 'April 23, 2025', 'Creators'],
-  ['Nibgate is open source', 'April 4, 2025', 'Company'],
-  ['A trip down Nibgate: the road ahead', 'March 27, 2025', 'Company']
-];
-
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { apiUrl } from "@/lib/api";
 
-export default function BlogPage() {
+type BlogPost = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  tag: string;
+  tags: string[];
+  coverUrl: string;
+  publishedAt: string;
+  author: {
+    username: string;
+    walletAddress: string;
+  };
+};
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(new Date(value));
+}
+
+async function getPosts() {
+  try {
+    const res = await fetch(apiUrl("/api/blog/posts"), { next: { revalidate: 60 } });
+    if (!res.ok) return [] as BlogPost[];
+    const data = await res.json();
+    return (data.posts || []) as BlogPost[];
+  } catch {
+    return [] as BlogPost[];
+  }
+}
+
+export default async function BlogPage() {
+  const posts = await getPosts();
+  const featured = posts[0];
+  const rest = posts.slice(1);
+
   return (
     <div className="bg-gray min-h-screen flex flex-col">
       <Header />
-      <div className="flex-1">
-      <section className="bg-gray px-8 py-16 md:py-24 lg:px-[4vw]">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-4xl font-medium leading-none md:text-5xl lg:text-6xl">Blog</h1>
-        </div>
-      </section>
-      <section className="bg-gray px-4 py-8 md:px-8 md:py-12 lg:px-[4vw]">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 lg:grid-cols-2">
-          {posts.map(([title, date, tag], index) => {
-            const featured = index === 0;
-            return (
-              <Link key={index} href="/blog" className={`group no-underline text-black border border-dark-gray/50 bg-white hover:bg-gray transition-colors ${featured ? 'lg:col-span-2' : ''}`}>
-                <article className={`flex h-full flex-col justify-between gap-10 p-6 md:p-8 ${featured ? 'min-h-[28rem]' : 'min-h-72'}`}>
-                  <div className="flex items-center justify-between gap-4 text-base">
-                    <span>{tag}</span>
-                    <span>{date}</span>
-                  </div>
-                  <h2 className={`${featured ? 'text-5xl md:text-6xl lg:text-7xl' : 'text-3xl md:text-4xl'} font-medium leading-none text-balance`}>{title}</h2>
-                  <div className="flex items-center gap-2 text-xl font-medium">
-                    <span>Read post</span>
-                    <span className="transition-transform group-hover:translate-x-1">→</span>
-                  </div>
-                </article>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-      </div>
+      <main className="flex-1 px-6 py-16 md:px-10 lg:px-[4vw]">
+        <section className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xl font-medium">Blog</p>
+              <h1 className="nibgate-display-title mt-4 max-w-4xl text-5xl font-medium md:text-7xl">Nibgate blog.</h1>
+              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">
+                Product updates, creator guides, payment notes, discovery thinking, and the reputation layer behind Nibgate.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto mt-12 max-w-7xl">
+            {posts.length === 0 ? (
+              <div className="border border-dark-gray/50 bg-white p-8 md:p-12">
+                <p className="text-xl font-medium">No posts yet.</p>
+                <p className="mt-4 max-w-2xl text-lg leading-8">
+                  Product updates, creator notes, and discovery essays will show up here soon.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {featured && (
+                  <Link href={`/blog/${featured.slug}`} className="group no-underline text-black border border-dark-gray/50 bg-white transition-colors hover:bg-gray lg:col-span-2">
+                    <article className="grid min-h-[30rem] gap-8 p-6 md:p-8 lg:grid-cols-[1.1fr_0.9fr] lg:p-10">
+                      <div className="flex h-full flex-col justify-between gap-12">
+                        <div className="flex flex-wrap items-center gap-3 text-base">
+                          <span>{featured.tag}</span>
+                          <span className="opacity-45">/</span>
+                          <span>{formatDate(featured.publishedAt)}</span>
+                        </div>
+                        <div>
+                          <h2 className="text-5xl font-medium leading-none text-balance md:text-6xl lg:text-7xl">{featured.title}</h2>
+                          <p className="mt-6 max-w-3xl text-xl leading-8">{featured.excerpt}</p>
+                        </div>
+                        <div className="flex items-center gap-2 text-xl font-medium">
+                          <span>Read post</span>
+                          <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
+                        </div>
+                      </div>
+                      <div className="min-h-72 border border-dark-gray/50 bg-black p-6 text-white">
+                        {featured.coverUrl ? (
+                          <img src={featured.coverUrl} alt="" className="h-full min-h-72 w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full min-h-72 flex-col justify-between">
+                            <span className="text-lg">Nibgate</span>
+                            <span className="text-6xl font-medium leading-none">{featured.tag}</span>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  </Link>
+                )}
+
+                {rest.map((post) => (
+                  <Link key={post.id} href={`/blog/${post.slug}`} className="group no-underline text-black border border-dark-gray/50 bg-white transition-colors hover:bg-gray">
+                    <article className="flex h-full min-h-80 flex-col justify-between gap-10 p-6 md:p-8">
+                      <div className="flex flex-wrap items-center gap-3 text-base">
+                        <span>{post.tag}</span>
+                        <span className="opacity-45">/</span>
+                        <span>{formatDate(post.publishedAt)}</span>
+                      </div>
+                      <div>
+                        <h2 className="text-3xl font-medium leading-none text-balance md:text-4xl">{post.title}</h2>
+                        <p className="mt-5 text-lg leading-8">{post.excerpt}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-xl font-medium">
+                        <span>Read post</span>
+                        <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
+                      </div>
+                    </article>
+                  </Link>
+                ))}
+              </div>
+            )}
+        </section>
+      </main>
       <Footer showThemeToggle={true} />
     </div>
   );

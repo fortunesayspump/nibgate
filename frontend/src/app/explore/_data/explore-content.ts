@@ -14,6 +14,8 @@ type ExploreContent = {
   views: number;
   unlocks: number;
   revenue: number;
+  reputationScore?: number;
+  reputationStars?: number;
   websiteName: string;
   websiteDomain: string;
   websiteFaviconUrl?: string;
@@ -22,7 +24,7 @@ type ExploreContent = {
 };
 
 function apiOrigin() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || "https://api.nibgate.xyz";
+  const raw = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === "production" ? "https://api.nibgate.xyz" : "http://localhost:3001");
   const withProtocol = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;
   return withProtocol.replace(/\/+$/, "");
 }
@@ -44,6 +46,15 @@ function fallbackImage(content: ExploreContent) {
 function parseTags(content: ExploreContent) {
   const source = Array.isArray(content.tagList) ? content.tagList : String(content.tags || "").split(",");
   return source.map((tag) => tag.trim().toLowerCase()).filter(Boolean).slice(0, 4);
+}
+
+function reputationScore(content: ExploreContent) {
+  const views = Math.max(0, content.views || 0);
+  const unlocks = Math.max(0, content.unlocks || 0);
+  const revenue = Math.max(0, content.revenue || 0);
+  const unlockRate = views > 0 ? unlocks / views : 0;
+  const score = 42 + Math.min(22, views * 0.45) + Math.min(24, unlockRate * 120) + Math.min(12, revenue * 80);
+  return Math.max(0, Math.min(99, Math.round(score)));
 }
 
 export async function getExploreProducts(params: { q?: string; type?: string; sort?: string; limit?: number } = {}) {
@@ -82,6 +93,8 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     url: content.url,
     views: content.views || 0,
     revenue: content.revenue || 0,
+    reputationScore: content.reputationScore ?? reputationScore(content),
+    reputationStars: content.reputationStars ?? Math.max(0, Math.min(5, Math.round(((content.reputationScore ?? reputationScore(content)) / 20) * 10) / 10)),
     createdAt: content.createdAt,
   };
 }

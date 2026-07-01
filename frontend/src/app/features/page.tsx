@@ -72,7 +72,7 @@ export default function FeaturesPage() {
       <header className="relative flex flex-col items-center justify-center h-auto bg-gray text-center gap-20 px-8 pt-16 pb-20 md:pt-20 md:pb-24 lg:pt-28 lg:pb-36">
         <div className="flex flex-col max-w-2xl gap-8 lg:gap-10 lg:max-w-3xl">
           <div className="text-xl md:text-2xl">Product features</div>
-          <h1 className="text-5xl font-medium md:text-6xl md:leading-[0.9] lg:text-8xl">Built for new beginnings</h1>
+          <h1 className="nibgate-display-title text-5xl font-medium md:text-6xl lg:text-8xl">Built for new beginnings</h1>
           <div className="text-xl md:text-2xl">Nibgate is a powerful, simple toolkit that puts paid content, verification, and discovery tools at your fingertips.</div>
         </div>
 

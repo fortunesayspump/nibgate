@@ -1,26 +1,29 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { categories } from "../_data/catalog";
 
 function CategoryNav() {
-  const pathname = usePathname();
+  const [activeCategory, setActiveCategory] = useState("All");
+
+  const selectCategory = (category: string) => {
+    setActiveCategory(category);
+    window.dispatchEvent(new CustomEvent("nibgate:explore-category", { detail: { category } }));
+  };
 
   return (
     <nav className="explore-categories" aria-label="Explore categories" role="menubar">
       {categories.map((category) => {
         const [label, ...items] = category;
-        const isActive =
-          (label === "All" && pathname === "/explore") ||
-          (label !== "All" && pathname.startsWith("/explore/categories"));
+        const isActive = activeCategory === label || items.includes(activeCategory);
         
         const isMore = label === "More";
 
         return (
           <div key={label} className="explore-category-wrap">
-            <Link
-              href={label === "All" ? "/explore" : "/explore/categories"}
+            <button
+              type="button"
+              onClick={() => selectCategory(label)}
               className={`explore-category ${isActive ? "active" : ""}`}
               role="menuitem"
               aria-haspopup={items.length > 0 ? "menu" : "false"}
@@ -30,14 +33,14 @@ function CategoryNav() {
               {isMore && (
                 <svg className="explore-category-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="m12 15.41 5.71-5.7-1.42-1.42-4.29 4.3-4.29-4.3-1.42 1.42z"/></svg>
               )}
-            </Link>
+            </button>
             {items.length > 0 && (
               <div className="explore-category-menu" role="menu" aria-label={label}>
                 {items.map((item, index) => (
-                  <Link key={item} href="/explore/categories" role="menuitem">
+                  <button key={item} type="button" onClick={() => selectCategory(item)} role="menuitem">
                     {item}
                     {index > 0 && index < items.length - 1 ? <span>›</span> : null}
-                  </Link>
+                  </button>
                 ))}
               </div>
             )}

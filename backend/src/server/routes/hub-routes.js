@@ -262,6 +262,46 @@ function htmlContainsTrackingScript(html, website) {
   return scriptPattern.test(html) && sitePattern.test(html) && tokenPattern.test(html);
 }
 
+
+function contentReputationScoreFromMetrics({ views = 0, unlocks = 0, revenue = 0, avgDurationMs = 0 } = {}) {
+  const safeViews = Math.max(0, views || 0);
+  const safeUnlocks = Math.max(0, unlocks || 0);
+  const safeRevenue = Math.max(0, revenue || 0);
+  const safeAvgDurationMs = Math.max(0, avgDurationMs || 0);
+  const unlockRate = safeViews > 0 ? safeUnlocks / safeViews : 0;
+  const score = 42 + Math.min(18, safeViews * 0.4) + Math.min(22, unlockRate * 110) + Math.min(10, safeRevenue * 70) + Math.min(8, safeAvgDurationMs / 15000);
+  return Math.max(0, Math.min(99, Math.round(score)));
+}
+
+function contentReputationStars(score = 0) {
+  return Math.max(0, Math.min(5, Math.round(((score || 0) / 20) * 10) / 10));
+}
+
+function average(values = []) {
+  const clean = values.filter((value) => Number.isFinite(value));
+  if (!clean.length) return 0;
+  return clean.reduce((sum, value) => sum + value, 0) / clean.length;
+}
+
+function siteReputationScore(contents = [], website = {}) {
+  const contentScores = contents.map((content) => content.reputationScore || 0).filter(Boolean);
+  const avgContent = average(contentScores);
+  const verification = website.isVerified && website.verificationStatus === 'verified' ? 12 : 0;
+  const depth = Math.min(10, contentScores.length * 2);
+  const score = avgContent ? avgContent * 0.78 + verification + depth : verification + depth;
+  return Math.max(1, Math.min(100, Math.round(score || 1)));
+}
+
+function creatorReputationScore(contents = [], websites = []) {
+  const contentScores = contents.map((content) => content.reputationScore || 0).filter(Boolean);
+  const avgContent = average(contentScores);
+  const verifiedSites = websites.filter((website) => website.isVerified && website.verificationStatus === 'verified').length;
+  const siteDepth = Math.min(12, verifiedSites * 4);
+  const contentDepth = Math.min(12, contentScores.length * 1.5);
+  const score = avgContent ? avgContent * 0.76 + siteDepth + contentDepth : siteDepth + contentDepth;
+  return Math.max(1, Math.min(100, Math.round(score || 1)));
+}
+
 function serializeContent(content) {
   const metrics = Array.isArray(content.metrics) ? content.metrics : [];
   const views = metrics.filter((metric) => metric.type === 'view').length;
@@ -271,6 +311,9 @@ function serializeContent(content) {
   const avgDurationMs = timeEvents.length
     ? Math.round(timeEvents.reduce((total, metric) => total + (metric.durationMs || 0), 0) / timeEvents.length)
     : 0;
+
+  const reputationScore = contentReputationScoreFromMetrics({ views, unlocks, revenue, avgDurationMs });
+  const reputationStars = contentReputationStars(reputationScore);
 
   return {
     id: content.id,
@@ -298,7 +341,9 @@ function serializeContent(content) {
     views,
     unlocks,
     revenue,
-    avgDurationMs
+    avgDurationMs,
+    reputationScore,
+    reputationStars
   };
 }
 
@@ -612,6 +657,12 @@ export function registerHubRoutes(app) {
   });
 
   app.get('/api/hub/dashboard/profile', requireAuth, async (req, res) => {
+    const websites = await db.website.findMany({
+      where: { ownerId: req.user.id, deletedAt: null },
+      include: { content: { include: { metrics: true, website: true, _count: { select: { metrics: true } } } } }
+    });
+    const serializedContent = websites.flatMap((website) => website.content.map(serializeContent));
+    const creatorReputation = creatorReputationScore(serializedContent, websites);
     res.json({
       success: true,
       profile: {
@@ -626,6 +677,9 @@ export function registerHubRoutes(app) {
         instagramUrl: req.user.instagramUrl || '',
         tiktokUrl: req.user.tiktokUrl || '',
         youtubeUrl: req.user.youtubeUrl || '',
+        creatorReputation,
+        verifiedSites: websites.filter((website) => website.isVerified && website.verificationStatus === 'verified').length,
+        trackedContent: serializedContent.length,
         createdAt: req.user.createdAt
       }
     });
@@ -928,6 +982,95 @@ export function registerHubRoutes(app) {
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch earnings' });
+    }
+  });
+
+
+  app.get('/api/hub/reputation/leaderboards', async (req, res) => {
+    try {
+      const type = String(req.query.type || 'creators').trim().toLowerCase();
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '20', 10) || 20, 1), 50);
+
+      if (type === 'content') {
+        const content = await db.content.findMany({
+          where: { website: { isVerified: true, deletedAt: null } },
+          include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, metrics: true, _count: { select: { metrics: true } } },
+          take: 200,
+          orderBy: { createdAt: 'desc' }
+        });
+        const items = content.map(serializeContent)
+          .sort((a, b) => (b.reputationScore - a.reputationScore) || (b.unlocks - a.unlocks) || (b.views - a.views))
+          .slice(0, limit)
+          .map((content, index) => ({ rank: index + 1, ...content }));
+        return res.json({ success: true, type: 'content', items });
+      }
+
+      if (type === 'sites') {
+        const websites = await db.website.findMany({
+          where: { deletedAt: null, isVerified: true },
+          include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, content: { include: { website: true, metrics: true, _count: { select: { metrics: true } } } }, _count: { select: { content: true, metrics: true } } },
+          take: 200,
+          orderBy: { createdAt: 'desc' }
+        });
+        const items = websites.map((website) => {
+          const content = website.content.map(serializeContent);
+          const score = siteReputationScore(content, website);
+          const views = content.reduce((sum, item) => sum + item.views, 0);
+          const unlocks = content.reduce((sum, item) => sum + item.unlocks, 0);
+          const revenue = content.reduce((sum, item) => sum + item.revenue, 0);
+          return {
+            id: website.id,
+            name: website.name,
+            domain: website.domain,
+            description: website.description || '',
+            faviconUrl: website.faviconUrl || '',
+            ownerName: website.owner?.username || '',
+            ownerWallet: primaryWalletAddress(website.owner || {}),
+            reputationScore: score,
+            contentCount: content.length,
+            views,
+            unlocks,
+            revenue,
+            verificationStatus: website.verificationStatus || '',
+            lastVerifiedAt: website.lastVerifiedAt || null
+          };
+        }).sort((a, b) => (b.reputationScore - a.reputationScore) || (b.unlocks - a.unlocks) || (b.views - a.views)).slice(0, limit).map((site, index) => ({ rank: index + 1, ...site }));
+        return res.json({ success: true, type: 'sites', items });
+      }
+
+      const users = await db.user.findMany({
+        include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null }, include: { content: { include: { website: true, metrics: true, _count: { select: { metrics: true } } } } } } },
+        take: 200,
+        orderBy: { createdAt: 'asc' }
+      });
+      const items = users.map((user) => {
+        const websites = user.websites || [];
+        const content = websites.flatMap((website) => website.content.map(serializeContent));
+        const score = creatorReputationScore(content, websites);
+        const views = content.reduce((sum, item) => sum + item.views, 0);
+        const unlocks = content.reduce((sum, item) => sum + item.unlocks, 0);
+        const revenue = content.reduce((sum, item) => sum + item.revenue, 0);
+        return {
+          id: user.id,
+          name: user.username || 'Unnamed creator',
+          walletAddress: primaryWalletAddress(user),
+          avatarUrl: user.avatarUrl || '',
+          bio: user.bio || '',
+          reputationScore: score,
+          verifiedSites: websites.filter((website) => website.isVerified && website.verificationStatus === 'verified').length,
+          siteCount: websites.length,
+          contentCount: content.length,
+          views,
+          unlocks,
+          revenue
+        };
+      }).filter((creator) => creator.contentCount > 0 || creator.verifiedSites > 0)
+        .sort((a, b) => (b.reputationScore - a.reputationScore) || (b.unlocks - a.unlocks) || (b.views - a.views))
+        .slice(0, limit)
+        .map((creator, index) => ({ rank: index + 1, ...creator }));
+      return res.json({ success: true, type: 'creators', items });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch reputation leaderboards', details: error.message });
     }
   });
 

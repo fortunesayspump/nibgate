@@ -10,11 +10,13 @@ export type NibgateServerResource = {
   url?: string;
   currency?: string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
+  unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
   [key: string]: unknown;
 };
 
 export type NibgateActor = 'human' | 'agent';
 export type NibgateAccessMode = 'free' | 'paid' | 'blocked';
+export type NibgateUnlockMode = 'one_time' | 'metered_stream' | 'metered_read' | 'time_pass' | 'agent_quota';
 export type NibgateAccessPolicy = {
   humans?: NibgateAccessMode;
   human?: NibgateAccessMode;
@@ -22,6 +24,17 @@ export type NibgateAccessPolicy = {
   agent?: NibgateAccessMode;
   default?: NibgateAccessMode;
 };
+export type NibgateUnlockPolicy = {
+  mode?: NibgateUnlockMode | string;
+  type?: NibgateUnlockMode | string;
+  unit?: string;
+  pricePerUnit?: string | number;
+  duration?: string | number;
+  maxReads?: number;
+  [key: string]: unknown;
+};
+
+export declare const UNLOCK_MODES: readonly ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
 
 export type NibgatePaymentInput = {
   id?: string;
@@ -93,3 +106,4 @@ export declare const server: ReturnType<typeof createNibgateServer>;
 export declare function actorFromRequest(request: Request, fallback?: NibgateActor): NibgateActor;
 export declare function accessModeFor(resource: NibgateServerResource | string, actor?: NibgateActor): NibgateAccessMode;
 export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;
+export declare function normalizeUnlockPolicy(unlock?: NibgateUnlockMode | NibgateUnlockPolicy): Required<Pick<NibgateUnlockPolicy, 'mode'>> & NibgateUnlockPolicy;

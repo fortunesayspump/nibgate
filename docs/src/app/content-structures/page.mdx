@@ -44,7 +44,8 @@ const post = {
   body: 'Private content from the database',
   price: '0.005',
   humanAccess: 'paid',
-  agentAccess: 'paid'
+  agentAccess: 'paid',
+  unlockMode: 'one_time'
 }
 ```
 
@@ -61,6 +62,9 @@ function postToNibgateResource(post) {
     access: {
       humans: post.humanAccess,
       agents: post.agentAccess
+    },
+    unlock: {
+      mode: post.unlockMode || 'one_time'
     }
   }
 }
@@ -101,6 +105,9 @@ Agent access
 ( ) Paid
 ( ) Blocked
 
+Unlock mode
+( ) One-time unlock
+
 Price
 [ 0.005 ] USDC
 
@@ -118,6 +125,7 @@ type Post = {
   id: string
   slug: string
   title: string
+  unlockMode: 'one_time'
   body: string
   coverImage?: string
   tags: string[]

@@ -12,7 +12,7 @@ export default function Features() {
             </h2>
             <div className="max-w-3xl text-lg md:text-2xl lg:leading-10 xl:text-3xl">
               Nibgate gives creator-owned articles, media, files, and agent-readable routes a clean
-              package layer for unlocks, receipts, analytics, and discovery.
+              package layer for one-time unlocks now, receipts, analytics, and discovery.
             </div>
           </div>
         </div>
@@ -76,13 +76,13 @@ export default function Features() {
             <div className="space-y-4">
               <h3 className="text-3xl font-medium text-white lg:text-4xl xl:text-5xl">Verify real receipts</h3>
               <p className="text-lg lg:text-xl xl:text-2xl">
-                Use x402-friendly payment challenges with Circle Gateway or Arc testnet receipt metadata for paid routes.
+                Use x402-friendly payment challenges with Circle Gateway or Arc testnet receipt metadata for MVP one-time unlocks.
               </p>
             </div>
             <div className="space-y-4">
               <h3 className="text-3xl font-medium text-white lg:text-4xl xl:text-5xl">Ship with the package</h3>
               <p className="text-lg lg:text-xl xl:text-2xl">
-                Install `nibgate`, map protected paths, and issue unlock tokens only after your payment layer verifies access.
+                Install `nibgate`, map protected paths, and issue one-time unlock tokens only after your payment layer verifies access.
               </p>
             </div>
             <div className="space-y-4">

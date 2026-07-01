@@ -1,7 +1,7 @@
 {
   "name": "nibgate",
   "version": "0.1.0",
-  "description": "Browser SDK for registering gated creator content and streaming unlock events through the Nibgate widget.",
+  "description": "Framework-agnostic browser and server package for creator-owned gated content, unlock events, and receipts.",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.js",

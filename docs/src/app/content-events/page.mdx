@@ -32,6 +32,9 @@ const post = gate({
   access: {
     humans: "paid",
     agents: "paid"
+  },
+  unlock: {
+    mode: "one_time"
   }
 })
 
@@ -50,6 +53,8 @@ post.content()
 | `currency` | Usually `USDC` for current flows. |
 | `tags` | Search and Explore filtering. |
 | `previewImage` | Public image shown in Explore. |
+| `access` | Human and agent access policy. |
+| `unlock` | Unlock policy. Use `mode: "one_time"` for the MVP. |
 
 <Callout type="important">
 The creator site remains the source of truth. Nibgate stores metadata for search, analytics, and Explore, not the protected paid file itself.
@@ -58,6 +63,18 @@ The creator site remains the source of truth. Nibgate stores metadata for search
 ## Content lifecycle
 
 Content can be reported repeatedly. Use the same `id` so Nibgate updates the same content record instead of creating duplicates.
+
+## Unlock policy
+
+The MVP package should treat `one_time` as the supported unlock mode.
+
+```ts
+unlock: {
+  mode: "one_time"
+}
+```
+
+The field exists so future versions can add metered streaming, metered reading, time passes, and agent quotas without changing how creators describe content.
 
 ## Deterministic content id
 

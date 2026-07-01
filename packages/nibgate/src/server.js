@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 
 const DEFAULT_UNLOCK_SECONDS = 60 * 60 * 12;
 const ACCESS_MODES = ['free', 'paid', 'blocked'];
+const UNLOCK_MODES = ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
 
 function normalizeAccessMode(value, fallback = 'paid') {
   const mode = String(value || '').trim().toLowerCase();
@@ -20,6 +21,15 @@ function normalizeAccessPolicy(value = {}) {
   };
 }
 
+function normalizeUnlockPolicy(value = {}) {
+  const input = typeof value === 'string' ? { mode: value } : (value || {});
+  const mode = String(input.mode || input.type || 'one_time').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  return {
+    ...input,
+    mode: UNLOCK_MODES.includes(mode) ? mode : 'one_time'
+  };
+}
+
 function normalizeResource(resource = {}) {
   const input = typeof resource === 'string' ? { id: resource } : (resource || {});
   return {
@@ -30,7 +40,8 @@ function normalizeResource(resource = {}) {
     price: input.price ?? input.amount ?? '0',
     path: input.path || input.route || '/',
     currency: input.currency || 'USDC',
-    access: normalizeAccessPolicy(input.access)
+    access: normalizeAccessPolicy(input.access),
+    unlock: normalizeUnlockPolicy(input.unlock)
   };
 }
 
@@ -141,7 +152,7 @@ export function createPaymentChallenge(resourceInput, options = {}) {
     x402Version: options.x402Version || 2,
     status: 402,
     scheme: 'exact',
-    paymentMode: options.paymentMode || process.env.NIBGATE_PAYMENT_MODE || 'demo',
+    paymentMode: options.paymentMode || process.env.NIBGATE_PAYMENT_MODE || 'unconfigured',
     accepts: [
       {
         asset: resource.currency,
@@ -163,7 +174,8 @@ export function createPaymentChallenge(resourceInput, options = {}) {
       currency: resource.currency,
       path: resource.path,
       actor,
-      access: resource.access
+      access: resource.access,
+      unlock: resource.unlock
     }
   };
 }
@@ -266,4 +278,4 @@ export function protect(resource, handler, options = {}) {
 }
 
 export const server = createNibgateServer();
-export { actorFromRequest, accessModeFor, normalizeAccessPolicy };
+export { actorFromRequest, accessModeFor, normalizeAccessPolicy, normalizeUnlockPolicy, UNLOCK_MODES };

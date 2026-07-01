@@ -13,6 +13,7 @@ const TYPE_ALIASES = {
   clip: 'video'
 };
 const ACCESS_MODES = ['free', 'paid', 'blocked'];
+const UNLOCK_MODES = ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
 
 function browserWindow() {
   return typeof window === 'undefined' ? null : window;
@@ -41,6 +42,15 @@ function normalizeAccessPolicy(value = {}) {
   };
 }
 
+function normalizeUnlockPolicy(value = {}) {
+  const input = typeof value === 'string' ? { mode: value } : (value || {});
+  const mode = String(input.mode || input.type || 'one_time').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  return {
+    ...input,
+    mode: UNLOCK_MODES.includes(mode) ? mode : 'one_time'
+  };
+}
+
 function normalizeResource(resource = {}) {
   const input = typeof resource === 'string' ? { id: resource } : (resource || {});
   return {
@@ -53,7 +63,8 @@ function normalizeResource(resource = {}) {
     url: input.url || undefined,
     imageUrl: input.imageUrl || input.image || undefined,
     tags: input.tags || undefined,
-    access: normalizeAccessPolicy(input.access)
+    access: normalizeAccessPolicy(input.access),
+    unlock: normalizeUnlockPolicy(input.unlock)
   };
 }
 
@@ -230,4 +241,4 @@ export function createNibgate(defaults = {}) {
 
 export const nibgate = createNibgate();
 export const gate = createGate;
-export { CONTENT_TYPES, ACCESS_MODES, normalizeContentType, normalizeResource, normalizeAccessPolicy };
+export { CONTENT_TYPES, ACCESS_MODES, UNLOCK_MODES, normalizeContentType, normalizeResource, normalizeAccessPolicy, normalizeUnlockPolicy };

@@ -60,16 +60,19 @@ It owns:
 - queueing events until the Hub widget is ready
 - normalizing content types to `music`, `video`, `article`, and `image`
 - access policies for humans and agents: `free`, `paid`, or `blocked`
+- unlock policies that start with `one_time` for the MVP and leave room for metered reading, streaming, passes, and agent quotas later
 
 ### `packages/cli/`
 
 The CLI package is private internal tooling for local development and future setup automation. It owns:
 
 - `npx nibgate`
-- config generation
-- route protection and gateway logic
-- x402 and Circle Gateway integration
-- hub connection, domain verification, and widget/package content events
+- local status and setup checks
+- config generation helpers
+- hub connection and domain verification commands
+- future scaffolding around widget/package setup
+
+The public `nibgate` package owns route protection, payment challenge metadata, unlock tokens, and package event APIs.
 
 ### `demo/`
 
@@ -199,11 +202,32 @@ For real blogs and CMS-backed sites, gating fields should live beside the creato
   access: {
     humans: 'free' | 'paid' | 'blocked',
     agents: 'free' | 'paid' | 'blocked'
+  },
+  unlock: {
+    mode: 'one_time'
   }
 }
 ```
 
 This works across Next.js, React plus an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, MDX server rendering, headless CMS apps, and traditional CMS/plugin environments. Plain static HTML can use the widget for verification and events, but protected content still needs a server, edge function, API route, or signed URL.
+
+For the hackathon MVP, unlocks should be simple and real:
+
+```txt
+pay once -> verify receipt/proof -> issue unlock token -> serve content -> report receipt to Nibgate
+```
+
+The package keeps an `unlock` policy field so future versions can add richer modes without changing the creator integration shape:
+
+```js
+unlock: { mode: 'one_time' }       // MVP
+unlock: { mode: 'metered_stream' } // later: pay by watched seconds/minutes
+unlock: { mode: 'metered_read' }   // later: pay by section/paragraph/token window
+unlock: { mode: 'time_pass' }      // later: pay for time-limited access
+unlock: { mode: 'agent_quota' }    // later: pay for agent reads/crawls
+```
+
+Only `one_time` should be treated as production-ready for the first release.
 
 The Hub widget is responsible for:
 
@@ -285,6 +309,9 @@ const premiumGuide = gate({
   access: {
     humans: "paid",
     agents: "paid"
+  },
+  unlock: {
+    mode: "one_time"
   }
 });
 

@@ -52,6 +52,9 @@ const guide = gate({
   access: {
     humans: 'paid',
     agents: 'paid'
+  },
+  unlock: {
+    mode: 'one_time'
   }
 })
 
@@ -63,6 +66,16 @@ guide.view()
 
 Use Sites, Contents, Analytics, and Earnings to confirm the setup is active.
 </Steps>
+
+## MVP unlock model
+
+For the first stable package, Nibgate should ship one unlock path well:
+
+```txt
+pay once -> verify receipt/proof -> issue unlock token -> serve content -> report receipt
+```
+
+Future package versions can add metered streaming, metered reading, time passes, and agent quotas through the same `unlock` policy field.
 
 ## Next reads
 

@@ -39,6 +39,9 @@ const premiumGuide = gate({
   access: {
     humans: 'paid',
     agents: 'paid'
+  },
+  unlock: {
+    mode: 'one_time'
   }
 });
 
@@ -86,6 +89,7 @@ Nibgate settings
 - Content type: article / music / image / video
 - Human access: free / paid / blocked
 - Agent access: free / paid / blocked
+- Unlock mode: one_time for the MVP
 - Price
 - Currency
 - Payment receiver
@@ -119,6 +123,9 @@ function postToNibgateResource(post) {
     access: {
       humans: post.humanAccess,
       agents: post.agentAccess
+    },
+    unlock: {
+      mode: 'one_time'
     }
   };
 }
@@ -148,6 +155,33 @@ access: { humans: 'paid', agents: 'blocked' }
 
 Real locking must happen on the server. If you render the full protected payload into HTML and hide it with CSS, crawlers can still scrape it. `nibgate/server` is what prevents the protected response from being returned until the request is free, paid with proof, or explicitly allowed by policy.
 
+## Unlock modes
+
+The MVP unlock is intentionally simple:
+
+```txt
+pay once -> verify receipt/proof -> issue unlock token -> serve content -> report receipt
+```
+
+Use this today:
+
+```js
+unlock: {
+  mode: 'one_time'
+}
+```
+
+The resource shape already has room for future unlock modes, but they should not be presented as production-ready until the payment/session adapters exist:
+
+```js
+unlock: { mode: 'metered_stream', unit: 'second', pricePerUnit: '0.0001' }
+unlock: { mode: 'metered_read', unit: 'paragraph', pricePerUnit: '0.00005' }
+unlock: { mode: 'time_pass', duration: '24h' }
+unlock: { mode: 'agent_quota', maxReads: 20 }
+```
+
+Those later modes let Nibgate grow into background video/audio streaming payments, partial article reads, time passes, and agent usage quotas without changing the one-package architecture.
+
 ## Server protection
 
 Use `nibgate/server` for real route protection. The server layer creates x402-style payment challenges, verifies your payment receipt, and issues a short-lived Nibgate unlock token for the route.
@@ -174,6 +208,9 @@ export const GET = nibgateServer.protect({
   access: {
     humans: 'paid',
     agents: 'paid'
+  },
+  unlock: {
+    mode: 'one_time'
   }
 }, async () => {
   return new Response('Premium content');

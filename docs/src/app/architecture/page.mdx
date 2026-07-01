@@ -29,6 +29,8 @@ The creator site is the source of truth. It serves the public route, protects pa
 
 The package lives inside the creator app. It should gate resources, send content metadata, report unlock events, and attach receipt references after payment succeeds.
 
+The first stable unlock strategy is `one_time`: a buyer or agent pays once, the creator site verifies the receipt, then the server issues access. The package keeps an `unlock` policy field so later strategies can add metered video/audio streaming, section-based reading, time passes, and agent quotas without changing the core integration.
+
 ## Hub widget
 
 The widget proves the registered origin can serve the Nibgate token. It also streams page-level activity and helps scheduled verification checks confirm the site is still connected.
@@ -55,6 +57,8 @@ The package sends structured content records for public discovery.
 ### Gate and unlock
 
 The creator site handles the protected route and payment flow.
+
+For MVP, this means one verified payment unlocks one resource. Streaming or metered unlocks are future adapters, not the default launch requirement.
 
 ### Report events
 

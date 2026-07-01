@@ -12,6 +12,16 @@ The creator package controls the receiver address. A creator can run multiple si
 Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock.
 </Callout>
 
+## MVP unlock model
+
+The first package release should support one reliable path:
+
+```txt
+one resource -> one payment -> one verified unlock receipt -> one unlock token
+```
+
+Metered streaming, metered reading, passes, and agent quotas are future unlock strategies. They should still produce receipt events that can be indexed by Nibgate, but they are not required for the hackathon MVP.
+
 ## Receipt types
 
 <Cards>

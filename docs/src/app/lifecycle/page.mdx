@@ -77,6 +77,9 @@ const guide = gate({
   access: {
     humans: "paid",
     agents: "paid"
+  },
+  unlock: {
+    mode: "one_time"
   }
 })
 ```
@@ -104,6 +107,8 @@ The viewer follows the content route back to the creator-owned domain. Nibgate d
 Unlock remains creator-site native. The site can use x402, Gateway, direct wallet payment, Arc testnet, or another supported payment rail.
 
 The creator site/package controls receiver address, price, payment verification, and unlock access. Nibgate does not custody funds.
+
+For the MVP, the unlock mode is `one_time`: one verified payment unlocks the resource. Later versions can add metered streaming, metered reading, time passes, or agent quotas without moving the content away from the creator origin.
 
 ### Package reports unlock/payment receipt
 
@@ -156,5 +161,5 @@ Public discovery updates with fresh content cards, category filtering, search, c
 ## One-line version
 
 ```txt
-Creator installs package -> verifies site -> publishes metadata -> users/agents discover on Nibgate -> unlock on creator site -> package reports receipt -> eligible wallets rate -> Nibgate indexes reputation -> Explore, leaderboards, and dashboard update.
+Creator installs package -> verifies site -> publishes metadata -> users/agents discover on Nibgate -> one-time unlock on creator site -> package reports receipt -> eligible wallets rate -> Nibgate indexes reputation -> Explore, leaderboards, and dashboard update.
 ```

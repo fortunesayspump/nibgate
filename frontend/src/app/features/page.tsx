@@ -112,7 +112,7 @@ export default function FeaturesPage() {
       {featureIntro({
         eyebrow: 'Package features',
         title: 'Gate content from your own site',
-        copy: 'Nibgate starts with a simple npm package. Your content stays on your domain while the package handles content registration, route protection, unlock events, and payment receipt metadata.'
+        copy: 'Nibgate starts with a simple npm package. Your content stays on your domain while the package handles content registration, route protection, one-time unlock events, and payment receipt metadata.'
       })}
 
       <SplitBand
@@ -124,8 +124,8 @@ export default function FeaturesPage() {
         border="border-y"
         textItems={[
           ['One install', 'Use `npm install nibgate`, import `gate(...)`, and describe the article, music, image, video, file, or route you want Nibgate to track.'],
-          ['Real route protection', 'Use `nibgate/server` to return payment challenges, verify receipts, and issue unlock tokens only after payment succeeds.'],
-          ['Framework-light by default', 'The v1 package is plain browser and server JavaScript first, so creators are not forced into one frontend engine.']
+          ['Real route protection', 'Use `nibgate/server` to return payment challenges, verify receipts, and issue one-time unlock tokens only after payment succeeds.'],
+          ['Extensible unlock policy', 'Launch with pay-once unlocks now, then add metered streaming, metered reading, passes, or agent quotas later without changing the core package shape.']
         ]}
       />
 
@@ -142,7 +142,7 @@ export default function FeaturesPage() {
         titleColor="text-white"
         textItems={[
           ['Circle Gateway and x402 direction', 'Use Gateway/x402-style payment challenges for paid routes, with Arc testnet and Circle Gateway receipt metadata supported in the product direction.'],
-          ['Unlock tokens after verification', 'The server issues Nibgate unlock tokens only after the creator payment layer reports a verified payment receipt.'],
+          ['One-time unlock tokens after verification', 'The server issues Nibgate unlock tokens only after the creator payment layer reports a verified payment receipt.'],
           ['Multiple sites, multiple receivers', 'A creator can verify multiple sites, and each site can route payments to its own configured receiving address.']
         ]}
       />
@@ -155,7 +155,7 @@ export default function FeaturesPage() {
         reverse={true}
         textItems={[
           ['Payment receipts that mean something', 'Store Circle payment ids and receipt URLs when available, or Arc transaction hashes and explorer links for testnet flows.'],
-          ['Fail-closed unlocks', 'Production routes should stay locked until the site verifies a real payment receipt.']
+          ['Fail-closed unlocks', 'Production routes should stay locked until the site verifies a real payment receipt. Future metered modes should follow the same rule.']
         ]}
       />
 

@@ -139,10 +139,96 @@ body {
   text-transform: uppercase;
 }
 
-.nextra-search input {
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  background: rgba(255, 255, 255, 0.08) !important;
+.nextra-search {
+  min-width: min(340px, 34vw) !important;
+}
+
+.nextra-search input,
+.nextra-search button {
+  min-height: 42px !important;
+  border: 1px solid rgba(231, 239, 228, 0.22) !important;
   border-radius: 999px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055)) !important;
+  color: var(--nib-header-fg) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.18) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 14px !important;
+}
+
+.nextra-search input::placeholder {
+  color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.nextra-search input:focus,
+.nextra-search button:focus-visible {
+  border-color: rgba(231, 239, 228, 0.48) !important;
+  box-shadow:
+    0 0 0 3px rgba(124, 154, 109, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+.nextra-search svg {
+  color: rgba(231, 239, 228, 0.72) !important;
+}
+
+.nextra-search kbd,
+.nextra-search [class*="kbd"] {
+  border: 1px solid rgba(231, 239, 228, 0.2) !important;
+  border-radius: 999px !important;
+  background: rgba(231, 239, 228, 0.1) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: none !important;
+  font-family: var(--font-ui) !important;
+}
+
+[cmdk-dialog],
+[cmdk-root],
+[role="dialog"]:has(input[type="search"]),
+[role="dialog"]:has(input[placeholder*="Search"]) {
+  border: 1px solid rgba(17, 17, 17, 0.16) !important;
+  border-radius: 28px !important;
+  background: var(--nib-page-bg) !important;
+  color: var(--nib-page-fg) !important;
+  box-shadow: 0 28px 80px rgba(17, 17, 17, 0.28) !important;
+  font-family: var(--font-ui) !important;
+}
+
+[cmdk-input],
+[role="dialog"] input[type="search"],
+[role="dialog"] input[placeholder*="Search"] {
+  border-bottom: 1px solid var(--nib-border-soft) !important;
+  background: var(--nib-surface) !important;
+  color: var(--nib-page-fg) !important;
+  font-family: var(--font-ui) !important;
+}
+
+[cmdk-input]::placeholder,
+[role="dialog"] input[type="search"]::placeholder,
+[role="dialog"] input[placeholder*="Search"]::placeholder {
+  color: color-mix(in srgb, var(--nib-page-muted) 62%, transparent) !important;
+}
+
+[cmdk-list],
+[role="listbox"] {
+  background: var(--nib-page-bg) !important;
+}
+
+[cmdk-item],
+[role="option"] {
+  border-radius: 18px !important;
+  color: var(--nib-page-muted) !important;
+  font-family: var(--font-ui) !important;
+}
+
+[cmdk-item][aria-selected="true"],
+[role="option"][aria-selected="true"],
+[cmdk-item]:hover,
+[role="option"]:hover {
+  background: var(--nib-surface) !important;
+  color: var(--nib-page-fg) !important;
 }
 
 /* Main shell */

@@ -145,16 +145,16 @@ The route then loads the post, maps it into a Nibgate resource, and enforces acc
 The package model is not tied to one framework.
 
 <Cards>
-  <Cards.Card title="Next.js">
+  <Cards.Card title="Next.js" href="/content-structures#frameworks">
     Use route handlers, API routes, SSR pages, or MDX server rendering. Do not statically ship paid content.
   </Cards.Card>
-  <Cards.Card title="React">
+  <Cards.Card title="React" href="/content-structures#frameworks">
     Use `gate(...)` for browser events and unlock UI. Pair it with an API/backend route for real protection.
   </Cards.Card>
-  <Cards.Card title="Express or NestJS">
+  <Cards.Card title="Express or NestJS" href="/content-structures#frameworks">
     Use `nibgate/server` inside middleware, guards, or controllers before returning content.
   </Cards.Card>
-  <Cards.Card title="Plain HTML">
+  <Cards.Card title="Plain HTML" href="/content-structures#frameworks">
     Use the widget for verification/events. Paid content needs a protected API, edge function, or signed file URL.
   </Cards.Card>
 </Cards>
@@ -266,13 +266,13 @@ Use `access.agents = 'paid'` when humans can view public pages but agents must p
 ## Access policy examples
 
 <Cards>
-  <Cards.Card title="Paid for everyone">
+  <Cards.Card title="Paid for everyone" href="/content-structures#access-policy-examples">
     Humans and agents both need proof: `access: { humans: 'paid', agents: 'paid' }`
   </Cards.Card>
-  <Cards.Card title="Free humans, paid agents">
+  <Cards.Card title="Free humans, paid agents" href="/content-structures#access-policy-examples">
     Public human page, paid crawler/agent access: `access: { humans: 'free', agents: 'paid' }`
   </Cards.Card>
-  <Cards.Card title="Paid humans, blocked agents">
+  <Cards.Card title="Paid humans, blocked agents" href="/content-structures#access-policy-examples">
     Human checkout is allowed, agent access is denied: `access: { humans: 'paid', agents: 'blocked' }`
   </Cards.Card>
 </Cards>

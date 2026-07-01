@@ -240,6 +240,8 @@ npm run dev:demo
 
 The demo imports `nibgate/server`, serves the browser client locally, registers article/music/image/video content, and protects `/articles/premium-agent-economy`.
 
+It also includes local routes for database/custom CMS, MDX/frontmatter, headless CMS, static teaser/protected API, media/file, and agent/API publishing styles under `/examples`.
+
 Real unlocks are fail-closed. Set these env vars before using the local Gateway payment button:
 
 ```bash

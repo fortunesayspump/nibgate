@@ -26,7 +26,19 @@ const navbar = (
   />
 );
 
-const footer = <Footer>Nibgate docs. Built for creator-owned paid routes.</Footer>;
+const footer = (
+  <Footer>
+    <div className="nib-docs-footer">
+      <span>Nibgate docs. Built for creator-owned paid routes.</span>
+      <nav aria-label="Nibgate links">
+        <a href="https://nibgate.xyz">Main site</a>
+        <a href="https://nibgate.xyz/explore">Explore</a>
+        <a href="https://nibgate.xyz/get-started">Get started</a>
+        <a href="https://github.com/fortunesayspump/nibgate">GitHub</a>
+      </nav>
+    </div>
+  </Footer>
+);
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

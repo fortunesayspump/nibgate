@@ -321,6 +321,37 @@ body > div {
   color: var(--nib-page-fg) !important;
 }
 
+.nib-docs-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: var(--nib-page-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.nib-docs-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.nib-docs-footer a {
+  color: var(--nib-page-fg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nib-docs-footer a:hover,
+.nib-docs-footer a:focus-visible {
+  color: var(--nib-olive);
+  text-decoration: underline;
+}
+
 @media (max-width: 768px) {
   .nextra-navbar nav {
     padding-left: 20px !important;
@@ -341,5 +372,14 @@ body > div {
 
   .nextra-sidebar + div h1 + p {
     font-size: 21px !important;
+  }
+
+  .nib-docs-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nib-docs-footer nav {
+    justify-content: flex-start;
   }
 }

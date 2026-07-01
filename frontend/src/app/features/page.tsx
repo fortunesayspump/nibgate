@@ -117,7 +117,7 @@ export default function FeaturesPage() {
 
       <SplitBand
         image={undrawAsset('content-creator.svg')}
-        imageAlt="Illustration showing customizable store options"
+        imageAlt="Illustration showing package-powered content gating"
         imageBg="bg-gray"
         titleColor="text-white"
         reverse={true}
@@ -155,13 +155,13 @@ export default function FeaturesPage() {
         reverse={true}
         textItems={[
           ['Payment receipts that mean something', 'Store Circle payment ids and receipt URLs when available, or Arc transaction hashes and explorer links for testnet flows.'],
-          ['No fake unlocks', 'The package can demo the UI, but production unlocks should fail closed until the site verifies a real payment.']
+          ['Fail-closed unlocks', 'Production routes should stay locked until the site verifies a real payment receipt.']
         ]}
       />
 
       <SplitBand
         image={undrawAsset('sign-in.svg')}
-        imageAlt="Illustration showing license keys"
+        imageAlt="Illustration showing content events and unlock tokens"
         imageBg="bg-gray"
         titleColor="text-white"
         border="border-y"

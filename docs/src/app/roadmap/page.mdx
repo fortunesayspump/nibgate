@@ -1,0 +1,32 @@
+# Roadmap
+
+Nibgate is being built as a package-first content unlock layer plus a verified discovery hub. The roadmap is focused on making that flow simple for creators and trustworthy for humans and agents.
+
+## Now
+
+- Stable creator profiles, verified sites, dashboard content, analytics, earnings records, and Explore indexing.
+- Package APIs for browser content events and server-side unlock enforcement.
+- Widget verification for creator-owned domains.
+- Content reputation, creator leaderboards, and site/content ranking surfaces.
+
+## Next
+
+- Publish the first stable `nibgate` package release.
+- Tighten the demo site into a real end-to-end reference implementation.
+- Improve Circle Gateway/x402 and Arc testnet receipt handling.
+- Add clearer setup checks for stale widgets, removed sites, and failed verification.
+- Improve docs around payment receipts, unlock tokens, and agent-readable discovery.
+
+## Later
+
+- Browser wallet payment adapters where the creator flow needs direct wallet checkout.
+- Stronger reputation proofs tied to verified unlocks and signed/onchain ratings.
+- Richer agent discovery metadata for paid routes, citations, licenses, and source quality.
+- More package helpers for common frameworks without making the core package framework-specific.
+
+## Out of scope
+
+- Nibgate should not custody creator funds.
+- Nibgate should not require creators to mint every piece of content.
+- Nibgate should not host private paid payloads when the creator origin can remain the source of truth.
+- Nibgate should not fake receipts or unlocks in production flows.

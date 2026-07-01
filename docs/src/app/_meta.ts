@@ -29,4 +29,5 @@ export default {
   },
   "api-reference": "API reference",
   examples: "Examples",
+  roadmap: "Roadmap",
 };

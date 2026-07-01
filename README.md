@@ -26,10 +26,10 @@ It consists of four connected parts:
 ## Repo Layout
 
 ```txt
-backend/      Express SSR server, Prisma DB, API routes
-frontend/     Optimized static CSS pipeline and assets
+backend/      Express API server, Prisma DB, hub routes, verification, ingestion
+frontend/     Next.js app for the public site, dashboard, Explore, blog, and leaderboards
 packages/     Nibgate npm package and internal tooling
-demo/         Isolated mock creator site for integration testing
+demo/         Isolated creator-origin demo for package and gating integration
 docs/         Nextra docs site for docs.nibgate.xyz
 internal-docs/ Architecture, research, design-system notes, and planning
 ideas/        Product thinking and experiments
@@ -39,7 +39,7 @@ ideas/        Product thinking and experiments
 
 ### `backend/` & `frontend/` (The Hub)
 
-The Hub is 100% Server-Side Rendered (SSR) for absolute maximum speed and SEO. It acts as the central directory:
+The Hub is the main Nibgate app and API surface. It acts as the creator dashboard, public site, and discovery directory:
 
 - `/explore` The discovery masonry grid indexing all creator content.
 - `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
@@ -47,7 +47,7 @@ The Hub is 100% Server-Side Rendered (SSR) for absolute maximum speed and SEO. I
 
 ### `packages/nibgate/`
 
-This is the public creator package. It is intentionally tiny and browser-first:
+This is the public creator package. It is intentionally tiny and framework-agnostic:
 
 ```bash
 npm install nibgate
@@ -55,14 +55,11 @@ npm install nibgate
 
 It owns:
 
-- `gate(...)`
-- `nibgate.content(...)`
-- `nibgate.view(...)`
-- `nibgate.unlockStarted(...)`
-- `nibgate.unlockCompleted(...)`
-- `nibgate.paymentCompleted(...)`
+- browser entrypoint: `gate(...)`, `nibgate.content(...)`, `nibgate.view(...)`, `nibgate.unlockStarted(...)`, `nibgate.unlockCompleted(...)`, and `nibgate.paymentCompleted(...)`
+- server entrypoint: `createNibgateServer(...)`, `protect(...)`, `accessFor(...)`, payment challenges, and unlock token verification
 - queueing events until the Hub widget is ready
 - normalizing content types to `music`, `video`, `article`, and `image`
+- access policies for humans and agents: `free`, `paid`, or `blocked`
 
 ### `packages/cli/`
 
@@ -74,9 +71,9 @@ The CLI package is private internal tooling for local development and future set
 - x402 and Circle Gateway integration
 - hub connection, domain verification, and widget/package content events
 
-### `examples/`
+### `demo/`
 
-These are origin apps that simulate creator-owned sites. They exist to validate the install flow and protected content flow without polluting product code.
+This is an origin app that behaves like a creator-owned site. It exists to validate the install flow, DB-backed content mapping, package events, and protected content flow without polluting hub code.
 
 ## Run
 
@@ -86,13 +83,19 @@ Install once:
 npm install
 ```
 
-Start the app (Hub Backend + Frontend assets):
+Start the backend:
 
 ```bash
 npm run dev:backend
 ```
 
-Start the example creator origin (Mock Site):
+Start the frontend:
+
+```bash
+npm run dev:frontend
+```
+
+Start the example creator origin:
 
 ```bash
 npm run dev:demo
@@ -100,8 +103,8 @@ npm run dev:demo
 
 Open:
 
-- [http://localhost:3000](http://localhost:3000)
-- [http://localhost:3000/explore](http://localhost:3000/explore)
+- [http://localhost:3001](http://localhost:3001)
+- [http://localhost:3001/explore](http://localhost:3001/explore)
 - [http://localhost:4100](http://localhost:4100)
 
 ## Environment
@@ -178,11 +181,29 @@ Nibgate backend
 
 When a creator installs `nibgate` on their own site, the package is responsible for:
 
-1. protecting paid routes and gated content on the creator origin
+1. protecting paid routes and gated content on the creator origin with server-side access checks
 2. handling x402/Circle unlock logic
 3. registering content metadata for `music`, `video`, `article`, and `image`
 4. emitting content-level events such as `resource_view`, `unlock_started`, `unlock_completed`, and `payment_completed`
 5. passing resource ids, titles, prices, and paths to the Hub widget when users interact with protected content
+
+For real blogs and CMS-backed sites, gating fields should live beside the creator's content record in their own database or admin UI. Nibgate maps that row into a resource:
+
+```js
+{
+  id,
+  title,
+  type,
+  price,
+  path,
+  access: {
+    humans: 'free' | 'paid' | 'blocked',
+    agents: 'free' | 'paid' | 'blocked'
+  }
+}
+```
+
+This works across Next.js, React plus an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, MDX server rendering, headless CMS apps, and traditional CMS/plugin environments. Plain static HTML can use the widget for verification and events, but protected content still needs a server, edge function, API route, or signed URL.
 
 The Hub widget is responsible for:
 
@@ -260,7 +281,11 @@ const premiumGuide = gate({
   title: "Premium Guide",
   type: "article",
   price: "0.01",
-  path: "/premium-guide"
+  path: "/premium-guide",
+  access: {
+    humans: "paid",
+    agents: "paid"
+  }
 });
 
 premiumGuide.content();
@@ -372,12 +397,6 @@ For production `nibgate.xyz`, durable analytics and verification history still n
 
 ## Payments
 
-Example mode is the default:
-
-```bash
-NIBGATE_PAYMENT_MODE=demo npm run dev:app
-```
-
 Circle Gateway mode:
 
 ```bash
@@ -385,7 +404,7 @@ NIBGATE_PAYMENT_MODE=circle-gateway \
 NIBGATE_SELLER_ADDRESS=0xYourSellerWallet \
 NIBGATE_BUYER_PRIVATE_KEY=0xyourBuyerPrivateKey \
 NIBGATE_BUYER_CHAIN=arcTestnet \
-npm run dev:app
+npm run dev:demo
 ```
 
 Gateway balance helpers:
@@ -404,9 +423,9 @@ npx nibgate deposit 1.0
 
 ## Local URLs
 
-- Home: `http://localhost:3000`
-- Explore: `http://localhost:3000/explore`
-- Example article: `http://localhost:3000/demo/ghost/the-agent-economy`
-- Protected example route: `http://localhost:3000/protected/demo-blog/premium-agent-economy`
+- Frontend home: `http://localhost:3001`
+- Explore: `http://localhost:3001/explore`
+- Backend API: `http://localhost:3000`
 - Example origin: `http://localhost:4100`
-- Hub widget: `http://localhost:3000/widget.js`
+- Demo premium route: `http://localhost:4100/articles/premium-agent-economy`
+- Hub widget: `http://localhost:3001/widget.js`

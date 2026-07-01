@@ -40,6 +40,25 @@ npm install nibgate
 
 Send public metadata for each paid resource. Keep the protected content itself on your own domain.
 
+```ts
+import { gate } from 'nibgate'
+
+const guide = gate({
+  id: 'premium-guide',
+  title: 'Premium Guide',
+  type: 'article',
+  price: '0.01',
+  path: '/premium-guide',
+  access: {
+    humans: 'paid',
+    agents: 'paid'
+  }
+})
+
+guide.content()
+guide.view()
+```
+
 ### Check the dashboard
 
 Use Sites, Contents, Analytics, and Earnings to confirm the setup is active.

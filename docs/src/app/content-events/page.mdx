@@ -18,22 +18,31 @@ Content metadata tells Nibgate what paid resources exist without copying the pro
 Send a stable external id, type, title, URL, price, currency, tags, and optional preview image.
 
 ```ts
-nibgate.content.upsert({
-  externalId: "post_123",
+import { gate } from "nibgate"
+
+const post = gate({
+  id: "post_123",
   type: "article",
   title: "Paid research note",
+  path: "/research",
   url: "https://creator.com/research",
   price: "2.00",
   currency: "USDC",
-  tags: ["research", "ai"]
+  tags: ["research", "ai"],
+  access: {
+    humans: "paid",
+    agents: "paid"
+  }
 })
+
+post.content()
 ```
 
 ## Recommended fields
 
 | Field | Purpose |
 | --- | --- |
-| `externalId` | Stable id from the creator app. |
+| `id` | Stable id from the creator app. |
 | `type` | One of `article`, `image`, `music`, `video`. |
 | `title` | Public content title. |
 | `url` | Public route where the resource can be unlocked. |
@@ -48,7 +57,7 @@ The creator site remains the source of truth. Nibgate stores metadata for search
 
 ## Content lifecycle
 
-Content can be upserted repeatedly. Use the same `externalId` so Nibgate updates the same content record instead of creating duplicates.
+Content can be reported repeatedly. Use the same `id` so Nibgate updates the same content record instead of creating duplicates.
 
 ## Deterministic content id
 
@@ -57,21 +66,11 @@ For reputation and rating contracts, every content item should resolve to a stab
 A practical shape is:
 
 ```txt
-contentId = hash(chainId, creatorWallet, domain, path, externalId)
+contentId = hash(chainId, creatorWallet, domain, path, id)
 ```
 
 The creator should not need to mint each content item. The package can derive this id from the verified site and resource metadata, then use it for unlock receipts, rating eligibility, and rating events.
 
 ## Rating handoff
 
-After a wallet or agent unlocks a resource, the package can expose a rating flow. Unlock/payment remains creator-site native; the receipt makes the wallet eligible to rate.
-
-```ts
-await nibgate.rate({
-  externalId: "post_123",
-  rating: 4.5,
-  review: "Useful and accurately described."
-})
-```
-
-Under the hood, the package should resolve the content id, check unlock eligibility from the indexed receipt, and either submit a rating transaction or create an attested rating proof depending on the site configuration.
+After a wallet or agent unlocks a resource, the package can expose a rating flow in a later adapter. Unlock/payment remains creator-site native; the receipt makes the wallet eligible to rate. The package should resolve the content id, check unlock eligibility from the indexed receipt, and then either submit a rating transaction or create an attested rating proof depending on the site configuration.

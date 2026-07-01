@@ -107,7 +107,7 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
           <Link href={productHref(product)}><h2>{product.title}</h2></Link>
           <small>{product.summary}</small>
           <TagPills tags={product.tags} />
-          <Link className="explore-creator" href="/explore/creators">
+          <Link className="explore-creator" href="/leaderboards?type=creators">
             {product.avatar && <img src={product.avatar} alt="" loading="lazy" />}
             {product.creator}
           </Link>
@@ -207,7 +207,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
         <TagPills tags={product.tags} />
         
         <div className="market-info-footer">
-          <Link className="market-creator" href="/explore/creators">
+          <Link className="market-creator" href="/leaderboards?type=creators">
             <img className="market-avatar" src={avatar} alt="Creator" />
             <span className="market-creator-name">{product.creator || 'Creator'}</span>
           </Link>

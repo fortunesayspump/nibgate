@@ -12,6 +12,7 @@ const TYPE_ALIASES = {
   movie: 'video',
   clip: 'video'
 };
+const ACCESS_MODES = ['free', 'paid', 'blocked'];
 
 function browserWindow() {
   return typeof window === 'undefined' ? null : window;
@@ -21,6 +22,23 @@ function normalizeContentType(value) {
   const type = String(value || '').trim().toLowerCase();
   if (CONTENT_TYPES.includes(type)) return type;
   return TYPE_ALIASES[type] || 'article';
+}
+
+function normalizeAccessMode(value, fallback = 'paid') {
+  const mode = String(value || '').trim().toLowerCase();
+  return ACCESS_MODES.includes(mode) ? mode : fallback;
+}
+
+function normalizeAccessPolicy(value = {}) {
+  if (typeof value === 'string') {
+    const mode = normalizeAccessMode(value);
+    return { humans: mode, agents: mode };
+  }
+
+  return {
+    humans: normalizeAccessMode(value.humans || value.human || value.default, 'paid'),
+    agents: normalizeAccessMode(value.agents || value.agent || value.default, 'paid')
+  };
 }
 
 function normalizeResource(resource = {}) {
@@ -34,7 +52,8 @@ function normalizeResource(resource = {}) {
     path: input.path || input.route || undefined,
     url: input.url || undefined,
     imageUrl: input.imageUrl || input.image || undefined,
-    tags: input.tags || undefined
+    tags: input.tags || undefined,
+    access: normalizeAccessPolicy(input.access)
   };
 }
 
@@ -211,4 +230,4 @@ export function createNibgate(defaults = {}) {
 
 export const nibgate = createNibgate();
 export const gate = createGate;
-export { CONTENT_TYPES, normalizeContentType, normalizeResource };
+export { CONTENT_TYPES, ACCESS_MODES, normalizeContentType, normalizeResource, normalizeAccessPolicy };

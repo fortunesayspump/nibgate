@@ -1,0 +1,284 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Content structures
+
+Creators do not all publish the same way. Some use a database, some use MDX files, some use WordPress or Ghost, some ship static sites, and some sell media files or API routes. Nibgate should support each pattern without becoming the creator's CMS.
+
+<Callout type="warning" emoji="!">
+Real gating must happen before the private payload is returned. If protected content is already in public HTML, JavaScript bundles, static files, or open APIs, it can be scraped.
+</Callout>
+
+## The common shape
+
+Every content system needs to map its own record into a Nibgate resource:
+
+```ts
+type NibgateResource = {
+  id: string
+  title: string
+  type: 'article' | 'music' | 'image' | 'video'
+  price: string
+  path: string
+  imageUrl?: string
+  tags?: string[]
+  access: {
+    humans: 'free' | 'paid' | 'blocked'
+    agents: 'free' | 'paid' | 'blocked'
+  }
+}
+```
+
+The creator's system remains the source of truth. Nibgate uses the mapped resource to enforce access, build payment challenges, report events, and index public metadata.
+
+## Database or custom CMS
+
+This is the cleanest pattern.
+
+The creator stores gating fields beside the content row:
+
+```ts
+const post = {
+  id: 'post_123',
+  slug: 'agent-economy',
+  title: 'The agent economy needs native payments',
+  body: 'Private content from the database',
+  price: '0.005',
+  humanAccess: 'paid',
+  agentAccess: 'paid'
+}
+```
+
+Map the row before enforcing access:
+
+```ts
+function postToNibgateResource(post) {
+  return {
+    id: post.id,
+    title: post.title,
+    type: 'article',
+    price: post.price,
+    path: `/blog/${post.slug}`,
+    access: {
+      humans: post.humanAccess,
+      agents: post.agentAccess
+    }
+  }
+}
+```
+
+Request flow:
+
+```ts
+const post = await db.posts.findUnique({ where: { slug } })
+const resource = postToNibgateResource(post)
+const access = nibgate.accessFor(request, resource)
+
+if (access.allowed) return renderFullPost(post)
+if (access.blocked) return forbidden()
+return paymentRequired(nibgate.createPaymentChallenge(resource, { actor: access.actor }))
+```
+
+Use this for Supabase, Prisma/Postgres, MongoDB, custom dashboards, and creator-owned apps.
+
+## Creator admin UI
+
+If the creator already has a blog admin page, the gating settings should live there. Nibgate does not need to own their editor.
+
+Add a section to the post editor:
+
+```txt
+Nibgate access
+
+[ ] Publish to Nibgate discovery
+
+Human access
+( ) Free
+( ) Paid
+( ) Blocked
+
+Agent access
+( ) Free
+( ) Paid
+( ) Blocked
+
+Price
+[ 0.005 ] USDC
+
+Payment receiver
+[ Site default receiver ]
+
+License
+[ Paid read access with citation allowed ]
+```
+
+Save those fields in the creator's own DB:
+
+```ts
+type Post = {
+  id: string
+  slug: string
+  title: string
+  body: string
+  coverImage?: string
+  tags: string[]
+  nibgateEnabled: boolean
+  nibgateType: 'article' | 'music' | 'image' | 'video'
+  nibgatePrice: string
+  humanAccess: 'free' | 'paid' | 'blocked'
+  agentAccess: 'free' | 'paid' | 'blocked'
+  paymentReceiver?: string
+}
+```
+
+The route then loads the post, maps it into a Nibgate resource, and enforces access before rendering the body.
+
+## Frameworks
+
+The package model is not tied to one framework.
+
+<Cards>
+  <Cards.Card title="Next.js">
+    Use route handlers, API routes, SSR pages, or MDX server rendering. Do not statically ship paid content.
+  </Cards.Card>
+  <Cards.Card title="React">
+    Use `gate(...)` for browser events and unlock UI. Pair it with an API/backend route for real protection.
+  </Cards.Card>
+  <Cards.Card title="Express or NestJS">
+    Use `nibgate/server` inside middleware, guards, or controllers before returning content.
+  </Cards.Card>
+  <Cards.Card title="Plain HTML">
+    Use the widget for verification/events. Paid content needs a protected API, edge function, or signed file URL.
+  </Cards.Card>
+</Cards>
+
+## MDX and markdown files
+
+For MDX, the filesystem acts like the content database. Put gating metadata in frontmatter:
+
+```mdx
+---
+title: The agent economy needs native payments
+slug: agent-economy
+price: "0.005"
+humanAccess: paid
+agentAccess: paid
+type: article
+tags:
+  - agents
+  - payments
+---
+
+Private MDX body here.
+```
+
+Safe MDX gating means the full private body is not shipped in public static output. The server should read frontmatter, check Nibgate access, and only compile/render the full MDX after access is allowed.
+
+Safe:
+
+```txt
+request -> read frontmatter -> check access -> render full MDX only if allowed
+```
+
+Unsafe:
+
+```txt
+paid.mdx -> static build -> full paid HTML exists publicly
+```
+
+For static MDX sites, use a public teaser page plus a protected route that returns the full compiled content after payment.
+
+## Traditional CMS
+
+Examples include WordPress, Ghost, Drupal, and similar systems where content is edited in a CMS and rendered by the same platform.
+
+The best integration is a plugin, theme helper, or server middleware that:
+
+- adds fields for `price`, `humanAccess`, and `agentAccess`
+- maps the CMS post to a Nibgate resource
+- prevents full protected rendering until access is allowed
+- emits content/view/unlock events through the widget/package
+
+Closed hosted platforms may only allow the widget and public analytics. Real route locking requires server-side extension points.
+
+## Headless CMS
+
+Examples include Sanity, Contentful, Strapi, DatoCMS, Hygraph, and custom headless APIs.
+
+Store Nibgate fields in the CMS schema:
+
+- price
+- content type
+- human access mode
+- agent access mode
+- cover image
+- tags
+
+Then map each CMS entry in the frontend/server app before returning content. The content API must not expose protected bodies without checking access.
+
+## Static sites
+
+Static sites are fine for public metadata and teasers. They are not safe for private paid payloads if the full content is generated into public files.
+
+Use this pattern:
+
+```txt
+static teaser page
+  -> unlock button
+  -> protected API/edge route
+  -> full content or signed file URL after payment
+```
+
+Static generators can still publish `/nibgate.json` for public metadata.
+
+## Files, downloads, and media
+
+Paid files, image packs, music, and video should not sit at permanent public URLs.
+
+Use one of these patterns:
+
+- protected route streams the file after access is allowed
+- protected route issues a short-lived signed URL
+- protected route returns a signed media manifest
+
+For video/audio streaming, protect the manifest or signed segment URLs. If the raw file URL is public, Nibgate cannot stop scraping.
+
+## API routes and agent resources
+
+APIs are a strong fit for x402-style access.
+
+Agents can request a JSON, Markdown, dataset, or tool route:
+
+```txt
+agent request -> no proof -> 402 payment challenge
+agent pays -> retries with proof -> receives response
+```
+
+Use `access.agents = 'paid'` when humans can view public pages but agents must pay for structured access, scraping, citation, or API use.
+
+## Access policy examples
+
+<Cards>
+  <Cards.Card title="Paid for everyone">
+    Humans and agents both need proof: `access: { humans: 'paid', agents: 'paid' }`
+  </Cards.Card>
+  <Cards.Card title="Free humans, paid agents">
+    Public human page, paid crawler/agent access: `access: { humans: 'free', agents: 'paid' }`
+  </Cards.Card>
+  <Cards.Card title="Paid humans, blocked agents">
+    Human checkout is allowed, agent access is denied: `access: { humans: 'paid', agents: 'blocked' }`
+  </Cards.Card>
+</Cards>
+
+## Adapter checklist
+
+We should tackle support in this order:
+
+1. Custom DB/CMS apps.
+2. MDX/frontmatter sites.
+3. Headless CMS entries.
+4. Static teaser plus protected API pattern.
+5. Files/media with signed URLs.
+6. Traditional CMS plugin patterns.
+7. Agent/API route helpers.
+
+The core package should stay small. Framework and CMS helpers can be added as adapters after the base access model is stable.

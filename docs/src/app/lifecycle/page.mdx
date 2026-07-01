@@ -73,7 +73,11 @@ const guide = gate({
   type: "article",
   price: "0.01",
   currency: "USDC",
-  path: "/premium-guide"
+  path: "/premium-guide",
+  access: {
+    humans: "paid",
+    agents: "paid"
+  }
 })
 ```
 
@@ -130,16 +134,7 @@ Once the receipt is indexed and verified, that wallet or agent becomes eligible 
 
 ### Rating is submitted
 
-The eligible wallet can submit a rating proof or onchain rating event, depending on the site/product configuration.
-
-```ts
-await guide.rate({
-  rating: 4.5,
-  review: "Useful and accurately described."
-})
-```
-
-The package resolves the content id, checks unlock eligibility, and handles the rating submission path.
+The eligible wallet can submit a rating proof or onchain rating event, depending on the site/product configuration. The package should resolve the content id, check unlock eligibility, and hand off to the configured rating submission path once that adapter exists.
 
 ### Reputation updates
 

@@ -14,6 +14,7 @@ export default {
   },
   "quick-start": "Quick start",
   "install-package": "Install package",
+  "content-structures": "Content structures",
   widget: "Hub widget",
   "verify-site": "Verify a site",
   "---data": {

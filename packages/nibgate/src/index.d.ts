@@ -1,4 +1,12 @@
 export type NibgateContentType = 'music' | 'video' | 'article' | 'image';
+export type NibgateAccessMode = 'free' | 'paid' | 'blocked';
+export type NibgateAccessPolicy = {
+  humans?: NibgateAccessMode;
+  human?: NibgateAccessMode;
+  agents?: NibgateAccessMode;
+  agent?: NibgateAccessMode;
+  default?: NibgateAccessMode;
+};
 
 export type NibgateResource = {
   id: string;
@@ -13,6 +21,7 @@ export type NibgateResource = {
   imageUrl?: string;
   image?: string;
   tags?: string[] | string;
+  access?: NibgateAccessMode | NibgateAccessPolicy;
   [key: string]: unknown;
 };
 
@@ -63,8 +72,10 @@ export type NibgateGate = {
 };
 
 export declare const CONTENT_TYPES: readonly ['music', 'video', 'article', 'image'];
+export declare const ACCESS_MODES: readonly ['free', 'paid', 'blocked'];
 export declare function normalizeContentType(type?: string): NibgateContentType;
 export declare function normalizeResource(resource?: NibgateResource | string): NibgateResource;
+export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;
 export declare function createGate(resource: NibgateResource | string, options?: NibgateGateOptions): NibgateGate;
 export declare const gate: typeof createGate;
 export declare function createNibgate(defaults?: { resource?: NibgateResource }): NibgateClient;

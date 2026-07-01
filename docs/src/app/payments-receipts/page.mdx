@@ -35,8 +35,10 @@ Unlock completion events should include:
 - `currency`
 - `receiver`
 - `siteId`
-- `contentId` or `externalId`
-- `transactionHash` or `gatewayReceiptId`
+- `contentId`
+- `txHash` for chain transactions
+- `paymentId` for gateway/provider records
+- `receiptUrl` when the provider returns a real receipt URL
 - `chainExplorerUrl` when available
 - `paidAt`
 

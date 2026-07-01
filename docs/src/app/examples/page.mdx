@@ -20,14 +20,24 @@ A good Nibgate example should always show three things: the protected resource, 
 Protect a premium article route, report article metadata, and stream unlock receipts into earnings.
 
 ```ts
-nibgate.content.upsert({
-  externalId: "article_launch_note",
+import { gate } from "nibgate"
+
+const launchNote = gate({
+  id: "article_launch_note",
   type: "article",
   title: "Launch note for paid subscribers",
+  path: "/launch-note",
   url: "https://creator.com/launch-note",
   price: "1.50",
-  currency: "USDC"
+  currency: "USDC",
+  access: {
+    humans: "paid",
+    agents: "paid"
+  }
 })
+
+launchNote.content()
+launchNote.view()
 ```
 
 ## Music drop
@@ -51,7 +61,7 @@ The origin must be verified before public discovery events are trusted.
 
 ### Publish content metadata
 
-Send a stable external id, content type, public URL, price, and tags.
+Send a stable id, content type, public URL/path, price, tags, and human/agent access policy.
 
 ### Gate the resource
 

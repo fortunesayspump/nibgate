@@ -1,6 +1,24 @@
 import crypto from 'node:crypto';
 
 const DEFAULT_UNLOCK_SECONDS = 60 * 60 * 12;
+const ACCESS_MODES = ['free', 'paid', 'blocked'];
+
+function normalizeAccessMode(value, fallback = 'paid') {
+  const mode = String(value || '').trim().toLowerCase();
+  return ACCESS_MODES.includes(mode) ? mode : fallback;
+}
+
+function normalizeAccessPolicy(value = {}) {
+  if (typeof value === 'string') {
+    const mode = normalizeAccessMode(value);
+    return { humans: mode, agents: mode };
+  }
+
+  return {
+    humans: normalizeAccessMode(value.humans || value.human || value.default, 'paid'),
+    agents: normalizeAccessMode(value.agents || value.agent || value.default, 'paid')
+  };
+}
 
 function normalizeResource(resource = {}) {
   const input = typeof resource === 'string' ? { id: resource } : (resource || {});
@@ -11,8 +29,31 @@ function normalizeResource(resource = {}) {
     type: String(input.type || input.contentType || 'article').trim().toLowerCase(),
     price: input.price ?? input.amount ?? '0',
     path: input.path || input.route || '/',
-    currency: input.currency || 'USDC'
+    currency: input.currency || 'USDC',
+    access: normalizeAccessPolicy(input.access)
   };
+}
+
+function actorFromRequest(request, fallback = 'human') {
+  const explicit = request?.headers?.get?.('x-nibgate-actor') || request?.headers?.get?.('x-actor');
+  if (explicit && String(explicit).toLowerCase() === 'agent') return 'agent';
+  if (explicit && String(explicit).toLowerCase() === 'human') return 'human';
+
+  const accept = request?.headers?.get?.('accept') || '';
+  if (accept.includes('application/json') && request?.headers?.get?.('x402') === 'true') return 'agent';
+
+  const userAgent = (request?.headers?.get?.('user-agent') || '').toLowerCase();
+  if (/(bot|crawler|spider|agent|llm|gpt|claude|perplexity|anthropic|openai|mistral|gemini|firecrawl)/i.test(userAgent)) {
+    return 'agent';
+  }
+
+  return fallback;
+}
+
+function accessModeFor(resourceInput, actor = 'human') {
+  const resource = normalizeResource(resourceInput);
+  const access = normalizeAccessPolicy(resource.access);
+  return actor === 'agent' ? access.agents : access.humans;
 }
 
 function stableJson(value) {
@@ -95,6 +136,7 @@ export function verifyUnlockToken(token, resourceInput, options = {}) {
 export function createPaymentChallenge(resourceInput, options = {}) {
   const resource = normalizeResource(resourceInput);
   const origin = options.origin || process.env.NIBGATE_SITE_ORIGIN || '';
+  const actor = options.actor || 'human';
   return {
     x402Version: options.x402Version || 2,
     status: 402,
@@ -119,7 +161,9 @@ export function createPaymentChallenge(resourceInput, options = {}) {
       contentType: resource.type,
       price: String(resource.price),
       currency: resource.currency,
-      path: resource.path
+      path: resource.path,
+      actor,
+      access: resource.access
     }
   };
 }
@@ -154,20 +198,52 @@ export function createNibgateServer(options = {}) {
     };
   }
 
-  function isUnlocked(request, resourceInput) {
+  function isUnlocked(request, resourceInput, checkOptions = {}) {
     const resource = normalizeResource(resourceInput);
     const token = request?.headers?.get?.('x-nibgate-unlock') || getCookie(request, unlockCookieName(resource));
-    return Boolean(verifyUnlockToken(token, resource, { secret }));
+    const payload = verifyUnlockToken(token, resource, { secret });
+    if (!payload) return false;
+    if (checkOptions.actor && payload.actor && payload.actor !== checkOptions.actor) return false;
+    return true;
+  }
+
+  function accessFor(request, resourceInput, accessOptions = {}) {
+    const resource = normalizeResource(resourceInput);
+    const actor = accessOptions.actor || actorFromRequest(request, accessOptions.defaultActor || 'human');
+    const mode = accessModeFor(resource, actor);
+    const unlocked = isUnlocked(request, resource, { actor });
+    return {
+      actor,
+      mode,
+      unlocked,
+      allowed: mode === 'free' || unlocked,
+      blocked: mode === 'blocked',
+      paid: mode === 'paid',
+      resource
+    };
   }
 
   function protect(resourceInput, handler, routeOptions = {}) {
     const resource = normalizeResource(resourceInput);
     return async function protectedHandler(request, context) {
-      if (isUnlocked(request, resource)) {
+      const access = accessFor(request, resource, routeOptions);
+      if (access.allowed) {
         return handler(request, context);
       }
 
-      const challenge = createPaymentChallenge(resource, { ...options, ...routeOptions });
+      if (access.blocked) {
+        return jsonResponse({
+          status: 403,
+          error: `${access.actor} access is blocked for this resource`,
+          nibgate: {
+            contentId: resource.id,
+            actor: access.actor,
+            access: resource.access
+          }
+        }, { status: 403 });
+      }
+
+      const challenge = createPaymentChallenge(resource, { ...options, ...routeOptions, actor: access.actor });
       return jsonResponse(challenge, { status: 402 });
     };
   }
@@ -175,10 +251,13 @@ export function createNibgateServer(options = {}) {
   return {
     unlock,
     isUnlocked,
+    accessFor,
     protect,
     createPaymentChallenge: (resource, challengeOptions = {}) => createPaymentChallenge(resource, { ...options, ...challengeOptions }),
     createUnlockToken: (resource, tokenOptions = {}) => createUnlockToken(resource, { ...tokenOptions, secret }),
-    verifyUnlockToken: (token, resource) => verifyUnlockToken(token, resource, { secret })
+    verifyUnlockToken: (token, resource) => verifyUnlockToken(token, resource, { secret }),
+    actorFromRequest,
+    accessModeFor
   };
 }
 
@@ -187,3 +266,4 @@ export function protect(resource, handler, options = {}) {
 }
 
 export const server = createNibgateServer();
+export { actorFromRequest, accessModeFor, normalizeAccessPolicy };

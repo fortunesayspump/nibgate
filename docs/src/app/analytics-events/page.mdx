@@ -27,7 +27,7 @@ The goal is not just totals. Creators need timeline filters, content-specific de
 The widget can track views, referrers, path, device hints, and time-on-page style signals.
 
 ```ts
-nibgate.track.page({
+window.nibgateHub.track("page_view", {
   path: "/members/post",
   referrer: document.referrer,
   title: document.title
@@ -39,10 +39,21 @@ nibgate.track.page({
 The package can report impressions, preview clicks, unlock starts, unlock completions, failed unlocks, and receipt references.
 
 ```ts
-nibgate.track.content({
-  externalId: "post_123",
-  event: "impression"
+import { gate } from "nibgate"
+
+const post = gate({
+  id: "post_123",
+  title: "Paid research note",
+  type: "article",
+  price: "2.00",
+  path: "/members/post",
+  access: {
+    humans: "paid",
+    agents: "paid"
+  }
 })
+
+post.track("content_impression")
 ```
 
 ## Unlock flow

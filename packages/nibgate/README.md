@@ -1,12 +1,21 @@
 # nibgate
 
-Lightweight browser SDK for creator sites using Nibgate.
+Framework-agnostic browser and server package for creator-owned paid content.
 
 ## Install
 
 ```bash
 npm install nibgate
 ```
+
+Use one package with two entrypoints:
+
+```js
+import { gate } from 'nibgate'; // browser/client events and UI helpers
+import { createNibgateServer } from 'nibgate/server'; // server-side access enforcement
+```
+
+This works with Next.js, React apps with an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, custom servers, and CMS/plugin environments. Plain HTML can use the widget and browser events, but real gating still requires a server, edge function, API route, or signed file endpoint.
 
 ## Usage
 
@@ -26,7 +35,11 @@ const premiumGuide = gate({
   title: 'Premium Guide',
   type: 'article',
   price: '0.01',
-  path: '/premium-guide'
+  path: '/premium-guide',
+  access: {
+    humans: 'paid',
+    agents: 'paid'
+  }
 });
 
 premiumGuide.content();
@@ -61,6 +74,80 @@ The package talks to the widget through `window.nibgateHub`. If your app runs be
 
 Content types are `music`, `video`, `article`, and `image`.
 
+## Access policies
+
+For CMS/database-driven sites, keep the gating fields in your own content table, then map each record into a Nibgate resource. Nibgate does not replace your CMS or DB.
+
+If the creator has an admin dashboard, put Nibgate settings in that UI and save them beside the post/content record:
+
+```txt
+Nibgate settings
+- Publish to Nibgate discovery
+- Content type: article / music / image / video
+- Human access: free / paid / blocked
+- Agent access: free / paid / blocked
+- Price
+- Currency
+- Payment receiver
+- License or citation terms
+```
+
+Example creator DB row:
+
+```js
+const post = {
+  id: 'post_123',
+  slug: 'agent-economy',
+  title: 'The agent economy needs native payments',
+  price: '0.005',
+  humanAccess: 'paid',
+  agentAccess: 'paid',
+  body: 'Private content stays in your DB.'
+};
+```
+
+Map it before calling the package:
+
+```js
+function postToNibgateResource(post) {
+  return {
+    id: post.id,
+    title: post.title,
+    type: 'article',
+    price: post.price,
+    path: `/blog/${post.slug}`,
+    access: {
+      humans: post.humanAccess,
+      agents: post.agentAccess
+    }
+  };
+}
+```
+
+Use `access` to decide who can read the origin payload before payment:
+
+```js
+access: {
+  humans: 'free' | 'paid' | 'blocked',
+  agents: 'free' | 'paid' | 'blocked'
+}
+```
+
+Examples:
+
+```js
+// Humans and agents both need payment proof.
+access: { humans: 'paid', agents: 'paid' }
+
+// Humans can read publicly, agents need x402/payment proof to crawl or cite.
+access: { humans: 'free', agents: 'paid' }
+
+// Humans can pay, agents cannot access this route.
+access: { humans: 'paid', agents: 'blocked' }
+```
+
+Real locking must happen on the server. If you render the full protected payload into HTML and hide it with CSS, crawlers can still scrape it. `nibgate/server` is what prevents the protected response from being returned until the request is free, paid with proof, or explicitly allowed by policy.
+
 ## Server protection
 
 Use `nibgate/server` for real route protection. The server layer creates x402-style payment challenges, verifies your payment receipt, and issues a short-lived Nibgate unlock token for the route.
@@ -83,7 +170,11 @@ export const GET = nibgateServer.protect({
   title: 'Premium Guide',
   type: 'article',
   price: '0.01',
-  path: '/premium-guide'
+  path: '/premium-guide',
+  access: {
+    humans: 'paid',
+    agents: 'paid'
+  }
 }, async () => {
   return new Response('Premium content');
 });

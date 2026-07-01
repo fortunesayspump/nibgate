@@ -32,7 +32,7 @@ function WishlistCard({ wishlist }: { wishlist: Wishlist }) {
         <header>
           <Link href="/explore/wishlists"><h3>{wishlist.title}</h3></Link>
           {wishlist.copy && <p>{wishlist.copy}</p>}
-          <Link className="wishlist-creator" href="/explore/creators">
+          <Link className="wishlist-creator" href="/leaderboards?type=creators">
             <span>{wishlist.creator}</span>
           </Link>
         </header>

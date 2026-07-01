@@ -63,7 +63,7 @@ Content types are `music`, `video`, `article`, and `image`.
 
 ## Server protection
 
-Use `nibgate/server` for real route protection. The server layer returns an x402-style `402 Payment Required` challenge until the request has a valid Nibgate unlock token.
+Use `nibgate/server` for real route protection. The server layer creates x402-style payment challenges, verifies your payment receipt, and issues a short-lived Nibgate unlock token for the route.
 
 ```js
 import { createNibgateServer } from 'nibgate/server';
@@ -101,3 +101,23 @@ Nibgate supports two receipt paths for the current product direction:
 - `arc-testnet`: store the Arc transaction hash and optional `chainExplorerUrl`, usually an Arcscan transaction URL.
 
 Do not fabricate gateway receipt URLs. If no provider receipt URL exists, send the payment id/hash and Nibgate will show the recorded payment with the best available explorer link.
+
+## Local demo
+
+The repo includes a plain Express creator site that uses the package without any framework adapter:
+
+```bash
+npm run dev:demo
+```
+
+The demo imports `nibgate/server`, serves the browser client locally, registers article/music/image/video content, and protects `/articles/premium-agent-economy`.
+
+Real unlocks are fail-closed. Set these env vars before using the local Gateway payment button:
+
+```bash
+NIBGATE_PAYMENT_MODE=circle-gateway
+NIBGATE_SELLER_ADDRESS=0xYourSellerAddress
+NIBGATE_BUYER_PRIVATE_KEY=0xYourFundedBuyerPrivateKey
+```
+
+Without a real Gateway payment, the server will not issue a Nibgate unlock token.

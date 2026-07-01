@@ -72,14 +72,14 @@ export default function FeaturesPage() {
       <header className="relative flex flex-col items-center justify-center h-auto bg-gray text-center gap-20 px-8 pt-16 pb-20 md:pt-20 md:pb-24 lg:pt-28 lg:pb-36">
         <div className="flex flex-col max-w-2xl gap-8 lg:gap-10 lg:max-w-3xl">
           <div className="text-xl md:text-2xl">Product features</div>
-          <h1 className="nibgate-display-title text-5xl font-medium md:text-6xl lg:text-8xl">Built for new beginnings</h1>
-          <div className="text-xl md:text-2xl">Nibgate is a powerful, simple toolkit that puts paid content, verification, and discovery tools at your fingertips.</div>
+          <h1 className="nibgate-display-title text-5xl font-medium md:text-6xl lg:text-8xl">The package and hub for paid content</h1>
+          <div className="text-xl md:text-2xl">Install the package on your own site, protect paid routes, stream content events, and make verified creator work discoverable to humans and AI agents.</div>
         </div>
 
         <div className="hidden relative mx-auto h-96 w-full max-w-6xl overflow-hidden bg-gray p-8 rounded-full border lg:block">
           <div className="relative z-10 flex h-full flex-col justify-between border border-dark-gray/50 bg-gray rounded-full px-8">
             <div className="-mt-3 justify-between px-32 flex">
-              {['Connect Wallet', 'Connect Site', 'Publish Route'].map((label, i) => (
+              {['Install package', 'Verify site', 'Protect route'].map((label, i) => (
                 <div key={i} className="flex h-6 items-center bg-gray pr-6 gap-x-3">
                   <img className="h-6 w-6 -translate-x-3 -translate-y-px" src={featureAsset('arrowhead-right.svg')} alt="" />
                   <div className="text-xl xl:text-2xl">{label}</div>
@@ -93,7 +93,7 @@ export default function FeaturesPage() {
               <img className="h-32 w-auto" src={undrawAsset('analytics.svg')} alt="Analytics" />
             </div>
             <div className="-mb-3 justify-between px-32 flex">
-              {['Repeat', 'Get paid'].map((label, i) => (
+              {['Stream events', 'Rank content'].map((label, i) => (
                 <div key={i} className="flex h-6 items-center bg-gray pl-6 gap-x-3">
                   <div className="text-xl xl:text-2xl">{label}</div>
                   <img className="h-6 w-6 translate-x-3 translate-y-px rotate-180" alt="" src={featureAsset('arrowhead-right.svg')} />
@@ -110,9 +110,9 @@ export default function FeaturesPage() {
       </header>
 
       {featureIntro({
-        eyebrow: 'Customizable Options',
-        title: 'Your store, your way',
-        copy: 'Nibgate plays well with others. Set up your paid routes on our platform, or easily embed them on your existing site.'
+        eyebrow: 'Package features',
+        title: 'Gate content from your own site',
+        copy: 'Nibgate starts with a simple npm package. Your content stays on your domain while the package handles content registration, route protection, unlock events, and payment receipt metadata.'
       })}
 
       <SplitBand
@@ -123,16 +123,16 @@ export default function FeaturesPage() {
         reverse={true}
         border="border-y"
         textItems={[
-          ['Create a home here', 'No site? No problem. Publish gated routes and build a storefront around your work.'],
-          ['Use your own website, too', 'Already have a site? Add the package, verify your domain, and keep ownership.'],
-          ['Power-up your page', 'Embed unlock flows, paid links, and discovery signals from your existing stack.']
+          ['One install', 'Use `npm install nibgate`, import `gate(...)`, and describe the article, music, image, video, file, or route you want Nibgate to track.'],
+          ['Real route protection', 'Use `nibgate/server` to return payment challenges, verify receipts, and issue unlock tokens only after payment succeeds.'],
+          ['Framework-light by default', 'The v1 package is plain browser and server JavaScript first, so creators are not forced into one frontend engine.']
         ]}
       />
 
       {featureIntro({
-        eyebrow: 'Payment Integrations',
-        title: 'Money, incoming',
-        copy: "Once your wallet and site are connected, paid routes can unlock with normal crypto-native checkout."
+        eyebrow: 'Payments and unlocks',
+        title: 'Paid access without custody',
+        copy: "Nibgate records payment and unlock metadata, but funds route from buyer to the creator's configured receiving address. The hub is analytics and discovery, not a withdrawal wallet."
       })}
 
       <SplitBand
@@ -141,9 +141,9 @@ export default function FeaturesPage() {
         imageBg="bg-gray"
         titleColor="text-white"
         textItems={[
-          ['Create simple memberships', "Give customers access to paid content for as long as they're subscribed."],
-          ['Set up subscriptions', 'Let customers pay over time with recurring access.'],
-          ["The sky's the limit", 'Give your audience the chance to pay for the work they value.']
+          ['Circle Gateway and x402 direction', 'Use Gateway/x402-style payment challenges for paid routes, with Arc testnet and Circle Gateway receipt metadata supported in the product direction.'],
+          ['Unlock tokens after verification', 'The server issues Nibgate unlock tokens only after the creator payment layer reports a verified payment receipt.'],
+          ['Multiple sites, multiple receivers', 'A creator can verify multiple sites, and each site can route payments to its own configured receiving address.']
         ]}
       />
 
@@ -154,8 +154,8 @@ export default function FeaturesPage() {
         titleColor="text-white"
         reverse={true}
         textItems={[
-          ['Say yes to different currencies', 'Increase opportunities by accepting payments from a broader audience.'],
-          ["Don't sweat verification", 'Use one widget script so the hub can verify ownership and receive live content events.']
+          ['Payment receipts that mean something', 'Store Circle payment ids and receipt URLs when available, or Arc transaction hashes and explorer links for testnet flows.'],
+          ['No fake unlocks', 'The package can demo the UI, but production unlocks should fail closed until the site verifies a real payment.']
         ]}
       />
 
@@ -166,16 +166,16 @@ export default function FeaturesPage() {
         titleColor="text-white"
         border="border-y"
         textItems={[
-          ['Generate access', 'Publishing software or private routes? Nibgate can protect what buyers unlock.'],
-          ['Offer multiple versions', 'Offer different paid formats, tiers, or route bundles.'],
-          ['Protect your work', 'Keep paid content behind a real unlock flow and make access auditable.']
+          ['Register content metadata', 'The package sends public metadata for articles, music, images, and videos so the hub can index what exists without hosting the private payload.'],
+          ['Track unlock activity', 'Emit views, unlock starts, completed unlocks, payment receipts, and custom events through the widget bridge.'],
+          ['Keep private content private', 'Nibgate Hub discovers and ranks content metadata; the actual paid content remains on the creator site.']
         ]}
       />
 
       {featureIntro({
-        eyebrow: 'Comprehensive Platform',
-        title: 'From start to finesse',
-        copy: 'A package, app, examples, and discovery layer so you can connect a wallet and publish paid routes quickly.'
+        eyebrow: 'Hub features',
+        title: 'A verified discovery layer',
+        copy: 'The hub connects creator wallets, verified domains, package events, analytics, earnings records, and reputation into one place for people and agents to discover quality content.'
       })}
 
       <SplitBand
@@ -184,9 +184,9 @@ export default function FeaturesPage() {
         imageBg="bg-gray"
         titleColor="text-white"
         textItems={[
-          ['Tools to get going fast', 'Create paid routes quickly or embed the Nibgate package onto an existing site.'],
-          ['Publish anything', "We don't limit your ideas. Articles, files, tools, APIs, or memberships can all fit."],
-          ['Bring your friends', 'Route your existing audience to a familiar domain and let the hub amplify what is public.']
+          ['Verified sites', 'Add a domain in the dashboard, paste the widget script, and let Nibgate verify ownership before content becomes trusted in the hub.'],
+          ['Content discovery', 'Explore surfaces verified articles, music, images, and videos with source context, pricing, tags, and reputation signals.'],
+          ['Agent-readable context', 'The hub and site metadata give AI agents a cleaner way to discover paid content, understand price, and route users back to the origin site.']
         ]}
       />
 
@@ -197,17 +197,17 @@ export default function FeaturesPage() {
         titleColor="text-white"
         reverse={true}
         textItems={[
-          ['Be ready when they are', 'Customers can unlock the thing they came for without weird detours.'],
-          ['Make decisions with your data', 'See routes, views, unlocks, and public discovery signals in one place.'],
-          ['Grow your audience', 'Publish updates, surface paid routes, and connect people back to creator-owned work.']
+          ['Analytics by site and content', 'See views, content events, unlock starts, completed unlocks, traffic sources, timelines, and historical trends.'],
+          ['Earnings records', 'Track paid unlock revenue, receiving addresses, payment ids, transaction hashes, and receipt links without implying Nibgate custodies funds.'],
+          ['Reputation and leaderboards', 'Content earns ratings and engagement signals, which roll up into site and creator reputation for ranking and discovery.']
         ]}
       />
 
       <div className="flex flex-col items-center justify-center text-center bg-gray gap-8 px-8 py-16 lg:px-[4vw] lg:py-24 lg:gap-16">
         <h2 className="text-4xl font-medium sm:text-5xl lg:text-7xl">
-          Share your work. <br /> Someone out there needs it.
+          Own the route. <br /> Let the hub discover it.
         </h2>
-        <Link className="nibgate-soft-cta" href="/get-started">Connect your site</Link>
+        <Link className="nibgate-soft-cta" href="/get-started">Start with the package</Link>
       </div>
       </div>
       <Footer showThemeToggle={true} />

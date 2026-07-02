@@ -2,13 +2,16 @@ import { Cards, Steps } from 'nextra/components'
 
 # Architecture
 
-Nibgate is built around a creator-owned origin, a package that gates content, a widget that verifies the site, and a hub that indexes metadata and events.
+Nibgate is built around a creator-owned origin or verified publishing platform, a package that gates content, a widget that verifies the site, and a hub that indexes metadata and events.
 
 ## System parts
 
 <Cards>
   <Cards.Card title="Creator site" href="/architecture#creator-site">
     The site that owns the content, routes, payment receiver, and unlock experience.
+  </Cards.Card>
+  <Cards.Card title="Publisher identity" href="/multipublisher-platforms">
+    The creator profile inside a verified platform, linked by wallet to a Nibgate account.
   </Cards.Card>
   <Cards.Card title="Nibgate package" href="/install-package">
     The integration layer for gating, pricing, content events, unlocks, and receipts.
@@ -24,6 +27,8 @@ Nibgate is built around a creator-owned origin, a package that gates content, a 
 ## Creator site
 
 The creator site is the source of truth. It serves the public route, protects paid content, decides receiver addresses, and completes unlock flows.
+
+On a multipublisher platform, the platform domain is the source of truth for routes and widget verification, while each creator is represented by a publisher identity such as `platform.com/@alice`.
 
 ## Nibgate package
 
@@ -44,7 +49,7 @@ The hub receives verified metadata and events. It powers the creator dashboard, 
 <Steps>
 ### Register site
 
-The creator connects wallet and adds an origin.
+The creator or platform owner connects wallet and adds an origin.
 
 ### Verify ownership
 
@@ -52,7 +57,7 @@ The creator pastes the widget and the backend confirms the token exists.
 
 ### Publish metadata
 
-The package sends structured content records for public discovery.
+The package sends structured content records for public discovery. On a platform, each resource should also include `publisher` metadata so metrics and reputation can be attributed to the correct creator wallet.
 
 ### Gate and unlock
 
@@ -84,3 +89,5 @@ Nibgate then indexes receipts and rating events and computes:
 - content reputation as `0.0-5.0` stars
 - site reputation as `1-100`
 - creator reputation as `1-100`
+
+For multipublisher platforms, creator reputation rolls up from owned sites plus wallet-linked publisher identities. A creator should see `platform.com/@alice` in their dashboard when the platform publisher wallet matches the wallet they use on Nibgate.

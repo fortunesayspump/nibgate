@@ -28,10 +28,10 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(cors((req, callback) => {
-    if (req.path === '/api/hub/track') {
+    if (req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index') {
       return callback(null, {
         origin: true,
-        credentials: false,
+        credentials: true,
         methods: ['POST', 'OPTIONS'],
         allowedHeaders: ['Content-Type']
       });

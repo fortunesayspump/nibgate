@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { startAppServer } from '../../../app/server/start.js';
 import { depositToGateway, emitEvent, initConfig, printManifest, printRoutes, printStatus, showBalance, syncSite, verifySite, connectSite } from '../src/core/commands.js';
 import { printHelp } from '../src/core/output.js';
 
@@ -7,7 +6,10 @@ const command = process.argv[2] || 'help';
 
 const handlers = {
   init: initConfig,
-  dev: startAppServer,
+  dev: async () => {
+    const { startAppServer } = await import('../../../app/server/start.js');
+    return startAppServer();
+  },
   routes: printRoutes,
   manifest: printManifest,
   status: printStatus,

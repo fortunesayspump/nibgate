@@ -8,6 +8,10 @@ This is the full Nibgate chain from creator setup to public discovery, analytics
 The creator site remains the source of truth. Nibgate verifies the source, indexes metadata and receipts, and builds discovery/reputation around that creator-owned content.
 </Callout>
 
+<Callout type="info">
+For multipublisher platforms, the platform verifies the domain and the creator verifies a publisher identity with a wallet. The same wallet should be used on the platform and on Nibgate so the dashboard can show the creator's route, content, metrics, earnings, and reputation.
+</Callout>
+
 ## Flow summary
 
 ```txt
@@ -24,6 +28,17 @@ creator wallet
   -> dashboard + leaderboards
 ```
 
+Multipublisher flow:
+
+```txt
+platform wallet
+  -> verified platform domain
+  -> creator wallet claims @handle
+  -> package-installed platform content
+  -> publisher-scoped events and receipts
+  -> creator dashboard publisher identity
+```
+
 ## Step-by-step
 
 <Steps>
@@ -31,9 +46,13 @@ creator wallet
 
 The creator connects a wallet on `nibgate.xyz`. That wallet becomes the creator account for profile, sites, contents, analytics, earnings, and reputation.
 
+If the creator publishes on a platform, this should be the same wallet they connected on the platform. That match lets Nibgate link `platform.com/@handle` to the creator's Nibgate dashboard.
+
 ### Creator registers a site
 
 The creator adds a domain in the dashboard. Nibgate creates a `siteId`, public verification token, and widget script.
+
+A creator should only register a domain they control. On a multipublisher platform, the platform owner registers the domain. The creator claims a publisher identity instead of adding the platform as a site.
 
 ### Creator adds the widget
 
@@ -45,6 +64,7 @@ The creator pastes the widget into their site HTML.
   src="https://nibgate.xyz/widget.js"
   data-nibgate-site="SITE_ID"
   data-nibgate-token="PUBLIC_SITE_TOKEN"
+  data-nibgate-api="https://api.nibgate.xyz"
 ></script>
 ```
 
@@ -90,6 +110,8 @@ The protected content stays on the creator site. Nibgate stores public metadata 
 
 The package/widget sends metadata to Nibgate: content id, type, title, route, price, tags, preview image, verified site, and creator wallet.
 
+On a platform, the resource should also include `publisher.id`, `publisher.handle`, `publisher.walletAddress`, and `publisher.profileUrl`. That is how events from one verified domain become Alice's metrics instead of only platform-level metrics.
+
 This lets the content appear in dashboard contents, Explore, search, categories, and leaderboards.
 
 ### Viewer or agent discovers content
@@ -127,6 +149,8 @@ guide.unlockCompleted({
 
 Nibgate indexes the content id, site id, creator wallet, buyer wallet when available, provider, receipt reference, amount, and timestamp.
 
+For platform content, Nibgate should also index the publisher id, publisher wallet, profile route, and payment recipient used for that resource.
+
 ### Buyer or agent becomes eligible to rate
 
 Rule:
@@ -139,7 +163,7 @@ Once the receipt is indexed and verified, that wallet or agent becomes eligible 
 
 ### Rating is submitted
 
-The eligible wallet can submit a rating proof or onchain rating event, depending on the site/product configuration. The package should resolve the content id, check unlock eligibility, and hand off to the configured rating submission path once that adapter exists.
+The eligible wallet signs a deterministic Nibgate rating message in the MVP. Later, that can become an onchain rating transaction indexed by Nibgate. Analytics events can support ranking and context, but signed/onchain proof is what should drive trust.
 
 ### Reputation updates
 
@@ -152,6 +176,8 @@ Nibgate indexes rating signals and computes:
 ### Creator dashboard updates
 
 The dashboard updates profile reputation, verified site health, tracked content, analytics, earnings receipts, and content reputation.
+
+For platform publishers, the dashboard should show a Publisher Identities section, such as `@alice on platform.com`, and roll content, metrics, earnings, and reputation into the wallet-linked creator account.
 
 ### Explore and leaderboards update
 

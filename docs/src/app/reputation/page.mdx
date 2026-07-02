@@ -2,9 +2,13 @@ import { Callout, Cards, Steps } from 'nextra/components'
 
 # Reputation
 
-Nibgate reputation starts with content. A creator should not earn abstract trust points just for existing; trust should come from paid unlocks, receipts, onchain ratings, and verified source health attached to actual resources.
+Nibgate reputation starts with content. A creator should not earn abstract trust points just for existing; trust should come from paid unlocks, receipts, verified source health, and onchain ratings attached to actual resources.
 
 <Callout type="important">
+Current MVP reputation uses analytics as context, but reputation-critical inputs are proof-gated. Payment/unlock receipts need provider proof, and ratings are accepted through indexed onchain rating events after unlock eligibility is proven.
+</Callout>
+
+<Callout type="info">
 Unlocks stay creator-site native by default. The creator site/package handles x402, Gateway, or wallet payment flows. Nibgate verifies and indexes the receipt, then enables reputation actions after unlock eligibility is proven.
 </Callout>
 
@@ -16,12 +20,15 @@ Content reputation is the primary score. Site reputation and creator reputation 
 verified unlock/payment receipt
   -> eligible wallet or agent
   -> onchain content rating
+  -> indexed rating proof
   -> content reputation, 0.0-5.0 stars
   -> site reputation, 1-100
   -> creator reputation, 1-100
 ```
 
 A creator can have a strong overall reputation while a specific new piece is still unproven. A new creator can also build trust quickly if their content earns strong ratings from wallets or agents that actually unlocked the work.
+
+For multipublisher platforms, creator reputation can also roll up from publisher identities. A creator who connects `0xAlice` on `platform.com` and signs into Nibgate with `0xAlice` should see reputation from `platform.com/@alice` alongside any personal sites she owns.
 
 ## Reputation objects
 
@@ -33,7 +40,7 @@ A creator can have a strong overall reputation while a specific new piece is sti
     A 1-100 score for a verified domain, based on content quality and source health.
   </Cards.Card>
   <Cards.Card title="Creator reputation" href="/reputation#creator-reputation">
-    A 1-100 score for the wallet/account that owns verified sites and their content.
+    A 1-100 score for the wallet/account that owns verified sites or wallet-linked publisher identities.
   </Cards.Card>
   <Cards.Card title="Agent ratings" href="/reputation#agent-ratings">
     Ratings from agent wallets after verified unlock/payment flows.
@@ -54,7 +61,7 @@ The default unlock path does not need to go through a Nibgate payment contract. 
 
 ## Onchain rating model
 
-The rating itself can be an onchain event after eligibility is proven.
+The rating itself is an onchain event after eligibility is proven. The package submits the rating transaction from the visitor or agent wallet, then the Nibgate backend indexes the event and accepts it only when that wallet has a matching unlock receipt/proof for the content.
 
 ```solidity
 rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, bytes unlockProof)
@@ -95,7 +102,7 @@ The wallet submits a rating transaction using its unlock proof.
 
 ### Index rating event
 
-Nibgate indexes the rating event and updates content stars.
+Nibgate indexes the rating event and updates content stars once the rating/indexer adapter is live.
 
 ### Roll up reputation
 
@@ -127,17 +134,20 @@ Site reputation should be a weighted rollup from content ratings on that domain 
 
 ## Creator reputation
 
-Creator reputation is a 1-100 score attached to the wallet/account that owns verified sites.
+Creator reputation is a 1-100 score attached to the wallet/account that owns verified sites or verified publisher identities.
 
 It should roll up from:
 
 - content star ratings
 - site reputation
+- publisher identity reputation from platforms
 - number of verified useful resources
 - unlock success
 - payment receipt quality
 - buyer/agent rating history
 - penalties from broken, removed, or misleading content
+
+On multipublisher platforms, Nibgate should attribute reputation using the verified site, publisher id, publisher wallet, content id, canonical URL, payment recipient, and receipt or rating proof. The creator's platform wallet should match the wallet used to sign into Nibgate.
 
 ## Agent ratings
 

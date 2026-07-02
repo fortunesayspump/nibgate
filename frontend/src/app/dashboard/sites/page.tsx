@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Clipboard, ExternalLink, Globe2, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { apiBaseUrl } from "@/lib/api";
 
 type DashboardSite = {
   id: string;
@@ -47,7 +48,7 @@ function cleanDomain(domain = "") {
 
 function widgetScript(site: DashboardSite) {
   const hubOrigin = typeof window === "undefined" ? "https://nibgate.xyz" : window.location.origin;
-  return `<script async src="${hubOrigin}/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken}"></script>`;
+  return `<script async src="${hubOrigin}/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken}" data-nibgate-api="${apiBaseUrl()}"></script>`;
 }
 
 function contentMetaSnippet() {

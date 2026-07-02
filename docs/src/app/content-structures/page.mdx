@@ -21,6 +21,14 @@ type NibgateResource = {
   path: string
   imageUrl?: string
   tags?: string[]
+  recipient?: string
+  publisher?: {
+    id: string
+    handle?: string
+    walletAddress?: string
+    profileUrl?: string
+    verification?: 'platform_attested' | 'wallet_verified' | string
+  }
   access: {
     humans: 'free' | 'paid' | 'blocked'
     agents: 'free' | 'paid' | 'blocked'
@@ -29,6 +37,8 @@ type NibgateResource = {
 ```
 
 The creator's system remains the source of truth. Nibgate uses the mapped resource to enforce access, build payment challenges, report events, and index public metadata.
+
+On a multipublisher platform, the platform remains the domain source of truth and the `publisher` object identifies the creator under that verified site.
 
 ## Database or custom CMS
 
@@ -69,6 +79,58 @@ function postToNibgateResource(post) {
   }
 }
 ```
+
+## Multipublisher rows
+
+If many creators publish under one platform domain, store author/publisher fields beside the content row.
+
+```ts
+const post = {
+  id: 'post_123',
+  slug: 'agent-economy',
+  title: 'The agent economy needs native payments',
+  author: {
+    id: 'alice',
+    handle: 'alice',
+    walletAddress: '0xAlice'
+  },
+  price: '0.005',
+  humanAccess: 'paid',
+  agentAccess: 'paid'
+}
+```
+
+Map the post into a publisher-scoped Nibgate resource:
+
+```ts
+function platformPostToNibgateResource(post, origin) {
+  return {
+    id: post.id,
+    title: post.title,
+    type: 'article',
+    price: post.price,
+    recipient: post.author.walletAddress,
+    path: `/@${post.author.handle}/${post.slug}`,
+    url: `${origin}/@${post.author.handle}/${post.slug}`,
+    publisher: {
+      id: post.author.id,
+      handle: post.author.handle,
+      walletAddress: post.author.walletAddress,
+      profileUrl: `${origin}/@${post.author.handle}`,
+      verification: 'wallet_verified'
+    },
+    access: {
+      humans: post.humanAccess,
+      agents: post.agentAccess
+    },
+    unlock: {
+      mode: 'one_time'
+    }
+  }
+}
+```
+
+The platform owner verifies the domain once. Each creator signs into the platform and Nibgate with the same wallet so `platform.com/@handle` can appear as a publisher identity in their Nibgate dashboard.
 
 Request flow:
 

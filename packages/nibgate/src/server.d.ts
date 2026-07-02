@@ -4,19 +4,55 @@ export type NibgateServerResource = {
   type?: 'music' | 'video' | 'article' | 'image' | string;
   contentType?: 'music' | 'video' | 'article' | 'image' | string;
   price?: string | number;
+  paymentRail?: NibgatePaymentRail | string;
   amount?: string | number;
+  recipient?: string;
+  receiver?: string;
+  receiverAddress?: string;
+  payTo?: string;
+  creatorWallet?: string;
   path?: string;
   route?: string;
   url?: string;
+  imageUrl?: string;
+  image?: string;
+  description?: string;
+  summary?: string;
+  tags?: string[] | string;
+  publisher?: NibgatePublisher;
+  publisherId?: string;
+  publisherWallet?: string;
+  authorHandle?: string;
   currency?: string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
   [key: string]: unknown;
 };
 
+export type NibgatePublisher = {
+  id: string;
+  handle?: string;
+  name?: string;
+  walletAddress?: string;
+  creatorWallet?: string;
+  profileUrl?: string;
+  origin?: string;
+  verification?: 'platform_attested' | 'wallet_verified' | 'subdomain_publisher' | string;
+  [key: string]: unknown;
+};
+
+export type NibgateMetadataValidation = {
+  ok: boolean;
+  score: number;
+  errors: string[];
+  warnings: string[];
+  resource: NibgateServerResource;
+};
+
 export type NibgateActor = 'human' | 'agent';
 export type NibgateAccessMode = 'free' | 'paid' | 'blocked';
 export type NibgateUnlockMode = 'one_time' | 'metered_stream' | 'metered_read' | 'time_pass' | 'agent_quota';
+export type NibgatePaymentRail = 'gateway' | 'transfer';
 export type NibgateAccessPolicy = {
   humans?: NibgateAccessMode;
   human?: NibgateAccessMode;
@@ -34,6 +70,32 @@ export type NibgateUnlockPolicy = {
   [key: string]: unknown;
 };
 
+
+export type NibgateContentSettingField = {
+  name: string;
+  label: string;
+  type: 'boolean' | 'select' | 'text' | 'wallet' | 'textarea' | string;
+  options?: readonly string[];
+  defaultValue?: string | boolean;
+};
+export type NibgateContentSettings = {
+  publishToNibgate: boolean;
+  type: 'music' | 'video' | 'article' | 'image';
+  humanAccess: NibgateAccessMode;
+  agentAccess: NibgateAccessMode;
+  unlockMode: NibgateUnlockMode | string;
+  price: string;
+  currency: string;
+  recipient: string;
+  license: string;
+};
+export declare const NIBGATE_CONTENT_SETTING_FIELDS: readonly NibgateContentSettingField[];
+export declare function createNibgateContentSettings(input?: Record<string, unknown>): NibgateContentSettings;
+export declare function settingsToAccessPolicy(settings?: Partial<NibgateContentSettings>): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;
+export declare function settingsToUnlockPolicy(settings?: Partial<NibgateContentSettings>): Required<Pick<NibgateUnlockPolicy, 'mode'>> & NibgateUnlockPolicy;
+
+export declare const PAYMENT_RAILS: readonly ['gateway', 'transfer'];
+export declare function normalizePaymentRail(value?: string, fallback?: NibgatePaymentRail): NibgatePaymentRail;
 export declare const UNLOCK_MODES: readonly ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
 
 export type NibgatePaymentInput = {
@@ -60,14 +122,15 @@ export type NibgateServerOptions = {
   expiresInSeconds?: number;
   actor?: NibgateActor;
   defaultActor?: NibgateActor;
+  paymentRail?: NibgatePaymentRail | string;
   verifyPayment?: (input: { resource: NibgateServerResource; payment: NibgatePaymentInput }) => boolean | Promise<boolean>;
+  verifyTransfer?: (input: { resource: NibgateServerResource; txHash: string; payment: NibgatePaymentInput; request: Request }) => boolean | Promise<boolean>;
 };
 
 export type NibgateUnlockResult =
   | {
       ok: true;
-      unlockToken: string;
-      cookieName: string;
+      unlockProof: string;
       expiresInSeconds: number;
       resource: NibgateServerResource;
       payment: NibgatePaymentInput;
@@ -82,6 +145,52 @@ export type NibgateUnlockResult =
 export declare function createUnlockToken(resource: NibgateServerResource | string, options?: NibgateServerOptions & NibgatePaymentInput): string;
 export declare function verifyUnlockToken(token: string, resource: NibgateServerResource | string, options?: NibgateServerOptions): Record<string, unknown> | null;
 export declare function createPaymentChallenge(resource: NibgateServerResource | string, options?: NibgateServerOptions): Record<string, unknown>;
+export declare function createManifest(input?: { name?: string; origin?: string; content?: Array<NibgateServerResource | string>; resources?: Array<NibgateServerResource | string> }): Record<string, unknown>;
+export declare function manifestResponse(input?: { name?: string; origin?: string; content?: Array<NibgateServerResource | string>; resources?: Array<NibgateServerResource | string> }): Response;
+export declare function emitHubEvent(event: string, resource: NibgateServerResource | string, options?: NibgateServerOptions & {
+  siteId?: string;
+  token?: string;
+  apiBaseUrl?: string;
+  headers?: Record<string, string>;
+  visitorId?: string;
+  sessionId?: string;
+  payload?: Record<string, unknown>;
+}): Promise<Record<string, unknown>>;
+export declare function payWithGateway(resource: NibgateServerResource | string, options?: NibgateServerOptions & {
+  accessUrl?: string;
+  accessPath?: string;
+  buyerPrivateKey?: string;
+  buyerChain?: string;
+  buyerRpcUrl?: string;
+}): Promise<Record<string, unknown>>;
+export declare function createGatewayBuyer(options?: NibgateServerOptions & {
+  buyerPrivateKey?: string;
+  buyerChain?: string;
+  buyerRpcUrl?: string;
+}): Promise<Record<string, unknown>>;
+export declare function getGatewayBalances(options?: NibgateServerOptions & {
+  buyerPrivateKey?: string;
+  buyerChain?: string;
+  buyerRpcUrl?: string;
+  address?: string;
+}): Promise<Record<string, unknown>>;
+export declare function depositToGateway(amount: string | number, options?: NibgateServerOptions & {
+  buyerPrivateKey?: string;
+  buyerChain?: string;
+  buyerRpcUrl?: string;
+  depositOptions?: Record<string, unknown>;
+}): Promise<Record<string, unknown>>;
+export declare function withdrawFromGateway(amount: string | number, options?: NibgateServerOptions & {
+  buyerPrivateKey?: string;
+  buyerChain?: string;
+  buyerRpcUrl?: string;
+  chain?: string;
+  recipient?: string;
+  maxFee?: string;
+  withdrawOptions?: Record<string, unknown>;
+}): Promise<Record<string, unknown>>;
+export declare function circleGatewayOptions(options?: NibgateServerOptions): NibgateServerOptions & { paymentMode: string; network: string };
+export declare function createCircleGatewayServer(options?: NibgateServerOptions): ReturnType<typeof createNibgateServer>;
 export declare function createNibgateServer(options?: NibgateServerOptions): {
   unlock(resource: NibgateServerResource | string, payment?: NibgatePaymentInput): Promise<NibgateUnlockResult>;
   isUnlocked(request: Request, resource: NibgateServerResource | string, options?: { actor?: NibgateActor }): boolean;
@@ -95,6 +204,14 @@ export declare function createNibgateServer(options?: NibgateServerOptions): {
     resource: NibgateServerResource;
   };
   protect(resource: NibgateServerResource | string, handler: (request: Request, context?: unknown) => Response | Promise<Response>, routeOptions?: NibgateServerOptions): (request: Request, context?: unknown) => Promise<Response>;
+  accessResponse(request: Request, resource: NibgateServerResource | string, allowedBody?: Record<string, unknown> | ((input: { access: Record<string, unknown>; resource: NibgateServerResource }) => Record<string, unknown> | Response) | null, routeOptions?: NibgateServerOptions): Promise<Response>;
+  payAndUnlockResponse(request: Request, resource: NibgateServerResource | string, routeOptions?: NibgateServerOptions & { accessUrl?: string; accessPath?: string }): Promise<Response>;
+  manifest(input?: { name?: string; origin?: string; content?: Array<NibgateServerResource | string>; resources?: Array<NibgateServerResource | string> }): Record<string, unknown>;
+  manifestResponse(input?: { name?: string; origin?: string; content?: Array<NibgateServerResource | string>; resources?: Array<NibgateServerResource | string> }): Response;
+  emitHubEvent(event: string, resource: NibgateServerResource | string, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
+  getGatewayBalances(options?: Record<string, unknown>): Promise<Record<string, unknown>>;
+  depositToGateway(amount: string | number, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
+  withdrawFromGateway(amount: string | number, options?: Record<string, unknown>): Promise<Record<string, unknown>>;
   createPaymentChallenge(resource: NibgateServerResource | string, options?: NibgateServerOptions): Record<string, unknown>;
   createUnlockToken(resource: NibgateServerResource | string, options?: NibgateServerOptions & NibgatePaymentInput): string;
   verifyUnlockToken(token: string, resource: NibgateServerResource | string): Record<string, unknown> | null;
@@ -105,5 +222,8 @@ export declare function protect(resource: NibgateServerResource | string, handle
 export declare const server: ReturnType<typeof createNibgateServer>;
 export declare function actorFromRequest(request: Request, fallback?: NibgateActor): NibgateActor;
 export declare function accessModeFor(resource: NibgateServerResource | string, actor?: NibgateActor): NibgateAccessMode;
+export declare function normalizePublisher(publisher?: NibgatePublisher | string, resource?: NibgateServerResource): NibgatePublisher | undefined;
+export declare function normalizeResource(resource?: NibgateServerResource | string): NibgateServerResource;
+export declare function validateResourceMetadata(resource?: NibgateServerResource | string, options?: Record<string, unknown>): NibgateMetadataValidation;
 export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;
 export declare function normalizeUnlockPolicy(unlock?: NibgateUnlockMode | NibgateUnlockPolicy): Required<Pick<NibgateUnlockPolicy, 'mode'>> & NibgateUnlockPolicy;

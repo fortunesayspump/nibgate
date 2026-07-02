@@ -14,7 +14,7 @@ npm install nibgate
 
 ```ts
 import { gate } from 'nibgate'
-import { createNibgateServer } from 'nibgate/server'
+import { createCircleGatewayServer } from 'nibgate/server'
 ```
 
 <Callout type="warning">
@@ -45,19 +45,17 @@ Rule: if the framework can run server logic before returning content, Nibgate ca
 
 ## Admin UI settings
 
-If your site has a blog editor or admin page, save Nibgate settings beside each content record:
+If your site has a blog editor or admin page, save Nibgate settings beside each content record. The package exposes canonical field metadata so the same settings can be rendered in Next, Express, CMS schemas, or custom dashboards:
 
-```txt
-Human access: free / paid / blocked
-Agent access: free / paid / blocked
-Unlock mode: one_time
-Price: 0.005 USDC
-Content type: article / music / image / video
-Payment receiver: site default or custom receiver
-Publish to Nibgate discovery: yes / no
+```ts
+import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from 'nibgate'
+
+const defaults = createNibgateContentSettings({
+  recipient: creatorDefaultWallet,
+})
 ```
 
-Then map the saved row to a Nibgate resource when the route is requested.
+Typical saved fields are content type, price, currency, recipient wallet, human access, agent access, unlock mode, license terms, and whether the content should appear in Nibgate discovery.
 
 ## Recommended integration
 
@@ -82,3 +80,6 @@ Send content metadata reports, impressions, unlock starts, unlock completions, a
 ## Browser versus server
 
 The browser can display unlock UI and page activity. The server should own anything that proves payment, signs trusted events, or talks with privileged credentials.
+
+
+> Browser Gateway checkout must be paired with a server route running Circle Gateway mode. Use `createCircleGatewayServer(...)`, or manually set `paymentMode: 'circle-gateway'` and `network: 'eip155:5042002'`, so the route returns Circle's real `PAYMENT-REQUIRED` batching challenge.

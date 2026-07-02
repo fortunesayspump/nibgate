@@ -1,0 +1,200 @@
+import { Callout, Cards, Steps } from 'nextra/components'
+
+# Multipublisher platforms
+
+Nibgate supports two creator shapes:
+
+- a creator-owned site, where the same wallet owns the domain and the content
+- a verified platform, where many creators publish under one domain
+
+The multipublisher model keeps domain verification simple while letting each creator keep separate content, metrics, earnings, and reputation.
+
+```txt
+verified platform domain
+  -> publisher identity
+    -> content resource
+      -> events, receipts, ratings, reputation
+```
+
+<Callout type="important">
+The widget verifies the platform domain. Individual creators do not paste their own widgets for `platform.com/@alice`. They connect or sign with a wallet so Nibgate can link their platform publisher identity to the same wallet they use on the Nibgate dashboard.
+</Callout>
+
+## Verification model
+
+The platform owner verifies the domain once:
+
+```html
+<script
+  async
+  src="https://nibgate.xyz/widget.js"
+  data-nibgate-site="SITE_ID"
+  data-nibgate-token="PUBLIC_SITE_TOKEN"
+  data-nibgate-api="https://api.nibgate.xyz"
+></script>
+```
+
+That proves the platform controls the origin and can send trusted events to Nibgate.
+
+Each creator then verifies a publisher identity inside the platform by connecting a wallet. The wallet should be the same wallet they use to sign into Nibgate. After that, their Nibgate dashboard can show platform identities like `platform.com/@alice` next to any personal sites they own.
+
+```txt
+Alice signs into platform.com with 0xAlice
+Alice signs into nibgate.xyz with 0xAlice
+Nibgate links @alice on platform.com to Alice's dashboard
+```
+
+## Resource shape
+
+Every post should include both payment receiver data and publisher data:
+
+```ts
+const resource = {
+  id: post.id,
+  title: post.title,
+  type: 'article',
+  price: post.price,
+  currency: 'USDC',
+  recipient: post.author.walletAddress,
+  path: `/@${post.author.handle}/${post.slug}`,
+  url: `${origin}/@${post.author.handle}/${post.slug}`,
+  publisher: {
+    id: post.author.id,
+    handle: post.author.handle,
+    name: post.author.name,
+    walletAddress: post.author.walletAddress,
+    profileUrl: `${origin}/@${post.author.handle}`,
+    verification: 'wallet_verified'
+  },
+  access: {
+    humans: 'paid',
+    agents: 'paid'
+  },
+  unlock: {
+    mode: 'one_time'
+  }
+}
+```
+
+The `recipient` controls where payment should route. The `publisher.walletAddress` controls which creator account receives attribution in Nibgate. For the safest default, they should match unless the platform explicitly supports delegated payout wallets.
+
+## Dashboard behavior
+
+For a creator account, the dashboard should separate owned sites from publisher identities.
+
+```txt
+Sites
+  alice.com
+
+Publisher identities
+  @alice on platform.com
+  @alice on another-platform.com
+
+Content
+  posts from alice.com
+  posts from platform.com/@alice
+
+Metrics
+  scoped to Alice's wallet and publisher identities
+```
+
+Alice should not add `platform.com` as her site unless she controls the whole platform domain. The platform owner adds and verifies `platform.com`. Alice claims `@alice` as a publisher identity.
+
+## Trust modes
+
+<Cards>
+  <Cards.Card title="Platform-attested" href="/multipublisher-platforms#trust-modes">
+    The verified platform says that `@alice` owns a post and wallet. This is good for local demos and early integrations.
+  </Cards.Card>
+  <Cards.Card title="Wallet-verified" href="/multipublisher-platforms#trust-modes">
+    Alice signs a SIWE-style message proving that `0xAlice` controls `@alice` on `platform.com`. This is the production default.
+  </Cards.Card>
+  <Cards.Card title="Subdomain publisher" href="/multipublisher-platforms#trust-modes">
+    Later, `alice.platform.com` can be treated as a stronger route shape, but it adds DNS and certificate complexity.
+  </Cards.Card>
+</Cards>
+
+## Event attribution
+
+The widget still sends events with the platform `siteId` and token. The package includes publisher metadata with the resource.
+
+```ts
+import { trackResourcePage } from 'nibgate'
+
+trackResourcePage(resource, {
+  source: 'multipublisher-platform'
+})
+```
+
+Nibgate accepts the event only when the site token is valid. It then attributes the event to the publisher identity carried by the resource.
+
+```txt
+valid site token
+  + verified publisher wallet
+  + resource.publisher.id
+  + resource.recipient
+  -> content, earnings, ratings, and reputation for that publisher
+```
+
+## Hub data
+
+When the Hub receives a verified tracking event with `resource.publisher`, it upserts a publisher identity under the verified site and stores the publisher link on content, metrics, unlock receipts, and ratings.
+
+Creator dashboards can read publisher identities from:
+
+```txt
+GET /api/hub/dashboard/publishers
+```
+
+Dashboard profile responses also include `profile.publisherIdentities`, so a creator signed into Nibgate with the same wallet can see routes such as `platform.com/@alice` beside their owned sites.
+
+## Onchain activity
+
+Payments and ratings should be matched against:
+
+- verified platform site
+- publisher id
+- publisher wallet
+- content id and canonical URL
+- payment recipient
+- buyer or rater wallet
+- payment proof, tx hash, or rating event
+
+This lets Nibgate show platform-level analytics while still giving Alice her own content metrics, receipts, ratings, and reputation.
+
+## Flow
+
+<Steps>
+### Platform signs into Nibgate
+
+The platform admin connects a wallet and adds `platform.com` as a site.
+
+### Platform verifies widget
+
+The platform pastes the widget once. Nibgate verifies the domain and accepts events from that origin.
+
+### Creator connects wallet on platform
+
+Alice connects `0xAlice` on the platform and claims `@alice`.
+
+### Platform creates publisher resource records
+
+Posts include `publisher` metadata and a per-post `recipient`.
+
+### Nibgate indexes events
+
+Events come through the verified platform token and are attributed to Alice's publisher identity.
+
+### Creator signs into Nibgate
+
+Alice signs into Nibgate with `0xAlice` and sees `platform.com/@alice`, her content, metrics, earnings, and reputation.
+</Steps>
+
+## Next reads
+
+<Cards>
+  <Cards.Card title="Architecture" href="/architecture" arrow />
+  <Cards.Card title="Verify a site" href="/verify-site" arrow />
+  <Cards.Card title="Content events" href="/content-events" arrow />
+  <Cards.Card title="Reputation" href="/reputation" arrow />
+</Cards>

@@ -12,7 +12,7 @@ Use one package with two entrypoints:
 
 ```js
 import { gate } from 'nibgate'; // browser/client events and UI helpers
-import { createNibgateServer } from 'nibgate/server'; // server-side access enforcement
+import { createCircleGatewayServer, createNibgateServer } from 'nibgate/server'; // server-side access enforcement
 ```
 
 This works with Next.js, React apps with an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, custom servers, and CMS/plugin environments. Plain HTML can use the widget and browser events, but real gating still requires a server, edge function, API route, or signed file endpoint.
@@ -22,19 +22,20 @@ This works with Next.js, React apps with an API backend, Express, NestJS, Remix,
 First paste the widget script from your Nibgate dashboard into your site:
 
 ```html
-<script async src="https://nibgate.xyz/widget.js" data-nibgate-site="SITE_ID" data-nibgate-token="PUBLIC_SITE_TOKEN"></script>
+<script async src="https://nibgate.xyz/widget.js" data-nibgate-site="SITE_ID" data-nibgate-token="PUBLIC_SITE_TOKEN" data-nibgate-api="https://api.nibgate.xyz"></script>
 ```
 
-Then gate content. Nibgate registers the content and reports unlock activity through the widget:
+Then define a resource and let the package handle the repeated browser wiring. Nibgate registers the content and reports unlock activity through the widget:
 
 ```js
-import { gate } from 'nibgate';
+import { checkResourceAccess, trackResourcePage } from 'nibgate';
 
-const premiumGuide = gate({
+const premiumGuide = {
   id: 'premium-guide',
   title: 'Premium Guide',
   type: 'article',
   price: '0.01',
+  recipient: '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12',
   path: '/premium-guide',
   access: {
     humans: 'paid',
@@ -43,24 +44,96 @@ const premiumGuide = gate({
   unlock: {
     mode: 'one_time'
   }
-});
+};
 
-premiumGuide.content();
-premiumGuide.view();
+trackResourcePage(premiumGuide, { source: 'creator-site' });
 
-await premiumGuide.unlock(async () => {
-  // Run your payment flow here.
-  // Server-side x402/Circle verification should confirm real paid access.
-  return {
-    paymentId: 'payment_123',
-    paymentProvider: 'arc-testnet',
-    txHash: '0x...',
-    chainExplorerUrl: 'https://testnet.arcscan.app/tx/0x...',
-    revenue: 0.01,
-    currency: 'USDC'
-  };
+await checkResourceAccess(premiumGuide, {
+  accessPath: '/api/nibgate/access',
+  source: 'creator-site',
+  async createPaymentSignature({ paymentRequiredHeader, resource }) {
+    // Production path:
+    // Ask the connected user/agent wallet or Gateway adapter to sign/pay
+    // the PAYMENT-REQUIRED challenge returned by the creator server.
+    return walletGatewayAdapter.pay({
+      paymentRequiredHeader,
+      resource
+    });
+  },
+  onStatus(message) {
+    console.log(message);
+  }
 });
 ```
+
+For plain browser pages, bind a button without writing custom event glue:
+
+```js
+import { setupResourcePage } from 'nibgate';
+
+setupResourcePage(premiumGuide, {
+  source: 'creator-site',
+  accessPath: '/api/nibgate/access',
+  createPaymentSignature: walletGatewayAdapter.pay,
+  button: '[data-nibgate-unlock]',
+  status: '[data-nibgate-status]'
+});
+```
+
+For a ready-made unlock button/controller, use `createWalletCheckout`. The package owns the UI state, retries, unlock events, and proof-backed access retry; your wallet/Gateway adapter only has to return the payment signature for the `PAYMENT-REQUIRED` challenge.
+
+```js
+import { createCircleGatewayBrowserAdapter, createWalletCheckout } from 'nibgate';
+
+const [address] = await walletClient.getAddresses();
+const circle = await createCircleGatewayBrowserAdapter({
+  chainId: 5042002,
+  signer: {
+    address,
+    signTypedData: (params) => walletClient.signTypedData({
+      account: address,
+      ...params
+    })
+  }
+});
+
+createWalletCheckout(premiumGuide, {
+  button: '[data-nibgate-unlock]',
+  status: '[data-nibgate-status]',
+  accessPath: '/api/nibgate/access',
+  pay: circle.pay
+}).mount();
+```
+
+Do not replace the Gateway payment with a normal wallet message signature. Gateway/x402 payment signatures are payment proofs; wallet message signatures are only used for rating/reputation proof.
+
+The browser Circle Gateway adapter expects the creator server to return Circle's real `PAYMENT-REQUIRED` batching challenge. Use the preset on your server route:
+
+```js
+import { createCircleGatewayServer } from 'nibgate/server';
+
+const nibgateServer = createCircleGatewayServer({
+  origin: 'https://creator.example',
+  secret: process.env.NIBGATE_SECRET,
+  network: 'eip155:5042002'
+});
+
+export function GET(request) {
+  return nibgateServer.accessResponse(request, premiumGuide);
+}
+```
+
+Equivalent manual config:
+
+```js
+createNibgateServer({
+  paymentMode: 'circle-gateway',
+  network: 'eip155:5042002'
+});
+```
+
+If the server is left in fallback challenge mode, browser checkout will fail closed because there is no Circle `GatewayWalletBatched` verifying contract to sign.
+
 
 Lower-level event helpers are still available when you need them:
 
@@ -73,15 +146,223 @@ nibgate.unlockCompleted('premium-guide', {
 });
 ```
 
+After a verified unlock, a creator UI should submit an onchain rating for the same resource. The hub only counts it into reputation when it can connect the rating wallet to an unlock receipt/proof. Use the built-in controller when you want simple selector-based UI wiring:
+
+```js
+import { createEvmGatewayUnlock, createOnchainRating } from 'nibgate';
+
+const premiumGuide = {
+  id: 'premium-guide',
+  title: 'Premium Guide',
+  type: 'article',
+  price: '0.01',
+  recipient: post.recipientWallet,
+  url: `https://creator.example/blog/${post.slug}`,
+  path: `/blog/${post.slug}`
+};
+
+let lastPayment = null;
+
+const rating = createOnchainRating(premiumGuide, {
+  contractAddress: process.env.NEXT_PUBLIC_NIBGATE_REPUTATION_CONTRACT,
+  siteId: process.env.NEXT_PUBLIC_NIBGATE_SITE_ID,
+  token: process.env.NEXT_PUBLIC_NIBGATE_SITE_TOKEN,
+  indexUrl: 'https://api.nibgate.xyz/api/hub/reputation/ratings/index',
+  ratingTarget: '[data-nibgate-rating]',
+  ratingButtons: '[data-rating]',
+  status: '[data-nibgate-status]',
+  visible: false,
+  getPaymentId: () => lastPayment?.paymentId,
+  getUnlockRef: () => lastPayment?.paymentId || lastPayment?.txHash || ''
+});
+
+createEvmGatewayUnlock(premiumGuide, {
+  accessPath: `/api/content/${post.slug}`,
+  connectButton: '[data-nibgate-connect]',
+  unlockButton: '[data-nibgate-unlock]',
+  walletLabel: '[data-nibgate-wallet]',
+  status: '[data-nibgate-status]',
+  onUnlock(result) {
+    lastPayment = result.payment;
+    rating.setPayment(lastPayment);
+    rating.setVisible(true);
+  }
+});
+```
+
+The lower-level `rateContentOnchain(resource, options)` function is also exported for custom UIs.
+
+Ratings are proof-gated. Page views, time spent, scroll depth, and referrers are analytics signals; they should not become trust by themselves. Reputation-critical inputs use indexed onchain rating proofs. Signed ratings remain available only for local tests and migration tooling.
+
+Nibgate reputation uses a versioned content identity:
+
+```text
+keccak256("nibgate:content:v1|domain|externalContentId|canonicalUrl")
+```
+
+The namespace lets future versions add metadata hashes, content version hashes, IPFS/Arweave pointers, or creator signatures without changing what old ratings mean.
+
 The package talks to the widget through `window.nibgateHub`. If your app runs before the async widget finishes loading, events are queued and flushed once the widget is ready.
 
 Content types are `music`, `video`, `article`, and `image`.
+
+## Discovery metadata quality
+
+Nibgate can only make good Explore cards and agent-readable records from metadata the creator site provides. Pass the same shape whether content comes from MDX frontmatter, a CMS row, a media table, or a custom admin dashboard:
+
+```js
+import { trackResourcePage, validateResourceMetadata } from 'nibgate';
+
+const resource = {
+  id: post.id,
+  title: post.title,
+  description: post.excerpt,
+  type: 'article',
+  imageUrl: post.coverImageUrl,
+  tags: post.tags,
+  price: post.price,
+  currency: 'USDC',
+  recipient: post.recipientWallet,
+  path: `/blog/${post.slug}`,
+  url: `https://creator.example/blog/${post.slug}`,
+  access: { humans: 'paid', agents: 'paid' },
+  unlock: { mode: 'one_time' }
+};
+
+const quality = validateResourceMetadata(resource);
+if (!quality.ok) console.warn(quality.errors);
+
+trackResourcePage(resource);
+```
+
+Required for clean discovery: `id`, `title`, `url`, `type`.
+
+Recommended for rich cards: `description`, `imageUrl`, `tags`.
+
+Required for paid content: `price` and `recipient`.
+
+The package warns in the browser when important metadata is missing and sends a metadata quality summary to the hub with content events. The backend stores that summary so dashboards can surface setup issues instead of silently creating weak content cards.
+
+## Multipublisher platforms
+
+For a platform where many creators publish under one verified domain, keep the widget at the platform level and add `publisher` metadata to every resource.
+
+```txt
+platform.com widget token
+  -> @alice publisher identity
+    -> Alice's posts, payments, ratings, and metrics
+```
+
+The platform owner verifies `platform.com` once in Nibgate. Alice does not add `platform.com` as her own site. Alice connects wallet `0xAlice` inside the platform, and later signs into Nibgate with the same wallet to see `platform.com/@alice`, her content, earnings, metrics, and reputation.
+
+```js
+const resource = {
+  id: post.id,
+  title: post.title,
+  type: 'article',
+  price: post.price,
+  currency: 'USDC',
+  recipient: post.author.walletAddress,
+  path: `/@${post.author.handle}/${post.slug}`,
+  url: `${origin}/@${post.author.handle}/${post.slug}`,
+  publisher: {
+    id: post.author.id,
+    handle: post.author.handle,
+    name: post.author.name,
+    walletAddress: post.author.walletAddress,
+    profileUrl: `${origin}/@${post.author.handle}`,
+    verification: 'wallet_verified'
+  },
+  access: { humans: 'paid', agents: 'paid' },
+  unlock: { mode: 'one_time' }
+};
+
+trackResourcePage(resource, { source: 'multipublisher-platform' });
+```
+
+For the safest default, `recipient` and `publisher.walletAddress` should be the same wallet. If a platform supports delegated payout wallets, store that relationship explicitly so the hub can still attribute content to the publisher while showing the correct payment receiver.
+
+## Package UI included
+
+The package includes small controller UIs, not a heavy design system:
+
+- `createEvmGatewayUnlock(...)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility.
+- `createTransferCheckout(...)` supports direct Arc testnet transfer-style unlocks where Gateway is not used.
+- `createOnchainRating(...)` wires rating buttons, status text, rating panel visibility, payment proof references, onchain rating submission, and hub indexing.
+- `createNibgateContentSettings(...)` gives admin pages stable fields for content type, human/agent access, unlock mode, payment rail, price, recipient wallet, and license.
+
+Creators keep their own UI/theme. Nibgate provides the hard parts: resource normalization, metadata validation, x402/Gateway unlock, transfer fallback, event streaming, proof storage, rating tx submission, and hub sync.
+
+## FAQ / integration gotchas
+
+- `Does a creator need a server?` Yes for real paid gating. Static-only sites can register discovery events, but protected content needs a server, edge function, CMS webhook, or API route that can return `402` and verify payment proof.
+- `Can every post pay a different wallet?` Yes. Set `recipient` or `payTo` per resource. The package does not force one site-wide receiver.
+- `Can this work with DB blogs, MDX, CMS, plain HTML, or custom apps?` Yes. Convert each content item into a Nibgate resource with `id`, `title`, `type`, `url`, `path`, `price`, and `recipient`.
+- `Why does content not show in Explore?` Usually the widget is missing, the site is not verified, the manifest has not synced yet, `url` is not absolute, or required metadata is missing.
+- `Why does reputation not update?` The rating wallet must have an unlock/payment proof for that content, the rating tx must be onchain, and the backend indexer must sync the tx.
+- `Are page views reputation?` No. Views, referrers, scroll depth, and time spent are analytics signals. Reputation-critical scores come from indexed onchain ratings tied to unlock proof.
+- `Do agents use a different flow?` No. Agents discover the same resource metadata, pay through the same protected route, and can emit/index reputation using the same proof model.
+- `Should hidden content live in browser HTML?` No. The browser should only receive teasers before payment. The full body/media URL should come from a protected route after proof verification.
+- `What breaks most often locally?` Missing wallet provider, wrong chain, missing Gateway client module, CORS on the backend, wrong `NIBGATE_API_BASE`, wrong site token, or a demo route using fallback challenge mode instead of real Gateway mode.
+
+
+## Payment rails
+
+Gateway is the default rail because it fits x402 and agent-paid HTTP best:
+
+```js
+const resource = {
+  id: post.id,
+  title: post.title,
+  paymentRail: 'gateway',
+  price: '0.005',
+  recipient: post.recipientWallet
+};
+```
+
+Direct wallet transfer is also a first-class rail for creator apps that want a normal token/native transfer flow:
+
+```js
+const resource = {
+  id: post.id,
+  title: post.title,
+  paymentRail: 'transfer',
+  price: '0.005',
+  recipient: post.recipientWallet
+};
+```
+
+Transfer unlocks are fail-closed. The browser helper can send a tx hash, but the creator server must verify it before issuing an unlock proof:
+
+```js
+createNibgateServer({
+  paymentRail: 'transfer',
+  async verifyTransfer({ resource, txHash, payment }) {
+    // Verify onchain with viem/RPC/indexer:
+    // recipient matches resource.recipient
+    // amount/token/chain match resource price/currency/network
+    // tx hash has not already been used
+    return verified;
+  }
+});
+```
 
 ## Access policies
 
 For CMS/database-driven sites, keep the gating fields in your own content table, then map each record into a Nibgate resource. Nibgate does not replace your CMS or DB.
 
-If the creator has an admin dashboard, put Nibgate settings in that UI and save them beside the post/content record:
+If the creator has an admin dashboard, put Nibgate settings in that UI and save them beside the post/content record. The package exports canonical field metadata so each framework can render the same settings natively:
+
+```js
+import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from 'nibgate';
+
+const defaults = createNibgateContentSettings({
+  recipient: creatorDefaultWallet
+});
+```
+
+Then save those values beside the content row:
+
 
 ```txt
 Nibgate settings
@@ -92,7 +373,7 @@ Nibgate settings
 - Unlock mode: one_time for the MVP
 - Price
 - Currency
-- Payment receiver
+- Payment receiver for this exact content
 - License or citation terms
 ```
 
@@ -104,6 +385,7 @@ const post = {
   slug: 'agent-economy',
   title: 'The agent economy needs native payments',
   price: '0.005',
+  recipientWallet: '0xPostSpecificReceiver',
   humanAccess: 'paid',
   agentAccess: 'paid',
   body: 'Private content stays in your DB.'
@@ -119,6 +401,7 @@ function postToNibgateResource(post) {
     title: post.title,
     type: 'article',
     price: post.price,
+    recipient: post.recipientWallet,
     path: `/blog/${post.slug}`,
     access: {
       humans: post.humanAccess,
@@ -130,6 +413,18 @@ function postToNibgateResource(post) {
   };
 }
 ```
+
+`recipient` is resource-level on purpose. A creator can run a full blogging platform, marketplace, media library, or multi-author publication where each post, video, image pack, or API route pays a different wallet from the database. `recipient`, `payTo`, `receiver`, `receiverAddress`, and `creatorWallet` are accepted aliases. The server-level `recipient` or `NIBGATE_SELLER_ADDRESS` should be treated as a fallback, not the only way to route money.
+
+This means Nibgate can fit different creator architectures:
+
+- hardcoded MDX posts with frontmatter
+- CMS posts from Sanity, WordPress, or a custom admin
+- DB-backed blogs with per-author payout wallets
+- paid media/download routes
+- agent-readable API routes
+
+The creator app maps its own record into a Nibgate resource; Nibgate does not force a hosted marketplace schema.
 
 Use `access` to decide who can read the origin payload before payment:
 
@@ -192,7 +487,7 @@ import { createNibgateServer } from 'nibgate/server';
 const nibgateServer = createNibgateServer({
   secret: process.env.NIBGATE_SECRET,
   origin: 'https://creator.example',
-  recipient: process.env.NIBGATE_SELLER_ADDRESS,
+  recipient: process.env.NIBGATE_SELLER_ADDRESS, // fallback only
   async verifyPayment({ resource, payment }) {
     // Plug Circle/x402 verification here.
     return Boolean(payment.paymentId);
@@ -204,6 +499,7 @@ export const GET = nibgateServer.protect({
   title: 'Premium Guide',
   type: 'article',
   price: '0.01',
+  recipient: '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12',
   path: '/premium-guide',
   access: {
     humans: 'paid',
@@ -217,18 +513,113 @@ export const GET = nibgateServer.protect({
 });
 ```
 
+For JSON API routes, use the smaller helpers:
+
+```js
+import { createNibgateServer, manifestResponse } from 'nibgate/server';
+
+const nibgateServer = createNibgateServer({
+  secret: process.env.NIBGATE_SECRET,
+  origin: 'https://creator.example',
+  recipient: process.env.NIBGATE_SELLER_ADDRESS // fallback only
+});
+
+export function GET() {
+  return manifestResponse({
+    name: 'Creator site',
+    origin: 'https://creator.example',
+    content: [premiumGuide]
+  });
+}
+
+export function access(request) {
+  return nibgateServer.accessResponse(request, premiumGuide);
+}
+
+export function pay(request) {
+  return nibgateServer.payAndUnlockResponse(request, premiumGuide, {
+    accessPath: '/api/nibgate/access'
+  });
+}
+```
+
+`accessResponse` is the production route. It returns a real `PAYMENT-REQUIRED` header, verifies the returned `Payment-Signature`, issues a signed `unlockProof`, and accepts future access through the `x-nibgate-payment-proof` header.
+
+`payAndUnlockResponse` is only for local test harnesses and server-side agent tests where you intentionally configure a funded tester key. In `circle-gateway` mode it requires:
+
+```bash
+NIBGATE_PAYMENT_MODE=circle-gateway
+NIBGATE_SELLER_ADDRESS=0xCreatorReceiver
+NIBGATE_BUYER_PRIVATE_KEY=0xFundedTesterPrivateKey
+NIBGATE_BUYER_CHAIN=arcTestnet
+```
+
+The handler calls Gateway, verifies the returned payment, and returns a signed `unlockProof`. It is for controlled server/agent harnesses, not human browser UX.
+
+Do not ship `NIBGATE_BUYER_PRIVATE_KEY` in a public creator website. In production, the buyer is the visitor or agent. They connect their own wallet/Gateway, sign/pay the `PAYMENT-REQUIRED` challenge, and send the resulting payment signature back to the creator route.
+
+Gateway balance, deposit, and withdraw helpers are also available from the same package:
+
+```js
+import { depositToGateway, getGatewayBalances, withdrawFromGateway } from 'nibgate/server';
+
+const balances = await getGatewayBalances({
+  buyerPrivateKey: process.env.NIBGATE_BUYER_PRIVATE_KEY
+});
+
+await depositToGateway('1', {
+  buyerPrivateKey: process.env.NIBGATE_BUYER_PRIVATE_KEY
+});
+
+await withdrawFromGateway('0.5', {
+  buyerPrivateKey: process.env.NIBGATE_BUYER_PRIVATE_KEY,
+  recipient: '0xCreatorOrBuyer'
+});
+```
+
+For the MVP, browser demos should use the package wallet checkout helper. Server-side funded tester keys are only for command/API harnesses and agent/server tests.
+
+For command/API-only demos, package helpers can emit the same standard event sequence to the hub:
+
+```js
+import { emitTestEvents } from 'nibgate/testing';
+
+await emitTestEvents(premiumGuide, {
+  origin: 'https://creator.example',
+  source: 'creator-site'
+});
+```
+
 The browser `gate(...)` API gives creators the simple unlock UX. The server API is what should enforce real paid access.
 
 Payments are non-custodial in the Nibgate model. The receiving address belongs to the creator site/package config, and different sites can use different receiving addresses. Nibgate Hub records paid unlock events and payment metadata; it does not hold funds or provide withdrawals.
 
 ## Payment receipts
 
-Nibgate supports two receipt paths for the current product direction:
+Nibgate supports two receipt paths today:
 
 - `circle-gateway`: store the Circle payment id and a `receiptUrl` only when Circle or your gateway layer returns a real public/internal receipt URL.
 - `arc-testnet`: store the Arc transaction hash and optional `chainExplorerUrl`, usually an Arcscan transaction URL.
 
 Do not fabricate gateway receipt URLs. If no provider receipt URL exists, send the payment id/hash and Nibgate will show the recorded payment with the best available explorer link.
+
+On Arc testnet, Gateway payments carry a signed authorization payload rather than a simple transfer hash for every unlock. Nibgate stores that signed payment payload as the payment id/receipt metadata. If your provider exposes a memo, transaction hash, or explorer URL, pass it as `memo`, `txHash`, or `chainExplorerUrl`; the hub will keep it with the payment event.
+
+## End-to-end product flow
+
+1. Creator installs `nibgate`.
+2. Creator maps posts, media, downloads, API routes, or CMS records into Nibgate resources.
+3. Creator adds the widget snippet from the Nibgate hub.
+4. Creator exposes `nibgate.json` with package helpers.
+5. Nibgate backend verifies the widget and discovers resources.
+6. Human visitors or AI agents hit a protected route.
+7. Creator server returns `402 PAYMENT-REQUIRED`.
+8. Human wallet or agent wallet/Gateway pays and returns `Payment-Signature`.
+9. Creator server verifies the payment, issues a signed unlock proof, and serves content.
+10. Browser requests include that proof through `x-nibgate-payment-proof` for future access checks.
+11. Package/widget emits view, content, unlock, payment, and engagement events to the hub.
+12. After unlock, the visitor or agent can submit an onchain content rating tied to the same proof.
+13. Hub stores metrics for content, site, and creator analytics, then indexes onchain ratings into content, site, and creator reputation.
 
 ## Local demo
 

@@ -18,6 +18,16 @@
       "import": "./src/server.js",
       "default": "./src/server.js"
     },
+    "./tracking": {
+      "types": "./src/tracking.d.ts",
+      "import": "./src/tracking.js",
+      "default": "./src/tracking.js"
+    },
+    "./testing": {
+      "types": "./src/testing.d.ts",
+      "import": "./src/testing.js",
+      "default": "./src/testing.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -31,5 +41,11 @@
     "analytics",
     "x402"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@circle-fin/x402-batching": "^3.0.4",
+    "@x402/core": "^2.17.0",
+    "@x402/evm": "^2.17.0",
+    "viem": "^2.54.1"
+  }
 }

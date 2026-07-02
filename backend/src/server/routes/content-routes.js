@@ -32,7 +32,7 @@ export function registerContentRoutes(app, context) {
       if (!gatewayBuyer) {
         return res.status(503).json({
           error: 'Live buyer is not configured',
-          detail: 'Set NIBGATE_BUYER_PRIVATE_KEY to enable the real browser unlock flow.'
+          detail: 'This local demo route needs NIBGATE_BUYER_PRIVATE_KEY for server-side testing. Production browser unlocks should use the package accessResponse route with a buyer wallet/Gateway Payment-Signature.'
         });
       }
 

@@ -8,6 +8,10 @@ Connect a wallet, register a site, paste the widget, install the package, and st
 The widget verifies the website. The package powers gating, payments, content metadata, unlock events, and receipt reporting.
 </Callout>
 
+<Callout type="info">
+If you publish on a multipublisher platform, you do not add the platform domain as your own site. The platform verifies the domain once, and you connect the same wallet on the platform and on Nibgate so your publisher route, content, and metrics can attach to your account.
+</Callout>
+
 <Steps>
 ### Connect wallet
 
@@ -17,6 +21,8 @@ Your wallet is the creator identity. It owns the profile, connected sites, conte
 
 Add the exact origin where protected content lives, for example `https://creator.com`. Nibgate returns a `siteId` and verification token.
 
+Only register domains you control. On a platform like `platform.com/@alice`, the platform owner registers `platform.com`; Alice claims a publisher identity with her wallet.
+
 ### Paste the widget
 
 The widget verifies ownership and streams page activity from the verified domain.
@@ -24,7 +30,8 @@ The widget verifies ownership and streams page activity from the verified domain
 ```html
 <script async src="https://nibgate.xyz/widget.js"
   data-nibgate-site="site_..."
-  data-nibgate-token="ngv_...">
+  data-nibgate-token="ngv_..."
+  data-nibgate-api="https://api.nibgate.xyz">
 </script>
 ```
 
@@ -65,6 +72,8 @@ guide.view()
 ### Check the dashboard
 
 Use Sites, Contents, Analytics, and Earnings to confirm the setup is active.
+
+For platform publishers, the dashboard should show the claimed route under Publisher Identities, for example `@alice on platform.com`, and scope content, metrics, earnings, and reputation to the wallet used on both the platform and Nibgate.
 </Steps>
 
 ## MVP unlock model
@@ -81,6 +90,7 @@ Future package versions can add metered streaming, metered reading, time passes,
 
 <Cards>
   <Cards.Card title="Verify a site" href="/verify-site" arrow />
+  <Cards.Card title="Multipublisher platforms" href="/multipublisher-platforms" arrow />
   <Cards.Card title="Content events" href="/content-events" arrow />
   <Cards.Card title="Payments and receipts" href="/payments-receipts" arrow />
 </Cards>

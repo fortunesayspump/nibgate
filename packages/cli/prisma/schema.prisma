@@ -77,12 +77,46 @@ model Website {
   deletedAt   DateTime?
   content     Content[]
   metrics     Metric[]
+  unlockReceipts UnlockReceipt[]
+  ratings     ContentRating[]
+  publishers  PublisherIdentity[]
+}
+
+model PublisherIdentity {
+  id           String   @id @default(uuid())
+  websiteId    String
+  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  externalId   String
+  handle       String?
+  name         String?
+  walletAddress String?
+  profileUrl   String?
+  verification String   @default("platform_attested")
+  metadata     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  content      Content[]
+  metrics      Metric[]
+  unlockReceipts UnlockReceipt[]
+  ratings      ContentRating[]
+
+  @@unique([websiteId, externalId])
+  @@index([websiteId])
+  @@index([walletAddress])
+  @@index([handle])
 }
 
 model Content {
   id          String   @id @default(uuid())
   websiteId   String
   website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  publisherId String?
+  publisher   PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  publisherExternalId String?
+  publisherHandle String?
+  publisherWallet String?
+  publisherProfileUrl String?
+  publisherVerification String?
   externalId  String?
   title       String
   description String?
@@ -93,14 +127,78 @@ model Content {
   path        String?
   currency    String   @default("USDC")
   price       Float    // Price to unlock in USDC
+  recipientWallet String?
+  accessPolicy String?
+  unlockPolicy String?
   lastSeenAt  DateTime?
   createdAt   DateTime @default(now())
   metrics     Metric[]
+  unlockReceipts UnlockReceipt[]
+  ratings     ContentRating[]
 
   @@unique([websiteId, externalId])
   @@unique([websiteId, url])
   @@index([contentType])
+  @@index([publisherId])
+  @@index([publisherWallet])
   @@index([createdAt])
+}
+
+model UnlockReceipt {
+  id              String   @id @default(uuid())
+  contentId       String
+  content         Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  websiteId       String
+  website         Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  publisherId     String?
+  publisher       PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  payerWallet     String?
+  actor           String?
+  paymentId       String
+  paymentProvider String?
+  txHash          String?
+  receiptUrl      String?
+  chainId         String?
+  network         String?
+  amount          Float?
+  currency        String?
+  recipientWallet String?
+  status          String   @default("verified")
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  @@unique([contentId, paymentId])
+  @@index([websiteId])
+  @@index([publisherId])
+  @@index([payerWallet])
+  @@index([txHash])
+}
+
+model ContentRating {
+  id              String   @id @default(uuid())
+  contentId       String
+  content         Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  websiteId       String
+  website         Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  publisherId     String?
+  publisher       PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  walletAddress   String
+  actor           String?
+  ratingValue     Int      // 1-50, where 45 means 4.5 stars
+  reviewHash      String?
+  txHash          String?
+  proofType       String?
+  proof           String?
+  status          String   @default("accepted")
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([contentId, walletAddress])
+  @@index([websiteId])
+  @@index([publisherId])
+  @@index([walletAddress])
+  @@index([txHash])
 }
 
 model Metric {
@@ -111,6 +209,8 @@ model Metric {
   content     Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
   websiteId   String
   website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  publisherId String?
+  publisher   PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   revenue     Float?   // Revenue earned (if type == 'unlock')
   currency    String?
   path        String?

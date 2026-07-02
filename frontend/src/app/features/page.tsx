@@ -141,7 +141,7 @@ export default function FeaturesPage() {
         imageBg="bg-gray"
         titleColor="text-white"
         textItems={[
-          ['Circle Gateway and x402 direction', 'Use Gateway/x402-style payment challenges for paid routes, with Arc testnet and Circle Gateway receipt metadata supported in the product direction.'],
+          ['Circle Gateway and x402 rails', 'Use Gateway/x402-style payment challenges for paid routes, with Arc testnet and Circle Gateway receipt metadata supported by the package and hub.'],
           ['One-time unlock tokens after verification', 'The server issues Nibgate unlock tokens only after the creator payment layer reports a verified payment receipt.'],
           ['Multiple sites, multiple receivers', 'A creator can verify multiple sites, and each site can route payments to its own configured receiving address.']
         ]}

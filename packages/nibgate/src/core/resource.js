@@ -1,0 +1,154 @@
+import { normalizePaymentRail } from './payment.js';
+export const CONTENT_TYPES = ['music', 'video', 'article', 'image'];
+export const TYPE_ALIASES = {
+  audio: 'music',
+  song: 'music',
+  track: 'music',
+  album: 'music',
+  playlist: 'music',
+  photo: 'image',
+  picture: 'image',
+  illustration: 'image',
+  art: 'image',
+  movie: 'video',
+  clip: 'video'
+};
+export const ACCESS_MODES = ['free', 'paid', 'blocked'];
+export const UNLOCK_MODES = ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
+
+export function normalizeContentType(value) {
+  const type = String(value || '').trim().toLowerCase();
+  if (CONTENT_TYPES.includes(type)) return type;
+  return TYPE_ALIASES[type] || 'article';
+}
+
+export function normalizeAccessMode(value, fallback = 'paid') {
+  const mode = String(value || '').trim().toLowerCase();
+  return ACCESS_MODES.includes(mode) ? mode : fallback;
+}
+
+export function normalizeAccessPolicy(value = {}) {
+  if (typeof value === 'string') {
+    const mode = normalizeAccessMode(value);
+    return { humans: mode, agents: mode };
+  }
+
+  return {
+    humans: normalizeAccessMode(value.humans || value.human || value.default, 'paid'),
+    agents: normalizeAccessMode(value.agents || value.agent || value.default, 'paid')
+  };
+}
+
+export function normalizeUnlockPolicy(value = {}) {
+  const input = typeof value === 'string' ? { mode: value } : (value || {});
+  const mode = String(input.mode || input.type || 'one_time').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  return {
+    ...input,
+    mode: UNLOCK_MODES.includes(mode) ? mode : 'one_time'
+  };
+}
+
+export function normalizePublisher(value = {}, resource = {}) {
+  const input = typeof value === 'string' ? { id: value } : (value || {});
+  const id = input.id || input.publisherId || resource.publisherId || resource.authorId || resource.creatorId || '';
+  const walletAddress = input.walletAddress || input.creatorWallet || input.publisherWallet || resource.publisherWallet || resource.creatorWallet || '';
+  const handle = input.handle || input.username || resource.publisherHandle || resource.authorHandle || '';
+  const normalized = {
+    ...input,
+    id: String(id).trim(),
+    handle: handle ? String(handle).replace(/^@/, '').trim() : undefined,
+    name: input.name || input.displayName || resource.publisherName || resource.authorName || undefined,
+    walletAddress: walletAddress || undefined,
+    profileUrl: input.profileUrl || input.url || resource.publisherProfileUrl || undefined,
+    origin: input.origin || resource.publisherOrigin || undefined,
+    verification: input.verification || input.verificationStatus || resource.publisherVerification || undefined
+  };
+
+  const hasPublisherValue = Object.values(normalized).some((entry) => entry !== undefined && entry !== null && String(entry).trim() !== '');
+  return hasPublisherValue ? normalized : undefined;
+}
+
+export function normalizeResource(resource = {}) {
+  const input = typeof resource === 'string' ? { id: resource } : (resource || {});
+  const publisher = normalizePublisher(input.publisher, input);
+  return {
+    ...input,
+    id: String(input.id || input.contentId || input.slug || '').trim(),
+    title: String(input.title || input.name || '').trim(),
+    type: normalizeContentType(input.type || input.contentType),
+    price: input.price ?? input.amount ?? '',
+    paymentRail: normalizePaymentRail(input.paymentRail || input.paymentMode || input.rail),
+    recipient: input.recipient || input.receiver || input.receiverAddress || input.payTo || input.creatorWallet || undefined,
+    payTo: input.payTo || input.recipient || input.receiver || input.receiverAddress || input.creatorWallet || undefined,
+    path: input.path || input.route || undefined,
+    url: input.url || undefined,
+    imageUrl: input.imageUrl || input.image || undefined,
+    tags: input.tags || undefined,
+    publisher,
+    publisherId: input.publisherId || publisher?.id || undefined,
+    publisherWallet: input.publisherWallet || publisher?.walletAddress || undefined,
+    access: normalizeAccessPolicy(input.access),
+    unlock: normalizeUnlockPolicy(input.unlock)
+  };
+}
+
+function hasValue(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+function isPaidResource(resource = {}) {
+  const access = normalizeAccessPolicy(resource.access);
+  return access.humans === 'paid' || access.agents === 'paid' || Number.parseFloat(resource.price || resource.amount || '0') > 0;
+}
+
+export function validateResourceMetadata(resource = {}, options = {}) {
+  const normalized = normalizeResource(resource);
+  const warnings = [];
+  const errors = [];
+  const required = options.required || ['id', 'title', 'url', 'type'];
+  const recommended = options.recommended || ['description', 'imageUrl', 'tags'];
+
+  for (const field of required) {
+    if (!hasValue(normalized[field])) errors.push(`Missing required content metadata: ${field}`);
+  }
+
+  for (const field of recommended) {
+    if (!hasValue(normalized[field])) warnings.push(`Missing recommended discovery metadata: ${field}`);
+  }
+
+  if (!CONTENT_TYPES.includes(normalized.type)) errors.push('Content type must be one of music, video, article, or image.');
+
+  if (normalized.url && !/^https?:\/\//i.test(String(normalized.url))) {
+    warnings.push('Use an absolute canonical url for stronger discovery identity.');
+  }
+
+  if (normalized.imageUrl && !/^https?:\/\//i.test(String(normalized.imageUrl))) {
+    warnings.push('Use an absolute imageUrl for thumbnails in Explore and agent discovery.');
+  }
+
+  if (isPaidResource(normalized)) {
+    if (!hasValue(normalized.price)) errors.push('Paid content requires price.');
+    if (!hasValue(normalized.recipient || normalized.payTo)) errors.push('Paid content requires recipient/payTo wallet.');
+  }
+
+  const score = Math.max(0, 100 - errors.length * 20 - warnings.length * 8);
+  return {
+    ok: errors.length === 0,
+    score,
+    errors,
+    warnings,
+    resource: normalized
+  };
+}
+
+export function normalizeServerResource(resource = {}) {
+  const normalized = normalizeResource(resource);
+  return {
+    ...normalized,
+    title: normalized.title || String((typeof resource === 'object' && (resource.name || resource.id)) || 'Untitled content').trim(),
+    price: normalized.price || '0',
+    path: normalized.path || '/',
+    currency: normalized.currency || 'USDC'
+  };
+}

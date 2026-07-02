@@ -15,11 +15,24 @@ The creator site remains the source of truth for:
 - unlock logic
 - origin responses
 
+### Multipublisher platform
+
+A verified platform can also be the source of truth for many creator routes:
+
+- platform domain and widget token
+- publisher profiles such as `platform.com/@alice`
+- post routes and metadata
+- per-publisher payout wallets
+- publisher wallet verification state
+
+In this model, the platform owns the verified site. The creator owns a publisher identity inside that site.
+
 ### Nibgate hub
 
 The hub remains the source of truth for:
 
 - connected sites
+- publisher identities under connected platform sites
 - verification state
 - indexed resource metadata
 - aggregated views
@@ -44,6 +57,8 @@ Package -> window.nibgateHub -> Widget -> POST /api/hub/track -> Dashboard
 
 The package should not require creators to configure backend routes or private secrets in normal browser usage. The widget owns the browser-safe site id, public token, visitor id, session id, URL, path, referrer, and transport details.
 
+For multipublisher platforms, the widget remains site-level. Publisher attribution is carried by each resource/event.
+
 ## Package contract
 
 Every site that installs `nibgate` should be able to:
@@ -53,6 +68,14 @@ Every site that installs `nibgate` should be able to:
 3. load the Hub widget script for verification and browser-side analytics
 4. register content metadata for `music`, `video`, `article`, and `image`
 5. emit structured events to the widget/runtime bridge when content is viewed, unlocked, or paid for
+
+Every multipublisher platform should also be able to:
+
+1. create publisher identities for creators under the verified platform site
+2. link publisher identities to wallets using platform-attested or wallet-verified claims
+3. include `publisher` metadata on every resource
+4. route payments to the resource `recipient`
+5. let Nibgate attribute content, receipts, metrics, and reputation to the wallet-linked publisher account
 
 ## Hub widget
 
@@ -88,6 +111,51 @@ The dashboard displays the widget snippet. The hub later verifies ownership by f
 
 The public token is allowed to be visible in browser code. It identifies a verified site for event ingestion; it does not grant account access or expose private dashboard data.
 
+For platforms, the public token proves only that `platform.com` can stream events. It does not prove Alice owns the platform. Alice's claim comes from a publisher identity linked to the same wallet she uses on the platform and on Nibgate.
+
+## Publisher identity
+
+The publisher layer sits between a verified site and content.
+
+```txt
+Website(platform.com)
+  -> Publisher(@alice, wallet 0xAlice)
+    -> Content(post_123)
+```
+
+Resource shape:
+
+```js
+{
+  id: post.id,
+  title: post.title,
+  type: 'article',
+  price: post.price,
+  recipient: post.author.walletAddress,
+  path: `/@${post.author.handle}/${post.slug}`,
+  url: `${origin}/@${post.author.handle}/${post.slug}`,
+  publisher: {
+    id: post.author.id,
+    handle: post.author.handle,
+    walletAddress: post.author.walletAddress,
+    profileUrl: `${origin}/@${post.author.handle}`,
+    verification: 'wallet_verified'
+  }
+}
+```
+
+Dashboard ownership rule:
+
+- owned sites are domains the wallet/account verified directly
+- publisher identities are routes/profiles the wallet claimed inside a verified platform
+- a creator should see `platform.com/@alice` when the platform publisher wallet matches the wallet used to sign into Nibgate
+
+Trust modes:
+
+- `platform_attested`: the verified platform asserts that a publisher exists and owns a post
+- `wallet_verified`: the publisher wallet signs a SIWE-style claim for that platform profile
+- `subdomain_publisher`: a future stronger mode where `alice.platform.com` can be treated as a publisher route, with extra DNS/TLS complexity
+
 ## Events
 
 The widget automatically emits:
@@ -104,6 +172,8 @@ The package or runtime can emit events such as:
 - `payment_completed`
 
 These are intentionally small and metadata-oriented. They should describe what happened without sending the creator's full private content to the hub.
+
+Platform events should include publisher metadata when available. The backend should store publisher id/wallet on content, metrics, receipts, and ratings so platform-level analytics and creator-level analytics can both be correct.
 
 Example package bridge:
 
@@ -192,6 +262,8 @@ Creator site package -> widget/backend event -> Nibgate earnings dashboard
 ```
 
 The receiving address belongs to the creator site/package config. A single creator profile can connect multiple sites, and each site can use a different recipient address. Historical payment records should store the recipient used for that exact unlock, because a creator may change a site's receiver later.
+
+On a multipublisher platform, the receiving address should usually be resource-level and match the publisher wallet. If a platform supports delegated payout wallets, the relationship must be explicit so Nibgate can attribute reputation to the publisher while showing the correct payment receiver.
 
 The earnings UI should show recorded revenue, receiving addresses by site, payment verification status, revenue by site/content, and payment history. It should not show withdrawals unless Nibgate later becomes custodial.
 

@@ -46,45 +46,26 @@ DELETE /api/hub/sites/:siteId
 
 Widget and package event routes should reject unknown origins, removed sites, stale verification, and malformed content ids.
 
-For multipublisher platforms, event payloads should also preserve publisher identity fields from the resource: `publisher.id`, `publisher.handle`, `publisher.walletAddress`, and `publisher.profileUrl`.
-
 ```http
 POST /api/hub/track
 ```
 
-Intended multipublisher event shape:
+Intended event shape:
 
 ```json
 {
-  "siteId": "site_platform",
+  "siteId": "site_123",
   "event": "resource_view",
   "resource": {
     "id": "post_123",
     "title": "Paid research note",
-    "url": "https://platform.com/@alice/research",
-    "recipient": "0xAlice",
-    "publisher": {
-      "id": "alice",
-      "handle": "alice",
-      "walletAddress": "0xAlice",
-      "profileUrl": "https://platform.com/@alice",
-      "verification": "wallet_verified"
-    }
+    "url": "https://creator.com/research",
+    "recipient": "0xCreator"
   }
 }
 ```
 
-The `siteId` proves the platform origin. The publisher wallet links the content to the creator account that signs into Nibgate with the same wallet.
-
-## Publisher identities
-
-Creator dashboards can fetch publisher identities that belong to their verified platform sites.
-
-```http
-GET /api/hub/dashboard/publishers
-```
-
-`GET /api/hub/dashboard/profile` also returns `profile.publisherIdentities`. Each identity includes the verified site, handle, wallet, route/profile URL, and counts for content, metrics, receipts, and ratings.
+The `siteId` proves the creator origin. The recipient wallet links the content to the creator account and payment receiver for the verified site.
 
 ## Explore content
 

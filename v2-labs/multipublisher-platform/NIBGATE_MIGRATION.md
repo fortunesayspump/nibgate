@@ -33,9 +33,9 @@ Before running the full app locally:
 
 ## Current Status
 
-- Platform source now lives directly inside the Nibgate repo.
+- Platform source now lives in `v2-labs/multipublisher-platform`.
 - Dependencies installed.
 - Prisma client generation passes with the current local setup.
-- Root `npm run dev:platform` points to this app.
+- The app is intentionally outside the root v1 workspace.
 - TypeScript check passes with `npm run check`.
 - Public shell and homepage have started moving into the Nibgate platform visual language.

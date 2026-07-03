@@ -8,8 +8,6 @@ Nibgate earnings are payment analytics, not withdrawals. Funds should flow throu
 
 The creator package controls the receiver address. A creator can run multiple sites, and each site can use a different payment destination.
 
-On a multipublisher platform, each resource can use the publisher wallet as `recipient`. The platform domain owns the widget token, but the publisher wallet owns attribution for content, receipts, earnings, and reputation.
-
 <Callout type="important">
 Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock.
 </Callout>
@@ -48,8 +46,6 @@ Unlock completion events should include:
 - `receiver`
 - `recipient`
 - `siteId`
-- `publisherId` for platform content
-- `publisherWallet` for platform content
 - `contentId`
 - `txHash` for chain transactions
 - `paymentId` for gateway/provider records
@@ -60,5 +56,3 @@ Unlock completion events should include:
 ## Earnings dashboard
 
 The dashboard should group earnings by site, receiver, content, currency, and time range. Clicking a receipt should open the source transaction or gateway receipt when available.
-
-For platform publishers, the creator dashboard should also group earnings by publisher identity, for example `@alice on platform.com`. The wallet Alice uses on the platform should match the wallet she uses to sign into Nibgate.

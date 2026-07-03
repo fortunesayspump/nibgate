@@ -30,6 +30,13 @@
     },
     "./package.json": "./package.json"
   },
+  "scripts": {
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm run pack:check"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "src",
     "README.md"

@@ -89,13 +89,13 @@ This is the multipublisher platform version of the package flow. A single site c
 
 ## Local Setup
 
-From the repo root:
+From this folder:
 
 ```bash
-npm run dev:platform
+npm run dev
 ```
 
-From this folder, install dependencies:
+Install dependencies:
 
 ```bash
 npm install --ignore-scripts

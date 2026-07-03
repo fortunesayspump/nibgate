@@ -4,8 +4,6 @@ import { Callout, Steps } from 'nextra/components'
 
 A site starts pending, becomes verified when the widget is found, and can be rechecked to make sure the widget still exists.
 
-For multipublisher platforms, the site is the platform domain. Individual creators under routes like `platform.com/@alice` claim publisher identities; they do not verify the platform domain as their own site.
-
 ## States
 
 - `pending`: site was registered but ownership is not verified yet.
@@ -18,9 +16,7 @@ For multipublisher platforms, the site is the platform domain. Individual creato
 <Steps>
 ### Register origin
 
-The dashboard creates the site record and token.
-
-Only the domain owner or platform admin should register the origin. A creator publishing inside a platform should connect their wallet on the platform and claim a publisher identity instead.
+The dashboard creates the site record and token. Only register domains you control.
 
 ### Crawl homepage
 
@@ -29,8 +25,6 @@ The backend fetches the registered origin and checks for the Nibgate widget mark
 ### Mark verified
 
 If the token matches, the site can stream content and activity events.
-
-Those events may include publisher metadata so Nibgate can attribute platform activity to the correct wallet-linked creator account.
 
 ### Recheck health
 
@@ -44,5 +38,3 @@ If the widget is removed after verification, the site should eventually become s
 ## Removal behavior
 
 Removing a site should hide it from active dashboard and Explore views. Historical metrics stay archived for reporting and audit context.
-
-For multipublisher platforms, removing the platform site pauses new events for every publisher identity under that domain. Historical publisher metrics should remain available for audit and creator reporting.

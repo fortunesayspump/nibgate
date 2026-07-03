@@ -6,7 +6,6 @@ export default {
   overview: "What is Nibgate?",
   architecture: "Architecture",
   lifecycle: "End-to-end lifecycle",
-  "multipublisher-platforms": "Multipublisher platforms",
   "agent-discovery": "Agent discovery",
   reputation: "Reputation",
   "---setup": {

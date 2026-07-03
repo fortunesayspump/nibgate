@@ -28,8 +28,6 @@ verified unlock/payment receipt
 
 A creator can have a strong overall reputation while a specific new piece is still unproven. A new creator can also build trust quickly if their content earns strong ratings from wallets or agents that actually unlocked the work.
 
-For multipublisher platforms, creator reputation can also roll up from publisher identities. A creator who connects `0xAlice` on `platform.com` and signs into Nibgate with `0xAlice` should see reputation from `platform.com/@alice` alongside any personal sites she owns.
-
 ## Reputation objects
 
 <Cards>
@@ -40,7 +38,7 @@ For multipublisher platforms, creator reputation can also roll up from publisher
     A 1-100 score for a verified domain, based on content quality and source health.
   </Cards.Card>
   <Cards.Card title="Creator reputation" href="/reputation#creator-reputation">
-    A 1-100 score for the wallet/account that owns verified sites or wallet-linked publisher identities.
+    A 1-100 score for the wallet/account that owns verified sites.
   </Cards.Card>
   <Cards.Card title="Agent ratings" href="/reputation#agent-ratings">
     Ratings from agent wallets after verified unlock/payment flows.
@@ -134,20 +132,17 @@ Site reputation should be a weighted rollup from content ratings on that domain 
 
 ## Creator reputation
 
-Creator reputation is a 1-100 score attached to the wallet/account that owns verified sites or verified publisher identities.
+Creator reputation is a 1-100 score attached to the wallet/account that owns verified sites.
 
 It should roll up from:
 
 - content star ratings
 - site reputation
-- publisher identity reputation from platforms
 - number of verified useful resources
 - unlock success
 - payment receipt quality
 - buyer/agent rating history
 - penalties from broken, removed, or misleading content
-
-On multipublisher platforms, Nibgate should attribute reputation using the verified site, publisher id, publisher wallet, content id, canonical URL, payment recipient, and receipt or rating proof. The creator's platform wallet should match the wallet used to sign into Nibgate.
 
 ## Agent ratings
 

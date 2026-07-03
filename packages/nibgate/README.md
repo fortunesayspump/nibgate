@@ -243,45 +243,6 @@ Required for paid content: `price` and `recipient`.
 
 The package warns in the browser when important metadata is missing and sends a metadata quality summary to the hub with content events. The backend stores that summary so dashboards can surface setup issues instead of silently creating weak content cards.
 
-## Multipublisher platforms
-
-For a platform where many creators publish under one verified domain, keep the widget at the platform level and add `publisher` metadata to every resource.
-
-```txt
-platform.com widget token
-  -> @alice publisher identity
-    -> Alice's posts, payments, ratings, and metrics
-```
-
-The platform owner verifies `platform.com` once in Nibgate. Alice does not add `platform.com` as her own site. Alice connects wallet `0xAlice` inside the platform, and later signs into Nibgate with the same wallet to see `platform.com/@alice`, her content, earnings, metrics, and reputation.
-
-```js
-const resource = {
-  id: post.id,
-  title: post.title,
-  type: 'article',
-  price: post.price,
-  currency: 'USDC',
-  recipient: post.author.walletAddress,
-  path: `/@${post.author.handle}/${post.slug}`,
-  url: `${origin}/@${post.author.handle}/${post.slug}`,
-  publisher: {
-    id: post.author.id,
-    handle: post.author.handle,
-    name: post.author.name,
-    walletAddress: post.author.walletAddress,
-    profileUrl: `${origin}/@${post.author.handle}`,
-    verification: 'wallet_verified'
-  },
-  access: { humans: 'paid', agents: 'paid' },
-  unlock: { mode: 'one_time' }
-};
-
-trackResourcePage(resource, { source: 'multipublisher-platform' });
-```
-
-For the safest default, `recipient` and `publisher.walletAddress` should be the same wallet. If a platform supports delegated payout wallets, store that relationship explicitly so the hub can still attribute content to the publisher while showing the correct payment receiver.
-
 ## Package UI included
 
 The package includes small controller UIs, not a heavy design system:
@@ -414,13 +375,13 @@ function postToNibgateResource(post) {
 }
 ```
 
-`recipient` is resource-level on purpose. A creator can run a full blogging platform, marketplace, media library, or multi-author publication where each post, video, image pack, or API route pays a different wallet from the database. `recipient`, `payTo`, `receiver`, `receiverAddress`, and `creatorWallet` are accepted aliases. The server-level `recipient` or `NIBGATE_SELLER_ADDRESS` should be treated as a fallback, not the only way to route money.
+`recipient` is resource-level on purpose. A creator can run a blog, marketplace, media library, or API product where each post, video, image pack, or API route pays a different wallet from the database. `recipient`, `payTo`, `receiver`, `receiverAddress`, and `creatorWallet` are accepted aliases. The server-level `recipient` or `NIBGATE_SELLER_ADDRESS` should be treated as a fallback, not the only way to route money.
 
 This means Nibgate can fit different creator architectures:
 
 - hardcoded MDX posts with frontmatter
 - CMS posts from Sanity, WordPress, or a custom admin
-- DB-backed blogs with per-author payout wallets
+- DB-backed blogs with per-resource payout wallets
 - paid media/download routes
 - agent-readable API routes
 

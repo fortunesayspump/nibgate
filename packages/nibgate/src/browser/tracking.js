@@ -1,4 +1,4 @@
-import { normalizePublisher, normalizeResource, validateResourceMetadata } from '../core/resource.js';
+import { normalizeResource, validateResourceMetadata } from '../core/resource.js';
 import { browserWindow } from './env.js';
 import { emit, payloadWithResource } from './events.js';
 
@@ -39,4 +39,4 @@ export function trackResourcePage(resource, options = {}) {
   return item;
 }
 
-export { normalizePublisher, normalizeResource, validateResourceMetadata };
+export { normalizeResource, validateResourceMetadata };

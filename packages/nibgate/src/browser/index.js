@@ -1,4 +1,4 @@
-import { ACCESS_MODES, CONTENT_TYPES, UNLOCK_MODES, normalizeAccessPolicy, normalizeContentType, normalizePublisher, normalizeResource, normalizeUnlockPolicy, validateResourceMetadata } from '../core/resource.js';
+import { ACCESS_MODES, CONTENT_TYPES, UNLOCK_MODES, normalizeAccessPolicy, normalizeContentType, normalizeResource, normalizeUnlockPolicy, validateResourceMetadata } from '../core/resource.js';
 import { normalizeRating, ratingMessage } from '../core/rating.js';
 import { browserWindow } from './env.js';
 import { emit, flushQueue, payloadWithResource } from './events.js';
@@ -705,6 +705,6 @@ export function createNibgate(defaults = {}) {
 export const nibgate = createNibgate();
 export const gate = createGate;
 export { createTransferCheckout, payWithTransfer } from './transfer.js';
-export { CONTENT_TYPES, ACCESS_MODES, UNLOCK_MODES, normalizeContentType, normalizeResource, normalizePublisher, normalizeAccessPolicy, normalizeUnlockPolicy, validateResourceMetadata };
+export { CONTENT_TYPES, ACCESS_MODES, UNLOCK_MODES, normalizeContentType, normalizeResource, normalizeAccessPolicy, normalizeUnlockPolicy, validateResourceMetadata };
 export { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings, settingsToAccessPolicy, settingsToUnlockPolicy } from '../core/settings.js';
 export { PAYMENT_RAILS, normalizePaymentRail } from '../core/payment.js';

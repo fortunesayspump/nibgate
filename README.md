@@ -8,13 +8,13 @@ Creators keep their content on their own domains. Nibgate verifies the source, i
 
 The open web needs a content discovery standard for paid, high-quality resources. Search can find pages, marketplaces can host inventory, and payment rails can unlock access, but creators still need one trusted layer that says:
 
-1. this domain is controlled by this creator or verified publishing platform
+1. this domain is controlled by this creator
 2. this content exists at this route
 3. this content can be unlocked by humans or agents
-4. this creator or publisher identity has real reputation signals from verified activity
+4. this creator has real reputation signals from verified activity
 5. this payment history routes directly to the configured receiver for the resource
 
-Nibgate is that layer. The creator-owned site or verified publishing platform remains the source of truth, while the hub becomes the public index, analytics surface, and reputation graph around verified content.
+Nibgate is that layer. The creator-owned site remains the source of truth, while the hub becomes the public index, analytics surface, and reputation graph around verified content.
 
 It consists of four connected parts:
 
@@ -23,18 +23,16 @@ It consists of four connected parts:
 3. **The Hub**: `nibgate.xyz` is the creator dashboard, discovery surface, and analytics layer. It verifies sites, stores content metadata, aggregates metrics, and shows profile/site/content/earnings data.
 4. **The Discovery Layer**: Explore, public profiles, content metadata, receipts, and reputation signals make verified creator content readable by people and AI agents.
 
-For multipublisher platforms, the platform verifies the domain once and each creator connects a wallet as a publisher identity under that verified site. The creator's Nibgate dashboard can then show routes like `platform.com/@alice`, content, metrics, earnings, and reputation for the same wallet Alice used on the platform.
-
 ## Repo Layout
 
 ```txt
 backend/       Express API server, Prisma DB, hub routes, verification, ingestion
 frontend/      Next.js app for the public site, dashboard, Explore, blog, and leaderboards
 packages/      Nibgate npm package and internal tooling
-platform/      Multipublisher creator platform
 demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz
 internal-docs/ Architecture, research, design-system notes, and planning
+v2-labs/       Future experiments, including the multipublisher creator platform
 ideas/         Product thinking and experiments
 ```
 
@@ -117,16 +115,6 @@ Open:
 - [http://localhost:3001](http://localhost:3001)
 - [http://localhost:3001/explore](http://localhost:3001/explore)
 - [http://localhost:4301](http://localhost:4301)
-
-Start the multipublisher creator platform:
-
-```bash
-npm run dev:platform
-```
-
-Open:
-
-- [http://localhost:4400](http://localhost:4400)
 
 ## Environment
 
@@ -229,68 +217,6 @@ For real blogs and CMS-backed sites, gating fields should live beside the creato
 
 This works across Next.js, React plus an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, MDX server rendering, headless CMS apps, and traditional CMS/plugin environments. Plain static HTML can use the widget for verification and events, but protected content still needs a server, edge function, API route, or signed URL.
 
-## Multipublisher Platforms
-
-Nibgate should support both creator-owned sites and platforms where many creators publish under one verified domain.
-
-```txt
-verified platform domain
-  -> publisher identity
-    -> content resource
-      -> events, receipts, ratings, reputation
-```
-
-The domain/widget token belongs to the platform. Individual creators do not paste widgets for `platform.com/@alice`; they connect or sign with a wallet inside the platform. That same wallet is used when they sign into `nibgate.xyz`, so the Hub can link the platform publisher identity to the creator's account.
-
-Example resource for a platform post:
-
-```js
-{
-  id: post.id,
-  title: post.title,
-  type: 'article',
-  price: post.price,
-  currency: 'USDC',
-  recipient: post.author.walletAddress,
-  path: `/@${post.author.handle}/${post.slug}`,
-  url: `${origin}/@${post.author.handle}/${post.slug}`,
-  publisher: {
-    id: post.author.id,
-    handle: post.author.handle,
-    name: post.author.name,
-    walletAddress: post.author.walletAddress,
-    profileUrl: `${origin}/@${post.author.handle}`,
-    verification: 'wallet_verified'
-  },
-  access: { humans: 'paid', agents: 'paid' },
-  unlock: { mode: 'one_time' }
-}
-```
-
-Trust model:
-
-1. the platform owner signs into Nibgate, adds `platform.com`, and verifies the widget
-2. Alice signs into the platform with wallet `0xAlice` and claims `@alice`
-3. Alice signs into Nibgate with `0xAlice`
-4. Nibgate shows `platform.com/@alice` as a publisher identity, not as a site Alice owns
-5. events from the verified platform token are attributed to Alice when the resource carries `publisher.walletAddress: 0xAlice`
-
-Dashboard model:
-
-```txt
-Sites
-  alice.com
-
-Publisher identities
-  @alice on platform.com
-
-Content and metrics
-  resources from owned sites
-  resources from wallet-linked publisher identities
-```
-
-Subdomains such as `alice.platform.com` can be supported later as a stronger route mode, but the default multipublisher path should work on ordinary routes like `platform.com/@alice/post`.
-
 For the hackathon MVP, unlocks should be simple and real:
 
 ```txt
@@ -353,7 +279,7 @@ The intended unlock model remains creator-site native:
 
 Public content reputation can be shown as a `0.0-5.0` star rating. Site reputation and creator reputation then roll up from content ratings plus verification health, consistency, receipts, and source quality.
 
-Creator reputation should be a `1-100` score for the wallet/account that owns verified sites or wallet-linked publisher identities and the content under them. That means creator trust can grow from actual unlocks, payment receipts, ratings from eligible wallets/agents, useful agent feedback, and content quality signals connected back to the verified source. It also means a creator can have a strong overall reputation while a specific new piece is still earning trust.
+Creator reputation should be a `1-100` score for the wallet/account that owns verified sites and the content under them. That means creator trust can grow from actual unlocks, payment receipts, ratings from eligible wallets/agents, useful agent feedback, and content quality signals connected back to the verified source. It also means a creator can have a strong overall reputation while a specific new piece is still earning trust.
 
 ## Local Connect Flow
 

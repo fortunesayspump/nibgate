@@ -19,25 +19,9 @@ export type NibgateServerResource = {
   description?: string;
   summary?: string;
   tags?: string[] | string;
-  publisher?: NibgatePublisher;
-  publisherId?: string;
-  publisherWallet?: string;
-  authorHandle?: string;
   currency?: string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
-  [key: string]: unknown;
-};
-
-export type NibgatePublisher = {
-  id: string;
-  handle?: string;
-  name?: string;
-  walletAddress?: string;
-  creatorWallet?: string;
-  profileUrl?: string;
-  origin?: string;
-  verification?: 'platform_attested' | 'wallet_verified' | 'subdomain_publisher' | string;
   [key: string]: unknown;
 };
 
@@ -222,7 +206,6 @@ export declare function protect(resource: NibgateServerResource | string, handle
 export declare const server: ReturnType<typeof createNibgateServer>;
 export declare function actorFromRequest(request: Request, fallback?: NibgateActor): NibgateActor;
 export declare function accessModeFor(resource: NibgateServerResource | string, actor?: NibgateActor): NibgateAccessMode;
-export declare function normalizePublisher(publisher?: NibgatePublisher | string, resource?: NibgateServerResource): NibgatePublisher | undefined;
 export declare function normalizeResource(resource?: NibgateServerResource | string): NibgateServerResource;
 export declare function validateResourceMetadata(resource?: NibgateServerResource | string, options?: Record<string, unknown>): NibgateMetadataValidation;
 export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;

@@ -19,18 +19,6 @@ export type NibgateUnlockPolicy = {
   [key: string]: unknown;
 };
 
-export type NibgatePublisher = {
-  id: string;
-  handle?: string;
-  name?: string;
-  walletAddress?: string;
-  creatorWallet?: string;
-  profileUrl?: string;
-  origin?: string;
-  verification?: 'platform_attested' | 'wallet_verified' | 'subdomain_publisher' | string;
-  [key: string]: unknown;
-};
-
 export type NibgateResource = {
   id: string;
   title?: string;
@@ -52,10 +40,6 @@ export type NibgateResource = {
   description?: string;
   summary?: string;
   tags?: string[] | string;
-  publisher?: NibgatePublisher;
-  publisherId?: string;
-  publisherWallet?: string;
-  authorHandle?: string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
   [key: string]: unknown;
@@ -409,7 +393,6 @@ export declare const CONTENT_TYPES: readonly ['music', 'video', 'article', 'imag
 export declare const ACCESS_MODES: readonly ['free', 'paid', 'blocked'];
 export declare const UNLOCK_MODES: readonly ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
 export declare function normalizeContentType(type?: string): NibgateContentType;
-export declare function normalizePublisher(publisher?: NibgatePublisher | string, resource?: NibgateResource): NibgatePublisher | undefined;
 export declare function normalizeResource(resource?: NibgateResource | string): NibgateResource;
 export declare function validateResourceMetadata(resource?: NibgateResource | string, options?: Record<string, unknown>): NibgateMetadataValidation;
 export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;

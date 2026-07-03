@@ -48,31 +48,23 @@ export function normalizeUnlockPolicy(value = {}) {
   };
 }
 
-export function normalizePublisher(value = {}, resource = {}) {
-  const input = typeof value === 'string' ? { id: value } : (value || {});
-  const id = input.id || input.publisherId || resource.publisherId || resource.authorId || resource.creatorId || '';
-  const walletAddress = input.walletAddress || input.creatorWallet || input.publisherWallet || resource.publisherWallet || resource.creatorWallet || '';
-  const handle = input.handle || input.username || resource.publisherHandle || resource.authorHandle || '';
-  const normalized = {
-    ...input,
-    id: String(id).trim(),
-    handle: handle ? String(handle).replace(/^@/, '').trim() : undefined,
-    name: input.name || input.displayName || resource.publisherName || resource.authorName || undefined,
-    walletAddress: walletAddress || undefined,
-    profileUrl: input.profileUrl || input.url || resource.publisherProfileUrl || undefined,
-    origin: input.origin || resource.publisherOrigin || undefined,
-    verification: input.verification || input.verificationStatus || resource.publisherVerification || undefined
-  };
-
-  const hasPublisherValue = Object.values(normalized).some((entry) => entry !== undefined && entry !== null && String(entry).trim() !== '');
-  return hasPublisherValue ? normalized : undefined;
-}
-
 export function normalizeResource(resource = {}) {
   const input = typeof resource === 'string' ? { id: resource } : (resource || {});
-  const publisher = normalizePublisher(input.publisher, input);
+  const {
+    publisher,
+    publisherId,
+    publisherWallet,
+    publisherHandle,
+    publisherName,
+    publisherProfileUrl,
+    publisherOrigin,
+    publisherVerification,
+    authorHandle,
+    ...v1Input
+  } = input;
+
   return {
-    ...input,
+    ...v1Input,
     id: String(input.id || input.contentId || input.slug || '').trim(),
     title: String(input.title || input.name || '').trim(),
     type: normalizeContentType(input.type || input.contentType),
@@ -84,9 +76,6 @@ export function normalizeResource(resource = {}) {
     url: input.url || undefined,
     imageUrl: input.imageUrl || input.image || undefined,
     tags: input.tags || undefined,
-    publisher,
-    publisherId: input.publisherId || publisher?.id || undefined,
-    publisherWallet: input.publisherWallet || publisher?.walletAddress || undefined,
     access: normalizeAccessPolicy(input.access),
     unlock: normalizeUnlockPolicy(input.unlock)
   };

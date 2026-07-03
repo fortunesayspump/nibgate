@@ -41,30 +41,6 @@ const post = gate({
 post.content()
 ```
 
-For a multipublisher platform, include `publisher` so the same verified domain can report activity for many creators:
-
-```ts
-const post = gate({
-  id: "post_123",
-  type: "article",
-  title: "Paid research note",
-  path: "/@alice/research",
-  url: "https://platform.com/@alice/research",
-  price: "2.00",
-  currency: "USDC",
-  recipient: "0xAlice",
-  publisher: {
-    id: "alice",
-    handle: "alice",
-    walletAddress: "0xAlice",
-    profileUrl: "https://platform.com/@alice",
-    verification: "wallet_verified"
-  },
-  access: { humans: "paid", agents: "paid" },
-  unlock: { mode: "one_time" }
-})
-```
-
 ## Recommended fields
 
 | Field | Purpose |
@@ -78,7 +54,6 @@ const post = gate({
 | `tags` | Search and Explore filtering. |
 | `previewImage` | Public image shown in Explore. |
 | `recipient` | Wallet or payment receiver for paid unlocks. |
-| `publisher` | Publisher identity for multipublisher platforms. |
 | `access` | Human and agent access policy. |
 | `unlock` | Unlock policy. Use `mode: "one_time"` for the MVP. |
 
@@ -109,10 +84,10 @@ For reputation and rating contracts, every content item should resolve to a stab
 A practical shape is:
 
 ```txt
-contentId = hash(chainId, creatorWalletOrPublisherWallet, domain, path, id)
+contentId = hash(chainId, creatorWallet, domain, path, id)
 ```
 
-The creator should not need to mint each content item. The package can derive this id from the verified site and resource metadata, then use it for unlock receipts, rating eligibility, and rating events. On platforms, the publisher wallet should be included in attribution even though the verified domain belongs to the platform.
+The creator should not need to mint each content item. The package can derive this id from the verified site and resource metadata, then use it for unlock receipts, rating eligibility, and rating events.
 
 ## Rating handoff
 

@@ -11,4 +11,4 @@ Use this folder for package-level tests around:
 - hub event emission
 - Gateway receipt handling
 
-Dev-only event seeding helpers live in `nibgate/testing`, not `nibgate` or `nibgate/server`.
+Dev-only event seeding helpers live in `@nibgate/sdk/testing`, not `nibgate` or `@nibgate/sdk/server`.

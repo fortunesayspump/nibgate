@@ -32,16 +32,16 @@ src/server/runtime.js        runtime package resolution for creator app installs
 Public imports:
 
 ```ts
-import { createEvmGatewayUnlock, trackResourcePage } from 'nibgate';
-import { createCircleGatewayServer, createNibgateServer } from 'nibgate/server';
-import { emitTestEvents } from 'nibgate/testing';
+import { createEvmGatewayUnlock, trackResourcePage } from '@nibgate/sdk';
+import { createCircleGatewayServer, createNibgateServer } from '@nibgate/sdk/server';
+import { emitTestEvents } from '@nibgate/sdk/testing';
 ```
 
 Rules:
 
 - `nibgate` is browser-safe and creator-facing.
-- `nibgate/server` is server-only and enforces paid access.
-- `nibgate/testing` is dev/test-only and must not power production unlock UX.
+- `@nibgate/sdk/server` is server-only and enforces paid access.
+- `@nibgate/sdk/testing` is dev/test-only and must not power production unlock UX.
 - Runtime code must not invent fake payment ids for successful access.
 - Browser access should use `x-nibgate-payment-proof`, not cookies.
 - Gateway browser checkout must come from a connected wallet/provider, not a bundled buyer key.

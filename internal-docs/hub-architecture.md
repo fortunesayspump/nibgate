@@ -61,7 +61,7 @@ For multipublisher platforms, the widget remains site-level. Publisher attributi
 
 ## Package contract
 
-Every site that installs `nibgate` should be able to:
+Every site that installs `@nibgate/sdk` should be able to:
 
 1. protect local routes and gated content
 2. handle x402 payment/unlock logic on the creator origin
@@ -178,7 +178,7 @@ Platform events should include publisher metadata when available. The backend sh
 Example package bridge:
 
 ```js
-import { gate } from 'nibgate';
+import { gate } from '@nibgate/sdk';
 
 const premiumGuide = gate({
   id: "premium-guide",
@@ -206,7 +206,7 @@ await premiumGuide.unlock(async () => {
 Lower-level bridge calls remain available for custom runtimes:
 
 ```js
-import { nibgate } from 'nibgate';
+import { nibgate } from '@nibgate/sdk';
 
 nibgate.unlockCompleted("premium-guide", {
   revenue: 0.01,
@@ -218,10 +218,10 @@ The backend normalizes content types to exactly four values: `music`, `video`, `
 
 ## Server protection
 
-The public package also exposes `nibgate/server` for the paid-access layer. This is the part that should enforce real unlocks. The browser `gate(...)` API is for UX and automatic reporting; server protection decides whether protected content is actually returned.
+The public package also exposes `@nibgate/sdk/server` for the paid-access layer. This is the part that should enforce real unlocks. The browser `gate(...)` API is for UX and automatic reporting; server protection decides whether protected content is actually returned.
 
 ```js
-import { createNibgateServer } from 'nibgate/server';
+import { createNibgateServer } from '@nibgate/sdk/server';
 
 const nibgateServer = createNibgateServer({
   secret: process.env.NIBGATE_SECRET,

@@ -5,14 +5,14 @@ Framework-agnostic browser and server package for creator-owned paid content.
 ## Install
 
 ```bash
-npm install nibgate
+npm install @nibgate/sdk
 ```
 
 Use one package with two entrypoints:
 
 ```js
-import { gate } from 'nibgate'; // browser/client events and UI helpers
-import { createCircleGatewayServer, createNibgateServer } from 'nibgate/server'; // server-side access enforcement
+import { gate } from '@nibgate/sdk'; // browser/client events and UI helpers
+import { createCircleGatewayServer, createNibgateServer } from '@nibgate/sdk/server'; // server-side access enforcement
 ```
 
 This works with Next.js, React apps with an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, custom servers, and CMS/plugin environments. Plain HTML can use the widget and browser events, but real gating still requires a server, edge function, API route, or signed file endpoint.
@@ -28,7 +28,7 @@ First paste the widget script from your Nibgate dashboard into your site:
 Then define a resource and let the package handle the repeated browser wiring. Nibgate registers the content and reports unlock activity through the widget:
 
 ```js
-import { checkResourceAccess, trackResourcePage } from 'nibgate';
+import { checkResourceAccess, trackResourcePage } from '@nibgate/sdk';
 
 const premiumGuide = {
   id: 'premium-guide',
@@ -69,7 +69,7 @@ await checkResourceAccess(premiumGuide, {
 For plain browser pages, bind a button without writing custom event glue:
 
 ```js
-import { setupResourcePage } from 'nibgate';
+import { setupResourcePage } from '@nibgate/sdk';
 
 setupResourcePage(premiumGuide, {
   source: 'creator-site',
@@ -83,7 +83,7 @@ setupResourcePage(premiumGuide, {
 For a ready-made unlock button/controller, use `createWalletCheckout`. The package owns the UI state, retries, unlock events, and proof-backed access retry; your wallet/Gateway adapter only has to return the payment signature for the `PAYMENT-REQUIRED` challenge.
 
 ```js
-import { createCircleGatewayBrowserAdapter, createWalletCheckout } from 'nibgate';
+import { createCircleGatewayBrowserAdapter, createWalletCheckout } from '@nibgate/sdk';
 
 const [address] = await walletClient.getAddresses();
 const circle = await createCircleGatewayBrowserAdapter({
@@ -110,7 +110,7 @@ Do not replace the Gateway payment with a normal wallet message signature. Gatew
 The browser Circle Gateway adapter expects the creator server to return Circle's real `PAYMENT-REQUIRED` batching challenge. Use the preset on your server route:
 
 ```js
-import { createCircleGatewayServer } from 'nibgate/server';
+import { createCircleGatewayServer } from '@nibgate/sdk/server';
 
 const nibgateServer = createCircleGatewayServer({
   origin: 'https://creator.example',
@@ -138,7 +138,7 @@ If the server is left in fallback challenge mode, browser checkout will fail clo
 Lower-level event helpers are still available when you need them:
 
 ```js
-import { nibgate } from 'nibgate';
+import { nibgate } from '@nibgate/sdk';
 
 nibgate.unlockCompleted('premium-guide', {
   revenue: 0.01,
@@ -149,7 +149,7 @@ nibgate.unlockCompleted('premium-guide', {
 After a verified unlock, a creator UI should submit an onchain rating for the same resource. The hub only counts it into reputation when it can connect the rating wallet to an unlock receipt/proof. Use the built-in controller when you want simple selector-based UI wiring:
 
 ```js
-import { createEvmGatewayUnlock, createOnchainRating } from 'nibgate';
+import { createEvmGatewayUnlock, createOnchainRating } from '@nibgate/sdk';
 
 const premiumGuide = {
   id: 'premium-guide',
@@ -211,7 +211,7 @@ Content types are `music`, `video`, `article`, and `image`.
 Nibgate can only make good Explore cards and agent-readable records from metadata the creator site provides. Pass the same shape whether content comes from MDX frontmatter, a CMS row, a media table, or a custom admin dashboard:
 
 ```js
-import { trackResourcePage, validateResourceMetadata } from 'nibgate';
+import { trackResourcePage, validateResourceMetadata } from '@nibgate/sdk';
 
 const resource = {
   id: post.id,
@@ -315,7 +315,7 @@ For CMS/database-driven sites, keep the gating fields in your own content table,
 If the creator has an admin dashboard, put Nibgate settings in that UI and save them beside the post/content record. The package exports canonical field metadata so each framework can render the same settings natively:
 
 ```js
-import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from 'nibgate';
+import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from '@nibgate/sdk';
 
 const defaults = createNibgateContentSettings({
   recipient: creatorDefaultWallet
@@ -409,7 +409,7 @@ access: { humans: 'free', agents: 'paid' }
 access: { humans: 'paid', agents: 'blocked' }
 ```
 
-Real locking must happen on the server. If you render the full protected payload into HTML and hide it with CSS, crawlers can still scrape it. `nibgate/server` is what prevents the protected response from being returned until the request is free, paid with proof, or explicitly allowed by policy.
+Real locking must happen on the server. If you render the full protected payload into HTML and hide it with CSS, crawlers can still scrape it. `@nibgate/sdk/server` is what prevents the protected response from being returned until the request is free, paid with proof, or explicitly allowed by policy.
 
 ## Unlock modes
 
@@ -440,10 +440,10 @@ Those later modes let Nibgate grow into background video/audio streaming payment
 
 ## Server protection
 
-Use `nibgate/server` for real route protection. The server layer creates x402-style payment challenges, verifies your payment receipt, and issues a short-lived Nibgate unlock token for the route.
+Use `@nibgate/sdk/server` for real route protection. The server layer creates x402-style payment challenges, verifies your payment receipt, and issues a short-lived Nibgate unlock token for the route.
 
 ```js
-import { createNibgateServer } from 'nibgate/server';
+import { createNibgateServer } from '@nibgate/sdk/server';
 
 const nibgateServer = createNibgateServer({
   secret: process.env.NIBGATE_SECRET,
@@ -477,7 +477,7 @@ export const GET = nibgateServer.protect({
 For JSON API routes, use the smaller helpers:
 
 ```js
-import { createNibgateServer, manifestResponse } from 'nibgate/server';
+import { createNibgateServer, manifestResponse } from '@nibgate/sdk/server';
 
 const nibgateServer = createNibgateServer({
   secret: process.env.NIBGATE_SECRET,
@@ -522,7 +522,7 @@ Do not ship `NIBGATE_BUYER_PRIVATE_KEY` in a public creator website. In producti
 Gateway balance, deposit, and withdraw helpers are also available from the same package:
 
 ```js
-import { depositToGateway, getGatewayBalances, withdrawFromGateway } from 'nibgate/server';
+import { depositToGateway, getGatewayBalances, withdrawFromGateway } from '@nibgate/sdk/server';
 
 const balances = await getGatewayBalances({
   buyerPrivateKey: process.env.NIBGATE_BUYER_PRIVATE_KEY
@@ -543,7 +543,7 @@ For the MVP, browser demos should use the package wallet checkout helper. Server
 For command/API-only demos, package helpers can emit the same standard event sequence to the hub:
 
 ```js
-import { emitTestEvents } from 'nibgate/testing';
+import { emitTestEvents } from '@nibgate/sdk/testing';
 
 await emitTestEvents(premiumGuide, {
   origin: 'https://creator.example',
@@ -568,7 +568,7 @@ On Arc testnet, Gateway payments carry a signed authorization payload rather tha
 
 ## End-to-end product flow
 
-1. Creator installs `nibgate`.
+1. Creator installs `@nibgate/sdk`.
 2. Creator maps posts, media, downloads, API routes, or CMS records into Nibgate resources.
 3. Creator adds the widget snippet from the Nibgate hub.
 4. Creator exposes `nibgate.json` with package helpers.
@@ -590,7 +590,7 @@ The repo includes a plain Express creator site that uses the package without any
 npm run dev:demo
 ```
 
-The demo imports `nibgate/server`, serves the browser client locally, registers article/music/image/video content, and protects `/articles/premium-agent-economy`.
+The demo imports `@nibgate/sdk/server`, serves the browser client locally, registers article/music/image/video content, and protects `/articles/premium-agent-economy`.
 
 It also includes local routes for database/custom CMS, MDX/frontmatter, headless CMS, static teaser/protected API, media/file, and agent/API publishing styles under `/examples`.
 

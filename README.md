@@ -19,7 +19,7 @@ Nibgate is that layer. The creator-owned site remains the source of truth, while
 It consists of four connected parts:
 
 1. **The Widget**: Creators paste one script on their site. It proves domain ownership, creates visitor/session context, and sends browser-safe page activity to Nibgate.
-2. **The Package**: Creators install the `nibgate` npm package to gate real content on their own site. The package knows the content, unlock, and payment lifecycle, then reports those events through the widget bridge.
+2. **The Package**: Creators install the `@nibgate/sdk` npm package to gate real content on their own site. The package knows the content, unlock, and payment lifecycle, then reports those events through the widget bridge.
 3. **The Hub**: `nibgate.xyz` is the creator dashboard, discovery surface, and analytics layer. It verifies sites, stores content metadata, aggregates metrics, and shows profile/site/content/earnings data.
 4. **The Discovery Layer**: Explore, public profiles, content metadata, receipts, and reputation signals make verified creator content readable by people and AI agents.
 
@@ -51,7 +51,7 @@ The Hub is the main Nibgate app and API surface. It acts as the creator dashboar
 This is the public creator package. It is intentionally tiny and framework-agnostic:
 
 ```bash
-npm install nibgate
+npm install @nibgate/sdk
 ```
 
 It owns:
@@ -188,7 +188,7 @@ Nibgate backend
   - updates discovery and reputation signals
 ```
 
-When a creator installs `nibgate` on their own site, the package is responsible for:
+When a creator installs `@nibgate/sdk` on their own site, the package is responsible for:
 
 1. protecting paid routes and gated content on the creator origin with server-side access checks
 2. handling x402/Circle unlock logic
@@ -305,7 +305,7 @@ Widget snippet shape:
 Content-level registration and tracking should be emitted by the package through the widget:
 
 ```js
-import { gate } from 'nibgate';
+import { gate } from '@nibgate/sdk';
 
 const premiumGuide = gate({
   id: "premium-guide",
@@ -341,7 +341,7 @@ await premiumGuide.unlock(async () => {
 The lower-level bridge remains available for advanced integrations:
 
 ```js
-import { nibgate } from 'nibgate';
+import { nibgate } from '@nibgate/sdk';
 
 nibgate.unlockCompleted("premium-guide", {
   revenue: 0.01,
@@ -351,10 +351,10 @@ nibgate.unlockCompleted("premium-guide", {
 
 The package talks to `window.nibgateHub` under the hood. If creator code runs before the async widget finishes loading, package events are queued in the browser and flushed when the widget becomes available.
 
-Server-side protection lives under `nibgate/server`:
+Server-side protection lives under `@nibgate/sdk/server`:
 
 ```js
-import { createCircleGatewayServer } from 'nibgate/server';
+import { createCircleGatewayServer } from '@nibgate/sdk/server';
 
 const nibgateServer = createCircleGatewayServer({
   secret: process.env.NIBGATE_SECRET,

@@ -33,7 +33,6 @@ demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz
 internal-docs/ Architecture, research, design-system notes, and planning
 v2-labs/       Future experiments, including the multipublisher creator platform
-ideas/         Product thinking and experiments
 ```
 
 ## Workspace Shape

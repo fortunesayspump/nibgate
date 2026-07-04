@@ -1,4 +1,5 @@
 import { db } from '@nibgate/cli/src/core/db.js';
+import { syncNewsletterSubscriber } from '../newsletter/resend.js';
 
 function normalizeEmail(value = '') {
   return String(value).trim().toLowerCase();
@@ -22,18 +23,35 @@ export function registerNewsletterRoutes(app) {
         where: { email },
         update: {
           source,
-          status: 'active'
+          status: 'active',
+          resendSyncStatus: 'pending',
+          resendSyncError: null
         },
         create: {
           email,
-          source
+          source,
+          resendSyncStatus: 'pending'
+        }
+      });
+
+      const syncResult = await syncNewsletterSubscriber({ email, source });
+      const syncedAt = syncResult.synced ? new Date() : null;
+
+      await db.newsletterSubscriber.update({
+        where: { id: subscriber.id },
+        data: {
+          resendContactId: syncResult.contactId || subscriber.resendContactId,
+          resendSyncedAt: syncedAt || subscriber.resendSyncedAt,
+          resendSyncStatus: syncResult.status,
+          resendSyncError: syncResult.error ? syncResult.error.slice(0, 500) : null
         }
       });
 
       res.json({
         ok: true,
         subscribed: true,
-        email: subscriber.email
+        email: subscriber.email,
+        synced: syncResult.synced
       });
     } catch (error) {
       console.error('Newsletter subscribe failed', error);

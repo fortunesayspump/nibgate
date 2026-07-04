@@ -124,11 +124,16 @@ Backend variables:
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway
 CORS_ORIGIN=https://nibgate.xyz,http://localhost:3001
 BLOG_OWNER_WALLET=0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12
+RESEND_API_KEY=re_your_resend_api_key
+RESEND_NEWSLETTER_SEGMENT_ID=seg_your_newsletter_segment_id
+RESEND_NEWSLETTER_TOPIC_ID=topic_your_newsletter_topic_id
 ```
 
 For production, attach a Railway Postgres database to the backend service and use Railway's `DATABASE_URL` value. The Prisma datasource is PostgreSQL-only now, so every backend environment must provide `DATABASE_URL`.
 
 `BLOG_OWNER_WALLET` is the single signed wallet that can create, edit, publish, draft, or delete posts from `/dashboard/blog`. No other wallet can access the editor APIs.
+
+Newsletter signups are stored in the local `NewsletterSubscriber` table first. If `RESEND_API_KEY` is configured, the backend also syncs each signup into Resend Contacts. `RESEND_NEWSLETTER_SEGMENT_ID` and `RESEND_NEWSLETTER_TOPIC_ID` are optional, but recommended so newsletter signups are grouped separately from transactional contacts. Without Resend envs, signups still save locally with a pending sync status.
 
 Frontend variables:
 

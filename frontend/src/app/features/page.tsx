@@ -123,8 +123,8 @@ export default function FeaturesPage() {
         reverse={true}
         border="border-y"
         textItems={[
-          ['One install', 'Use `npm install nibgate`, import `gate(...)`, and describe the article, music, image, video, file, or route you want Nibgate to track.'],
-          ['Real route protection', 'Use `nibgate/server` to return payment challenges, verify receipts, and issue one-time unlock tokens only after payment succeeds.'],
+          ['One install', 'Use `npm install @nibgate/sdk`, import `gate(...)`, and describe the article, music, image, video, file, or route you want Nibgate to track.'],
+          ['Real route protection', 'Use `@nibgate/sdk/server` to return payment challenges, verify receipts, and issue one-time unlock tokens only after payment succeeds.'],
           ['Extensible unlock policy', 'Launch with pay-once unlocks now, then add metered streaming, metered reading, passes, or agent quotas later without changing the core package shape.']
         ]}
       />

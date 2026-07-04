@@ -13,10 +13,11 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
     "@circle-fin/x402-batching": "^3.0.4",
+    "@nibgate/cli": "file:../packages/cli",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^4.21.2",
-    "viem": "^2.52.2",
-    "@nibgate/cli": "file:../packages/cli"
+    "resend": "^6.17.1",
+    "viem": "^2.52.2"
   }
 }

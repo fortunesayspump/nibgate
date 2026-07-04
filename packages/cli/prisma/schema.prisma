@@ -243,13 +243,18 @@ model BlogPost {
 }
 
 model NewsletterSubscriber {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  source    String?
-  status    String    @default("active")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  email            String    @unique
+  source           String?
+  status           String    @default("active")
+  resendContactId  String?
+  resendSyncedAt   DateTime?
+  resendSyncStatus String    @default("pending")
+  resendSyncError  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([status])
+  @@index([resendSyncStatus])
   @@index([createdAt])
 }

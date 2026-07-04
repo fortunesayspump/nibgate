@@ -1,15 +1,15 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig } from '@nibgate/cli/src/core/config.js';
 import { createApp } from './server.js';
+import { loadServerConfig } from './runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
 export function startAppServer() {
-  const { config, statePath } = loadConfig();
+  const { config, statePath } = loadServerConfig();
   const port = Number(process.env.PORT || 3000);
 
-  return createApp(config, { statePath, loadLiveConfig: () => loadConfig().config }).then((app) => app.listen(port, () => {
+  return createApp(config, { statePath, loadLiveConfig: () => loadServerConfig().config }).then((app) => app.listen(port, () => {
     console.log(`Nibgate app running at http://localhost:${port}`);
   }));
 }

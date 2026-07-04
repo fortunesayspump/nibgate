@@ -7,7 +7,7 @@ const steps = [
   ["1", "Connect wallet", "Your wallet becomes the creator identity for profiles, sites, contents, analytics, and earnings."],
   ["2", "Register the site", "Add the origin where your protected content lives. Nibgate creates a site id and verification token."],
   ["3", "Paste the widget", "One script proves ownership and streams page activity from the verified domain."],
-  ["4", "Install the package", "Use npm install nibgate to gate routes, define prices, and send content plus unlock events."],
+  ["4", "Install the package", "Use npm install @nibgate/sdk to gate routes, define prices, and send content plus unlock events."],
 ];
 
 const dashboardItems = [
@@ -58,7 +58,7 @@ export default function GetStartedPage() {
           <div className="flex items-center justify-center bg-gray p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 xl:p-32">
             <div className="w-full max-w-2xl border border-dark-gray/50 bg-white p-6 md:p-8">
               <div className="mb-5 text-lg font-medium">Install and verify</div>
-              <pre className="overflow-x-auto whitespace-pre-wrap rounded-none bg-black p-6 font-mono text-sm leading-7 text-white md:text-base">{`npm install nibgate
+              <pre className="overflow-x-auto whitespace-pre-wrap rounded-none bg-black p-6 font-mono text-sm leading-7 text-white md:text-base">{`npm install @nibgate/sdk
 
 <script async src="https://nibgate.xyz/widget.js"
   data-nibgate-site="site_..."

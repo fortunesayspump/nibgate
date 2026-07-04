@@ -64,7 +64,7 @@ function contentMetaSnippet() {
 }
 
 function packageTrackSnippet() {
-  return `import { gate } from "nibgate";
+  return `import { gate } from "@nibgate/sdk";
 
 const premiumGuide = gate({
   id: "premium-guide",

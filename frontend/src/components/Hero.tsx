@@ -33,14 +33,14 @@ export default function Hero() {
       <div className="nibgate-hero-grid">
         <div className="code-snippet" data-code-snippet>
           <pre data-code-to-copy>
-            <p>npm install nibgate</p>
+            <p>npm install @nibgate/sdk</p>
           </pre>
           <button
             className="code-snippet__button"
             type="button"
-            aria-label="Copy the command npm install nibgate"
+            aria-label="Copy the command npm install @nibgate/sdk"
             onClick={(e) => {
-              navigator.clipboard.writeText("npm install nibgate");
+              navigator.clipboard.writeText("npm install @nibgate/sdk");
               const target = e.currentTarget.parentElement;
               target?.classList.add("has-copied");
               setTimeout(() => target?.classList.remove("has-copied"), 1200);

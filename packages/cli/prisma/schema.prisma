@@ -5,17 +5,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// NOTE: We are using SQLite for rapid local development.
-// When you deploy to production on Vercel, change this provider to "postgresql"
-// and update the DATABASE_URL in your environment variables to point to your Vercel Postgres instance.
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(uuid())
-  walletAddress String    @unique
+  id            String     @id @default(uuid())
+  walletAddress String     @unique
   username      String?
   bio           String?
   avatarUrl     String?
@@ -25,7 +22,7 @@ model User {
   instagramUrl  String?
   tiktokUrl     String?
   youtubeUrl    String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime   @default(now())
   sessions      Session[]
   wallets       Wallet[]
   websites      Website[]
@@ -48,57 +45,57 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
-  nonce     String?  // Temporary nonce for SIWE login challenges
+  nonce     String? // Temporary nonce for SIWE login challenges
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
 
 model Website {
-  id          String    @id @default(uuid())
-  domain      String    @unique
-  name        String
-  description String?
-  ownerId     String
-  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  isVerified  Boolean   @default(false)
-  verificationStatus String @default("pending")
-  lastVerifiedAt DateTime?
-  lastVerificationCheckAt DateTime?
+  id                        String              @id @default(uuid())
+  domain                    String              @unique
+  name                      String
+  description               String?
+  ownerId                   String
+  owner                     User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isVerified                Boolean             @default(false)
+  verificationStatus        String              @default("pending")
+  lastVerifiedAt            DateTime?
+  lastVerificationCheckAt   DateTime?
   verificationFailureReason String?
-  verifyToken String
-  siteToken   String    @unique
-  faviconUrl  String?
-  ogImageUrl  String?
-  lastScanAt  DateTime?
-  lastScanStatus String?
-  lastScanError  String?
-  lastSyncAt  DateTime?
-  createdAt   DateTime  @default(now())
-  deletedAt   DateTime?
-  content     Content[]
-  metrics     Metric[]
-  unlockReceipts UnlockReceipt[]
-  ratings     ContentRating[]
-  publishers  PublisherIdentity[]
+  verifyToken               String
+  siteToken                 String              @unique
+  faviconUrl                String?
+  ogImageUrl                String?
+  lastScanAt                DateTime?
+  lastScanStatus            String?
+  lastScanError             String?
+  lastSyncAt                DateTime?
+  createdAt                 DateTime            @default(now())
+  deletedAt                 DateTime?
+  content                   Content[]
+  metrics                   Metric[]
+  unlockReceipts            UnlockReceipt[]
+  ratings                   ContentRating[]
+  publishers                PublisherIdentity[]
 }
 
 model PublisherIdentity {
-  id           String   @id @default(uuid())
-  websiteId    String
-  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  externalId   String
-  handle       String?
-  name         String?
-  walletAddress String?
-  profileUrl   String?
-  verification String   @default("platform_attested")
-  metadata     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  content      Content[]
-  metrics      Metric[]
+  id             String          @id @default(uuid())
+  websiteId      String
+  website        Website         @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  externalId     String
+  handle         String?
+  name           String?
+  walletAddress  String?
+  profileUrl     String?
+  verification   String          @default("platform_attested")
+  metadata       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  content        Content[]
+  metrics        Metric[]
   unlockReceipts UnlockReceipt[]
-  ratings      ContentRating[]
+  ratings        ContentRating[]
 
   @@unique([websiteId, externalId])
   @@index([websiteId])
@@ -107,34 +104,34 @@ model PublisherIdentity {
 }
 
 model Content {
-  id          String   @id @default(uuid())
-  websiteId   String
-  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  publisherId String?
-  publisher   PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
-  publisherExternalId String?
-  publisherHandle String?
-  publisherWallet String?
-  publisherProfileUrl String?
+  id                    String             @id @default(uuid())
+  websiteId             String
+  website               Website            @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  publisherId           String?
+  publisher             PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  publisherExternalId   String?
+  publisherHandle       String?
+  publisherWallet       String?
+  publisherProfileUrl   String?
   publisherVerification String?
-  externalId  String?
-  title       String
-  description String?
-  imageUrl    String?
-  contentType String   @default("article") // music, video, article, image
-  tags        String?  // Comma-separated tags for the search engine
-  url         String
-  path        String?
-  currency    String   @default("USDC")
-  price       Float    // Price to unlock in USDC
-  recipientWallet String?
-  accessPolicy String?
-  unlockPolicy String?
-  lastSeenAt  DateTime?
-  createdAt   DateTime @default(now())
-  metrics     Metric[]
-  unlockReceipts UnlockReceipt[]
-  ratings     ContentRating[]
+  externalId            String?
+  title                 String
+  description           String?
+  imageUrl              String?
+  contentType           String             @default("article") // music, video, article, image
+  tags                  String? // Comma-separated tags for the search engine
+  url                   String
+  path                  String?
+  currency              String             @default("USDC")
+  price                 Float // Price to unlock in USDC
+  recipientWallet       String?
+  accessPolicy          String?
+  unlockPolicy          String?
+  lastSeenAt            DateTime?
+  createdAt             DateTime           @default(now())
+  metrics               Metric[]
+  unlockReceipts        UnlockReceipt[]
+  ratings               ContentRating[]
 
   @@unique([websiteId, externalId])
   @@unique([websiteId, url])
@@ -145,11 +142,11 @@ model Content {
 }
 
 model UnlockReceipt {
-  id              String   @id @default(uuid())
+  id              String             @id @default(uuid())
   contentId       String
-  content         Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  content         Content            @relation(fields: [contentId], references: [id], onDelete: Cascade)
   websiteId       String
-  website         Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website         Website            @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   publisherId     String?
   publisher       PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   payerWallet     String?
@@ -163,9 +160,9 @@ model UnlockReceipt {
   amount          Float?
   currency        String?
   recipientWallet String?
-  status          String   @default("verified")
+  status          String             @default("verified")
   metadata        String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime           @default(now())
 
   @@unique([contentId, paymentId])
   @@index([websiteId])
@@ -175,24 +172,24 @@ model UnlockReceipt {
 }
 
 model ContentRating {
-  id              String   @id @default(uuid())
-  contentId       String
-  content         Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  websiteId       String
-  website         Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  publisherId     String?
-  publisher       PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
-  walletAddress   String
-  actor           String?
-  ratingValue     Int      // 1-50, where 45 means 4.5 stars
-  reviewHash      String?
-  txHash          String?
-  proofType       String?
-  proof           String?
-  status          String   @default("accepted")
-  metadata        String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String             @id @default(uuid())
+  contentId     String
+  content       Content            @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  websiteId     String
+  website       Website            @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  publisherId   String?
+  publisher     PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  walletAddress String
+  actor         String?
+  ratingValue   Int // 1-50, where 45 means 4.5 stars
+  reviewHash    String?
+  txHash        String?
+  proofType     String?
+  proof         String?
+  status        String             @default("accepted")
+  metadata      String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@unique([contentId, walletAddress])
   @@index([websiteId])
@@ -202,16 +199,16 @@ model ContentRating {
 }
 
 model Metric {
-  id          String   @id @default(uuid())
-  type        String   // normalized category: 'view', 'unlock', 'payment', 'engagement', 'time'
-  eventName   String?  // raw event name: page_view, resource_view, unlock_started, unlock_completed, payment_completed, time_spent
+  id          String             @id @default(uuid())
+  type        String // normalized category: 'view', 'unlock', 'payment', 'engagement', 'time'
+  eventName   String? // raw event name: page_view, resource_view, unlock_started, unlock_completed, payment_completed, time_spent
   contentId   String?
-  content     Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  content     Content?           @relation(fields: [contentId], references: [id], onDelete: SetNull)
   websiteId   String
-  website     Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website     Website            @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   publisherId String?
   publisher   PublisherIdentity? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
-  revenue     Float?   // Revenue earned (if type == 'unlock')
+  revenue     Float? // Revenue earned (if type == 'unlock')
   currency    String?
   path        String?
   url         String?
@@ -222,25 +219,24 @@ model Metric {
   durationMs  Int?
   scrollDepth Float?
   metadata    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime           @default(now())
 }
 
-
 model BlogPost {
-  id           String   @id @default(uuid())
-  slug         String   @unique
+  id           String    @id @default(uuid())
+  slug         String    @unique
   title        String
   excerpt      String?
   bodyMarkdown String
   tag          String?
   tags         String?
   coverUrl     String?
-  status       String   @default("draft")
+  status       String    @default("draft")
   publishedAt  DateTime?
   authorId     String
-  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, publishedAt])
   @@index([authorId])

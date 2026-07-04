@@ -285,4 +285,4 @@ This repo now includes:
 
 ## Production note
 
-We currently use a `sqlite` file-backed database (`dev.db`) for rapid local iteration. When launching `nibgate.xyz` to production (e.g. Vercel), the Prisma provider in `schema.prisma` will be swapped to `postgresql` connecting to a scalable, persistent Edge Postgres instance.
+The hub uses Prisma with PostgreSQL in production. For the current deployment plan, point `DATABASE_URL` at the Railway Postgres connection string attached to the backend service.

@@ -121,9 +121,12 @@ Open:
 Backend variables:
 
 ```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway
 CORS_ORIGIN=https://nibgate.xyz,http://localhost:3001
 BLOG_OWNER_WALLET=0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12
 ```
+
+For production, attach a Railway Postgres database to the backend service and use Railway's `DATABASE_URL` value. The Prisma datasource is PostgreSQL-only now, so every backend environment must provide `DATABASE_URL`.
 
 `BLOG_OWNER_WALLET` is the single signed wallet that can create, edit, publish, draft, or delete posts from `/dashboard/blog`. No other wallet can access the editor APIs.
 
@@ -138,7 +141,10 @@ When running locally, point `NEXT_PUBLIC_API_URL` at the local backend so `/api/
 After changing the Prisma schema, sync the database and regenerate the client before running the backend:
 
 ```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
 npm --workspace @nibgate/cli exec prisma db push
+
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
 npm --workspace @nibgate/cli exec prisma generate
 ```
 

@@ -8,7 +8,7 @@
     "nibgate": "./bin/nibgate.js"
   },
   "scripts": {
-    "postinstall": "prisma generate",
+    "postinstall": "node scripts/prisma-generate-if-configured.mjs",
     "dev": "node bin/nibgate.js dev",
     "routes": "node bin/nibgate.js routes"
   },

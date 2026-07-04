@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NewsletterForm from "./NewsletterForm";
 import ThemeToggle from "./ThemeToggle";
 
 const footerMenus = [
@@ -175,24 +176,7 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
                 <p className="sign-up-form__sub-heading">
                   Sign up for product notes, creator examples, and launch updates.
                 </p>
-                <form className="sign-up-form__container" action="mailto:hello@nibgate.xyz" method="post">
-                  <div>
-                    <input
-                      className="sign-up-form__input"
-                      id="email"
-                      name="EMAIL"
-                      type="email"
-                      autoComplete="email"
-                      placeholder="Enter your email address"
-                      aria-label="Email"
-                      required
-                    />
-                  </div>
-                  <button className="button sign-up-form__button" type="submit">
-                    <span className="button__text">Sign up</span>
-                    <svg className="arrow" aria-hidden="true"><use xlinkHref="#arrow"></use></svg>
-                  </button>
-                </form>
+                <NewsletterForm />
               </div>
             </div>
           </div>

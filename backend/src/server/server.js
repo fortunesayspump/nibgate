@@ -12,6 +12,7 @@ import { registerAuthRoutes } from './routes/auth-routes.js';
 import { registerBlogRoutes } from './routes/blog-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
+import { registerNewsletterRoutes } from './routes/newsletter-routes.js';
 import { registerUploadRoutes } from './routes/upload-routes.js';
 import { createConfigResolver } from './runtime.js';
 
@@ -70,6 +71,7 @@ export async function createApp(config, options = {}) {
   };
 
   registerHubRoutes(app);
+  registerNewsletterRoutes(app);
   registerBlogRoutes(app);
   registerUploadRoutes(app);
   registerAppRoutes(app, context);

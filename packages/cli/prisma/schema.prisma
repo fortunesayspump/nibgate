@@ -241,3 +241,15 @@ model BlogPost {
   @@index([status, publishedAt])
   @@index([authorId])
 }
+
+model NewsletterSubscriber {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  source    String?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}

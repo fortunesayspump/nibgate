@@ -58,7 +58,7 @@ Nibgate checks the homepage for the token. If found, the site becomes verified.
 Inside the creator site/app:
 
 ```bash
-npm install nibgate
+npm install @nibgate/sdk
 ```
 
 The package is used where paid content lives.
@@ -68,7 +68,7 @@ The package is used where paid content lives.
 The creator marks resources as gated content.
 
 ```ts
-import { gate } from "nibgate"
+import { gate } from "@nibgate/sdk"
 
 const guide = gate({
   id: "premium-guide",

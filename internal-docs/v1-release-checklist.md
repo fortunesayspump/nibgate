@@ -6,7 +6,7 @@ V1 is the single-creator, creator-owned-site release.
 
 - One creator wallet owns one or more verified domains.
 - The creator pastes the Hub widget on each site.
-- The creator installs `nibgate` in their site/app.
+- The creator installs `@nibgate/sdk` in their site/app.
 - Each content item maps to a Nibgate resource.
 - Paid content uses `unlock: { mode: 'one_time' }`.
 - Resource-level `recipient` controls payment routing.

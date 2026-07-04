@@ -36,7 +36,7 @@ The widget verifies ownership and streams page activity from the verified domain
 The package belongs in the creator app. It controls gating, pricing, content metadata, unlock events, and receipt reporting.
 
 ```bash
-npm install nibgate
+npm install @nibgate/sdk
 ```
 
 ### Publish content metadata
@@ -44,7 +44,7 @@ npm install nibgate
 Send public metadata for each paid resource. Keep the protected content itself on your own domain.
 
 ```ts
-import { gate } from 'nibgate'
+import { gate } from '@nibgate/sdk'
 
 const guide = gate({
   id: 'premium-guide',

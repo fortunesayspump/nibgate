@@ -9,12 +9,12 @@ Nibgate is framework-agnostic. Install one package, then use the browser entrypo
 ## Install
 
 ```bash
-npm install nibgate
+npm install @nibgate/sdk
 ```
 
 ```ts
-import { gate } from 'nibgate'
-import { createCircleGatewayServer } from 'nibgate/server'
+import { gate } from '@nibgate/sdk'
+import { createCircleGatewayServer } from '@nibgate/sdk/server'
 ```
 
 <Callout type="warning">
@@ -48,7 +48,7 @@ Rule: if the framework can run server logic before returning content, Nibgate ca
 If your site has a blog editor or admin page, save Nibgate settings beside each content record. The package exposes canonical field metadata so the same settings can be rendered in Next, Express, CMS schemas, or custom dashboards:
 
 ```ts
-import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from 'nibgate'
+import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from '@nibgate/sdk'
 
 const defaults = createNibgateContentSettings({
   recipient: creatorDefaultWallet,

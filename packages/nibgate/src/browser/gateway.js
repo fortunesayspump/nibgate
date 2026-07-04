@@ -1,5 +1,7 @@
 import { stringifyJson } from './json.js';
 
+const runtimeImport = new Function('specifier', 'return import(specifier)');
+
 function encodeBase64(value) {
   const text = typeof value === 'string' ? value : stringifyJson(value);
   if (typeof Buffer !== 'undefined') return Buffer.from(text).toString('base64');
@@ -18,8 +20,8 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
   }
 
   const circleClientModule = options.clientModule || (options.clientModuleUrl
-    ? await import(options.clientModuleUrl)
-    : await import('@circle-fin/x402-batching/client'));
+    ? await runtimeImport(options.clientModuleUrl)
+    : await runtimeImport('@circle-fin/x402-batching/client'));
   const { BatchEvmScheme } = circleClientModule;
   const scheme = new BatchEvmScheme(signer);
   const network = options.network || options.chainId && `eip155:${options.chainId}` || 'eip155:5042002';

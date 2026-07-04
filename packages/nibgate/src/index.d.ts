@@ -39,7 +39,7 @@ export type NibgateResource = {
   image?: string;
   description?: string;
   summary?: string;
-  tags?: string[] | string;
+  tags?: readonly string[] | string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
   [key: string]: unknown;

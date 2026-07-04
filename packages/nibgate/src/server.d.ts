@@ -18,7 +18,7 @@ export type NibgateServerResource = {
   image?: string;
   description?: string;
   summary?: string;
-  tags?: string[] | string;
+  tags?: readonly string[] | string;
   currency?: string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;

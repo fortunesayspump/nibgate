@@ -5,6 +5,7 @@ import { ArrowUpRight, BadgeCheck, Banknote, CalendarDays, Copy, CreditCard, Ext
 import { DayPicker, type DateRange } from "react-day-picker";
 import { format, subDays, subMonths } from "date-fns";
 import { Area, CartesianGrid, Line, LineChart as ReLineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type Transaction = {
   id: string;
@@ -130,8 +131,8 @@ export default function EarningsPage() {
   const searchedTransactions = paymentTransactions.filter((transaction) => `${transaction.id} ${transaction.txHash || ""} ${transaction.paymentId || ""} ${transaction.paymentProvider || ""} ${transaction.contentTitle} ${transaction.websiteName} ${transaction.payer || ""} ${transaction.recipient || ""} ${transaction.status || ""}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   async function copyAddress(value: string) {
-    await navigator.clipboard.writeText(value);
-    setCopied("Address copied.");
+    const didCopy = await copyToClipboard(value);
+    setCopied(didCopy ? "Address copied." : "Copy failed. Select the address and copy it manually.");
     window.setTimeout(() => setCopied(""), 1600);
   }
 

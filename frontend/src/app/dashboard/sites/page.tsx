@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Clipboard, ExternalLink, Globe2, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { apiBaseUrl } from "@/lib/api";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type DashboardSite = {
   id: string;
@@ -90,8 +91,8 @@ await premiumGuide.unlock(async () => {
 }
 
 async function copyText(value: string, onDone: (message: string) => void, label = "Copied") {
-  await navigator.clipboard.writeText(value);
-  onDone(label);
+  const copied = await copyToClipboard(value);
+  onDone(copied ? label : "Copy failed. Select the snippet and copy it manually.");
 }
 
 function wait(ms: number) {

@@ -1,6 +1,8 @@
 import MarketSection from "../_components/MarketSection";
 import { getExploreProducts } from "../_data/explore-content";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProductsPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const q = typeof params?.q === "string" ? params.q : "";

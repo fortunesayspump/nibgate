@@ -5,7 +5,10 @@ const { privateKeyToAccount } = await import('../node_modules/.pnpm/node_modules
 
 const apiBase = (process.env.E2E_API_BASE || 'http://localhost:3000').replace(/\/+$/, '');
 const ownerWallet = (process.env.E2E_OWNER_WALLET || '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12').toLowerCase();
-const buyerPrivateKey = process.env.E2E_BUYER_PRIVATE_KEY || 'REDACTED_NIBGATE_DEPLOYER_KEY';
+const buyerPrivateKey = process.env.E2E_BUYER_PRIVATE_KEY || '';
+if (!buyerPrivateKey) {
+  throw new Error('Set E2E_BUYER_PRIVATE_KEY before running the e2e flow.');
+}
 const buyer = privateKeyToAccount(buyerPrivateKey);
 const domain = process.env.E2E_SITE_DOMAIN || 'e2e.nibgate.local';
 const origin = `https://${domain}`;

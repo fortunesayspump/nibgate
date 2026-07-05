@@ -20,6 +20,11 @@ type Profile = {
   createdAt: string;
 };
 
+const MAX_IMAGE_BYTES = {
+  avatar: 2 * 1024 * 1024,
+  cover: 5 * 1024 * 1024,
+};
+
 function shortWallet(address = "") {
   if (address.length < 12) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -54,6 +59,10 @@ export default function ProfilePage() {
   const [draftInstagramUrl, setDraftInstagramUrl] = useState("");
   const [draftTiktokUrl, setDraftTiktokUrl] = useState("");
   const [draftYoutubeUrl, setDraftYoutubeUrl] = useState("");
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
+  const [pendingAvatarPreview, setPendingAvatarPreview] = useState("");
+  const [pendingCoverPreview, setPendingCoverPreview] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -93,19 +102,46 @@ export default function ProfilePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (pendingAvatarPreview) URL.revokeObjectURL(pendingAvatarPreview);
+    };
+  }, [pendingAvatarPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingCoverPreview) URL.revokeObjectURL(pendingCoverPreview);
+    };
+  }, [pendingCoverPreview]);
+
+  async function uploadImage(file: File, target: "avatar" | "cover") {
+    const dataUrl = await imageFileToDataUrl(file);
+    const res = await fetch("/api/uploads/profile-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, image: dataUrl }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "Upload failed");
+    return data.url as string;
+  }
+
   async function saveProfile() {
     setSaving(true);
     setError("");
     setMessage("");
     try {
+      const nextAvatarUrl = pendingAvatarFile ? await uploadImage(pendingAvatarFile, "avatar") : draftAvatarUrl;
+      const nextCoverUrl = pendingCoverFile ? await uploadImage(pendingCoverFile, "cover") : draftCoverUrl;
+
       const res = await fetch("/api/hub/dashboard/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: draftUsername,
           bio: draftBio,
-          avatarUrl: draftAvatarUrl,
-          coverUrl: draftCoverUrl,
+          avatarUrl: nextAvatarUrl,
+          coverUrl: nextCoverUrl,
           websiteUrl: draftWebsiteUrl,
           twitterUrl: draftTwitterUrl,
           instagramUrl: draftInstagramUrl,
@@ -134,6 +170,10 @@ export default function ProfilePage() {
       setDraftInstagramUrl(data.profile.instagramUrl || "");
       setDraftTiktokUrl(data.profile.tiktokUrl || "");
       setDraftYoutubeUrl(data.profile.youtubeUrl || "");
+      setPendingAvatarFile(null);
+      setPendingCoverFile(null);
+      setPendingAvatarPreview("");
+      setPendingCoverPreview("");
       setMessage("Profile saved.");
       setIsEditing(false);
     } catch (err) {
@@ -153,6 +193,10 @@ export default function ProfilePage() {
     setDraftInstagramUrl(instagramUrl);
     setDraftTiktokUrl(tiktokUrl);
     setDraftYoutubeUrl(youtubeUrl);
+    setPendingAvatarFile(null);
+    setPendingCoverFile(null);
+    setPendingAvatarPreview("");
+    setPendingCoverPreview("");
     setMessage("");
     setError("");
     setIsEditing(true);
@@ -168,34 +212,40 @@ export default function ProfilePage() {
     setDraftInstagramUrl(instagramUrl);
     setDraftTiktokUrl(tiktokUrl);
     setDraftYoutubeUrl(youtubeUrl);
+    setPendingAvatarFile(null);
+    setPendingCoverFile(null);
+    setPendingAvatarPreview("");
+    setPendingCoverPreview("");
     setMessage("");
     setError("");
     setIsEditing(false);
   }
 
-  async function uploadDraftImage(file: File | undefined, target: "avatar" | "cover") {
+  function stageDraftImage(file: File | undefined, target: "avatar" | "cover") {
     if (!file) return;
     setError("");
     try {
-      const dataUrl = await imageFileToDataUrl(file);
-      const res = await fetch("/api/uploads/profile-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, image: dataUrl }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Upload failed");
-      if (target === "avatar") setDraftAvatarUrl(data.url);
-      if (target === "cover") setDraftCoverUrl(data.url);
+      if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+      if (file.size > MAX_IMAGE_BYTES[target]) throw new Error(`${target === "avatar" ? "Profile" : "Cover"} image is too large.`);
+
+      const preview = URL.createObjectURL(file);
+      if (target === "avatar") {
+        setPendingAvatarFile(file);
+        setPendingAvatarPreview(preview);
+      }
+      if (target === "cover") {
+        setPendingCoverFile(file);
+        setPendingCoverPreview(preview);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not upload image.");
+      setError(err instanceof Error ? err.message : "Could not prepare image.");
     }
   }
 
   const previewName = isEditing ? draftUsername : username;
   const previewBio = isEditing ? draftBio : bio;
-  const previewAvatar = isEditing ? draftAvatarUrl : avatarUrl;
-  const previewCover = isEditing ? draftCoverUrl : coverUrl;
+  const previewAvatar = isEditing ? (pendingAvatarPreview || draftAvatarUrl) : avatarUrl;
+  const previewCover = isEditing ? (pendingCoverPreview || draftCoverUrl) : coverUrl;
   const socials = [
     { label: "Website", value: isEditing ? draftWebsiteUrl : websiteUrl },
     { label: "X", value: isEditing ? draftTwitterUrl : twitterUrl },
@@ -271,7 +321,7 @@ export default function ProfilePage() {
             onDrop={(event) => {
               if (!isEditing) return;
               event.preventDefault();
-              void uploadDraftImage(event.dataTransfer.files?.[0], "cover");
+              stageDraftImage(event.dataTransfer.files?.[0], "cover");
             }}
           >
             {previewCover ? <img src={previewCover} alt="" className="h-full w-full object-cover" /> : null}
@@ -281,7 +331,7 @@ export default function ProfilePage() {
                 <span className="rounded-full bg-black/75 px-4 py-2 backdrop-blur">Change cover</span>
               </span>
             ) : null}
-            {isEditing ? <input className="sr-only" type="file" accept="image/*" onChange={(event) => void uploadDraftImage(event.target.files?.[0], "cover")} /> : null}
+            {isEditing ? <input className="sr-only" type="file" accept="image/*" onChange={(event) => stageDraftImage(event.target.files?.[0], "cover")} /> : null}
           </label>
           <div className="-mt-8 space-y-5 p-5 pt-0 md:p-6 md:pt-0">
             <div className="flex flex-col gap-4 pt-0 sm:flex-row sm:items-start">
@@ -295,7 +345,7 @@ export default function ProfilePage() {
                 onDrop={(event) => {
                   if (!isEditing) return;
                   event.preventDefault();
-                  void uploadDraftImage(event.dataTransfer.files?.[0], "avatar");
+                  stageDraftImage(event.dataTransfer.files?.[0], "avatar");
                 }}
               >
                 {previewAvatar ? (
@@ -308,7 +358,7 @@ export default function ProfilePage() {
                     Change<br />profile image
                   </span>
                 ) : null}
-                {isEditing ? <input className="sr-only" type="file" accept="image/*" onChange={(event) => void uploadDraftImage(event.target.files?.[0], "avatar")} /> : null}
+                {isEditing ? <input className="sr-only" type="file" accept="image/*" onChange={(event) => stageDraftImage(event.target.files?.[0], "avatar")} /> : null}
               </label>
               <div className="min-w-0 flex-1 pt-10 sm:pt-12">
                 {isEditing ? (

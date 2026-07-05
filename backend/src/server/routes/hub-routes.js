@@ -2,6 +2,7 @@ import { db } from '@nibgate/cli/src/core/db.js';
 import { getUserBySession } from '@nibgate/cli/src/core/auth.js';
 import crypto from 'node:crypto';
 import { createPublicClient, decodeEventLog, http, keccak256, stringToBytes, verifyMessage } from 'viem';
+import { deleteManagedProfileImage } from './upload-routes.js';
 
 let verificationMonitorStarted = false;
 let manifestSyncMonitorStarted = false;
@@ -1389,6 +1390,11 @@ export function registerHubRoutes(app) {
           }
         }
       });
+
+      await Promise.allSettled([
+        req.user.avatarUrl && req.user.avatarUrl !== user.avatarUrl ? deleteManagedProfileImage(req.user.avatarUrl) : null,
+        req.user.coverUrl && req.user.coverUrl !== user.coverUrl ? deleteManagedProfileImage(req.user.coverUrl) : null
+      ].filter(Boolean));
 
       res.json({
         success: true,

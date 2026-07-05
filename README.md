@@ -53,6 +53,11 @@ This is the public creator package. It is intentionally tiny and framework-agnos
 npm install @nibgate/sdk
 ```
 
+Agents and coding assistants should read the compact integration guide before editing a creator site:
+
+- package copy: `node_modules/@nibgate/sdk/SKILL.md`
+- public copy: `https://nibgate.xyz/skill.md`
+
 It owns:
 
 - browser entrypoint: `gate(...)`, `nibgate.content(...)`, `nibgate.view(...)`, `nibgate.unlockStarted(...)`, `nibgate.unlockCompleted(...)`, and `nibgate.paymentCompleted(...)`

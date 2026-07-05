@@ -7,7 +7,7 @@ const steps = [
   ["1", "Connect wallet", "Your wallet becomes the creator identity for profiles, sites, contents, analytics, and earnings."],
   ["2", "Register the site", "Add the origin where your protected content lives. Nibgate creates a site id and verification token."],
   ["3", "Paste the widget", "One script proves ownership and streams page activity from the verified domain."],
-  ["4", "Install the package", "Use npm install @nibgate/sdk to gate routes, define prices, and send content plus unlock events."],
+  ["4", "Install the package", "Use npm install @nibgate/sdk to gate routes, define prices, and send content plus unlock events. Give agents /skill.md first."],
 ];
 
 const dashboardItems = [
@@ -66,6 +66,9 @@ export default function GetStartedPage() {
 </script>`}</pre>
               <p className="mt-6 text-lg leading-8">
                 The widget verifies ownership. The package powers gating, pricing, unlock events, and content metadata from the app that owns the content.
+              </p>
+              <p className="mt-4 text-lg leading-8">
+                Coding with an agent? Send it <Link className="underline" href="/skill.md">nibgate.xyz/skill.md</Link> so it follows the server-gating and payment-proof rules.
               </p>
             </div>
           </div>

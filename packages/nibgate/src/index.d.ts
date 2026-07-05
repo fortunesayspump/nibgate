@@ -42,6 +42,12 @@ export type NibgateResource = {
   tags?: readonly string[] | string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
+  ratingsEnabled?: boolean;
+  enableRatings?: boolean;
+  reputation?: {
+    ratingsEnabled?: boolean;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 };
 
@@ -380,6 +386,7 @@ export type NibgateContentSettings = {
   price: string;
   currency: string;
   recipient: string;
+  ratingsEnabled: boolean;
   license: string;
 };
 export declare const NIBGATE_CONTENT_SETTING_FIELDS: readonly NibgateContentSettingField[];

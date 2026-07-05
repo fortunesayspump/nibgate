@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 type BoardType = "creators" | "sites" | "content";
-type Item = Record<string, any> & { rank: number; reputationScore?: number; reputationStars?: number };
+type Item = Record<string, any> & { rank: number; reputationScore?: number | null; reputationStars?: number | null; ratings?: number };
 
 type Props = {
   creators: Item[];
@@ -15,12 +15,17 @@ type SortKey = "rank" | "reputation" | "content" | "views" | "unlocks" | "revenu
 type SortDirection = "asc" | "desc";
 
 const tabs: Array<{ id: BoardType; label: string; helper: string }> = [
-  { id: "creators", label: "Creators", helper: "Wallet accounts ranked from site and content reputation." },
-  { id: "sites", label: "Sites", helper: "Verified domains ranked by content quality and source health." },
-  { id: "content", label: "Content", helper: "Individual resources ranked by 0-5 star content reputation." },
+  { id: "creators", label: "Creators", helper: "Wallet accounts ranked by verified content ratings once they have reputation." },
+  { id: "sites", label: "Sites", helper: "Verified domains ranked by accepted content ratings once reputation exists." },
+  { id: "content", label: "Content", helper: "Individual resources ranked by verified 0-5 star ratings." },
 ];
 
-function Stars({ value }: { value?: number }) {
+function NoRep() {
+  return <span className="inline-flex rounded-full border border-black/10 bg-gray px-3 py-1 text-sm font-medium text-black/55">No rep</span>;
+}
+
+function Stars({ value, ratings = 0 }: { value?: number | null; ratings?: number }) {
+  if (typeof value !== "number" || ratings <= 0) return <NoRep />;
   const rating = Math.max(0, Math.min(5, value || 0));
   const percent = Math.max(0, Math.min(100, (rating / 5) * 100));
   return (
@@ -208,9 +213,11 @@ export default function LeaderboardTable({ creators, sites, content }: Props) {
                 </td>
                 <td className="px-5 py-5">
                   {active === "content" ? (
-                    <Stars value={item.reputationStars} />
+                    <Stars value={item.reputationStars} ratings={item.ratings} />
+                  ) : typeof item.reputationScore === "number" ? (
+                    <span className="text-2xl font-medium">{item.reputationScore}<span className="text-sm opacity-50">/100</span></span>
                   ) : (
-                    <span className="text-2xl font-medium">{item.reputationScore || 1}<span className="text-sm opacity-50">/100</span></span>
+                    <NoRep />
                   )}
                 </td>
                 <td className="px-5 py-5">{item.contentCount ?? item.contentType ?? "-"}</td>

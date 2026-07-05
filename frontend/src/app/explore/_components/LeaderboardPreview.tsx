@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { apiUrl } from "@/lib/api";
 
-type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore: number; unlocks: number; contentCount: number };
+type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore?: number | null; unlocks: number; contentCount: number };
 
 function creatorAvatar(creator: Creator) {
   return creator.avatarUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(creator.name || creator.walletAddress || "Creator")}`;
@@ -37,7 +37,7 @@ export default async function LeaderboardPreview() {
               <h3>{creator.name}</h3>
               <p>{creator.contentCount} content · {creator.unlocks} unlocks</p>
             </div>
-            <strong>{creator.reputationScore}/100</strong>
+            <strong>{typeof creator.reputationScore === "number" ? `${creator.reputationScore}/100` : "No rep"}</strong>
           </article>
         )) : <p className="explore-empty-state">No creators ranked yet.</p>}
       </div>

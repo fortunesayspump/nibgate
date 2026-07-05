@@ -3,7 +3,7 @@ import Footer from "@/components/Footer";
 import LeaderboardTable from "./table";
 import { apiUrl } from "@/lib/api";
 
-type LeaderboardItem = Record<string, any> & { rank: number; reputationScore?: number };
+type LeaderboardItem = Record<string, any> & { rank: number; reputationScore?: number | null };
 
 async function getBoard(type: string) {
   try {
@@ -28,7 +28,7 @@ export default async function LeaderboardsPage() {
             <div>
               <p className="text-xl font-medium">Leaderboards</p>
               <h1 className="nibgate-display-title mt-4 max-w-4xl text-5xl font-medium md:text-7xl">Reputation rankings.</h1>
-              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Switch between creators, verified sites, and content. Content earns stars first; site and creator scores roll up from verified activity.</p>
+              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Switch between creators, verified sites, and content. Reputation appears after accepted content ratings; views and unlocks stay as activity signals.</p>
             </div>
           </div>
 

@@ -25,8 +25,8 @@ export async function createApp(config, options = {}) {
   const getConfig = createConfigResolver(config, options.loadLiveConfig);
   const forwardHubEvent = createHubEventForwarder(getConfig);
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '8mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '8mb' }));
   app.use(cookieParser());
   app.use(cors((req, callback) => {
     if (req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index') {

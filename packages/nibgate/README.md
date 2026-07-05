@@ -17,6 +17,8 @@ import { createCircleGatewayServer, createNibgateServer } from '@nibgate/sdk/ser
 
 This works with Next.js, React apps with an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, custom servers, and CMS/plugin environments. Plain HTML can use the widget and browser events, but real gating still requires a server, edge function, API route, or signed file endpoint.
 
+Agents integrating Nibgate should read [`SKILL.md`](./SKILL.md) or the public copy at [https://nibgate.xyz/skill.md](https://nibgate.xyz/skill.md) for the compact operating guide.
+
 ## Usage
 
 First paste the widget script from your Nibgate dashboard into your site:

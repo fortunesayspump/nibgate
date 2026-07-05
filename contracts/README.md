@@ -24,11 +24,13 @@ The backend indexes `ContentRated` events, then only counts a rating when the ra
 ## Backend env
 
 ```bash
-NIBGATE_REPUTATION_CONTRACT=0x...
+NIBGATE_REPUTATION_CONTRACT=0x9f27fd62e75f86a3c7addfdba443aab1f930e281
 NIBGATE_REPUTATION_RPC_URL=https://...
 NIBGATE_REPUTATION_CHAIN_ID=5042002
 NIBGATE_REPUTATION_CHAIN_NAME="Arc Testnet"
 ```
+
+`NIBGATE_REPUTATION_CONTRACT` is optional for the hosted backend if you want the default Arc Testnet deployment above. Set it explicitly when deploying a new proxy or using another network.
 
 ## Deploy
 

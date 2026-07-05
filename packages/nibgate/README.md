@@ -166,6 +166,7 @@ const premiumGuide = {
 let lastPayment = null;
 
 const rating = createOnchainRating(premiumGuide, {
+  // Optional on Arc Testnet. The SDK defaults to NIBGATE_REPUTATION_CONTRACT.
   contractAddress: process.env.NEXT_PUBLIC_NIBGATE_REPUTATION_CONTRACT,
   siteId: process.env.NEXT_PUBLIC_NIBGATE_SITE_ID,
   token: process.env.NEXT_PUBLIC_NIBGATE_SITE_TOKEN,
@@ -193,6 +194,8 @@ createEvmGatewayUnlock(premiumGuide, {
 ```
 
 The lower-level `rateContentOnchain(resource, options)` function is also exported for custom UIs.
+
+The SDK exports the current Arc Testnet reputation deployment as `NIBGATE_REPUTATION_CONTRACT`, plus `NIBGATE_REPUTATION_CHAIN_ID`, `NIBGATE_REPUTATION_CHAIN_NAME`, and `NIBGATE_REPUTATION_RPC_URL`. Pass `contractAddress` only when overriding the default deployment.
 
 Ratings are proof-gated. Page views, time spent, scroll depth, and referrers are analytics signals; they should not become trust by themselves. Reputation-critical inputs use indexed onchain rating proofs. Signed ratings remain available only for local tests and migration tooling.
 

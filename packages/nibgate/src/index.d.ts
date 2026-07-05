@@ -411,6 +411,10 @@ export declare function setupResourcePage(resource: NibgateResource | string, op
 export declare function rateResource(resource: NibgateResource | string, rating?: NibgateRating | number, extra?: Record<string, unknown>): boolean;
 export declare const NIBGATE_REPUTATION_ABI: readonly unknown[];
 export declare const NIBGATE_CONTENT_HASH_NAMESPACE: 'nibgate:content:v1';
+export declare const NIBGATE_REPUTATION_CHAIN_ID: 5042002;
+export declare const NIBGATE_REPUTATION_CHAIN_NAME: 'Arc Testnet';
+export declare const NIBGATE_REPUTATION_RPC_URL: 'https://rpc.testnet.arc.network';
+export declare const NIBGATE_REPUTATION_CONTRACT: '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 export declare function contentRatingHash(resource: NibgateResource | string, options?: Record<string, unknown>): string;
 export declare function reviewTextHash(review?: string): string;
 export declare function rateContentOnchain(resource: NibgateResource | string, options: NibgateOnchainRatingOptions): Promise<NibgateOnchainRatingResult>;

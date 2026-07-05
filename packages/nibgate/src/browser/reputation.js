@@ -6,6 +6,10 @@ const RATE_CONTENT_SELECTOR = '0xc62fad09';
 const ZERO_HASH = `0x${'0'.repeat(64)}`;
 
 export const NIBGATE_CONTENT_HASH_NAMESPACE = 'nibgate:content:v1';
+export const NIBGATE_REPUTATION_CHAIN_ID = 5042002;
+export const NIBGATE_REPUTATION_CHAIN_NAME = 'Arc Testnet';
+export const NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.network';
+export const NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 
 export const NIBGATE_REPUTATION_ABI = [
   {
@@ -105,7 +109,7 @@ export async function rateContentOnchain(resource, options = {}) {
   const provider = options.provider || globalThis?.ethereum;
   if (!provider?.request) throw new Error('Connect an EVM wallet to rate this content onchain.');
 
-  const contractAddress = options.contractAddress || options.reputationContract;
+  const contractAddress = options.contractAddress || options.reputationContract || NIBGATE_REPUTATION_CONTRACT;
   if (!contractAddress) throw new Error('Nibgate reputation contract address is not configured.');
 
   const accounts = await provider.request({ method: 'eth_requestAccounts' });

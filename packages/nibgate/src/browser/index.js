@@ -75,7 +75,7 @@ export function rateResource(resource, rating = {}, extra = {}) {
   return emit('content_rating', payload);
 }
 
-export { contentRatingHash, NIBGATE_CONTENT_HASH_NAMESPACE, NIBGATE_REPUTATION_ABI, rateContentOnchain, reviewTextHash } from './reputation.js';
+export { contentRatingHash, NIBGATE_CONTENT_HASH_NAMESPACE, NIBGATE_REPUTATION_ABI, NIBGATE_REPUTATION_CHAIN_ID, NIBGATE_REPUTATION_CHAIN_NAME, NIBGATE_REPUTATION_CONTRACT, NIBGATE_REPUTATION_RPC_URL, rateContentOnchain, reviewTextHash } from './reputation.js';
 
 export function trackResourcePage(resource, options = {}) {
   const item = createGate(resource, options.gateOptions || {});

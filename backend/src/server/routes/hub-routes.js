@@ -9,6 +9,9 @@ let manifestSyncMonitorStarted = false;
 let reputationIndexerStarted = false;
 let reputationIndexerLastBlock = null;
 
+const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
+const DEFAULT_NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.network';
+
 // Helper to authenticate user via cookie
 async function requireAuth(req, res, next) {
   const sessionToken = req.cookies.auth_session;
@@ -484,7 +487,7 @@ function contentHashFor(website, content) {
 }
 
 function publicClientForIndexer() {
-  const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL || process.env.ARC_TESTNET_RPC_URL || process.env.RPC_URL || '';
+  const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL || process.env.ARC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_NIBGATE_REPUTATION_RPC_URL;
   const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
   if (!rpcUrl) return null;
   return createPublicClient({
@@ -988,7 +991,7 @@ async function indexReputationLog(log, contractAddress) {
 }
 
 async function runReputationIndexSweep() {
-  const contractAddress = String(process.env.NIBGATE_REPUTATION_CONTRACT || '').toLowerCase();
+  const contractAddress = String(process.env.NIBGATE_REPUTATION_CONTRACT || DEFAULT_NIBGATE_REPUTATION_CONTRACT).toLowerCase();
   if (!contractAddress) return { ok: false, reason: 'missing_contract' };
 
   const client = publicClientForIndexer();
@@ -1568,7 +1571,7 @@ export function registerHubRoutes(app) {
       const contentId = String(req.body.contentId || '').trim();
       if (!txHash) return res.status(400).json({ error: 'txHash is required' });
 
-      const contractAddress = String(process.env.NIBGATE_REPUTATION_CONTRACT || '').toLowerCase();
+      const contractAddress = String(process.env.NIBGATE_REPUTATION_CONTRACT || DEFAULT_NIBGATE_REPUTATION_CONTRACT).toLowerCase();
       if (!contractAddress) return res.status(500).json({ error: 'NIBGATE_REPUTATION_CONTRACT is not configured' });
 
       const client = publicClientForIndexer();

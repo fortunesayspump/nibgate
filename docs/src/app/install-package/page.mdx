@@ -6,7 +6,7 @@ Use the package inside the app that owns the paid content. The package is the un
 
 Nibgate is framework-agnostic. Install one package, then use the browser entrypoint for content/event reporting and the server entrypoint for real access enforcement.
 
-Agents can read the compact integration guide at [https://nibgate.xyz/skill.md](https://nibgate.xyz/skill.md).
+Agents can read the compact integration guide at [https://nibgate.xyz/skill.md](https://nibgate.xyz/skill.md). If you are using an AI coding agent, give it that URL or the package file `node_modules/@nibgate/sdk/SKILL.md` before it edits checkout, route protection, or widget code.
 
 ## Install
 
@@ -44,6 +44,12 @@ The core package is not tied to one framework.
 - Plain HTML/static sites: widget and public metadata work, but private payloads need a protected API, edge function, or signed URL.
 
 Rule: if the framework can run server logic before returning content, Nibgate can enforce real access.
+
+## Hardcoded content
+
+Hardcoded content can be gated when it stays server-only until access is allowed. MDX, Markdown, constants, JSON files, and local media metadata are fine if the full paid payload is loaded by a route handler, API route, server component, middleware, guard, private file reader, or signed URL endpoint after Nibgate verifies access.
+
+Do not render paid text into public HTML and hide it with CSS or client state. Do not bundle the paid body into client JavaScript.
 
 ## Admin UI settings
 

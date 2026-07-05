@@ -13,6 +13,15 @@ Use `@nibgate/sdk` in the creator-owned site that actually serves the content. N
 npm install @nibgate/sdk
 ```
 
+## Agent Handoff
+
+When an AI agent is helping install Nibgate, give it this file first:
+
+- package copy: `node_modules/@nibgate/sdk/SKILL.md`
+- public copy: `https://nibgate.xyz/skill.md`
+
+The guide is intentionally compact so agents can follow the correct package, widget, server gating, payment, and event patterns without guessing. If an agent is modifying a creator site, tell it to read `SKILL.md` before editing routes or checkout code.
+
 Use browser helpers from `@nibgate/sdk` and access enforcement from `@nibgate/sdk/server`:
 
 ```ts
@@ -118,6 +127,23 @@ export function GET(request: Request) {
 ```
 
 The route should return a real `402 Payment Required` challenge until the request has a valid payment proof or signed unlock proof.
+
+## Hardcoded Or File-Based Content
+
+Hardcoded content, MDX files, Markdown files, static JSON files, and repo-local media metadata can be gated when the protected payload stays server-side until access is allowed.
+
+Safe pattern:
+
+1. keep the public teaser, title, price, and metadata in the page;
+2. keep the full paid body in a server-only module, route handler, CMS fetch, DB row, private file, or signed URL endpoint;
+3. run `accessResponse(...)`, `accessFor(...)`, middleware, or a framework guard before returning the full payload.
+
+Unsafe pattern:
+
+- rendering the paid body into public HTML and hiding it with CSS;
+- bundling the paid body into client JavaScript;
+- putting private text into `nibgate.json`, JSON-LD, meta tags, page source, or static exports;
+- exposing an open API route that returns the protected body without checking payment proof.
 
 ## Required Env Vars
 

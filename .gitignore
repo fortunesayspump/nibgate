@@ -9,6 +9,8 @@ out/
 .env.*
 *.log
 *.tsbuildinfo
+*.db
+*.db-*
 .nibgate/
 
 docs/.next/

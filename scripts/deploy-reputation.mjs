@@ -19,16 +19,13 @@ const configuredPrivateKey = process.env.NIBGATE_DEPLOYER_PRIVATE_KEY
   || process.env.DEPLOYER_PRIVATE_KEY
   || process.env.E2E_BUYER_PRIVATE_KEY
   || '';
-const privateKey = configuredPrivateKey
-  || (process.env.ALLOW_E2E_DEPLOYER_FALLBACK === 'true'
-    ? '0xda9767356cc75323a8417e4bd8c133e9c5df3474ecff00b0112079c147adaa5e'
-    : '');
+const privateKey = configuredPrivateKey;
 const owner = process.env.NIBGATE_REPUTATION_OWNER
   || process.env.DEPLOYER_OWNER
   || '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12';
 
 if (!privateKey) {
-  throw new Error('Set NIBGATE_DEPLOYER_PRIVATE_KEY, DEPLOYER_PRIVATE_KEY, or ALLOW_E2E_DEPLOYER_FALLBACK=true.');
+  throw new Error('Set NIBGATE_DEPLOYER_PRIVATE_KEY or DEPLOYER_PRIVATE_KEY before deploying reputation contracts.');
 }
 
 const chain = {

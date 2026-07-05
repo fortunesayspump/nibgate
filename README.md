@@ -123,7 +123,7 @@ Backend variables:
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway
 CORS_ORIGIN=https://nibgate.xyz,http://localhost:3001
 BLOG_OWNER_WALLET=0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12
-RESEND_API_KEY=re_your_resend_api_key
+RESEND_API_KEY=your_resend_api_key
 RESEND_NEWSLETTER_SEGMENT_ID=seg_your_newsletter_segment_id
 RESEND_NEWSLETTER_TOPIC_ID=topic_your_newsletter_topic_id
 ```

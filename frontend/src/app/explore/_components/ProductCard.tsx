@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { KeyboardEvent, MouseEvent } from "react";
 import type { ExploreProduct } from "../_data/catalog";
 
 const topCreatorBadge = (
@@ -72,18 +73,43 @@ function TagPills({ tags = [] }: { tags?: string[] }) {
   );
 }
 
-function ReputationStars({ score, stars }: { score?: number; stars?: number }) {
-  const rating = typeof stars === "number" ? stars : (typeof score === "number" ? Math.max(0, Math.min(5, Math.round((score / 20) * 10) / 10)) : null);
-  if (rating === null) return null;
+function openProduct(product: ExploreProduct) {
+  const href = productHref(product);
+  if (href) window.location.href = href;
+}
+
+function onCardKeyDown(event: KeyboardEvent<HTMLElement>, product: ExploreProduct) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if ((event.target as HTMLElement).closest("a, button")) return;
+  event.preventDefault();
+  openProduct(product);
+}
+
+function onCardClick(event: MouseEvent<HTMLElement>, product: ExploreProduct) {
+  if ((event.target as HTMLElement).closest("a, button")) return;
+  openProduct(product);
+}
+
+function ReputationStars({ stars, ratings = 0 }: { stars?: number | null; ratings?: number }) {
+  const rating = typeof stars === "number" && ratings > 0 ? stars : null;
+  if (rating === null) {
+    return (
+      <span className="content-rating content-rating-empty-state" title="No verified ratings yet">
+        <span className="content-rating-stars" aria-hidden="true">☆☆☆☆☆</span>
+        <span className="content-rating-value">Unrated</span>
+        <span className="sr-only">No verified ratings yet</span>
+      </span>
+    );
+  }
   const percent = Math.max(0, Math.min(100, (rating / 5) * 100));
   return (
-    <span className="content-rating" title={`Content reputation: ${rating.toFixed(1)} out of 5 stars`}>
+    <span className="content-rating" title={`Verified rating: ${rating.toFixed(1)} out of 5 stars`}>
       <span className="content-rating-stars" aria-hidden="true">
         <span className="content-rating-empty">☆☆☆☆☆</span>
         <span className="content-rating-fill" style={{ width: `${percent}%` }}>★★★★★</span>
       </span>
       <span className="content-rating-value">{rating.toFixed(1)}</span>
-      <span className="sr-only">{rating.toFixed(1)} out of 5 stars</span>
+      <span className="sr-only">{rating.toFixed(1)} out of 5 stars from {ratings} verified ratings</span>
     </span>
   );
 }
@@ -92,7 +118,7 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
   const contentType = typeClass(product.type);
 
   return (
-    <article className={`explore-feature-card content-card-${contentType}`}>
+    <article className={`explore-feature-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <figure className="explore-art">
         <img src={productImage(product)} alt="" loading="lazy" />
         {product.type === 'Video' && playIcon}
@@ -102,7 +128,7 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
         <header>
           <div className="content-card-badges">
             <span className="content-type">{product.type}</span>
-            <ReputationStars score={product.reputationScore} stars={product.reputationStars} />
+            <ReputationStars stars={product.reputationStars} ratings={product.ratings} />
           </div>
           <Link href={productHref(product)}><h2>{product.title}</h2></Link>
           <small>{product.summary}</small>
@@ -115,7 +141,7 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
         <footer>
           <div className="content-meta">
             {product.unlocks && <span>{product.unlocks}</span>}
-            <ReputationStars score={product.reputationScore} stars={product.reputationStars} />
+            <ReputationStars stars={product.reputationStars} ratings={product.ratings} />
           </div>
           <span className="unlock-price" aria-label={`Price ${product.price}`}>{product.price}</span>
         </footer>
@@ -126,14 +152,15 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
 
 export function ArticleCard({ product }: { product: ExploreProduct }) {
   const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
+  const reputationLabel = product.ratings && typeof product.reputationScore === "number" ? `Verified rep ${product.reputationScore}/100` : "No rep";
   
   return (
-    <article className="article-card">
+    <article className="article-card" role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="article-header">
         <img className="article-avatar" src={avatar} alt={product.creator} loading="lazy" />
         <div className="article-author-info">
           <span className="article-author-name">{product.creator || 'Creator'}</span>
-          <span className="article-meta-time">Content reputation {product.reputationScore || 0}</span>
+          <span className="article-meta-time">{reputationLabel}</span>
         </div>
       </div>
       <div className="article-body">
@@ -162,7 +189,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
   const randomRatio = "4/3"; 
 
   return (
-    <article className={`market-card content-card-${contentType}`}>
+    <article className={`market-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="market-media" style={{ aspectRatio: randomRatio }}>
         <img className="market-thumbnail" src={productImage(product)} alt={product.title} loading="lazy" />
         
@@ -211,7 +238,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
             <img className="market-avatar" src={avatar} alt="Creator" />
             <span className="market-creator-name">{product.creator || 'Creator'}</span>
           </Link>
-          <ReputationStars score={product.reputationScore} stars={product.reputationStars} />
+          <ReputationStars stars={product.reputationStars} ratings={product.ratings} />
         </div>
       </div>
     </article>

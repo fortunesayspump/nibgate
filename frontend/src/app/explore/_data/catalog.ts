@@ -27,8 +27,9 @@ export type ExploreProduct = {
   url?: string;
   views?: number;
   revenue?: number;
-  reputationScore?: number;
-  reputationStars?: number;
+  reputationScore?: number | null;
+  reputationStars?: number | null;
+  ratings?: number;
   createdAt?: string;
 };
 

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { getUserBySession } from '@nibgate/cli/src/core/auth.js';
 import sharp from 'sharp';
 
-const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif']);
+const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif']);
 const MAX_IMAGE_BYTES = {
   avatar: 2 * 1024 * 1024,
   cover: 5 * 1024 * 1024
@@ -48,7 +48,7 @@ function client(config) {
 }
 
 async function prepareImage(buffer, target) {
-  const image = sharp(buffer, { limitInputPixels: 24_000_000 }).rotate();
+  const image = sharp(buffer, { limitInputPixels: 24_000_000, failOn: 'none' }).rotate();
   const metadata = await image.metadata();
 
   if (!metadata.format || !ALLOWED_FORMATS.has(metadata.format)) {
@@ -137,8 +137,9 @@ export function registerUploadRoutes(app) {
       try {
         image = await prepareImage(parsed.buffer, target);
       } catch (error) {
+        console.log('Profile image processing failed:', error.message);
         return res.status(400).json({
-          error: error.message === 'Unsupported image type' ? 'Unsupported image type' : 'Could not process image'
+          error: error.message === 'Unsupported image type' ? 'Unsupported image type' : 'Could not process image. Try a JPG, PNG, WebP, AVIF, or a smaller image.'
         });
       }
       const key = `${target}s/${req.user.id}/${crypto.randomUUID()}.${image.extension}`;

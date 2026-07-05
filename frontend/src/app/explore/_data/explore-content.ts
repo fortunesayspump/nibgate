@@ -14,8 +14,9 @@ type ExploreContent = {
   views: number;
   unlocks: number;
   revenue: number;
-  reputationScore?: number;
-  reputationStars?: number;
+  reputationScore?: number | null;
+  reputationStars?: number | null;
+  ratings?: number;
   websiteName: string;
   websiteDomain: string;
   websiteFaviconUrl?: string;
@@ -46,15 +47,6 @@ function fallbackImage(content: ExploreContent) {
 function parseTags(content: ExploreContent) {
   const source = Array.isArray(content.tagList) ? content.tagList : String(content.tags || "").split(",");
   return source.map((tag) => tag.trim().toLowerCase()).filter(Boolean).slice(0, 4);
-}
-
-function reputationScore(content: ExploreContent) {
-  const views = Math.max(0, content.views || 0);
-  const unlocks = Math.max(0, content.unlocks || 0);
-  const revenue = Math.max(0, content.revenue || 0);
-  const unlockRate = views > 0 ? unlocks / views : 0;
-  const score = 42 + Math.min(22, views * 0.45) + Math.min(24, unlockRate * 120) + Math.min(12, revenue * 80);
-  return Math.max(0, Math.min(99, Math.round(score)));
 }
 
 export async function getExploreProducts(params: { q?: string; type?: string; sort?: string; limit?: number } = {}) {
@@ -93,8 +85,9 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     url: content.url,
     views: content.views || 0,
     revenue: content.revenue || 0,
-    reputationScore: content.reputationScore ?? reputationScore(content),
-    reputationStars: content.reputationStars ?? Math.max(0, Math.min(5, Math.round(((content.reputationScore ?? reputationScore(content)) / 20) * 10) / 10)),
+    reputationScore: typeof content.reputationScore === "number" ? content.reputationScore : null,
+    reputationStars: typeof content.reputationStars === "number" ? content.reputationStars : null,
+    ratings: content.ratings || 0,
     createdAt: content.createdAt,
   };
 }

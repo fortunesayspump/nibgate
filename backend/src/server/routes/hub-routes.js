@@ -658,24 +658,14 @@ function htmlContainsTrackingScript(html, website) {
 }
 
 
-function contentReputationScoreFromMetrics({ views = 0, unlocks = 0, revenue = 0, avgDurationMs = 0 } = {}) {
-  const safeViews = Math.max(0, views || 0);
-  const safeUnlocks = Math.max(0, unlocks || 0);
-  const safeRevenue = Math.max(0, revenue || 0);
-  const safeAvgDurationMs = Math.max(0, avgDurationMs || 0);
-  const unlockRate = safeViews > 0 ? safeUnlocks / safeViews : 0;
-  const score = 42 + Math.min(18, safeViews * 0.4) + Math.min(22, unlockRate * 110) + Math.min(10, safeRevenue * 70) + Math.min(8, safeAvgDurationMs / 15000);
-  return Math.max(0, Math.min(99, Math.round(score)));
-}
-
-function contentReputationStars(score = 0) {
-  return Math.max(0, Math.min(5, Math.round(((score || 0) / 20) * 10) / 10));
-}
-
 function ratingAverage(ratings = []) {
   const accepted = ratings.filter((rating) => rating.status === 'accepted' && Number.isFinite(rating.ratingValue));
   if (!accepted.length) return 0;
   return Math.round((accepted.reduce((sum, rating) => sum + rating.ratingValue, 0) / accepted.length / 10) * 10) / 10;
+}
+
+function acceptedRatingCount(ratings = []) {
+  return ratings.filter((rating) => rating.status === 'accepted' && Number.isFinite(rating.ratingValue)).length;
 }
 
 function average(values = []) {
@@ -686,6 +676,8 @@ function average(values = []) {
 
 function siteReputationScore(contents = [], website = {}) {
   const contentScores = contents.map((content) => content.reputationScore || 0).filter(Boolean);
+  const ratingCount = contents.reduce((sum, content) => sum + (content.ratings || 0), 0);
+  if (!ratingCount) return null;
   const avgContent = average(contentScores);
   const verification = website.isVerified && website.verificationStatus === 'verified' ? 12 : 0;
   const depth = Math.min(10, contentScores.length * 2);
@@ -695,6 +687,8 @@ function siteReputationScore(contents = [], website = {}) {
 
 function creatorReputationScore(contents = [], websites = []) {
   const contentScores = contents.map((content) => content.reputationScore || 0).filter(Boolean);
+  const ratingCount = contents.reduce((sum, content) => sum + (content.ratings || 0), 0);
+  if (!ratingCount) return null;
   const avgContent = average(contentScores);
   const verifiedSites = websites.filter((website) => website.isVerified && website.verificationStatus === 'verified').length;
   const siteDepth = Math.min(12, verifiedSites * 4);
@@ -716,9 +710,9 @@ function serializeContent(content) {
     : 0;
 
   const explicitStars = ratingAverage(ratings);
-  const metricScore = contentReputationScoreFromMetrics({ views, unlocks, revenue, avgDurationMs });
-  const reputationStars = explicitStars || contentReputationStars(metricScore);
-  const reputationScore = explicitStars ? Math.round(explicitStars * 20) : metricScore;
+  const reputationStars = explicitStars || null;
+  const reputationScore = explicitStars ? Math.round(explicitStars * 20) : null;
+  const ratingCount = acceptedRatingCount(ratings);
 
   return {
     id: content.id,
@@ -774,7 +768,7 @@ function serializeContent(content) {
     revenue,
     avgDurationMs,
     receipts: content._count?.unlockReceipts || unlockReceipts.length || 0,
-    ratings: content._count?.ratings || ratings.length || 0,
+    ratings: ratingCount,
     reputationScore,
     reputationStars
   };
@@ -1920,7 +1914,7 @@ export function registerHubRoutes(app) {
           orderBy: { createdAt: 'desc' }
         });
         const items = content.map(serializeContent)
-          .sort((a, b) => (b.reputationScore - a.reputationScore) || (b.unlocks - a.unlocks) || (b.views - a.views))
+          .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
           .slice(0, limit)
           .map((content, index) => ({ rank: index + 1, ...content }));
         return res.json({ success: true, type: 'content', items });
@@ -1955,7 +1949,7 @@ export function registerHubRoutes(app) {
             verificationStatus: website.verificationStatus || '',
             lastVerifiedAt: website.lastVerifiedAt || null
           };
-        }).sort((a, b) => (b.reputationScore - a.reputationScore) || (b.unlocks - a.unlocks) || (b.views - a.views)).slice(0, limit).map((site, index) => ({ rank: index + 1, ...site }));
+        }).sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views)).slice(0, limit).map((site, index) => ({ rank: index + 1, ...site }));
         return res.json({ success: true, type: 'sites', items });
       }
 
@@ -1986,7 +1980,7 @@ export function registerHubRoutes(app) {
           revenue
         };
       }).filter((creator) => creator.contentCount > 0 || creator.verifiedSites > 0)
-        .sort((a, b) => (b.reputationScore - a.reputationScore) || (b.unlocks - a.unlocks) || (b.views - a.views))
+        .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
         .slice(0, limit)
         .map((creator, index) => ({ rank: index + 1, ...creator }));
       return res.json({ success: true, type: 'creators', items });

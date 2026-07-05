@@ -19,8 +19,9 @@ type DashboardContent = {
   unlocks: number;
   revenue: number;
   avgDurationMs: number;
-  reputationScore?: number;
-  reputationStars?: number;
+  reputationScore?: number | null;
+  reputationStars?: number | null;
+  ratings?: number;
   websiteName: string;
   websiteDomain: string;
   websiteVerified: boolean;
@@ -273,7 +274,8 @@ function formatDuration(ms: number) {
   return `${minutes}m ${seconds % 60}s`;
 }
 
-function stars(value?: number) {
-  const rating = Math.max(0, Math.min(5, value || 0));
+function stars(value?: number | null) {
+  if (typeof value !== "number") return "No rep";
+  const rating = Math.round(Math.max(0, Math.min(5, value || 0)));
   return "★".repeat(rating) + "☆".repeat(5 - rating);
 }

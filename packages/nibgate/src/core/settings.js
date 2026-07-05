@@ -11,6 +11,7 @@ export const NIBGATE_CONTENT_SETTING_FIELDS = [
   { name: 'price', label: 'Price', type: 'text', defaultValue: '0.005' },
   { name: 'currency', label: 'Currency', type: 'text', defaultValue: 'USDC' },
   { name: 'recipient', label: 'Recipient wallet', type: 'wallet', defaultValue: '' },
+  { name: 'ratingsEnabled', label: 'Enable ratings', type: 'boolean', defaultValue: true },
   { name: 'license', label: 'License / terms', type: 'textarea', defaultValue: '' }
 ];
 
@@ -31,6 +32,7 @@ export function createNibgateContentSettings(input = {}) {
     price: String(input.price ?? input.amount ?? '0.005'),
     currency: input.currency || 'USDC',
     recipient: input.recipient || input.payTo || input.receiverAddress || input.creatorWallet || '',
+    ratingsEnabled: input.ratingsEnabled ?? input.enableRatings ?? input.reputation?.ratingsEnabled ?? true,
     license: input.license || input.terms || ''
   };
 }

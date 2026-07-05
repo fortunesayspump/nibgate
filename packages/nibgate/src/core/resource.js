@@ -77,7 +77,12 @@ export function normalizeResource(resource = {}) {
     imageUrl: input.imageUrl || input.image || undefined,
     tags: input.tags || undefined,
     access: normalizeAccessPolicy(input.access),
-    unlock: normalizeUnlockPolicy(input.unlock)
+    unlock: normalizeUnlockPolicy(input.unlock),
+    ratingsEnabled: input.ratingsEnabled ?? input.enableRatings ?? input.reputation?.ratingsEnabled ?? true,
+    reputation: {
+      ...(typeof input.reputation === 'object' && input.reputation ? input.reputation : {}),
+      ratingsEnabled: input.ratingsEnabled ?? input.enableRatings ?? input.reputation?.ratingsEnabled ?? true
+    }
   };
 }
 

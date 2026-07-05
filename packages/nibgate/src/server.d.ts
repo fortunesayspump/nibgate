@@ -22,6 +22,12 @@ export type NibgateServerResource = {
   currency?: string;
   access?: NibgateAccessMode | NibgateAccessPolicy;
   unlock?: NibgateUnlockMode | NibgateUnlockPolicy;
+  ratingsEnabled?: boolean;
+  enableRatings?: boolean;
+  reputation?: {
+    ratingsEnabled?: boolean;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 };
 
@@ -68,9 +74,11 @@ export type NibgateContentSettings = {
   humanAccess: NibgateAccessMode;
   agentAccess: NibgateAccessMode;
   unlockMode: NibgateUnlockMode | string;
+  paymentRail: NibgatePaymentRail | string;
   price: string;
   currency: string;
   recipient: string;
+  ratingsEnabled: boolean;
   license: string;
 };
 export declare const NIBGATE_CONTENT_SETTING_FIELDS: readonly NibgateContentSettingField[];

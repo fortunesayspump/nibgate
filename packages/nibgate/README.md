@@ -340,6 +340,7 @@ Nibgate settings
 - Price
 - Currency
 - Payment receiver for this exact content
+- Ratings enabled: on / off
 - License or citation terms
 ```
 

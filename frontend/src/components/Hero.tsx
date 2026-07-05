@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export default function Hero() {
   return (
@@ -39,11 +40,13 @@ export default function Hero() {
             className="code-snippet__button"
             type="button"
             aria-label="Copy the command npm install @nibgate/sdk"
-            onClick={(e) => {
-              navigator.clipboard.writeText("npm install @nibgate/sdk");
+            onClick={async (e) => {
+              const didCopy = await copyToClipboard("npm install @nibgate/sdk");
               const target = e.currentTarget.parentElement;
-              target?.classList.add("has-copied");
-              setTimeout(() => target?.classList.remove("has-copied"), 1200);
+              if (didCopy) {
+                target?.classList.add("has-copied");
+                setTimeout(() => target?.classList.remove("has-copied"), 1200);
+              }
             }}
           >
             <svg className="code-snippet__icon" aria-hidden="true">

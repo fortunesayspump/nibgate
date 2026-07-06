@@ -381,16 +381,34 @@ html[data-theme="light"] .explore-category.active {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .explore-pager button {
-  width: 24px;
-  height: 24px;
-  border: 0;
-  background: transparent;
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--explore-border);
+  border-radius: var(--nib-radius-action, 6px);
+  background: var(--explore-card-bg);
   color: var(--explore-fg);
   font: inherit;
   cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.explore-pager button:hover {
+  background: var(--explore-accent);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.explore-pager button:focus-visible {
+  outline: 2px solid var(--explore-accent);
+  outline-offset: 3px;
 }
 
 .featured-track {
@@ -402,6 +420,7 @@ html[data-theme="light"] .explore-category.active {
   grid-auto-flow: column;
   gap: 24px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding-bottom: 1px;
   scrollbar-width: none;
   scroll-snap-type: x mandatory;

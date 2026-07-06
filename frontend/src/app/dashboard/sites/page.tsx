@@ -93,6 +93,7 @@ await premiumGuide.unlock(async () => {
 async function copyText(value: string, onDone: (message: string) => void, label = "Copied") {
   const copied = await copyToClipboard(value);
   onDone(copied ? label : "Copy failed. Select the snippet and copy it manually.");
+  return copied;
 }
 
 function wait(ms: number) {
@@ -537,6 +538,18 @@ function DangerRemoveSite({ site, onRemove }: { site: DashboardSite; onRemove: (
 }
 
 function SetupSection({ site, verifyingId, onVerify, onCopy }: { site: DashboardSite; verifyingId: string; onVerify: (id: string) => void; onCopy: (message: string) => void }) {
+  const [copyStatus, setCopyStatus] = useState("");
+
+  useEffect(() => {
+    setCopyStatus("");
+  }, [site.id]);
+
+  async function handleCopyScript() {
+    const didCopy = await copyText(widgetScript(site), onCopy, "Widget script copied.");
+    setCopyStatus(didCopy ? "Copied" : "Copy failed. Select the snippet and copy it manually.");
+    window.setTimeout(() => setCopyStatus(""), 1600);
+  }
+
   return (
     <>
       {(site.verificationStatus === "missing_widget" || site.verificationStatus === "failed") ? (
@@ -551,12 +564,17 @@ function SetupSection({ site, verifyingId, onVerify, onCopy }: { site: Dashboard
           Put it before the closing <span className="font-mono">&lt;/head&gt;</span> tag or anywhere in your page HTML. It works with Next.js, plain HTML, Webflow-style exports, custom backends, and most site engines.
         </p>
         <pre className="mt-4 overflow-auto rounded-2xl bg-black p-4 text-xs leading-5 text-white"><code>{widgetScript(site)}</code></pre>
-        <button onClick={() => copyText(widgetScript(site), onCopy, "Widget script copied.")} className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--nib-border-soft)" }}><Clipboard className="h-4 w-4" /> Copy script</button>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={handleCopyScript} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--nib-border-soft)" }}>
+            <Clipboard className="h-4 w-4" /> Copy script
+          </button>
+          {copyStatus ? <p className="text-sm font-medium opacity-70" role="alert">{copyStatus}</p> : null}
+        </div>
       </div>
       <div className="rounded-3xl border p-5" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-page-bg)" }}>
         <h4 className="text-xl font-medium">2. Deploy and verify</h4>
         <p className="mt-2 text-sm leading-6 opacity-70">After deploy, Nibgate checks your homepage for the script and token. Once found, the site becomes verified and event streaming can begin.</p>
-        <button onClick={() => onVerify(site.id)} disabled={verifyingId === site.id} className="mt-4 rounded-full bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-50">{verifyingId === site.id ? "Checking..." : "Verify ownership"}</button>
+        <button type="button" onClick={() => onVerify(site.id)} disabled={verifyingId === site.id} className="mt-4 rounded-full bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-50">{verifyingId === site.id ? "Checking..." : "Verify ownership"}</button>
       </div>
     </>
   );

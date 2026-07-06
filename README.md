@@ -135,6 +135,9 @@ METRIC_HASH_SALT=generate_a_long_random_secret
 TRACKING_RATE_LIMIT_MAX=180
 TRACKING_RATE_LIMIT_WINDOW_MS=60000
 TRACKING_VIEW_DEDUPE_WINDOW_MS=1800000
+MANIFEST_SYNC_INTERVAL_MS=900000
+MANIFEST_SYNC_RETRY_AFTER_MS=1800000
+MANIFEST_SYNC_BATCH_SIZE=100
 ```
 
 For production, attach a Railway Postgres database to the backend service and use Railway's `DATABASE_URL` value. The Prisma datasource is PostgreSQL-only now, so every backend environment must provide `DATABASE_URL`.
@@ -144,6 +147,8 @@ For production, attach a Railway Postgres database to the backend service and us
 Newsletter signups are stored in the local `NewsletterSubscriber` table first. If `RESEND_API_KEY` is configured, the backend also syncs each signup into Resend Contacts. `RESEND_NEWSLETTER_SEGMENT_ID` and `RESEND_NEWSLETTER_TOPIC_ID` are optional, but recommended so newsletter signups are grouped separately from transactional contacts. Without Resend envs, signups still save locally with a pending sync status.
 
 `METRIC_HASH_SALT` is used to create privacy-preserving server-side visitor hashes for analytics dedupe. Use a stable secret in production; rotating it resets unique visitor continuity. Tracking dedupe defaults are 30 minutes for page/resource views, 24 hours for content registration and payment/unlock payment ids, 5 minutes for time events, and 30 seconds for engagement events. The backend also rate-limits `/api/hub/track` per site/IP/visitor bucket.
+
+Manifest sync keeps Explore and dashboard metadata fresh when creators change titles, descriptions, images, prices, tags, or routes. The backend reads verified-site manifests from `/nibgate.json`, `/.well-known/nibgate.json`, `/v1/nibgate/manifest`, or `/v1/nibgate/nibgate.json`. Creators can also refresh a site manually from `/dashboard/sites`; event traffic from the widget/package still updates the same content record whenever the stable content id is seen again.
 
 Frontend variables:
 

@@ -131,6 +131,10 @@ BLOG_OWNER_WALLET=0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12
 RESEND_API_KEY=your_resend_api_key
 RESEND_NEWSLETTER_SEGMENT_ID=seg_your_newsletter_segment_id
 RESEND_NEWSLETTER_TOPIC_ID=topic_your_newsletter_topic_id
+METRIC_HASH_SALT=generate_a_long_random_secret
+TRACKING_RATE_LIMIT_MAX=180
+TRACKING_RATE_LIMIT_WINDOW_MS=60000
+TRACKING_VIEW_DEDUPE_WINDOW_MS=1800000
 ```
 
 For production, attach a Railway Postgres database to the backend service and use Railway's `DATABASE_URL` value. The Prisma datasource is PostgreSQL-only now, so every backend environment must provide `DATABASE_URL`.
@@ -138,6 +142,8 @@ For production, attach a Railway Postgres database to the backend service and us
 `BLOG_OWNER_WALLET` is the single signed wallet that can create, edit, publish, draft, or delete posts from `/dashboard/blog`. No other wallet can access the editor APIs.
 
 Newsletter signups are stored in the local `NewsletterSubscriber` table first. If `RESEND_API_KEY` is configured, the backend also syncs each signup into Resend Contacts. `RESEND_NEWSLETTER_SEGMENT_ID` and `RESEND_NEWSLETTER_TOPIC_ID` are optional, but recommended so newsletter signups are grouped separately from transactional contacts. Without Resend envs, signups still save locally with a pending sync status.
+
+`METRIC_HASH_SALT` is used to create privacy-preserving server-side visitor hashes for analytics dedupe. Use a stable secret in production; rotating it resets unique visitor continuity. Tracking dedupe defaults are 30 minutes for page/resource views, 24 hours for content registration and payment/unlock payment ids, 5 minutes for time events, and 30 seconds for engagement events. The backend also rate-limits `/api/hub/track` per site/IP/visitor bucket.
 
 Frontend variables:
 
@@ -156,6 +162,8 @@ npm --workspace @nibgate/cli exec prisma db push
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
 npm --workspace @nibgate/cli exec prisma generate
 ```
+
+Production deploys that change `packages/cli/prisma/schema.prisma` need the same `prisma db push` against the Railway database before the new backend starts handling traffic.
 
 ## CLI
 

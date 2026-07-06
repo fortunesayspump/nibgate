@@ -18,6 +18,7 @@ import { createConfigResolver } from './runtime.js';
 
 export async function createApp(config, options = {}) {
   const app = express();
+  app.set('trust proxy', true);
   const store = createStateStore(options.statePath || path.join(rootDir, '.nibgate', 'state.json'));
   const gateway = createGateway(config, store);
   const circleGateway = await createCircleGatewayMiddleware(gateway.paymentProvider);

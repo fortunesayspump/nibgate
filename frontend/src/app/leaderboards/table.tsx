@@ -62,6 +62,17 @@ function imageFor(item: Item, active: BoardType) {
   return item.imageUrl || item.websiteOgImageUrl || `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(item.title || "Content")}`;
 }
 
+function itemHref(item: Item, active: BoardType) {
+  if (active === "content") return item.url || "";
+  if (active === "sites" && item.domain) return `https://${String(item.domain).replace(/^https?:\/\//, "").replace(/\/.*$/, "")}`;
+  return "";
+}
+
+function openItem(item: Item, active: BoardType) {
+  const href = itemHref(item, active);
+  if (href) window.open(href, "_blank", "noopener,noreferrer");
+}
+
 export default function LeaderboardTable({ creators, sites, content }: Props) {
   const [active, setActive] = useState<BoardType>("creators");
   const [query, setQuery] = useState("");
@@ -195,37 +206,52 @@ export default function LeaderboardTable({ creators, sites, content }: Props) {
               <tr>
                 <td colSpan={7} className="px-5 py-12 text-center opacity-65">{query ? "No matching ranked entries." : "No ranked entries yet."}</td>
               </tr>
-            ) : sortedData.map((item) => (
-              <tr key={`${active}-${item.id}`} className="border-b border-dark-gray/40 transition hover:bg-gray/70">
-                <td className="px-5 py-5 text-2xl font-medium">#{item.rank}</td>
-                <td className="px-5 py-5">
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={imageFor(item, active)}
-                      alt=""
-                      className={`${active === "creators" ? "rounded-full" : "rounded-2xl"} h-14 w-14 shrink-0 border border-dark-gray/40 object-cover bg-gray`}
-                    />
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{primaryLabel(item, active)}</div>
-                      <div className="mt-1 truncate text-sm opacity-60">{secondaryLabel(item, active)}</div>
+            ) : sortedData.map((item) => {
+              const href = itemHref(item, active);
+              return (
+                <tr
+                  key={`${active}-${item.id}`}
+                  className={`border-b border-dark-gray/40 transition hover:bg-gray/70 ${href ? "cursor-pointer focus-within:bg-gray/70" : ""}`}
+                  role={href ? "link" : undefined}
+                  tabIndex={href ? 0 : undefined}
+                  title={href ? `Open ${primaryLabel(item, active)}` : undefined}
+                  onClick={() => openItem(item, active)}
+                  onKeyDown={(event) => {
+                    if (!href || (event.key !== "Enter" && event.key !== " ")) return;
+                    event.preventDefault();
+                    openItem(item, active);
+                  }}
+                >
+                  <td className="px-5 py-5 text-2xl font-medium">#{item.rank}</td>
+                  <td className="px-5 py-5">
+                    <div className="flex items-center gap-4">
+                      <img
+                        src={imageFor(item, active)}
+                        alt=""
+                        className={`${active === "creators" ? "rounded-full" : "rounded-2xl"} h-14 w-14 shrink-0 border border-dark-gray/40 object-cover bg-gray`}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{primaryLabel(item, active)}</div>
+                        <div className="mt-1 truncate text-sm opacity-60">{secondaryLabel(item, active)}</div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="px-5 py-5">
-                  {active === "content" ? (
-                    <Stars value={item.reputationStars} ratings={item.ratings} />
-                  ) : typeof item.reputationScore === "number" ? (
-                    <span className="text-2xl font-medium">{item.reputationScore}<span className="text-sm opacity-50">/100</span></span>
-                  ) : (
-                    <NoRep />
-                  )}
-                </td>
-                <td className="px-5 py-5">{item.contentCount ?? item.contentType ?? "-"}</td>
-                <td className="px-5 py-5">{item.views || 0}</td>
-                <td className="px-5 py-5">{item.unlocks || 0}</td>
-                <td className="px-5 py-5">{Number(item.revenue || 0).toFixed(2)} USDC</td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-5 py-5">
+                    {active === "content" ? (
+                      <Stars value={item.reputationStars} ratings={item.ratings} />
+                    ) : typeof item.reputationScore === "number" ? (
+                      <span className="text-2xl font-medium">{item.reputationScore}<span className="text-sm opacity-50">/100</span></span>
+                    ) : (
+                      <NoRep />
+                    )}
+                  </td>
+                  <td className="px-5 py-5">{item.contentCount ?? item.contentType ?? "-"}</td>
+                  <td className="px-5 py-5">{item.views || 0}</td>
+                  <td className="px-5 py-5">{item.unlocks || 0}</td>
+                  <td className="px-5 py-5">{Number(item.revenue || 0).toFixed(2)} USDC</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

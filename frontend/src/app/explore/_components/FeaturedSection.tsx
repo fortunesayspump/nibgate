@@ -1,23 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ExploreProduct } from "../_data/catalog";
 import { FeaturedCard } from "./ProductCard";
 
 export default function FeaturedSection({ products }: { products: ExploreProduct[] }) {
   const featuredProducts = products.slice(0, 4);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const scrollDirectionRef = useRef(1);
   const [activeIndex, setActiveIndex] = useState(0);
   const total = featuredProducts.length;
-
-  const stopHoverScroll = () => {
-    if (animationRef.current) {
-      window.cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-  };
 
   const updateActiveIndex = () => {
     const track = trackRef.current;
@@ -47,30 +38,6 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
     setActiveIndex(normalizedIndex);
   };
 
-  const startHoverScroll = () => {
-    const track = trackRef.current;
-    if (!track || total < 2) return;
-    stopHoverScroll();
-
-    const tick = () => {
-      const currentTrack = trackRef.current;
-      if (!currentTrack) return;
-
-      const maxScroll = Math.max(0, currentTrack.scrollWidth - currentTrack.clientWidth);
-      if (maxScroll <= 0) return;
-
-      if (currentTrack.scrollLeft >= maxScroll - 1) scrollDirectionRef.current = -1;
-      if (currentTrack.scrollLeft <= 1) scrollDirectionRef.current = 1;
-
-      currentTrack.scrollLeft += scrollDirectionRef.current * 0.45;
-      animationRef.current = window.requestAnimationFrame(tick);
-    };
-
-    animationRef.current = window.requestAnimationFrame(tick);
-  };
-
-  useEffect(() => stopHoverScroll, []);
-
   if (featuredProducts.length === 0) {
     return (
       <section className="featured-section" aria-labelledby="featured-title">
@@ -97,9 +64,6 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
       <div
         ref={trackRef}
         className="featured-track"
-        onMouseEnter={startHoverScroll}
-        onMouseLeave={stopHoverScroll}
-        onFocus={stopHoverScroll}
         onScroll={updateActiveIndex}
       >
         {featuredProducts.map((product, i) => (

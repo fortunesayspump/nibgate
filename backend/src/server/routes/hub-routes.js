@@ -293,6 +293,17 @@ function metricIdentity({ website, content, payload, eventName, metricType, visi
   ].join(':');
 }
 
+async function claimMetricDedupeKey(dedupeKey = '') {
+  if (!dedupeKey) return true;
+  try {
+    await db.metricDedupe.create({ data: { key: dedupeKey } });
+    return true;
+  } catch (error) {
+    if (error?.code === 'P2002') return false;
+    throw error;
+  }
+}
+
 function dedupeBucketStart(eventName, metricType, now = Date.now()) {
   const windowMs = metricBucketMs(eventName, metricType);
   if (!windowMs) return null;
@@ -1332,8 +1343,9 @@ export function registerHubRoutes(app) {
       delete metadata.visitorId;
       const bucketStart = dedupeBucketStart(eventName, metricType);
       const dedupeKey = metricIdentity({ website, content, payload: req.body, eventName, metricType, visitorHash, bucketStart });
+      const shouldCreateMetric = await claimMetricDedupeKey(dedupeKey);
 
-      try {
+      if (shouldCreateMetric) {
         await db.metric.create({
           data: {
             dedupeKey: dedupeKey || null,
@@ -1356,8 +1368,6 @@ export function registerHubRoutes(app) {
             metadata: JSON.stringify(metadata).slice(0, 12000)
           }
         });
-      } catch (error) {
-        if (error?.code !== 'P2002') throw error;
       }
 
       await db.website.update({

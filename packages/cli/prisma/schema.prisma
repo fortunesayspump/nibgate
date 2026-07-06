@@ -200,7 +200,7 @@ model ContentRating {
 
 model Metric {
   id          String             @id @default(uuid())
-  dedupeKey  String?            @unique
+  dedupeKey  String?
   type        String // normalized category: 'view', 'unlock', 'payment', 'engagement', 'time'
   eventName   String? // raw event name: page_view, resource_view, unlock_started, unlock_completed, payment_completed, time_spent
   contentId   String?
@@ -227,6 +227,12 @@ model Metric {
   @@index([websiteId, eventName, createdAt])
   @@index([websiteId, visitorId, createdAt])
   @@index([contentId, type, createdAt])
+  @@index([dedupeKey])
+}
+
+model MetricDedupe {
+  key       String   @id
+  createdAt DateTime @default(now())
 }
 
 model BlogPost {

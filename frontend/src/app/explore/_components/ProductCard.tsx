@@ -141,7 +141,6 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
         <footer>
           <div className="content-meta">
             {product.unlocks && <span>{product.unlocks}</span>}
-            <ReputationStars stars={product.reputationStars} ratings={product.ratings} />
           </div>
           <span className="unlock-price" aria-label={`Price ${product.price}`}>{product.price}</span>
         </footer>

@@ -1183,13 +1183,13 @@ export function registerHubRoutes(app) {
       res.json({ success: true, website: serializeWebsite(website) });
     } catch (error) {
       if (error.code === 'P2002') {
-        const ownedWebsite = await db.website.findFirst({
+        const existingWebsite = await db.website.findFirst({
           where: {
-            domain: cleanDomain(req.body.domain),
-            ownerId: req.user.id
+            domain: cleanDomain(req.body.domain)
           },
           include: { _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } }
         });
+        const ownedWebsite = existingWebsite?.ownerId === req.user.id ? existingWebsite : null;
 
         if (ownedWebsite?.deletedAt) {
           const restoredWebsite = await db.website.update({
@@ -1214,6 +1214,33 @@ export function registerHubRoutes(app) {
             success: true,
             restored: true,
             website: serializeWebsite(restoredWebsite)
+          });
+        }
+
+        if (existingWebsite?.deletedAt) {
+          const reclaimedWebsite = await db.website.update({
+            where: { id: existingWebsite.id },
+            data: {
+              ownerId: req.user.id,
+              name: siteName,
+              description: siteDescription || existingWebsite.description || null,
+              verifyToken: crypto.randomBytes(16).toString('hex'),
+              siteToken: crypto.randomBytes(24).toString('hex'),
+              isVerified: false,
+              verificationStatus: 'pending',
+              lastVerifiedAt: null,
+              lastVerificationCheckAt: null,
+              verificationFailureReason: null,
+              deletedAt: null,
+              lastSyncAt: null
+            },
+            include: { _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } }
+          });
+
+          return res.json({
+            success: true,
+            reclaimed: true,
+            website: serializeWebsite(reclaimedWebsite)
           });
         }
 

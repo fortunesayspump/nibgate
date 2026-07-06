@@ -184,7 +184,7 @@ export default function SitesPage() {
       ]);
       const data = await readApiJson(res);
       if (!data.success) throw new Error(data.error || "Failed to register website");
-      setMessage(data.restored ? "Site restored with a fresh verification token. Paste the new widget script to verify again." : data.alreadyExisted ? "That site is already connected. Opening setup instructions now." : "Site added as pending. Paste the widget script into your site, deploy, then verify ownership.");
+      setMessage(data.restored || data.reclaimed ? "Site connected with a fresh verification token. Paste the new widget script to verify again." : data.alreadyExisted ? "That site is already connected. Opening setup instructions now." : "Site added as pending. Paste the widget script into your site, deploy, then verify ownership.");
       form.reset();
       const nextSites = await loadSites({ showLoading: false });
       const selected = data.website || nextSites.find((site) => cleanDomain(site.domain) === cleanDomain(domain));

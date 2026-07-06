@@ -41,7 +41,9 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
 
     const normalizedIndex = (nextIndex + total) % total;
     const target = track.children.item(normalizedIndex) as HTMLElement | null;
-    target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    if (target) {
+      track.scrollTo({ left: target.offsetLeft, behavior: "smooth" });
+    }
     setActiveIndex(normalizedIndex);
   };
 

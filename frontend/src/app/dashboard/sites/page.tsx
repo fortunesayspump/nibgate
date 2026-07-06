@@ -19,6 +19,9 @@ type DashboardSite = {
   faviconUrl: string;
   ogImageUrl: string;
   trackingScript?: string;
+  lastScanAt: string | null;
+  lastScanStatus: string;
+  lastScanError: string;
   lastSyncAt: string | null;
   createdAt: string;
   _count: {
@@ -124,6 +127,7 @@ export default function SitesPage() {
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const [successSiteId, setSuccessSiteId] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState("");
+  const [syncingId, setSyncingId] = useState("");
   const [removingId, setRemovingId] = useState("");
   const [removeSiteId, setRemoveSiteId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -255,6 +259,29 @@ export default function SitesPage() {
       await loadSites({ showLoading: false });
     } finally {
       setVerifyingId("");
+    }
+  };
+
+  const handleSyncMetadata = async (id: string) => {
+    setError("");
+    setMessage("");
+    setSyncingId(id);
+
+    try {
+      const res = await fetch(`/api/hub/sites/${id}/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await readApiJson(res);
+      if (!data.success) throw new Error(data.error || "Metadata refresh failed");
+      const count = typeof data.content === "number" ? data.content : 0;
+      setMessage(count === 1 ? "Metadata refreshed. 1 content item was synced." : `Metadata refreshed. ${count} content items were synced.`);
+      await loadSites({ showLoading: false });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Metadata refresh failed");
+      await loadSites({ showLoading: false });
+    } finally {
+      setSyncingId("");
     }
   };
 
@@ -484,7 +511,7 @@ export default function SitesPage() {
                 <SetupSection site={selectedSite} verifyingId={verifyingId} onVerify={handleVerify} onCopy={setMessage} />
               ) : null}
               {drawerTab === "health" ? (
-                <HealthSection site={selectedSite} verifyingId={verifyingId} onRecheck={handleRecheck} />
+                <HealthSection site={selectedSite} verifyingId={verifyingId} syncingId={syncingId} onRecheck={handleRecheck} onSyncMetadata={handleSyncMetadata} />
               ) : null}
               {drawerTab === "tracking" ? (
                 <TrackingSection />
@@ -580,7 +607,21 @@ function SetupSection({ site, verifyingId, onVerify, onCopy }: { site: Dashboard
   );
 }
 
-function HealthSection({ site, verifyingId, onRecheck }: { site: DashboardSite; verifyingId: string; onRecheck: (id: string) => void }) {
+function HealthSection({
+  site,
+  verifyingId,
+  syncingId,
+  onRecheck,
+  onSyncMetadata,
+}: {
+  site: DashboardSite;
+  verifyingId: string;
+  syncingId: string;
+  onRecheck: (id: string) => void;
+  onSyncMetadata: (id: string) => void;
+}) {
+  const syncStatus = site.lastScanStatus || (site.lastSyncAt ? "synced" : "Not synced yet");
+
   return (
     <>
       <div className="rounded-3xl border p-5" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-page-bg)" }}>
@@ -596,7 +637,26 @@ function HealthSection({ site, verifyingId, onRecheck }: { site: DashboardSite; 
           <HealthRow label="Last checked" value={site.lastVerificationCheckAt ? new Date(site.lastVerificationCheckAt).toLocaleString() : "Not checked yet"} />
           <HealthRow label="Failure reason" value={site.verificationFailureReason || "None"} />
         </div>
-        <button onClick={() => onRecheck(site.id)} disabled={verifyingId === site.id} className="mt-5 rounded-full bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-60">{verifyingId === site.id ? "Checking..." : "Recheck widget"}</button>
+        <button type="button" onClick={() => onRecheck(site.id)} disabled={verifyingId === site.id} className="mt-5 rounded-full bg-black px-5 py-3 text-sm font-medium text-white disabled:opacity-60">{verifyingId === site.id ? "Checking..." : "Recheck widget"}</button>
+      </div>
+      <div className="rounded-3xl border p-5" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-page-bg)" }}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h4 className="text-xl font-medium">Content metadata</h4>
+            <p className="mt-2 text-sm leading-6 opacity-70">
+              Pull the latest manifest from this site after changing titles, descriptions, prices, images, tags, or routes.
+            </p>
+          </div>
+          <button type="button" onClick={() => onSyncMetadata(site.id)} disabled={syncingId === site.id} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-medium transition hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60" style={{ borderColor: "var(--nib-border-soft)" }}>
+            {syncingId === site.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {syncingId === site.id ? "Refreshing..." : "Refresh metadata"}
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3 text-sm">
+          <HealthRow label="Last metadata refresh" value={site.lastScanAt ? new Date(site.lastScanAt).toLocaleString() : "Not refreshed yet"} />
+          <HealthRow label="Sync status" value={syncStatus} />
+          {site.lastScanError ? <HealthRow label="Last sync issue" value={site.lastScanError} /> : null}
+        </div>
       </div>
       <div className="rounded-3xl border p-5" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-page-bg)" }}>
         <h4 className="text-xl font-medium">Widget snippet</h4>

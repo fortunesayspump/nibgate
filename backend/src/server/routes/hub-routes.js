@@ -68,6 +68,9 @@ function serializeWebsite(website) {
     faviconUrl: website.faviconUrl || '',
     ogImageUrl: website.ogImageUrl || '',
     trackingScript: trackingScriptFor(website),
+    lastScanAt: website.lastScanAt || null,
+    lastScanStatus: website.lastScanStatus || '',
+    lastScanError: website.lastScanError || '',
     lastSyncAt: website.lastSyncAt || null,
     createdAt: website.createdAt,
     _count: {

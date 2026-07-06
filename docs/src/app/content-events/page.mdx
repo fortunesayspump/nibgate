@@ -65,6 +65,8 @@ The creator site remains the source of truth. Nibgate stores metadata for search
 
 Content can be reported repeatedly. Use the same `id` so Nibgate updates the same content record instead of creating duplicates.
 
+When metadata changes on the creator site, the hub refreshes the stored record the next time the widget/package reports that resource. Verified sites can also expose a manifest at `/nibgate.json`, `/.well-known/nibgate.json`, `/v1/nibgate/manifest`, or `/v1/nibgate/nibgate.json`; the dashboard "Refresh metadata" action and backend manifest sweep both use those routes to pull updated titles, descriptions, images, prices, tags, policies, publisher data, and routes.
+
 ## Unlock policy
 
 The MVP package should treat `one_time` as the supported unlock mode.

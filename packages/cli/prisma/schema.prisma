@@ -200,6 +200,7 @@ model ContentRating {
 
 model Metric {
   id          String             @id @default(uuid())
+  dedupeKey  String?            @unique
   type        String // normalized category: 'view', 'unlock', 'payment', 'engagement', 'time'
   eventName   String? // raw event name: page_view, resource_view, unlock_started, unlock_completed, payment_completed, time_spent
   contentId   String?
@@ -216,10 +217,16 @@ model Metric {
   userAgent   String?
   visitorId   String?
   sessionId   String?
+  bucketStart DateTime?
   durationMs  Int?
   scrollDepth Float?
   metadata    String?
   createdAt   DateTime           @default(now())
+
+  @@index([websiteId, type, createdAt])
+  @@index([websiteId, eventName, createdAt])
+  @@index([websiteId, visitorId, createdAt])
+  @@index([contentId, type, createdAt])
 }
 
 model BlogPost {

@@ -8,6 +8,7 @@ let verificationMonitorStarted = false;
 let manifestSyncMonitorStarted = false;
 let reputationIndexerStarted = false;
 let reputationIndexerLastBlock = null;
+const trackingRateBuckets = new Map();
 
 const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 const DEFAULT_NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.network';
@@ -195,6 +196,107 @@ function numberOrNull(value) {
 function intOrNull(value) {
   const next = Number.parseInt(value, 10);
   return Number.isFinite(next) ? next : null;
+}
+
+function cleanIp(value = '') {
+  return String(value || '').split(',')[0].trim().replace(/^::ffff:/, '');
+}
+
+function clientIpFor(req) {
+  return cleanIp(
+    req.headers['cf-connecting-ip'] ||
+    req.headers['x-real-ip'] ||
+    req.headers['x-forwarded-for'] ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    ''
+  );
+}
+
+function dayStamp(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function hashValue(value = '') {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
+}
+
+function trackingVisitorHash(req, website) {
+  const salt = process.env.METRIC_HASH_SALT || process.env.SESSION_SECRET || process.env.NIBGATE_INDEXER_SECRET || 'nibgate-metric-salt';
+  const ip = clientIpFor(req);
+  const userAgent = String(req.headers['user-agent'] || '').slice(0, 500);
+  const acceptLanguage = String(req.headers['accept-language'] || '').slice(0, 120);
+  return hashValue([salt, dayStamp(), website.id, cleanDomain(website.domain), ip, userAgent, acceptLanguage].join('|'));
+}
+
+function rateLimitKey(siteId, req, visitorHash = '') {
+  return `${siteId}:${clientIpFor(req) || 'unknown'}:${visitorHash.slice(0, 16)}`;
+}
+
+function checkTrackingRateLimit(siteId, req, visitorHash = '') {
+  const now = Date.now();
+  const windowMs = Number.parseInt(process.env.TRACKING_RATE_LIMIT_WINDOW_MS || '60000', 10);
+  const maxHits = Number.parseInt(process.env.TRACKING_RATE_LIMIT_MAX || '180', 10);
+  const key = rateLimitKey(siteId, req, visitorHash);
+  const bucket = trackingRateBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    trackingRateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return { ok: true };
+  }
+
+  bucket.count += 1;
+  if (bucket.count > maxHits) {
+    return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  }
+
+  if (trackingRateBuckets.size > 5000 && Math.random() < 0.01) {
+    for (const [bucketKey, value] of trackingRateBuckets) {
+      if (value.resetAt <= now) trackingRateBuckets.delete(bucketKey);
+    }
+  }
+
+  return { ok: true };
+}
+
+function metricBucketMs(eventName = '', metricType = '') {
+  if (metricType === 'view') return Number.parseInt(process.env.TRACKING_VIEW_DEDUPE_WINDOW_MS || String(30 * 60 * 1000), 10);
+  if (metricType === 'content') return Number.parseInt(process.env.TRACKING_CONTENT_DEDUPE_WINDOW_MS || String(24 * 60 * 60 * 1000), 10);
+  if (metricType === 'time') return Number.parseInt(process.env.TRACKING_TIME_DEDUPE_WINDOW_MS || String(5 * 60 * 1000), 10);
+  if (['engagement'].includes(metricType)) return Number.parseInt(process.env.TRACKING_ENGAGEMENT_DEDUPE_WINDOW_MS || String(30 * 1000), 10);
+  if (['unlock', 'payment'].includes(metricType)) return Number.parseInt(process.env.TRACKING_PAYMENT_DEDUPE_WINDOW_MS || String(24 * 60 * 60 * 1000), 10);
+  return 0;
+}
+
+function paymentLikeId(payload = {}) {
+  const payment = payload.payment && typeof payload.payment === 'object' ? payload.payment : {};
+  return String(payload.paymentId || payload.txHash || payload.transactionHash || payload.receiptUrl || payment.id || payment.paymentId || payment.txHash || payment.transactionHash || payment.receiptUrl || '').trim();
+}
+
+function metricIdentity({ website, content, payload, eventName, metricType, visitorHash, bucketStart }) {
+  if (['unlock', 'payment'].includes(metricType)) {
+    const paymentId = paymentLikeId(payload);
+    if (!paymentId) return '';
+    return `pay:${website.id}:${eventName}:${content?.id || payload.path || payload.url || ''}:${hashValue(paymentId).slice(0, 32)}`;
+  }
+
+  const route = content?.id || payload.resource?.id || payload.path || payload.url || '';
+  if (!route || !visitorHash || !bucketStart) return '';
+  return [
+    'metric',
+    website.id,
+    eventName,
+    metricType,
+    route,
+    visitorHash,
+    bucketStart.toISOString()
+  ].join(':');
+}
+
+function dedupeBucketStart(eventName, metricType, now = Date.now()) {
+  const windowMs = metricBucketMs(eventName, metricType);
+  if (!windowMs) return null;
+  return new Date(Math.floor(now / windowMs) * windowMs);
 }
 
 function dateRangeWhere(req) {
@@ -1209,37 +1311,54 @@ export function registerHubRoutes(app) {
       }
 
       const eventName = cleanEventName(req.body.event);
+      const visitorHash = trackingVisitorHash(req, website);
+      const rateLimit = checkTrackingRateLimit(website.id, req, visitorHash);
+      if (!rateLimit.ok) {
+        res.setHeader('Retry-After', String(rateLimit.retryAfter));
+        return res.status(429).json({ error: 'Tracking rate limit exceeded' });
+      }
+
       const content = await upsertTrackedContent(website, { ...req.body, event: eventName });
       await upsertUnlockReceipt(website, content, { ...req.body, event: eventName }, eventName);
       await upsertContentRating(website, content, { ...req.body, event: eventName }, eventName);
       const metricType = eventTypeFor(eventName);
       const revenue = Number.parseFloat(req.body.revenue || req.body.amount || '0') || null;
       const metadata = { ...req.body };
+      metadata.clientVisitorId = req.body.visitorId || null;
       delete metadata.siteId;
       delete metadata.site;
       delete metadata.token;
       delete metadata.resource;
+      delete metadata.visitorId;
+      const bucketStart = dedupeBucketStart(eventName, metricType);
+      const dedupeKey = metricIdentity({ website, content, payload: req.body, eventName, metricType, visitorHash, bucketStart });
 
-      await db.metric.create({
-        data: {
-          websiteId: website.id,
-          contentId: content?.id || null,
-          publisherId: content?.publisherId || null,
-          type: metricType,
-          eventName,
-          revenue: ['unlock', 'payment'].includes(metricType) ? revenue : null,
-          currency: req.body.currency || req.body.payment?.currency || null,
-          path: req.body.path || null,
-          url: req.body.url || null,
-          referrer: req.body.referrer || null,
-          userAgent: req.headers['user-agent'] || null,
-          visitorId: req.body.visitorId || null,
-          sessionId: req.body.sessionId || null,
-          durationMs: intOrNull(req.body.durationMs),
-          scrollDepth: numberOrNull(req.body.scrollDepth),
-          metadata: JSON.stringify(metadata).slice(0, 12000)
-        }
-      });
+      try {
+        await db.metric.create({
+          data: {
+            dedupeKey: dedupeKey || null,
+            bucketStart,
+            websiteId: website.id,
+            contentId: content?.id || null,
+            publisherId: content?.publisherId || null,
+            type: metricType,
+            eventName,
+            revenue: ['unlock', 'payment'].includes(metricType) ? revenue : null,
+            currency: req.body.currency || req.body.payment?.currency || null,
+            path: req.body.path || null,
+            url: req.body.url || null,
+            referrer: req.body.referrer || null,
+            userAgent: req.headers['user-agent'] || null,
+            visitorId: visitorHash,
+            sessionId: req.body.sessionId || null,
+            durationMs: intOrNull(req.body.durationMs),
+            scrollDepth: numberOrNull(req.body.scrollDepth),
+            metadata: JSON.stringify(metadata).slice(0, 12000)
+          }
+        });
+      } catch (error) {
+        if (error?.code !== 'P2002') throw error;
+      }
 
       await db.website.update({
         where: { id: website.id },

@@ -218,3 +218,25 @@ export declare function normalizeResource(resource?: NibgateServerResource | str
 export declare function validateResourceMetadata(resource?: NibgateServerResource | string, options?: Record<string, unknown>): NibgateMetadataValidation;
 export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;
 export declare function normalizeUnlockPolicy(unlock?: NibgateUnlockMode | NibgateUnlockPolicy): Required<Pick<NibgateUnlockPolicy, 'mode'>> & NibgateUnlockPolicy;
+
+// Admin API
+export interface NibgateAdminStore {
+  list(): Record<string, unknown>[];
+  get(id: string): Record<string, unknown> | null;
+  set(id: string, settings: Record<string, unknown>): Record<string, unknown>;
+  remove(id: string): boolean;
+}
+export interface NibgateAdminApi {
+  handleList(req: Request, res: Record<string, unknown>): Promise<Response>;
+  handleGet(req: Request, res: Record<string, unknown>): Promise<Response>;
+  handleUpdate(req: Request, res: Record<string, unknown>): Promise<Response>;
+  handleDelete(req: Request, res: Record<string, unknown>): Promise<Response>;
+  buildResourceFromSettings(id: string, settings: Record<string, unknown>): NibgateServerResource;
+  router(expressModule: Record<string, unknown>): unknown;
+  store: NibgateAdminStore;
+  settingsFields: Record<string, unknown>[];
+}
+export declare function createAdminApi(options: { store: NibgateAdminStore; title?: string; authorize?: (req: Request) => boolean }): NibgateAdminApi;
+export declare function createFileStore(options?: { path?: string }): NibgateAdminStore;
+export declare function createMemoryStore(): NibgateAdminStore;
+export declare function adminPageHtml(options?: { title?: string; apiBase?: string }): string;

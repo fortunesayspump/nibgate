@@ -13,3 +13,5 @@ export { normalizeServerResource as normalizeResource, normalizeAccessPolicy, no
 export const server = createNibgateServer();
 export { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings, settingsToAccessPolicy, settingsToUnlockPolicy } from '../core/settings.js';
 export { PAYMENT_RAILS, normalizePaymentRail } from '../core/payment.js';
+export { createAdminApi, adminPageHtml } from './admin.js';
+export { createFileStore, createMemoryStore } from './admin-store.js';

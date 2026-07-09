@@ -114,6 +114,7 @@ export type NibgateClient = {
   createEvmGatewayUnlock(resource: NibgateResource | string, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController;
   rateContentOnchain(resource: NibgateResource | string, options: NibgateOnchainRatingOptions): Promise<NibgateOnchainRatingResult>;
   createOnchainRating(resource: NibgateResource | string, options?: NibgateOnchainRatingUiOptions): NibgateOnchainRatingController;
+  mountRatingUI(resource: NibgateResource | string, options?: NibgateRatingUiOptions): NibgateRatingUiController | null;
   payAndUnlockResource(resource: NibgateResource | string, options?: NibgatePaymentOptions): Promise<NibgatePaymentResult>;
   setupResourcePage(resource: NibgateResource | string, options?: NibgatePageSetupOptions): NibgateGate;
   ratingMessage(resource: NibgateResource | string, rating?: NibgateRating | number, options?: Record<string, unknown>): string;
@@ -429,6 +430,19 @@ export declare function createOnchainRating(resource: NibgateResource | string, 
 export declare function ratingMessage(resource: NibgateResource | string, rating?: NibgateRating | number, options?: Record<string, unknown>): string;
 export declare function createNibgate(defaults?: { resource?: NibgateResource }): NibgateClient;
 export declare const nibgate: NibgateClient;
+
+export interface NibgateRatingUiOptions {
+  target?: string | HTMLElement;
+  label?: string;
+  gateOptions?: Record<string, unknown>;
+}
+export interface NibgateRatingUiController {
+  resource: NibgateResource;
+  container: HTMLElement;
+  setRating(value: number): void;
+  rate(resource: NibgateResource | string, input?: Record<string, unknown>): ReturnType<typeof rateContentOnchain>;
+}
+export declare function mountRatingUI(resource: NibgateResource | string, options?: NibgateRatingUiOptions): NibgateRatingUiController | null;
 
 export declare function createTransferCheckout(resource: NibgateResource | string, options: NibgateTransferCheckoutOptions): NibgateTransferCheckout;
 export declare function payWithTransfer(resource: NibgateResource | string, options: NibgateTransferCheckoutOptions & NibgateAccessCheckOptions): Promise<NibgateAccessCheckResult>;

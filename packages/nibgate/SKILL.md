@@ -170,6 +170,30 @@ For v1, treat `unlock.mode: 'one_time'` with Circle Gateway/x402 as the producti
 
 Use `NIBGATE_BUYER_PRIVATE_KEY` only in local demos or controlled tests. In production, the visitor or agent wallet signs/pays the returned `PAYMENT-REQUIRED` challenge.
 
+Before running a local demo, deposit testnet USDC from your wallet into the Gateway facilitator so transactions can settle:
+
+```bash
+npx nibgate deposit 10
+```
+
+Check your Gateway balance with:
+
+```bash
+npx nibgate balance
+```
+
+The `NIBGATE_SECRET` used by `createNibgateServer()` must match the secret used by your access and pay API routes. If they diverge, unlock tokens signed by one route will fail verification on the other. Set it once in your server env and reference it everywhere.
+
+For plain HTML/JS sites without a bundler, the SDK's bare module imports (`viem`, `@x402/core`) won't work in the browser. Use esbuild to compile a browser-ready bundle:
+
+```bash
+esbuild --bundle --format=iife --global-name=Nibgate \
+  --outfile=nibgate-bundle.js \
+  node_modules/@nibgate/sdk/src/browser/index.js
+```
+
+Then load `<script src="/nibgate-bundle.js"></script>` and use `Nibgate.nibgate` or `Nibgate.gate()` directly.
+
 ## Reputation
 
 After a verified unlock, rating UI can submit onchain ratings for the same resource. Reputation-critical inputs should be tied to unlock/payment proof and indexed from chain activity. Page views, scroll depth, and referrers are analytics signals, not trust by themselves.

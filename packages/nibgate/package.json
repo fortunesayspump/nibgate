@@ -1,6 +1,6 @@
 {
   "name": "@nibgate/sdk",
-  "version": "0.1.7",
+  "version": "0.1.9",
   "description": "Framework-agnostic browser and server package for creator-owned gated content, unlock events, and receipts.",
   "type": "module",
   "sideEffects": false,

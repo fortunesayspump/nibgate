@@ -239,4 +239,8 @@ export interface NibgateAdminApi {
 export declare function createAdminApi(options: { store: NibgateAdminStore; title?: string; authorize?: (req: Request) => boolean }): NibgateAdminApi;
 export declare function createFileStore(options?: { path?: string }): NibgateAdminStore;
 export declare function createMemoryStore(): NibgateAdminStore;
+export declare function createPostgresStore(pool: Record<string, unknown>, options?: { table?: string; idColumn?: string; autoInit?: boolean }): NibgateAdminStore;
 export declare function adminPageHtml(options?: { title?: string; apiBase?: string }): string;
+export declare function verifyPayment(options?: Record<string, unknown>): (req: Record<string, unknown>, res: Record<string, unknown>, next: () => void) => Promise<void>;
+export declare function createWebhookManager(options?: { webhookUrl?: string; webhookSecret?: string }): { subscribe(event: string, url: string, secret?: string): () => void; emit(event: string, payload: Record<string, unknown>): Promise<Record<string, unknown>[]>; sign(payload: Record<string, unknown>): string };
+export declare function createWebhookApi(manager: ReturnType<typeof createWebhookManager>, options?: { authorize?: (req: Record<string, unknown>) => boolean; adminKey?: string }): { handleSubscribe(req: Record<string, unknown>, res: Record<string, unknown>): Promise<Response>; handleTest(req: Record<string, unknown>, res: Record<string, unknown>): Promise<Response>; router(expressModule: Record<string, unknown>): unknown; manager: ReturnType<typeof createWebhookManager> };

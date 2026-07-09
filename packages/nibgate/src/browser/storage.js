@@ -27,7 +27,8 @@ export function storePaymentProof(resource, proof) {
   const win = browserWindow();
   if (!win || !proof) return false;
   try {
-    win.localStorage.setItem(proofStorageKey(resource), String(proof));
+    const value = typeof proof === 'string' ? proof : JSON.stringify(proof);
+    win.localStorage.setItem(proofStorageKey(resource), value);
     return true;
   } catch (_error) {
     return false;

@@ -128,6 +128,7 @@ model Content {
   accessPolicy          String?
   unlockPolicy          String?
   lastSeenAt            DateTime?
+  deletedAt             DateTime?
   createdAt             DateTime           @default(now())
   metrics               Metric[]
   unlockReceipts        UnlockReceipt[]

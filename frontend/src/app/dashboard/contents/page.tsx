@@ -27,6 +27,7 @@ type DashboardContent = {
   websiteVerified: boolean;
   websiteVerificationStatus: string;
   createdAt: string;
+  deletedAt?: string | null;
 };
 
 function normalizeContentType(type: string) {
@@ -170,7 +171,11 @@ export default function ContentsPage() {
                         <h3 className="truncate text-xl font-medium group-hover:underline">{item.title}</h3>
                         <p className="mt-1 truncate text-sm opacity-65">{item.websiteName || item.websiteDomain}</p>
                       </div>
-                      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">Verified</span>
+                      {item.deletedAt ? (
+                        <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">Deleted</span>
+                      ) : (
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">Verified</span>
+                      )}
                     </div>
                     {item.description ? <p className="mt-3 line-clamp-2 text-sm leading-6 opacity-70">{item.description}</p> : null}
                   </div>
@@ -213,6 +218,7 @@ export default function ContentsPage() {
               <InfoBlock label="Tags" value={selected.tags || "No tags yet"} />
               <InfoBlock label="Events" value={`${selected.metrics}`} />
               <InfoBlock label="Discovered" value={new Date(selected.createdAt).toLocaleString()} />
+              {selected.deletedAt ? <InfoBlock label="Status" value="Deleted" /> : null}
             </div>
           </aside>
         </div>

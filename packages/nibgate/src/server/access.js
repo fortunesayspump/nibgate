@@ -104,7 +104,7 @@ export function createNibgateServer(options = {}) {
       }
 
       const rail = normalizePaymentRail(resource.paymentRail || routeOptions.paymentRail || options.paymentRail || routeOptions.paymentMode || options.paymentMode);
-      if (rail === 'gateway' && (routeOptions.paymentMode || options.paymentMode || serverEnv('NIBGATE_PAYMENT_MODE') || 'circle-gateway') === 'circle-gateway') {
+      if (rail === 'gateway' && (routeOptions.paymentMode || options.paymentMode || serverEnv('NIBGATE_PAYMENT_MODE')) === 'circle-gateway') {
         const gateway = await runCircleGatewayRequirement(request, resource, { ...options, ...routeOptions });
         if (gateway.handled) return gateway.response;
         const result = await unlock(resource, gateway.payment);

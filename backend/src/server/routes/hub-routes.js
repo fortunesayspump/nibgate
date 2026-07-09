@@ -475,7 +475,7 @@ async function upsertTrackedContent(website, payload = {}) {
 
   return db.content.upsert({
     where: { id: contentId },
-    update: data,
+    update: { ...data, deletedAt: null },
     create: {
       id: contentId,
       websiteId: website.id,
@@ -877,6 +877,7 @@ function serializeContent(content) {
     unlockPolicy: content.unlockPolicy || '',
     externalId: content.externalId || '',
     lastSeenAt: content.lastSeenAt || null,
+    deletedAt: content.deletedAt || null,
     createdAt: content.createdAt,
     metrics: content._count?.metrics || metrics.length || 0,
     views,
@@ -1002,6 +1003,19 @@ async function syncWebsiteManifest(website) {
           path: resource.path || resource.route
         });
         if (content) upserted.push(content);
+      }
+
+      const upsertedIds = upserted.map((c) => c.id).filter(Boolean);
+      if (upsertedIds.length) {
+        await db.content.updateMany({
+          where: {
+            websiteId: website.id,
+            externalId: { not: null },
+            deletedAt: null,
+            id: { notIn: upsertedIds }
+          },
+          data: { deletedAt: new Date() }
+        }).catch(() => {});
       }
 
       await db.website.update({
@@ -1606,6 +1620,7 @@ export function registerHubRoutes(app) {
       const content = await db.content.findFirst({
         where: {
           id: req.params.contentId,
+          deletedAt: null,
           website: { deletedAt: null, isVerified: true }
         },
         include: { website: true, publisher: true }
@@ -2067,7 +2082,7 @@ export function registerHubRoutes(app) {
 
       if (type === 'content') {
         const content = await db.content.findMany({
-          where: { website: { isVerified: true, deletedAt: null } },
+          where: { deletedAt: null, website: { isVerified: true, deletedAt: null } },
           include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
           take: 200,
           orderBy: { createdAt: 'desc' }
@@ -2157,6 +2172,7 @@ export function registerHubRoutes(app) {
       const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '60', 10) || 60, 1), 100);
       const content = await db.content.findMany({
         where: {
+          deletedAt: null,
           website: { isVerified: true, deletedAt: null },
           ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
           ...(q ? {

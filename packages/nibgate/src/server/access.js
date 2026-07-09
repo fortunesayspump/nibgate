@@ -215,3 +215,44 @@ export function createNibgateServer(options = {}) {
 export function protect(resource, handler, options = {}) {
   return createNibgateServer(options).protect(resource, handler);
 }
+
+export function verifyPayment(options = {}) {
+  return async function verifyPaymentMiddleware(req, res, next) {
+    const contentId = req.params?.id || req.body?.resourceId || '';
+
+    const proofHeader = req.headers?.['x-nibgate-payment-proof'] || '';
+    if (proofHeader) {
+      const nibgate = createNibgateServer(options);
+      const payload = nibgate.verifyUnlockToken(proofHeader, { id: contentId });
+      if (payload) {
+        req.nibgate = { unlock: payload, verified: true };
+        return next();
+      }
+    }
+
+    if ((options.paymentMode || process.env.NIBGATE_PAYMENT_MODE) === 'circle-gateway') {
+      const sigHeader = req.headers?.['payment-signature'] || '';
+      if (sigHeader) {
+        const resource = options.resource || { id: contentId, price: req.body?.price || '0' };
+        const gatewayHeaders = Object.assign(Object.create(null), req.headers || {});
+        gatewayHeaders.forEach = function (cb) {
+          var self = this;
+          Object.keys(self).forEach(function (k) { if (k !== 'forEach') cb(self[k], k); });
+        };
+        const gateway = await runCircleGatewayRequirement(
+          { headers: gatewayHeaders, method: req.method || 'GET', url: req.originalUrl || req.url || '/' },
+          resource,
+          options
+        );
+        if (!gateway.handled) {
+          req.nibgate = { payment: gateway.payment, verified: true };
+          return next();
+        }
+        return res.status(402).json({ error: 'Payment verification failed', detail: 'The payment signature could not be verified.' });
+      }
+    }
+
+    const errBody = createPaymentChallenge(options.resource || { id: contentId, price: req.body?.price || '0' }, options);
+    return res.status(402).json(errBody);
+  };
+}

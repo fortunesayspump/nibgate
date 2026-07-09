@@ -212,6 +212,21 @@ app.use(admin.router(express))
 // app.post('/admin/nibgate/resources/:id', admin.handleUpdate)
 ```
 
+### Postgres store
+
+For production (Render, Railway, Fly), use the Postgres store instead of the file store (file changes get wiped on redeploy):
+
+```ts
+import pkg from 'pg'
+const { Pool } = pkg
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const store = createPostgresStore(pool, { table: 'nibgate_settings' })
+const admin = createAdminApi({ store })
+```
+
+The Postgres store auto-creates the table. It uses JSONB for settings and `ON CONFLICT` upserts. Works with any `pg` Pool-like interface.
+
 ### Protect the admin route
 
 Pass an `authorize` function to `createAdminApi`:
@@ -308,21 +323,23 @@ NIBGATE_BUYER_PRIVATE_KEY=0x...   # Only for local testing
 
 ### For plain HTML/JS sites without a bundler
 
-The SDK relies on bare module imports (`viem`, `@x402/core`). These won't work in the browser without a bundler. Compile a browser-ready bundle:
+For plain HTML/JS sites without a bundler, use the pre-built CDN bundle:
+
+```html
+<script src="https://unpkg.com/@nibgate/sdk@0.2.0/dist/nibgate.min.js"></script>
+<script>
+  const { nibgate, gate, mountRatingUI, createEvmGatewayUnlock, createOnchainRating } = Nibgate
+</script>
+```
+
+The bundle includes all dependencies (viem, x402) compiled into a single IIFE script. All browser exports are on the `Nibgate` global. No esbuild step needed.
+
+If you prefer to build your own bundle:
 
 ```bash
 esbuild --bundle --format=iife --global-name=Nibgate \
   --outfile=nibgate-bundle.js \
   node_modules/@nibgate/sdk/src/browser/index.js
-```
-
-Then load it:
-
-```html
-<script src="/nibgate-bundle.js"></script>
-<script>
-  const { nibgate, gate } = Nibgate
-</script>
 ```
 
 ### Smart Contract Wallets
@@ -412,7 +429,48 @@ Only expose values with `NEXT_PUBLIC_` or client-side env names when they are in
 
 ---
 
-## 13. Never Do These
+## 13. Webhooks (Server-to-Server Notifications)
+
+Receive notifications when payments, unlocks, or ratings happen — without polling.
+
+### Setup
+
+```ts
+import { createWebhookManager, createWebhookApi } from '@nibgate/sdk/server'
+import express from 'express'
+
+const manager = createWebhookManager({
+  webhookUrl: 'https://my-server.com/nibgate-webhook',
+  webhookSecret: process.env.NIBGATE_WEBHOOK_SECRET
+})
+
+// Mount admin API for subscribing webhooks
+const webhookApi = createWebhookApi(manager, { adminKey: process.env.ADMIN_KEY })
+app.use(webhookApi.router(express))
+
+// Emit events from your code
+await manager.emit('payment.completed', { contentId: 'post-1', amount: '0.01', payer: '0x...' })
+await manager.emit('content.unlocked', { contentId: 'post-1', actor: 'human' })
+await manager.emit('content.rated', { contentId: 'post-1', rating: 4, rater: '0x...' })
+```
+
+### Webhook payload format
+
+```json
+{
+  "event": "payment.completed",
+  "timestamp": "2026-07-09T12:00:00.000Z",
+  "data": { "contentId": "post-1", "amount": "0.01" }
+}
+```
+
+The `x-nibgate-webhook-signature` header contains an HMAC-SHA256 signature of the body using your webhook secret. Verify it on the receiving end to confirm the webhook is authentic.
+
+Events emitted automatically by `createNibgateServer`: `payment_completed`, `unlock_completed`.
+
+---
+
+## 14. Never Do These
 
 - Do not hide paid HTML with CSS or client state after rendering it publicly
 - Do not fake payment IDs, receipts, unlocks, or successful access
@@ -427,6 +485,19 @@ Only expose values with `NEXT_PUBLIC_` or client-side env names when they are in
 
 - **Next.js**: Use route handlers for `/nibgate.json` and `/api/nibgate/access`. Protect content before rendering paid payloads. Use `server-only` for private modules.
 - **Express/NestJS**: Use middleware, controllers, or guards around protected routes. Mount the admin router at `/admin/nibgate`.
+
+  For a one-line payment verification middleware:
+
+  ```ts
+  import { verifyPayment } from '@nibgate/sdk/server'
+
+  app.get('/api/content/:id', verifyPayment({ resource: { id: 'my-post', price: '0.01' } }), (req, res) => {
+    // req.nibgate.verified is true
+    res.json({ content: 'Protected content here' })
+  })
+  ```
+
+  The middleware checks `x-nibgate-payment-proof` (existing unlock) and `payment-signature` (new Gateway payment). Returns 402 with a challenge if neither is present.
 - **Astro/SvelteKit/Remix**: Use SSR/server routes or endpoints. Plain static builds need a protected API or signed URL for private payloads.
 - **CMS apps**: Save Nibgate resource settings beside each content record. Use `settingsToAccessPolicy()` and `settingsToUnlockPolicy()` to convert stored settings to resource shapes. Mount the admin panel for easy management.
 - **Static/vanilla HTML/JS**: Compile the SDK into a bundle with esbuild (see section 8). Use `gate()` and `nibgate` from the global `Nibgate` namespace.

@@ -58,3 +58,50 @@ export function createMemoryStore() {
     remove(id) { delete store[id]; return true; }
   };
 }
+
+export function createPostgresStore(pool, options = {}) {
+  const table = options.table || 'nibgate_settings';
+  const idColumn = options.idColumn || 'id';
+
+  async function ensureTable() {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "${table}" (
+        "${idColumn}" TEXT PRIMARY KEY,
+        "settings" JSONB NOT NULL DEFAULT '{}',
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  }
+
+  async function list() {
+    const { rows } = await pool.query(`SELECT "${idColumn}" as id, settings FROM "${table}" ORDER BY "updatedAt" DESC`);
+    return rows.map((row) => ({ id: row.id, ...row.settings }));
+  }
+
+  async function get(id) {
+    const { rows } = await pool.query(`SELECT settings FROM "${table}" WHERE "${idColumn}" = $1`, [id]);
+    if (!rows.length) return null;
+    return { id, ...rows[0].settings };
+  }
+
+  async function set(id, settings) {
+    const now = new Date().toISOString();
+    const merged = JSON.stringify({ ...settings, updatedAt: now });
+    await pool.query(`
+      INSERT INTO "${table}" ("${idColumn}", "settings", "updatedAt")
+      VALUES ($1, $2::jsonb, $3)
+      ON CONFLICT ("${idColumn}")
+      DO UPDATE SET "settings" = ("${table}"."settings" || $2::jsonb), "updatedAt" = $3
+    `, [id, merged, now]);
+    return { id, ...settings, updatedAt: now };
+  }
+
+  async function remove(id) {
+    await pool.query(`DELETE FROM "${table}" WHERE "${idColumn}" = $1`, [id]);
+    return true;
+  }
+
+  const store = { list, get, set, remove };
+  if (options.autoInit !== false) ensureTable().catch(() => {});
+  return store;
+}

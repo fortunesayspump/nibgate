@@ -189,9 +189,47 @@
     });
   });
 
+  function startMutationObserver() {
+    var target = document.body || document.documentElement;
+    if (!target) return;
+    var observer = new MutationObserver(function (mutations) {
+      var seen = {};
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        if (!added || !added.length) continue;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (node.nodeType !== 1) continue;
+          var resourceEl = node.hasAttribute && node.hasAttribute("data-nibgate-resource")
+            ? node : node.querySelector && node.querySelector("[data-nibgate-resource]");
+          if (!resourceEl) continue;
+          var id = resourceEl.getAttribute("data-nibgate-id") || resourceEl.id || "";
+          if (seen[id]) continue;
+          seen[id] = true;
+          send("resource_view", {
+            resource: {
+              id: id,
+              title: resourceEl.getAttribute("data-nibgate-title") || document.title || "",
+              type: normalizeType(resourceEl.getAttribute("data-nibgate-type")),
+              price: resourceEl.getAttribute("data-nibgate-price") || "",
+              path: resourceEl.getAttribute("data-nibgate-path") || window.location.pathname,
+              imageUrl: resourceEl.getAttribute("data-nibgate-image") || ""
+            },
+            source: "mutation"
+          });
+        }
+      }
+    });
+    observer.observe(target, { childList: true, subtree: true });
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", trackInitialPage, { once: true });
+    document.addEventListener("DOMContentLoaded", function () {
+      trackInitialPage();
+      startMutationObserver();
+    }, { once: true });
   } else {
     trackInitialPage();
+    startMutationObserver();
   }
 })();

@@ -83,6 +83,8 @@ export function GET() {
 
 Never include the protected payload in `nibgate.json`. It is only for public cards, indexing, and agent-readable discovery.
 
+The `image`, `description`, and `title` fields become the public thumbnail and card copy on the explore page. Use a teaser preview, not the actual paid file or a high-res render of it.
+
 ## Browser Page Wiring
 
 Track the resource page and wire unlock UI:

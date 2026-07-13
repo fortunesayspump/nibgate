@@ -76,13 +76,13 @@ export function createWebhookApi(manager, options = {}) {
     const { event, url, secret } = req.body || {};
     if (!event || !url) return res.status(400).json({ error: 'event and url are required' });
     manager.subscribe(event, url, secret || '');
-    return res.json({ success: true, event, url });
+    return res.json({ ok: true, event, url });
   }
 
   async function handleTest(req, res) {
     if (!authorize(req)) return res.status(403).json({ error: 'Unauthorized' });
     const results = await manager.emit('webhook_test', { message: 'Webhook test from Nibgate admin' });
-    return res.json({ success: true, results });
+    return res.json({ ok: true, results });
   }
 
   function router(express) {

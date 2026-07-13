@@ -75,13 +75,8 @@ export function createNibgateServer(options = {}) {
 
       if (access.blocked) {
         return jsonResponse({
-          status: 403,
-          error: `${access.actor} access is blocked for this resource`,
-          nibgate: {
-            contentId: resource.id,
-            actor: access.actor,
-            access: resource.access
-          }
+          ok: false, error: `${access.actor} access is blocked for this resource`,
+          nibgate: { contentId: resource.id, actor: access.actor, access: resource.access }
         }, { status: 403 });
       }
 
@@ -96,11 +91,7 @@ export function createNibgateServer(options = {}) {
 
     if (!access.allowed) {
       if (access.blocked) {
-        return jsonResponse({
-          status: 403,
-          error: `${access.actor} access is blocked for this resource`,
-          resource
-        }, { status: 403 });
+        return jsonResponse({ ok: false, error: `${access.actor} access is blocked for this resource`, resource }, { status: 403 });
       }
 
       const rail = normalizePaymentRail(resource.paymentRail || routeOptions.paymentRail || options.paymentRail || routeOptions.paymentMode || options.paymentMode);
@@ -120,7 +111,7 @@ export function createNibgateServer(options = {}) {
         const txHash = request.headers?.get?.('x-nibgate-transfer-tx') || request.headers?.get?.('x-transfer-tx') || '';
         if (txHash) {
           if (!verifyTransfer) {
-            return jsonResponse({ error: 'Transfer verification is not configured', detail: 'Pass verifyTransfer({ resource, txHash, request }) to createNibgateServer/createCircleGatewayServer before using paymentRail: transfer.' }, { status: 501 });
+            return jsonResponse({ ok: false, error: 'Transfer verification is not configured. Pass verifyTransfer to createNibgateServer before using paymentRail: transfer.' }, { status: 501 });
           }
           const transferPayment = {
             paymentProvider: 'direct-transfer',
@@ -133,7 +124,7 @@ export function createNibgateServer(options = {}) {
             network: routeOptions.network || options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002'
           };
           const verified = await verifyTransfer({ resource, txHash, payment: transferPayment, request });
-          if (!verified) return jsonResponse({ error: 'Transfer verification failed' }, { status: 402 });
+          if (!verified) return jsonResponse({ ok: false, error: 'Transfer verification failed' }, { status: 402 });
           const result = await unlock(resource, { ...transferPayment, verified: true });
           if (result.ok) return jsonResponse({ ok: true, resource, payment: { ...transferPayment, verified: true }, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
         }
@@ -160,18 +151,14 @@ export function createNibgateServer(options = {}) {
       if (!gatewayResult.ok) return jsonResponse(gatewayResult, { status: gatewayResult.status || 500 });
       payment = gatewayResult.payment;
     } else {
-      return jsonResponse({
-        success: false,
-        error: 'Real payments are required',
-        detail: 'Set NIBGATE_PAYMENT_MODE=circle-gateway for real local payment tests.'
-      }, { status: 400 });
+      return jsonResponse({ ok: false, error: 'Real payments are required', detail: 'Set NIBGATE_PAYMENT_MODE=circle-gateway for real local payment tests.' }, { status: 400 });
     }
 
     const result = await unlock(resource, payment);
-    if (!result.ok) return jsonResponse({ success: false, ...result }, { status: result.status || 402 });
+    if (!result.ok) return jsonResponse({ ok: false, ...result }, { status: result.status || 402 });
 
     const response = jsonResponse({
-      success: true,
+      ok: true,
       unlockProof: result.unlockProof,
       expiresInSeconds: result.expiresInSeconds,
       payment,
@@ -246,7 +233,7 @@ export function verifyPayment(options = {}) {
           req.nibgate = { payment: gateway.payment, verified: true };
           return next();
         }
-        return res.status(402).json({ error: 'Payment verification failed', detail: 'The payment signature could not be verified.' });
+        return res.status(402).json({ ok: false, error: 'Payment verification failed', detail: 'The payment signature could not be verified.' });
       }
     }
 

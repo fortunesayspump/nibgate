@@ -52,7 +52,7 @@ async function load() {
   try {
     const res = await fetch(API + '/resources');
     const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to load');
+    if (!data.ok) throw new Error(data.error || 'Failed to load');
     fields = data.fields || [];
     items = data.items || [];
     render();
@@ -145,7 +145,7 @@ async function save(btn) {
       body: JSON.stringify(body)
     });
     var data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Save failed');
+    if (!data.ok) throw new Error(data.error || 'Save failed');
     toast('Saved ' + (data.item.title || id), 'success');
     load();
   } catch (err) {

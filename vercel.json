@@ -1,6 +1,7 @@
 {
+  "node": "22.x",
   "installCommand": "npx pnpm@10 install --no-frozen-lockfile",
-  "buildCommand": "cd frontend && pnpm build",
+  "buildCommand": "cd frontend && npx pnpm@10 run build",
   "git": {
     "deploymentEnabled": {
       "main": true

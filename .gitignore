@@ -14,3 +14,8 @@ out/
 .nibgate/
 
 docs/.next/
+
+# hackathon media assets (not for git)
+HACKATHON_VIDEO_*
+*.mp3
+video/

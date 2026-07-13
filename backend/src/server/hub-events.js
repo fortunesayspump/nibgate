@@ -1,4 +1,4 @@
-import { emitEventToHub } from '@nibgate/cli/src/core/hub.js';
+import { emitEventToHub } from '@nibgate/internal/hub.js';
 
 export function createHubEventForwarder(getConfig) {
   return async function forwardHubEvent(event) {

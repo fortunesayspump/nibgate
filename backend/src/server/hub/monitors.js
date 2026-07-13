@@ -1,4 +1,4 @@
-import { db } from '@nibgate/cli/src/core/db.js';
+import { db } from '@nibgate/internal/db.js';
 import { createPublicClient, decodeEventLog, http } from 'viem';
 import {
   checkWebsiteVerification, syncWebsiteManifest, serializeContent,

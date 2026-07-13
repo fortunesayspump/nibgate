@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { loadConfig, withConfigDefaults } from '@nibgate/cli/src/core/config.js';
+import { loadConfig, withConfigDefaults } from '@nibgate/internal/config.js';
 
 function fallbackStatePath() {
   return process.env.NIBGATE_STATE_PATH || path.join('/tmp', 'nibgate-state.json');

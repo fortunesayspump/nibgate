@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { createHubStore } from './hub-store.js';
-import { verifySignedEnvelope } from '@nibgate/cli/src/core/hub.js';
+import { verifySignedEnvelope } from '@nibgate/internal/hub.js';
 
 function badRequest(message, status = 400) {
   return { status, body: { error: message } };

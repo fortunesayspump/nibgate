@@ -162,10 +162,10 @@ After changing the Prisma schema, sync the database and regenerate the client be
 
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
-npm --workspace @nibgate/cli exec prisma db push
+pnpm --filter @nibgate/cli exec prisma db push
 
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
-npm --workspace @nibgate/cli exec prisma generate
+pnpm --filter @nibgate/cli exec prisma generate
 ```
 
 Production deploys that change `packages/cli/prisma/schema.prisma` need the same `prisma db push` against the Railway database before the new backend starts handling traffic.

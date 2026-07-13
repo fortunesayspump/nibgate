@@ -237,13 +237,8 @@ export function verifyPayment(options = {}) {
       const sigHeader = req.headers?.['payment-signature'] || '';
       if (sigHeader) {
         const resource = options.resource || { id: contentId, price: req.body?.price || '0' };
-        const gatewayHeaders = Object.assign(Object.create(null), req.headers || {});
-        gatewayHeaders.forEach = function (cb) {
-          var self = this;
-          Object.keys(self).forEach(function (k) { if (k !== 'forEach') cb(self[k], k); });
-        };
         const gateway = await runCircleGatewayRequirement(
-          { headers: gatewayHeaders, method: req.method || 'GET', url: req.originalUrl || req.url || '/' },
+          { headers: req.headers, method: req.method || 'GET', url: req.originalUrl || req.url || '/' },
           resource,
           options
         );

@@ -119,6 +119,8 @@ export function GET(request: Request) {
 
 **The `accessPath` is queried exactly as-is.** The SDK does not auto-append `?id=` or route params. If your access route needs a content identifier, include it in the path (e.g., `/api/nibgate/access/my-content-id`) or pass it as a query param in the resource's `accessPath` field.
 
+**After successful gateway payment, `accessResponse` automatically emits `payment_completed` and `unlock_completed` events to the Hub** (via `emitHubEvent`). This requires `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE` to be set — see [Required Env Vars](#11-required-env-vars). Without those, the payment still processes and the unlock proof is returned, but unlock counts and revenue on the Hub will not update.
+
 **Custom backends:** If you build your own access route instead of using `accessResponse()`, your route must:
 - Return 402 with the challenge JSON when no payment proof is present
 - Check for `payment-signature` header — if present and valid, return 200 with `{ ok: true, unlockProof: "...", payment: {...} }`
@@ -348,7 +350,128 @@ Some smart contract wallets (Gnosis Safe, Argent, etc.) may not support `eth_sig
 
 ---
 
-## 9. Onchain Reputation & Ratings
+## 9. AI Agent Content Discovery & Purchase (x402)
+
+AI agents can discover and purchase content on Nibgate through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed.
+
+### Agent Flow
+
+1. **Discover** — agent hits the Hub's explore API or polls creator `/nibgate.json` manifests:
+
+   ```bash
+   GET https://nibgate.xyz/api/hub/explore/content?type=article&limit=100
+   Accept: application/json
+   ```
+
+   Response includes content with `price`, `currency`, `access` policy, `websiteDomain`, and the creator's `recipientWallet`.
+
+2. **Access** — agent hits the content's access URL identifying as an agent:
+
+   ```bash
+   GET https://creator.example/api/nibgate/access?slug=my-article
+   x-nibgate-actor: agent
+   Accept: application/json
+   ```
+
+3. **402 Challenge** — if payment is required, server returns HTTP 402 with a `PAYMENT-REQUIRED` header containing a base64-encoded x402 v2 challenge with the `extra.verifyingContract` field (Gateway Wallet address).
+
+4. **Sign Payment** — agent signs an EIP-3009 `TransferWithAuthorization` using an EVM wallet with USDC in Circle Gateway:
+
+   ```ts
+   import { BatchEvmScheme } from '@circle-fin/x402-batching/client'
+   import { privateKeyToAccount } from 'viem/accounts'
+
+   const wallet = privateKeyToAccount('0x...')
+   const scheme = new BatchEvmScheme(wallet)
+   const payload = await scheme.createPaymentPayload(2, gatewayOption)
+   ```
+
+5. **Retry** — agent retries the request with the signed payment:
+
+   ```bash
+   GET https://creator.example/api/nibgate/access?slug=my-article
+   payment-signature: <base64 payload>
+   Accept: application/json
+   ```
+
+6. **Unlocked** — server returns `200` with `{ ok: true, unlockProof, payment, resource }`.
+
+### Headless GatewayClient (Full Auto Flow)
+
+The `GatewayClient` from `@circle-fin/x402-batching/client` handles steps 3-5 automatically:
+
+```ts
+import { GatewayClient } from '@circle-fin/x402-batching/client'
+
+const agent = new GatewayClient({
+  chain: 'arcTestnet',
+  privateKey: '0x...',
+  rpcUrl: 'https://rpc.testnet.arc.network'
+})
+
+const result = await agent.pay('https://creator.example/api/nibgate/access?slug=my-article', {
+  headers: { 'x-nibgate-actor': 'agent' }
+})
+// { data: { ok: true, unlockProof, ... }, formattedAmount: '0.01', transaction: '0x...' }
+```
+
+### Agent Wallet Requirements
+
+- **USDC in Circle Gateway** on Arc Testnet (chain ID 5042002) — `agent.deposit('10')` moves USDC from wallet → Gateway
+- **Gas** — on Arc Testnet the native token IS USDC, so the wallet needs USDC for both Gateway deposits and transaction fees
+- **Private key** — must be accessible to the agent process (env var, secure store, or derived from a mnemonic)
+
+### Agent Identification
+
+Agents identify themselves via headers (in priority order):
+
+| Header | Value | Detected When |
+|--------|-------|---------------|
+| `x-nibgate-actor` | `agent` | Explicit agent declaration |
+| `Accept` + `x402` | `application/json` + `true` | Accept header includes JSON and x402 is set |
+| `User-Agent` | bot pattern | Matches `/bot|agent|llm|gpt|claude|perplexity/i` |
+
+### Agent-Specific Pricing
+
+Creators can set different prices for humans and agents in the resource's `access` policy:
+
+```ts
+const resource = {
+  access: { humans: 'free', agents: 'paid' },    // agents pay, humans free
+  price: '0.002',
+  // or
+  access: { humans: 'paid', agents: 'paid' },    // both pay
+  // or
+  access: { humans: 'paid', agents: 'blocked' },  // agents blocked entirely
+}
+```
+
+### Stress Test Script
+
+The repo includes a stress test script at `demo/stress-test-agents.mjs` that simulates N agents discovering content from the Hub and purchasing via x402:
+
+```bash
+node demo/stress-test-agents.mjs \
+  --mnemonic "twelve word seed phrase here" \
+  --agents 50 --concurrency 10 \
+  --hub-url "https://nibgate.xyz" \
+  --access-template "https://{origin}/api/nibgate/access?slug={slug}" \
+  --fund --fund-amount 5 \
+  --loop --interval 300
+```
+
+The script:
+- Derives deterministic wallets from the mnemonic (wallet[0] = master, wallet[1..N-1] = agents)
+- Discovers content from the Hub explore API or from manifests
+- Filters for agent-purchasable content (paid, not blocked, valid recipient)
+- Funds agents from master via native USDC transfer + Gateway deposit (`--fund`)
+- Purchases content via `GatewayClient.pay()` (full x402 auto flow)
+- Reports per-agent results with aggregate stats
+- Continues on loop with configurable interval
+
+---
+
+## 10. Onchain Reputation & Ratings
 
 After a verified unlock, users can rate content onchain via the `NibgateReputation.sol` contract deployed on Arc Testnet.
 
@@ -382,7 +505,7 @@ Or buttons with `data-nibgate-rating-value="4"` attributes. Ratings are 1-5.
 
 ---
 
-## 10. Hardcoded Or File-Based Content
+## 11. Hardcoded Or File-Based Content
 
 Hardcoded content, MDX files, Markdown files, static JSON files, and repo-local media can be gated when the protected payload stays server-side until access is allowed.
 
@@ -399,37 +522,40 @@ Hardcoded content, MDX files, Markdown files, static JSON files, and repo-local 
 
 ---
 
-## 11. Required Env Vars
+## 12. Required Env Vars
 
 ```bash
 NIBGATE_SITE_ORIGIN=https://creator.example
-NIBGATE_SITE_ID=site_...
-NIBGATE_SITE_TOKEN=ngv_...
-NIBGATE_API_BASE=https://api.nibgate.xyz
+NIBGATE_SITE_ID=site_...             # Hub website UUID — required for emitHubEvent to report unlocks
+NIBGATE_SITE_TOKEN=ngv_...           # Hub website verify token — required for emitHubEvent
+NIBGATE_API_BASE=https://nibgate.xyz # Hub API base — required for emitHubEvent
 NIBGATE_SECRET=server_only_unlock_secret
 NIBGATE_PAYMENT_MODE=circle-gateway
 NIBGATE_PAYMENT_NETWORK=eip155:5042002
 NIBGATE_SELLER_ADDRESS=0xCreatorReceiver
 ```
 
+**Without `NIBGATE_SITE_ID` and `NIBGATE_SITE_TOKEN`**, `accessResponse()` still processes x402 payments and returns unlock proofs, but `payment_completed` and `unlock_completed` events are NOT sent to the Hub. Unlock counts, revenue, and volume on Explore and leaderboards will not update. Set these to enable automatic event reporting after every successful gateway purchase.
+
 Only expose values with `NEXT_PUBLIC_` or client-side env names when they are intentionally public (site id, public token, API base, reputation contract address). Never ship `NIBGATE_SECRET`, private keys, R2 credentials, Resend keys, database URLs, or privileged payment credentials to browser code.
 
 ---
 
-## 12. Common Gotchas
+## 13. Common Gotchas
 
 - **Widget is only for analytics.** It does not pop up wallets or handle checkout. Use the SDK browser helpers for that.
 - **accessPath is literal.** The SDK does not append `?id=` or route params. Include identifiers in the path or query string manually.
 - **Custom backends must handle `payment-signature` header.** If you build your own access route without `accessResponse()`, your route must detect `payment-signature` header and return 200 on valid proof, not 402.
 - **Cookie `[object Object]` bug.** The unlock proof must be a string (the token from `createUnlockToken`), not an object. `storePaymentProof` now handles both, but ensure your server returns `unlockProof` as a string.
 - **Secrets must match.** `NIBGATE_SECRET` must be the same in `createNibgateServer()`, the access route, and the pay route. Mismatch causes unlock tokens to fail verification silently.
+- **Unlock events need three env vars.** `accessResponse()` emits `payment_completed` and `unlock_completed` to the Hub after gateway payment, but only if `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE` are set. Without them, the x402 payment still works and the unlock proof is returned, but unlock counts and volume on Explore will not update.
 - **Smart contract wallets** may not support `eth_signTypedData_v4`. Use an EOA or the server-side pay route.
 - **Wallet extension conflicts** can cause signature corruption if multiple wallets are installed. Advise users to disable other wallet extensions when testing.
 - **Deposit before testing locally.** Run `npx nibgate deposit 10` to fund the Gateway facilitator balance.
 
 ---
 
-## 13. Webhooks (Server-to-Server Notifications)
+## 14. Webhooks (Server-to-Server Notifications)
 
 Receive notifications when payments, unlocks, or ratings happen — without polling.
 
@@ -470,7 +596,7 @@ Events emitted automatically by `createNibgateServer`: `payment_completed`, `unl
 
 ---
 
-## 14. Never Do These
+## 15. Never Do These
 
 - Do not hide paid HTML with CSS or client state after rendering it publicly
 - Do not fake payment IDs, receipts, unlocks, or successful access
@@ -481,7 +607,7 @@ Events emitted automatically by `createNibgateServer`: `payment_completed`, `unl
 
 ---
 
-## 14. Framework Notes
+## 16. Framework Notes
 
 - **Next.js**: Use route handlers for `/nibgate.json` and `/api/nibgate/access`. Protect content before rendering paid payloads. Use `server-only` for private modules.
 - **Express/NestJS**: Use middleware, controllers, or guards around protected routes. Mount the admin router at `/admin/nibgate`.

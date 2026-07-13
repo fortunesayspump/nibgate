@@ -109,7 +109,10 @@ export function createNibgateServer(options = {}) {
         if (gateway.handled) return gateway.response;
         const result = await unlock(resource, gateway.payment);
         if (result.ok) {
-          return jsonResponse({ ok: true, resource, payment: gateway.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+          const response = jsonResponse({ ok: true, resource, payment: gateway.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+          emitHubEvent('payment_completed', resource, { ...options, ...routeOptions, payload: gateway.payment }).catch(() => {});
+          emitHubEvent('unlock_completed', resource, { ...options, ...routeOptions, payload: gateway.payment }).catch(() => {});
+          return response;
         }
       }
 

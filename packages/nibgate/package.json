@@ -34,7 +34,9 @@
   "scripts": {
     "pack:check": "npm pack --dry-run",
     "build": "node scripts/bundle.mjs",
-    "prepublishOnly": "npm run build && npm run pack:check"
+    "prepublishOnly": "npm run build && npm run pack:check",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "publishConfig": {
     "access": "public"
@@ -46,7 +48,8 @@
     "SKILL.md"
   ],
   "devDependencies": {
-    "esbuild": "^0.25.12"
+    "esbuild": "^0.25.12",
+    "vitest": "^3.2.1"
   },
   "keywords": [
     "nibgate",

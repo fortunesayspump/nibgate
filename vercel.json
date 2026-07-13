@@ -1,5 +1,5 @@
 {
-  "installCommand": "corepack enable && pnpm install",
+  "installCommand": "npx pnpm@10 install --no-frozen-lockfile",
   "buildCommand": "cd frontend && pnpm build",
   "git": {
     "deploymentEnabled": {

@@ -45,6 +45,77 @@ Agent identity and reputation standards focus on whether an agent can be identif
 
 Agents can discover content through Explore, public metadata APIs, search filters, tags, content type routes, creator profiles, and future machine-readable manifests.
 
+### Hub explore API
+
+```bash
+GET https://nibgate.xyz/api/hub/explore/content?type=article&sort=trending&limit=50
+Accept: application/json
+```
+
+Returns content with pricing, access policy, creator domain, and reputation signals.
+
+### Creator manifests
+
+Agents can also poll `/nibgate.json` directly from creator sites to discover content with full resource metadata including price, currency, recipient wallet, and access policy.
+
+## Purchasing content via x402
+
+Once an agent discovers content, it can purchase and unlock it through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed.
+
+### Headless purchase flow
+
+```ts
+import { GatewayClient } from '@circle-fin/x402-batching/client'
+
+const agent = new GatewayClient({
+  chain: 'arcTestnet',
+  privateKey: '0x...',
+  rpcUrl: 'https://rpc.testnet.arc.network'
+})
+
+const result = await agent.pay(
+  'https://creator.example/api/nibgate/access?slug=my-article',
+  {
+    headers: { 'x-nibgate-actor': 'agent' }
+  }
+)
+// { data: { ok: true, unlockProof, payment }, formattedAmount: '0.01', transaction: '0x...' }
+```
+
+The `GatewayClient.pay()` method handles the full flow:
+1. Makes the initial request
+2. Receives HTTP 402 with `PAYMENT-REQUIRED` header
+3. Signs an EIP-3009 `TransferWithAuthorization` using the agent's private key
+4. Retries with `Payment-Signature` header
+5. Returns the unlocked content on success
+
+### Agent identification
+
+Agents identify themselves via headers:
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `x-nibgate-actor` | `agent` | Explicitly declare as agent |
+| `Accept: application/json` + `x402: true` | — | Triggers agent detection |
+| `User-Agent` | bot pattern | Auto-detected if matches bot regex |
+
+### Agent wallet requirements
+
+- USDC balance on Arc Testnet (chain ID 5042002)
+- USDC deposited into Circle Gateway via `agent.deposit('10')`
+- Private key accessible to the agent process
+
+### Agent-specific pricing
+
+Creators set different prices for humans vs agents in the resource's `access` policy:
+
+```ts
+const resource = {
+  access: { humans: 'free', agents: 'paid' },  // agents pay, humans free
+  price: '0.002',
+}
+```
+
 ## Quality over raw indexing
 
 Nibgate should prefer verified, useful, paid content over noisy indexing. Ranking can use verified interactions rather than only clicks or self-reported metadata.

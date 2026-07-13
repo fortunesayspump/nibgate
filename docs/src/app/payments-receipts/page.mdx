@@ -33,6 +33,38 @@ Metered streaming, metered reading, passes, and agent quotas are future unlock s
 
 Use this when the unlock flow completes through a gateway-style x402 payment flow. Store the gateway receipt id or proof URL when available.
 
+### Headless x402 (agent/API flow)
+
+For server-to-server or AI agent payments, use `GatewayClient` from `@circle-fin/x402-batching/client`:
+
+```ts
+import { GatewayClient } from '@circle-fin/x402-batching/client'
+
+const agent = new GatewayClient({
+  chain: 'arcTestnet',
+  privateKey: process.env.AGENT_KEY,
+  rpcUrl: 'https://rpc.testnet.arc.network'
+})
+
+const result = await agent.pay(contentAccessUrl, {
+  headers: { 'x-nibgate-actor': 'agent' }
+})
+```
+
+The `GatewayClient.pay()` method auto-handles the 402 challenge → EIP-3009 signing → retry → settlement flow.
+
+### Enabling hub event reporting
+
+After a successful x402 payment, the SDK automatically emits `payment_completed` and `unlock_completed` events to the Hub — **if** the creator site has these env vars set:
+
+| Env var | Purpose |
+|---------|---------|
+| `NIBGATE_SITE_ID` | Hub website UUID |
+| `NIBGATE_SITE_TOKEN` | Hub website verify token |
+| `NIBGATE_API_BASE` | Hub API URL (e.g. `https://nibgate.xyz`) |
+
+Without these, x402 payments still work and return unlock proofs, but unlock counts and revenue on Explore do not update.
+
 ## Arc testnet receipt
 
 Use this when the payment can link to an Arc testnet transaction hash or Arcscan URL.

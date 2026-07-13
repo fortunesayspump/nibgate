@@ -115,7 +115,11 @@ For the MVP, the unlock mode is `one_time`: one verified payment unlocks the res
 
 ### Package reports unlock/payment receipt
 
-After payment succeeds, the package reports the receipt to Nibgate.
+After payment succeeds, the receipt is reported to Nibgate. This happens automatically in two ways:
+
+**Browser unlock** — the widget or SDK calls `unlockCompleted()` which sends a tracking event to the Hub.
+
+**Server-side x402 unlock** — `accessResponse()` and `payAndUnlockResponse()` call `emitHubEvent()` after successful gateway payment, sending `payment_completed` and `unlock_completed` events to the Hub automatically.
 
 ```ts
 guide.unlockCompleted({
@@ -127,6 +131,10 @@ guide.unlockCompleted({
   currency: "USDC"
 })
 ```
+
+<Callout type="info">
+For server-side events to reach the Hub, the creator site must have `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE` set. Without these, x402 payments still process and return unlock proofs, but unlock counts and volume on Explore will not update.
+</Callout>
 
 Nibgate indexes the content id, site id, creator wallet, buyer wallet when available, provider, receipt reference, amount, and timestamp.
 

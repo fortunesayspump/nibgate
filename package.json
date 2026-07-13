@@ -16,20 +16,16 @@
   ],
   "scripts": {
     "build": "echo 'no root build needed'",
-    "dev": "npm run build:frontend && npm run dev:backend",
-    "dev:demo": "npm --prefix demo install && npm --prefix demo run dev",
-    "dev:cli": "npm --workspace @nibgate/cli run dev",
-    "dev:backend": "npm --workspace @nibgate/backend run dev",
-    "dev:docs": "npm --workspace @nibgate/docs run dev",
-    "dev:frontend": "npm --workspace @nibgate/frontend run dev",
-    "build:docs": "npm --workspace @nibgate/docs run build",
-    "build:frontend": "npm --workspace @nibgate/frontend run build",
-    "routes": "npm --workspace @nibgate/cli run routes",
+    "dev": "pnpm --filter @nibgate/frontend build && pnpm --filter @nibgate/backend dev",
+    "dev:demo": "cd demo && pnpm install && node server.js",
+    "dev:cli": "pnpm --filter @nibgate/cli dev",
+    "dev:backend": "pnpm --filter @nibgate/backend dev",
+    "dev:docs": "pnpm --filter @nibgate/docs dev",
+    "dev:frontend": "pnpm --filter @nibgate/frontend dev",
+    "build:docs": "pnpm --filter @nibgate/docs build",
+    "build:frontend": "pnpm --filter @nibgate/frontend build",
+    "routes": "pnpm --filter @nibgate/cli routes",
     "e2e:nibgate": "node scripts/e2e-nibgate-flow.mjs"
   },
-  "pnpm": {
-    "overrides": {
-      "accounts": "file:packages/accounts-shim"
-    }
-  }
+  "pnpm": {}
 }

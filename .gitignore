@@ -19,3 +19,4 @@ docs/.next/
 HACKATHON_VIDEO_*
 *.mp3
 video/
+packages/nibgate/.npmrc

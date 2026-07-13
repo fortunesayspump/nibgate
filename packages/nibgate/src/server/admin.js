@@ -12,29 +12,29 @@ export function createAdminApi(options = {}) {
   }
 
   async function handleList(req, res) {
-    if (!requireAdmin(req, res)) return jsonResponse({ error: 'Unauthorized' }, { status: 403 });
+    if (!requireAdmin(req, res)) return jsonResponse({ ok: false, error: 'Unauthorized' }, { status: 403 });
     const all = store.list();
-    return jsonResponse({ success: true, fields: NIBGATE_CONTENT_SETTING_FIELDS, items: all });
+    return jsonResponse({ ok: true, fields: NIBGATE_CONTENT_SETTING_FIELDS, items: all });
   }
 
   async function handleGet(req, res) {
-    if (!requireAdmin(req, res)) return jsonResponse({ error: 'Unauthorized' }, { status: 403 });
+    if (!requireAdmin(req, res)) return jsonResponse({ ok: false, error: 'Unauthorized' }, { status: 403 });
     const item = store.get(req.params.id);
-    if (!item) return jsonResponse({ error: 'Not found' }, { status: 404 });
-    return jsonResponse({ success: true, fields: NIBGATE_CONTENT_SETTING_FIELDS, item });
+    if (!item) return jsonResponse({ ok: false, error: 'Not found' }, { status: 404 });
+    return jsonResponse({ ok: true, fields: NIBGATE_CONTENT_SETTING_FIELDS, item });
   }
 
   async function handleUpdate(req, res) {
-    if (!requireAdmin(req, res)) return jsonResponse({ error: 'Unauthorized' }, { status: 403 });
+    if (!requireAdmin(req, res)) return jsonResponse({ ok: false, error: 'Unauthorized' }, { status: 403 });
     const settings = createNibgateContentSettings(req.body || {});
     const saved = store.set(req.params.id, settings);
-    return jsonResponse({ success: true, item: saved });
+    return jsonResponse({ ok: true, item: saved });
   }
 
   async function handleDelete(req, res) {
-    if (!requireAdmin(req, res)) return jsonResponse({ error: 'Unauthorized' }, { status: 403 });
+    if (!requireAdmin(req, res)) return jsonResponse({ ok: false, error: 'Unauthorized' }, { status: 403 });
     store.remove(req.params.id);
-    return jsonResponse({ success: true });
+    return jsonResponse({ ok: true });
   }
 
   function buildResourceFromSettings(id, settings) {

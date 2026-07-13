@@ -148,7 +148,7 @@ export async function payAndUnlockResource(resource, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
 
-  if (!response.ok || !payload.success) {
+  if (!response.ok || !payload.ok) {
     item.track('payment_failed', { source: options.source, status: response.status, error: payload.error || 'Payment failed', detail: payload.detail || '' });
     status(payload.detail || payload.error || options.paymentErrorMessage || 'Payment failed.');
     return { ok: false, status: response.status, payload, resource: item.resource, response };

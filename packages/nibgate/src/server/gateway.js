@@ -132,9 +132,14 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
   let statusCode = 200;
   let nextCalled = false;
   const requestHeaders = {};
-  request.headers?.forEach?.((value, key) => {
-    requestHeaders[key.toLowerCase()] = value;
-  });
+  const sourceHeaders = request.headers || {};
+  if (typeof sourceHeaders.forEach === 'function') {
+    sourceHeaders.forEach((value, key) => { requestHeaders[key.toLowerCase()] = value; });
+  } else {
+    for (const key of Object.keys(sourceHeaders)) {
+      requestHeaders[key.toLowerCase()] = sourceHeaders[key];
+    }
+  }
   const req = {
     method: request.method || 'GET',
     url: resource.url || resource.path || '/',

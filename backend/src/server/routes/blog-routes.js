@@ -1,5 +1,5 @@
-import { db } from '@nibgate/cli/src/core/db.js';
-import { getUserBySession } from '@nibgate/cli/src/core/auth.js';
+import { db } from '@nibgate/internal/db.js';
+import { getUserBySession } from '@nibgate/internal/auth.js';
 
 function normalizeWallet(value = '') {
   return String(value).trim().toLowerCase();

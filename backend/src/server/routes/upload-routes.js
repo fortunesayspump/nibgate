@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import crypto from 'node:crypto';
-import { getUserBySession } from '@nibgate/cli/src/core/auth.js';
+import { getUserBySession } from '@nibgate/internal/auth.js';
 import sharp from 'sharp';
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif']);

@@ -1,4 +1,4 @@
-import { createNonce, verifySignatureAndLogin, getUserBySession, logoutSession, constructSignMessage } from '@nibgate/cli/src/core/auth.js';
+import { createNonce, verifySignatureAndLogin, getUserBySession, logoutSession, constructSignMessage } from '@nibgate/internal/auth.js';
 
 export function registerAuthRoutes(app) {
   

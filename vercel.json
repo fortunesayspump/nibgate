@@ -1,6 +1,6 @@
 {
   "installCommand": "corepack enable && pnpm install",
-  "buildCommand": "pnpm build",
+  "buildCommand": "cd frontend && pnpm build",
   "git": {
     "deploymentEnabled": {
       "main": true

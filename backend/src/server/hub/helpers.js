@@ -627,7 +627,6 @@ export async function createMetric(website, content, payload = {}, eventName = '
 
   if (!shouldCreate) return null;
 
-  const value = numberOrNull(payload.value || payload.amount || payload.revenue);
   const revenue = numberOrNull(payload.revenue || payload.amount || payload.value);
 
   let metadata;
@@ -645,7 +644,6 @@ export async function createMetric(website, content, payload = {}, eventName = '
       visitorId: visitorHash,
       eventName,
       type: metricType,
-      value,
       revenue,
       durationMs: intOrNull(payload.durationMs || payload.duration),
       metadata,

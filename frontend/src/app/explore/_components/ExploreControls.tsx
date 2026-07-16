@@ -55,7 +55,11 @@ export default function ExploreControls() {
   return (
     <section className="explore-controls" aria-label="Explore filters">
       <div className="explore-controls-main">
-        <form className="explore-search" action="/explore/products" method="get">
+        <form className="explore-search" onSubmit={(e) => {
+          e.preventDefault();
+          const input = (e.target as HTMLFormElement).elements.namedItem("q") as HTMLInputElement;
+          window.dispatchEvent(new CustomEvent("nibgate:explore-search", { detail: { q: input?.value || "" } }));
+        }}>
           <label htmlFor="explore-query">Search content</label>
           <svg className="explore-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="m18,10c0-4.41-3.59-8-8-8S2,5.59,2,10s3.59,8,8,8c1.85,0,3.54-.63,4.9-1.69l5.1,5.1,1.41-1.41-5.1-5.1c1.05-1.36,1.69-3.05,1.69-4.9Zm-14,0c0-3.31,2.69-6,6-6s6,2.69,6,6-2.69,6-6,6-6-2.69-6-6Z"/></svg>
           <input id="explore-query" name="q" placeholder="Search articles, images, music, video" autoComplete="off" />

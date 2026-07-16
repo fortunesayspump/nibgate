@@ -9,6 +9,7 @@ const morgan = require('./config/morgan');
 const { jwtStrategy } = require('./config/passport');
 const { generalLimiter } = require('./middlewares/rateLimiter');
 const { resolveTenant } = require('./middlewares/tenant');
+const { tenantLogger } = require('./middlewares/tenant-logger');
 const routes = require('./routes/v1');
 const { errorConverter, errorHandler } = require('./middlewares/error');
 const ApiError = require('./utils/ApiError');
@@ -27,23 +28,23 @@ app.use(compression());
 app.use(cors());
 app.options('*', cors());
 
-app.use(passport.initialize());
-passport.use('jwt', jwtStrategy);
-
 app.use(generalLimiter);
 
 app.use(resolveTenant);
+app.use(tenantLogger);
+
+app.use(passport.initialize());
+passport.use('jwt', jwtStrategy);
 
 app.get('/', (req, res) => {
   res.json({
-    site: req.site.subdomain,
-    name: req.site.name,
+    site: req.subdomain,
+    name: req.site?.name || '',
     endpoints: {
       posts: `/api/blog/posts`,
       admin: `/api/blog/admin/posts`,
       auth: `/api/auth/login`,
       manifest: `/api/nibgate/manifest`,
-      site: `/api/site`,
     },
   });
 });

@@ -1,8 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
 const { status } = require('http-status');
 const ApiError = require('../utils/ApiError');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 function slugify(value = '') {
   return String(value).trim().toLowerCase().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
@@ -63,26 +61,21 @@ async function getById(siteId, id) {
 async function create(data, siteId, authorId) {
   const title = String(data.title || '').trim();
   if (title.length < 4) throw new ApiError(status.BAD_REQUEST, 'Title must be at least 4 characters');
-
   const bodyMarkdown = String(data.bodyMarkdown || data.body || '').trim();
   if (bodyMarkdown.length < 20) throw new ApiError(status.BAD_REQUEST, 'Post body must be at least 20 characters');
-
   const slug = slugify(data.slug || title);
   if (!slug) throw new ApiError(status.BAD_REQUEST, 'Could not generate slug');
-
   const statusVal = data.status === 'draft' ? 'draft' : 'published';
 
   return prisma.blogPost.create({
     data: {
-      siteId,
-      title, slug,
-      bodyMarkdown,
+      siteId, title, slug, bodyMarkdown,
       excerpt: String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown),
       tag: String(data.tag || 'General').trim().slice(0, 40),
       tags: cleanTags(data.tags),
       coverUrl: String(data.coverUrl || '').trim() || null,
-      status: statusVal,
       price: data.price && data.price !== '0' ? String(data.price).trim() : null,
+      status: statusVal,
       featured: data.featured === true,
       publishedAt: statusVal === 'published' ? new Date() : null,
       authorId,

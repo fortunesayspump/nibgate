@@ -1,12 +1,10 @@
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const moment = require('moment');
 const config = require('../config/config');
 const ApiError = require('../utils/ApiError');
 const { status } = require('http-status');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const register = async ({ name, email, password, siteId }) => {
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -18,7 +16,7 @@ const register = async ({ name, email, password, siteId }) => {
   });
 
   const token = generateToken(user);
-  return { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token };
+  return { user: { id: user.id, name: user.name, email: user.email, role: user.role, siteId: user.siteId }, token };
 };
 
 const login = async ({ email, password, siteId }) => {
@@ -29,7 +27,7 @@ const login = async ({ email, password, siteId }) => {
   if (!isMatch) throw new ApiError(status.UNAUTHORIZED, 'Invalid email or password');
 
   const token = generateToken(user);
-  return { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token };
+  return { user: { id: user.id, name: user.name, email: user.email, role: user.role, siteId: user.siteId }, token };
 };
 
 const generateToken = (user) => {

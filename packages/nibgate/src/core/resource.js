@@ -70,6 +70,38 @@ function autoDeriveImage() {
   return metaContent('og:image') || undefined;
 }
 
+function autoDeriveDescription() {
+  return metaContent('og:description') || metaContent('description') || undefined;
+}
+
+function autoDeriveTitle() {
+  const win = browserEnv();
+  return metaContent('og:title') || metaContent('twitter:title') || (win ? win.document.title : '') || undefined;
+}
+
+function autoDeriveType() {
+  const ogType = metaContent('og:type').toLowerCase();
+  if (ogType.includes('music') || ogType.includes('audio') || ogType.includes('song')) return 'music';
+  if (ogType.includes('video') || ogType.includes('movie')) return 'video';
+  if (ogType.includes('image') || ogType.includes('photo')) return 'image';
+  return 'article';
+}
+
+function autoDeriveTags() {
+  const kw = metaContent('keywords');
+  if (!kw) return undefined;
+  return kw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 8);
+}
+
+function accessForPrice(price, explicitAccess) {
+  if (explicitAccess && typeof explicitAccess === 'object' && Object.keys(explicitAccess).length > 0) {
+    return normalizeAccessPolicy(explicitAccess);
+  }
+  const hasPrice = price !== undefined && price !== null && price !== '' && Number.parseFloat(price) > 0;
+  if (hasPrice) return { humans: 'paid', agents: 'paid' };
+  return { humans: 'free', agents: 'free' };
+}
+
 export function normalizeResource(resource = {}) {
   const input = typeof resource === 'string' ? { id: resource } : (resource || {});
   const {
@@ -87,21 +119,25 @@ export function normalizeResource(resource = {}) {
 
   const path = input.path || input.route || undefined;
   const url = input.url || autoDeriveUrl(path) || undefined;
+  const explicitAccess = input.access;
+  const price = input.price ?? input.amount ?? '';
 
   return {
     ...v1Input,
     id: String(input.id || input.contentId || input.slug || '').trim(),
-    title: String(input.title || input.name || '').trim(),
-    type: normalizeContentType(input.type || input.contentType),
-    price: input.price ?? input.amount ?? '',
+    title: String(input.title || input.name || autoDeriveTitle() || 'Untitled').trim(),
+    type: normalizeContentType(input.type || input.contentType || autoDeriveType()),
+    price,
+    currency: input.currency || 'USDC',
     paymentRail: normalizePaymentRail(input.paymentRail || input.paymentMode || input.rail),
     recipient: input.recipient || input.receiver || input.receiverAddress || input.payTo || input.creatorWallet || undefined,
     payTo: input.payTo || input.recipient || input.receiver || input.receiverAddress || input.creatorWallet || undefined,
     path,
     url,
     imageUrl: input.imageUrl || input.image || autoDeriveImage() || undefined,
-    tags: input.tags || undefined,
-    access: normalizeAccessPolicy(input.access),
+    description: input.description || input.summary || autoDeriveDescription() || undefined,
+    tags: input.tags || autoDeriveTags() || undefined,
+    access: accessForPrice(price, explicitAccess),
     unlock: normalizeUnlockPolicy(input.unlock),
     ratingsEnabled: input.ratingsEnabled ?? input.enableRatings ?? input.reputation?.ratingsEnabled ?? true,
     reputation: {
@@ -125,8 +161,8 @@ export function validateResourceMetadata(resource = {}, options = {}) {
   const normalized = normalizeResource(resource);
   const warnings = [];
   const errors = [];
-  const required = options.required || ['id', 'title', 'url', 'type'];
-  const recommended = options.recommended || ['description', 'imageUrl', 'tags'];
+  const required = options.required || ['id'];
+  const recommended = options.recommended || ['title', 'url', 'description', 'imageUrl', 'tags'];
 
   for (const field of required) {
     if (!hasValue(normalized[field])) errors.push(`Missing required content metadata: ${field}`);
@@ -168,6 +204,5 @@ export function normalizeServerResource(resource = {}) {
     title: normalized.title || String((typeof resource === 'object' && (resource.name || resource.id)) || 'Untitled content').trim(),
     price: normalized.price || '0',
     path: normalized.path || '/',
-    currency: normalized.currency || 'USDC'
   };
 }

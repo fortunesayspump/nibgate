@@ -44,35 +44,30 @@ If the widget loads after app code, the SDK queues events and flushes them when 
 
 ---
 
-## 2. Resource Shape
+## 2. Resource Shape (Minimal)
 
-Define one stable resource per paid route, CMS row, media item, file, or API product:
+The SDK auto-derives most fields from meta tags and defaults. You only need:
 
 ```ts
 const resource = {
   id: post.id,
-  title: post.title,
-  description: post.excerpt,
-  type: 'article',
-  price: '0.01',
-  currency: 'USDC',
-  recipient: post.creatorWallet,
+  title: post.title,       // auto-fallsback to og:title → document.title
   path: `/posts/${post.slug}`,
-  url: `https://creator.example/posts/${post.slug}`,
-  tags: ['essay', 'research'],
-  access: { humans: 'paid', agents: 'paid' },
-  unlock: { mode: 'one_time' }
+  price: '0.01'            // sets access: { humans: 'paid', agents: 'paid' } automatically
 }
 ```
 
+The rest fills in automatically from your page's HTML:
+- `url` from `window.location.origin + path`
+- `type` from `<meta property="og:type">` (defaults to `article`)
+- `imageUrl` from `<meta property="og:image">`
+- `description` from `<meta property="og:description">` → `<meta name="description">`
+- `tags` from `<meta name="keywords">`
+- `currency` defaults to `USDC`
+- `access` defaults to `paid` when `price > 0`, otherwise `free`
+- `recipient` is optional (server's 402 challenge provides the real wallet)
+
 Allowed types: `article`, `image`, `music`, `video` (aliases like `audio→music`, `photo→image` are normalized). Use stable IDs — changing IDs breaks continuity for Explore, receipts, and reputation.
-
-**Auto-derived fields:** When running in a browser, the SDK auto-fills:
-- `url` from `window.location.origin + path` if `path` is provided but `url` is not
-- `imageUrl` from `<meta property="og:image">` if not explicitly set
-- `recipient` is **not required client-side** — the server's 402 payment challenge provides the canonical wallet address. Missing it generates a warning, not an error.
-
-So a minimal client-side resource only needs `id`, `title`, `path`, and `price` — the rest is filled in automatically.
 
 **Important:** The `image`, `description`, and `title` fields become the public thumbnail and card copy on the Explore page. Use a teaser preview, not the actual paid file.
 

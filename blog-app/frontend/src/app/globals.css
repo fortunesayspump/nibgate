@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  --bg: #f4f4f0;
+  --fg: #0a0a0a;
+  --muted: #6b6862;
+  --accent: #7c9a6d;
+  --accent-soft: #e7efe4;
+  --border: #11111114;
+  --surface: #ffffff;
+  --card-hover: #edede7;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Kumbh Sans", "ABC Favorit", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--accent);
+  color: white;
+}

@@ -124,8 +124,10 @@ export function registerHubRoutes(app) {
 
   // ── Tracking ───────────────────────────────────────────────────────────
 
+  app.options('/api/hub/evt', (_req, res) => res.status(204).end());
   app.options('/api/hub/track', (_req, res) => res.status(204).end());
 
+  app.post('/api/hub/evt', async (req, res) => {
   app.post('/api/hub/track', async (req, res) => {
     try {
       const { siteId, token, event, resource, url, path, visitorId, sessionId, referrer, ...payload } = req.body || {};

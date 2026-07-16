@@ -567,18 +567,33 @@ export function registerHubRoutes(app) {
       const type = normalizeContentType(req.query.type || '');
       const requestedType = String(req.query.type || '').trim().toLowerCase();
       const sort = String(req.query.sort || 'trending').trim().toLowerCase();
-      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '60', 10) || 60, 1), 100);
-      const content = await db.content.findMany({
-        where: {
-          deletedAt: null,
-          website: { isVerified: true, deletedAt: null },
-          ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
-          ...(q ? { OR: [{ title: { contains: q } }, { description: { contains: q } }, { tags: { contains: q } }, { website: { name: { contains: q } } }, { website: { domain: { contains: q } } }] } : {})
-        },
-        include: { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: limit
-      });
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '100', 10) || 100, 1), 200);
+      const skip = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
+
+      const where = {
+        deletedAt: null,
+        website: { isVerified: true, deletedAt: null },
+        ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
+        ...(q ? { OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+          { tags: { contains: q, mode: 'insensitive' } },
+          { website: { name: { contains: q, mode: 'insensitive' } } },
+          { website: { domain: { contains: q, mode: 'insensitive' } } }
+        ] } : {})
+      };
+
+      const [content, total] = await Promise.all([
+        db.content.findMany({
+          where,
+          include: { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit
+        }),
+        db.content.count({ where })
+      ]);
+
       const serialized = content.map(serializeContent);
       const sorted = serialized.sort((a, b) => {
         if (sort === 'best-sellers') return (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
@@ -586,7 +601,7 @@ export function registerHubRoutes(app) {
         return (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
       });
 
-      res.json({ success: true, content: sorted });
+      res.json({ success: true, content: sorted, total, limit, skip });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch explore content' });
     }

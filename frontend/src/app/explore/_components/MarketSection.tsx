@@ -36,23 +36,44 @@ export default function MarketSection({ products }: { products: ExploreProduct[]
   const [sort, setSort] = useState("trending");
   const [activeType, setActiveType] = useState("All");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     const onCategory = (event: Event) => {
       const category = (event as CustomEvent<{ category?: string }>).detail?.category || "All";
       setActiveCategory(category);
+      setSearchQuery("");
+      setVisibleCount(12);
+    };
+    const onSearch = (event: Event) => {
+      const q = (event as CustomEvent<{ q?: string }>).detail?.q || "";
+      setSearchQuery(q);
+      setActiveCategory("All");
       setVisibleCount(12);
     };
     window.addEventListener("nibgate:explore-category", onCategory);
-    return () => window.removeEventListener("nibgate:explore-category", onCategory);
+    window.addEventListener("nibgate:explore-search", onSearch);
+    return () => {
+      window.removeEventListener("nibgate:explore-category", onCategory);
+      window.removeEventListener("nibgate:explore-search", onSearch);
+    };
   }, []);
 
+  const isActive = searchQuery || activeCategory !== "All" || activeType !== "All";
+
   const filteredProducts = useMemo(() => {
-    const categorized = products.filter((product) => categoryMatches(product, activeCategory));
-    const typed = activeType === "All" ? categorized : categorized.filter((product) => product.type === activeType);
-    return sortProducts(typed, sort);
-  }, [products, sort, activeType, activeCategory]);
+    let result = products;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((p) =>
+        [p.title, p.type, p.summary, p.creator, ...(p.tags || [])].join(" ").toLowerCase().includes(q)
+      );
+    }
+    result = result.filter((p) => categoryMatches(p, activeCategory));
+    if (activeType !== "All") result = result.filter((p) => p.type === activeType);
+    return sortProducts(result, sort);
+  }, [products, sort, searchQuery, activeType, activeCategory]);
   const visibleProducts = filteredProducts.slice(0, visibleCount);
   const title = activeCategory === "All" ? "Explore content" : activeCategory;
 

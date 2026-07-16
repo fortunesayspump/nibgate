@@ -67,6 +67,13 @@ const resource = {
 
 Allowed types: `article`, `image`, `music`, `video` (aliases like `audio→music`, `photo→image` are normalized). Use stable IDs — changing IDs breaks continuity for Explore, receipts, and reputation.
 
+**Auto-derived fields:** When running in a browser, the SDK auto-fills:
+- `url` from `window.location.origin + path` if `path` is provided but `url` is not
+- `imageUrl` from `<meta property="og:image">` if not explicitly set
+- `recipient` is **not required client-side** — the server's 402 payment challenge provides the canonical wallet address. Missing it generates a warning, not an error.
+
+So a minimal client-side resource only needs `id`, `title`, `path`, and `price` — the rest is filled in automatically.
+
 **Important:** The `image`, `description`, and `title` fields become the public thumbnail and card copy on the Explore page. Use a teaser preview, not the actual paid file.
 
 ---

@@ -3,12 +3,12 @@ const authService = require('../services/auth.service');
 const { status } = require('http-status');
 
 const register = catchAsync(async (req, res) => {
-  const { user, token } = await authService.register(req.body);
+  const { user, token } = await authService.register({ ...req.body, siteId: req.siteId });
   res.status(status.CREATED).json({ success: true, user, token });
 });
 
 const login = catchAsync(async (req, res) => {
-  const { user, token } = await authService.login(req.body);
+  const { user, token } = await authService.login({ ...req.body, siteId: req.siteId });
   res.json({ success: true, user, token });
 });
 

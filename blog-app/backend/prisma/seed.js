@@ -56,12 +56,25 @@ Then import and configure it in your application.`,
 async function main() {
   console.log('Seeding database...');
 
+  const site = await prisma.site.upsert({
+    where: { subdomain: 'demo' },
+    update: {},
+    create: {
+      subdomain: 'demo',
+      name: 'Demo Blog',
+      description: 'A demo blog powered by Nibgate.',
+    },
+  });
+
+  console.log(`Created site: ${site.subdomain}.nibgate.xyz`);
+
   const hashedPassword = await bcrypt.hash('password123', 10);
 
   const author = await prisma.user.upsert({
     where: { email: 'author@example.com' },
     update: {},
     create: {
+      siteId: site.id,
       name: 'Demo Author',
       email: 'author@example.com',
       password: hashedPassword,
@@ -73,9 +86,9 @@ async function main() {
 
   for (const post of samplePosts) {
     await prisma.blogPost.upsert({
-      where: { slug: post.slug },
+      where: { siteId_slug: { siteId: site.id, slug: post.slug } },
       update: {},
-      create: { ...post, authorId: author.id },
+      create: { ...post, siteId: site.id, authorId: author.id },
     });
     console.log(`Created post: ${post.title}`);
   }

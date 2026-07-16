@@ -8,10 +8,10 @@ export default function NewPostPage() {
   const router = useRouter();
   const [form, setForm] = useState<{
     title: string; slug: string; bodyMarkdown: string; excerpt: string;
-    tag: string; tags: string; coverUrl: string; status: "draft" | "published"; featured: boolean;
+    tag: string; tags: string; coverUrl: string; price: string; status: "draft" | "published"; featured: boolean;
   }>({
     title: "", slug: "", bodyMarkdown: "", excerpt: "",
-    tag: "General", tags: "", coverUrl: "", status: "draft", featured: false,
+    tag: "General", tags: "", coverUrl: "", price: "", status: "draft", featured: false,
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -69,6 +69,10 @@ export default function NewPostPage() {
           <Field label="Tag">
             <input type="text" value={form.tag} onChange={(e) => setForm((p) => ({ ...p, tag: e.target.value }))}
               className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" placeholder="General" />
+          </Field>
+          <Field label="Price (USDC)">
+            <input type="text" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
+              className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" placeholder="0.01 (leave empty for free)" />
           </Field>
           <Field label="Cover Image URL">
             <input type="text" value={form.coverUrl} onChange={(e) => setForm((p) => ({ ...p, coverUrl: e.target.value }))}

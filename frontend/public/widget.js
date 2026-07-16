@@ -19,7 +19,7 @@
     }
   }
 
-  var endpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/track";
+  var endpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/evt";
   var queue = [];
   var pageStartedAt = Date.now();
   var maxScrollDepth = 0;

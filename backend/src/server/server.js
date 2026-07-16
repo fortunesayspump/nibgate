@@ -30,7 +30,7 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true, limit: '8mb' }));
   app.use(cookieParser());
   app.use(cors((req, callback) => {
-    if (req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index') {
+    if (req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index') {
       return callback(null, {
         origin: true,
         credentials: true,

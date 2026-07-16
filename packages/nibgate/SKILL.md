@@ -40,6 +40,8 @@ Paste the dashboard widget into the verified site layout:
 
 If the widget loads after app code, the SDK queues events and flushes them when the widget is ready.
 
+**Adblocker bypass:** The widget now sends events to `/api/hub/evt` instead of `/api/hub/track` to avoid adblocker filter lists that target the word "track". The old `/api/hub/track` endpoint is preserved for backward compatibility. If you self-host the backend, ensure both routes are registered.
+
 ---
 
 ## 2. Resource Shape

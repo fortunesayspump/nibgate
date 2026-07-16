@@ -170,6 +170,7 @@ export function checkTrackingRateLimit(siteId, req, visitorHash = '') {
     for (const [bucketKey, value] of trackingRateBuckets) {
       if (value.resetAt <= now) trackingRateBuckets.delete(bucketKey);
     }
+    db.metricDedupe.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }).catch(() => {});
   }
 
   return { ok: true };
@@ -218,7 +219,7 @@ export async function claimMetricDedupeKey(dedupeKey = '') {
     return true;
   } catch (error) {
     if (error?.code === 'P2002') return false;
-    throw error;
+    return true;
   }
 }
 
@@ -629,6 +630,13 @@ export async function createMetric(website, content, payload = {}, eventName = '
   const value = numberOrNull(payload.value || payload.amount || payload.revenue);
   const revenue = numberOrNull(payload.revenue || payload.amount || payload.value);
 
+  let metadata;
+  try {
+    metadata = JSON.stringify(payload).slice(0, 5000);
+  } catch {
+    metadata = JSON.stringify({ error: 'non-serializable payload', eventName, metricType }).slice(0, 5000);
+  }
+
   return db.metric.create({
     data: {
       websiteId: website.id,
@@ -640,7 +648,7 @@ export async function createMetric(website, content, payload = {}, eventName = '
       value,
       revenue,
       durationMs: intOrNull(payload.durationMs || payload.duration),
-      metadata: JSON.stringify(payload).slice(0, 5000),
+      metadata,
       dedupeKey: dedupeKey || null
     }
   });

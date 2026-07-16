@@ -48,6 +48,28 @@ export function normalizeUnlockPolicy(value = {}) {
   };
 }
 
+function browserEnv() {
+  return typeof window !== 'undefined' ? window : null;
+}
+
+function metaContent(name) {
+  const win = browserEnv();
+  if (!win) return '';
+  const selector = `meta[name="${name}"], meta[property="${name}"]`;
+  const node = win.document.querySelector(selector);
+  return node ? node.getAttribute('content') || '' : '';
+}
+
+function autoDeriveUrl(path) {
+  const win = browserEnv();
+  if (!win || !path) return undefined;
+  return `${win.location.origin}${path.startsWith('/') ? path : '/' + path}`;
+}
+
+function autoDeriveImage() {
+  return metaContent('og:image') || undefined;
+}
+
 export function normalizeResource(resource = {}) {
   const input = typeof resource === 'string' ? { id: resource } : (resource || {});
   const {
@@ -63,6 +85,9 @@ export function normalizeResource(resource = {}) {
     ...v1Input
   } = input;
 
+  const path = input.path || input.route || undefined;
+  const url = input.url || autoDeriveUrl(path) || undefined;
+
   return {
     ...v1Input,
     id: String(input.id || input.contentId || input.slug || '').trim(),
@@ -72,9 +97,9 @@ export function normalizeResource(resource = {}) {
     paymentRail: normalizePaymentRail(input.paymentRail || input.paymentMode || input.rail),
     recipient: input.recipient || input.receiver || input.receiverAddress || input.payTo || input.creatorWallet || undefined,
     payTo: input.payTo || input.recipient || input.receiver || input.receiverAddress || input.creatorWallet || undefined,
-    path: input.path || input.route || undefined,
-    url: input.url || undefined,
-    imageUrl: input.imageUrl || input.image || undefined,
+    path,
+    url,
+    imageUrl: input.imageUrl || input.image || autoDeriveImage() || undefined,
     tags: input.tags || undefined,
     access: normalizeAccessPolicy(input.access),
     unlock: normalizeUnlockPolicy(input.unlock),
@@ -123,7 +148,7 @@ export function validateResourceMetadata(resource = {}, options = {}) {
 
   if (isPaidResource(normalized)) {
     if (!hasValue(normalized.price)) errors.push('Paid content requires price.');
-    if (!hasValue(normalized.recipient || normalized.payTo)) errors.push('Paid content requires recipient/payTo wallet.');
+    if (!hasValue(normalized.recipient || normalized.payTo)) warnings.push('Paid content should include recipient/payTo (server value from 402 challenge is used for actual payment).');
   }
 
   const score = Math.max(0, 100 - errors.length * 20 - warnings.length * 8);

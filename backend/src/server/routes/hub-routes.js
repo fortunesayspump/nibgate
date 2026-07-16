@@ -127,8 +127,7 @@ export function registerHubRoutes(app) {
   app.options('/api/hub/evt', (_req, res) => res.status(204).end());
   app.options('/api/hub/track', (_req, res) => res.status(204).end());
 
-  app.post('/api/hub/evt', async (req, res) => {
-  app.post('/api/hub/track', async (req, res) => {
+  const trackHandler = async (req, res) => {
     try {
       const { siteId, token, event, resource, url, path, visitorId, sessionId, referrer, ...payload } = req.body || {};
       if (!siteId || !token) return res.status(400).json({ error: 'Missing siteId or token.' });
@@ -173,7 +172,10 @@ export function registerHubRoutes(app) {
     } catch (error) {
       res.status(500).json({ error: 'Failed to track event', details: error.message });
     }
-  });
+  };
+
+  app.post('/api/hub/evt', trackHandler);
+  app.post('/api/hub/track', trackHandler);
 
   // ── List Sites ─────────────────────────────────────────────────────────
 

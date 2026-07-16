@@ -48,6 +48,7 @@ export type BlogPost = {
   coverUrl: string | null;
   tag: string;
   tags: string[];
+  price: string | null;
   status: "draft" | "published";
   featured: boolean;
   publishedAt: string;

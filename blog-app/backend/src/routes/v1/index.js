@@ -16,8 +16,12 @@ defaultRoutes.forEach((route) => {
   router.use(route.path, route.route);
 });
 
+router.get('/site', (req, res) => {
+  res.json({ success: true, site: { id: req.siteId, name: req.site.name, subdomain: req.site.subdomain } });
+});
+
 router.get('/health', (req, res) => {
-  res.json({ success: true, env: config.env, timestamp: new Date().toISOString() });
+  res.json({ success: true, site: req.site.subdomain, env: config.env, timestamp: new Date().toISOString() });
 });
 
 module.exports = router;

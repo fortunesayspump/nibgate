@@ -8,6 +8,7 @@ const config = require('./config/config');
 const morgan = require('./config/morgan');
 const { jwtStrategy } = require('./config/passport');
 const { generalLimiter } = require('./middlewares/rateLimiter');
+const { resolveTenant } = require('./middlewares/tenant');
 const routes = require('./routes/v1');
 const { errorConverter, errorHandler } = require('./middlewares/error');
 const ApiError = require('./utils/ApiError');
@@ -31,15 +32,18 @@ passport.use('jwt', jwtStrategy);
 
 app.use(generalLimiter);
 
+app.use(resolveTenant);
+
 app.get('/', (req, res) => {
   res.json({
-    name: 'Nibgate Blog API',
-    version: '1.0.0',
-    docs: {
-      posts: `${req.protocol}://${req.get('host')}/api/blog/posts`,
-      admin: `${req.protocol}://${req.get('host')}/api/blog/admin/posts`,
-      auth: `${req.protocol}://${req.get('host')}/api/auth/login`,
-      health: `${req.protocol}://${req.get('host')}/api/health`,
+    site: req.site.subdomain,
+    name: req.site.name,
+    endpoints: {
+      posts: `/api/blog/posts`,
+      admin: `/api/blog/admin/posts`,
+      auth: `/api/auth/login`,
+      manifest: `/api/nibgate/manifest`,
+      site: `/api/site`,
     },
   });
 });

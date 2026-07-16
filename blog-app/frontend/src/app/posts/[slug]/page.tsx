@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import NibgateUnlock from "@/components/NibgateUnlock";
 import { apiUrl, type BlogPost } from "@/lib/api";
 
 function formatDate(value: string) {
@@ -43,12 +44,16 @@ async function getAdjacentPosts(currentSlug: string) {
   }
 }
 
+// Cast BlogPost to have optional price field for premium support
+type PostWithPrice = BlogPost & { price?: string };
+
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = await getPost(slug);
+  const post = (await getPost(slug)) as PostWithPrice | null;
   if (!post) notFound();
 
   const { prev, next } = await getAdjacentPosts(slug);
+  const isPremium = Boolean(post.price && post.price !== "0");
 
   return (
     <>
@@ -65,6 +70,12 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               <span>{readTime(post.bodyMarkdown)}</span>
               <span className="opacity-30">&middot;</span>
               <span>{post.tag || "General"}</span>
+              {isPremium && (
+                <>
+                  <span className="opacity-30">&middot;</span>
+                  <span className="text-[var(--accent)] font-semibold">{post.price} USDC</span>
+                </>
+              )}
             </div>
             <h1 className="text-2xl font-semibold leading-tight tracking-tight md:text-3xl">
               {post.title}
@@ -81,9 +92,25 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           )}
 
           <div className="prose prose-neutral prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-[var(--fg)] prose-p:text-[var(--muted)] prose-p:leading-7 prose-a:text-[var(--fg)] prose-a:underline prose-a:underline-offset-2 prose-a:decoration-[var(--accent)] prose-a:font-normal prose-strong:text-[var(--fg)] prose-code:bg-[var(--accent-soft)] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-pre:bg-[#1a1a18] prose-pre:text-[#e4e4e0] prose-pre:border-0 prose-pre:rounded-lg prose-blockquote:border-[var(--accent)] prose-blockquote:text-[var(--muted)] prose-blockquote:font-normal prose-li:text-[var(--muted)] prose-li:leading-7 prose-hr:border-[var(--border)] max-w-none text-[15px] leading-7">
-            <ReactMarkdown>{post.bodyMarkdown}</ReactMarkdown>
+            {isPremium ? (
+              <p className="text-[var(--muted)] italic">Premium content — unlock below to read the full article.</p>
+            ) : (
+              <ReactMarkdown>{post.bodyMarkdown}</ReactMarkdown>
+            )}
           </div>
         </article>
+
+        {isPremium && post.price && (
+          <NibgateUnlock
+            resource={{
+              id: post.slug,
+              title: post.title,
+              type: "article",
+              price: post.price,
+              path: `/posts/${post.slug}`,
+            }}
+          />
+        )}
 
         <nav className="mt-14 flex flex-col gap-4 border-t border-[var(--border)] pt-6 sm:flex-row sm:justify-between">
           {prev ? (
@@ -91,17 +118,13 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               <span className="text-xs text-[var(--muted)]">&larr; Previous</span>
               <p className="text-sm font-medium text-[var(--fg)] mt-1 group-hover:underline decoration-[var(--accent)] underline-offset-2">{prev.title}</p>
             </Link>
-          ) : (
-            <div />
-          )}
+          ) : <div />}
           {next ? (
             <Link href={`/posts/${next.slug}`} className="group no-underline flex-1 text-right">
               <span className="text-xs text-[var(--muted)]">Next &rarr;</span>
               <p className="text-sm font-medium text-[var(--fg)] mt-1 group-hover:underline decoration-[var(--accent)] underline-offset-2">{next.title}</p>
             </Link>
-          ) : (
-            <div />
-          )}
+          ) : <div />}
         </nav>
       </main>
       <Footer />

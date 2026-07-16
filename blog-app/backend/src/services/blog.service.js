@@ -5,36 +5,21 @@ const ApiError = require('../utils/ApiError');
 const prisma = new PrismaClient();
 
 function slugify(value = '') {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/['"]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 90);
+  return String(value).trim().toLowerCase().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 }
 
 function excerptFrom(markdown = '') {
-  return String(markdown)
-    .replace(/[#*_>`\[\]()]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 180);
+  return String(markdown).replace(/[#*_>`\[\]()]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
 }
 
 function cleanTags(value) {
   if (Array.isArray(value)) return value.map(String).map((t) => t.trim()).filter(Boolean).slice(0, 8).join(',');
-  return String(value || '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .slice(0, 8)
-    .join(',');
+  return String(value || '').split(',').map((t) => t.trim()).filter(Boolean).slice(0, 8).join(',');
 }
 
-async function listPublished(options = {}) {
+async function listPublished(siteId, options = {}) {
   const { page = 1, limit = 10, tag } = options;
-  const where = { status: 'published' };
+  const where = { siteId, status: 'published' };
   if (tag) where.tag = tag;
 
   const [posts, total] = await Promise.all([
@@ -51,16 +36,16 @@ async function listPublished(options = {}) {
   return { posts, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
 
-async function getBySlug(slug) {
-  const post = await prisma.blogPost.findFirst({
-    where: { slug, status: 'published' },
+async function getBySlug(siteId, slug) {
+  return prisma.blogPost.findFirst({
+    where: { siteId, slug, status: 'published' },
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
-  return post;
 }
 
-async function listAll(authorId) {
-  const where = authorId ? { authorId } : {};
+async function listAll(siteId, authorId) {
+  const where = { siteId };
+  if (authorId) where.authorId = authorId;
   return prisma.blogPost.findMany({
     where,
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
@@ -68,14 +53,14 @@ async function listAll(authorId) {
   });
 }
 
-async function getById(id) {
-  return prisma.blogPost.findUnique({
-    where: { id },
+async function getById(siteId, id) {
+  return prisma.blogPost.findFirst({
+    where: { siteId, id },
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
 }
 
-async function create(data, authorId) {
+async function create(data, siteId, authorId) {
   const title = String(data.title || '').trim();
   if (title.length < 4) throw new ApiError(status.BAD_REQUEST, 'Title must be at least 4 characters');
 
@@ -87,28 +72,27 @@ async function create(data, authorId) {
 
   const statusVal = data.status === 'draft' ? 'draft' : 'published';
 
-  const post = await prisma.blogPost.create({
+  return prisma.blogPost.create({
     data: {
-      title,
-      slug,
+      siteId,
+      title, slug,
       bodyMarkdown,
       excerpt: String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown),
       tag: String(data.tag || 'General').trim().slice(0, 40),
       tags: cleanTags(data.tags),
       coverUrl: String(data.coverUrl || '').trim() || null,
       status: statusVal,
+      price: data.price && data.price !== '0' ? String(data.price).trim() : null,
       featured: data.featured === true,
       publishedAt: statusVal === 'published' ? new Date() : null,
       authorId,
     },
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
-
-  return post;
 }
 
-async function update(id, data, authorId) {
-  const existing = await prisma.blogPost.findUnique({ where: { id } });
+async function update(siteId, id, data) {
+  const existing = await prisma.blogPost.findFirst({ where: { siteId, id } });
   if (!existing) throw new ApiError(status.NOT_FOUND, 'Post not found');
 
   const updateData = {};
@@ -128,16 +112,13 @@ async function update(id, data, authorId) {
   if (data.tag !== undefined) updateData.tag = String(data.tag).trim().slice(0, 40);
   if (data.tags !== undefined) updateData.tags = cleanTags(data.tags);
   if (data.coverUrl !== undefined) updateData.coverUrl = String(data.coverUrl).trim() || null;
+  if (data.price !== undefined) updateData.price = data.price && data.price !== '0' ? String(data.price).trim() : null;
   if (data.featured !== undefined) updateData.featured = data.featured;
   if (data.status !== undefined) {
     updateData.status = data.status === 'draft' ? 'draft' : 'published';
-    if (updateData.status === 'published' && !existing.publishedAt) {
-      updateData.publishedAt = new Date();
-    }
+    if (updateData.status === 'published' && !existing.publishedAt) updateData.publishedAt = new Date();
   }
-  if (data.bodyMarkdown && !data.excerpt) {
-    updateData.excerpt = excerptFrom(data.bodyMarkdown);
-  }
+  if (data.bodyMarkdown && !data.excerpt) updateData.excerpt = excerptFrom(data.bodyMarkdown);
 
   return prisma.blogPost.update({
     where: { id },
@@ -146,8 +127,8 @@ async function update(id, data, authorId) {
   });
 }
 
-async function remove(id) {
-  const existing = await prisma.blogPost.findUnique({ where: { id } });
+async function remove(siteId, id) {
+  const existing = await prisma.blogPost.findFirst({ where: { siteId, id } });
   if (!existing) throw new ApiError(status.NOT_FOUND, 'Post not found');
   await prisma.blogPost.delete({ where: { id } });
   return existing;

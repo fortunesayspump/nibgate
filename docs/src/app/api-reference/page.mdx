@@ -47,8 +47,10 @@ DELETE /api/hub/sites/:siteId
 Widget and package event routes should reject unknown origins, removed sites, stale verification, and malformed content ids.
 
 ```http
-POST /api/hub/track
+POST /api/hub/evt
 ```
+
+Accepts the same payload as the legacy `/api/hub/track` endpoint (still available for backward compatibility). The rename avoids adblocker filter lists targeting the word "track".
 
 Intended event shape:
 

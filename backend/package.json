@@ -14,12 +14,13 @@
     "@aws-sdk/client-s3": "^3.1075.0",
     "@circle-fin/x402-batching": "^3.0.4",
     "@nibgate/cli": "file:../packages/cli",
+    "@nibgate/internal": "workspace:*",
+    "@nibgate/sdk": "^0.2.7",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^4.21.2",
     "resend": "^6.17.1",
     "sharp": "^0.35.3",
-    "viem": "^2.52.2",
-    "@nibgate/internal": "workspace:*"
+    "viem": "^2.52.2"
   }
 }

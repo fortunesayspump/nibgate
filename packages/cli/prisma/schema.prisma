@@ -71,6 +71,7 @@ model Website {
   lastScanError             String?
   lastSyncAt                DateTime?
   createdAt                 DateTime            @default(now())
+  settings                  String?
   deletedAt                 DateTime?
   content                   Content[]
   metrics                   Metric[]

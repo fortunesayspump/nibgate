@@ -51,6 +51,7 @@ export function serializeWebsite(website) {
     lastScanError: website.lastScanError || '',
     lastSyncAt: website.lastSyncAt || null,
     createdAt: website.createdAt,
+    settings: website.settings || null,
     _count: {
       content: website._count?.content || 0,
       metrics: website._count?.metrics || 0

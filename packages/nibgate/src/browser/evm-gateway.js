@@ -11,6 +11,8 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
   return gateway.createCircleGatewayBrowserAdapter(options);
 }
 
+const DEFAULT_CIRCLE_CDN = 'https://esm.sh/@circle-fin/x402-batching@3.2.0/client?bundle';
+
 export function createEvmGatewayUnlock(resource, options = {}) {
   const item = createGate(resource, options.gateOptions || {});
   const win = browserWindow();
@@ -114,7 +116,7 @@ export function createEvmGatewayUnlock(resource, options = {}) {
         signTypedData: (typedData) => evm.request({ method: 'eth_signTypedData_v4', params: [walletAddress, stringifyJson(typedData)] })
       },
       clientModule: options.circleClientModule,
-      clientModuleUrl: options.circleClientModuleUrl
+      clientModuleUrl: options.circleClientModuleUrl || DEFAULT_CIRCLE_CDN
     });
     return gatewayWallet.pay(input);
   }

@@ -161,7 +161,7 @@ export function validateResourceMetadata(resource = {}, options = {}) {
   const normalized = normalizeResource(resource);
   const warnings = [];
   const errors = [];
-  const required = options.required || ['id'];
+  const required = options.required || ['id', 'type'];
   const recommended = options.recommended || ['title', 'url', 'description', 'imageUrl', 'tags'];
 
   for (const field of required) {

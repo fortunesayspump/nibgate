@@ -6,6 +6,7 @@ const shared = {
   globalName: 'Nibgate',
   target: 'es2020',
   sourcemap: true,
+  external: ['@circle-fin/x402-batching', '@circle-fin/x402-batching/client'],
   define: {
     'globalThis.process.env.NIBGATE_REPUTATION_CONTRACT': JSON.stringify('0x9f27fd62e75f86a3c7addfdba443aab1f930e281'),
     'globalThis.process.env.NIBGATE_REPUTATION_RPC_URL': JSON.stringify('https://rpc.testnet.arc.network'),

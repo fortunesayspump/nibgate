@@ -12,11 +12,7 @@
   if (!siteId || !token) return;
 
   function scriptOrigin() {
-    try {
-      return new URL(script.src).origin;
-    } catch (_error) {
-      return "https://nibgate.xyz";
-    }
+    try { return new URL(script.src).origin; } catch (_error) { return "https://nibgate.xyz"; }
   }
 
   var endpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/evt";
@@ -32,14 +28,9 @@
   function storedId(storage, key, prefix) {
     try {
       var value = storage.getItem(key);
-      if (!value) {
-        value = id(prefix);
-        storage.setItem(key, value);
-      }
+      if (!value) { value = id(prefix); storage.setItem(key, value); }
       return value;
-    } catch (_error) {
-      return id(prefix);
-    }
+    } catch (_error) { return id(prefix); }
   }
 
   var visitorId = storedId(window.localStorage, "nibgate:visitor", "vis");
@@ -72,10 +63,8 @@
         imageUrl: node.getAttribute("data-nibgate-image") || ""
       };
     }
-
     var resourceId = meta("nibgate:resource-id");
     if (!resourceId) return null;
-
     return {
       id: resourceId,
       title: meta("nibgate:title") || document.title || "",
@@ -88,58 +77,33 @@
 
   function send(eventName, payload) {
     var body = Object.assign({}, payload || {}, {
-      siteId: siteId,
-      token: token,
-      event: eventName,
-      visitorId: visitorId,
-      sessionId: sessionId,
-      url: window.location.href,
-      path: window.location.pathname,
-      title: document.title || "",
-      referrer: document.referrer || "",
+      siteId: siteId, token: token, event: eventName,
+      visitorId: visitorId, sessionId: sessionId,
+      url: window.location.href, path: window.location.pathname,
+      title: document.title || "", referrer: document.referrer || "",
       scrollDepth: maxScrollDepth
     });
-
     var serialized = JSON.stringify(body);
-
     if (navigator.sendBeacon) {
       var blob = new Blob([serialized], { type: "application/json" });
       if (navigator.sendBeacon(endpoint, blob)) return;
     }
-
     fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: serialized,
-      keepalive: true,
-      credentials: "omit"
-    }).catch(function () {
-      queue.push({ eventName: eventName, payload: payload });
-    });
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: serialized, keepalive: true, credentials: "omit"
+    }).catch(function () { queue.push({ eventName: eventName, payload: payload }); });
   }
 
   window.nibgateHub = window.nibgateHub || {};
-  window.nibgateHub.track = function (eventName, payload) {
-    send(eventName || "custom", payload || {});
-  };
-  window.nibgateHub.registerContent = function (resource) {
-    send("content_registered", { resource: resource || detectResource() || {} });
-  };
+  window.nibgateHub.track = function (eventName, payload) { send(eventName || "custom", payload || {}); };
+  window.nibgateHub.registerContent = function (resource) { send("content_registered", { resource: resource || detectResource() || {} }); };
   window.nibgateHub.content = window.nibgateHub.registerContent;
-  window.nibgateHub.unlockStarted = function (resource) {
-    send("unlock_started", { resource: resource || detectResource() || {} });
-  };
-  window.nibgateHub.unlockCompleted = function (resource, payment) {
-    send("unlock_completed", Object.assign({ resource: resource || detectResource() || {} }, payment || {}));
-  };
-  window.nibgateHub.paymentCompleted = function (resource, payment) {
-    send("payment_completed", Object.assign({ resource: resource || detectResource() || {} }, payment || {}));
-  };
+  window.nibgateHub.unlockStarted = function (resource) { send("unlock_started", { resource: resource || detectResource() || {} }); };
+  window.nibgateHub.unlockCompleted = function (resource, payment) { send("unlock_completed", Object.assign({ resource: resource || detectResource() || {} }, payment || {})); };
+  window.nibgateHub.paymentCompleted = function (resource, payment) { send("payment_completed", Object.assign({ resource: resource || detectResource() || {} }, payment || {})); };
 
   if (Array.isArray(window.__nibgateClientQueue)) {
-    window.__nibgateClientQueue.splice(0).forEach(function (entry) {
-      send(entry.eventName || "custom", entry.payload || {});
-    });
+    window.__nibgateClientQueue.splice(0).forEach(function (entry) { send(entry.eventName || "custom", entry.payload || {}); });
   }
 
   window.addEventListener("nibgate:track", function (event) {
@@ -167,26 +131,17 @@
     if (sentTimeSpent) return;
     sentTimeSpent = true;
     updateScrollDepth();
-    send("time_spent", {
-      durationMs: Math.max(0, Date.now() - pageStartedAt),
-      scrollDepth: maxScrollDepth,
-      resource: detectResource() || undefined
-    });
+    send("time_spent", { durationMs: Math.max(0, Date.now() - pageStartedAt), scrollDepth: maxScrollDepth, resource: detectResource() || undefined });
   }
 
   window.addEventListener("scroll", updateScrollDepth, { passive: true });
   window.addEventListener("pagehide", sendTimeSpent);
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") sendTimeSpent();
-  });
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") sendTimeSpent(); });
   document.addEventListener("click", function (event) {
     var target = event.target && event.target.closest && event.target.closest("[data-nibgate-track], [data-nibgate-unlock]");
     if (!target) return;
     var eventName = target.getAttribute("data-nibgate-event") || (target.hasAttribute("data-nibgate-unlock") ? "unlock_started" : "engagement");
-    send(eventName, {
-      label: target.getAttribute("data-nibgate-label") || target.textContent || "",
-      resource: detectResource() || undefined
-    });
+    send(eventName, { label: target.getAttribute("data-nibgate-label") || target.textContent || "", resource: detectResource() || undefined });
   });
 
   function startMutationObserver() {
@@ -200,36 +155,130 @@
         for (var j = 0; j < added.length; j++) {
           var node = added[j];
           if (node.nodeType !== 1) continue;
-          var resourceEl = node.hasAttribute && node.hasAttribute("data-nibgate-resource")
-            ? node : node.querySelector && node.querySelector("[data-nibgate-resource]");
+          var resourceEl = node.hasAttribute && node.hasAttribute("data-nibgate-resource") ? node : node.querySelector && node.querySelector("[data-nibgate-resource]");
           if (!resourceEl) continue;
           var id = resourceEl.getAttribute("data-nibgate-id") || resourceEl.id || "";
           if (seen[id]) continue;
           seen[id] = true;
-          send("resource_view", {
-            resource: {
-              id: id,
-              title: resourceEl.getAttribute("data-nibgate-title") || document.title || "",
-              type: normalizeType(resourceEl.getAttribute("data-nibgate-type")),
-              price: resourceEl.getAttribute("data-nibgate-price") || "",
-              path: resourceEl.getAttribute("data-nibgate-path") || window.location.pathname,
-              imageUrl: resourceEl.getAttribute("data-nibgate-image") || ""
-            },
-            source: "mutation"
-          });
+          send("resource_view", { resource: { id: id, title: resourceEl.getAttribute("data-nibgate-title") || document.title || "", type: normalizeType(resourceEl.getAttribute("data-nibgate-type")), price: resourceEl.getAttribute("data-nibgate-price") || "", path: resourceEl.getAttribute("data-nibgate-path") || window.location.pathname, imageUrl: resourceEl.getAttribute("data-nibgate-image") || "" }, source: "mutation" });
         }
       }
     });
     observer.observe(target, { childList: true, subtree: true });
   }
 
+  // ── Hosted mode: detect data-nibgate-premium and auto-wire unlock ──────
+
+  function initHostedMode() {
+    var container = document.querySelector("[data-nibgate-premium]");
+    if (!container) return;
+
+    var price = container.getAttribute("data-nibgate-premium") || "";
+    var recipient = container.getAttribute("data-nibgate-recipient") || "";
+    var contentId = container.getAttribute("data-nibgate-id") || window.location.pathname;
+    var title = container.getAttribute("data-nibgate-title") || document.title || "";
+    var unlockMode = container.getAttribute("data-nibgate-unlock") || "one_time";
+
+    var payEndpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/pay";
+
+    var unlockCard = container.querySelector("[data-nibgate-unlock-card]");
+    if (!unlockCard) return;
+
+    var connectBtn = unlockCard.querySelector("[data-nibgate-connect]");
+    var disconnectBtn = unlockCard.querySelector("[data-nibgate-disconnect]");
+    var unlockBtn = unlockCard.querySelector("[data-nibgate-unlock-btn]");
+    var statusEl = unlockCard.querySelector("[data-nibgate-status]");
+    var walletLabel = unlockCard.querySelector("[data-nibgate-wallet-label]");
+    var unlockedContent = container.querySelector("[data-nibgate-unlocked]");
+
+    function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
+
+    unlockBtn && unlockBtn.addEventListener("click", async function () {
+      if (!window.ethereum) { setStatus("No wallet detected. Install MetaMask."); return; }
+      try {
+        var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        var wallet = Array.isArray(accounts) && accounts[0];
+        if (!wallet) { setStatus("No wallet account selected."); return; }
+
+        if (walletLabel) walletLabel.textContent = wallet.slice(0, 6) + "..." + wallet.slice(-4);
+        if (connectBtn) connectBtn.textContent = "Connected";
+        setStatus("Requesting payment challenge...");
+
+        var challengeRes = await fetch(payEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ siteId: siteId, token: token, contentId: contentId, price: price, recipient: recipient || undefined, title: title, path: window.location.pathname })
+        });
+
+        if (challengeRes.status === 402) {
+          var challengeData = await challengeRes.json();
+          var paymentRequired = challengeRes.headers.get("payment-required") || "";
+          if (!paymentRequired && challengeData.accepts) {
+            paymentRequired = btoa(JSON.stringify(challengeData));
+          }
+          if (!paymentRequired) { setStatus("Failed to get payment challenge."); return; }
+
+          setStatus("Sign payment in your wallet...");
+          var typedData = JSON.parse(atob(paymentRequired));
+          var signature = await window.ethereum.request({
+            method: "eth_signTypedData_v4",
+            params: [wallet, JSON.stringify(typedData)]
+          });
+
+          setStatus("Verifying payment...");
+          var verifyRes = await fetch(payEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "payment-signature": signature, "payment-memo": "" },
+            body: JSON.stringify({ siteId: siteId, token: token, contentId: contentId, price: price, recipient: recipient || undefined, title: title, path: window.location.pathname })
+          });
+
+          if (verifyRes.ok) {
+            var verifyData = await verifyRes.json();
+            if (verifyData.success) {
+              if (unlockBtn) unlockBtn.textContent = "Unlocked";
+              if (unlockedContent) unlockedContent.removeAttribute("hidden");
+              setStatus("Content unlocked. Thank you!");
+              window.nibgateHub && window.nibgateHub.paymentCompleted({ id: contentId, title: title }, verifyData.payment);
+              return;
+            }
+          }
+          var errData = await verifyRes.json().catch(function () { return {}; });
+          setStatus(errData.error || "Payment verification failed.");
+        } else if (challengeRes.ok) {
+          setStatus("Already unlocked.");
+          if (unlockedContent) unlockedContent.removeAttribute("hidden");
+        } else {
+          var err = await challengeRes.json().catch(function () { return {}; });
+          setStatus(err.error || "Failed to process payment.");
+        }
+      } catch (err) {
+        setStatus(err.message || "Payment failed. Try again.");
+      }
+    });
+
+    if (connectBtn) {
+      connectBtn.addEventListener("click", async function () {
+        if (!window.ethereum) { setStatus("No wallet detected."); return; }
+        try {
+          var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+          var wallet = Array.isArray(accounts) && accounts[0];
+          if (wallet && walletLabel) walletLabel.textContent = wallet.slice(0, 6) + "..." + wallet.slice(-4);
+          if (wallet && connectBtn) connectBtn.textContent = "Connected";
+          setStatus(wallet ? "Wallet connected." : "No account selected.");
+        } catch (err) { setStatus(err.message || "Connection failed."); }
+      });
+    }
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       trackInitialPage();
       startMutationObserver();
+      initHostedMode();
     }, { once: true });
   } else {
     trackInitialPage();
     startMutationObserver();
+    initHostedMode();
   }
 })();

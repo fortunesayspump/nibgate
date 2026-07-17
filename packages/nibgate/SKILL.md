@@ -42,6 +42,25 @@ If the widget loads after app code, the SDK queues events and flushes them when 
 
 **Adblocker bypass:** The widget now sends events to `/api/hub/evt` instead of `/api/hub/track` to avoid adblocker filter lists that target the word "track". The old `/api/hub/track` endpoint is preserved for backward compatibility. If you self-host the backend, ensure both routes are registered.
 
+**Hosted mode (zero backend code):** If you don't want to run your own access route, mark premium content with a data attribute and the widget handles everything:
+
+```html
+<div data-nibgate-premium="0.01" data-nibgate-recipient="0xYourWallet">
+  <p>Teaser text shown to everyone...</p>
+  <div data-nibgate-unlock-card>
+    <span data-nibgate-wallet-label>No wallet</span>
+    <button data-nibgate-connect>Connect</button>
+    <button data-nibgate-unlock-btn>Unlock for 0.01 USDC</button>
+    <p data-nibgate-status></p>
+  </div>
+  <div data-nibgate-unlocked hidden>
+    Full premium content here...
+  </div>
+</div>
+```
+
+No SDK import, no server access route, no env vars. The default wallet is set once in the Nibgate dashboard — or override per-post with `data-nibgate-recipient`. Custom price per-post: change `data-nibgate-premium="0.05"`.
+
 ---
 
 ## 2. Resource Shape (Minimal)

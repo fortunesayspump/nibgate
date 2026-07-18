@@ -132,11 +132,8 @@ export function registerHubRoutes(app) {
       const website = await db.website.findUnique({ where: { id: siteId } });
       if (!website || website.verifyToken !== token) return res.status(403).json({ error: 'Invalid site credentials.' });
 
-      let settings = {};
-      try { settings = website.settings ? JSON.parse(website.settings) : {}; } catch {}
-
-      const resolvedRecipient = recipient || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
-      if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet configured for this site.' });
+      const resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
+      if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet configured for this site. Set NIBGATE_SELLER_ADDRESS or pass recipient in request.' });
 
       const { runCircleGatewayRequirement } = await import('@nibgate/sdk/server');
 
@@ -153,7 +150,7 @@ export function registerHubRoutes(app) {
       };
 
       const result = await runCircleGatewayRequirement(req, resource, {
-        network: settings.paymentNetwork || process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002'
+        network: process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002'
       });
 
       if (result.handled) {
@@ -166,38 +163,6 @@ export function registerHubRoutes(app) {
       }
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });
-    }
-  });
-
-  app.get('/api/hub/site/:siteId/settings', requireAuth, async (req, res) => {
-    try {
-      const website = await db.website.findUnique({ where: { id: req.params.siteId } });
-      if (!website || website.ownerId !== req.user.id) return res.status(404).json({ error: 'Site not found.' });
-      let settings = {};
-      try { settings = website.settings ? JSON.parse(website.settings) : {}; } catch {}
-      res.json({ success: true, settings });
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch settings' });
-    }
-  });
-
-  app.put('/api/hub/site/:siteId/settings', requireAuth, async (req, res) => {
-    try {
-      const website = await db.website.findUnique({ where: { id: req.params.siteId } });
-      if (!website || website.ownerId !== req.user.id) return res.status(404).json({ error: 'Site not found.' });
-
-      const current = {};
-      try { Object.assign(current, JSON.parse(website.settings || '{}')); } catch {}
-
-      const updated = { ...current, ...req.body };
-      await db.website.update({
-        where: { id: website.id },
-        data: { settings: JSON.stringify(updated) }
-      });
-
-      res.json({ success: true, settings: updated });
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to update settings' });
     }
   });
 

@@ -35,6 +35,27 @@ The widget sends events to `/api/hub/evt` instead of `/api/hub/track` to avoid a
 
 The widget is not the payment brain. Gating, pricing, receiver config, unlock state, and server-trusted events belong in the package integration.
 
+## Hosted mode (zero backend code)
+
+The widget can also handle payments for you — no SDK import or server access route needed:
+
+```html
+<div data-nibgate-premium="0.01" data-nibgate-recipient="0xYourWallet">
+  <p>Teaser visible to everyone...</p>
+  <div data-nibgate-unlock-card>
+    <span data-nibgate-wallet-label>No wallet</span>
+    <button data-nibgate-connect>Connect</button>
+    <button data-nibgate-unlock-btn>Unlock for 0.01 USDC</button>
+    <p data-nibgate-status></p>
+  </div>
+  <div data-nibgate-unlocked hidden>
+    Full premium content here...
+  </div>
+</div>
+```
+
+The widget detects `data-nibgate-premium`, calls `POST /api/hub/pay` on Nibgate's server, and runs the x402 payment flow. Money goes directly to the creator's wallet — Nibgate never touches the funds.
+
 ## Setup flow
 
 <Steps>

@@ -69,6 +69,40 @@ Intended event shape:
 
 The `siteId` proves the creator origin. The recipient wallet links the content to the creator account and payment receiver for the verified site.
 
+## Hosted payments
+
+The hosted pay endpoint runs the x402 payment flow on behalf of creators. No server access route needed.
+
+```http
+POST /api/hub/pay
+```
+
+Request:
+
+```json
+{
+  "siteId": "site_123",
+  "token": "verify_token",
+  "contentId": "post_123",
+  "price": "0.01",
+  "recipient": "0xCreatorWallet",
+  "title": "Premium Post"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `siteId` | Yes | Site UUID from dashboard |
+| `token` | Yes | Site verification token |
+| `contentId` | Yes | Unique content identifier |
+| `price` | No | Defaults to `0.01` |
+| `recipient` | No | Wallet to receive payment. Falls back to `NIBGATE_SELLER_ADDRESS` env var |
+| `title` | No | Content title for the payment challenge |
+
+Returns a `402 Payment Required` challenge on first call. The browser signs it with the visitor's wallet and retries with the signature. On success, returns `200` with an unlock proof.
+
+The widget handles this automatically when using `data-nibgate-premium` attributes — no manual API calls needed.
+
 ## Explore content
 
 Explore reads verified content metadata from the backend.

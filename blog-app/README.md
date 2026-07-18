@@ -82,13 +82,36 @@ After seeding: `author@example.com` / `password123`
 | PUT | `/api/blog/admin/posts/:id` | Yes | Update post |
 | DELETE | `/api/blog/admin/posts/:id` | Yes | Delete post |
 
-## Nibgate Integration (Optional)
+## Nibgate Integration
 
-Set these env vars in `backend/.env` to enable premium content gating:
+**Option A: Hosted (zero backend code)**
+
+Add the widget to your site layout and mark premium posts with a data attribute:
+
+```html
+<script async src="https://nibgate.xyz/widget.js"
+  data-nibgate-site="YOUR_SITE_ID"
+  data-nibgate-token="YOUR_TOKEN">
+</script>
+
+<article data-nibgate-premium="0.01" data-nibgate-recipient="0xYourWallet">
+  <div data-nibgate-unlock-card>
+    <span data-nibgate-wallet-label>No wallet</span>
+    <button data-nibgate-connect>Connect</button>
+    <button data-nibgate-unlock-btn>Unlock</button>
+  </div>
+  <div data-nibgate-unlocked hidden>Full content...</div>
+</article>
+```
+
+The widget calls `POST /api/hub/pay` on Nibgate's server — no backend changes needed.
+
+**Option B: Self-hosted (use the Nibgate SDK)**
+
+Set these env vars in `backend/.env` and run your own access route:
 
 ```
-NIBGATE_SITE_ID=my-blog
-NIBGATE_SITE_TOKEN=your-site-token
+NIBGATE_SECRET=your-unlock-secret
 NIBGATE_SELLER_ADDRESS=0xYourWalletAddress
 NIBGATE_PAYMENT_NETWORK=eip155:5042002
 ```

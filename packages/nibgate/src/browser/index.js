@@ -2,7 +2,7 @@ export { createGate } from './gate.js';
 export { checkResourceAccess, payWithPaymentSignature, payAndUnlockResource } from './access.js';
 export { createWalletCheckout } from './checkout.js';
 export { createNibgate, nibgate } from './client.js';
-export { createEvmGatewayUnlock, createCircleGatewayBrowserAdapter } from './evm-gateway.js';
+export { createEvmGatewayUnlock, createHostedUnlock, createCircleGatewayBrowserAdapter } from './evm-gateway.js';
 export { rateResource, createOnchainRating, mountRatingUI } from './rating-ui.js';
 export { trackResourcePage, setupResourcePage } from './track.js';
 export { createTransferCheckout, payWithTransfer } from './transfer.js';

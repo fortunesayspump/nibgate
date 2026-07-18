@@ -12,11 +12,17 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
 }
 
 const DEFAULT_CIRCLE_CDN = 'https://esm.sh/@circle-fin/x402-batching@3.2.0/client?bundle';
+const HOSTED_PAY_URL = 'https://api.nibgate.xyz/api/hub/pay';
+
+function resolveAccessPath(resource, options) {
+  if (options.hosted || options.accessPath === 'hosted') return HOSTED_PAY_URL;
+  return options.accessPath || resource.accessPath || '/api/nibgate/access';
+}
 
 export function createEvmGatewayUnlock(resource, options = {}) {
   const item = createGate(resource, options.gateOptions || {});
   const win = browserWindow();
-  const accessPath = options.accessPath || item.resource.accessPath || '/api/nibgate/access';
+  const accessPath = resolveAccessPath(item.resource, options);
   const source = options.source || 'nibgate-evm-gateway';
   const network = options.network || 'eip155:5042002';
   const statusTarget = typeof options.status === 'string' ? win?.document.querySelector(options.status) : options.status;
@@ -179,4 +185,13 @@ export function createEvmGatewayUnlock(resource, options = {}) {
   const controller = { resource: item.resource, connect, disconnect, unlock, clear, hydrate, mount, getWalletAddress: () => walletAddress };
   if (options.autoMount !== false) mount();
   return controller;
+}
+
+export function createHostedUnlock(resource, options = {}) {
+  return createEvmGatewayUnlock(resource, {
+    ...options,
+    hosted: true,
+    circleClientModuleUrl: options.circleClientModuleUrl || DEFAULT_CIRCLE_CDN,
+    noWalletMessage: options.noWalletMessage || 'Install MetaMask or another EVM wallet to unlock premium content.',
+  });
 }

@@ -112,6 +112,7 @@ export type NibgateClient = {
   createTransferCheckout(resource: NibgateResource | string, options: NibgateTransferCheckoutOptions): NibgateTransferCheckout;
   payWithTransfer(resource: NibgateResource | string, options: NibgateTransferCheckoutOptions & NibgateAccessCheckOptions): Promise<NibgateAccessCheckResult>;
   createEvmGatewayUnlock(resource: NibgateResource | string, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController;
+  createHostedUnlock(resource: NibgateResource | string, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController;
   rateContentOnchain(resource: NibgateResource | string, options: NibgateOnchainRatingOptions): Promise<NibgateOnchainRatingResult>;
   createOnchainRating(resource: NibgateResource | string, options?: NibgateOnchainRatingUiOptions): NibgateOnchainRatingController;
   mountRatingUI(resource: NibgateResource | string, options?: NibgateRatingUiOptions): NibgateRatingUiController | null;
@@ -227,6 +228,7 @@ export type NibgateCircleGatewayBrowserAdapter = {
 
 export type NibgateEvmGatewayUnlockOptions = {
   source?: string;
+  hosted?: boolean;
   accessPath?: string;
   network?: string;
   paymentProvider?: string;
@@ -414,6 +416,7 @@ export declare function payWithPaymentSignature(resource: NibgateResource | stri
 export declare function createWalletCheckout(resource: NibgateResource | string, options: NibgateWalletCheckoutOptions): NibgateWalletCheckoutController;
 export declare function createCircleGatewayBrowserAdapter(options: NibgateCircleGatewayBrowserAdapterOptions): Promise<NibgateCircleGatewayBrowserAdapter>;
 export declare function createEvmGatewayUnlock(resource: NibgateResource | string, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController;
+export declare function createHostedUnlock(resource: NibgateResource | string, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController;
 export declare function payAndUnlockResource(resource: NibgateResource | string, options?: NibgatePaymentOptions): Promise<NibgatePaymentResult>;
 export declare function setupResourcePage(resource: NibgateResource | string, options?: NibgatePageSetupOptions): NibgateGate;
 export declare function rateResource(resource: NibgateResource | string, rating?: NibgateRating | number, extra?: Record<string, unknown>): boolean;

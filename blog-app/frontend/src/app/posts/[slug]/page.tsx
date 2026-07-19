@@ -73,7 +73,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           <NibgateUnlock resource={{ id: post.slug, title: post.title, type: "article", price: post.price, path: `/posts/${post.slug}` }} />
         )}
 
-        <nav style={{ marginTop: "4em", maxWidth: "var(--wrap)", marginLeft: "auto", marginRight: "auto", borderTop: "1px solid var(--border)", paddingTop: "1em" }}>
+        <nav className="bt" style={{ marginTop: "4em", maxWidth: "var(--wrap)", marginLeft: "auto", marginRight: "auto", paddingTop: "1em" }}>
           <div className="flex" style={{ gap: "1em" }}>
             {prev ? (
               <Link href={`/posts/${prev.slug}`} className="plain" style={{ flex: 1 }}>

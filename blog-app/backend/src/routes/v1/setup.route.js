@@ -14,9 +14,12 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Invalid setup key.' });
     }
 
-    const { subdomain, name, email, password } = req.body;
-    if (!subdomain || !email || !password) {
-      return res.status(400).json({ error: 'subdomain, email, and password are required.' });
+    const { subdomain, name, email, username, password } = req.body;
+    if (!subdomain || !password) {
+      return res.status(400).json({ error: 'subdomain and password are required.' });
+    }
+    if (!email && !username) {
+      return res.status(400).json({ error: 'email or username is required.' });
     }
     if (!isValidSubdomain(subdomain)) {
       return res.status(400).json({ error: 'Invalid subdomain. Use 3-63 lowercase letters, numbers, and hyphens. Cannot start or end with hyphen.' });
@@ -39,7 +42,8 @@ router.post('/', async (req, res) => {
       data: {
         siteId: site.id,
         name: name || subdomain,
-        email: String(email).trim().toLowerCase(),
+        username: String(username || subdomain).trim().toLowerCase(),
+        email: email ? String(email).trim().toLowerCase() : `${subdomain}@nibgate.xyz`,
         password: hashedPassword,
         role: 'author',
       },

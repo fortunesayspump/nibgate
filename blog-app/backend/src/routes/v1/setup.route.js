@@ -4,6 +4,24 @@ const prisma = require('../../lib/prisma');
 const { status } = require('http-status');
 const { isValidSubdomain } = require('../../lib/validate');
 
+async function addVercelDomain(subdomain) {
+  const token = process.env.VERCEL_TOKEN;
+  const projectId = process.env.VERCEL_PROJECT_ID;
+  if (!token || !projectId) return { skipped: true, reason: 'VERCEL_TOKEN or VERCEL_PROJECT_ID not set' };
+
+  const domain = `${subdomain}.nibgate.xyz`;
+  const res = await fetch(`https://api.vercel.com/v10/projects/${projectId}/domains`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: domain }),
+  });
+  const data = await res.json();
+  if (!res.ok && data.error?.code !== 'domain_already_in_use') {
+    return { skipped: true, reason: data.error?.message || data.message || 'Vercel API error' };
+  }
+  return { success: true, domain };
+}
+
 const router = express.Router();
 
 const setupKey = process.env.SETUP_KEY || '';
@@ -49,10 +67,13 @@ router.post('/', async (req, res) => {
       },
     });
 
+    const vercelDomain = await addVercelDomain(subdomain);
+
     res.status(201).json({
       success: true,
       site: { id: site.id, subdomain: site.subdomain, name: site.name },
-      user: { id: user.id, email: user.email },
+      user: { id: user.id, email: user.email, username: user.username },
+      vercelDomain: vercelDomain.success ? { domain: vercelDomain.domain, status: 'added' } : { skipped: true, reason: vercelDomain.reason },
       widgetScript: `<script async src="https://nibgate.xyz/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken}"></script>`,
     });
   } catch (error) {

@@ -16,9 +16,7 @@ async function getWidgetScript() {
     if (!res.ok) return "";
     const data = await res.json();
     return data.widgetScript || "";
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,9 +29,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
         }} />
       </head>
-      <body className={`bg-[var(--bg)] text-[var(--fg)]`}>
+      <body className="bg-[var(--bg)] text-[var(--fg)]">
         {widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}
-        <div className="mx-auto w-full px-6 py-8" style={{ maxWidth: "680px" }}>
+        <div className="mx-auto" style={{ maxWidth: "666px", padding: "0 24px" }}>
           {children}
         </div>
       </body>

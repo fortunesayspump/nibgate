@@ -9,9 +9,7 @@ async function getPosts() {
     if (!res.ok) return [];
     const data = await res.json();
     return (data.posts || []) as BlogPost[];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 function formatDate(value: string) {
@@ -19,17 +17,11 @@ function formatDate(value: string) {
 }
 
 function readTime(body: string): string {
-  const words = body.trim().split(/\s+/).length;
-  return `${Math.max(1, Math.round(words / 200))} min read`;
+  return `${Math.max(1, Math.round(body.trim().split(/\s+/).length / 200))} min read`;
 }
 
-function formatYear(value: string) {
-  return new Date(value).getFullYear().toString();
-}
-
-function postNumber(index: number): string {
-  return String(index + 1).padStart(2, "0");
-}
+function formatYear(value: string) { return new Date(value).getFullYear().toString(); }
+function postNum(index: number) { return String(index + 1).padStart(2, "0"); }
 
 export default async function HomePage() {
   const posts = await getPosts();
@@ -37,37 +29,39 @@ export default async function HomePage() {
   const rest = posts.slice(1);
 
   return (
-    <div className="wrap" style={{ maxWidth: "680px", margin: "0 auto" }}>
+    <>
       <Header />
       <main>
-        {latest && (
-          <div className="mb-10">
-            <p className="text-xs text-[var(--muted)] font-medium mb-3">Latest</p>
-            <Link href={`/posts/${latest.slug}`} className="no-underline text-[var(--fg)] group">
-              <h2 className="text-xl font-medium leading-snug mb-2 group-hover:text-[var(--accent)] transition-colors">{latest.title}</h2>
-              <p className="text-xs text-[var(--muted)] mb-2">
-                <time>{formatDate(latest.publishedAt)}</time> · <span>{readTime(latest.bodyMarkdown)}</span>
-              </p>
-              <p className="text-sm text-[var(--muted)] leading-relaxed">
-                {latest.excerpt}
-              </p>
-            </Link>
-          </div>
-        )}
+        {latest && (<>
+          <p className="font-ui small muted" style={{ marginBottom: "1em" }}>Latest</p>
+          <Link href={`/posts/${latest.slug}`} className="plain no-underline text-[var(--fg)] group" style={{ textDecoration: "none" }}>
+            <h2 className="font-medium leading-snug mb-2" style={{ fontSize: "calc(1em + 0.2vw)", letterSpacing: "-0.015em", lineHeight: 1.3, marginTop: 0, color: "var(--fg)" }}>
+              {latest.title}
+            </h2>
+            <p className="font-ui small muted pb" style={{ marginBottom: "1em", color: "var(--muted)" }}>
+              <time>{formatDate(latest.publishedAt)}</time> · <span className="reading-time">{readTime(latest.bodyMarkdown)}</span>
+            </p>
+            <p className="small muted" style={{ color: "var(--muted)" }}>
+              {latest.excerpt}
+            </p>
+          </Link>
+        </>)}
 
-        <hr className="border-0 h-px bg-[var(--border)] my-8" />
+        <hr className="h-px" style={{ border: 0, height: 1, margin: "4em 0", background: "var(--border)" }} />
 
-        <p className="text-xs text-[var(--muted)] font-medium mb-5">Writing</p>
+        <p className="font-ui small" style={{ color: "var(--muted)", marginBottom: "1.25em" }}>
+          <Link href="/writing" className="muted no-underline" style={{ color: "var(--muted)" }}>Writing</Link>
+        </p>
 
-        <ul className="list-none p-0 m-0">
+        <ul className="list-none p-0 m-0 tabular-nums">
           {rest.map((post, i) => (
-            <li key={post.id} className="mb-3">
-              <Link href={`/posts/${post.slug}`} className="no-underline text-[var(--fg)] block py-1 group">
-                <div className="flex items-baseline gap-3 text-sm">
-                  <span className="text-[var(--faint)] tabular-nums shrink-0 font-medium" style={{ letterSpacing: '0' }}>
-                    {formatYear(post.publishedAt)} · {postNumber(i)}
+            <li key={post.id} style={{ padding: "0.15rem 0" }}>
+              <Link href={`/posts/${post.slug}`} className="plain no-underline text-[var(--fg)] group" style={{ textDecoration: "none" }}>
+                <div className="flex items-baseline" style={{ gap: "1em" }}>
+                  <span className="small muted" style={{ color: "var(--muted)", flexShrink: 0, whiteSpace: "nowrap" }}>
+                    {formatYear(post.publishedAt)} · {postNum(i)}
                   </span>
-                  <span className="group-hover:text-[var(--accent)] transition-colors">
+                  <span className="group-hover:text-[var(--accent)] transition-colors" style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}>
                     {post.title}
                   </span>
                 </div>
@@ -77,6 +71,6 @@ export default async function HomePage() {
         </ul>
       </main>
       <Footer />
-    </div>
+    </>
   );
 }

@@ -7,7 +7,7 @@ const { status } = require('http-status');
 const config = require('./config/config');
 const morgan = require('./config/morgan');
 const { jwtStrategy } = require('./config/passport');
-const { generalLimiter } = require('./middlewares/rateLimiter');
+const { generalLimiter, tenantLimiter } = require('./middlewares/rateLimiter');
 const { resolveTenant } = require('./middlewares/tenant');
 const { tenantLogger } = require('./middlewares/tenant-logger');
 const routes = require('./routes/v1');
@@ -31,6 +31,7 @@ app.options('*', cors());
 app.use(generalLimiter);
 
 app.use(resolveTenant);
+app.use(tenantLimiter);
 app.use(tenantLogger);
 
 app.use(passport.initialize());

@@ -1,5 +1,6 @@
 const { status } = require('http-status');
 const { resolveSite } = require('../lib/tenant-cache');
+const { isValidSubdomain } = require('../lib/validate');
 
 const PUBLIC_PATHS = ['/api/setup', '/api/health'];
 
@@ -14,7 +15,11 @@ function subdomainFromHost(host = '') {
 async function resolveTenant(req, res, next) {
   if (PUBLIC_PATHS.some((p) => req.path.startsWith(p))) return next();
 
-  const subdomain = req.headers['x-site-subdomain'] || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
+  let subdomain = req.headers['x-site-subdomain'] || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
+  subdomain = subdomain.trim().toLowerCase();
+  if (!isValidSubdomain(subdomain)) {
+    return res.status(400).json({ error: 'Invalid subdomain.', subdomain });
+  }
 
   try {
     const site = await resolveSite(subdomain);

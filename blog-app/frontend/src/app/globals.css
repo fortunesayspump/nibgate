@@ -2,34 +2,47 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --font-content: "Kumbh Sans", "ABC Favorit", system-ui, -apple-system, sans-serif;
+  --font-content: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-ui: var(--font-content);
   --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", "IBM Plex Mono", monospace;
 
   --bg: #f4f4f0;
   --fg: #0a0a0a;
   --muted: #6b6862;
   --faint: #b7b5ac;
-  --border: #11111114;
+  --border: #cecdc3;
   --surface: #ffffff;
   --card-hover: #edede7;
-  --accent: #7c9a6d;
+  --accent: #24837b;
+
+  --font-small: 0.875em;
+  --font-smaller: 0.8em;
+  --wrap: 37em;
+  --wrap-wide: 54em;
+  --line-height: 1.5;
 }
 
 .dark {
   --bg: #10110e;
-  --fg: #e4e4e0;
-  --muted: #888580;
+  --fg: #cecdc3;
+  --muted: #878580;
   --faint: #575653;
-  --border: #ffffff12;
+  --border: #403e3c;
   --surface: #1a1a16;
   --card-hover: #1c1b1a;
-  --accent: #7c9a6d;
+  --accent: #3aa99f;
 }
 
-::selection {
-  background: var(--accent);
-  color: white;
+html {
+  font-size: 62.5%;
+  box-sizing: border-box;
 }
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+::selection { background: var(--accent); color: white; }
 
 body {
   background: var(--bg);
@@ -37,17 +50,21 @@ body {
   font-family: var(--font-content);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  margin: 0;
+  margin: 2vw auto 0 auto;
+  padding: 2rem 0 24rem;
   font-size: 1.8rem;
-  line-height: 1.5;
+  line-height: var(--line-height);
 }
 
 a {
   color: var(--fg);
-  text-underline-offset: 3px;
   transition: color 0.15s;
+  text-underline-offset: 3px;
 }
 
-a:hover {
-  color: var(--accent);
-}
+a:hover { color: var(--accent); }
+
+.font-ui { font-family: var(--font-ui); }
+.small { font-size: var(--font-small); line-height: 1.4; }
+.smaller { font-size: var(--font-smaller); line-height: 1.4; }
+.tabular-nums { font-variant-numeric: tabular-nums; }

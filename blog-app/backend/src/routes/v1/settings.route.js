@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const prisma = require('../../lib/prisma');
 const { authenticate } = require('../../middlewares/auth');
 const { status } = require('http-status');
@@ -56,6 +57,31 @@ router.put('/', authenticate, async (req, res, next) => {
     await prisma.site.update({ where: { id: site.id }, data: updateData });
 
     res.json({ success: true, settings: { ...current, ...newSettings, name: updateData.name || site.name, description: updateData.description || site.description } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/password', authenticate, async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'currentPassword and newPassword are required.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) return res.status(401).json({ error: 'Current password is incorrect.' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: user.id }, data: { password: hashed } });
+
+    res.json({ success: true, message: 'Password updated.' });
   } catch (error) {
     next(error);
   }

@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className={`bg-[var(--bg)] text-[var(--fg)]`}>
         {widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}
-        <div className="mx-auto w-full px-6 py-8" style={{ maxWidth: "37em" }}>
+        <div className="mx-auto w-full px-6 py-8" style={{ maxWidth: "680px" }}>
           {children}
         </div>
       </body>

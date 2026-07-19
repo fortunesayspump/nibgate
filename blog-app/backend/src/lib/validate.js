@@ -7,7 +7,7 @@ const RESERVED_SUBDOMAINS = new Set([
   'auth', 'login', 'signin', 'register', 'signup',
   'dashboard', 'hub', 'explore', 'discover',
   'cdn', 'static', 'assets', 'media', 'files',
-  'demo', 'root', 'home', 'index', 'main',
+  'root', 'home', 'index', 'main',
   'console', 'manage', 'management', 'operator',
   'pay', 'payment', 'payments', 'checkout',
   'webhook', 'webhooks', 'hook', 'hooks',

@@ -63,6 +63,8 @@ async function main() {
       subdomain: 'demo',
       name: 'Demo Blog',
       description: 'A demo blog powered by Nibgate.',
+      verifyToken: 'demo-token-123',
+      settings: JSON.stringify({ recipientWallet: '', defaultPrice: '0.01', defaultCurrency: 'USDC', paymentNetwork: 'eip155:5042002' }),
     },
   });
 

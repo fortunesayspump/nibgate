@@ -25,10 +25,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const widget = await getWidgetScript();
 
   return (
-    <html lang="en">
-      <body className="bg-[var(--bg)] text-[var(--fg)] antialiased">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{
+          __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
+        }} />
+      </head>
+      <body className={`bg-[var(--bg)] text-[var(--fg)]`}>
         {widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}
-        <div className="mx-auto flex min-h-screen w-full max-w-[648px] flex-col px-6 pt-14 md:pt-16">
+        <div className="mx-auto w-full px-6 py-8" style={{ maxWidth: "37em" }}>
           {children}
         </div>
       </body>

@@ -18,7 +18,11 @@ function subdomainFromHost(host = '') {
   return parts[0] === 'www' ? parts[1] : parts[0];
 }
 
+const PUBLIC_PATHS = ['/api/setup', '/api/health'];
+
 async function resolveTenant(req, res, next) {
+  if (PUBLIC_PATHS.some((p) => req.path.startsWith(p))) return next();
+
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
   const subdomain = subdomainFromHost(host);
 

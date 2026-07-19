@@ -32,6 +32,11 @@ export default function AdminSettingsPage() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState("");
   const [pwError, setPwError] = useState("");
+  const [linkCode, setLinkCode] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [hubError, setHubError] = useState("");
+  const [hubSuccess, setHubSuccess] = useState("");
+  const [hubStatus, setHubStatus] = useState<{ hubSiteId?: string }>({});
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -47,6 +52,9 @@ export default function AdminSettingsPage() {
           defaultCurrency: data.settings.defaultCurrency || "USDC",
           paymentNetwork: data.settings.paymentNetwork || "eip155:5042002",
         });
+        if (data.settings && (data.settings as any).hubSiteId) {
+          setHubStatus({ hubSiteId: (data.settings as any).hubSiteId });
+        }
       })
       .catch(() => router.push("/admin/login"))
       .finally(() => setLoading(false));
@@ -68,6 +76,24 @@ export default function AdminSettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleLinkHub() {
+    setHubError("");
+    setHubSuccess("");
+    setLinking(true);
+    try {
+      const data = await apiAuthFetch<{ success: boolean; siteId: string }>("/settings/link-hub", {
+        method: "POST", body: JSON.stringify({ linkToken: linkCode }),
+      });
+      setHubStatus({ hubSiteId: data.siteId });
+      setHubSuccess("Blog linked to hub successfully.");
+      setLinkCode("");
+    } catch (err) {
+      setHubError(err instanceof Error ? err.message : "Failed to link hub");
+    } finally {
+      setLinking(false);
     }
   }
 
@@ -150,6 +176,36 @@ export default function AdminSettingsPage() {
               {saving ? "Saving..." : "Save settings"}
             </button>
           </form>
+
+          <div className="space-y-4 border-t border-[var(--border)] pt-6">
+            <h2 className="text-sm font-semibold">Link to Nibgate Hub</h2>
+            <p className="text-xs text-[var(--muted)]">Connect your blog to your hub dashboard to view analytics and manage your site.</p>
+
+            {hubStatus.hubSiteId ? (
+              <div className="border border-green-200 bg-green-50 rounded-md px-3 py-2 text-xs text-green-700">
+                ✅ Linked to hub. Site ID: <code className="font-mono">{hubStatus.hubSiteId}</code>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-[var(--muted)]">
+                  1. Sign in at <a href="https://nibgate.xyz" target="_blank" className="underline">nibgate.xyz</a> with your wallet<br />
+                  2. Go to Dashboard → Sites → Generate linking code<br />
+                  3. Paste the code below
+                </p>
+                <div className="flex gap-2">
+                  <input type="text" value={linkCode} onChange={(e) => setLinkCode(e.target.value)}
+                    className="flex-1 border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md font-mono text-xs"
+                    placeholder="Paste your linking code..." />
+                  <button onClick={handleLinkHub} disabled={linking || !linkCode}
+                    className="bg-[var(--accent-soft)] border border-[var(--accent)] text-sm font-semibold px-4 py-2.5 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all disabled:opacity-40 cursor-pointer whitespace-nowrap">
+                    {linking ? "Linking..." : "Link"}
+                  </button>
+                </div>
+                {hubError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{hubError}</div>}
+                {hubSuccess && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">✅ {hubSuccess}</div>}
+              </>
+            )}
+          </div>
 
           <form onSubmit={handlePasswordChange} className="space-y-4 border-t border-[var(--border)] pt-6">
             <h2 className="text-sm font-semibold">Change password</h2>

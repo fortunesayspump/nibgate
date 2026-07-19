@@ -675,4 +675,69 @@ export function registerHubRoutes(app) {
       res.status(500).json({ error: 'Failed to fetch explore content' });
     }
   });
+
+  // ── Blog Linking ──────────────────────────────────────────────────────────
+
+  app.post('/api/hub/blog/link/generate', requireAuth, async (req, res) => {
+    try {
+      const crypto = await import('node:crypto');
+      const code = crypto.randomBytes(16).toString('hex');
+      const expiresAt = Date.now() + 15 * 60 * 1000;
+      const payload = JSON.stringify({ userId: req.user.id, code, expiresAt });
+      const secret = process.env.JWT_SECRET || 'nibgate-link-secret';
+      const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+      const linkToken = `${code}.${Buffer.from(payload).toString('base64url')}.${signature}`;
+
+      res.json({ success: true, linkToken, expiresIn: 900, message: 'Paste this code in your blog admin settings to link your blog to your Nibgate hub account.' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to generate linking code', details: error.message });
+    }
+  });
+
+  app.post('/api/hub/blog/link/verify', async (req, res) => {
+    try {
+      const { linkToken, domain, name } = req.body || {};
+      if (!linkToken || !domain) return res.status(400).json({ error: 'linkToken and domain are required.' });
+
+      const crypto = await import('node:crypto');
+      const parts = linkToken.split('.');
+      if (parts.length !== 3) return res.status(400).json({ error: 'Invalid link token format.' });
+
+      const [, encodedPayload, signature] = parts;
+      const secret = process.env.JWT_SECRET || 'nibgate-link-secret';
+      const expectedSig = crypto.createHmac('sha256', secret).update(`${parts[0]}.${encodedPayload}`).digest('hex');
+      if (signature !== expectedSig) return res.status(403).json({ error: 'Invalid link token.' });
+
+      let payload;
+      try { payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString()); } catch { return res.status(400).json({ error: 'Invalid link token payload.' }); }
+
+      if (Date.now() > payload.expiresAt) return res.status(410).json({ error: 'Link token has expired. Generate a new one from your hub dashboard.' });
+
+      const user = await db.user.findUnique({ where: { id: payload.userId } });
+      if (!user) return res.status(404).json({ error: 'User not found.' });
+
+      const clean = cleanDomain(domain);
+      const existing = await db.website.findFirst({ where: { domain: clean, deletedAt: null } });
+
+      if (existing && existing.ownerId !== user.id) {
+        return res.status(409).json({ error: 'Domain is already registered by another user.' });
+      }
+
+      const website = existing || await db.website.create({
+        data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
+      });
+
+      await syncWebsiteManifest(website).catch(() => {});
+
+      res.json({
+        success: true,
+        siteId: website.id,
+        verifyToken: website.verifyToken,
+        domain: clean,
+        site: serializeWebsite(website),
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to verify link token', details: error.message });
+    }
+  });
 }

@@ -87,4 +87,34 @@ router.put('/password', authenticate, async (req, res, next) => {
   }
 });
 
+router.post('/link-hub', authenticate, async (req, res, next) => {
+  try {
+    const { linkToken } = req.body;
+    if (!linkToken) return res.status(400).json({ error: 'linkToken is required.' });
+
+    const hubApi = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
+    const domain = `${req.site.subdomain}.nibgate.xyz`;
+
+    const hubRes = await fetch(`${hubApi}/api/hub/blog/link/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linkToken, domain, name: req.site.name }),
+    });
+
+    const hubData = await hubRes.json();
+    if (!hubRes.ok) return res.status(hubRes.status).json({ error: hubData.error || 'Hub verification failed.' });
+
+    let settings = {};
+    try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
+    settings.hubSiteId = hubData.siteId;
+    settings.hubToken = hubData.verifyToken;
+
+    await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
+
+    res.json({ success: true, siteId: hubData.siteId, domain: hubData.domain });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

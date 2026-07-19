@@ -13,11 +13,6 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Invalid setup key.' });
     }
 
-    const existingSites = await prisma.site.count();
-    if (existingSites > 0) {
-      return res.status(400).json({ error: 'Sites already exist. Setup can only run once.' });
-    }
-
     const { subdomain, name, email, password } = req.body;
     if (!subdomain || !email || !password) {
       return res.status(400).json({ error: 'subdomain, email, and password are required.' });

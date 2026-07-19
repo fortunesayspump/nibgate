@@ -6,7 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon src/index.js",
-    "start": "npx prisma generate && npx prisma db push --skip-generate --accept-data-loss && node prisma/seed.js && cross-env NODE_ENV=production node src/index.js",
+    "start": "npx prisma generate && npx prisma db push --skip-generate --accept-data-loss && cross-env NODE_ENV=production node src/index.js",
     "seed": "NODE_ENV=development node prisma/seed.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

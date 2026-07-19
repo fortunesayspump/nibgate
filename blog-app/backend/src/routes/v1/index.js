@@ -3,6 +3,7 @@ const authRoute = require('./auth.route');
 const blogRoute = require('./blog.route');
 const nibgateRoute = require('./nibgate.route');
 const settingsRoute = require('./settings.route');
+const setupRoute = require('./setup.route');
 const config = require('../../config/config');
 
 const router = express.Router();
@@ -12,6 +13,7 @@ const defaultRoutes = [
   { path: '/blog', route: blogRoute },
   { path: '/nibgate', route: nibgateRoute },
   { path: '/settings', route: settingsRoute },
+  { path: '/setup', route: setupRoute },
 ];
 
 defaultRoutes.forEach((route) => {

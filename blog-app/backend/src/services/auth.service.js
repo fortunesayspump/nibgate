@@ -19,8 +19,8 @@ const register = async ({ name, email, password, siteId }) => {
   return { user: { id: user.id, name: user.name, email: user.email, role: user.role, siteId: user.siteId }, token };
 };
 
-const login = async ({ email, password, siteId }) => {
-  const user = await prisma.user.findFirst({ where: { email, siteId } });
+const login = async ({ email, password }) => {
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw new ApiError(status.UNAUTHORIZED, 'Invalid email or password');
 
   const isMatch = await bcrypt.compare(password, user.password);

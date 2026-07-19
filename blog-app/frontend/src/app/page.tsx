@@ -40,7 +40,7 @@ export default async function HomePage() {
             </Link>
           </>}
 
-          <hr style={{ border: 0, height: 1, margin: "4em 0", background: "var(--border)" }} />
+          <hr />
 
           <p className="small muted" style={{ marginBottom: "1.25em" }}>
             <Link href="/" className="muted plain">Writing</Link>

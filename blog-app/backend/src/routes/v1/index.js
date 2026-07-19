@@ -2,6 +2,7 @@ const express = require('express');
 const authRoute = require('./auth.route');
 const blogRoute = require('./blog.route');
 const nibgateRoute = require('./nibgate.route');
+const settingsRoute = require('./settings.route');
 const config = require('../../config/config');
 
 const router = express.Router();
@@ -10,6 +11,7 @@ const defaultRoutes = [
   { path: '/auth', route: authRoute },
   { path: '/blog', route: blogRoute },
   { path: '/nibgate', route: nibgateRoute },
+  { path: '/settings', route: settingsRoute },
 ];
 
 defaultRoutes.forEach((route) => {
@@ -17,7 +19,13 @@ defaultRoutes.forEach((route) => {
 });
 
 router.get('/site', (req, res) => {
-  res.json({ success: true, site: { id: req.siteId, name: req.site.name, subdomain: req.site.subdomain } });
+  res.json({
+    success: true,
+    site: { id: req.siteId, name: req.site.name, subdomain: req.site.subdomain, verifyToken: req.site.verifyToken || '' },
+    widgetScript: req.site.verifyToken
+      ? `<script async src="https://nibgate.xyz/widget.js" data-nibgate-site="${req.siteId}" data-nibgate-token="${req.site.verifyToken}"></script>`
+      : '',
+  });
 });
 
 router.get('/health', (req, res) => {

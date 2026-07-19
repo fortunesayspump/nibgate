@@ -54,6 +54,9 @@ export default function AdminPostsPage() {
             <p className="text-xs text-[var(--muted)] mt-0.5">{posts.length} post{posts.length !== 1 ? "s" : ""}</p>
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/admin/settings" className="border border-[var(--border)] px-3 py-2 rounded-md text-xs text-[var(--muted)] hover:bg-[var(--surface)] transition-all no-underline font-medium">
+              Settings
+            </Link>
             <Link href="/admin/posts/new" className="bg-[var(--accent-soft)] border border-[var(--accent)] text-xs font-semibold px-3 py-2 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all no-underline text-[var(--fg)]">
               New Post
             </Link>

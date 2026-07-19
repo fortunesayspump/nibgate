@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const prisma = require('../../lib/prisma');
 const { status } = require('http-status');
+const { isValidSubdomain } = require('../../lib/validate');
 
 const router = express.Router();
 
@@ -16,6 +17,9 @@ router.post('/', async (req, res) => {
     const { subdomain, name, email, password } = req.body;
     if (!subdomain || !email || !password) {
       return res.status(400).json({ error: 'subdomain, email, and password are required.' });
+    }
+    if (!isValidSubdomain(subdomain)) {
+      return res.status(400).json({ error: 'Invalid subdomain. Use 3-63 lowercase letters, numbers, and hyphens. Cannot start or end with hyphen.' });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });

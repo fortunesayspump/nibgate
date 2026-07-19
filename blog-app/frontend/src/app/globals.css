@@ -2,25 +2,53 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --bg: #f4f4f0;
-  --fg: #0a0a0a;
-  --muted: #6b6862;
-  --accent: #7c9a6d;
-  --accent-soft: #e7efe4;
-  --border: #11111114;
-  --surface: #ffffff;
-  --card-hover: #edede7;
+  --font-content: -apple-system, BlinkMacSystemFont, "Inter", "IBM Plex Sans", Segoe UI, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", "IBM Plex Mono", "Roboto Mono", monospace;
+
+  --bg: #FFFCF0;
+  --fg: #100F0F;
+  --muted: #6F6E69;
+  --faint: #B7B5AC;
+  --border: #CECDC3;
+  --surface: #FFFCF0;
+  --card-hover: #F2F0E5;
+  --accent: #24837B;
+  --selection: rgba(187, 220, 206, 0.3);
+}
+
+.dark {
+  --bg: #100F0F;
+  --fg: #CECDC3;
+  --muted: #878580;
+  --faint: #575653;
+  --border: #403E3C;
+  --surface: #100F0F;
+  --card-hover: #1C1B1A;
+  --accent: #3AA99F;
+  --selection: rgba(30, 95, 91, 0.3);
+}
+
+::selection {
+  background: var(--selection);
 }
 
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: "Kumbh Sans", "ABC Favorit", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-content);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  margin: 0;
+  font-size: 1.8rem;
+  line-height: 1.5;
 }
 
-::selection {
-  background: var(--accent);
-  color: white;
+a {
+  color: var(--fg);
+  text-underline-offset: 3px;
+  transition: color 0.15s;
+}
+
+a:hover {
+  color: var(--accent);
 }

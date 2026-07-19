@@ -21,17 +21,28 @@ export default async function HomePage() {
     <>
       <Header />
       <main>
-        <section className="mb-12">
-          <h1 className="text-2xl font-semibold tracking-tight leading-tight">Nibgate Blog</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Product updates, creator guides, and thinking behind the reputation layer.
-          </p>
-        </section>
-
         {posts.length === 0 ? (
-          <p className="text-sm text-[var(--muted)] py-10">No posts yet. Check back soon.</p>
+          <p className="text-sm text-[var(--muted)] py-10">No posts yet.</p>
         ) : (
-          <BlogList posts={posts} />
+          <section>
+            {posts[0] && (
+              <div className="mb-10">
+                <p className="text-xs text-[var(--muted)] font-medium mb-3">Latest</p>
+                <a href={`/posts/${posts[0].slug}`} className="no-underline text-[var(--fg)] group">
+                  <h2 className="text-xl font-medium leading-snug mb-2 group-hover:text-[var(--accent)] transition-colors">{posts[0].title}</h2>
+                  <p className="text-sm text-[var(--muted)] leading-relaxed">{posts[0].excerpt}</p>
+                  <p className="text-xs text-[var(--faint)] mt-2 font-ui">
+                    {new Date(posts[0].publishedAt).toLocaleDateString("en", { month: "long", day: "numeric", year: "numeric" })} · read
+                  </p>
+                </a>
+              </div>
+            )}
+
+            <hr className="border-0 h-px bg-[var(--border)] my-8" />
+
+            <p className="text-xs text-[var(--muted)] font-medium mb-5">Writing</p>
+            <BlogList posts={posts.slice(1)} featuredIndex={1} />
+          </section>
         )}
       </main>
       <Footer />

@@ -68,6 +68,42 @@ Frontend runs on `http://localhost:3001`.
 
 After seeding: `author@example.com` / `password123`
 
+## Deployment
+
+### Backend (Railway)
+
+1. Create a Railway project from `blog-app/backend/`
+2. Add a PostgreSQL database (Railway auto-injects `DATABASE_URL`)
+3. Set env vars: `JWT_SECRET`, `NODE_ENV=production`, `PORT=4000`
+4. Railway runs `prisma migrate deploy` on start — migrations are in `prisma/migrations/`
+
+### Frontend (Vercel)
+
+1. Create a Vercel project from `blog-app/frontend/`
+2. Set `NEXT_PUBLIC_API_URL=https://your-railway-url.up.railway.app/api`
+3. Add domain (e.g., `*.nibgate.xyz`) in Vercel project → Settings → Domains
+4. DNS: `*.nibgate.xyz` CNAME → `cname.vercel-dns.com`
+
+### Creating a new site
+
+```bash
+curl -X POST https://your-backend.com/api/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subdomain": "creator-name",
+    "name": "Their Blog",
+    "username": "creator-name",
+    "email": "creator@email.com",
+    "password": "theirpassword"
+  }'
+```
+
+Then add `creator-name.nibgate.xyz` in Vercel domains.
+
+## Monitoring
+
+Set `SENTRY_DSN` env var on Railway to enable error tracking. All errors are logged with tenant context `[subdomain]`.
+
 ## API Endpoints
 
 | Method | Path | Auth | Description |

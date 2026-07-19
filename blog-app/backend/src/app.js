@@ -2,6 +2,11 @@ const express = require('express');
 const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
+
+if (process.env.SENTRY_DSN) {
+  const Sentry = require('@sentry/node');
+  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'production' });
+}
 const passport = require('passport');
 const { status } = require('http-status');
 const config = require('./config/config');
@@ -56,6 +61,10 @@ app.use((req, res, next) => {
   next(new ApiError(status.NOT_FOUND, 'Not found'));
 });
 
+if (process.env.SENTRY_DSN) {
+  const Sentry = require('@sentry/node');
+  app.use(Sentry.Handlers.errorHandler());
+}
 app.use(errorConverter);
 app.use(errorHandler);
 

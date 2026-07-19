@@ -132,6 +132,10 @@ export default function SitesPage() {
   const [removeSiteId, setRemoveSiteId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCodeDisplay, setLinkCodeDisplay] = useState("");
+  const [linkError, setLinkError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const visibleSites = sites;
   const selectedSite = visibleSites.find((site) => site.id === selectedSiteId) || null;
@@ -237,6 +241,22 @@ export default function SitesPage() {
       setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setVerifyingId("");
+    }
+  };
+
+  const handleGenerateLinkCode = async () => {
+    setGeneratingLink(true);
+    setLinkError("");
+    setLinkCodeDisplay("");
+    try {
+      const res = await fetch(`${apiBaseUrl().replace(/\/+$/, "")}/api/hub/blog/link/generate`, { credentials: "include" });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Failed to generate code");
+      setLinkCodeDisplay(data.linkToken);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Failed to generate code");
+    } finally {
+      setGeneratingLink(false);
     }
   };
 
@@ -444,6 +464,31 @@ export default function SitesPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* ── Blog linking ───────────────────────────────────────────── */}
+      <section className="space-y-5" aria-labelledby="blog-linking-heading">
+        <div className="dashboard-section-header">
+          <h2 id="blog-linking-heading" className="text-4xl font-medium">Link a blog</h2>
+          <p className="mt-3 text-lg leading-8 opacity-70">Generate a code to link your Nibgate Blog to your hub dashboard. Paste the code in your blog admin settings.</p>
+        </div>
+        <div className="rounded-3xl border p-5" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-page-bg)" }}>
+          {linkCodeDisplay ? (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Your linking code (expires in 15 minutes):</p>
+              <pre className="overflow-auto rounded-2xl bg-black p-4 text-xs leading-5 text-white break-all"><code>{linkCodeDisplay}</code></pre>
+              <button onClick={() => { navigator.clipboard.writeText(linkCodeDisplay); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="rounded-full border px-4 py-2 text-sm font-medium transition hover:-translate-y-0.5" style={{ borderColor: "var(--nib-border-soft)" }}>
+                {copied ? "Copied!" : "Copy code"}
+              </button>
+              <p className="text-xs opacity-60">Go to your blog admin → Settings → Link to Nibgate Hub → paste this code.</p>
+            </div>
+          ) : (
+            <button onClick={handleGenerateLinkCode} disabled={generatingLink} className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5 disabled:opacity-60">
+              {generatingLink ? "Generating..." : "Generate linking code"}
+            </button>
+          )}
+          {linkError && <p className="mt-3 text-sm text-red-600">{linkError}</p>}
+        </div>
       </section>
 
       {successSiteId ? (

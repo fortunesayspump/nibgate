@@ -25,6 +25,7 @@ model User {
   siteId        String
   site          Site       @relation(fields: [siteId], references: [id], onDelete: Cascade)
   name          String
+  username      String     @unique
   email         String     @unique
   password      String
   role          String     @default("author")

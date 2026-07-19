@@ -178,31 +178,37 @@ export default function AdminSettingsPage() {
           </form>
 
           <div className="space-y-4 border-t border-[var(--border)] pt-6">
-            <h2 className="text-sm font-semibold">Link to Nibgate Hub</h2>
-            <p className="text-xs text-[var(--muted)]">Connect your blog to your hub dashboard to view analytics and manage your site.</p>
-
+            <h2 className="text-sm font-semibold">Connect to Nibgate Hub</h2>
             {hubStatus.hubSiteId ? (
               <div className="border border-green-200 bg-green-50 rounded-md px-3 py-2 text-xs text-green-700">
-                ✅ Linked to hub. Site ID: <code className="font-mono">{hubStatus.hubSiteId}</code>
+                ✅ Connected to Nibgate Hub
               </div>
             ) : (
               <>
-                <p className="text-xs text-[var(--muted)]">
-                  1. Sign in at <a href="https://nibgate.xyz" target="_blank" className="underline">nibgate.xyz</a> with your wallet<br />
-                  2. Go to Dashboard → Sites → Generate linking code<br />
-                  3. Paste the code below
+                <p className="text-xs text-[var(--muted)] leading-6">
+                  Connect this blog to your Nibgate Hub account so it appears in your dashboard alongside your other sites.
+                  Analytics, earnings, and explore presence all flow through the hub.
                 </p>
+                <div className="bg-[var(--card-hover)] rounded-md p-3 space-y-2">
+                  <p className="text-xs font-medium">How to connect:</p>
+                  <ol className="text-xs text-[var(--muted)] space-y-1 list-decimal pl-4">
+                    <li>Sign in at <a href="https://nibgate.xyz" target="_blank" className="underline">nibgate.xyz</a> with your wallet</li>
+                    <li>Go to <strong>Dashboard → Sites</strong></li>
+                    <li>Click <strong>Link a blog</strong> → <strong>Generate linking code</strong></li>
+                    <li>Copy the code and paste it below</li>
+                  </ol>
+                </div>
                 <div className="flex gap-2">
                   <input type="text" value={linkCode} onChange={(e) => setLinkCode(e.target.value)}
                     className="flex-1 border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md font-mono text-xs"
                     placeholder="Paste your linking code..." />
                   <button onClick={handleLinkHub} disabled={linking || !linkCode}
                     className="bg-[var(--accent-soft)] border border-[var(--accent)] text-sm font-semibold px-4 py-2.5 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all disabled:opacity-40 cursor-pointer whitespace-nowrap">
-                    {linking ? "Linking..." : "Link"}
+                    {linking ? "Connecting..." : "Connect"}
                   </button>
                 </div>
                 {hubError && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{hubError}</div>}
-                {hubSuccess && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">✅ {hubSuccess}</div>}
+                {hubSuccess && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">✅ Connected successfully!</div>}
               </>
             )}
           </div>

@@ -475,11 +475,11 @@ export default function SitesPage() {
         <div className="dashboard-modal-backdrop fixed inset-0 z-[90] flex items-center justify-center bg-black/35 p-4" onClick={() => setShowLinkPopup(false)}>
           <div className="dashboard-modal-card w-full max-w-md rounded-[28px] border p-6 shadow-2xl" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-2xl font-medium">Link a blog</h3>
-            <p className="mt-2 text-sm leading-6 opacity-70">Generate a code and paste it in your blog admin settings to link it to your hub dashboard.</p>
+            <p className="mt-2 text-sm leading-6 opacity-70">Link one of your Nibgate Blog sites to your hub dashboard. The blog appears here alongside your other sites.</p>
             {linkCodeDisplay ? (
               <div className="mt-5 space-y-3">
                 <p className="text-sm font-medium">Your linking code (expires in 15 min):</p>
-                <pre className="overflow-auto rounded-2xl bg-black p-4 text-xs leading-5 text-white break-all"><code>{linkCodeDisplay}</code></pre>
+                <pre className="overflow-auto rounded-2xl bg-black p-4 text-xs leading-5 text-white break-all select-all"><code>{linkCodeDisplay}</code></pre>
                 <div className="flex gap-2">
                   <button onClick={() => { navigator.clipboard.writeText(linkCodeDisplay); setCopied(true); setTimeout(() => setCopied(false), 2000); }} className="rounded-full bg-black px-5 py-3 text-sm font-medium text-white transition hover:-translate-y-0.5">
                     {copied ? "Copied!" : "Copy code"}
@@ -488,10 +488,13 @@ export default function SitesPage() {
                     Close
                   </button>
                 </div>
-                <p className="text-xs opacity-60">Paste this in your blog admin → Settings → Link to Nibgate Hub.</p>
+                <div className="rounded-2xl border p-3 text-xs leading-6 opacity-70" style={{ borderColor: "var(--nib-border-soft)" }}>
+                  <strong>Next step:</strong> Go to your blog admin → Settings → <strong>Connect to Nibgate Hub</strong> → paste this code → click Connect.
+                </div>
               </div>
             ) : (
-              <div className="mt-5">
+              <div className="mt-5 space-y-3">
+                <p className="text-sm leading-6 opacity-70">This generates a one-time code that you paste into your blog admin settings to link them together.</p>
                 <button onClick={handleGenerateLinkCode} disabled={generatingLink} className="w-full rounded-full bg-black px-5 py-3 font-medium text-white transition hover:-translate-y-0.5 disabled:opacity-60">
                   {generatingLink ? "Generating..." : "Generate linking code"}
                 </button>

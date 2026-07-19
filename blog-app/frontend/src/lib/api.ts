@@ -16,7 +16,7 @@ export async function apiFetch<T>(
   if (typeof window === "undefined") {
     try {
       const { headers: nextHeaders } = await import("next/headers");
-      const h = nextHeaders();
+      const h = await nextHeaders();
       const subdomain = h.get("x-site-subdomain") || "";
       const host = h.get("x-forwarded-host") || "";
       if (subdomain) headers["x-site-subdomain"] = subdomain;

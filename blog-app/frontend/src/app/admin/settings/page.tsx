@@ -28,6 +28,10 @@ export default function AdminSettingsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: "", newPw: "" });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMessage, setPwMessage] = useState("");
+  const [pwError, setPwError] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -64,6 +68,22 @@ export default function AdminSettingsPage() {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordChange(e: FormEvent) {
+    e.preventDefault();
+    setPwMessage("");
+    setPwError("");
+    setPwSaving(true);
+    try {
+      await apiAuthFetch("/settings/password", { method: "PUT", body: JSON.stringify(pwForm) });
+      setPwMessage("Password updated.");
+      setPwForm({ current: "", newPw: "" });
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "Failed to update password");
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -128,6 +148,21 @@ export default function AdminSettingsPage() {
 
             <button type="submit" disabled={saving} className="bg-[var(--accent-soft)] border border-[var(--accent)] text-sm font-semibold px-4 py-2.5 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all disabled:opacity-40 cursor-pointer">
               {saving ? "Saving..." : "Save settings"}
+            </button>
+          </form>
+
+          <form onSubmit={handlePasswordChange} className="space-y-4 border-t border-[var(--border)] pt-6">
+            <h2 className="text-sm font-semibold">Change password</h2>
+            {pwMessage && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{pwMessage}</div>}
+            {pwError && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{pwError}</div>}
+            <Field label="Current password">
+              <input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" />
+            </Field>
+            <Field label="New password">
+              <input type="password" value={pwForm.newPw} onChange={(e) => setPwForm((p) => ({ ...p, newPw: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" />
+            </Field>
+            <button type="submit" disabled={pwSaving} className="border border-[var(--border)] text-sm font-medium px-4 py-2.5 rounded-md hover:bg-[var(--surface)] transition-all disabled:opacity-40 cursor-pointer">
+              {pwSaving ? "Updating..." : "Update password"}
             </button>
           </form>
         </div>

@@ -6,7 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon src/index.js",
-    "start": "npx prisma generate && npx prisma db push --skip-generate --accept-data-loss && cross-env NODE_ENV=production node src/index.js",
+    "start": "npx prisma generate && npx prisma migrate deploy && cross-env NODE_ENV=production node src/index.js",
     "seed": "NODE_ENV=development node prisma/seed.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -19,6 +19,7 @@
     "cors": "^2.8.5",
     "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
+    "@sentry/node": "^8.0.0",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",

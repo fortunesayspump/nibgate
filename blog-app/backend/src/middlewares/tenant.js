@@ -14,8 +14,7 @@ function subdomainFromHost(host = '') {
 async function resolveTenant(req, res, next) {
   if (PUBLIC_PATHS.some((p) => req.path.startsWith(p))) return next();
 
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
-  const subdomain = subdomainFromHost(host);
+  const subdomain = req.headers['x-site-subdomain'] || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
 
   try {
     const site = await resolveSite(subdomain);

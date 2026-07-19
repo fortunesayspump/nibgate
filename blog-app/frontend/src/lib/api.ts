@@ -8,13 +8,23 @@ export async function apiFetch<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-    ...options,
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...options?.headers as Record<string, string>,
+  };
+
+  if (typeof window === "undefined") {
+    try {
+      const { headers: nextHeaders } = await import("next/headers");
+      const h = nextHeaders();
+      const subdomain = h.get("x-site-subdomain") || "";
+      const host = h.get("x-forwarded-host") || "";
+      if (subdomain) headers["x-site-subdomain"] = subdomain;
+      if (host) headers["x-forwarded-host"] = host;
+    } catch {}
+  }
+
+  const res = await fetch(apiUrl(path), { headers, ...options });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || data.error || "Request failed");
   return data;
@@ -33,7 +43,7 @@ export async function apiAuthFetch<T>(
   return apiFetch<T>(path, {
     ...options,
     headers: {
-      ...options?.headers,
+      ...options?.headers as Record<string, string>,
       ...authHeaders(),
     },
   });

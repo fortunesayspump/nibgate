@@ -75,6 +75,31 @@ export function registerHubRoutes(app) {
   app.post('/api/hub/site/register', requireAuth, registerWebsite);
   app.post('/api/hub/sites/register', requireAuth, registerWebsite);
 
+  app.post('/api/hub/blog/register', async (req, res) => {
+    try {
+      const setupToken = process.env.HUB_SETUP_TOKEN;
+      if (!setupToken || req.headers['x-setup-token'] !== setupToken) {
+        return res.status(403).json({ error: 'Invalid or missing setup token.' });
+      }
+      const { domain, name, description } = req.body || {};
+      if (!domain) return res.status(400).json({ error: 'Domain is required.' });
+
+      const clean = cleanDomain(domain);
+      const existing = await db.website.findFirst({ where: { domain: clean, deletedAt: null } });
+      if (existing) return res.json({ success: true, website: serializeWebsite(existing), verifyToken: existing.verifyToken });
+
+      const token = hashValue(`${domain}:blog-setup:${Date.now()}:${Math.random()}`).slice(0, 32);
+      const created = await db.website.create({
+        data: { domain: clean, name: name?.trim() || domain, description: description?.trim() || null, ownerId: '00000000-0000-0000-0000-000000000000', verifyToken: token, isVerified: true, verificationStatus: 'verified' },
+      });
+
+      await syncWebsiteManifest(created).catch(() => {});
+      res.json({ success: true, siteId: created.id, verifyToken: token, domain: clean });
+    } catch (error) {
+      res.status(500).json({ error: 'Blog registration failed', details: error.message });
+    }
+  });
+
   // ── Site Verification ──────────────────────────────────────────────────
 
   app.post('/api/hub/site/verify', requireAuth, verifyWebsite);

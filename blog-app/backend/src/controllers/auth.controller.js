@@ -8,7 +8,7 @@ const register = catchAsync(async (req, res) => {
 });
 
 const login = catchAsync(async (req, res) => {
-  const { user, token } = await authService.login({ ...req.body, siteId: req.siteId });
+  const { user, token } = await authService.login({ ...req.body });
   res.json({ success: true, user, token });
 });
 

@@ -1,7 +1,5 @@
 import { createNonce, verifySignatureAndLogin, getUserBySession, logoutSession, constructSignMessage } from '@nibgate/internal/auth.js';
 
-const COOKIE_DOMAIN = process.env.NODE_ENV === 'production' ? '.nibgate.xyz' : undefined;
-
 export function registerAuthRoutes(app) {
   
   // 1. Generate Nonce
@@ -29,12 +27,11 @@ export function registerAuthRoutes(app) {
 
       const { user, sessionToken } = await verifySignatureAndLogin(walletAddress, signature, expectedNonce);
 
-      res.clearCookie('auth_nonce', { domain: COOKIE_DOMAIN });
+      res.clearCookie('auth_nonce');
       res.cookie('auth_session', sessionToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        domain: COOKIE_DOMAIN,
         maxAge: 1000 * 60 * 60 * 24 * 30 // 30 days
       });
 
@@ -65,7 +62,7 @@ export function registerAuthRoutes(app) {
     const sessionToken = req.cookies.auth_session;
     await logoutSession(sessionToken);
     
-    res.clearCookie('auth_session', { domain: COOKIE_DOMAIN });
+    res.clearCookie('auth_session');
     res.json({ success: true });
   });
 }

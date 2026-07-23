@@ -37,7 +37,7 @@ router.get('/site', (req, res) => {
     aboutMarkdown: settings.aboutMarkdown || '',
     hub: { siteId: hubSiteId, token: hubToken },
     widgetScript: hubToken
-      ? `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${hubSiteId}" data-nibgate-token="${hubToken}"></script>`
+      ? `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${hubSiteId}" data-nibgate-token="${hubToken}" data-nibgate-api="https://api.nibgate.xyz"></script>`
       : '',
   });
 });

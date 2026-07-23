@@ -99,7 +99,7 @@ router.post('/', async (req, res) => {
       user: { id: user.id, email: user.email, username: user.username },
       vercelDomain: vercelDomain.success ? { domain: vercelDomain.domain, status: 'added' } : { skipped: true, reason: vercelDomain.reason },
       hubRegistered: !!hubSiteId,
-      widgetScript: `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${widgetId}" data-nibgate-token="${widgetToken}"></script>`,
+      widgetScript: `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${widgetId}" data-nibgate-token="${widgetToken}" data-nibgate-api="https://api.nibgate.xyz"></script>`,
     });
   } catch (error) {
     if (error?.code === 'P2002') {

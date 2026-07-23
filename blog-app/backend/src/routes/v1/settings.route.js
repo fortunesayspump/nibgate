@@ -27,7 +27,7 @@ router.get('/', authenticate, async (req, res, next) => {
         paymentNetwork: settings.paymentNetwork || 'eip155:5042002',
         siteId: site.id,
         subdomain: site.subdomain,
-        widgetScript: `<script async src="https://nibgate.xyz/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken || ''}"></script>`,
+        widgetScript: `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken || ''}"></script>`,
       },
     });
   } catch (error) {

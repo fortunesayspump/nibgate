@@ -12,7 +12,7 @@
   if (!siteId || !token) return;
 
   function scriptOrigin() {
-    try { return new URL(script.src).origin; } catch (_error) { return "https://nibgate.xyz"; }
+    try { return new URL(script.src).origin; } catch (_error) { return "https://www.nibgate.xyz"; }
   }
 
   var endpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/evt";

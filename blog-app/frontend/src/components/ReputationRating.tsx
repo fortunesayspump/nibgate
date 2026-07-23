@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl } from "@/lib/api";
 
 type RatingResource = {
   id: string;
@@ -26,9 +26,8 @@ export default function ReputationRating({ resource }: { resource: RatingResourc
         apiBase: apiUrl(""),
         contentId: '0x' + resource.id.replace(/-/g, ''),
         onRated: (result: any) => {
-          fetch(apiUrl(`/rating/${resource.id}`), {
+          apiFetch(`/rating/${resource.id}`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               wallet: result.walletAddress,
               rating: result.ratingValue,

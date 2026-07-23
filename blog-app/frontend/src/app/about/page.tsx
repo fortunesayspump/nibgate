@@ -1,12 +1,10 @@
 import Header from "@/components/Header";
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 
-async function getSite() {
+async function getSite(): Promise<Record<string, any> | null> {
   try {
-    const res = await fetch(apiUrl("/site"), { next: { revalidate: 60 } });
-    if (!res.ok) return null;
-    return await res.json();
+    return await apiFetch("/site", { next: { revalidate: 60 } });
   } catch { return null; }
 }
 

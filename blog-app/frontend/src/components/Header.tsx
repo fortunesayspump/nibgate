@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export default function Header() {
   const [dark, setDark] = useState(false);
@@ -10,7 +10,7 @@ export default function Header() {
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
-    fetch(apiUrl("/site")).then(r => r.json()).then(d => {
+    apiFetch<{ site: { name: string } }>("/site").then(d => {
       if (d.site?.name) setSiteName(d.site.name);
     }).catch(() => {});
   }, []);

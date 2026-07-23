@@ -1,12 +1,10 @@
-import { apiUrl, type BlogPost } from "@/lib/api";
+import { apiFetch, type BlogPost } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 async function getPosts(): Promise<BlogPost[]> {
   try {
-    const res = await fetch(apiUrl("/blog/posts"));
-    if (!res.ok) return [];
-    const data = await res.json();
+    const data = await apiFetch<{ success: boolean; posts: BlogPost[] }>("/blog/posts");
     return data.posts || [];
   } catch {
     return [];
@@ -28,9 +26,7 @@ function formatRssDate(value: string): string {
 
 async function getSiteName(): Promise<string> {
   try {
-    const res = await fetch(apiUrl("/site"), { next: { revalidate: 3600 } });
-    if (!res.ok) return "Nibgate Blog";
-    const d = await res.json();
+    const d = await apiFetch<{ success: boolean; site: { name: string } }>("/site", { next: { revalidate: 3600 } });
     return d.site?.name || "Nibgate Blog";
   } catch { return "Nibgate Blog"; }
 }

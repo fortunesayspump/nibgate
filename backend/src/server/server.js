@@ -14,6 +14,7 @@ import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
 import { registerNewsletterRoutes } from './routes/newsletter-routes.js';
 import { registerUploadRoutes } from './routes/upload-routes.js';
+import { registerRpcRoute } from './routes/rpc-route.js';
 import { createConfigResolver } from './runtime.js';
 
 export async function createApp(config, options = {}) {
@@ -78,6 +79,7 @@ export async function createApp(config, options = {}) {
   registerAppRoutes(app, context);
   registerAuthRoutes(app);
   registerContentRoutes(app, context);
+  registerRpcRoute(app);
 
   return app;
 }

@@ -7,6 +7,7 @@ const { authenticate } = require('../../middlewares/auth');
 const router = express.Router();
 
 router.get('/posts', blogController.list);
+router.get('/posts-by-types', blogController.listByTypes);
 router.get('/posts/:slug', blogController.getBySlug);
 
 router.get('/admin/posts', authenticate, blogController.adminList);

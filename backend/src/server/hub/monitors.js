@@ -13,7 +13,7 @@ let reputationIndexerStarted = false;
 let reputationIndexerLastBlock = null;
 
 const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-const DEFAULT_NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.network';
+const DEFAULT_NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.io';
 
 // ── Verification Monitor ───────────────────────────────────────────────────
 

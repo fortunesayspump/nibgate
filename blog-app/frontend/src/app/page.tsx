@@ -1,68 +1,146 @@
 import Link from "next/link";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 import { apiUrl, type BlogPost } from "@/lib/api";
 
-async function getPosts() {
-  try {
-    const res = await fetch(apiUrl("/blog/posts"), { next: { revalidate: 60 } });
-    if (!res.ok) return [];
-    const d = await res.json();
-    return (d.posts || []) as BlogPost[];
-  } catch { return []; }
-}
+const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
+const TYPE_ORDER = ["article", "photo", "music", "video"];
 
-function rd(body: string) { return `${Math.max(1, Math.round(body.trim().split(/\s+/).length / 200))} min read`; }
 function fd(v: string) { return new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(new Date(v)); }
 function yr(v: string) { return new Date(v).getFullYear().toString(); }
 function ni(i: number) { return String(i + 1).padStart(2, "0"); }
 
+async function getGrouped() {
+  try {
+    const res = await fetch(apiUrl("/blog/posts-by-types"), { next: { revalidate: 60 } });
+    if (!res.ok) return {};
+    return await res.json() as Record<string, BlogPost[]>;
+  } catch { return {}; }
+}
+
+function TypeIcon({ type }: { type: string }) {
+  if (type === "photo") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
+  if (type === "music") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
+  if (type === "video") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
+  return null;
+}
+
+function PostListItem({ post, i }: { post: BlogPost; i: number }) {
+  return (
+    <li>
+      <Link href={`/posts/${post.slug}`} className="internal-link plain">
+        <div style={{ display: "flex", alignItems: "baseline" }}>
+          <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {ni(i)}</span>
+          {post.type !== "article" && (
+            <span className="type-icon"><TypeIcon type={post.type} /></span>
+          )}
+          <u>{post.title}</u>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
+function extractFirstImage(md: string, coverUrl?: string | null): string | null {
+  if (coverUrl) return coverUrl;
+  const m = md.match(/!\[.*?\]\((.*?)\)/);
+  return m ? m[1] : null;
+}
+
+function ThumbnailCard({ post, icon }: { post: BlogPost; icon?: string }) {
+  const img = extractFirstImage(post.bodyMarkdown, post.coverUrl);
+  return (
+    <Link key={post.id} href={`/posts/${post.slug}`} className="plain block" style={{ aspectRatio: "4/3", overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
+      {img ? (
+        <img src={img} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+      ) : (
+        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: "var(--text-sm)" }}>{post.title}</div>
+      )}
+      {icon && (
+        <span style={{ position: "absolute", bottom: "0.4rem", right: "0.4rem", width: "1.6rem", height: "1.6rem", borderRadius: "50%", background: "rgba(0,0,0,0.6)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem" }}>{icon}</span>
+      )}
+    </Link>
+  );
+}
+
+function GridSection({ posts, icon }: { posts: BlogPost[]; icon?: string }) {
+  return (
+    <div className="thumb-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem" }}>
+      {posts.slice(0, 8).map(post => <ThumbnailCard key={post.id} post={post} icon={icon} />)}
+    </div>
+  );
+}
+
+function PostSection({ type, posts }: { type: string; posts: BlogPost[] }) {
+  if (!posts.length) return null;
+  const label = TYPE_LABELS[type] || type;
+  const useGrid = type === "photo" || type === "video";
+
+  return (
+    <>
+      <p className="muted font-ui section-header">{label}</p>
+      {useGrid ? (
+        <GridSection posts={posts} icon={type === "video" ? "▶" : undefined} />
+      ) : (
+        <ul className="list-plain tabular-nums">
+          {posts.map((post, i) => (
+            <PostListItem key={post.id} post={post} i={i} />
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function latestAcross(grouped: Record<string, BlogPost[]>): BlogPost | null {
+  let latest: BlogPost | null = null;
+  for (const type of TYPE_ORDER) {
+    const posts = grouped[type] || [];
+    if (posts.length > 0) {
+      const p = posts[0];
+      if (!latest || new Date(p.publishedAt) > new Date(latest.publishedAt)) latest = p;
+    }
+  }
+  return latest;
+}
+
+function rd(body: string) { return `${Math.max(1, Math.round(body.trim().split(/\s+/).length / 200))} min read`; }
+
 export default async function HomePage() {
-  const posts = await getPosts();
-  const latest = posts[0];
-  const rest = posts.slice(1);
+  const grouped = await getGrouped();
+  const latest = latestAcross(grouped);
 
   return (
     <>
       <Header />
       <main>
-        <div className="wrap" style={{ maxWidth: "var(--wrap)", marginLeft: "auto", marginRight: "auto" }}>
-          {latest && <>
-            <p className="small muted">Latest</p>
-            <Link href={`/posts/${latest.slug}`} className="plain block" style={{ marginBottom: 0 }}>
-              <h2 style={{ fontSize: "calc(1em + 0.2vw)", letterSpacing: "-0.015em", lineHeight: 1.3, marginTop: 0, fontWeight: 500, color: "var(--fg)" }}>
-                {latest.title}
-              </h2>
-              <p className="small muted pb" style={{ marginBottom: "1em", color: "var(--muted)" }}>
-                <time>{fd(latest.publishedAt)}</time> · <span>{rd(latest.bodyMarkdown)}</span>
-              </p>
-              <p className="small muted" style={{ color: "var(--muted)" }}>{latest.excerpt}</p>
-            </Link>
-          </>}
-
-          <hr />
-
-          <p className="small muted" style={{ marginBottom: "1.25em" }}>
-            <Link href="/" className="muted plain">Writing</Link>
-          </p>
-
-          <ul className="list-none p-0 m-0 tabular-nums" style={{ paddingInlineStart: 0, marginLeft: 0 }}>
-            {rest.map((post, i) => (
-              <li key={post.id} style={{ listStyle: "none", padding: "0.15rem 0" }}>
-                <Link href={`/posts/${post.slug}`} className="plain" style={{ textDecoration: "none" }}>
-                  <div className="flex align-baseline" style={{ gap: 0 }}>
-                    <span className="small muted" style={{ color: "var(--muted)", flexShrink: 0, whiteSpace: "nowrap", paddingRight: "2rem", fontFamily: "var(--font-ui)" }}>
-                      {yr(post.publishedAt)} · {ni(i)}
-                    </span>
-                    <u style={{ textDecoration: "none" }} className="hover-underline">{post.title}</u>
+        <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", marginLeft: "auto", marginRight: "auto" }}>
+          {latest && (
+            <>
+              <p><Link href={`/posts/${latest.slug}`} className="muted font-ui">Latest</Link></p>
+              <div>
+                <Link href={`/posts/${latest.slug}`} className="plain">
+                  <h2>{latest.title}</h2>
+                  <div className="metadata muted small pb font-ui">
+                    <time>{fd(latest.publishedAt)}</time>
+                    {latest.type === "article" && <> · <span>{rd(latest.bodyMarkdown)}</span></>}
+                  </div>
+                  <div className="small muted">
+                    {latest.excerpt} Keep&nbsp;reading&nbsp;→
                   </div>
                 </Link>
-              </li>
-            ))}
-          </ul>
+              </div>
+              <hr className="mn2 ms2" />
+            </>
+          )}
+
+          {TYPE_ORDER.flatMap((type, i) => {
+            const section = <PostSection key={type} type={type} posts={grouped[type] || []} />;
+            if (!(grouped[type] || []).length) return [];
+            if (i === 0) return [section];
+            return [<hr key={`hr-${type}`} className="mn2 ms2" />, section];
+          })}
         </div>
       </main>
-      <Footer />
     </>
   );
 }

@@ -33,7 +33,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-5">
       <div className="w-full max-w-xs">
-        <a href="/" className="text-xs text-[var(--muted)] no-underline hover:text-[var(--fg)] transition-colors">
+        <a href="/" className="btn-ghost no-underline inline-flex items-center gap-1">
           &larr; Back to blog
         </a>
         <h1 className="text-lg font-semibold mt-8 mb-8">Sign In</h1>
@@ -44,31 +44,14 @@ export default function LoginPage() {
             </div>
           )}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[var(--muted)]">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md"
-              placeholder="you@example.com"
-            />
+            <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="you@example.com" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[var(--muted)]">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md"
-            />
+            <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field" />
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full min-h-[42px] bg-[var(--accent-soft)] border border-[var(--accent)] text-sm font-semibold rounded-md hover:bg-[var(--accent)] hover:text-white transition-all disabled:opacity-50 cursor-pointer"
-          >
+          <button type="submit" disabled={loading} className="btn-primary w-full min-h-[42px]">
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>

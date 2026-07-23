@@ -16,9 +16,10 @@ function cleanTags(value) {
 }
 
 async function listPublished(siteId, options = {}) {
-  const { page = 1, limit = 10, tag } = options;
+  const { page = 1, limit = 10, tag, type } = options;
   const where = { siteId, status: 'published' };
   if (tag) where.tag = tag;
+  if (type) where.type = type;
 
   const [posts, total] = await Promise.all([
     prisma.blogPost.findMany({
@@ -73,6 +74,7 @@ async function create(data, siteId, authorId) {
       excerpt: String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown),
       tag: String(data.tag || 'General').trim().slice(0, 40),
       tags: cleanTags(data.tags),
+      type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
       coverUrl: String(data.coverUrl || '').trim() || null,
       price: data.price && data.price !== '0' ? String(data.price).trim() : null,
       status: statusVal,
@@ -105,6 +107,7 @@ async function update(siteId, id, data) {
   if (data.tag !== undefined) updateData.tag = String(data.tag).trim().slice(0, 40);
   if (data.tags !== undefined) updateData.tags = cleanTags(data.tags);
   if (data.coverUrl !== undefined) updateData.coverUrl = String(data.coverUrl).trim() || null;
+  if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article';
   if (data.price !== undefined) updateData.price = data.price && data.price !== '0' ? String(data.price).trim() : null;
   if (data.featured !== undefined) updateData.featured = data.featured;
   if (data.status !== undefined) {
@@ -127,4 +130,19 @@ async function remove(siteId, id) {
   return existing;
 }
 
-module.exports = { listPublished, getBySlug, listAll, getById, create, update, remove };
+async function listByTypes(siteId) {
+  const types = ['article', 'photo', 'music', 'video'];
+  const result = {};
+  for (const type of types) {
+    const posts = await prisma.blogPost.findMany({
+      where: { siteId, status: 'published', type },
+      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 10,
+    });
+    if (posts.length > 0) result[type] = posts;
+  }
+  return result;
+}
+
+module.exports = { listPublished, getBySlug, listAll, getById, create, update, remove, listByTypes };

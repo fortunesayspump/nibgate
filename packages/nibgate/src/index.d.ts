@@ -217,7 +217,6 @@ export type NibgateCircleGatewayBrowserAdapterOptions = {
   network?: string;
   chainId?: number | string;
   clientModule?: Record<string, unknown>;
-  clientModuleUrl?: string;
 };
 
 export type NibgateCircleGatewayBrowserAdapter = {
@@ -230,10 +229,15 @@ export type NibgateEvmGatewayUnlockOptions = {
   source?: string;
   hosted?: boolean;
   accessPath?: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: BodyInit | null;
   network?: string;
   paymentProvider?: string;
   circleClientModule?: Record<string, unknown>;
+  /** @deprecated The SDK now ships a native BatchEvmScheme — no CDN needed */
   circleClientModuleUrl?: string;
+
   provider?: {
     request(args: { method: string; params?: unknown[] }): Promise<unknown>;
   };
@@ -424,7 +428,7 @@ export declare const NIBGATE_REPUTATION_ABI: readonly unknown[];
 export declare const NIBGATE_CONTENT_HASH_NAMESPACE: 'nibgate:content:v1';
 export declare const NIBGATE_REPUTATION_CHAIN_ID: 5042002;
 export declare const NIBGATE_REPUTATION_CHAIN_NAME: 'Arc Testnet';
-export declare const NIBGATE_REPUTATION_RPC_URL: 'https://rpc.testnet.arc.network';
+export declare const NIBGATE_REPUTATION_RPC_URL: 'https://rpc.testnet.arc.io';
 export declare const NIBGATE_REPUTATION_CONTRACT: '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 export declare function contentRatingHash(resource: NibgateResource | string, options?: Record<string, unknown>): string;
 export declare function reviewTextHash(review?: string): string;

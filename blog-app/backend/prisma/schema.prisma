@@ -63,16 +63,35 @@ model BlogPost {
   coverUrl     String?
   tag          String?
   tags         String?
+  type         String    @default("article")
   price        String?
   status       String    @default("draft")
   featured     Boolean   @default(false)
   publishedAt  DateTime?
   authorId     String
   author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  ratings     Rating[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@unique([siteId, slug])
   @@index([siteId, status, publishedAt])
   @@index([siteId, authorId])
+}
+
+model Rating {
+  id        String   @id @default(uuid())
+  siteId    String
+  postId    String
+  wallet    String
+  rating    Int      @default(0)
+  txHash    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, wallet])
+  @@index([siteId])
+  @@index([postId])
 }

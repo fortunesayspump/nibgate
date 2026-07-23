@@ -1,31 +1,42 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { apiUrl } from "@/lib/api";
+import Footer from "@/components/Footer";
 
-export const metadata: Metadata = {
-  title: { default: "Nibgate Blog", template: "%s · Nibgate Blog" },
-  description: "Product updates, creator guides, and thinking behind the reputation layer.",
-};
-
-async function getWidget() {
+async function getSite() {
   try {
     const res = await fetch(apiUrl("/site"), { next: { revalidate: 3600 } });
-    if (!res.ok) return "";
-    const d = await res.json();
-    return d.widgetScript || "";
-  } catch { return ""; }
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await getSite();
+  const name = data?.site?.name || "Nibgate Blog";
+  return {
+    title: { default: name, template: `%s · ${name}` },
+    description: data?.site?.description || "Product updates, creator guides, and thinking behind the reputation layer.",
+  };
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const widget = await getWidget();
+  const data = await getSite();
+  const widget = data?.widgetScript || "";
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="icon" href="/nibgate-mark.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/nibgate-mark.svg" />
         <script dangerouslySetInnerHTML={{
           __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
         }} />
       </head>
-      <body>{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}{children}</body>
+      <body>{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}{children}<Footer /></body>
     </html>
   );
 }

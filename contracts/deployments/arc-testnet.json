@@ -1,7 +1,7 @@
 {
   "chainId": 5042002,
   "chainName": "Arc Testnet",
-  "rpcUrl": "https://rpc.testnet.arc.network",
+  "rpcUrl": "https://rpc.testnet.arc.io",
   "deployer": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
   "owner": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
   "implementationAddress": "0x24824b6a1717cf87b2b9e48081587c73abfa6f5b",

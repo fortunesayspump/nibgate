@@ -6,7 +6,7 @@ const ApiError = require('../utils/ApiError');
 const errorConverter = (err, req, res, next) => {
   let error = err;
   if (!(error instanceof ApiError)) {
-    const statusCode = error.statusCode || error instanceof PrismaError(error) ? status.BAD_REQUEST : status.INTERNAL_SERVER_ERROR;
+    const statusCode = error.statusCode || (PrismaError(error) ? status.BAD_REQUEST : status.INTERNAL_SERVER_ERROR);
     const message = error.message || status[statusCode];
     error = new ApiError(statusCode, message, false, err.stack);
   }
@@ -19,6 +19,7 @@ function PrismaError(error) {
 
 const errorHandler = (err, req, res, next) => {
   let { statusCode, message } = err;
+  if (!statusCode) statusCode = status.INTERNAL_SERVER_ERROR;
   if (config.env === 'production' && !err.isOperational) {
     statusCode = status.INTERNAL_SERVER_ERROR;
     message = status[status.INTERNAL_SERVER_ERROR];

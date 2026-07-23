@@ -184,7 +184,6 @@ export function validateResourceMetadata(resource = {}, options = {}) {
 
   if (isPaidResource(normalized)) {
     if (!hasValue(normalized.price)) errors.push('Paid content requires price.');
-    if (!hasValue(normalized.recipient || normalized.payTo)) warnings.push('Paid content should include recipient/payTo (server value from 402 challenge is used for actual payment).');
   }
 
   const score = Math.max(0, 100 - errors.length * 20 - warnings.length * 8);

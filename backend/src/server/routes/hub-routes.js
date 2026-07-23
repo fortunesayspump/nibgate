@@ -448,7 +448,7 @@ export function registerHubRoutes(app) {
         contractAddress: process.env.NIBGATE_REPUTATION_CONTRACT || '',
         chainId: process.env.NIBGATE_REPUTATION_CHAIN_ID || '5042002',
         chainName: process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet',
-        rpcUrl: process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.network'
+        rpcUrl: process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.io'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to prepare rating', details: error.message });

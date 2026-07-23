@@ -15,7 +15,7 @@ const envVarsSchema = Joi.object()
     NIBGATE_API_BASE: Joi.string().optional().description('Nibgate hub API base URL'),
     NIBGATE_SITE_ID: Joi.string().optional().description('Nibgate site ID'),
     NIBGATE_SITE_TOKEN: Joi.string().optional().description('Nibgate site token'),
-    NIBGATE_SELLER_ADDRESS: Joi.string().optional().description('Wallet address for Nibgate payments'),
+    NIBGATE_SELLER_ADDRESS: Joi.string().optional().allow('').description('Wallet address for Nibgate payments (set in DB settings instead)'),
   })
   .unknown();
 

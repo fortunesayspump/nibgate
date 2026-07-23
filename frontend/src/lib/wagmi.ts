@@ -15,7 +15,7 @@ export const arcTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc.testnet.arc.network'],
+      http: ['https://rpc.testnet.arc.io'],
     },
   },
   blockExplorers: {
@@ -29,7 +29,7 @@ export const arcTestnet = defineChain({
 
 export const appKitProjectId = '09580756f3c5f13c5f1aeb2faa9b1696'
 
-const rpcUrl = 'https://rpc.testnet.arc.network'
+const rpcUrl = 'https://rpc.testnet.arc.io'
 
 const connectors = [
   injected(),

@@ -1,6 +1,11 @@
 const express = require('express');
 const prisma = require('../../lib/prisma');
+const { createCircleGatewayServer } = require('@nibgate/sdk/server');
 const router = express.Router();
+
+const nibgateServer = createCircleGatewayServer({
+  secret: process.env.NIBGATE_SECRET || 'nibgate-dev-secret',
+});
 
 router.get('/status', (req, res) => {
   res.json({
@@ -8,6 +13,51 @@ router.get('/status', (req, res) => {
     hosted: true,
     payEndpoint: 'https://api.nibgate.xyz/api/hub/pay',
   });
+});
+
+router.get('/access', async (req, res, next) => {
+  try {
+    const slug = req.query.path?.replace('/posts/', '') || '';
+    const post = slug ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug } }) : null;
+    if (!post && slug) {
+      return res.status(404).json({ ok: false, error: 'Post not found' });
+    }
+
+    const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
+    const recipient = settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
+
+    if (!recipient) {
+      return res.status(400).json({ ok: false, error: 'Gateway recipient wallet not configured. Set recipientWallet in site settings or NIBGATE_SELLER_ADDRESS env.' });
+    }
+
+    const resource = {
+      id: post?.id || slug || 'unknown',
+      title: post?.title || req.query.title || '',
+      type: post?.type || 'article',
+      price: post?.price || '0.01',
+      currency: 'USDC',
+      path: slug ? `/posts/${slug}` : req.query.path || '/',
+      description: post?.excerpt || '',
+      recipient,
+    };
+
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const request = new Request(`${origin}${req.originalUrl}`, {
+      headers: new Headers(req.headers),
+    });
+
+    const response = await nibgateServer.accessResponse(request, resource, {
+      ok: true,
+      resource,
+    });
+
+    return res
+      .status(response.status)
+      .set(Object.fromEntries(response.headers.entries()))
+      .send(await response.text());
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get('/manifest', async (req, res, next) => {
@@ -36,6 +86,40 @@ router.get('/manifest', async (req, res, next) => {
     };
 
     res.json(manifest);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/gateway/balances', async (req, res, next) => {
+  try {
+    const result = await nibgateServer.getGatewayBalances();
+    if (!result.ok) return res.status(result.status || 500).json(result);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/gateway/deposit', async (req, res, next) => {
+  try {
+    const { amount } = req.body || {};
+    if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
+    const result = await nibgateServer.depositToGateway(amount);
+    if (!result.ok) return res.status(result.status || 500).json(result);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/gateway/withdraw', async (req, res, next) => {
+  try {
+    const { amount, recipient, chain, maxFee } = req.body || {};
+    if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
+    const result = await nibgateServer.withdrawFromGateway(amount, { recipient, chain, maxFee });
+    if (!result.ok) return res.status(result.status || 500).json(result);
+    res.json(result);
   } catch (error) {
     next(error);
   }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiAuthFetch, apiUrl } from "@/lib/api";
+import { apiAuthFetch } from "@/lib/api";
 
 const s = `
 .gw-admin-card {

@@ -1,6 +1,7 @@
 const passport = require('passport');
 const { status } = require('http-status');
 const ApiError = require('../utils/ApiError');
+const logger = require('../config/logger');
 
 const authenticate = (req, res, next) => {
   passport.authenticate('jwt', { session: false }, async (err, user, info) => {
@@ -19,7 +20,8 @@ const authenticate = (req, res, next) => {
         if (!req.siteId && decoded.siteId) {
           req.siteId = decoded.siteId;
         }
-      } catch {
+      } catch (err) {
+        logger.warn('Invalid JWT token:', err.message);
         return next(new ApiError(status.UNAUTHORIZED, 'Invalid token'));
       }
     }
@@ -34,7 +36,9 @@ const authenticate = (req, res, next) => {
           req.site = site;
           req.subdomain = site.subdomain;
         }
-      } catch {}
+      } catch (err) {
+        logger.error('Failed to resolve site for authenticated user:', err);
+      }
     }
 
     next();

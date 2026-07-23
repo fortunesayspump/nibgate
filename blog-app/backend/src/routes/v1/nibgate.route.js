@@ -1,10 +1,12 @@
 const express = require('express');
 const prisma = require('../../lib/prisma');
+const config = require('../../config/config');
 const { createCircleGatewayServer } = require('@nibgate/sdk/server');
+const { authenticate, authorize } = require('../../middlewares/auth');
 const router = express.Router();
 
 const nibgateServer = createCircleGatewayServer({
-  secret: process.env.NIBGATE_SECRET || 'nibgate-dev-secret',
+  secret: config.nibgate.gatewaySecret,
 });
 
 router.get('/status', (req, res) => {
@@ -91,7 +93,7 @@ router.get('/manifest', async (req, res, next) => {
   }
 });
 
-router.get('/gateway/balances', async (req, res, next) => {
+router.get('/gateway/balances', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const result = await nibgateServer.getGatewayBalances();
     if (!result.ok) return res.status(result.status || 500).json(result);
@@ -101,7 +103,7 @@ router.get('/gateway/balances', async (req, res, next) => {
   }
 });
 
-router.post('/gateway/deposit', async (req, res, next) => {
+router.post('/gateway/deposit', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const { amount } = req.body || {};
     if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
@@ -113,7 +115,7 @@ router.post('/gateway/deposit', async (req, res, next) => {
   }
 });
 
-router.post('/gateway/withdraw', async (req, res, next) => {
+router.post('/gateway/withdraw', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const { amount, recipient, chain, maxFee } = req.body || {};
     if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });

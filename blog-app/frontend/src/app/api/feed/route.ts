@@ -37,9 +37,9 @@ async function getSiteName(): Promise<string> {
 
 export async function GET() {
   const [posts, siteName] = await Promise.all([getPosts(), getSiteName()]);
-  const siteUrl = process.env.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL.replace("/api", "")
-    : "http://localhost:3001";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
+    || "http://localhost:3001";
 
   const items = posts
     .map(

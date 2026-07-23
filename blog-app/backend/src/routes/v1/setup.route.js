@@ -105,7 +105,7 @@ router.post('/', async (req, res) => {
     if (error?.code === 'P2002') {
       return res.status(409).json({ error: 'Subdomain or email already exists.' });
     }
-    res.status(500).json({ error: 'Setup failed', details: error.message });
+    next(error);
   }
 });
 

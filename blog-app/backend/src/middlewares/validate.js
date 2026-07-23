@@ -14,7 +14,9 @@ const validate = (schema) => (req, res, next) => {
     const errorMessage = error.details.map((details) => details.message).join(', ');
     return next(new ApiError(status.BAD_REQUEST, errorMessage));
   }
-  Object.assign(req, value);
+  if (value.body) req.body = value.body;
+  if (value.params) req.params = value.params;
+  if (value.query) req.query = value.query;
   return next();
 };
 

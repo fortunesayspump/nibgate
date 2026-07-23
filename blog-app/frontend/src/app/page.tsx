@@ -1,11 +1,11 @@
 import Link from "next/link";
 import Header from "@/components/Header";
 import { apiUrl, type BlogPost } from "@/lib/api";
+import { fd, rd } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
 const TYPE_ORDER = ["article", "photo", "music", "video"];
 
-function fd(v: string) { return new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(new Date(v)); }
 function yr(v: string) { return new Date(v).getFullYear().toString(); }
 function ni(i: number) { return String(i + 1).padStart(2, "0"); }
 
@@ -102,8 +102,6 @@ function latestAcross(grouped: Record<string, BlogPost[]>): BlogPost | null {
   }
   return latest;
 }
-
-function rd(body: string) { return `${Math.max(1, Math.round(body.trim().split(/\s+/).length / 200))} min read`; }
 
 export default async function HomePage() {
   const grouped = await getGrouped();

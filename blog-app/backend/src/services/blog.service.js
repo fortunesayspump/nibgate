@@ -61,9 +61,7 @@ async function getById(siteId, id) {
 
 async function create(data, siteId, authorId) {
   const title = String(data.title || '').trim();
-  if (title.length < 4) throw new ApiError(status.BAD_REQUEST, 'Title must be at least 4 characters');
   const bodyMarkdown = String(data.bodyMarkdown || data.body || '').trim();
-  if (bodyMarkdown.length < 20) throw new ApiError(status.BAD_REQUEST, 'Post body must be at least 20 characters');
   const slug = slugify(data.slug || title);
   if (!slug) throw new ApiError(status.BAD_REQUEST, 'Could not generate slug');
   const statusVal = data.status === 'draft' ? 'draft' : 'published';
@@ -92,16 +90,12 @@ async function update(siteId, id, data) {
 
   const updateData = {};
   if (data.title !== undefined) {
-    const title = String(data.title).trim();
-    if (title.length < 4) throw new ApiError(status.BAD_REQUEST, 'Title must be at least 4 characters');
-    updateData.title = title;
-    if (!data.slug) updateData.slug = slugify(title);
+    updateData.title = String(data.title).trim();
+    if (!data.slug) updateData.slug = slugify(data.title);
   }
   if (data.slug !== undefined) updateData.slug = slugify(data.slug);
   if (data.bodyMarkdown !== undefined || data.body !== undefined) {
-    const body = String(data.bodyMarkdown || data.body || '').trim();
-    if (body.length < 20) throw new ApiError(status.BAD_REQUEST, 'Post body must be at least 20 characters');
-    updateData.bodyMarkdown = body;
+    updateData.bodyMarkdown = String(data.bodyMarkdown || data.body || '').trim();
   }
   if (data.excerpt !== undefined) updateData.excerpt = String(data.excerpt).trim();
   if (data.tag !== undefined) updateData.tag = String(data.tag).trim().slice(0, 40);

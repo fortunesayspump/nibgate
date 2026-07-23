@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const moment = require('moment');
 const config = require('../config/config');
 const ApiError = require('../utils/ApiError');
 const { status } = require('http-status');
@@ -39,17 +38,4 @@ const generateToken = (user) => {
   });
 };
 
-const generateAuthToken = async (user) => {
-  const token = generateToken(user);
-  await prisma.token.create({
-    data: {
-      token,
-      userId: user.id,
-      type: 'ACCESS',
-      expires: moment().add(config.jwt.accessExpirationMinutes, 'minutes').toDate(),
-    },
-  });
-  return token;
-};
-
-module.exports = { register, login, generateAuthToken };
+module.exports = { register, login };

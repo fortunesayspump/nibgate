@@ -6,10 +6,8 @@ import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
 import ReputationRating from "@/components/ReputationRating";
 import { apiUrl, type BlogPost } from "@/lib/api";
+import { fd, rd } from "@/lib/utils";
 import { detectEmbed } from "@/lib/media";
-
-function fd(v: string) { return new Intl.DateTimeFormat("en", { month: "long", day: "numeric", year: "numeric" }).format(new Date(v)); }
-function rd(body: string) { return `${Math.max(1, Math.round(body.trim().split(/\s+/).length / 200))} min read`; }
 
 async function getPost(slug: string) {
   try {

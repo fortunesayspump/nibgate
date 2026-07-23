@@ -2,7 +2,7 @@ const { status } = require('http-status');
 const { resolveSite } = require('../lib/tenant-cache');
 const { isValidSubdomain } = require('../lib/validate');
 
-const PUBLIC_PATHS = ['/api/auth', '/api/setup', '/api/health'];
+const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/register', '/api/setup', '/api/health'];
 
 function subdomainFromHost(host = '') {
   const h = host.split(':')[0].toLowerCase();
@@ -13,7 +13,8 @@ function subdomainFromHost(host = '') {
 }
 
 async function resolveTenant(req, res, next) {
-  if (PUBLIC_PATHS.some((p) => req.path.startsWith(p))) return next();
+  const isPublic = PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'));
+  if (isPublic) return next();
 
   let subdomain = req.headers['x-site-subdomain'] || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
   subdomain = subdomain.trim().toLowerCase();
@@ -24,6 +25,9 @@ async function resolveTenant(req, res, next) {
   try {
     const site = await resolveSite(subdomain);
     if (!site) {
+      if (req.headers.authorization?.startsWith('Bearer ')) {
+        return next();
+      }
       return res.status(status.NOT_FOUND).json({ error: 'Site not found', subdomain });
     }
 

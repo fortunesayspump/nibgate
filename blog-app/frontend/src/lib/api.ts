@@ -4,6 +4,14 @@ export function apiUrl(path: string) {
   return `${API_BASE}${path}`;
 }
 
+function subdomainFromHost(host: string): string | null {
+  const h = host.split(":")[0].toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1") return null;
+  const parts = h.split(".");
+  if (parts.length >= 3 && parts[0] !== "www") return parts[0];
+  return null;
+}
+
 export async function apiFetch<T>(
   path: string,
   options?: RequestInit
@@ -17,11 +25,16 @@ export async function apiFetch<T>(
     try {
       const { headers: nextHeaders } = await import("next/headers");
       const h = await nextHeaders();
-      const subdomain = h.get("x-site-subdomain") || "";
-      const host = h.get("x-forwarded-host") || "";
+      const host = h.get("host") || "";
+      const subdomain = subdomainFromHost(host);
       if (subdomain) headers["x-site-subdomain"] = subdomain;
       if (host) headers["x-forwarded-host"] = host;
     } catch {}
+  } else {
+    const host = window.location.hostname;
+    const subdomain = subdomainFromHost(host);
+    if (subdomain) headers["x-site-subdomain"] = subdomain;
+    headers["x-forwarded-host"] = host;
   }
 
   const res = await fetch(apiUrl(path), { ...options, headers });

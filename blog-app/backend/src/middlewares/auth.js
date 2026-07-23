@@ -3,7 +3,7 @@ const { status } = require('http-status');
 const ApiError = require('../utils/ApiError');
 
 const authenticate = (req, res, next) => {
-  passport.authenticate('jwt', { session: false }, (err, user, info) => {
+  passport.authenticate('jwt', { session: false }, async (err, user, info) => {
     if (err) return next(err);
     if (!user) return next(new ApiError(status.UNAUTHORIZED, info?.message || 'Authentication required'));
 
@@ -13,8 +13,11 @@ const authenticate = (req, res, next) => {
         const jwt = require('jsonwebtoken');
         const config = require('../config/config');
         const decoded = jwt.verify(tokenParts[1], config.jwt.secret);
-        if (decoded.siteId && decoded.siteId !== req.siteId) {
+        if (req.siteId && decoded.siteId && decoded.siteId !== req.siteId) {
           return next(new ApiError(status.FORBIDDEN, 'Token does not belong to this site'));
+        }
+        if (!req.siteId && decoded.siteId) {
+          req.siteId = decoded.siteId;
         }
       } catch {
         return next(new ApiError(status.UNAUTHORIZED, 'Invalid token'));
@@ -22,6 +25,18 @@ const authenticate = (req, res, next) => {
     }
 
     req.user = user;
+
+    if (!req.site && req.siteId) {
+      try {
+        const prisma = require('../lib/prisma');
+        const site = await prisma.site.findUnique({ where: { id: req.siteId } });
+        if (site) {
+          req.site = site;
+          req.subdomain = site.subdomain;
+        }
+      } catch {}
+    }
+
     next();
   })(req, res, next);
 };

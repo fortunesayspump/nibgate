@@ -250,7 +250,7 @@ export default function SitesPage() {
     setLinkError("");
     setLinkCodeDisplay("");
     try {
-      const res = await fetch(`/api/hub/blog/link/generate`, { credentials: "include" });
+      const res = await fetch(`/api/hub/blog/link/generate`, { method: "POST", credentials: "include" });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to generate code");
       setLinkCodeDisplay(data.linkToken);

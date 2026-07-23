@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Header from "@/components/Header";
-import { apiFetch, type BlogPost } from "@/lib/api";
+import { serverFetch } from "@/lib/server-fetch";
+import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
@@ -11,7 +12,7 @@ function ni(i: number) { return String(i + 1).padStart(2, "0"); }
 
 async function getGrouped() {
   try {
-    return await apiFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { next: { revalidate: 60 } });
+    return await serverFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { next: { revalidate: 60 } });
   } catch { return {}; }
 }
 

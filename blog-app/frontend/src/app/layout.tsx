@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { apiFetch } from "@/lib/api";
+import { serverFetch } from "@/lib/server-fetch";
 import Footer from "@/components/Footer";
 
 async function getSite(): Promise<Record<string, any> | null> {
   try {
-    return await apiFetch("/site", { next: { revalidate: 3600 } });
+    return await serverFetch("/site", { next: { revalidate: 3600 } });
   } catch { return null; }
 }
 

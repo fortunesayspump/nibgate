@@ -5,20 +5,21 @@ import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
 import ReputationRating from "@/components/ReputationRating";
-import { apiFetch, type BlogPost } from "@/lib/api";
+import { serverFetch } from "@/lib/server-fetch";
+import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 import { detectEmbed } from "@/lib/media";
 
 async function getPost(slug: string) {
   try {
-    const d = await apiFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
+    const d = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
     return d.post;
   } catch { return null; }
 }
 
 async function getRelated(currentSlug: string, type?: string) {
   try {
-    const d = await apiFetch<{ success: boolean; posts: BlogPost[] }>("/blog/posts", { next: { revalidate: 60 } });
+    const d = await serverFetch<{ success: boolean; posts: BlogPost[] }>("/blog/posts", { next: { revalidate: 60 } });
     return (d.posts || []).filter((p: BlogPost) => p.slug !== currentSlug && (!type || p.type === type)).slice(0, 8);
   } catch { return []; }
 }

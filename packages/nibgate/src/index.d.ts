@@ -453,3 +453,6 @@ export declare function mountRatingUI(resource: NibgateResource | string, option
 
 export declare function createTransferCheckout(resource: NibgateResource | string, options: NibgateTransferCheckoutOptions): NibgateTransferCheckout;
 export declare function payWithTransfer(resource: NibgateResource | string, options: NibgateTransferCheckoutOptions & NibgateAccessCheckOptions): Promise<NibgateAccessCheckResult>;
+export declare function renderDefaultUnlockUI(container: HTMLElement | string, resource: NibgateResource, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController & { element: HTMLElement; destroy: () => void };
+export declare function renderDefaultRatingUI(container: HTMLElement | string, resource: NibgateResource, options?: Record<string, unknown>): { element: HTMLElement; destroy: () => void };
+export declare function renderDefaultGatewayWalletUI(container: HTMLElement | string, options?: Record<string, unknown>): { element: HTMLElement; destroy: () => void; switchTab: (tab: string) => void };

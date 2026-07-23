@@ -21,7 +21,7 @@ export default function ReputationRating({ resource }: { resource: RatingResourc
 
     import("@nibgate/sdk").then((mod) => {
       if (!containerRef.current) return;
-      mod.renderDefaultRatingUI(containerRef.current, resource, {
+      (mod as any).renderDefaultRatingUI(containerRef.current, resource, {
         statsUrl: apiUrl(`/rating/${resource.id}`),
         apiBase: apiUrl(""),
         contentId: '0x' + resource.id.replace(/-/g, ''),

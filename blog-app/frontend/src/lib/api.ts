@@ -57,7 +57,7 @@ export type BlogPost = {
   bodyMarkdown: string;
   coverUrl: string | null;
   tag: string;
-  tags: string[];
+  tags: string | string[];
   price: string | null;
   type: string;
   status: "draft" | "published";

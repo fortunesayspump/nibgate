@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 
 async function getSite(): Promise<Record<string, any> | null> {
   try {
-    return await serverFetch("/site", { next: { revalidate: 3600 } });
+    return await serverFetch("/site", { cache: "no-store" });
   } catch { return null; }
 }
 

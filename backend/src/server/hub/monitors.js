@@ -13,7 +13,7 @@ let reputationIndexerStarted = false;
 let reputationIndexerLastBlock = null;
 
 const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-const DEFAULT_NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/';
+const DEFAULT_ARC_RPC_URL = 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/';
 
 // ── Verification Monitor ───────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ export function startManifestSyncMonitor() {
 // ── Reputation Indexer ─────────────────────────────────────────────────────
 
 function publicClientForIndexer() {
-  const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL || process.env.ARC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_NIBGATE_REPUTATION_RPC_URL;
+  const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.ARC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_ARC_RPC_URL;
   const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
   if (!rpcUrl) return null;
   return createPublicClient({

@@ -1,4 +1,2 @@
 [build]
-builder = "nixpacks"
-buildCommand = "npm install && npm run build"
-startCommand = "npm run start"
+watchPatterns = ["src/**", "public/**"]

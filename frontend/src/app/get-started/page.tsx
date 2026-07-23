@@ -60,7 +60,7 @@ export default function GetStartedPage() {
               <div className="mb-5 text-lg font-medium">Install and verify</div>
               <pre className="overflow-x-auto whitespace-pre-wrap rounded-none bg-black p-6 font-mono text-sm leading-7 text-white md:text-base">{`npm install @nibgate/sdk
 
-<script async src="https://nibgate.xyz/widget.js"
+<script async src="https://www.nibgate.xyz/widget.js"
   data-nibgate-site="site_..."
   data-nibgate-token="ngv_...">
 </script>`}</pre>

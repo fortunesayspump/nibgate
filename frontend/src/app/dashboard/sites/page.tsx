@@ -51,7 +51,7 @@ function cleanDomain(domain = "") {
 }
 
 function widgetScript(site: DashboardSite) {
-  const hubOrigin = typeof window === "undefined" ? "https://nibgate.xyz" : window.location.origin;
+  const hubOrigin = typeof window === "undefined" ? "https://www.nibgate.xyz" : window.location.origin;
   return `<script async src="${hubOrigin}/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken}" data-nibgate-api="${apiBaseUrl()}"></script>`;
 }
 

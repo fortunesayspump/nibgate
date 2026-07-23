@@ -26,7 +26,7 @@ export function manifestCandidateUrls(website) {
 }
 
 export function trackingScriptFor(website) {
-  const widgetUrl = process.env.NIBGATE_WIDGET_URL || 'https://nibgate.xyz/widget.js';
+  const widgetUrl = process.env.NIBGATE_WIDGET_URL || 'https://www.nibgate.xyz/widget.js';
   const apiUrl = process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz';
   return `<script async src="${widgetUrl}" data-nibgate-site="${website.id}" data-nibgate-token="${website.verifyToken}" data-nibgate-api="${apiUrl.replace(/\/+$/, '')}"></script>`;
 }

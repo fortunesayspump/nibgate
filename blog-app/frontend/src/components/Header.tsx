@@ -30,7 +30,7 @@ export default function Header() {
       <span className="flex-shrink ssr">
         <Link href="/about" className="muted plain">About</Link>
         <Link href="/admin/login" className="muted plain" style={{ marginLeft: "0.75em", display: "inline-flex", alignItems: "center" }} title="Admin">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" style={{ transform: "translateY(2px)" }}>
             <path d="M6 9V5a4 4 0 118 0v4h1a2 2 0 012 2v5a2 2 0 01-2 2H4a2 2 0 01-2-2v-5a2 2 0 012-2h1zm6 0V5a2 2 0 10-4 0v4h4z"/>
           </svg>
         </Link>

@@ -7,6 +7,7 @@ export { rateResource, createOnchainRating, mountRatingUI } from './rating-ui.js
 export { trackResourcePage, setupResourcePage } from './track.js';
 export { createTransferCheckout, payWithTransfer } from './transfer.js';
 export { contentRatingHash, NIBGATE_CONTENT_HASH_NAMESPACE, NIBGATE_REPUTATION_ABI, NIBGATE_REPUTATION_CHAIN_ID, NIBGATE_REPUTATION_CHAIN_NAME, NIBGATE_REPUTATION_CONTRACT, NIBGATE_REPUTATION_RPC_URL, rateContentOnchain, reviewTextHash } from './reputation.js';
+export { renderDefaultUnlockUI, renderDefaultRatingUI, renderDefaultGatewayWalletUI } from './default-ui.js';
 export { CONTENT_TYPES, ACCESS_MODES, UNLOCK_MODES, normalizeContentType, normalizeResource, normalizeAccessPolicy, normalizeUnlockPolicy, validateResourceMetadata } from '../core/resource.js';
 export { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings, settingsToAccessPolicy, settingsToUnlockPolicy } from '../core/settings.js';
 export { PAYMENT_RAILS, normalizePaymentRail } from '../core/payment.js';

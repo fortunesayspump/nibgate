@@ -8,7 +8,7 @@ const ZERO_HASH = `0x${'0'.repeat(64)}`;
 export const NIBGATE_CONTENT_HASH_NAMESPACE = 'nibgate:content:v1';
 export const NIBGATE_REPUTATION_CHAIN_ID = 5042002;
 export const NIBGATE_REPUTATION_CHAIN_NAME = 'Arc Testnet';
-export const NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.network';
+export const NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.io';
 export const NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 
 export const NIBGATE_REPUTATION_ABI = [
@@ -27,7 +27,7 @@ export const NIBGATE_REPUTATION_ABI = [
 ];
 
 function stripHex(value = '') {
-  return String(value || '').replace(/^0x/i, '').toLowerCase();
+  return String(value || '').replace(/^0x/i, '').replace(/[^0-9a-fA-F]/g, '').toLowerCase();
 }
 
 function word(hex = '') {

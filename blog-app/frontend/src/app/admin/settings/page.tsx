@@ -3,10 +3,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiAuthFetch } from "@/lib/api";
+import MarkdownEditor from "@/components/MarkdownEditor";
 
 type SiteSettings = {
   name: string;
   description: string;
+  aboutMarkdown: string;
   recipientWallet: string;
   defaultPrice: string;
   defaultCurrency: string;
@@ -20,14 +22,13 @@ export default function AdminSettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [form, setForm] = useState({
-    name: "", description: "", recipientWallet: "",
+    name: "", description: "", aboutMarkdown: "", recipientWallet: "",
     defaultPrice: "0.01", defaultCurrency: "USDC", paymentNetwork: "eip155:5042002",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
   const [pwForm, setPwForm] = useState({ current: "", newPw: "" });
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState("");
@@ -47,6 +48,7 @@ export default function AdminSettingsPage() {
         setForm({
           name: data.settings.name,
           description: data.settings.description || "",
+          aboutMarkdown: data.settings.aboutMarkdown || "",
           recipientWallet: data.settings.recipientWallet || "",
           defaultPrice: data.settings.defaultPrice || "0.01",
           defaultCurrency: data.settings.defaultCurrency || "USDC",
@@ -113,71 +115,61 @@ export default function AdminSettingsPage() {
     }
   }
 
-  function copyWidget() {
-    if (settings?.widgetScript) {
-      navigator.clipboard.writeText(settings.widgetScript);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }
-
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">Loading...</div>;
+    return <div className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--muted)" }}>Loading...</div>;
   }
 
   return (
     <div className="min-h-screen px-5 py-10">
-      <div className="mx-auto max-w-lg">
-        <button onClick={() => router.push("/admin/posts")} className="mb-6 text-xs text-[var(--muted)] hover:text-[var(--fg)] transition-colors cursor-pointer font-medium">
-          &larr; Back to posts
-        </button>
+      <div className="mx-auto" style={{ maxWidth: "540px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "1rem" }}>
+          <button onClick={() => router.push("/admin/posts")} className="btn-ghost inline-flex items-center gap-1">
+            &larr; Posts
+          </button>
+          <span style={{ color: "var(--muted)", fontSize: "13px" }}>/</span>
+          <button onClick={() => router.push("/admin/gateway")} className="btn-ghost inline-flex items-center gap-1">
+            Gateway
+          </button>
+        </div>
         <h1 className="text-lg font-semibold mb-6">Settings</h1>
 
         {message && <div className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{message}</div>}
         {error && <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{error}</div>}
 
         <div className="space-y-6">
-          <div className="border border-[var(--border)] rounded-lg p-4 space-y-1">
-            <span className="text-xs font-medium text-[var(--muted)]">Your site</span>
+          <div className="border rounded-lg p-4 space-y-1" style={{ borderColor: "var(--border)" }}>
+            <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>Your site</span>
             {settings && <p className="text-sm font-medium">{settings.subdomain}.nibgate.xyz</p>}
           </div>
 
-          <div className="border border-[var(--border)] rounded-lg p-4 space-y-2">
-            <span className="text-xs font-medium text-[var(--muted)]">Widget script</span>
-            <p className="text-xs text-[var(--muted)]">Add this to your site layout to enable analytics and payments.</p>
-            <pre className="text-[11px] font-mono bg-[var(--card-hover)] p-2 rounded overflow-x-auto whitespace-pre-wrap break-all">{settings?.widgetScript}</pre>
-            <button onClick={copyWidget} className="text-xs text-[var(--accent)] font-medium hover:underline cursor-pointer">
-              {copied ? "Copied!" : "Copy to clipboard"}
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4 border-t border-[var(--border)] pt-6">
+          <form onSubmit={handleSubmit} className="space-y-4 border-t pt-6" style={{ borderColor: "var(--border)" }}>
             <h2 className="text-sm font-semibold">Site info</h2>
             <Field label="Site name">
-              <input type="text" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" />
+              <input type="text" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="input-field" />
             </Field>
             <Field label="Description">
-              <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md resize-y" />
+              <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={2} className="input-field" />
             </Field>
 
-            <h2 className="text-sm font-semibold pt-4 border-t border-[var(--border)]">Payment settings</h2>
-            <p className="text-xs text-[var(--muted)]">Used by the hosted unlock mode. Can be overridden per-post.</p>
+            <div className="pt-4">
+              <MarkdownEditor label="About page" value={form.aboutMarkdown} onChange={(v) => setForm((p) => ({ ...p, aboutMarkdown: v }))} />
+            </div>
+
+            <h2 className="text-sm font-semibold pt-4 border-t" style={{ borderColor: "var(--border)" }}>Payment settings</h2>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>Used by the hosted unlock mode. Can be overridden per-post.</p>
             <Field label="Default wallet (recipient)">
-              <input type="text" value={form.recipientWallet} onChange={(e) => setForm((p) => ({ ...p, recipientWallet: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md font-mono" placeholder="0x..." />
+              <input type="text" value={form.recipientWallet} onChange={(e) => setForm((p) => ({ ...p, recipientWallet: e.target.value }))} className="input-field font-mono" placeholder="0x..." />
             </Field>
             <Field label="Default price (USDC)">
-              <input type="text" value={form.defaultPrice} onChange={(e) => setForm((p) => ({ ...p, defaultPrice: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" placeholder="0.01" />
-            </Field>
-            <Field label="Payment network">
-              <input type="text" value={form.paymentNetwork} onChange={(e) => setForm((p) => ({ ...p, paymentNetwork: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md font-mono text-xs" placeholder="eip155:5042002" />
+              <input type="text" value={form.defaultPrice} onChange={(e) => setForm((p) => ({ ...p, defaultPrice: e.target.value }))} className="input-field" placeholder="0.01" />
             </Field>
 
-            <button type="submit" disabled={saving} className="bg-[var(--accent-soft)] border border-[var(--accent)] text-sm font-semibold px-4 py-2.5 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all disabled:opacity-40 cursor-pointer">
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? "Saving..." : "Save settings"}
             </button>
           </form>
 
-          <div className="space-y-4 border-t border-[var(--border)] pt-6">
+          <div className="space-y-4 border-t pt-6" style={{ borderColor: "var(--border)" }}>
             <h2 className="text-sm font-semibold">Connect to Nibgate Hub</h2>
             {hubStatus.hubSiteId ? (
               <div className="border border-green-200 bg-green-50 rounded-md px-3 py-2 text-xs text-green-700">
@@ -185,13 +177,13 @@ export default function AdminSettingsPage() {
               </div>
             ) : (
               <>
-                <p className="text-xs text-[var(--muted)] leading-6">
+                <p className="text-xs leading-6" style={{ color: "var(--muted)" }}>
                   Connect this blog to your Nibgate Hub account so it appears in your dashboard alongside your other sites.
                   Analytics, earnings, and explore presence all flow through the hub.
                 </p>
-                <div className="bg-[var(--card-hover)] rounded-md p-3 space-y-2">
+                <div className="rounded-md p-3 space-y-2" style={{ background: "var(--card-hover)" }}>
                   <p className="text-xs font-medium">How to connect:</p>
-                  <ol className="text-xs text-[var(--muted)] space-y-1 list-decimal pl-4">
+                  <ol className="text-xs space-y-1 list-decimal pl-4" style={{ color: "var(--muted)" }}>
                     <li>Sign in at <a href="https://nibgate.xyz" target="_blank" className="underline">nibgate.xyz</a> with your wallet</li>
                     <li>Go to <strong>Dashboard → Sites</strong></li>
                     <li>Click <strong>Link a blog</strong> → <strong>Generate linking code</strong></li>
@@ -200,10 +192,10 @@ export default function AdminSettingsPage() {
                 </div>
                 <div className="flex gap-2">
                   <input type="text" value={linkCode} onChange={(e) => setLinkCode(e.target.value)}
-                    className="flex-1 border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md font-mono text-xs"
+                    className="input-field flex-1 font-mono text-xs"
                     placeholder="Paste your linking code..." />
                   <button onClick={handleLinkHub} disabled={linking || !linkCode}
-                    className="bg-[var(--accent-soft)] border border-[var(--accent)] text-sm font-semibold px-4 py-2.5 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all disabled:opacity-40 cursor-pointer whitespace-nowrap">
+                    className="btn-primary whitespace-nowrap">
                     {linking ? "Connecting..." : "Connect"}
                   </button>
                 </div>
@@ -213,17 +205,17 @@ export default function AdminSettingsPage() {
             )}
           </div>
 
-          <form onSubmit={handlePasswordChange} className="space-y-4 border-t border-[var(--border)] pt-6">
+          <form onSubmit={handlePasswordChange} className="space-y-4 border-t pt-6" style={{ borderColor: "var(--border)" }}>
             <h2 className="text-sm font-semibold">Change password</h2>
             {pwMessage && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">{pwMessage}</div>}
             {pwError && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{pwError}</div>}
             <Field label="Current password">
-              <input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" />
+              <input type="password" value={pwForm.current} onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))} className="input-field" />
             </Field>
             <Field label="New password">
-              <input type="password" value={pwForm.newPw} onChange={(e) => setPwForm((p) => ({ ...p, newPw: e.target.value }))} className="w-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)] transition-colors rounded-md" />
+              <input type="password" value={pwForm.newPw} onChange={(e) => setPwForm((p) => ({ ...p, newPw: e.target.value }))} className="input-field" />
             </Field>
-            <button type="submit" disabled={pwSaving} className="border border-[var(--border)] text-sm font-medium px-4 py-2.5 rounded-md hover:bg-[var(--surface)] transition-all disabled:opacity-40 cursor-pointer">
+            <button type="submit" disabled={pwSaving} className="btn-secondary">
               {pwSaving ? "Updating..." : "Update password"}
             </button>
           </form>
@@ -236,7 +228,7 @@ export default function AdminSettingsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-[var(--muted)]">{label}</label>
+      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}</label>
       {children}
     </div>
   );

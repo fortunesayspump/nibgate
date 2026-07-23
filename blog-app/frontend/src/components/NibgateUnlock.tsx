@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
-declare global {
-  interface Window { ethereum?: unknown; }
-}
+import { useEffect, useRef, useState } from "react";
+import { getGatewayBalance } from "@/lib/gateway-core";
+import GatewayWallet from "./GatewayWallet";
 
 type UnlockResource = {
   id: string;
@@ -12,74 +10,140 @@ type UnlockResource = {
   type: string;
   price: string;
   path: string;
+  description?: string;
+  imageUrl?: string;
+  tags?: string[];
 };
 
-export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
-  const mounted = useRef(false);
+function GwOverlay({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (mounted.current) return;
-    mounted.current = true;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
 
-    async function init() {
-      try {
-        const mod = await import("@nibgate/sdk");
-        if (!mod) return;
+  return (
+    <div
+      ref={ref}
+      onClick={(e) => { if (e.target === ref.current) onClose(); }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.5)", display: "flex",
+        alignItems: "center", justifyContent: "center",
+        padding: "20px",
+      }}
+    >
+      <div style={{
+        background: "var(--bg,#f4f4f0)", borderRadius: "16px",
+        maxWidth: "540px", width: "100%", maxHeight: "90vh",
+        overflow: "auto", position: "relative",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute", top: "12px", right: "16px", zIndex: 20,
+            background: "none", border: "none", fontSize: "28px",
+            cursor: "pointer", color: "var(--muted,#6b6862)",
+            fontFamily: "inherit", lineHeight: "1",
+          }}
+        >
+          &times;
+        </button>
+        <GatewayWallet />
+      </div>
+    </div>
+  );
+}
 
-        mod.createHostedUnlock(resource, {
-          connectButton: "[data-nibgate-connect]",
-          disconnectButton: "[data-nibgate-disconnect]",
-          unlockButton: "[data-nibgate-unlock]",
-          walletLabel: "[data-nibgate-wallet-label]",
-          status: "[data-nibgate-status]",
-          unlockedTarget: "[data-nibgate-premium]",
-          onUnlock() {
-            window.location.reload();
-          },
-        });
-      } catch (err) {
-        console.error("Nibgate unlock failed to load:", err);
+export default function NibgateUnlock({ resource, children }: { resource: UnlockResource; children?: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef({ destroyed: false });
+  const [showGw, setShowGw] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    stateRef.current.destroyed = false;
+
+    import("@nibgate/sdk").then((mod) => {
+      if (stateRef.current.destroyed || !containerRef.current) return;
+      const container = containerRef.current;
+      container.innerHTML = "";
+      (mod as any).renderDefaultUnlockUI(container, resource, {
+        accessPath: `/api/nibgate/access?path=${resource.path}`,
+      });
+
+      let addr = "";
+      let gwEl: HTMLElement | null = null;
+      let observer: MutationObserver | null = null;
+
+      function ensureGwEl(label: HTMLElement): HTMLElement | null {
+        const existing = container.querySelector<HTMLElement>("[data-gw-bal-inline]");
+        if (existing) return existing;
+        const el = document.createElement("span");
+        el.dataset.gwBalInline = "";
+        el.style.cssText = "margin-left:12px;font-size:18px;color:var(--accent,#7c9a6d);cursor:pointer;white-space:nowrap";
+        el.addEventListener("click", () => setShowGw(true));
+        label.appendChild(el);
+        return el;
       }
-    }
 
-    init();
+      async function refresh() {
+        if (stateRef.current.destroyed) return;
+        if (!window.ethereum) return;
+        try {
+          const accounts: unknown = await window.ethereum.request({ method: "eth_accounts" });
+          const a = Array.isArray(accounts) && accounts.length > 0 ? (accounts[0] as string) : null;
+          if (!a) return;
+          addr = a;
+
+          const label = container.querySelector<HTMLElement>("[data-nibgate-wallet-label]");
+          if (!label) return;
+
+          if (!observer) {
+            observer = new MutationObserver(() => {
+              if (label.contains(gwEl)) return;
+              gwEl = ensureGwEl(label);
+            });
+            observer.observe(label, { childList: true, subtree: true });
+          }
+
+          if (!gwEl || !label.contains(gwEl)) gwEl = ensureGwEl(label);
+          if (!gwEl) return;
+
+          const bal = await getGatewayBalance(addr);
+          gwEl.textContent = "Gateway: " + bal;
+        } catch {}
+      }
+
+      const iv = setInterval(refresh, 3000);
+      setTimeout(refresh, 1000);
+      if (window.ethereum) window.ethereum.on("accountsChanged", refresh);
+    }).catch((err) => {
+      console.error("Nibgate unlock failed to load:", err);
+    });
+
+    return () => {
+      stateRef.current.destroyed = true;
+    };
   }, [resource]);
 
   return (
-    <aside className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-6 my-8">
-      <span className="inline-block text-[10px] font-semibold uppercase tracking-widest text-[var(--accent)] border border-[var(--accent)] rounded px-2 py-0.5 mb-4">
-        Premium
-      </span>
-      <h2 className="text-xl font-semibold tracking-tight mb-1">Unlock this post</h2>
-      <p className="text-sm text-[var(--muted)] mb-6">
-        Connect your wallet and pay {resource.price} USDC to read the full article.
-      </p>
-
-      <div className="border border-[var(--border)] rounded-lg p-4 mb-6 space-y-3">
-        <span className="text-xs text-[var(--muted)]">Wallet</span>
-        <strong data-nibgate-wallet-label className="text-sm font-mono break-all block">
-          No wallet detected
-        </strong>
-        <div className="flex gap-3">
-          <button type="button" data-nibgate-connect className="border border-[var(--border)] rounded-md px-4 py-2 text-xs font-semibold hover:bg-[var(--card-hover)] transition-colors cursor-pointer">Connect</button>
-          <button type="button" data-nibgate-disconnect disabled className="border border-[var(--border)] rounded-md px-4 py-2 text-xs text-[var(--muted)] cursor-pointer disabled:opacity-40">Disconnect</button>
+    <>
+      <div ref={containerRef}>
+        <div data-nibgate-premium hidden>
+          {children || <p>Content unlocked. Thank you for your support!</p>}
         </div>
       </div>
-
-      <button type="button" data-nibgate-unlock className="w-full bg-[var(--fg)] text-[var(--bg)] border-0 rounded-md px-6 py-3 text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer">
-        Unlock for {resource.price} USDC
-      </button>
-
-      <p className="text-xs text-center text-[var(--muted)] mt-4" data-nibgate-status>
-        {typeof window !== "undefined" && window.ethereum
-          ? "Wallet detected. Connect to continue."
-          : "No wallet detected. Install MetaMask to unlock."}
-      </p>
-
-      <div data-nibgate-premium hidden className="mt-6 border-t border-[var(--border)] pt-6">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--accent)] border border-[var(--accent)] rounded px-2 py-0.5">Unlocked</span>
-        <p className="text-sm text-[var(--fg)] mt-3">Content unlocked. Thank you for your support!</p>
-      </div>
-    </aside>
+      {showGw && <GwOverlay onClose={() => setShowGw(false)} />}
+    </>
   );
 }

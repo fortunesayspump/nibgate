@@ -26,8 +26,17 @@ function formatRssDate(value: string): string {
   return new Date(value).toUTCString();
 }
 
+async function getSiteName(): Promise<string> {
+  try {
+    const res = await fetch(apiUrl("/site"), { next: { revalidate: 3600 } });
+    if (!res.ok) return "Nibgate Blog";
+    const d = await res.json();
+    return d.site?.name || "Nibgate Blog";
+  } catch { return "Nibgate Blog"; }
+}
+
 export async function GET() {
-  const posts = await getPosts();
+  const [posts, siteName] = await Promise.all([getPosts(), getSiteName()]);
   const siteUrl = process.env.NEXT_PUBLIC_API_URL
     ? process.env.NEXT_PUBLIC_API_URL.replace("/api", "")
     : "http://localhost:3001";
@@ -49,7 +58,7 @@ export async function GET() {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
-    <title>Nibgate Blog</title>
+    <title>${escapeXml(siteName)}</title>
     <link>${siteUrl}</link>
     <description>Product updates, creator guides, and thinking behind the reputation layer.</description>
     <language>en</language>

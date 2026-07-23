@@ -9,8 +9,8 @@ export async function apiFetch<T>(
   options?: RequestInit
 ): Promise<T> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...options?.headers as Record<string, string>,
+    "Content-Type": "application/json",
   };
 
   if (typeof window === "undefined") {
@@ -24,7 +24,7 @@ export async function apiFetch<T>(
     } catch {}
   }
 
-  const res = await fetch(apiUrl(path), { headers, ...options });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || data.error || "Request failed");
   return data;
@@ -59,6 +59,7 @@ export type BlogPost = {
   tag: string;
   tags: string[];
   price: string | null;
+  type: string;
   status: "draft" | "published";
   featured: boolean;
   publishedAt: string;

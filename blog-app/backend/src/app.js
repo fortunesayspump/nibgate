@@ -30,8 +30,8 @@ app.use(helmet());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
-app.use(cors());
-app.options('*', cors());
+app.use(cors({ exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'] }));
+app.options('*', cors({ exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'] }));
 
 app.use(generalLimiter);
 
@@ -54,6 +54,8 @@ app.get('/', (req, res) => {
     },
   });
 });
+
+app.use('/uploads', express.static('uploads'));
 
 app.use('/api', routes);
 

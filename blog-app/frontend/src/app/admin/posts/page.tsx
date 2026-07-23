@@ -9,6 +9,13 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
 }
 
+const TYPE_COLORS: Record<string, string> = {
+  article: "#7c9a6d",
+  photo: "#8b7e74",
+  music: "#6d8a9a",
+  video: "#9a6d8a",
+};
+
 export default function AdminPostsPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -39,28 +46,28 @@ export default function AdminPostsPage() {
   }
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">Loading...</div>;
+    return <div className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--muted)" }}>Loading...</div>;
   }
 
   return (
     <div className="min-h-screen px-5 py-10">
-      <div className="mx-auto max-w-lg">
-        <a href="/" className="text-xs text-[var(--muted)] no-underline hover:text-[var(--fg)] transition-colors">
+      <div className="mx-auto" style={{ maxWidth: "540px" }}>
+        <a href="/" className="btn-ghost no-underline inline-flex items-center gap-1">
           &larr; Back to blog
         </a>
         <div className="flex items-center justify-between mt-6 mb-8">
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Posts</h1>
-            <p className="text-xs text-[var(--muted)] mt-0.5">{posts.length} post{posts.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{posts.length} post{posts.length !== 1 ? "s" : ""}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/admin/settings" className="border border-[var(--border)] px-3 py-2 rounded-md text-xs text-[var(--muted)] hover:bg-[var(--surface)] transition-all no-underline font-medium">
+            <Link href="/admin/settings" className="btn-secondary no-underline text-xs" style={{ padding: "6px 12px" }}>
               Settings
             </Link>
-            <Link href="/admin/posts/new" className="bg-[var(--accent-soft)] border border-[var(--accent)] text-xs font-semibold px-3 py-2 rounded-md hover:bg-[var(--accent)] hover:text-white transition-all no-underline text-[var(--fg)]">
+            <Link href="/admin/posts/new" className="btn-primary no-underline text-xs" style={{ padding: "6px 12px" }}>
               New Post
             </Link>
-            <button onClick={handleLogout} className="border border-[var(--border)] px-3 py-2 rounded-md text-xs text-[var(--muted)] hover:bg-[var(--surface)] transition-all cursor-pointer font-medium">
+            <button onClick={handleLogout} className="btn-secondary text-xs" style={{ padding: "6px 12px" }}>
               Sign Out
             </button>
           </div>
@@ -69,32 +76,32 @@ export default function AdminPostsPage() {
         <div className="flex flex-col gap-px">
           {posts.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-sm text-[var(--muted)]">No posts yet.</p>
-              <Link href="/admin/posts/new" className="text-xs text-[var(--muted)] underline underline-offset-2 mt-2 inline-block">
+              <p className="text-sm" style={{ color: "var(--muted)" }}>No posts yet.</p>
+              <Link href="/admin/posts/new" className="btn-ghost no-underline inline-flex mt-2 text-xs">
                 Create your first post
               </Link>
             </div>
           ) : (
             posts.map((post) => (
-              <div key={post.id} className="flex items-center justify-between gap-3 py-3 border-b border-[var(--border)]">
+              <div key={post.id} className="flex items-center justify-between gap-3 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="text-sm font-medium truncate">{post.title}</h2>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                      post.status === "published"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase" style={{ background: `${TYPE_COLORS[post.type]}20`, color: TYPE_COLORS[post.type] }}>{post.type}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{
+                      background: post.status === "published" ? "#7c9a6d20" : "#c4a06020",
+                      color: post.status === "published" ? "#7c9a6d" : "#c4a060",
+                    }}>
                       {post.status}
                     </span>
                   </div>
-                  {post.excerpt && <p className="text-xs text-[var(--muted)] truncate mt-0.5">{post.excerpt}</p>}
+                  {post.excerpt && <p className="text-xs truncate mt-0.5" style={{ color: "var(--muted)" }}>{post.excerpt}</p>}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <Link href={`/admin/posts/${post.id}`} className="px-2.5 py-1.5 text-xs border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors no-underline text-[var(--fg)] font-medium">
+                  <Link href={`/admin/posts/${post.id}`} className="no-underline text-xs font-medium px-2.5 py-1.5 rounded-md border" style={{ color: "var(--fg)", borderColor: "var(--border)" }}>
                     Edit
                   </Link>
-                  <button onClick={() => handleDelete(post.id)} className="px-2.5 py-1.5 text-xs border border-red-200 text-red-600 rounded-md hover:bg-red-50 transition-colors cursor-pointer font-medium">
+                  <button onClick={() => handleDelete(post.id)} className="text-xs font-medium px-2.5 py-1.5 rounded-md border cursor-pointer" style={{ color: "#c44", borderColor: "#c448" }}>
                     Delete
                   </button>
                 </div>

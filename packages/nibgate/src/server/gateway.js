@@ -120,6 +120,15 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
 
   const resource = normalizeResource(resourceInput);
   const recipient = resource.recipient || resource.payTo || options.recipient || serverEnv('NIBGATE_SELLER_ADDRESS') || '';
+  if (!recipient) {
+    return {
+      handled: true,
+      response: jsonResponse({
+        error: 'Gateway seller address is not configured',
+        detail: 'Set NIBGATE_SELLER_ADDRESS or pass recipient in the resource.'
+      }, { status: 400 })
+    };
+  }
   const middleware = createGatewayMiddleware({
     sellerAddress: recipient,
     facilitatorUrl: options.facilitatorUrl || serverEnv('NIBGATE_FACILITATOR_URL') || serverEnv('CIRCLE_GATEWAY_FACILITATOR_URL') || 'https://gateway-api-testnet.circle.com',

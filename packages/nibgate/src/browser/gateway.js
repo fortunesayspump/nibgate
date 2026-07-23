@@ -1,34 +1,5 @@
+import { BatchEvmScheme } from './schemes/batch-scheme.js';
 import { stringifyJson } from './json.js';
-
-let cachedCircleModule = null;
-
-async function getCircleClient(options = {}) {
-  if (cachedCircleModule) return cachedCircleModule;
-
-  if (options.clientModule) {
-    cachedCircleModule = options.clientModule;
-    return cachedCircleModule;
-  }
-
-  const moduleUrl = options.clientModuleUrl || '@circle-fin/x402-batching/client';
-
-  try {
-    cachedCircleModule = await import(moduleUrl);
-    return cachedCircleModule;
-  } catch (error) {
-    if (!options.clientModuleUrl) {
-      throw new Error(
-        `Could not load @circle-fin/x402-batching/client from node_modules. ` +
-        `Provide a clientModuleUrl option (e.g. "https://esm.sh/@circle-fin/x402-batching@3.2.0/client?bundle") ` +
-        `to load from CDN. Original error: ${error.message}`
-      );
-    }
-    throw new Error(
-      `Could not load Circle Gateway client from CDN: ${error.message}. ` +
-      `Check that ${options.clientModuleUrl} is reachable.`
-    );
-  }
-}
 
 function encodeBase64(value) {
   const text = typeof value === 'string' ? value : stringifyJson(value);
@@ -47,9 +18,9 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
     throw new Error('Circle Gateway browser adapter requires an EVM signer with address and signTypedData.');
   }
 
-  const circleClientModule = await getCircleClient(options);
-  const { BatchEvmScheme } = circleClientModule;
-  const scheme = new BatchEvmScheme(signer);
+  const scheme = options.clientModule?.BatchEvmScheme
+    ? new options.clientModule.BatchEvmScheme(signer)
+    : new BatchEvmScheme(signer);
   const network = options.network || options.chainId && `eip155:${options.chainId}` || 'eip155:5042002';
 
   function parsePaymentRequired(input) {

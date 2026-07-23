@@ -20,6 +20,7 @@ router.get('/', authenticate, async (req, res, next) => {
       settings: {
         name: site.name,
         description: site.description,
+        aboutMarkdown: settings.aboutMarkdown || '',
         recipientWallet: settings.recipientWallet || '',
         defaultPrice: settings.defaultPrice || '0.01',
         defaultCurrency: settings.defaultCurrency || 'USDC',

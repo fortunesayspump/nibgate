@@ -406,6 +406,14 @@ export function renderDefaultRatingUI(container, resource, options = {}) {
     ctrl = m.createOnchainRating(resource, {
       autoMount: false,
       contentId: options.contentId || '0x' + (resource.id || '').replace(/-/g, ''),
+      indexUrl: options.indexUrl,
+      siteId: options.siteId,
+      token: options.token,
+      indexHeaders: options.indexHeaders,
+      actor: options.actor,
+      paymentId: options.paymentId,
+      getPaymentId: options.getPaymentId,
+      getUnlockRef: options.getUnlockRef,
       onRated: (r) => { setStatus('Rating saved', theme.accent, 3000); refresh(); if (typeof options.onRated === 'function') options.onRated(r); },
       onError: (e) => { setStatus(e?.message || 'Could not save rating. Try again.', '#dc2626'); if (typeof options.onError === 'function') options.onError(e); },
     });

@@ -559,14 +559,12 @@ export async function upsertContentRating(website, content, payload = {}, eventN
   if (!hasUnlock && !proof.txHash && !proof.paymentId) return null;
 
   let ratingProof = null;
-  let ratingMessage = null;
   if (proof.txHash) {
     ratingProof = `onchain:${proof.txHash}`;
   } else if (proof.paymentId || hasUnlock) {
     const verified = await verifySignedRating(website, content, payload, walletAddress, ratingValue);
     if (verified.ok) {
       ratingProof = verified.proof ? `signed:${verified.proof.slice(0, 40)}` : `receipt:${hasUnlock?.paymentId || proof.paymentId || ''}`;
-      ratingMessage = verified.message || null;
     } else {
       if (verified.status === 'missing_signature') return null;
       ratingProof = `receipt:${hasUnlock?.paymentId || proof.paymentId || ''}`;
@@ -575,8 +573,8 @@ export async function upsertContentRating(website, content, payload = {}, eventN
 
   return db.contentRating.upsert({
     where: { contentId_walletAddress: { contentId: content.id, walletAddress } },
-    update: { ratingValue, proof: ratingProof, message: ratingMessage, updatedAt: new Date() },
-    create: { contentId: content.id, websiteId: website.id, walletAddress, ratingValue, proof: ratingProof, message: ratingMessage }
+    update: { ratingValue, proof: ratingProof, updatedAt: new Date() },
+    create: { contentId: content.id, websiteId: website.id, walletAddress, ratingValue, proof: ratingProof }
   });
 }
 

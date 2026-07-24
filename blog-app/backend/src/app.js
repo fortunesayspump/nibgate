@@ -31,11 +31,27 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    if (!origin || !origin.startsWith('http')) return callback(null, true);
+    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+    if (allowed.some(a => {
+      if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
+      return a === origin;
+    })) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
   exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
 }));
 app.options('*', cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    if (!origin || !origin.startsWith('http')) return callback(null, true);
+    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+    if (allowed.some(a => {
+      if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
+      return a === origin;
+    })) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
   exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
 }));
 

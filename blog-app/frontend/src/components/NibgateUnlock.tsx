@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getGatewayBalance } from "@/lib/gateway-core";
+import GatewayWallet from "./GatewayWallet";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -12,10 +14,30 @@ type UnlockResource = {
   path: string;
 };
 
+function GwOverlay({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [onClose]);
+  return (
+    <div ref={ref} onClick={(e) => { if (e.target === ref.current) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "var(--bg,#f4f4f0)", borderRadius: "16px", maxWidth: "540px", width: "100%", maxHeight: "90vh", overflow: "auto", position: "relative", boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: "12px", right: "16px", zIndex: 20, background: "none", border: "none", fontSize: "28px", cursor: "pointer", color: "var(--muted,#6b6862)", fontFamily: "inherit", lineHeight: "1" }}>&times;</button>
+        <GatewayWallet />
+      </div>
+    </div>
+  );
+}
+
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef({ destroyed: false });
   const [content, setContent] = useState<string | null>(null);
+  const [showGw, setShowGw] = useState(false);
 
   const subdomain = (() => {
     if (typeof window === "undefined") return "";
@@ -56,12 +78,50 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
         if (stateRef.current.destroyed || !containerRef.current) return;
         (mod as any).renderDefaultUnlockUI(container, resource, {
           accessPath,
-          gatewayBalanceUrl: `${API_BASE}/nibgate/gateway/balance/`,
           onUnlock: (result: any) => {
             const c = result?.payload?.content || "";
             if (c) setContent(c);
           },
         });
+
+        // Gateway balance polling + deposit icon
+        let addr = "";
+        let balEl: HTMLElement | null = null;
+
+        function ensureBalEl(label: HTMLElement) {
+          let e = container.querySelector<HTMLElement>("[data-gw-bal]");
+          if (e) return e;
+          e = document.createElement("span");
+          e.dataset.gwBal = "";
+          e.style.cssText = "margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)";
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;transform:translateY(-1px)"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>';
+          e.innerHTML = '\u00b7\u00a0' + svg + '\u00a0<span data-gw-bal-txt></span>';
+          e.addEventListener("click", () => setShowGw(true));
+          label.appendChild(e);
+          return e;
+        }
+
+        async function refreshBal() {
+          if (stateRef.current.destroyed) return;
+          if (!window.ethereum) return;
+          try {
+            const accounts: unknown = await (window as any).ethereum.request({ method: "eth_accounts" });
+            const a = Array.isArray(accounts) && accounts.length > 0 ? (accounts[0] as string) : null;
+            if (!a) return;
+            addr = a;
+            const el = containerRef.current;
+            if (!el) return;
+            const label = el.querySelector<HTMLElement>("[data-nibgate-wallet-label]");
+            if (!label) return;
+            if (!balEl || !label.contains(balEl)) balEl = ensureBalEl(label);
+            const t = balEl.querySelector("[data-gw-bal-txt]");
+            if (t) t.textContent = await getGatewayBalance(addr);
+          } catch {}
+        }
+
+        const iv = setInterval(refreshBal, 3000);
+        setTimeout(refreshBal, 1000);
+        if (window.ethereum) (window as any).ethereum.on("accountsChanged", refreshBal);
       }).catch(() => {});
     }
 
@@ -72,5 +132,10 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     return <div className="prose prose-neutral dark:prose-invert" dangerouslySetInnerHTML={{ __html: content }} />;
   }
 
-  return <div ref={containerRef} />;
+  return (
+    <>
+      <div ref={containerRef} />
+      {showGw && <GwOverlay onClose={() => setShowGw(false)} />}
+    </>
+  );
 }

@@ -182,25 +182,4 @@ router.post('/gateway/withdraw', authenticate, authorize('admin'), async (req, r
   }
 });
 
-const ARC_RPC = 'https://arc-testnet.drpc.org';
-const GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
-const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
-
-router.get('/gateway/balance/:address', async (req, res) => {
-  try {
-    const addr = req.params.address?.toLowerCase();
-    if (!addr || !/^0x[a-f0-9]{40}$/.test(addr)) return res.status(400).json({ error: 'Invalid address' });
-    const sel = '0xdd62e1c6'; // availableBalance(address,address)
-    const data = sel + '000000000000000000000000' + USDC_ADDRESS.slice(2) + '000000000000000000000000' + addr.slice(2);
-    const r = await fetch(ARC_RPC, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_call', params: [{ to: GATEWAY_WALLET, data }, 'latest'], id: 1 }),
-    });
-    const j = await r.json();
-    const balance = j?.result ? (Number(BigInt(j.result)) / 1_000_000).toFixed(2) + ' USDC' : '\u2014';
-    res.json({ balance });
-  } catch { res.json({ balance: '\u2014' }); }
-});
-
 module.exports = router;

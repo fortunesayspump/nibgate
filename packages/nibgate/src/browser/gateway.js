@@ -1,3 +1,4 @@
+import { BatchEvmScheme as CircleBatchEvmScheme } from '@circle-fin/x402-batching/client';
 import { stringifyJson } from './json.js';
 
 function encodeBase64(value) {
@@ -17,19 +18,7 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
     throw new Error('Circle Gateway browser adapter requires an EVM signer with address and signTypedData.');
   }
 
-  let BatchEvmScheme;
-  try {
-    const circle = await import('@circle-fin/x402-batching/client');
-    BatchEvmScheme = circle.BatchEvmScheme;
-  } catch (err) {
-    console.warn('[nibgate] Failed to import @circle-fin/x402-batching/client:', err.message);
-    console.warn('[nibgate] Falling back to custom BatchEvmScheme');
-    const local = await import('./schemes/batch-scheme.js');
-    BatchEvmScheme = local.BatchEvmScheme;
-  }
-  const scheme = options.clientModule?.BatchEvmScheme
-    ? new options.clientModule.BatchEvmScheme(signer)
-    : new BatchEvmScheme(signer);
+  const scheme = new CircleBatchEvmScheme(signer);
   const network = options.network || options.chainId && `eip155:${options.chainId}` || 'eip155:5042002';
 
   function parsePaymentRequired(input) {

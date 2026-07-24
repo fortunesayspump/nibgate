@@ -259,16 +259,88 @@ The package includes small controller UIs, not a heavy design system:
 
 Creators keep their own UI/theme. Nibgate provides the hard parts: resource normalization, metadata validation, x402/Gateway unlock, transfer fallback, event streaming, proof storage, rating tx submission, and hub sync.
 
+## Security
+
+### Premium content must NEVER be in the HTML
+
+This is the most important rule. Paid content (body, media URLs, download links) **must not exist in the initial page HTML**. Including it with `display: none` or `hidden` is not secure — anyone can view the page source or use DevTools to see it.
+
+**Correct architecture:**
+
+```
+[Browser]                  [Your Server]              [Hub]          [Circle]
+    │                            │                       │               │
+    ├── GET /api/content/:id ────┤                       │               │
+    │                            ├── returns teaser ─────┤               │
+    │    (NO body in HTML)       │  (no body for paid)   │               │
+    │                            │                       │               │
+    ├── GET /api/nibgate/access ─┤                       │               │
+    │    with stored proof       ├── verifyProof() ──────┤               │
+    │◄─── 200 { content } ───────┤                       │               │
+    │                            │                       │               │
+    │  [Content rendered from    │                       │               │
+    │   server response, never   │                       │               │
+    │   in page source]          │                       │               │
+```
+
+**Implementation pattern (backend):**
+
+```js
+// Public endpoint — NEVER returns body for paid posts
+router.get('/posts/:slug', async (req, res) => {
+  const post = await db.post.findUnique({ where: { slug: req.params.slug } });
+  if (post.price) {
+    const { body, ...teaser } = post;  // strip body
+    return res.json({ post: { ...teaser, isLocked: true } });
+  }
+  res.json({ post });
+});
+
+// Protected endpoint — returns body only after proof verification
+router.get('/nibgate/access', async (req, res) => {
+  const access = nibgateServer.accessFor(request, resource);
+  if (access.allowed) {
+    const post = await db.post.findUnique({ where: { slug } });
+    return res.json({ ok: true, content: post.body });  // body ONLY here
+  }
+  // ... 402 challenge or payment processing
+});
+```
+
+**Implementation pattern (frontend):**
+
+```js
+// The NibgateUnlock component handles everything:
+// 1. On mount: sends stored proof → gets content immediately if valid
+// 2. If 402: shows unlock button → MetaMask signs → sends proof → gets content
+// 3. Content is NEVER in the HTML, only from server response
+
+function NibgateUnlock({ resource }) {
+  const [content, setContent] = useState('');
+
+  useEffect(() => {
+    fetch('/api/nibgate/access', {
+      headers: { 'x-nibgate-payment-proof': storedProof }
+    }).then(res => res.json()).then(data => {
+      if (data.content) setContent(data.content);
+    });
+  }, []);
+
+  if (content) return <div>{content}</div>;
+  return <button onClick={handleUnlock}>Unlock</button>;
+}
+```
+
 ## FAQ / integration gotchas
 
-- `Does a creator need a server?` Yes for real paid gating. Static-only sites can register discovery events, but protected content needs a server, edge function, CMS webhook, or API route that can return `402` and verify payment proof.
+- `Does a creator need a server?` Yes for real paid gating. Static-only sites can register discovery events, but protected content needs a server, edge function, CMS webhook, or API route that can return `402` and verify payment proof. The premium body must come from a protected route, not from client-side hiding.
 - `Can every post pay a different wallet?` Yes. Set `recipient` or `payTo` per resource. The package does not force one site-wide receiver.
 - `Can this work with DB blogs, MDX, CMS, plain HTML, or custom apps?` Yes. Convert each content item into a Nibgate resource with `id`, `title`, `type`, `url`, `path`, `price`, and `recipient`.
 - `Why does content not show in Explore?` Usually the widget is missing, the site is not verified, the manifest has not synced yet, `url` is not absolute, or required metadata is missing.
 - `Why does reputation not update?` The rating wallet must have an unlock/payment proof for that content, the rating tx must be onchain, and the backend indexer must sync the tx.
 - `Are page views reputation?` No. Views, referrers, scroll depth, and time spent are analytics signals. Reputation-critical scores come from indexed onchain ratings tied to unlock proof.
 - `Do agents use a different flow?` No. Agents discover the same resource metadata, pay through the same protected route, and can emit/index reputation using the same proof model.
-- `Should hidden content live in browser HTML?` No. The browser should only receive teasers before payment. The full body/media URL should come from a protected route after proof verification.
+- `Should hidden content live in browser HTML?` **Never.** The browser should only receive teasers before payment. The full body/media URL should come from a protected route after proof verification. See the Security section above.
 - `What breaks most often locally?` Missing wallet provider, wrong chain, missing Gateway client module, CORS on the backend, wrong `NIBGATE_API_BASE`, wrong site token, or a demo route using fallback challenge mode instead of real Gateway mode.
 
 

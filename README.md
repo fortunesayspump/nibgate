@@ -26,13 +26,13 @@ It consists of four connected parts:
 ## Repo Layout
 
 ```txt
-backend/       Express API server, Prisma DB, hub routes, verification, ingestion
-frontend/      Next.js app for the public site, dashboard, Explore, blog, and leaderboards
-packages/      Nibgate npm package and internal tooling
+backend/       Express hub API — payment verification, metrics, site/manifest sync
+frontend/      Next.js hub UI — public site, dashboard, Explore, leaderboards
+blog-app/      Example creator blog — backend (Express+Prisma) + frontend (Next.js)
+packages/      @nibgate/sdk npm package + CLI tooling
 demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz
 internal-docs/ Architecture, research, design-system notes, and planning
-v2-labs/       Future experiments, including the multipublisher creator platform
 ```
 
 ## Workspace Shape
@@ -44,6 +44,15 @@ The Hub is the main Nibgate app and API surface. It acts as the creator dashboar
 - `/explore` The discovery masonry grid indexing all creator content.
 - `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
 - `/api/hub/*` Hub connection, sync, verification, and event ingestion.
+
+### `blog-app/` (Reference Creator Site)
+
+This is an example creator blog with paid content gating. Two services:
+
+- **`blog-app/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after onchain proof verification.
+- **`blog-app/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification.
+
+**Critical rule:** The `GET /api/blog/posts/:slug` endpoint strips the `body` from paid posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents content from ever appearing in page source.
 
 ### `packages/nibgate/`
 

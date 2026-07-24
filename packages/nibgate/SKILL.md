@@ -53,6 +53,9 @@ If the widget loads after app code, the SDK queues events and flushes them when 
     <button data-nibgate-unlock-btn>Unlock for 0.01 USDC</button>
     <p data-nibgate-status></p>
   </div>
+  <!-- WARNING: This hidden pattern is NOT secure. Content is in the HTML.
+       Use only for teasers or non-sensitive content.
+       For real paid gating, serve content from a protected server endpoint. -->
   <div data-nibgate-unlocked hidden>
     Full premium content here...
   </div>
@@ -60,6 +63,8 @@ If the widget loads after app code, the SDK queues events and flushes them when 
 ```
 
 No SDK import, no server access route, no env vars. The default wallet is set once in the Nibgate dashboard — or override per-post with `data-nibgate-recipient`. Custom price per-post: change `data-nibgate-premium="0.05"`.
+
+> **⚠️ Security warning:** Hosted mode puts premium content in the page HTML (hidden by CSS). Anyone can view-source and read it. For real paid content, use server-side gating with the `accessResponse` or `protect` methods. See the Security section below.
 
 ---
 
@@ -311,11 +316,14 @@ For v1, treat `unlock.mode: 'one_time'` with Circle Gateway/x402 as the producti
 ### How payment works
 
 1. Browser requests access → server returns 402 challenge with creator's wallet, price, network
-2. Browser prompts user to sign a Gateway payment payload (EIP-712 typed data via `eth_signTypedData_v4`)
+2. Browser prompts user to sign a Gateway payment payload (EIP-712 typed data via viem's `walletClient.signTypedData()` through MetaMask)
 3. Signed payload sent to server as `payment-signature` header
 4. Server verifies with `createGatewayMiddleware` from `@circle-fin/x402-batching/server`
-5. On success, server creates an HMAC-signed unlock token and returns it
+5. On success, server creates an HMAC-signed unlock token and returns it directly with the **premium content body**
 6. Browser stores the token as `x-nibgate-payment-proof` for subsequent requests
+7. On return visits, browser sends stored proof → server verifies → returns content without payment
+
+> **⚠️ Important:** Use viem's `createWalletClient` + `custom(window.ethereum)` transport instead of raw `eth_signTypedData_v4`. This ensures consistent EIP-712 hashing across wallets (MetaMask, Rabby, etc.). Raw `eth_signTypedData_v4` can produce hashes that don't match what the server expects.
 
 ### Before testing locally
 
@@ -630,7 +638,89 @@ Events emitted automatically by `createNibgateServer`: `payment_completed`, `unl
 
 ---
 
-## 16. Framework Notes
+## 16. Security: Content Must Never Be in HTML
+
+This is the single most important rule for paid content:
+
+**❌ Wrong (insecure):**
+```html
+<div data-nibgate-premium>
+  <div data-nibgate-unlocked hidden>
+    <!-- Premium content visible in page source -->
+  </div>
+</div>
+```
+
+**✅ Correct (secure):**
+```
+1. Backend: Public endpoint returns post WITHOUT body for paid content
+2. Frontend: Shows unlock button (no content in HTML)
+3. After payment: Backend returns content ONLY via the protected access endpoint
+4. Frontend: Renders content from the server response (never in source)
+```
+
+### Architecture
+
+```
+[Public endpoint]              [Protected endpoint]
+GET /api/posts/:slug           GET /api/nibgate/access
+  ├── free post → return body    ├── Has valid proof → return body + unlock token
+  └── paid post → return teaser  └── No proof → 402 challenge
+       (NO body in response)          (browser signs, retries)
+```
+
+### Frontend pattern (React)
+
+```tsx
+function NibgateUnlock({ resource }) {
+  const [content, setContent] = useState('');
+
+  // On mount: check stored proof → get content or show unlock
+  useEffect(() => {
+    fetch('/api/nibgate/access', {
+      headers: { 'x-nibgate-payment-proof': storedProof }
+    }).then(r => r.json()).then(data => {
+      if (data.content) setContent(data.content);
+    });
+  }, []);
+
+  if (content) return <div>{content}</div>;   // Already paid → show content
+  return <button onClick={handleUnlock}>Pay</button>;  // Need payment
+}
+```
+
+### Backend pattern (Express)
+
+```js
+// Public — NEVER returns body for paid content
+app.get('/posts/:slug', async (req, res) => {
+  const post = await db.post.findUnique({ where: { slug } });
+  if (post.price) {
+    const { body, ...teaser } = post;
+    return res.json({ post: { ...teaser, isLocked: true } }); // NO body
+  }
+  res.json({ post }); // free post → body OK
+});
+
+// Protected — returns body after proof verification
+app.get('/nibgate/access', async (req, res) => {
+  const access = server.accessFor(request, resource);
+  if (access.allowed) {
+    const post = await db.post.findUnique({ where: { slug } });
+    return res.json({ ok: true, content: post.body }); // body ONLY here
+  }
+  // ... 402 flow
+});
+```
+
+### Key rules
+
+- **Never** include paid content in the initial HTML, even with `hidden` or `display:none`
+- **Never** return the body from a public API endpoint for paid posts
+- **Always** serve content through the protected access endpoint after proof verification
+- **Always** use viem's `walletClient.signTypedData()` with MetaMask, not raw `eth_signTypedData_v4`
+
+## 17. Framework Notes
 
 - **Next.js**: Use route handlers for `/nibgate.json` and `/api/nibgate/access`. Protect content before rendering paid payloads. Use `server-only` for private modules.
 - **Express/NestJS**: Use middleware, controllers, or guards around protected routes. Mount the admin router at `/admin/nibgate`.

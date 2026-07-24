@@ -705,11 +705,12 @@ export function registerHubRoutes(app) {
 
       const [, encodedPayload, signature] = parts;
       const secret = process.env.JWT_SECRET || 'nibgate-link-secret';
-      const expectedSig = crypto.createHmac('sha256', secret).update(`${parts[0]}.${encodedPayload}`).digest('hex');
+      const decodedPayload = Buffer.from(encodedPayload, 'base64url').toString();
+      const expectedSig = crypto.createHmac('sha256', secret).update(decodedPayload).digest('hex');
       if (signature !== expectedSig) return res.status(403).json({ error: 'Invalid link token.' });
 
       let payload;
-      try { payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString()); } catch { return res.status(400).json({ error: 'Invalid link token payload.' }); }
+      try { payload = JSON.parse(decodedPayload); } catch { return res.status(400).json({ error: 'Invalid link token payload.' }); }
 
       if (Date.now() > payload.expiresAt) return res.status(410).json({ error: 'Link token has expired. Generate a new one from your hub dashboard.' });
 

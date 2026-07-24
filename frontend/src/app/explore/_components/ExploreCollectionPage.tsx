@@ -8,6 +8,6 @@ type ExploreCollectionPageProps = {
 };
 
 export default async function ExploreCollectionPage({ q = "", type = "", sort = "trending" }: ExploreCollectionPageProps) {
-  const products = await getExploreProducts({ q, type, sort, limit: 100 });
+  const products = await getExploreProducts({ q, type, sort, limit: 200 });
   return <MarketSection products={products} />;
 }

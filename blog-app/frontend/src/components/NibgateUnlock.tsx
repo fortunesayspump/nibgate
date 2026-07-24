@@ -83,7 +83,8 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
       );
       if (!option) throw new Error("No Gateway batching option available.");
 
-      const gateway = await mod.createCircleGatewayBrowserAdapter({
+      const { createCircleGatewayBrowserAdapter } = await import("@nibgate/sdk");
+      const gateway = await createCircleGatewayBrowserAdapter({
         chainId: parseInt(option.network.split(":")[1]),
         signer: {
           address,
@@ -95,7 +96,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
         },
       });
 
-      const { paymentSignature } = await gateway.pay({ paymentRequiredHeader });
+      const { paymentSignature } = await gateway.pay({ resource: resource as any, paymentRequiredHeader });
       if (!paymentSignature) throw new Error("Failed to create payment signature.");
 
       // Send signed payment
@@ -159,14 +160,13 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
       {error && <p style={{ color: "#dc2626", marginBottom: "1rem" }}>{error}</p>}
       <button
         onClick={handleUnlock}
-        disabled={status === "loading"}
         style={{
           padding: "1rem 2rem", fontSize: "1.125rem", fontWeight: 600,
           background: "var(--accent, #7c9a6d)", color: "#fff",
           border: "none", borderRadius: "0.75rem", cursor: "pointer",
         }}
       >
-        {status === "loading" ? "Processing..." : `Unlock for ${resource.price} USDC`}
+        Unlock for {resource.price} USDC
       </button>
     </div>
   );

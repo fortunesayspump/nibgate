@@ -83,8 +83,8 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>
       <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
       <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
-        <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:${theme.accent};opacity:0.15;border-radius:10px;transition:width .05s linear;z-index:2"></div>
-        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:#fff;background:${theme.accent};transition:box-shadow .3s,transform .3s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
+        <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:rgba(255,255,255,0.35);border-radius:10px;transition:width .05s linear;z-index:2"></div>
+        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:#fff;background:${theme.accent};box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform .1s,box-shadow .1s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
       <div class="nui-stat" style="text-align:center;margin-top:16px" data-nibgate-status></div>
     </div>
     <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px">${options.premiumContentHTML || ''}</div>
@@ -175,8 +175,8 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     holdActive = false;
     holdComplete = false;
     holdTimer = null;
-    btn.style.transform = 'scale(1)';
-    btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+    btn.style.transform = '';
+    btn.style.boxShadow = '';
     prog.style.width = '0%';
     if (!btn.disabled) setBtnText('Hold to pay');
   }
@@ -186,8 +186,8 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     e.preventDefault();
     holdActive = true;
     holdComplete = false;
-    btn.style.transform = 'scale(.97)';
-    btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.12)';
+    btn.style.transform = 'scale(0.96)';
+    btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
     prog.style.transition = 'none';
     prog.style.width = '0%';
     setBtnText('Hold\u2026');
@@ -198,8 +198,8 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     holdTimer = setTimeout(() => {
       holdComplete = true;
       holdActive = false;
-      btn.style.transform = 'scale(1)';
-      btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+      btn.style.transform = '';
+      btn.style.boxShadow = '';
       prog.style.transition = 'width .05s linear';
       setBtnText('Processing\u2026');
       btn.disabled = true;

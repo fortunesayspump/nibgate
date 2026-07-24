@@ -15,7 +15,7 @@ importers:
         version: 3.1075.0
       '@circle-fin/x402-batching':
         specifier: ^3.0.4
-        version: 3.2.0(@x402/core@2.19.0)(@x402/evm@2.17.0(typescript@5.9.3))(viem@2.53.1(typescript@5.9.3)(zod@4.4.3))
+        version: 3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.53.1(typescript@5.9.3)(zod@4.4.3))
       '@nibgate/cli':
         specifier: file:../packages/cli
         version: file:packages/cli(typescript@5.9.3)(zod@4.4.3)
@@ -23,8 +23,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/internal
       '@nibgate/sdk':
-        specifier: ^0.2.13
-        version: 0.2.13(typescript@5.9.3)(zod@4.4.3)
+        specifier: ^0.2.15
+        version: 0.2.15(typescript@5.9.3)(zod@4.4.3)
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -1617,8 +1617,8 @@ packages:
     resolution: {directory: packages/cli, type: directory}
     hasBin: true
 
-  '@nibgate/sdk@0.2.13':
-    resolution: {integrity: sha512-x9Tm2+kkGX+mP0kVgp4s6uS8FpQHheAx0UWPYUF6XPkNvQzBJnYI5qZ/j5YbQ3fpa4Lti2JL+cT7cyhJfjw68A==}
+  '@nibgate/sdk@0.2.15':
+    resolution: {integrity: sha512-Fkv/4KC0MUIeOgmyijx6xFS9m1YSiOll/ABUtXOS/uptX0YkaV2DKhuIsnawDqedjSrYFkOWSc0SaSRUJtCajg==}
 
   '@nibgate/sdk@file:packages/nibgate':
     resolution: {directory: packages/nibgate, type: directory}
@@ -7412,12 +7412,12 @@ snapshots:
     optionalDependencies:
       '@x402/evm': 2.17.0(typescript@5.9.3)
 
-  '@circle-fin/x402-batching@3.2.0(@x402/core@2.19.0)(@x402/evm@2.17.0(typescript@5.9.3))(viem@2.53.1(typescript@5.9.3)(zod@4.4.3))':
+  '@circle-fin/x402-batching@3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.53.1(typescript@5.9.3)(zod@4.4.3))':
     dependencies:
       '@x402/core': 2.19.0
       viem: 2.53.1(typescript@5.9.3)(zod@4.4.3)
     optionalDependencies:
-      '@x402/evm': 2.17.0(typescript@5.9.3)
+      '@x402/evm': 2.19.0(typescript@5.9.3)
 
   '@circle-fin/x402-batching@3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))':
     dependencies:
@@ -8637,12 +8637,12 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@nibgate/sdk@0.2.13(typescript@5.9.3)(zod@4.4.3)':
+  '@nibgate/sdk@0.2.15(typescript@5.9.3)(zod@4.4.3)':
     dependencies:
-      '@circle-fin/x402-batching': 3.2.0(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
-      '@x402/core': 2.17.0
-      '@x402/evm': 2.17.0(typescript@5.9.3)
-      viem: 2.54.1(typescript@5.9.3)(zod@4.4.3)
+      '@circle-fin/x402-batching': 3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.55.8(typescript@5.9.3)(zod@4.4.3))
+      '@x402/core': 2.19.0
+      '@x402/evm': 2.19.0(typescript@5.9.3)
+      viem: 2.55.8(typescript@5.9.3)(zod@4.4.3)
     transitivePeerDependencies:
       - bufferutil
       - typescript

@@ -17,6 +17,11 @@ const envVarsSchema = Joi.object()
     NIBGATE_SITE_TOKEN: Joi.string().optional().description('Nibgate site token'),
     NIBGATE_SELLER_ADDRESS: Joi.string().optional().allow('').description('Wallet address for Nibgate payments (set in DB settings instead)'),
     NIBGATE_SECRET: Joi.string().required().description('Nibgate gateway secret key'),
+    R2_ENDPOINT: Joi.string().optional().description('Cloudflare R2 endpoint'),
+    R2_BUCKET: Joi.string().optional().description('Cloudflare R2 bucket name'),
+    R2_PUBLIC_URL: Joi.string().optional().description('Cloudflare R2 public URL'),
+    R2_ACCESS_KEY_ID: Joi.string().optional().description('Cloudflare R2 access key ID'),
+    R2_SECRET_ACCESS_KEY: Joi.string().optional().description('Cloudflare R2 secret access key'),
   })
   .unknown();
 
@@ -43,6 +48,13 @@ const config = {
     siteToken: envVars.NIBGATE_SITE_TOKEN || '',
     sellerAddress: envVars.NIBGATE_SELLER_ADDRESS || '',
     gatewaySecret: envVars.NIBGATE_SECRET,
+  },
+  r2: {
+    endpoint: envVars.R2_ENDPOINT || '',
+    bucket: envVars.R2_BUCKET || '',
+    publicUrl: envVars.R2_PUBLIC_URL || '',
+    accessKeyId: envVars.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: envVars.R2_SECRET_ACCESS_KEY || '',
   },
 };
 

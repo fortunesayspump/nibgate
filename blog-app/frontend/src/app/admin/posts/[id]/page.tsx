@@ -10,11 +10,11 @@ export default function EditPostPage() {
   const params = useParams();
   const [form, setForm] = useState<{
     title: string; slug: string; bodyMarkdown: string; excerpt: string;
-    tag: string; tags: string; coverUrl: string; price: string; status: "draft" | "published"; featured: boolean;
+    tag: string; tags: string; coverUrl: string; videoUrl: string; price: string; status: "draft" | "published"; featured: boolean;
     type: string;
   }>({
     title: "", slug: "", bodyMarkdown: "", excerpt: "",
-    tag: "General", tags: "", coverUrl: "", price: "", status: "draft", featured: false, type: "article",
+    tag: "General", tags: "", coverUrl: "", videoUrl: "", price: "", status: "draft", featured: false, type: "article",
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,7 +30,7 @@ export default function EditPostPage() {
           title: p.title, slug: p.slug, bodyMarkdown: p.bodyMarkdown,
           excerpt: p.excerpt || "", tag: p.tag || "General",
           tags: Array.isArray(p.tags) ? p.tags.join(", ") : p.tags || "",
-          coverUrl: p.coverUrl || "", price: p.price || "", status: p.status as "draft" | "published", featured: p.featured, type: p.type || "article",
+          coverUrl: p.coverUrl || "", videoUrl: p.videoUrl || "", price: p.price || "", status: p.status as "draft" | "published", featured: p.featured, type: p.type || "article",
         });
       })
       .catch(() => router.push("/admin/posts"))
@@ -94,6 +94,11 @@ export default function EditPostPage() {
               <option value="video">Video</option>
             </select>
           </Field>
+          {form.type === "video" && (
+            <Field label="YouTube Video URL">
+              <input type="text" value={form.videoUrl} onChange={(e) => setForm((p) => ({ ...p, videoUrl: e.target.value }))} className="input-field" placeholder="https://www.youtube.com/watch?v=..." />
+            </Field>
+          )}
           <Field label="Price (USDC)">
             <input type="text" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} className="input-field" placeholder="0.01 (leave empty for free)" />
           </Field>

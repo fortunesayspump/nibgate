@@ -86,6 +86,22 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             </div>
           )}
 
+          {/* Video type: YouTube embed */}
+          {post.type === "video" && post.videoUrl && (
+            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginBottom: "1.5rem" }}>
+              <iframe
+                src={(() => {
+                  const embed = detectEmbed(post.videoUrl!);
+                  return embed.type === "youtube" && embed.embedUrl ? embed.embedUrl : post.videoUrl;
+                })()}
+                title={post.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
+              />
+            </div>
+          )}
+
           {/* Photo type: Image gallery */}
           {post.type === "photo" && images.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>

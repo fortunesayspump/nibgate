@@ -63,6 +63,7 @@ export type BlogPost = {
   excerpt: string;
   bodyMarkdown: string;
   coverUrl: string | null;
+  videoUrl: string | null;
   tag: string;
   tags: string | string[];
   price: string | null;

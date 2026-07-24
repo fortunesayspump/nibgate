@@ -61,6 +61,7 @@ model BlogPost {
   excerpt      String?
   bodyMarkdown String
   coverUrl     String?
+  videoUrl     String?
   tag          String?
   tags         String?
   type         String    @default("article")

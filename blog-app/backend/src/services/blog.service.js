@@ -74,6 +74,7 @@ async function create(data, siteId, authorId) {
       tags: cleanTags(data.tags),
       type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
       coverUrl: String(data.coverUrl || '').trim() || null,
+      videoUrl: String(data.videoUrl || '').trim() || null,
       price: data.price && data.price !== '0' ? String(data.price).trim() : null,
       status: statusVal,
       featured: data.featured === true,
@@ -101,6 +102,7 @@ async function update(siteId, id, data) {
   if (data.tag !== undefined) updateData.tag = String(data.tag).trim().slice(0, 40);
   if (data.tags !== undefined) updateData.tags = cleanTags(data.tags);
   if (data.coverUrl !== undefined) updateData.coverUrl = String(data.coverUrl).trim() || null;
+  if (data.videoUrl !== undefined) updateData.videoUrl = String(data.videoUrl).trim() || null;
   if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article';
   if (data.price !== undefined) updateData.price = data.price && data.price !== '0' ? String(data.price).trim() : null;
   if (data.featured !== undefined) updateData.featured = data.featured;

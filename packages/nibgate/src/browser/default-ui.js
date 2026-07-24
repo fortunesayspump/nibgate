@@ -225,20 +225,17 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   card.addEventListener('remove', cleanup);
 
   // ── Gateway balance + deposit icon ─────────────────────────────────────
-  const ARC_RPC = 'https://arc-testnet.drpc.org';
-  const GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
-  const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
-
   async function fetchBalance(addr) {
-    const sel = '0xdd62e1c6';
-    const pad = (a) => '000000000000000000000000' + a.slice(2).toLowerCase();
-    const data = sel + pad(USDC_ADDRESS) + pad(addr);
-    const r = await fetch(ARC_RPC, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_call', params: [{ to: GATEWAY_WALLET, data }, 'latest'], id: 1 }),
-    });
-    const j = await r.json();
-    return j?.result ? (Number(BigInt(j.result)) / 1_000_000).toFixed(2) + ' USDC' : '\u2014';
+    try {
+      const sel = '0xdd62e1c6';
+      const pad = (a) => '000000000000000000000000' + a.slice(2).toLowerCase();
+      const data = sel + pad('0x3600000000000000000000000000000000000000') + pad(addr);
+      const hex = await window.ethereum.request({
+        method: 'eth_call',
+        params: [{ to: '0x0077777d7EBA4688BDeF3E311b846F25870A19B9', data }, 'latest'],
+      });
+      return hex && hex !== '0x' ? (Number(BigInt(hex)) / 1_000_000).toFixed(2) + ' USDC' : '0.00 USDC';
+    } catch { return '\u2014'; }
   }
 
   let balEl = null, gwOverlay = null, balTimer = null;

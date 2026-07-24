@@ -2,7 +2,7 @@ const { status } = require('http-status');
 const { resolveSite } = require('../lib/tenant-cache');
 const { isValidSubdomain } = require('../lib/validate');
 
-const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/register', '/api/setup', '/api/health'];
+const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/register', '/api/setup', '/api/health', '/api/nibgate/gateway/balance'];
 
 function subdomainFromHost(host = '') {
   const h = host.split(':')[0].toLowerCase();

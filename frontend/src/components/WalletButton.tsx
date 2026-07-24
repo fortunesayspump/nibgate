@@ -111,6 +111,7 @@ export function WalletButton() {
         <div className="nibgate-wallet-dropdown" data-balance-dropdown style={{ display: 'none' }}>
           <button type="button" className="dropdown-item" data-token-select="native" style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{arcTestnet.nativeCurrency.symbol}</button>
           <button type="button" className="dropdown-item" data-token-select="gateway" style={{ fontWeight: 500, color: selectedToken === 'gateway' ? 'var(--nib-teal)' : '' }}>Gateway</button>
+          <a href="https://bridge.arc-testnet.net" target="_blank" rel="noopener noreferrer" className="dropdown-item" style={{ fontWeight: 500 }}>Bridge</a>
         </div>
       </div>
 
@@ -182,6 +183,7 @@ export function WalletButtonMobile() {
         <div className="nibgate-wallet-dropdown mobile-dropdown" data-balance-dropdown style={{ display: 'none' }}>
           <button type="button" className="dropdown-item" data-token-select="native" style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{arcTestnet.nativeCurrency.symbol}</button>
           <button type="button" className="dropdown-item" data-token-select="gateway" style={{ fontWeight: 500, color: selectedToken === 'gateway' ? 'var(--nib-teal)' : '' }}>Gateway</button>
+          <a href="https://bridge.arc-testnet.net" target="_blank" rel="noopener noreferrer" className="dropdown-item" style={{ fontWeight: 500 }}>Bridge</a>
         </div>
       </div>
 

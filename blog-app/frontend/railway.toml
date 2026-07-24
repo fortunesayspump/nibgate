@@ -1,2 +1,2 @@
 [build]
-watchPatterns = ["src/**", "public/**"]
+watchPatterns = ["src/**", "public/**", "package.json", "package-lock.json"]

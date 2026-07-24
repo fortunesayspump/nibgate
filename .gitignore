@@ -20,3 +20,7 @@ HACKATHON_VIDEO_*
 *.mp3
 video/
 packages/nibgate/.npmrc
+
+# v2 labs (unmaintained experiment)
+v2-labs/
+*.tgz

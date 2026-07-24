@@ -75,12 +75,18 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
 
     stateRef.current.destroyed = false;
 
+    const subdomain = (() => {
+      const parts = window.location.hostname.split(".");
+      if (parts.length >= 3 && parts[0] !== "www") return parts[0];
+      return "";
+    })();
+
     import("@nibgate/sdk").then((mod) => {
       if (stateRef.current.destroyed || !containerRef.current) return;
       const container = containerRef.current;
       container.innerHTML = "";
       (mod as any).renderDefaultUnlockUI(container, resource, {
-        accessPath: `${API_BASE}/nibgate/access?path=${resource.path}`,
+        accessPath: `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`,
       });
 
       let addr = "";

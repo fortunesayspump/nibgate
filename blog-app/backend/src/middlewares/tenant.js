@@ -16,7 +16,7 @@ async function resolveTenant(req, res, next) {
   const isPublic = PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'));
   if (isPublic) return next();
 
-  let subdomain = req.headers['x-site-subdomain'] || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
+  let subdomain = req.headers['x-site-subdomain'] || (req.query.subdomain ? String(req.query.subdomain).trim() : '') || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
   subdomain = subdomain.trim().toLowerCase();
   if (!isValidSubdomain(subdomain)) {
     return res.status(400).json({ error: 'Invalid subdomain.', subdomain });

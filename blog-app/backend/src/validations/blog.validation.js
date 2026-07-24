@@ -12,6 +12,7 @@ const createPost = {
     type: Joi.string().valid('article', 'photo', 'music', 'video').optional(),
     status: Joi.string().valid('draft', 'published').optional(),
     featured: Joi.boolean().optional(),
+    price: Joi.string().optional().allow('', null),
   }),
 };
 
@@ -30,6 +31,7 @@ const updatePost = {
     type: Joi.string().valid('article', 'photo', 'music', 'video').optional(),
     status: Joi.string().valid('draft', 'published').optional(),
     featured: Joi.boolean().optional(),
+    price: Joi.string().optional().allow('', null),
   }).min(1),
 };
 

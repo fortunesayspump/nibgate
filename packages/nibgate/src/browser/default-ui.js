@@ -33,7 +33,6 @@ function inject() {
   const s = h('style', { id: SID }, `
 @keyframes nfade { from { opacity:0;transform:translateY(6px) } to { opacity:1;transform:translateY(0) } }
 @keyframes nscale { from { opacity:0;transform:scale(0.96) } to { opacity:1;transform:scale(1) } }
-@keyframes nshimmer { 0% { transform:translateX(-100%) } 100% { transform:translateX(100%) } }
 
 .nui { font-family:var(--font-content,'Kumbh Sans','ABC Favorit',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif);color:${theme.fg};line-height:1.5;-webkit-font-smoothing:antialiased;font-size:19px }
 .nui *,.nui *::before,.nui *::after { box-sizing:border-box }
@@ -75,60 +74,25 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
 
   const card = el('div', { cls: 'nui', style: { animation: 'nfade .2s ease-out' } });
 
-  const lockSVG = '<svg width="24" height="24" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M6 16v8a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-8"/><path d="M10 16v-5a6 6 0 0 1 12 0v5"/><circle cx="16" cy="21" r="2"/></svg>';
+  const unlockSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
 
   card.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;max-width:580px;margin:0 auto;padding:40px 52px">
-      <div id="nibgate-lottie" style="width:165px;height:168px;margin-bottom:24px"></div>
-      <div style="font-size:50px;font-weight:700;letter-spacing:-.03em;color:${theme.fg};margin-bottom:12px">${esc(resource.price)} USDC</div>
-      <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>
-      <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
-      <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:12px;overflow:hidden;cursor:pointer">
-        <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.45));border-radius:12px;transition:width .05s linear;z-index:2"></div>
-        <div data-nibgate-shimmer style="position:absolute;inset:0;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent);border-radius:12px;transform:translateX(-100%);z-index:3;pointer-events:none"></div>
-        <button type="button" data-nibgate-unlock disabled class="nui-btn nui-btn-primary" style="width:100%;padding:24px 32px;font-size:24px;position:relative;z-index:4;background:${theme.accent};transition:transform .1s,opacity .15s;display:flex">${lockSVG}Hold to pay ${esc(resource.price)} USDC</button></div>
-      <div class="nui-stat" style="text-align:center;margin-top:16px" data-nibgate-status></div>
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;max-width:420px;margin:0 auto;padding:24px 20px">
+      <div data-nibgate-wallet-label class="nui-mono" style="font-size:15px;color:${theme.muted};margin-bottom:16px;min-height:24px">Connect wallet</div>
+      <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
+        <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:${theme.accent};opacity:0.15;border-radius:10px;transition:width .05s linear;z-index:2"></div>
+        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:12px 0;font-size:16px;font-weight:500;line-height:19px;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:${theme.accent};background:rgba(124,154,109,0.08);transition:box-shadow .3s,transform .3s;font-family:inherit">${unlockSVG}Hold to pay</button></div>
+      <div class="nui-stat" style="text-align:center;margin-top:12px" data-nibgate-status></div>
     </div>
-    <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px">${options.premiumContentHTML || ''}</div>
+    <div data-nibgate-premium hidden style="margin-top:24px;border-top:1px solid ${theme.border};padding-top:24px">${options.premiumContentHTML || ''}</div>
   `;
 
   (typeof container === 'string' ? document.querySelector(container) : container)?.appendChild(card);
-  // Load Lottie animation
-  (function loadLottie() {
-    if (!document.getElementById('nibgate-lottie')) return;
-
-    function startAnim(data) {
-      var d = document.getElementById('nibgate-lottie');
-      if (d && window.lottie) {
-        window.lottie.loadAnimation({ container: d, animationData: data, loop: true, autoplay: true });
-      }
-    }
-
-    if (window.lottie) {
-      if (window._lottieData) {
-        startAnim(window._lottieData);
-      } else {
-        fetch('/nibgate-unlock-key.json?t=1').then(function(r) { if (!r.ok) throw new Error(); return r.json(); }).then(function(d) { window._lottieData = d; startAnim(d); }).catch(function() {});
-      }
-      return;
-    }
-
-    if (window._lottieLoading) return;
-    window._lottieLoading = true;
-    var s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js';
-    s.onload = function() {
-      fetch('/nibgate-unlock-key.json?t=1').then(function(r) { if (!r.ok) throw new Error(); return r.json(); }).then(function(d) { window._lottieData = d; startAnim(d); }).catch(function() {});
-    };
-    document.head.appendChild(s);
-  })();
-
 
   const st = card.querySelector('[data-nibgate-status]');
   const label = card.querySelector('[data-nibgate-wallet-label]');
   const wrap = card.querySelector('[data-nibgate-unlock-wrap]');
   const prog = card.querySelector('[data-nibgate-unlock-progress]');
-  const shimmer = card.querySelector('[data-nibgate-shimmer]');
   const btn = card.querySelector('[data-nibgate-unlock]');
 
   const HOLD_MS = 1500;
@@ -169,21 +133,20 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       label.textContent = 'Connect wallet';
       btn.disabled = true;
       btn.style.cursor = 'default';
-      btn.innerHTML = lockSVG + 'Hold to pay ' + esc(resource.price) + ' USDC';
+      btn.innerHTML = unlockSVG + 'Hold to pay';
     }
   }
 
-  function setBtnText(t) { btn.innerHTML = lockSVG + t; }
+  function setBtnText(t) { btn.innerHTML = unlockSVG + t; }
 
   function resetHold() {
     holdActive = false;
     holdComplete = false;
     holdTimer = null;
     btn.style.transform = 'scale(1)';
+    btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
     prog.style.width = '0%';
-    shimmer.style.animation = 'none';
-    shimmer.style.transform = 'translateX(-100%)';
-    if (!btn.disabled) setBtnText('Hold to pay ' + esc(resource.price) + ' USDC');
+    if (!btn.disabled) setBtnText('Hold to pay');
   }
 
   function startHold(e) {
@@ -192,23 +155,19 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     holdActive = true;
     holdComplete = false;
     btn.style.transform = 'scale(.97)';
+    btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.12)';
     prog.style.transition = 'none';
     prog.style.width = '0%';
-    shimmer.style.animation = 'nshimmer 1s ease-in-out infinite';
-    shimmer.style.transform = 'none';
     setBtnText('Hold\u2026');
     requestAnimationFrame(() => {
       prog.style.transition = 'width ' + HOLD_MS + 'ms linear';
       prog.style.width = '100%';
     });
-    const t1 = setTimeout(() => { if (holdActive && !holdComplete) setBtnText('Keep holding\u2026'); }, HOLD_MS * 0.4);
-    const t2 = setTimeout(() => { if (holdActive && !holdComplete) setBtnText('Almost there\u2026'); }, HOLD_MS * 0.75);
     holdTimer = setTimeout(() => {
       holdComplete = true;
       holdActive = false;
-      clearTimeout(t1); clearTimeout(t2);
       btn.style.transform = 'scale(1)';
-      shimmer.style.animation = 'none';
+      btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
       prog.style.transition = 'width .05s linear';
       setBtnText('Processing\u2026');
       btn.disabled = true;

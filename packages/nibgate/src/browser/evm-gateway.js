@@ -113,12 +113,16 @@ export function createEvmGatewayUnlock(resource, options = {}) {
   async function checkout(input) {
     const evm = provider();
     if (!evm) throw new Error(options.noWalletMessage || 'Install or open an EVM wallet to continue.');
-    if (!walletAddress) await connect();
+    // Always fetch the current wallet from MetaMask — the cached walletAddress
+    // might be stale if the user switched accounts after connecting.
+    const currentAccounts = await evm.request({ method: 'eth_accounts' }).catch(() => walletAddress ? [walletAddress] : []);
+    const currentAddress = Array.isArray(currentAccounts) && currentAccounts[0] ? currentAccounts[0] : (walletAddress || await connect());
+    if (currentAddress !== walletAddress) walletAddress = currentAddress;
     const gatewayWallet = await createCircleGatewayBrowserAdapter({
       network,
       signer: {
-        address: walletAddress,
-        signTypedData: (typedData) => evm.request({ method: 'eth_signTypedData_v4', params: [walletAddress, stringifyJson(typedData)] })
+        address: currentAddress,
+        signTypedData: (typedData) => evm.request({ method: 'eth_signTypedData_v4', params: [currentAddress, stringifyJson(typedData)] })
       },
       clientModule: options.circleClientModule
     });

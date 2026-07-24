@@ -182,4 +182,21 @@ router.post('/gateway/withdraw', authenticate, authorize('admin'), async (req, r
   }
 });
 
+router.post('/gateway/balance', async (req, res) => {
+  try {
+    const { address } = req.body || {};
+    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) return res.status(400).json({ error: 'Invalid address' });
+    const apiKey = process.env.CIRCLE_API_KEY || '';
+    if (!apiKey) return res.json({ balance: '' });
+    const r = await fetch('https://gateway-api-testnet.circle.com/v1/balances', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'USDC', sources: [{ depositor: address, domain: 26 }] }),
+    });
+    const data = await r.json();
+    const bal = data?.balances?.[0]?.balance || '';
+    res.json({ balance: bal ? Number(bal).toFixed(2) + ' USDC' : '' });
+  } catch { res.json({ balance: '' }); }
+});
+
 module.exports = router;

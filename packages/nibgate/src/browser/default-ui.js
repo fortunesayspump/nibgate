@@ -224,8 +224,8 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   const cleanup = () => { document.removeEventListener('mouseup', cancelHold); document.removeEventListener('touchend', cancelHold); };
   card.addEventListener('remove', cleanup);
 
-  // ── Gateway deposit icon ──────────────────────────────────────────────
-  let gwOverlay = null;
+  // ── Gateway balance + deposit icon ─────────────────────────────────────
+  let balEl = null, gwOverlay = null, balTimer = null;
 
   function depIcon() {
     return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>';
@@ -246,24 +246,40 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   }
   function onDepKey(e) { if (e.key === 'Escape' && gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } }
 
-  let balEl = null;
   function ensureBal() {
     if (balEl && balEl.isConnected) return balEl;
     balEl = el('span', { 'data-nibgate-bal': '', style: 'margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)' },
-      '\u00b7\u00a0|\u00a0' + depIcon());
+      '\u00b7\u00a0<span data-nibgate-bal-txt></span>\u00a0|\u00a0' + depIcon());
     balEl.addEventListener('click', showDeposit);
     if (label.parentNode) label.parentNode.insertBefore(balEl, label.nextSibling);
     return balEl;
   }
 
-  if (window.ethereum) {
-    setTimeout(() => {
-      const accts = window.ethereum.request({ method: 'eth_accounts' }).catch(() => []);
-      accts.then(a => { if (Array.isArray(a) && a[0]) ensureBal(); });
-    }, 1000);
+  async function refreshBal() {
+    if (!card.isConnected || !window.ethereum || !options.gatewayBalanceUrl) return;
+    try {
+      const accts = await window.ethereum.request({ method: 'eth_accounts' });
+      const addr = Array.isArray(accts) && accts[0] ? accts[0] : null;
+      if (!addr) return;
+      const t = ensureBal().querySelector('[data-nibgate-bal-txt]');
+      if (!t) return;
+      const r = await fetch(options.gatewayBalanceUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addr }),
+      });
+      const data = await r.json();
+      t.textContent = data?.balance || '';
+    } catch {}
   }
 
-  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); if (gwOverlay) { gwOverlay.remove(); gwOverlay = null; } } };
+  if (window.ethereum) {
+    balTimer = setInterval(refreshBal, 3000);
+    setTimeout(refreshBal, 1000);
+    window.ethereum.on('accountsChanged', refreshBal);
+  }
+
+  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); if (balTimer) clearInterval(balTimer); if (gwOverlay) { gwOverlay.remove(); gwOverlay = null; } } };
 }
 
 export function renderDefaultRatingUI(container, resource, options = {}) {

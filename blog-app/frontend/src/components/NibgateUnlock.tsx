@@ -56,6 +56,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
         if (stateRef.current.destroyed || !containerRef.current) return;
         (mod as any).renderDefaultUnlockUI(container, resource, {
           accessPath,
+          gatewayBalanceUrl: `${API_BASE}/nibgate/gateway/balance`,
           onUnlock: (result: any) => {
             const c = result?.payload?.content || "";
             if (c) setContent(c);

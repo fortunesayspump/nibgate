@@ -425,10 +425,9 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     <div style="display:flex;gap:12px;margin-bottom:20px">
       <div data-gw-wallet-card style="flex:1;background:${theme.bg};border:1px solid ${theme.border};border-radius:12px;padding:16px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div></div>
+          <div data-gw-wallet-addr class="nui-mono" style="font-size:13px;color:${theme.muted}"></div>
           <span data-gw-connect-label style="font-size:12px;font-weight:600;color:${theme.accent}">Connected</span>
         </div>
-        <div data-gw-wallet-addr class="nui-mono" style="font-size:13px;color:${theme.muted};margin-bottom:4px"></div>
         <div data-gw-wallet-balance class="nui-mono" style="font-size:24px;font-weight:700;color:${theme.fg}">—</div>
       </div>
       <div style="flex:1;background:${theme.bg};border:1px solid ${theme.border};border-radius:12px;padding:16px">

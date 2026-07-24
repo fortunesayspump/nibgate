@@ -1,4 +1,3 @@
-import { BatchEvmScheme } from './schemes/batch-scheme.js';
 import { stringifyJson } from './json.js';
 
 function encodeBase64(value) {
@@ -18,6 +17,14 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
     throw new Error('Circle Gateway browser adapter requires an EVM signer with address and signTypedData.');
   }
 
+  let BatchEvmScheme;
+  try {
+    const circle = await import('@circle-fin/x402-batching/client');
+    BatchEvmScheme = circle.BatchEvmScheme;
+  } catch {
+    const local = await import('./schemes/batch-scheme.js');
+    BatchEvmScheme = local.BatchEvmScheme;
+  }
   const scheme = options.clientModule?.BatchEvmScheme
     ? new options.clientModule.BatchEvmScheme(signer)
     : new BatchEvmScheme(signer);

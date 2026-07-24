@@ -81,7 +81,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       <div id="nibgate-lottie" style="width:165px;height:168px;margin-bottom:24px"></div>
       <div style="font-size:50px;font-weight:700;letter-spacing:-.03em;color:${theme.fg};margin-bottom:12px">${esc(resource.price)} USDC</div>
       <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>
-      <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet <span data-nibgate-bal style="display:none"><span data-nibgate-bal-txt></span></span></div>
+      <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
       <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
         <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:${theme.accent};opacity:0.15;border-radius:10px;transition:width .05s linear;z-index:2"></div>
         <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:#fff;background:${theme.accent};transition:box-shadow .3s,transform .3s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
@@ -149,23 +149,24 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
 
   function updateLabel() {
     const addr = ctrl.getWalletAddress();
-    // Clear all children, keep text nodes
-    while (label.firstChild) label.removeChild(label.firstChild);
     if (addr) {
-      label.appendChild(document.createTextNode(shortAddress(addr) + ' '));
-      const dc = el('span', { 'data-nibgate-disconnect': '', style: 'cursor:pointer' }, '\u00b7 Disconnect');
-      dc.addEventListener('click', (e) => { if (e.target.dataset.nibgateDisconnect !== undefined) ctrl.disconnect().then(updateLabel); });
-      label.appendChild(dc);
-      // Re-add balance element if it exists
-      if (balEl?.isConnected) label.appendChild(balEl);
+      label.innerHTML = shortAddress(addr) + ' <span data-nibgate-disconnect style="cursor:pointer">· Disconnect</span> <span data-nibgate-bal style="margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)">· <span data-nibgate-bal-txt></span> | ' + depIcon() + '</span>';
+      balEl = label.querySelector('[data-nibgate-bal]');
+      balEl?.addEventListener('click', showDeposit);
       btn.disabled = false;
       btn.style.cursor = 'pointer';
     } else {
-      label.appendChild(document.createTextNode('Connect wallet'));
+      label.innerHTML = 'Connect wallet';
       btn.disabled = true;
       btn.style.cursor = 'default';
       btn.innerHTML = unlockSVG + 'Hold to pay';
     }
+  }
+
+  // Re-attach bal click handler after refreshBal updates the text
+  function attachBalClick() {
+    const b = label.querySelector('[data-nibgate-bal]');
+    if (b && !b._clickAttached) { b.addEventListener('click', showDeposit); b._clickAttached = true; }
   }
 
   function setBtnText(t) { btn.innerHTML = unlockSVG + t; }
@@ -230,7 +231,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   card.addEventListener('remove', cleanup);
 
   // ── Gateway balance + deposit icon ─────────────────────────────────────
-  let balEl = null, gwOverlay = null, balTimer = null;
+  let gwOverlay = null, balTimer = null;
 
   function depIcon() {
     return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>';
@@ -251,28 +252,14 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   }
   function onDepKey(e) { if (e.key === 'Escape' && gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } }
 
-  function ensureBal() {
-    if (balEl && balEl.isConnected) return balEl;
-    balEl = label.querySelector('[data-nibgate-bal]');
-    if (balEl) {
-      balEl.style.display = '';
-      balEl.style.marginLeft = '4px';
-      balEl.style.cursor = 'pointer';
-      balEl.style.whiteSpace = 'nowrap';
-      balEl.style.color = 'var(--accent,#7c9a6d)';
-      balEl.innerHTML = '\u00b7\u00a0<span data-nibgate-bal-txt></span>\u00a0|\u00a0' + depIcon();
-      balEl.addEventListener('click', showDeposit);
-    }
-    return balEl;
-  }
-
   async function refreshBal() {
     if (!card.isConnected || !window.ethereum || !options.gatewayBalanceUrl) return;
     try {
       const accts = await window.ethereum.request({ method: 'eth_accounts' });
       const addr = Array.isArray(accts) && accts[0] ? accts[0] : null;
       if (!addr) return;
-      const t = ensureBal().querySelector('[data-nibgate-bal-txt]');
+      attachBalClick();
+      const t = label.querySelector('[data-nibgate-bal-txt]');
       if (!t) return;
       const r = await fetch(options.gatewayBalanceUrl, {
         method: 'POST',

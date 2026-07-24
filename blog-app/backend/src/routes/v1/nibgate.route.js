@@ -3,6 +3,7 @@ const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
 const { createCircleGatewayServer } = require('@nibgate/sdk/server');
 const { authenticate, authorize } = require('../../middlewares/auth');
+const logger = require('../../config/logger');
 const router = express.Router();
 
 const nibgateServer = createCircleGatewayServer({
@@ -53,10 +54,16 @@ router.get('/access', async (req, res, next) => {
       resource,
     });
 
+    const responseBody = await response.text();
+
+    if (response.status === 402 && req.headers['payment-signature']) {
+      logger.warn({ responseBody, subdomain: req.subdomain, slug }, 'Circle Gateway payment verification failed');
+    }
+
     return res
       .status(response.status)
       .set(Object.fromEntries(response.headers.entries()))
-      .send(await response.text());
+      .send(responseBody);
   } catch (error) {
     next(error);
   }

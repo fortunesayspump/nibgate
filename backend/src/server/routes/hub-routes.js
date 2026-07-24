@@ -217,6 +217,12 @@ export function registerHubRoutes(app) {
               nonce: auth.nonce
             };
             const types = {
+              EIP712Domain: [
+                { name: 'name', type: 'string' },
+                { name: 'version', type: 'string' },
+                { name: 'chainId', type: 'uint256' },
+                { name: 'verifyingContract', type: 'address' }
+              ],
               TransferWithAuthorization: [
                 { name: 'from', type: 'address' },
                 { name: 'to', type: 'address' },
@@ -233,20 +239,48 @@ export function registerHubRoutes(app) {
               primaryType: 'TransferWithAuthorization',
               message,
               signature: sig
-            });
+            }).catch(() => false);
             console.log('[hub/pay] viem verifyTypedData:', valid);
 
-            // Recover the actual signer to detect address mismatch
+            // Try WITHOUT EIP712Domain in types (let viem add it)
             const { recoverTypedDataAddress } = await import('viem');
             const recovered = await recoverTypedDataAddress({
               domain,
-              types,
+              types: { TransferWithAuthorization: types.TransferWithAuthorization },
               primaryType: 'TransferWithAuthorization',
               message,
               signature: sig
             }).catch(() => 'recover_failed');
             console.log('[hub/pay] expected signer:', getAddress(auth.from));
-            console.log('[hub/pay] recovered signer:', recovered);
+            console.log('[hub/pay] recovered signer (no EIP712Domain types):', recovered);
+
+            // Also test with explicit EIP712Domain
+            const recovered2 = await recoverTypedDataAddress({
+              domain,
+              types,
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            }).catch(() => 'recover2_failed');
+            console.log('[hub/pay] recovered signer (with EIP712Domain types):', recovered2);
+
+            // Also try the raw hash to detect any encoding differences
+            const { hashTypedData } = await import('viem');
+            const hash1 = hashTypedData({
+              domain,
+              types: { TransferWithAuthorization: types.TransferWithAuthorization },
+              primaryType: 'TransferWithAuthorization',
+              message
+            });
+            const hash2 = hashTypedData({
+              domain,
+              types,
+              primaryType: 'TransferWithAuthorization',
+              message
+            });
+            console.log('[hub/pay] hash without EIP712Domain:', hash1);
+            console.log('[hub/pay] hash with EIP712Domain:', hash2);
+            console.log('[hub/pay] hashes match:', hash1 === hash2);
           }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);

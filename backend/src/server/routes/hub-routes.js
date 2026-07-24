@@ -235,6 +235,18 @@ export function registerHubRoutes(app) {
               signature: sig
             });
             console.log('[hub/pay] viem verifyTypedData:', valid);
+
+            // Recover the actual signer to detect address mismatch
+            const { recoverTypedDataAddress } = await import('viem');
+            const recovered = await recoverTypedDataAddress({
+              domain,
+              types,
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            }).catch(() => 'recover_failed');
+            console.log('[hub/pay] expected signer:', getAddress(auth.from));
+            console.log('[hub/pay] recovered signer:', recovered);
           }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);

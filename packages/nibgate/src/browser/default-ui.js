@@ -424,7 +424,10 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
   wrap.innerHTML = `
     <div style="display:flex;gap:12px;margin-bottom:20px">
       <div data-gw-wallet-card style="flex:1;background:${theme.bg};border:1px solid ${theme.border};border-radius:12px;padding:16px">
-        <div style="font-size:12px;font-weight:600;color:${theme.muted};margin-bottom:4px;letter-spacing:.02em">Wallet</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div></div>
+          <span data-gw-connect-label style="font-size:12px;font-weight:600;color:${theme.accent}">Connected</span>
+        </div>
         <div data-gw-wallet-addr class="nui-mono" style="font-size:13px;color:${theme.muted};margin-bottom:4px"></div>
         <div data-gw-wallet-balance class="nui-mono" style="font-size:24px;font-weight:700;color:${theme.fg}">—</div>
       </div>
@@ -460,6 +463,60 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     });
   }
 
+  const GATEWAY = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+  const SEL_APPROVE = '0x095ea7b3';
+  const SEL_DEPOSIT = '0x47e7ef24';
+
+  function parse6(v) {
+    const [w = '0', f = ''] = String(v).split('.');
+    return BigInt(w + f.padEnd(6, '0').slice(0, 6));
+  }
+
+  function addr32(a) { return '000000000000000000000000' + a.slice(2); }
+
+  function setTx(msg, ok) {
+    const el = formEl.querySelector('[data-gw-tx]');
+    if (!el) return;
+    el.style.display = 'block';
+    el.style.color = ok ? theme.accent : '#dc2626';
+    el.textContent = msg;
+  }
+
+  async function doDeposit() {
+    if (!window.ethereum) { setTx('No wallet found'); return; }
+    const input = formEl.querySelector('[data-gw-deposit-amount]');
+    const amt = input?.value;
+    if (!amt || Number(amt) <= 0) { setTx('Enter an amount'); return; }
+    const btn = formEl.querySelector('[data-gw-deposit]');
+    try {
+      btn.disabled = true;
+      btn.textContent = 'Approving\u2026';
+      const accts = await window.ethereum.request({ method: 'eth_accounts' });
+      const addr = accts?.[0];
+      if (!addr) { setTx('Connect wallet'); btn.disabled = false; btn.textContent = 'Deposit'; return; }
+      const amount = parse6(amt).toString(16);
+      const approveTx = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: addr, to: USDC, data: SEL_APPROVE + addr32(GATEWAY) + amount.padStart(64, '0') }],
+      });
+      setTx('Approved: ' + approveTx.slice(0, 10) + '\u2026', true);
+      btn.textContent = 'Depositing\u2026';
+      const depositTx = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: addr, to: GATEWAY, data: SEL_DEPOSIT + addr32(USDC) + amount.padStart(64, '0') }],
+      });
+      setTx('Deposited: ' + depositTx.slice(0, 10) + '\u2026', true);
+      updateWallet();
+      btn.textContent = 'Deposit';
+    } catch (e) { setTx(e?.message || 'Deposit failed'); }
+    btn.disabled = false;
+    btn.textContent = 'Deposit';
+  }
+
+  async function doWithdraw() {
+    setTx('Withdraw via admin dashboard', false);
+  }
+
   function render(t) {
     tab = t;
     select(tabs, t);
@@ -470,6 +527,7 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
         <button type="button" data-gw-deposit class="nui-btn nui-btn-primary" style="width:100%;padding:16px 28px;font-size:20px">Deposit</button>
         <div data-gw-tx class="nui-mono" style="font-size:12px;color:${theme.muted};word-break:break-all;margin-top:12px;display:none"></div>
       `;
+      formEl.querySelector('[data-gw-deposit]')?.addEventListener('click', doDeposit);
     } else {
       formEl.innerHTML = `
         <label class="nui-label">Amount (USDC)</label>
@@ -477,6 +535,7 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
         <button type="button" data-gw-withdraw class="nui-btn nui-btn-primary" style="width:100%;padding:16px 28px;font-size:20px">Withdraw to your wallet</button>
         <div data-gw-tx class="nui-mono" style="font-size:12px;color:${theme.muted};word-break:break-all;margin-top:12px;display:none"></div>
       `;
+      formEl.querySelector('[data-gw-withdraw]')?.addEventListener('click', doWithdraw);
     }
   }
 

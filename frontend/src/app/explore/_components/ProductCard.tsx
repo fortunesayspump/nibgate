@@ -75,7 +75,7 @@ function TagPills({ tags = [] }: { tags?: string[] }) {
 
 function openProduct(product: ExploreProduct) {
   const href = productHref(product);
-  if (href) window.location.href = href;
+  if (href) window.open(href, '_blank', 'noopener');
 }
 
 function onCardKeyDown(event: KeyboardEvent<HTMLElement>, product: ExploreProduct) {
@@ -130,7 +130,7 @@ export function FeaturedCard({ product }: { product: ExploreProduct }) {
             <span className="content-type">{product.type}</span>
             <ReputationStars stars={product.reputationStars} ratings={product.ratings} />
           </div>
-          <Link href={productHref(product)}><h2>{product.title}</h2></Link>
+          <Link href={productHref(product)} target="_blank" rel="noopener noreferrer"><h2>{product.title}</h2></Link>
           <small>{product.summary}</small>
           <TagPills tags={product.tags} />
           <Link className="explore-creator" href="/leaderboards?type=creators">
@@ -174,7 +174,7 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
         <div className="article-socials">
           <span className="article-action">{product.unlocks || "0 unlocks"}</span>
         </div>
-        <Link className="article-action" href={productHref(product)}>Open</Link>
+        <Link className="article-action" href={productHref(product)} target="_blank" rel="noopener noreferrer">Open</Link>
       </div>
     </article>
   );
@@ -225,7 +225,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
       
       <div className="market-info">
         <div className="market-info-header">
-          <Link href={productHref(product)}><h3 className="market-title">{product.title}</h3></Link>
+          <Link href={productHref(product)} target="_blank" rel="noopener noreferrer"><h3 className="market-title">{product.title}</h3></Link>
           <span className="market-price">{product.price}</span>
         </div>
         

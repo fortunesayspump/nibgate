@@ -189,9 +189,53 @@ export function registerHubRoutes(app) {
           console.log('[hub/pay] payment-signature present');
           console.log('[hub/pay] x402Version:', decoded.x402Version);
           console.log('[hub/pay] payload.auth:', JSON.stringify(decoded.payload?.authorization));
-          console.log('[hub/pay] payload.sig:', typeof decoded.payload?.signature, String(decoded.payload?.signature).slice(0, 20));
+          console.log('[hub/pay] payload.sig:', typeof decoded.payload?.signature, String(decoded.payload?.signature).slice(0, 66));
           console.log('[hub/pay] accepted.network:', decoded.accepted?.network);
           console.log('[hub/pay] accepted.amount:', decoded.accepted?.amount);
+          console.log('[hub/pay] accepted.extra.verifyingContract:', decoded.accepted?.extra?.verifyingContract);
+          console.log('[hub/pay] accepted.payTo:', decoded.accepted?.payTo);
+
+          // Verify the signature directly with viem
+          const { verifyTypedData, getAddress } = await import('viem');
+          const auth = decoded.payload?.authorization;
+          const sig = decoded.payload?.signature;
+          const acc = decoded.accepted;
+          if (auth && sig && acc) {
+            const chainId = parseInt(acc.network.split(':')[1]);
+            const domain = {
+              name: 'GatewayWalletBatched',
+              version: '1',
+              chainId,
+              verifyingContract: getAddress(acc.extra?.verifyingContract || '')
+            };
+            const message = {
+              from: getAddress(auth.from),
+              to: getAddress(auth.to),
+              value: BigInt(auth.value),
+              validAfter: BigInt(auth.validAfter),
+              validBefore: BigInt(auth.validBefore),
+              nonce: auth.nonce
+            };
+            const types = {
+              TransferWithAuthorization: [
+                { name: 'from', type: 'address' },
+                { name: 'to', type: 'address' },
+                { name: 'value', type: 'uint256' },
+                { name: 'validAfter', type: 'uint256' },
+                { name: 'validBefore', type: 'uint256' },
+                { name: 'nonce', type: 'bytes32' }
+              ]
+            };
+            const valid = await verifyTypedData({
+              address: getAddress(auth.from),
+              domain,
+              types,
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            });
+            console.log('[hub/pay] viem verifyTypedData:', valid);
+          }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);
         }

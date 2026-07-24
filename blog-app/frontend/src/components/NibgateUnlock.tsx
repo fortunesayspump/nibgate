@@ -14,9 +14,8 @@ type UnlockResource = {
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef({ destroyed: false });
-  const [showContent, setShowContent] = useState(false);
+  const [content, setContent] = useState<string | null>(null);
 
   const subdomain = (() => {
     if (typeof window === "undefined") return "";
@@ -32,7 +31,6 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     if (!el) return;
     stateRef.current.destroyed = false;
 
-    // Check stored proof first
     const storedProof = (() => {
       try { return localStorage.getItem(`nibgate:payment-proof:${resource.id}`) || ""; }
       catch { return ""; }
@@ -42,11 +40,9 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
       fetch(accessPath, {
         headers: { accept: "application/json", "x-nibgate-payment-proof": storedProof },
       }).then(r => r.json()).then(data => {
-        if (!stateRef.current.destroyed && data?.content) {
-          setShowContent(true);
-          if (contentRef.current) contentRef.current.innerHTML = data.content;
-        } else if (!stateRef.current.destroyed) {
-          loadUnlockUI();
+        if (!stateRef.current.destroyed) {
+          if (data?.content) setContent(data.content);
+          else loadUnlockUI();
         }
       }).catch(() => { if (!stateRef.current.destroyed) loadUnlockUI(); });
     } else {
@@ -63,10 +59,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
           accessPath,
           onUnlock: (result: any) => {
             const c = result?.payload?.content || "";
-            if (c) {
-              setShowContent(true);
-              if (contentRef.current) contentRef.current.innerHTML = c;
-            }
+            if (c) setContent(c);
           },
         });
       }).catch(() => {});
@@ -75,8 +68,8 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     return () => { stateRef.current.destroyed = true; };
   }, [resource.id]);
 
-  if (showContent) {
-    return <div ref={contentRef} className="prose prose-neutral dark:prose-invert" />;
+  if (content !== null) {
+    return <div className="prose prose-neutral dark:prose-invert" dangerouslySetInnerHTML={{ __html: content }} />;
   }
 
   return <div ref={containerRef} />;

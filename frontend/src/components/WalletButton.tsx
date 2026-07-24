@@ -25,6 +25,7 @@ const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const
 const GATEWAY_ABI = [{ name: 'availableBalance', type: 'function', inputs: [{ name: 'token', type: 'address' }, { name: 'depositor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' }] as const
 const SEL_APPROVE = '0x095ea7b3'
 const SEL_DEPOSIT = '0x47e7ef24'
+const SEL_WITHDRAW = '0xf3fef3a3'
 
 const gatewayClient = createPublicClient({
   chain: arcTestnet,
@@ -42,7 +43,7 @@ function parse6(v: string) {
 
 function addr32(a: string) { return '000000000000000000000000' + a.slice(2) }
 
-function GatewayBridgeModal({ address, onClose }: { address: string; onClose: () => void }) {
+function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { address: string; gatewayBal: number; walletBal: number; onClose: () => void }) {
   const [tab, setTab] = useState<'deposit' | 'withdraw'>('deposit')
   const [amount, setAmount] = useState('')
   const [status, setStatus] = useState('')
@@ -68,19 +69,33 @@ function GatewayBridgeModal({ address, onClose }: { address: string; onClose: ()
     setBusy(false)
   }
 
+  async function doWithdraw() {
+    if (!amount || Number(amount) <= 0) { setStatus('Enter an amount'); return }
+    setBusy(true)
+    try {
+      setStatus('Withdrawing\u2026')
+      const amt = parse6(amount).toString(16)
+      await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: address, to: GATEWAY_WALLET_ADDRESS, data: SEL_WITHDRAW + addr32(USDC_ADDRESS) + amt.padStart(64, '0') }],
+      })
+      setStatus('Withdrawn!')
+    } catch (e: any) { setStatus(e?.message || 'Failed') }
+    setBusy(false)
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: 'var(--bg,#f4f4f0)', borderRadius: 16, maxWidth: 540, width: '100%', padding: 28, position: 'relative', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 28, cursor: 'pointer', color: 'var(--muted,#6b6862)', lineHeight: 1 }}>×</button>
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
           <div style={{ flex: 1, background: 'var(--bg,#f4f4f0)', border: '1px solid var(--border,#cecdc3)', borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted,#6b6862)', marginBottom: 4, letterSpacing: '.02em' }}>Gateway</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--fg,#0a0a0a)' }}>{fmt(gatewayBalance)} USDC</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted,#6b6862)', marginBottom: 4, letterSpacing: '.02em' }}>{shortAddress(address as any)}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--fg,#0a0a0a)' }}>{fmt(walletBal)} USDC</div>
           </div>
           <div style={{ flex: 1, background: 'var(--bg,#f4f4f0)', border: '1px solid var(--border,#cecdc3)', borderRadius: 12, padding: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted,#6b6862)', marginBottom: 4, letterSpacing: '.02em' }}>Wallet</div>
-            <div style={{ fontSize: 13, color: 'var(--muted,#6b6862)' }}>{shortAddress(address as any)}</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--fg,#0a0a0a)' }}>{fmt(nativeNum)} USDC</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted,#6b6862)', marginBottom: 4, letterSpacing: '.02em' }}>Gateway</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--fg,#0a0a0a)' }}>{fmt(gatewayBal)} USDC</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border,#cecdc3)' }}>
@@ -89,8 +104,8 @@ function GatewayBridgeModal({ address, onClose }: { address: string; onClose: ()
         </div>
         <label style={{ fontSize: 17, fontWeight: 600, color: 'var(--muted,#6b6862)', marginBottom: 8, display: 'block' }}>Amount (USDC)</label>
         <input type="number" step="0.01" min="0" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} style={{ padding: '14px 16px', fontSize: 18, borderRadius: 12, border: '1px solid var(--border,#cecdc3)', background: 'transparent', color: 'var(--fg,#0a0a0a)', width: '100%', fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box' }} />
-        <button onClick={doDeposit} disabled={busy || tab !== 'deposit'} style={{ width: '100%', padding: '16px 28px', fontSize: 20, fontWeight: 600, borderRadius: 12, cursor: busy ? 'default' : 'pointer', border: 'none', background: 'var(--accent,#7c9a6d)', color: 'var(--bg,#f4f4f0)', fontFamily: 'inherit', opacity: busy || tab !== 'deposit' ? 0.35 : 1 }}>
-          {busy ? status : 'Deposit'}
+        <button onClick={tab === 'deposit' ? doDeposit : doWithdraw} disabled={busy} style={{ width: '100%', padding: '16px 28px', fontSize: 20, fontWeight: 600, borderRadius: 12, cursor: busy ? 'default' : 'pointer', border: 'none', background: 'var(--accent,#7c9a6d)', color: 'var(--bg,#f4f4f0)', fontFamily: 'inherit', opacity: busy ? 0.35 : 1 }}>
+          {busy ? status : tab === 'deposit' ? 'Deposit' : 'Withdraw'}
         </button>
         {status && <div style={{ fontSize: 12, color: status.includes('Failed') ? '#dc2626' : 'var(--accent,#7c9a6d)', wordBreak: 'break-all', marginTop: 12 }}>{status}</div>}
       </div>
@@ -197,11 +212,13 @@ export function WalletButton() {
       </div>
 
       {bridgeOpen && displayAddress && (
-        <GatewayBridgeModal address={displayAddress} onClose={() => setBridgeOpen(false)} />
+        <GatewayBridgeModal address={displayAddress} gatewayBal={gatewayBalance} walletBal={nativeNum} onClose={() => setBridgeOpen(false)} />
       )}
     </>
   )
 }
+
+export function WalletButtonMobile() {
   const { open } = useAppKit()
   const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
   const { address, chainId, isConnected } = useAccount()
@@ -272,7 +289,7 @@ export function WalletButton() {
       </div>
 
       {bridgeOpen && displayAddress && (
-        <GatewayBridgeModal address={displayAddress} onClose={() => setBridgeOpen(false)} />
+        <GatewayBridgeModal address={displayAddress} gatewayBal={gatewayBalance} walletBal={nativeNum} onClose={() => setBridgeOpen(false)} />
       )}
     </>
   )

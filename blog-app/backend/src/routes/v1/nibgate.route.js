@@ -49,6 +49,53 @@ router.get('/access', async (req, res, next) => {
       headers: new Headers(req.headers),
     });
 
+    const access = nibgateServer.accessFor(request, resource);
+    if (access.allowed) {
+      return res.json({ ok: true, resource });
+    }
+    if (access.blocked) {
+      return res.status(403).json({ ok: false, error: 'Access blocked' });
+    }
+
+    const hubResponse = await fetch('https://api.nibgate.xyz/api/hub/pay', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(req.headers['payment-signature'] ? { 'payment-signature': req.headers['payment-signature'] } : {}),
+        ...(req.headers['payment-memo'] ? { 'payment-memo': req.headers['payment-memo'] } : {}),
+      },
+      body: JSON.stringify({
+        price: resource.price,
+        recipient: resource.recipient,
+        title: resource.title,
+        contentId: resource.id,
+        path: resource.path,
+      }),
+    });
+
+    if (hubResponse.status === 402) {
+      const body = await hubResponse.text();
+      const hasSig = !!req.headers['payment-signature'];
+      logger.warn(`nibgate/access 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${body}`);
+      return res
+        .status(402)
+        .set('PAYMENT-REQUIRED', hubResponse.headers.get('PAYMENT-REQUIRED') || '')
+        .set('Content-Type', hubResponse.headers.get('content-type') || 'application/json')
+        .send(body);
+    }
+
+    if (hubResponse.ok) {
+      const hubData = await hubResponse.json();
+      if (hubData.success) {
+        const result = await nibgateServer.unlock(resource, hubData.payment);
+        if (result.ok) {
+          return res.json({ ok: true, resource, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+        }
+      }
+    }
+
+    logger.warn(`nibgate/access hub error subdomain=${req.subdomain} status=${hubResponse.status}`);
+
     const response = await nibgateServer.accessResponse(request, resource, {
       ok: true,
       resource,
@@ -58,7 +105,7 @@ router.get('/access', async (req, res, next) => {
 
     if (response.status === 402) {
       const hasSig = !!req.headers['payment-signature'];
-      logger.warn(`nibgate/access 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${responseBody}`);
+      logger.warn(`nibgate/access (local) 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${responseBody}`);
     }
 
     return res

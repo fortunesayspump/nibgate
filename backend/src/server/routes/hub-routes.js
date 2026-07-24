@@ -151,14 +151,9 @@ export function registerHubRoutes(app) {
 
   app.post('/api/hub/pay', async (req, res) => {
     try {
-      const { siteId, token, price, recipient, title } = req.body || {};
-      if (!siteId || !token) return res.status(400).json({ error: 'Missing siteId or token.' });
-
-      const website = await db.website.findUnique({ where: { id: siteId } });
-      if (!website || website.verifyToken !== token) return res.status(403).json({ error: 'Invalid site credentials.' });
-
+      const { price, recipient, title } = req.body || {};
       const resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
-      if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet configured for this site. Set NIBGATE_SELLER_ADDRESS or pass recipient in request.' });
+      if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet provided. Pass recipient in request body or set NIBGATE_SELLER_ADDRESS.' });
 
       const { runCircleGatewayRequirement } = await import('@nibgate/sdk/server');
 

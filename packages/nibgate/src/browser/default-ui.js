@@ -241,7 +241,71 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   const cleanup = () => { document.removeEventListener('mouseup', cancelHold); document.removeEventListener('touchend', cancelHold); };
   card.addEventListener('remove', cleanup);
 
-  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); } };
+  // ── Gateway balance + deposit icon ─────────────────────────────────────
+  let gwOverlayEl = null;
+  let balTimer = null;
+  let balEl = null;
+
+  function depositIconHTML() {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:baseline"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>';
+  }
+
+  async function showGatewayWallet() {
+    if (gwOverlayEl) return;
+    gwOverlayEl = el('div', { style: 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:20px;animation:nfade .15s ease-out' });
+    const modal = el('div', { style: 'background:' + theme.bg + ';border-radius:16px;max-width:540px;width:100%;max-height:90vh;overflow:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.12);animation:nscale .15s ease-out' });
+    const close = el('button', { style: 'position:absolute;top:12px;right:16px;z-index:20;background:none;border:none;font-size:28px;cursor:pointer;color:' + theme.muted + ';font-family:inherit;line-height:1' }, '\u00d7');
+    close.addEventListener('click', closeGatewayWallet);
+    modal.appendChild(close);
+    gwOverlayEl.appendChild(modal);
+    gwOverlayEl.addEventListener('click', (e) => { if (e.target === gwOverlayEl) closeGatewayWallet(); });
+    document.body.appendChild(gwOverlayEl);
+    document.addEventListener('keydown', onGwKey);
+
+    const gw = await import('./default-ui.js');
+    gw.renderDefaultGatewayWalletUI(modal, options.gatewayOptions || {});
+  }
+
+  function closeGatewayWallet() {
+    if (!gwOverlayEl) return;
+    gwOverlayEl.remove();
+    gwOverlayEl = null;
+    document.removeEventListener('keydown', onGwKey);
+  }
+
+  function onGwKey(e) { if (e.key === 'Escape') closeGatewayWallet(); }
+
+  function ensureBalEl() {
+    if (balEl && balEl.isConnected) return balEl;
+    balEl = el('span', { 'data-nibgate-bal': '', style: 'margin-left:6px;cursor:pointer;white-space:nowrap' }, depositIconHTML() + ' <span data-nibgate-bal-text></span>');
+    balEl.addEventListener('click', showGatewayWallet);
+    if (label.parentNode) label.parentNode.insertBefore(balEl, label.nextSibling);
+    return balEl;
+  }
+
+  async function refreshBalance() {
+    if (stateRef?.destroyed) return;
+    const addr = ctrl.getWalletAddress();
+    if (!addr) return;
+    const txt = ensureBalEl().querySelector('[data-nibgate-bal-text]');
+    if (options.gatewayBalanceUrl) {
+      try {
+        const res = await fetch(options.gatewayBalanceUrl + '?address=' + encodeURIComponent(addr));
+        const data = await res.json();
+        if (txt) txt.textContent = data?.balance || data?.availableBalance || '\u2026';
+        return;
+      } catch {}
+    }
+    if (txt) txt.textContent = '\u2026';
+  }
+
+  if (window.ethereum) {
+    balTimer = setInterval(refreshBalance, 3000);
+    setTimeout(refreshBalance, 1000);
+    window.ethereum.on('accountsChanged', refreshBalance);
+  }
+
+  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); if (balTimer) clearInterval(balTimer); closeGatewayWallet(); } };
 }
 
 export function renderDefaultRatingUI(container, resource, options = {}) {

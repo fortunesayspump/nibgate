@@ -312,33 +312,49 @@ export function registerHubRoutes(app) {
             console.log('[hub/pay] hash with EIP712Domain+typesalt:', hash4);
             console.log('[hub/pay] hash with typesalt matches regular:', hash4 === hash1);
 
-            // Also try adding the typeHash difference by encoding with salt in types but NO salt in domain
-            const hash5 = hashTypedData({
-              domain,
-              types: typesWithSalt,
-              primaryType: 'TransferWithAuthorization',
-              message
-            });
-            console.log('[hub/pay] hash with typesalt, no domain salt:', hash5);
-
-            // Check if typesWithSalt recovers the correct signer
-            const recovered3 = await recoverTypedDataAddress({
-              domain,
-              types: typesWithSalt,
-              primaryType: 'TransferWithAuthorization',
-              message,
-              signature: sig
-            }).catch(() => 'recover3_failed');
-            console.log('[hub/pay] recovered signer (typesWithSalt, no domain salt):', recovered3);
-
-            const recovered4 = await recoverTypedDataAddress({
+            // Check if MetaMask includes salt in EIP712Domain — test recovery with 5-field type + salt=0
+            const recovered5 = await recoverTypedDataAddress({
               domain: { ...domain, salt: '0x0000000000000000000000000000000000000000000000000000000000000000' },
               types: typesWithSalt,
               primaryType: 'TransferWithAuthorization',
               message,
               signature: sig
-            }).catch(() => 'recover4_failed');
-            console.log('[hub/pay] recovered signer (typesWithSalt + domain salt):', recovered4);
+            }).catch(() => 'recover5_failed');
+            console.log('[hub/pay] recovered signer (5-field EIP712Domain + salt=0):', recovered5);
+            console.log('[hub/pay] expected signer:', getAddress(auth.from));
+            if (recovered5 === getAddress(auth.from)) console.log('[hub/pay] *** MATCH! Fix: include salt in EIP712Domain type ***');
+
+            // Also try EIP712Domain with ALL 5 standard fields (salt) but salt not in domain
+            // MetaMask may include salt type but NOT require it in domain, defaulting to 0
+            // viem requires the value, so provide it:
+            const recovered6 = await recoverTypedDataAddress({
+              domain: { ...domain, salt: '0x0000000000000000000000000000000000000000000000000000000000000000' },
+              types: {
+                EIP712Domain: [
+                  { name: 'name', type: 'string' },
+                  { name: 'version', type: 'string' },
+                  { name: 'chainId', type: 'uint256' },
+                  { name: 'verifyingContract', type: 'address' },
+                  { name: 'salt', type: 'bytes32' }
+                ],
+                TransferWithAuthorization: types.TransferWithAuthorization
+              },
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            }).catch(() => 'recover6_failed');
+            console.log('[hub/pay] recovered signer (5-field EIP712Domain + explicit salt):', recovered6);
+
+            // Final check: verify with 5-field EIP712Domain + salt=0
+            const valid5 = await verifyTypedData({
+              address: getAddress(auth.from),
+              domain: { ...domain, salt: '0x0000000000000000000000000000000000000000000000000000000000000000' },
+              types: typesWithSalt,
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            }).catch(() => false);
+            console.log('[hub/pay] viem verify (5-field EIP712Domain + salt):', valid5);
           }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);

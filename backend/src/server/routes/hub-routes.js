@@ -725,7 +725,7 @@ export function registerHubRoutes(app) {
       }
 
       const website = existing || await db.website.create({
-        data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
+        data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', siteToken: crypto.randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
       });
 
       await syncWebsiteManifest(website).catch(() => {});

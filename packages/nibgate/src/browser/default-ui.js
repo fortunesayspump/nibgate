@@ -259,7 +259,11 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     gwOverlay.addEventListener('click', (e) => { if (e.target === gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } });
     document.body.appendChild(gwOverlay);
     document.addEventListener('keydown', onDepKey);
-    import('./default-ui.js').then(m => m.renderDefaultGatewayWalletUI(modal, options.gatewayOptions || {})).catch(() => {});
+    import('./default-ui.js').then(m => m.renderDefaultGatewayWalletUI(modal, {
+      address: ctrl.getWalletAddress(),
+      gatewayBalanceUrl: options.gatewayBalanceUrl,
+      ...(options.gatewayOptions || {}),
+    })).catch(() => {});
   }
   function onDepKey(e) { if (e.key === 'Escape' && gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } }
 
@@ -420,10 +424,8 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
   wrap.innerHTML = `
     <div style="display:flex;gap:12px;margin-bottom:20px">
       <div data-gw-wallet-card style="flex:1;background:${theme.bg};border:1px solid ${theme.border};border-radius:12px;padding:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div style="font-size:12px;font-weight:600;color:${theme.muted};letter-spacing:.02em">Wallet</div>
-          <button data-gw-connect style="font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${theme.accent};background:transparent;color:${theme.accent};border-radius:8px;padding:4px 12px;font-family:inherit">Connect</button>
-        </div>
+        <div style="font-size:12px;font-weight:600;color:${theme.muted};margin-bottom:4px;letter-spacing:.02em">Wallet</div>
+        <div data-gw-wallet-addr class="nui-mono" style="font-size:13px;color:${theme.muted};margin-bottom:4px"></div>
         <div data-gw-wallet-balance class="nui-mono" style="font-size:24px;font-weight:700;color:${theme.fg}">—</div>
       </div>
       <div style="flex:1;background:${theme.bg};border:1px solid ${theme.border};border-radius:12px;padding:16px">
@@ -442,6 +444,13 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
 
   const formEl = wrap.querySelector('[data-gw-form]');
   const tabs = wrap.querySelectorAll('[data-tab]');
+  const walletAddrEl = wrap.querySelector('[data-gw-wallet-addr]');
+  const walletBalEl = wrap.querySelector('[data-gw-wallet-balance]');
+  const gwBalEl = wrap.querySelector('[data-gw-balance]');
+
+  const ARC_RPC = 'https://arc-testnet.drpc.org';
+  const USDC = '0x3600000000000000000000000000000000000000';
+  const BALANCE_OF = '0x70a08231';
 
   function select(btns, t) {
     btns.forEach(b => {
@@ -471,8 +480,59 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     }
   }
 
+  function shortAddress(a) { return a ? a.slice(0, 6) + '...' + a.slice(-4) : ''; }
+
+  async function updateWallet() {
+    if (!window.ethereum) return;
+    try {
+      const accts = await window.ethereum.request({ method: 'eth_accounts' });
+      const addr = Array.isArray(accts) && accts[0] ? accts[0] : null;
+      if (addr) {
+        walletAddrEl.textContent = shortAddress(addr);
+        fetchWalletUsdc(addr);
+        fetchGwBal(addr);
+      }
+    } catch {}
+  }
+
+  async function fetchWalletUsdc(addr) {
+    try {
+      const r = await fetch(ARC_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', method: 'eth_call',
+          params: [{ to: USDC, data: BALANCE_OF + addr.slice(2).padStart(64, '0') }, 'latest'],
+          id: 1,
+        }),
+      });
+      const d = await r.json();
+      const bal = d.result ? parseInt(d.result, 16) / 1e6 : 0;
+      walletBalEl.textContent = bal.toFixed(2) + ' USDC';
+    } catch { walletBalEl.textContent = '—'; }
+  }
+
+  async function fetchGwBal(addr) {
+    if (!options.gatewayBalanceUrl) { gwBalEl.textContent = '—'; return; }
+    try {
+      const r = await fetch(options.gatewayBalanceUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addr }),
+      });
+      const data = await r.json();
+      gwBalEl.textContent = data?.balance || '0.00 USDC';
+    } catch { gwBalEl.textContent = '—'; }
+  }
+
+  if (window.ethereum) {
+    window.ethereum.on('accountsChanged', updateWallet);
+  }
+
   render('deposit');
   tabs.forEach(b => b.addEventListener('click', () => render(b.dataset.tab)));
+
+  setTimeout(updateWallet, 100);
 
   return { element: wrap, destroy: () => wrap.remove(), switchTab: render };
 }

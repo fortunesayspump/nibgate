@@ -77,17 +77,41 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   const unlockSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
 
   card.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;max-width:420px;margin:0 auto;padding:24px 20px">
-      <div data-nibgate-wallet-label class="nui-mono" style="font-size:15px;color:${theme.muted};margin-bottom:16px;min-height:24px">Connect wallet</div>
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;max-width:580px;margin:0 auto;padding:40px 52px">
+      <div id="nibgate-lottie" style="width:165px;height:168px;margin-bottom:24px"></div>
+      <div style="font-size:50px;font-weight:700;letter-spacing:-.03em;color:${theme.fg};margin-bottom:12px">${esc(resource.price)} USDC</div>
+      <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>
+      <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
       <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
         <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:${theme.accent};opacity:0.15;border-radius:10px;transition:width .05s linear;z-index:2"></div>
-        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:12px 0;font-size:16px;font-weight:500;line-height:19px;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:${theme.accent};background:rgba(124,154,109,0.08);transition:box-shadow .3s,transform .3s;font-family:inherit">${unlockSVG}Hold to pay</button></div>
-      <div class="nui-stat" style="text-align:center;margin-top:12px" data-nibgate-status></div>
+        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:500;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:${theme.accent};background:rgba(124,154,109,0.08);transition:box-shadow .3s,transform .3s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
+      <div class="nui-stat" style="text-align:center;margin-top:16px" data-nibgate-status></div>
     </div>
-    <div data-nibgate-premium hidden style="margin-top:24px;border-top:1px solid ${theme.border};padding-top:24px">${options.premiumContentHTML || ''}</div>
+    <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px">${options.premiumContentHTML || ''}</div>
   `;
 
   (typeof container === 'string' ? document.querySelector(container) : container)?.appendChild(card);
+  // Load Lottie animation
+  (function loadLottie() {
+    if (!document.getElementById('nibgate-lottie')) return;
+    function startAnim(data) {
+      var d = document.getElementById('nibgate-lottie');
+      if (d && window.lottie) window.lottie.loadAnimation({ container: d, animationData: data, loop: true, autoplay: true });
+    }
+    if (window.lottie) {
+      if (window._lottieData) startAnim(window._lottieData);
+      else fetch('/nibgate-unlock-key.json?t=1').then(function(r) { if (!r.ok) throw new Error(); return r.json(); }).then(function(d) { window._lottieData = d; startAnim(d); }).catch(function() {});
+      return;
+    }
+    if (window._lottieLoading) return;
+    window._lottieLoading = true;
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js';
+    s.onload = function() {
+      fetch('/nibgate-unlock-key.json?t=1').then(function(r) { if (!r.ok) throw new Error(); return r.json(); }).then(function(d) { window._lottieData = d; startAnim(d); }).catch(function() {});
+    };
+    document.head.appendChild(s);
+  })();
 
   const st = card.querySelector('[data-nibgate-status]');
   const label = card.querySelector('[data-nibgate-wallet-label]');

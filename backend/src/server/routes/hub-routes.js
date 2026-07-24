@@ -567,7 +567,7 @@ export function registerHubRoutes(app) {
 
       if (type === 'content') {
         const content = await db.content.findMany({
-          where: { deletedAt: null, website: { isVerified: true, deletedAt: null } },
+          where: { deletedAt: null, website: { deletedAt: null } },
           include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
           take: 200,
           orderBy: { createdAt: 'desc' }
@@ -641,7 +641,7 @@ export function registerHubRoutes(app) {
 
       const where = {
         deletedAt: null,
-        website: { isVerified: true, deletedAt: null },
+        website: { deletedAt: null },
         ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
         ...(q ? { OR: [
           { title: { contains: q, mode: 'insensitive' } },

@@ -81,7 +81,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       <div id="nibgate-lottie" style="width:165px;height:168px;margin-bottom:24px"></div>
       <div style="font-size:50px;font-weight:700;letter-spacing:-.03em;color:${theme.fg};margin-bottom:12px">${esc(resource.price)} USDC</div>
       <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>
-      <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
+      <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet <span data-nibgate-bal style="display:none"><span data-nibgate-bal-txt></span></span></div>
       <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
         <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:${theme.accent};opacity:0.15;border-radius:10px;transition:width .05s linear;z-index:2"></div>
         <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:#fff;background:${theme.accent};transition:box-shadow .3s,transform .3s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
@@ -149,12 +149,19 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
 
   function updateLabel() {
     const addr = ctrl.getWalletAddress();
+    // Clear all children, keep text nodes
+    while (label.firstChild) label.removeChild(label.firstChild);
     if (addr) {
-      label.innerHTML = shortAddress(addr) + ' <span data-nibgate-disconnect style="cursor:pointer">· Disconnect</span>';
+      label.appendChild(document.createTextNode(shortAddress(addr) + ' '));
+      const dc = el('span', { 'data-nibgate-disconnect': '', style: 'cursor:pointer' }, '\u00b7 Disconnect');
+      dc.addEventListener('click', (e) => { if (e.target.dataset.nibgateDisconnect !== undefined) ctrl.disconnect().then(updateLabel); });
+      label.appendChild(dc);
+      // Re-add balance element if it exists
+      if (balEl?.isConnected) label.appendChild(balEl);
       btn.disabled = false;
       btn.style.cursor = 'pointer';
     } else {
-      label.textContent = 'Connect wallet';
+      label.appendChild(document.createTextNode('Connect wallet'));
       btn.disabled = true;
       btn.style.cursor = 'default';
       btn.innerHTML = unlockSVG + 'Hold to pay';
@@ -206,9 +213,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   }
 
   label.addEventListener('click', (e) => {
-    if (e.target.dataset.nibgateDisconnect !== undefined) {
-      ctrl.disconnect().then(updateLabel);
-    } else if (!ctrl.getWalletAddress()) {
+    if (!ctrl.getWalletAddress()) {
       ctrl.connect().then(updateLabel).catch(() => updateLabel());
     }
   });
@@ -248,10 +253,16 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
 
   function ensureBal() {
     if (balEl && balEl.isConnected) return balEl;
-    balEl = el('span', { 'data-nibgate-bal': '', style: 'margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)' },
-      '\u00b7\u00a0<span data-nibgate-bal-txt></span>\u00a0|\u00a0' + depIcon());
-    balEl.addEventListener('click', showDeposit);
-    if (label.parentNode) label.parentNode.insertBefore(balEl, label.nextSibling);
+    balEl = label.querySelector('[data-nibgate-bal]');
+    if (balEl) {
+      balEl.style.display = '';
+      balEl.style.marginLeft = '4px';
+      balEl.style.cursor = 'pointer';
+      balEl.style.whiteSpace = 'nowrap';
+      balEl.style.color = 'var(--accent,#7c9a6d)';
+      balEl.innerHTML = '\u00b7\u00a0<span data-nibgate-bal-txt></span>\u00a0|\u00a0' + depIcon();
+      balEl.addEventListener('click', showDeposit);
+    }
     return balEl;
   }
 

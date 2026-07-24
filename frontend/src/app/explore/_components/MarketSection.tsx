@@ -37,7 +37,7 @@ export default function MarketSection({ products }: { products: ExploreProduct[]
   const [activeType, setActiveType] = useState("All");
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [visibleCount, setVisibleCount] = useState(12);
+  const [visibleCount, setVisibleCount] = useState(20);
 
   useEffect(() => {
     const onCategory = (event: Event) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch, apiUrl } from "@/lib/api";
 
 function siteSubdomain() {
@@ -20,6 +20,15 @@ type RatingResource = {
 export default function ReputationRating({ resource }: { resource: RatingResource }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inited = useRef(false);
+  const [hubConfig, setHubConfig] = useState<{ siteId: string; token: string } | null>(null);
+
+  useEffect(() => {
+    apiFetch("/site").then((d: any) => {
+      if (d?.hub?.siteId && d?.hub?.token) {
+        setHubConfig({ siteId: d.hub.siteId, token: d.hub.token });
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (inited.current) return;
@@ -31,6 +40,9 @@ export default function ReputationRating({ resource }: { resource: RatingResourc
         statsUrl: `${apiUrl(`/rating/${resource.id}`)}?subdomain=${siteSubdomain()}`,
         apiBase: apiUrl(""),
         contentId: '0x' + resource.id.replace(/-/g, ''),
+        indexUrl: hubConfig ? `https://api.nibgate.xyz/api/hub/reputation/ratings/index` : undefined,
+        siteId: hubConfig?.siteId,
+        token: hubConfig?.token,
         onRated: (result: any) => {
           apiFetch(`/rating/${resource.id}`, {
             method: "POST",
@@ -45,7 +57,7 @@ export default function ReputationRating({ resource }: { resource: RatingResourc
     }).catch((err) => {
       console.error("Rating module failed to load:", err);
     });
-  }, [resource]);
+  }, [resource, hubConfig]);
 
   return <div ref={containerRef} />;
 }

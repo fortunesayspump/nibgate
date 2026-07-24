@@ -56,8 +56,9 @@ router.get('/access', async (req, res, next) => {
 
     const responseBody = await response.text();
 
-    if (response.status === 402 && req.headers['payment-signature']) {
-      logger.warn({ responseBody, subdomain: req.subdomain, slug }, 'Circle Gateway payment verification failed');
+    if (response.status === 402) {
+      const hasSig = !!req.headers['payment-signature'];
+      logger.warn(`nibgate/access 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${responseBody}`);
     }
 
     return res

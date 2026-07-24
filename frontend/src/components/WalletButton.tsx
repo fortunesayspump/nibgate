@@ -51,6 +51,7 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
 
   async function doDeposit() {
     if (!amount || Number(amount) <= 0) { setStatus('Enter an amount'); return }
+    if (!window.ethereum) { setStatus('No wallet found'); return }
     setBusy(true)
     try {
       setStatus('Approving USDC\u2026')
@@ -71,6 +72,7 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
 
   async function doWithdraw() {
     if (!amount || Number(amount) <= 0) { setStatus('Enter an amount'); return }
+    if (!window.ethereum) { setStatus('No wallet found'); return }
     setBusy(true)
     try {
       setStatus('Withdrawing\u2026')

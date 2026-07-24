@@ -281,6 +281,16 @@ export function registerHubRoutes(app) {
             console.log('[hub/pay] hash without EIP712Domain:', hash1);
             console.log('[hub/pay] hash with EIP712Domain:', hash2);
             console.log('[hub/pay] hashes match:', hash1 === hash2);
+
+            // Test with salt=0x0 — MetaMask might include salt even when not in domain
+            const hash3 = hashTypedData({
+              domain: { ...domain, salt: '0x0000000000000000000000000000000000000000000000000000000000000000' },
+              types,
+              primaryType: 'TransferWithAuthorization',
+              message
+            });
+            console.log('[hub/pay] hash with salt=0:', hash3);
+            console.log('[hub/pay] hash w/salt matches regular:', hash3 === hash1);
           }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);

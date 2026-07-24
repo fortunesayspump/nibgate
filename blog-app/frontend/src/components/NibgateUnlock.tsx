@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { getGatewayBalance } from "@/lib/gateway-core";
-import GatewayWallet from "./GatewayWallet";
+import { useEffect, useState, useRef } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -12,152 +10,164 @@ type UnlockResource = {
   type: string;
   price: string;
   path: string;
-  description?: string;
-  imageUrl?: string;
-  tags?: string[];
 };
 
-function GwOverlay({ onClose }: { onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
-
-  return (
-    <div
-      ref={ref}
-      onClick={(e) => { if (e.target === ref.current) onClose(); }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        background: "rgba(0,0,0,0.5)", display: "flex",
-        alignItems: "center", justifyContent: "center",
-        padding: "20px",
-      }}
-    >
-      <div style={{
-        background: "var(--bg,#f4f4f0)", borderRadius: "16px",
-        maxWidth: "540px", width: "100%", maxHeight: "90vh",
-        overflow: "auto", position: "relative",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute", top: "12px", right: "16px", zIndex: 20,
-            background: "none", border: "none", fontSize: "28px",
-            cursor: "pointer", color: "var(--muted,#6b6862)",
-            fontFamily: "inherit", lineHeight: "1",
-          }}
-        >
-          &times;
-        </button>
-        <GatewayWallet />
-      </div>
-    </div>
-  );
-}
+type AccessResult = {
+  ok: boolean;
+  status: number;
+  payload?: { content?: string; error?: string };
+};
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef({ destroyed: false });
-  const [showGw, setShowGw] = useState(false);
+  const [status, setStatus] = useState<"loading" | "locked" | "unlocked" | "error">("loading");
+  const [content, setContent] = useState("");
+  const [error, setError] = useState("");
+  const mounted = useRef(true);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const subdomain = (() => {
+    if (typeof window === "undefined") return "";
+    const parts = window.location.hostname.split(".");
+    if (parts.length >= 3 && parts[0] !== "www") return parts[0];
+    return "";
+  })();
 
-    stateRef.current.destroyed = false;
+  const accessPath = `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`;
 
-    const subdomain = (() => {
-      const parts = window.location.hostname.split(".");
-      if (parts.length >= 3 && parts[0] !== "www") return parts[0];
-      return "";
-    })();
+  const storedProof = (() => {
+    try {
+      return localStorage.getItem(`nibgate:payment-proof:${resource.id}`) || "";
+    } catch { return ""; }
+  })();
 
-    import("@nibgate/sdk").then((mod) => {
-      if (stateRef.current.destroyed || !containerRef.current) return;
-      const container = containerRef.current;
-      container.innerHTML = "";
-      (mod as any).renderDefaultUnlockUI(container, resource, {
-        accessPath: `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        onUnlock: (result: any) => {
-          // Securely render content from the server — never included in HTML
-          const content = result?.payload?.content || result?.content || "";
-          if (content) {
-            // The SDK shows the premium div on unlock, inject content into it
-            const el = document.querySelector("[data-nibgate-premium]");
-            if (el) el.innerHTML = content;
-          }
+  async function checkAccess(): Promise<AccessResult> {
+    const res = await fetch(accessPath, {
+      headers: {
+        accept: "application/json",
+        ...(storedProof ? { "x-nibgate-payment-proof": storedProof } : {}),
+      },
+    });
+    const payload = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, payload };
+  }
+
+  async function handleUnlock() {
+    setStatus("loading");
+    setError("");
+
+    try {
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) throw new Error("Install MetaMask to unlock.");
+
+      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+      const address = Array.isArray(accounts) ? accounts[0] : null;
+      if (!address) throw new Error("No wallet connected.");
+
+      // First, get the PAYMENT-REQUIRED challenge
+      const challengeRes = await fetch(accessPath);
+      if (challengeRes.status !== 402) {
+        const data = await challengeRes.json();
+        if (data?.content) {
+          setContent(data.content);
+          setStatus("unlocked");
+          return;
+        }
+        throw new Error("Unexpected server response.");
+      }
+
+      const paymentRequiredHeader = challengeRes.headers.get("PAYMENT-REQUIRED") || "";
+      if (!paymentRequiredHeader) throw new Error("No payment challenge from server.");
+
+      const paymentRequired = JSON.parse(atob(paymentRequiredHeader));
+      const option = (paymentRequired.accepts || []).find(
+        (o: any) => o.extra?.name === "GatewayWalletBatched" && o.extra?.version === "1"
+      );
+      if (!option) throw new Error("No Gateway batching option available.");
+
+      const gateway = await mod.createCircleGatewayBrowserAdapter({
+        chainId: parseInt(option.network.split(":")[1]),
+        signer: {
+          address,
+          signTypedData: async (params: any) => {
+            const { createWalletClient, custom } = await import("viem");
+            const wc = createWalletClient({ transport: custom(ethereum) });
+            return wc.signTypedData({ account: address as `0x${string}`, ...params });
+          },
         },
       });
 
-      let addr = "";
-      let gwEl: HTMLElement | null = null;
-      let observer: MutationObserver | null = null;
+      const { paymentSignature } = await gateway.pay({ paymentRequiredHeader });
+      if (!paymentSignature) throw new Error("Failed to create payment signature.");
 
-      function ensureGwEl(label: HTMLElement): HTMLElement | null {
-        const existing = container.querySelector<HTMLElement>("[data-gw-bal-inline]");
-        if (existing) return existing;
-        const el = document.createElement("span");
-        el.dataset.gwBalInline = "";
-        el.style.cssText = "margin-left:12px;font-size:18px;color:var(--accent,#7c9a6d);cursor:pointer;white-space:nowrap";
-        el.addEventListener("click", () => setShowGw(true));
-        label.appendChild(el);
-        return el;
+      // Send signed payment
+      const payRes = await fetch(accessPath, {
+        headers: {
+          accept: "application/json",
+          "payment-signature": paymentSignature,
+        },
+      });
+      const payData = await payRes.json().catch(() => ({}));
+
+      if (!payRes.ok) {
+        throw new Error(payData.reason || payData.error || "Payment verification failed.");
       }
 
-      async function refresh() {
-        if (stateRef.current.destroyed) return;
-        if (!window.ethereum) return;
+      // Store the unlock proof
+      if (payData.unlockProof) {
         try {
-          const accounts: unknown = await window.ethereum.request({ method: "eth_accounts" });
-          const a = Array.isArray(accounts) && accounts.length > 0 ? (accounts[0] as string) : null;
-          if (!a) return;
-          addr = a;
-
-          const label = container.querySelector<HTMLElement>("[data-nibgate-wallet-label]");
-          if (!label) return;
-
-          if (!observer) {
-            observer = new MutationObserver(() => {
-              if (label.contains(gwEl)) return;
-              gwEl = ensureGwEl(label);
-            });
-            observer.observe(label, { childList: true, subtree: true });
-          }
-
-          if (!gwEl || !label.contains(gwEl)) gwEl = ensureGwEl(label);
-          if (!gwEl) return;
-
-          const bal = await getGatewayBalance(addr);
-          gwEl.textContent = "Gateway: " + bal;
+          localStorage.setItem(`nibgate:payment-proof:${resource.id}`, payData.unlockProof);
         } catch {}
       }
 
-      const iv = setInterval(refresh, 3000);
-      setTimeout(refresh, 1000);
-      if (window.ethereum) window.ethereum.on("accountsChanged", refresh);
-    }).catch((err) => {
-      console.error("Nibgate unlock failed to load:", err);
-    });
+      // Show content
+      setContent(payData.content || "");
+      setStatus("unlocked");
+    } catch (err: any) {
+      setError(err.message || "Unlock failed.");
+      setStatus("locked");
+    }
+  }
 
-    return () => {
-      stateRef.current.destroyed = true;
-    };
-  }, [resource]);
+  useEffect(() => {
+    mounted.current = true;
+    checkAccess().then((result) => {
+      if (!mounted.current) return;
+      if (result.ok && result.payload?.content) {
+        setContent(result.payload.content);
+        setStatus("unlocked");
+      } else if (result.status === 402) {
+        setStatus("locked");
+      } else {
+        setError(result.payload?.error || "Access check failed.");
+        setStatus("error");
+      }
+    });
+    return () => { mounted.current = false; };
+  }, [resource.id]);
+
+  if (status === "unlocked") {
+    return <div className="prose prose-neutral dark:prose-invert" dangerouslySetInnerHTML={{ __html: content }} />;
+  }
+
+  if (status === "loading") {
+    return <p style={{ textAlign: "center", padding: "2rem", color: "var(--muted)" }}>Checking access...</p>;
+  }
 
   return (
-    <>
-      <div ref={containerRef} />
-      {showGw && <GwOverlay onClose={() => setShowGw(false)} />}
-    </>
+    <div style={{ textAlign: "center", padding: "2rem" }}>
+      <p style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>{resource.price} USDC</p>
+      <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>Pay to unlock this content</p>
+      {error && <p style={{ color: "#dc2626", marginBottom: "1rem" }}>{error}</p>}
+      <button
+        onClick={handleUnlock}
+        disabled={status === "loading"}
+        style={{
+          padding: "1rem 2rem", fontSize: "1.125rem", fontWeight: 600,
+          background: "var(--accent, #7c9a6d)", color: "#fff",
+          border: "none", borderRadius: "0.75rem", cursor: "pointer",
+        }}
+      >
+        {status === "loading" ? "Processing..." : `Unlock for ${resource.price} USDC`}
+      </button>
+    </div>
   );
 }

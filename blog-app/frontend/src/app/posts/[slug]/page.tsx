@@ -54,8 +54,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   if (!post) notFound();
 
   const isPremium = Boolean(post.price && post.price !== "0");
-  const images = extractImages(post.bodyMarkdown);
-  const links = extractLinks(post.bodyMarkdown);
+  const postBody = post.bodyMarkdown || "";
+  const images = extractImages(postBody);
+  const links = extractLinks(postBody);
   const related = await getRelated(slug, post.type);
   const tagList = typeof post.tags === "string"
     ? post.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
@@ -72,7 +73,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           <h1 style={{ marginTop: 0, marginBottom: "0.15em" }}>{post.title}</h1>
           <div className="small muted font-ui pn1" style={{ paddingTop: "0.75em" }}>
             <time>{fd(post.publishedAt)}</time>
-            {post.type === "article" && <> · <span className="reading-time">{rd(post.bodyMarkdown)}</span></>}
+            {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
           </div>
           {post.excerpt && !isPremium && <p className="small muted" style={{ marginTop: "1em" }}>{post.excerpt}</p>}
         </div>

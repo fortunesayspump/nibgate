@@ -291,6 +291,54 @@ export function registerHubRoutes(app) {
             });
             console.log('[hub/pay] hash with salt=0:', hash3);
             console.log('[hub/pay] hash w/salt matches regular:', hash3 === hash1);
+
+            // Test with salt IN the EIP712Domain type definition (changes typeHash)
+            const typesWithSalt = {
+              EIP712Domain: [
+                { name: 'name', type: 'string' },
+                { name: 'version', type: 'string' },
+                { name: 'chainId', type: 'uint256' },
+                { name: 'verifyingContract', type: 'address' },
+                { name: 'salt', type: 'bytes32' }
+              ],
+              TransferWithAuthorization: types.TransferWithAuthorization
+            };
+            const hash4 = hashTypedData({
+              domain: { ...domain, salt: '0x0000000000000000000000000000000000000000000000000000000000000000' },
+              types: typesWithSalt,
+              primaryType: 'TransferWithAuthorization',
+              message
+            });
+            console.log('[hub/pay] hash with EIP712Domain+typesalt:', hash4);
+            console.log('[hub/pay] hash with typesalt matches regular:', hash4 === hash1);
+
+            // Also try adding the typeHash difference by encoding with salt in types but NO salt in domain
+            const hash5 = hashTypedData({
+              domain,
+              types: typesWithSalt,
+              primaryType: 'TransferWithAuthorization',
+              message
+            });
+            console.log('[hub/pay] hash with typesalt, no domain salt:', hash5);
+
+            // Check if typesWithSalt recovers the correct signer
+            const recovered3 = await recoverTypedDataAddress({
+              domain,
+              types: typesWithSalt,
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            }).catch(() => 'recover3_failed');
+            console.log('[hub/pay] recovered signer (typesWithSalt, no domain salt):', recovered3);
+
+            const recovered4 = await recoverTypedDataAddress({
+              domain: { ...domain, salt: '0x0000000000000000000000000000000000000000000000000000000000000000' },
+              types: typesWithSalt,
+              primaryType: 'TransferWithAuthorization',
+              message,
+              signature: sig
+            }).catch(() => 'recover4_failed');
+            console.log('[hub/pay] recovered signer (typesWithSalt + domain salt):', recovered4);
           }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);

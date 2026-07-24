@@ -21,7 +21,9 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
   try {
     const circle = await import('@circle-fin/x402-batching/client');
     BatchEvmScheme = circle.BatchEvmScheme;
-  } catch {
+  } catch (err) {
+    console.warn('[nibgate] Failed to import @circle-fin/x402-batching/client:', err.message);
+    console.warn('[nibgate] Falling back to custom BatchEvmScheme');
     const local = await import('./schemes/batch-scheme.js');
     BatchEvmScheme = local.BatchEvmScheme;
   }

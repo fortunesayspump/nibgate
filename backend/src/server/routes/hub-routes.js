@@ -182,7 +182,26 @@ export function registerHubRoutes(app) {
         end(value = '') { body = value; },
       };
 
+      if (req.headers['payment-signature'] || req.headers['payment-signature'] === '') {
+        const raw = req.headers['payment-signature'];
+        try {
+          const decoded = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8'));
+          console.log('[hub/pay] payment-signature present');
+          console.log('[hub/pay] x402Version:', decoded.x402Version);
+          console.log('[hub/pay] payload.auth:', JSON.stringify(decoded.payload?.authorization));
+          console.log('[hub/pay] payload.sig:', typeof decoded.payload?.signature, String(decoded.payload?.signature).slice(0, 20));
+          console.log('[hub/pay] accepted.network:', decoded.accepted?.network);
+          console.log('[hub/pay] accepted.amount:', decoded.accepted?.amount);
+        } catch (e) {
+          console.log('[hub/pay] failed to decode payment-signature:', e.message);
+        }
+      }
+
       await middleware.require(`$${price || '0.01'}`)(mwReq, mwRes, () => { nextCalled = true; });
+
+      if (!nextCalled && statusCode === 402) {
+        console.log('[hub/pay] middleware returned 402. body:', body);
+      }
 
       if (!nextCalled) {
         res.status(statusCode).set(headers).send(body);

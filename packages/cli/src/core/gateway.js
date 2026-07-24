@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { createPaymentChallenge, createUnlockToken, verifyUnlockToken } from '@nibgate/sdk/server';
 import { createPaymentProvider } from './payments.js';
 
 export function createGateway(config, store) {
@@ -27,51 +28,62 @@ export function createGateway(config, store) {
     const token = req.cookies[`nibgate_unlock_${routeId}`] || req.get('x-nibgate-unlock');
     if (!token) return null;
 
-    const unlock = unlocks.get(token);
-    if (!unlock || unlock.routeId !== routeId || unlock.expiresAt < Date.now()) return null;
-    return unlock;
+    const cached = unlocks.get(token);
+    if (cached && cached.routeId === routeId && cached.expiresAt > Date.now()) return cached;
+
+    const resource = routeById(routeId);
+    if (!resource) return null;
+    const payload = verifyUnlockToken(token, resource);
+    if (!payload) return null;
+
+    const result = {
+      token,
+      routeId,
+      paymentId: payload.paymentId,
+      actor: payload.actor,
+      expiresAt: payload.exp * 1000
+    };
+    unlocks.set(token, result);
+    store.upsertUnlock(result);
+    return result;
   }
 
-  function createPaymentChallenge(route, mode = 'human') {
-    const amount = mode === 'agent' && route.agentPrice ? route.agentPrice : route.price;
-    const challenge = {
-      x402Version: paymentProvider.isLive ? 2 : 'draft-demo',
-      status: 402,
-      scheme: 'exact',
-      paymentMode: paymentProvider.mode,
-      accepts: [
-        {
-          asset: route.currency,
-          network: paymentProvider.networks[0] || route.network,
-          amount,
-          recipient: paymentProvider.sellerAddress || config.site.creatorWallet,
-          description: `Unlock ${route.title}`,
-          resource: `${config.site.origin}${route.path}`,
-          mimeType: route.type === 'article' ? 'text/html' : 'application/octet-stream',
-          payTo: paymentProvider.sellerAddress || config.site.creatorWallet,
-          maxTimeoutSeconds: 120
-        }
-      ],
-      nibgate: {
-        contentId: route.id,
-        title: route.title,
-        contentType: route.type,
-        unit: route.unit || 'unlock',
-        humanPrice: route.price,
-        agentPrice: route.agentPrice || route.price,
-        currency: route.currency,
-        network: route.network,
-        license: route.license,
-        splits: route.splits,
-        platformFeeBps: config.site.platformFeeBps,
-        provider: paymentProvider.displayName
-      }
+  function createPaymentChallengeForRoute(route, mode = 'human') {
+    const resource = {
+      id: route.id,
+      title: route.title,
+      type: route.type,
+      price: mode === 'agent' && route.agentPrice ? route.agentPrice : route.price,
+      currency: route.currency,
+      path: route.path,
+      url: `${config.site.origin}${route.path}`,
+      recipient: paymentProvider.sellerAddress || config.site.creatorWallet,
     };
+
+    const challenge = createPaymentChallenge(resource, {
+      network: route.network,
+      paymentMode: paymentProvider.mode,
+      paymentRail: paymentProvider.isLive ? 'gateway' : 'demo',
+      actor: mode,
+      origin: config.site.origin,
+    });
+
+    challenge.nibgate = {
+      ...challenge.nibgate,
+      unit: route.unit || 'unlock',
+      humanPrice: route.price,
+      agentPrice: route.agentPrice || route.price,
+      network: route.network,
+      license: route.license,
+      splits: route.splits,
+      platformFeeBps: config.site.platformFeeBps,
+      provider: paymentProvider.displayName,
+    };
+
     return challenge;
   }
 
   function recordPayment(route, actor, amount, settlement = {}) {
-    const token = nanoid(28);
     const now = Date.now();
     const payment = {
       id: nanoid(14),
@@ -86,6 +98,30 @@ export function createGateway(config, store) {
       payer: settlement.payer || null,
       provider: settlement.provider || paymentProvider.mode
     };
+
+    const resource = {
+      id: route.id,
+      title: route.title,
+      type: route.type,
+      price: amount,
+      currency: route.currency,
+      path: route.path,
+      recipient: paymentProvider.sellerAddress || config.site.creatorWallet,
+    };
+
+    const token = createUnlockToken(resource, {
+      paymentId: payment.id,
+      payment: {
+        txHash: payment.txHash,
+        payer: payment.payer,
+        recipient: resource.recipient,
+        amount: Number(amount),
+        currency: route.currency,
+        verified: Boolean(settlement.verified),
+      },
+      actor,
+      expiresInSeconds: 60 * 60 * 12,
+    });
 
     const unlock = {
       token,
@@ -134,7 +170,7 @@ export function createGateway(config, store) {
     routeByPath,
     totalEarnings,
     getUnlock,
-    createPaymentChallenge,
+    createPaymentChallenge: createPaymentChallengeForRoute,
     recordPayment,
     agentManifest
   };

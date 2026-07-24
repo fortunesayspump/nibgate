@@ -120,15 +120,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           {isPremium ? (
             <>
               {post.excerpt && <p className="small muted">{post.excerpt}</p>}
-              <NibgateUnlock resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/posts/${post.slug}`, description: post.excerpt || undefined, imageUrl: post.coverUrl || undefined, tags: tagList }}>
-                <div className="prose prose-neutral dark:prose-invert" style={{ lineHeight: 1.5, color: "var(--fg)" }}>
-                  {post.type === "article" ? (
-                    <ReactMarkdown>{post.bodyMarkdown}</ReactMarkdown>
-                  ) : (
-                    <p>{cleanBody(post.bodyMarkdown)}</p>
-                  )}
-                </div>
-              </NibgateUnlock>
+              <NibgateUnlock resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/posts/${post.slug}`, description: post.excerpt || undefined, imageUrl: post.coverUrl || undefined, tags: tagList }} />
             </>
           ) : (
             <>

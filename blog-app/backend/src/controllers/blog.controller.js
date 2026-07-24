@@ -23,6 +23,11 @@ const list = catchAsync(async (req, res) => {
 const getBySlug = catchAsync(async (req, res) => {
   const post = await blogService.getBySlug(req.siteId, req.params.slug);
   if (!post) return res.status(status.NOT_FOUND).json({ error: 'Post not found' });
+  // For paid posts, NEVER send the body publicly — only a teaser
+  if (post.price && post.price !== '0') {
+    const { body, ...teaser } = post;
+    return res.json({ success: true, post: transformTags({ ...teaser, body: null, isLocked: true }) });
+  }
   res.json({ success: true, post: transformTags(post) });
 });
 

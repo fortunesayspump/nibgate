@@ -64,9 +64,8 @@ function GwOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function NibgateUnlock({ resource, children }: { resource: UnlockResource; children?: React.ReactNode }) {
+export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef({ destroyed: false });
   const [showGw, setShowGw] = useState(false);
 
@@ -82,16 +81,22 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
       return "";
     })();
 
-    // Capture premium content HTML before SDK clears the container
-    const premiumHTML = contentRef.current?.innerHTML || "";
-
     import("@nibgate/sdk").then((mod) => {
       if (stateRef.current.destroyed || !containerRef.current) return;
       const container = containerRef.current;
       container.innerHTML = "";
       (mod as any).renderDefaultUnlockUI(container, resource, {
         accessPath: `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`,
-        premiumContentHTML: premiumHTML,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onUnlock: (result: any) => {
+          // Securely render content from the server — never included in HTML
+          const content = result?.payload?.content || result?.content || "";
+          if (content) {
+            // The SDK shows the premium div on unlock, inject content into it
+            const el = document.querySelector("[data-nibgate-premium]");
+            if (el) el.innerHTML = content;
+          }
+        },
       });
 
       let addr = "";
@@ -152,9 +157,6 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
   return (
     <>
       <div ref={containerRef} />
-      <div ref={contentRef} style={{ display: 'none' }} aria-hidden="true">
-        {children}
-      </div>
       {showGw && <GwOverlay onClose={() => setShowGw(false)} />}
     </>
   );

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../../lib/prisma');
 const { authenticate } = require('../../middlewares/auth');
 const { status } = require('http-status');
+const { invalidateSite } = require('../../lib/tenant-cache');
 
 const router = express.Router();
 
@@ -58,6 +59,7 @@ router.put('/', authenticate, async (req, res, next) => {
     updateData.settings = JSON.stringify(newSettings);
 
     await prisma.site.update({ where: { id: site.id }, data: updateData });
+    invalidateSite(req.subdomain);
 
     res.json({ success: true, settings: { ...current, ...newSettings, name: updateData.name || site.name, description: updateData.description || site.description } });
   } catch (error) {
@@ -113,6 +115,7 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     settings.hubToken = hubData.verifyToken;
 
     await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
+    invalidateSite(req.subdomain);
 
     res.json({ success: true, siteId: hubData.siteId, domain: hubData.domain });
   } catch (error) {
@@ -144,6 +147,7 @@ router.post('/link-hub/disconnect', authenticate, async (req, res, next) => {
     delete settings.hubToken;
 
     await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
+    invalidateSite(req.subdomain);
 
     res.json({ success: true, message: 'Disconnected from hub.' });
   } catch (error) {

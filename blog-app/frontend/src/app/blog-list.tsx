@@ -29,7 +29,7 @@ export function BlogList({ posts, featuredIndex }: { posts: BlogPost[]; featured
     <motion.ul className="list-none p-0 m-0" variants={containerVariants} initial="hidden" animate="visible">
       {posts.map((post, i) => (
         <motion.li key={post.id} variants={itemVariants} className="mb-3">
-          <Link href={`/posts/${post.slug}`} className="group no-underline text-[var(--fg)] block py-1" target="_blank" rel="noopener noreferrer">
+          <Link href={`/posts/${post.slug}`} className="group no-underline text-[var(--fg)] block py-1">
             <div className="flex items-baseline gap-3 text-sm">
               <span className="text-[var(--faint)] tabular-nums shrink-0 font-medium">
                 {formatYear(post.publishedAt)} · {postNumber(post.publishedAt, i + startNum - 1)}

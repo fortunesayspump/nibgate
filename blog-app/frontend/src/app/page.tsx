@@ -26,7 +26,7 @@ function TypeIcon({ type }: { type: string }) {
 function PostListItem({ post, i }: { post: BlogPost; i: number }) {
   return (
     <li>
-      <Link href={`/posts/${post.slug}`} className="internal-link plain" target="_blank" rel="noopener noreferrer">
+      <Link href={`/posts/${post.slug}`} className="internal-link plain">
         <div style={{ display: "flex", alignItems: "baseline" }}>
           <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {ni(i)}</span>
           {post.type !== "article" && (
@@ -48,7 +48,7 @@ function extractFirstImage(md: string, coverUrl?: string | null): string | null 
 function ThumbnailCard({ post, icon }: { post: BlogPost; icon?: string }) {
   const img = extractFirstImage(post.bodyMarkdown, post.coverUrl);
   return (
-    <Link key={post.id} href={`/posts/${post.slug}`} className="plain block" target="_blank" rel="noopener noreferrer" style={{ aspectRatio: "4/3", overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
+    <Link key={post.id} href={`/posts/${post.slug}`} className="plain block" style={{ aspectRatio: "4/3", overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
       {img ? (
         <img src={img} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
       ) : (
@@ -113,9 +113,9 @@ export default async function HomePage() {
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", marginLeft: "auto", marginRight: "auto" }}>
           {latest && (
             <>
-              <p><Link href={`/posts/${latest.slug}`} className="muted font-ui" target="_blank" rel="noopener noreferrer">Latest</Link></p>
+              <p><Link href={`/posts/${latest.slug}`} className="muted font-ui">Latest</Link></p>
               <div>
-                <Link href={`/posts/${latest.slug}`} className="plain" target="_blank" rel="noopener noreferrer">
+                <Link href={`/posts/${latest.slug}`} className="plain">
                   <h2>{latest.title}</h2>
                   <div className="metadata muted small pb font-ui">
                     <time>{fd(latest.publishedAt)}</time>

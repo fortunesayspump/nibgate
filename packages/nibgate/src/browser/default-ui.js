@@ -84,7 +84,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
       <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
         <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:${theme.accent};opacity:0.15;border-radius:10px;transition:width .05s linear;z-index:2"></div>
-        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:500;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:${theme.accent};background:rgba(124,154,109,0.08);transition:box-shadow .3s,transform .3s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
+        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:#fff;background:${theme.accent};transition:box-shadow .3s,transform .3s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
       <div class="nui-stat" style="text-align:center;margin-top:16px" data-nibgate-status></div>
     </div>
     <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px">${options.premiumContentHTML || ''}</div>

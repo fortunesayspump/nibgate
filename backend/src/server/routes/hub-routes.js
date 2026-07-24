@@ -741,4 +741,21 @@ export function registerHubRoutes(app) {
       res.status(500).json({ error: 'Failed to verify link token', details: error.message });
     }
   });
+
+  app.post('/api/hub/blog/link/disconnect', async (req, res) => {
+    try {
+      const { siteId, verifyToken } = req.body || {};
+      if (!siteId || !verifyToken) return res.status(400).json({ error: 'siteId and verifyToken are required.' });
+
+      const website = await db.website.findUnique({ where: { id: siteId } });
+      if (!website) return res.status(404).json({ error: 'Website not found.' });
+      if (website.verifyToken !== verifyToken) return res.status(403).json({ error: 'Invalid verify token.' });
+      if (website.deletedAt) return res.status(410).json({ error: 'Site already removed.' });
+
+      await db.website.update({ where: { id: website.id }, data: { deletedAt: new Date() } });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to disconnect site', details: error.message });
+    }
+  });
 }

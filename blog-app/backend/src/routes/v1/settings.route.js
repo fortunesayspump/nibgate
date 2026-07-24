@@ -124,6 +124,22 @@ router.post('/link-hub/disconnect', authenticate, async (req, res, next) => {
   try {
     let settings = {};
     try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
+
+    const hubApi = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
+
+    if (settings.hubSiteId && settings.hubToken) {
+      const hubRes = await fetch(`${hubApi}/api/hub/blog/link/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteId: settings.hubSiteId, verifyToken: settings.hubToken }),
+      });
+
+      const hubData = await hubRes.json();
+      if (!hubRes.ok) {
+        return res.status(hubRes.status).json({ error: hubData.error || 'Hub disconnect failed.' });
+      }
+    }
+
     delete settings.hubSiteId;
     delete settings.hubToken;
 

@@ -132,10 +132,11 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     mounted.current = true;
     checkAccess().then((result) => {
       if (!mounted.current) return;
-      if (result.ok && result.payload?.content) {
+      if (result.payload?.content) {
         setContent(result.payload.content);
         setStatus("unlocked");
-      } else if (result.status === 402) {
+      } else if (result.status === 402 || result.status === 200) {
+        // 402 = no proof, 200 = proof valid but no content yet (backend deploying)
         setStatus("locked");
       } else {
         setError(result.payload?.error || "Access check failed.");

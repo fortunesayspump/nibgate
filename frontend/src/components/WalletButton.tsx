@@ -56,12 +56,13 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
     try {
       setStatus('Approving USDC\u2026')
       const amt = parse6(amount).toString(16)
-      await window.ethereum.request({
+      const eth = window.ethereum as any;
+      await eth.request({
         method: 'eth_sendTransaction',
         params: [{ from: address, to: USDC_ADDRESS, data: SEL_APPROVE + addr32(GATEWAY_WALLET_ADDRESS) + amt.padStart(64, '0') }],
       })
       setStatus('Depositing\u2026')
-      await window.ethereum.request({
+      await eth.request({
         method: 'eth_sendTransaction',
         params: [{ from: address, to: GATEWAY_WALLET_ADDRESS, data: SEL_DEPOSIT + addr32(USDC_ADDRESS) + amt.padStart(64, '0') }],
       })
@@ -77,7 +78,8 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
     try {
       setStatus('Withdrawing\u2026')
       const amt = parse6(amount).toString(16)
-      await window.ethereum.request({
+      const eth = window.ethereum as any;
+      await eth.request({
         method: 'eth_sendTransaction',
         params: [{ from: address, to: GATEWAY_WALLET_ADDRESS, data: SEL_WITHDRAW + addr32(USDC_ADDRESS) + amt.padStart(64, '0') }],
       })

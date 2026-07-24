@@ -356,59 +356,33 @@ export function registerHubRoutes(app) {
             }).catch(() => false);
             console.log('[hub/pay] viem verify (5-field EIP712Domain + salt):', valid5);
 
-            // Try with nonce as string (MetaMask might treat bytes32 as string)
-            const recoveredNonceAsString = await recoverTypedDataAddress({
-              domain,
-              types: {
-                TransferWithAuthorization: [
-                  { name: 'from', type: 'address' },
-                  { name: 'to', type: 'address' },
-                  { name: 'value', type: 'uint256' },
-                  { name: 'validAfter', type: 'uint256' },
-                  { name: 'validBefore', type: 'uint256' },
-                  { name: 'nonce', type: 'string' }
-                ]
-              },
-              primaryType: 'TransferWithAuthorization',
-              message: { ...message, nonce: auth.nonce },
-              signature: sig
-            }).catch(() => 'nonce_as_str_failed');
-            console.log('[hub/pay] recovered with nonce as string:', recoveredNonceAsString);
+            // Log full sig info for debugging
+            console.log('[hub/pay] sig length:', typeof sig === 'string' ? sig.length : typeof sig);
 
-            // Try with value as string (MetaMask might not handle BigInt strings correctly)
-            const recoveredValueAsStr = await recoverTypedDataAddress({
-              domain,
-              types,
-              primaryType: 'TransferWithAuthorization',
-              message: { ...message, value: auth.value },
-              signature: sig
-            }).catch(() => 'value_as_str_failed');
-            console.log('[hub/pay] recovered with value as string:', recoveredValueAsStr);
-
-            // Try with ALL uint256 as strings
-            const recoveredAllStr = await recoverTypedDataAddress({
-              domain,
-              types,
-              primaryType: 'TransferWithAuthorization',
-              message: {
-                ...message,
-                value: auth.value,
-                validAfter: auth.validAfter,
-                validBefore: auth.validBefore
-              },
-              signature: sig
-            }).catch(() => 'all_str_failed');
-            console.log('[hub/pay] recovered with all uint256 as strings:', recoveredAllStr);
-
-            // Try with value as number
-            const recoveredValueAsNum = await recoverTypedDataAddress({
-              domain,
-              types,
-              primaryType: 'TransferWithAuthorization',
-              message: { ...message, value: Number(auth.value) },
-              signature: sig
-            }).catch(() => 'value_as_num_failed');
-            console.log('[hub/pay] recovered with value as number:', recoveredValueAsNum);
+            // Also try verifying with ethers v6 (different EIP-712 implementation)
+            try {
+              const { ethers } = await import('ethers');
+              const typedData = {
+                domain: { name: 'GatewayWalletBatched', version: '1', chainId, verifyingContract: domain.verifyingContract },
+                types: {
+                  TransferWithAuthorization: types.TransferWithAuthorization
+                },
+                primaryType: 'TransferWithAuthorization',
+                message: {
+                  from: message.from,
+                  to: message.to,
+                  value: message.value,
+                  validAfter: message.validAfter,
+                  validBefore: message.validBefore,
+                  nonce: message.nonce
+                }
+              };
+              const recoveredEthers = ethers.verifyTypedData(typedData.domain, typedData.types, typedData.message, sig);
+              console.log('[hub/pay] ethers recovered signer:', recoveredEthers);
+              console.log('[hub/pay] ethers matches expected:', recoveredEthers.toLowerCase() === getAddress(auth.from).toLowerCase());
+            } catch (e) {
+              console.log('[hub/pay] ethers verify failed:', e.message);
+            }
           }
         } catch (e) {
           console.log('[hub/pay] failed to decode payment-signature:', e.message);

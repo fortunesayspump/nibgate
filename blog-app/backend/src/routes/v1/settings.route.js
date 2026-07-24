@@ -27,6 +27,8 @@ router.get('/', authenticate, async (req, res, next) => {
         paymentNetwork: settings.paymentNetwork || 'eip155:5042002',
         siteId: site.id,
         subdomain: site.subdomain,
+        hubSiteId: settings.hubSiteId || null,
+        hubToken: settings.hubToken || null,
         widgetScript: `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken || ''}" data-nibgate-api="https://api.nibgate.xyz"></script>`,
       },
     });
@@ -113,6 +115,21 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
 
     res.json({ success: true, siteId: hubData.siteId, domain: hubData.domain });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/link-hub/disconnect', authenticate, async (req, res, next) => {
+  try {
+    let settings = {};
+    try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
+    delete settings.hubSiteId;
+    delete settings.hubToken;
+
+    await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
+
+    res.json({ success: true, message: 'Disconnected from hub.' });
   } catch (error) {
     next(error);
   }

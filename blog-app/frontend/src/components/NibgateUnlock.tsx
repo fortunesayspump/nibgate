@@ -96,6 +96,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
           el = document.createElement("span");
           el.dataset.gwBal = "";
           el.style.cssText = "margin-left:12px;font-size:18px;color:var(--accent,#7c9a6d);cursor:pointer;white-space:nowrap";
+          el.innerHTML = "💰 <span data-gw-bal-text></span>";
           el.title = "Gateway balance — click to deposit/withdraw";
           el.addEventListener("click", () => setShowGw(true));
           label.appendChild(el);
@@ -118,7 +119,8 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
             }
             if (!gwEl || !label.contains(gwEl)) gwEl = ensureBalEl(label);
             if (!gwEl) return;
-            gwEl.textContent = "Gateway: " + (await getGatewayBalance(addr));
+            const txt = gwEl.querySelector("[data-gw-bal-text]");
+            if (txt) txt.textContent = await getGatewayBalance(addr);
           } catch {}
         }
 

@@ -1,5 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const validate = require('../../middlewares/validate');
+const settingsValidation = require('../../validations/settings.validation');
 const prisma = require('../../lib/prisma');
 const { authenticate } = require('../../middlewares/auth');
 const { status } = require('http-status');
@@ -38,7 +40,7 @@ router.get('/', authenticate, async (req, res, next) => {
   }
 });
 
-router.put('/', authenticate, async (req, res, next) => {
+router.put('/', authenticate, validate(settingsValidation.updateSettings), async (req, res, next) => {
   try {
     const site = await prisma.site.findUnique({ where: { id: req.siteId } });
     if (!site) return res.status(404).json({ error: 'Site not found' });

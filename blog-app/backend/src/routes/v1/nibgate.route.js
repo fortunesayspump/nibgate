@@ -1,4 +1,6 @@
 const express = require('express');
+const validate = require('../../middlewares/validate');
+const nibgateValidation = require('../../validations/nibgate.validation');
 const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
 const { createCircleGatewayServer } = require('@nibgate/sdk/server');
@@ -158,10 +160,9 @@ router.get('/gateway/balances', authenticate, authorize('admin'), async (req, re
   }
 });
 
-router.post('/gateway/deposit', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/gateway/deposit', authenticate, authorize('admin'), validate(nibgateValidation.deposit), async (req, res, next) => {
   try {
-    const { amount } = req.body || {};
-    if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
+    const { amount } = req.body;
     const result = await nibgateServer.depositToGateway(amount);
     if (!result.ok) return res.status(result.status || 500).json(result);
     res.json(result);
@@ -170,10 +171,9 @@ router.post('/gateway/deposit', authenticate, authorize('admin'), async (req, re
   }
 });
 
-router.post('/gateway/withdraw', authenticate, authorize('admin'), async (req, res, next) => {
+router.post('/gateway/withdraw', authenticate, authorize('admin'), validate(nibgateValidation.withdraw), async (req, res, next) => {
   try {
-    const { amount, recipient, chain, maxFee } = req.body || {};
-    if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
+    const { amount, recipient, chain, maxFee } = req.body;
     const result = await nibgateServer.withdrawFromGateway(amount, { recipient, chain, maxFee });
     if (!result.ok) return res.status(result.status || 500).json(result);
     res.json(result);

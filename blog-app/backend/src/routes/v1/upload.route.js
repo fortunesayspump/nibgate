@@ -14,14 +14,34 @@ const storage = multer.diskStorage({
   },
 });
 
+const mimeMap = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.pdf': 'application/pdf',
+};
+
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.webm', '.mp3', '.wav', '.ogg', '.pdf'];
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm', '.mp3', '.wav', '.ogg', '.pdf'];
     const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.includes(ext)) return cb(null, true);
-    cb(new Error(`File type ${ext} not allowed.`));
+    if (!allowed.includes(ext)) return cb(new Error(`File type ${ext} not allowed.`));
+
+    const expectedMime = mimeMap[ext];
+    if (file.mimetype !== expectedMime) {
+      return cb(new Error(`MIME type ${file.mimetype} does not match file extension ${ext}.`));
+    }
+
+    cb(null, true);
   },
 });
 

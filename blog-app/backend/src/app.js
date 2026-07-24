@@ -30,8 +30,14 @@ app.use(helmet());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
-app.use(cors({ exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'] }));
-app.options('*', cors({ exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'] }));
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000'],
+  exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
+}));
+app.options('*', cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000'],
+  exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
+}));
 
 app.use(generalLimiter);
 

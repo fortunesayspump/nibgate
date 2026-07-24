@@ -1,4 +1,6 @@
 const express = require('express');
+const validate = require('../../middlewares/validate');
+const ratingValidation = require('../../validations/rating.validation');
 const prisma = require('../../lib/prisma');
 const router = express.Router();
 
@@ -19,12 +21,9 @@ router.get('/:postId', async (req, res, next) => {
   }
 });
 
-router.post('/:postId', async (req, res, next) => {
+router.post('/:postId', validate(ratingValidation.createRating), async (req, res, next) => {
   try {
     const { wallet, rating, txHash } = req.body;
-    if (!wallet || !rating) {
-      return res.status(400).json({ success: false, error: 'wallet and rating are required' });
-    }
 
     const data = await prisma.rating.upsert({
       where: { postId_wallet: { postId: req.params.postId, wallet } },

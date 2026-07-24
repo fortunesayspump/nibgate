@@ -82,9 +82,11 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       <div style="font-size:50px;font-weight:700;letter-spacing:-.03em;color:${theme.fg};margin-bottom:12px">${esc(resource.price)} USDC</div>
       <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>
       <div data-nibgate-wallet-label class="nui-mono" style="font-size:18px;color:${theme.muted};margin-bottom:40px;min-height:28px">Connect wallet</div>
-      <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;overflow:hidden;cursor:pointer">
-        <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:rgba(255,255,255,0.35);border-radius:10px;transition:width .05s linear;z-index:2"></div>
-        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;z-index:4;color:#fff;background:${theme.accent};box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform .1s,box-shadow .1s;font-family:inherit;display:flex;align-items:center;justify-content:center">${unlockSVG}Hold to pay</button></div>
+      <div data-nibgate-unlock-wrap style="width:100%;position:relative;border-radius:10px;cursor:pointer">
+        <button type="button" data-nibgate-unlock disabled style="width:100%;padding:14px 0;font-size:17px;font-weight:600;line-height:1;border:0;border-radius:10px;outline:none;cursor:pointer;position:relative;overflow:hidden;color:#fff;background:${theme.accent};box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform .1s,box-shadow .1s;font-family:inherit;display:flex;align-items:center;justify-content:center">
+          <div data-nibgate-unlock-progress style="position:absolute;inset:0;width:0%;background:rgba(255,255,255,0.55);border-radius:10px;transition:width .05s linear"></div>
+          <span data-nibgate-unlock-text style="position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px">${unlockSVG}Hold to pay</span>
+        </button></div>
       <div class="nui-stat" style="text-align:center;margin-top:16px" data-nibgate-status></div>
     </div>
     <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px">${options.premiumContentHTML || ''}</div>
@@ -118,6 +120,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   const wrap = card.querySelector('[data-nibgate-unlock-wrap]');
   const prog = card.querySelector('[data-nibgate-unlock-progress]');
   const btn = card.querySelector('[data-nibgate-unlock]');
+  const textEl = card.querySelector('[data-nibgate-unlock-text]');
 
   const HOLD_MS = 1500;
   let holdTimer = null, holdActive = false, holdComplete = false;
@@ -159,7 +162,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       label.innerHTML = 'Connect wallet';
       btn.disabled = true;
       btn.style.cursor = 'default';
-      btn.innerHTML = unlockSVG + 'Hold to pay';
+      textEl.innerHTML = unlockSVG + 'Hold to pay';
     }
   }
 
@@ -169,7 +172,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     if (b && !b._clickAttached) { b.addEventListener('click', showDeposit); b._clickAttached = true; }
   }
 
-  function setBtnText(t) { btn.innerHTML = unlockSVG + t; }
+  function setBtnText(t) { textEl.innerHTML = unlockSVG + t; }
 
   function resetHold() {
     holdActive = false;
@@ -224,6 +227,14 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   document.addEventListener('mouseup', cancelHold);
   document.addEventListener('touchend', cancelHold);
   wrap.addEventListener('mouseleave', cancelHold);
+
+  function pressIn() { if (!btn.style.transform || btn.style.transform === 'none' || btn.style.transform === '') btn.style.transform = 'scale(0.97)'; }
+  function pressOut() { if (!holdActive) btn.style.transform = ''; }
+  btn.addEventListener('mousedown', pressIn);
+  btn.addEventListener('touchstart', pressIn, { passive: true });
+  btn.addEventListener('mouseup', pressOut);
+  btn.addEventListener('touchend', pressOut);
+  btn.addEventListener('mouseleave', pressOut);
 
   setTimeout(updateLabel, 200);
 

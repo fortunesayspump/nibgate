@@ -122,7 +122,23 @@ export function createEvmGatewayUnlock(resource, options = {}) {
       network,
       signer: {
         address: currentAddress,
-        signTypedData: (typedData) => evm.request({ method: 'eth_signTypedData_v4', params: [currentAddress, stringifyJson(typedData)] })
+        signTypedData: (typedData) => {
+          // Some MetaMask versions require EIP712Domain to be explicitly
+          // present in the types object for correct hash computation.
+          const enriched = {
+            ...typedData,
+            types: {
+              EIP712Domain: [
+                { name: 'name', type: 'string' },
+                { name: 'version', type: 'string' },
+                { name: 'chainId', type: 'uint256' },
+                { name: 'verifyingContract', type: 'address' }
+              ],
+              ...typedData.types
+            }
+          };
+          return evm.request({ method: 'eth_signTypedData_v4', params: [currentAddress, stringifyJson(enriched)] });
+        }
       },
       clientModule: options.circleClientModule
     });

@@ -66,6 +66,7 @@ function GwOverlay({ onClose }: { onClose: () => void }) {
 
 export default function NibgateUnlock({ resource, children }: { resource: UnlockResource; children?: React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef({ destroyed: false });
   const [showGw, setShowGw] = useState(false);
 
@@ -81,12 +82,16 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
       return "";
     })();
 
+    // Capture premium content HTML before SDK clears the container
+    const premiumHTML = contentRef.current?.innerHTML || "";
+
     import("@nibgate/sdk").then((mod) => {
       if (stateRef.current.destroyed || !containerRef.current) return;
       const container = containerRef.current;
       container.innerHTML = "";
       (mod as any).renderDefaultUnlockUI(container, resource, {
         accessPath: `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`,
+        premiumContentHTML: premiumHTML,
       });
 
       let addr = "";
@@ -147,8 +152,8 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
   return (
     <>
       <div ref={containerRef} />
-      <div data-nibgate-premium hidden>
-        {children || <p>Content unlocked. Thank you for your support!</p>}
+      <div ref={contentRef} style={{ display: 'none' }} aria-hidden="true">
+        {children}
       </div>
       {showGw && <GwOverlay onClose={() => setShowGw(false)} />}
     </>

@@ -89,7 +89,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
         <button type="button" data-nibgate-unlock disabled class="nui-btn nui-btn-primary" style="width:100%;padding:24px 32px;font-size:24px;position:relative;z-index:4;background:${theme.accent};transition:transform .1s,opacity .15s;display:flex">${lockSVG}Hold to pay ${esc(resource.price)} USDC</button></div>
       <div class="nui-stat" style="text-align:center;margin-top:16px" data-nibgate-status></div>
     </div>
-    <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px"></div>
+    <div data-nibgate-premium hidden style="margin-top:32px;border-top:1px solid ${theme.border};padding-top:32px">${options.premiumContentHTML || ''}</div>
   `;
 
   (typeof container === 'string' ? document.querySelector(container) : container)?.appendChild(card);
@@ -142,6 +142,19 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     status: '[data-nibgate-status]',
     unlockedTarget: '[data-nibgate-premium]',
     onStatus: (msg) => status(st, msg),
+    onUnlock: options.premiumContentUrl ? async () => {
+      const premiumEl = card.querySelector('[data-nibgate-premium]');
+      if (!premiumEl) return;
+      premiumEl.innerHTML = 'Loading content...';
+      try {
+        const res = await fetch(options.premiumContentUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const html = await res.text();
+        premiumEl.innerHTML = html;
+      } catch {
+        premiumEl.innerHTML = 'Could not load premium content. Refresh and try again.';
+      }
+    } : options.onUnlock,
   });
 
   function shortAddress(a) { return a ? a.slice(0, 6) + '...' + a.slice(-4) : ''; }

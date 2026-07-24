@@ -146,10 +146,9 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
 
   return (
     <>
-      <div ref={containerRef}>
-        <div data-nibgate-premium hidden>
-          {children || <p>Content unlocked. Thank you for your support!</p>}
-        </div>
+      <div ref={containerRef} />
+      <div data-nibgate-premium hidden>
+        {children || <p>Content unlocked. Thank you for your support!</p>}
       </div>
       {showGw && <GwOverlay onClose={() => setShowGw(false)} />}
     </>

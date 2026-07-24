@@ -25,7 +25,7 @@ async function runVerificationSweep() {
         { verificationStatus: { not: 'verified' } },
         { lastVerificationCheckAt: null },
         { isVerified: false },
-        { lastVerificationCheckAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }
+        { lastVerificationCheckAt: { lt: new Date(Date.now() - 6 * 60 * 60 * 1000) } }
       ]
     }
   });
@@ -45,7 +45,7 @@ export function startVerificationMonitor() {
   if (verificationMonitorStarted || process.env.VERIFICATION_CHECKS_DISABLED === 'true') return;
   verificationMonitorStarted = true;
 
-  const intervalMs = Number.parseInt(process.env.VERIFICATION_CHECK_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
+  const intervalMs = Number.parseInt(process.env.VERIFICATION_CHECK_INTERVAL_MS || String(6 * 60 * 60 * 1000), 10);
   const initialDelayMs = Number.parseInt(process.env.VERIFICATION_CHECK_INITIAL_DELAY_MS || String(10 * 60 * 1000), 10);
 
   setTimeout(() => {

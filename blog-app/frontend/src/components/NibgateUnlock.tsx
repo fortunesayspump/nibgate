@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { getGatewayBalance } from "@/lib/gateway-core";
 import GatewayWallet from "./GatewayWallet";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+
 type UnlockResource = {
   id: string;
   title: string;
@@ -78,7 +80,7 @@ export default function NibgateUnlock({ resource, children }: { resource: Unlock
       const container = containerRef.current;
       container.innerHTML = "";
       (mod as any).renderDefaultUnlockUI(container, resource, {
-        accessPath: `/api/nibgate/access?path=${resource.path}`,
+        accessPath: `${API_BASE}/nibgate/access?path=${resource.path}`,
       });
 
       let addr = "";

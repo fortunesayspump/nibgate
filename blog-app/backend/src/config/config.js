@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const envVarsSchema = Joi.object()
   .keys({
-    NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
+    NODE_ENV: Joi.string().valid('production', 'development', 'test', 'PRODUCTION', 'DEVELOPMENT').required(),
     PORT: Joi.number().default(4000),
     DATABASE_URL: Joi.string().required().description('PostgreSQL connection string'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),

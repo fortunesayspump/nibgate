@@ -224,7 +224,71 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   const cleanup = () => { document.removeEventListener('mouseup', cancelHold); document.removeEventListener('touchend', cancelHold); };
   card.addEventListener('remove', cleanup);
 
-  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); } };
+  // ── Gateway balance + deposit icon ─────────────────────────────────────
+  const ARC_RPC = 'https://arc-testnet.drpc.org';
+  const GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+  const USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
+
+  async function fetchBalance(addr) {
+    const sel = '0xdd62e1c6';
+    const pad = (a) => '000000000000000000000000' + a.slice(2).toLowerCase();
+    const data = sel + pad(USDC_ADDRESS) + pad(addr);
+    const r = await fetch(ARC_RPC, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_call', params: [{ to: GATEWAY_WALLET, data }, 'latest'], id: 1 }),
+    });
+    const j = await r.json();
+    return j?.result ? (Number(BigInt(j.result)) / 1_000_000).toFixed(2) + ' USDC' : '\u2014';
+  }
+
+  let balEl = null, gwOverlay = null, balTimer = null;
+
+  function depIcon() {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>';
+  }
+
+  function showDeposit() {
+    if (gwOverlay) return;
+    gwOverlay = el('div', { style: 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:20px;animation:nfade .15s ease-out' });
+    const modal = el('div', { style: 'background:' + theme.bg + ';border-radius:16px;max-width:540px;width:100%;max-height:90vh;overflow:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.12);animation:nscale .15s ease-out' });
+    const close = el('button', { style: 'position:absolute;top:12px;right:16px;z-index:20;background:none;border:none;font-size:28px;cursor:pointer;color:' + theme.muted + ';font-family:inherit;line-height:1' }, '\u00d7');
+    close.addEventListener('click', () => { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); });
+    modal.appendChild(close);
+    gwOverlay.appendChild(modal);
+    gwOverlay.addEventListener('click', (e) => { if (e.target === gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } });
+    document.body.appendChild(gwOverlay);
+    document.addEventListener('keydown', onDepKey);
+    import('./default-ui.js').then(m => m.renderDefaultGatewayWalletUI(modal, options.gatewayOptions || {})).catch(() => {});
+  }
+  function onDepKey(e) { if (e.key === 'Escape' && gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } }
+
+  function ensureBal() {
+    if (balEl && balEl.isConnected) return balEl;
+    balEl = el('span', { 'data-nibgate-bal': '', style: 'margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)' },
+      '\u00b7\u00a0<span data-nibgate-bal-txt></span>\u00a0|\u00a0' + depIcon());
+    balEl.addEventListener('click', showDeposit);
+    if (label.parentNode) label.parentNode.insertBefore(balEl, label.nextSibling);
+    return balEl;
+  }
+
+  async function refreshBal() {
+    if (!card.isConnected || !window.ethereum) return;
+    try {
+      const accts = await window.ethereum.request({ method: 'eth_accounts' });
+      const addr = Array.isArray(accts) && accts[0] ? accts[0] : null;
+      if (!addr) return;
+      const t = ensureBal().querySelector('[data-nibgate-bal-txt]');
+      if (t) t.textContent = await fetchBalance(addr);
+    } catch {}
+  }
+
+  if (window.ethereum) {
+    balTimer = setInterval(refreshBal, 3000);
+    setTimeout(refreshBal, 1000);
+    window.ethereum.on('accountsChanged', refreshBal);
+  }
+
+  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); if (balTimer) clearInterval(balTimer); if (gwOverlay) { gwOverlay.remove(); gwOverlay = null; } } };
 }
 
 export function renderDefaultRatingUI(container, resource, options = {}) {

@@ -79,8 +79,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         </div>
 
         <div className="wrap">
-          {/* Hero image for video/music */}
-          {post.coverUrl && (post.type === "video" || post.type === "music") && (
+          {/* Cover image */}
+          {post.coverUrl && (
             <div style={{ marginBottom: "1.5rem", borderRadius: "6px", overflow: "hidden" }}>
               <img src={post.coverUrl} alt={post.title} style={{ width: "100%", height: "auto", display: "block", maxHeight: "400px", objectFit: "cover" }} />
             </div>

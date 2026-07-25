@@ -39,14 +39,20 @@ function PostListItem({ post }: { post: BlogPost }) {
   );
 }
 
-function extractFirstImage(md: string, coverUrl?: string | null): string | null {
+function extractFirstImage(md: string, coverUrl?: string | null, media?: string | null): string | null {
   if (coverUrl) return coverUrl;
+  if (media) {
+    try {
+      const items = JSON.parse(media);
+      if (Array.isArray(items) && items.length > 0 && items[0].url) return items[0].url;
+    } catch {}
+  }
   const m = md.match(/!\[.*?\]\((.*?)\)/);
   return m ? m[1] : null;
 }
 
 function ThumbnailCard({ post, icon }: { post: BlogPost; icon?: string }) {
-  const img = extractFirstImage(post.bodyMarkdown, post.coverUrl);
+  const img = extractFirstImage(post.bodyMarkdown, post.coverUrl, post.media);
   return (
     <Link key={post.id} href={`/posts/${post.slug}`} className="plain block" style={{ aspectRatio: "4/3", overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
       {img ? (

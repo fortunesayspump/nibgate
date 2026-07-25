@@ -16,7 +16,6 @@ export default async function WritingPage() {
       <Header />
       <main>
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", margin: "0 auto" }}>
-          <h1 style={{ marginBottom: "1em" }}>{LABEL}</h1>
           {posts.length === 0 ? <p className="muted">No posts yet.</p> : (
             <ul className="list-plain tabular-nums">
               {posts.map((post) => (

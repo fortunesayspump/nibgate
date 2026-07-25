@@ -83,11 +83,11 @@ export default async function BlogPage() {
                           <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
                         </div>
                       </div>
-                      <div className="min-h-72 border border-dark-gray/50 bg-black p-6 text-white">
+                      <div className="aspect-video w-full overflow-hidden bg-black">
                         {featured.coverUrl ? (
-                          <img src={featured.coverUrl} alt="" className="h-full min-h-72 w-full object-cover" />
+                          <img src={featured.coverUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <div className="flex h-full min-h-72 flex-col justify-between">
+                          <div className="flex h-full flex-col justify-between p-6 text-white">
                             <span className="text-lg">Nibgate</span>
                             <span className="text-6xl font-medium leading-none">{featured.tag}</span>
                           </div>
@@ -99,19 +99,26 @@ export default async function BlogPage() {
 
                 {rest.map((post) => (
                   <Link key={post.id} href={`/blog/${post.slug}`} className="group no-underline text-black border border-dark-gray/50 bg-white transition-colors hover:bg-gray">
-                    <article className="flex h-full min-h-80 flex-col justify-between gap-10 p-6 md:p-8">
-                      <div className="flex flex-wrap items-center gap-3 text-base">
-                        <span>{post.tag}</span>
-                        <span className="opacity-45">/</span>
-                        <span>{formatDate(post.publishedAt)}</span>
-                      </div>
-                      <div>
-                        <h2 className="text-3xl font-medium leading-none text-balance md:text-4xl">{post.title}</h2>
-                        <p className="mt-5 text-lg leading-8">{post.excerpt}</p>
-                      </div>
-                      <div className="flex items-center gap-2 text-xl font-medium">
-                        <span>Read post</span>
-                        <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
+                    <article className="flex h-full flex-col">
+                      {post.coverUrl && (
+                        <div className="w-full aspect-[16/9] overflow-hidden bg-black">
+                          <img src={post.coverUrl} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                      <div className="flex flex-1 flex-col justify-between gap-6 p-6 md:p-8">
+                        <div className="flex flex-wrap items-center gap-3 text-base">
+                          <span>{post.tag}</span>
+                          <span className="opacity-45">/</span>
+                          <span>{formatDate(post.publishedAt)}</span>
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-medium leading-tight md:text-3xl">{post.title}</h2>
+                          {post.excerpt && <p className="mt-3 text-base leading-7 opacity-75 line-clamp-2">{post.excerpt}</p>}
+                        </div>
+                        <div className="flex items-center gap-2 text-base font-medium">
+                          <span>Read post</span>
+                          <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
+                        </div>
                       </div>
                     </article>
                   </Link>

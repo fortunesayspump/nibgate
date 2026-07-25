@@ -31,7 +31,7 @@ function TypeIcon({ type }: { type: string }) {
 function PostListItem({ post }: { post: BlogPost }) {
   return (
     <li>
-      <Link href={postHref(post)} className="internal-link plain" target="_blank" rel="noopener noreferrer">
+      <Link href={postHref(post)} className="internal-link plain">
         <div style={{ display: "flex", alignItems: "baseline" }}>
           <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {mo(post.publishedAt)}</span>
           {post.type !== "article" && (

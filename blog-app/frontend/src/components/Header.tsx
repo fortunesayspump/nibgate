@@ -24,8 +24,14 @@ export default function Header() {
 
   return (
     <nav className="flex align-center font-ui">
-      <span className="flex-grow">
+      <span className="flex-grow" style={{ display: "flex", alignItems: "baseline", gap: "0.3em" }}>
         <Link href="/" className="internal-link plain" style={{ fontSize: "1.15em", fontWeight: 500 }}>{siteName}</Link>
+        {(() => {
+          const p = typeof window !== "undefined" ? window.location.pathname : "";
+          const seg = p.split("/")[1];
+          const labels: Record<string, string> = { writing: "Writing", photos: "Photos", music: "Music", video: "Video" };
+          return seg && labels[seg] ? <span style={{ color: "var(--accent)", fontSize: "1.15em", fontWeight: 500 }}> /{labels[seg]}</span> : null;
+        })()}
       </span>
       <span className="flex-shrink ssr">
         <Link href="/about" className="muted plain">About</Link>

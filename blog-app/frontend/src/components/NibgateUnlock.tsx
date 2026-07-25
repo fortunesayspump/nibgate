@@ -14,7 +14,7 @@ type UnlockResource = {
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef({ destroyed: false, inited: false });
+  const stateRef = useRef({ destroyed: false });
   const [content, setContent] = useState<string | null>(null);
 
   const subdomain = (() => {
@@ -27,8 +27,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
   const accessPath = `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`;
 
   useEffect(() => {
-    if (!containerRef.current || stateRef.current.inited) return;
-    stateRef.current.inited = true;
+    if (!containerRef.current) return;
     stateRef.current.destroyed = false;
 
     const storedProof = (() => {
@@ -50,11 +49,11 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     }
 
     function loadUI() {
-      if (stateRef.current.destroyed || !containerRef.current) return;
+      if (!containerRef.current) return;
       const container = containerRef.current;
       container.innerHTML = "";
       import("@nibgate/sdk").then((mod) => {
-        if (stateRef.current.destroyed || !containerRef.current) return;
+        if (!containerRef.current) return;
         (mod as any).renderDefaultUnlockUI(container, resource, {
           accessPath,
           gatewayBalanceUrl: `${API_BASE}/nibgate/gateway/balance`,
@@ -63,7 +62,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
             if (c) setContent(c);
           },
         });
-      }).catch(() => {});
+      }).catch((err) => console.error("SDK load failed:", err));
     }
 
     return () => { stateRef.current.destroyed = true; };

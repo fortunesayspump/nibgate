@@ -69,37 +69,11 @@ router.post('/', async (req, res) => {
 
     const vercelDomain = await addVercelDomain(subdomain);
 
-    let hubSiteId = null;
-    let hubToken = null;
-    if (process.env.HUB_SETUP_TOKEN) {
-      try {
-        const hubRes = await fetch(`${process.env.HUB_API_URL || 'https://api.nibgate.xyz'}/api/hub/blog/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-setup-token': process.env.HUB_SETUP_TOKEN },
-          body: JSON.stringify({ domain: `${subdomain}.nibgate.xyz`, name: name || subdomain }),
-        });
-        if (hubRes.ok) {
-          const hubData = await hubRes.json();
-          hubSiteId = hubData.siteId;
-          hubToken = hubData.verifyToken;
-          const existingSettings = JSON.parse(site.settings || '{}');
-          existingSettings.hubSiteId = hubSiteId;
-          existingSettings.hubToken = hubToken;
-          await prisma.site.update({ where: { id: site.id }, data: { settings: JSON.stringify(existingSettings) } });
-        }
-      } catch {}
-    }
-
-    const widgetId = hubSiteId || site.id;
-    const widgetToken = hubToken || site.verifyToken;
-
     res.status(201).json({
       success: true,
       site: { id: site.id, subdomain: site.subdomain, name: site.name },
       user: { id: user.id, email: user.email, username: user.username },
       vercelDomain: vercelDomain.success ? { domain: vercelDomain.domain, status: 'added' } : { skipped: true, reason: vercelDomain.reason },
-      hubRegistered: !!hubSiteId,
-      widgetScript: `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${widgetId}" data-nibgate-token="${widgetToken}" data-nibgate-api="https://api.nibgate.xyz"></script>`,
     });
   } catch (error) {
     if (error?.code === 'P2002') {

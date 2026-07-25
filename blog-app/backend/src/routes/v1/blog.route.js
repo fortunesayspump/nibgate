@@ -10,10 +10,10 @@ router.get('/posts', blogController.list);
 router.get('/posts-by-types', blogController.listByTypes);
 router.get('/posts/:slug', blogController.getBySlug);
 
-router.get('/admin/posts', authenticate, authorize('admin'), blogController.adminList);
-router.get('/admin/posts/:id', authenticate, authorize('admin'), blogController.getById);
-router.post('/admin/posts', authenticate, authorize('admin'), validate(blogValidation.createPost), blogController.create);
-router.put('/admin/posts/:id', authenticate, authorize('admin'), validate(blogValidation.updatePost), blogController.update);
-router.delete('/admin/posts/:id', authenticate, authorize('admin'), blogController.remove);
+router.get('/admin/posts', authenticate, authorize('admin', 'author'), blogController.adminList);
+router.get('/admin/posts/:id', authenticate, authorize('admin', 'author'), blogController.getById);
+router.post('/admin/posts', authenticate, authorize('admin', 'author'), validate(blogValidation.createPost), blogController.create);
+router.put('/admin/posts/:id', authenticate, authorize('admin', 'author'), validate(blogValidation.updatePost), blogController.update);
+router.delete('/admin/posts/:id', authenticate, authorize('admin', 'author'), blogController.remove);
 
 module.exports = router;

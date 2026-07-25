@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const sharp = require('sharp');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
@@ -23,8 +24,20 @@ const IMAGE_MIMES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'imag
 const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg']);
 const AUDIO_MIMES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
 
+const UPLOAD_DIR = path.join(__dirname, '../../uploads');
+const storage = s3 ? multer.memoryStorage() : multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    cb(null, UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+  },
+});
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -52,7 +65,25 @@ router.post('/', authenticate, async (req, res, next) => {
   upload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-    if (!s3) return res.status(500).json({ error: 'R2 not configured' });
+
+    if (!s3) {
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      let filename = req.file.filename;
+
+      if (IMAGE_EXTS.has(ext)) {
+        try {
+          const processed = await processImage(fs.readFileSync(req.file.path), ext);
+          const webpName = `${path.basename(filename, ext)}.webp`;
+          const webpPath = path.join(UPLOAD_DIR, webpName);
+          fs.writeFileSync(webpPath, processed.buffer);
+          fs.unlinkSync(req.file.path);
+          filename = webpName;
+        } catch {}
+      }
+
+      const url = `/uploads/${filename}`;
+      return res.json({ success: true, url, filename });
+    }
 
     try {
       const ext = path.extname(req.file.originalname).toLowerCase();

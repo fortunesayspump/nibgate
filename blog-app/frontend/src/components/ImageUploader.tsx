@@ -1,75 +1,80 @@
 "use client";
 
-import { useState, useRef, type DragEvent } from "react";
+import { useState, useRef } from "react";
+import { apiUrl } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-
-interface UploadedImage {
-  file: File;
+interface MediaItem {
   url: string;
-  uploading: boolean;
-  error?: string;
+  caption: string;
 }
 
 interface ImageUploaderProps {
+  multiple?: boolean;
+  value?: MediaItem[];
+  onChange?: (items: MediaItem[]) => void;
   maxFiles?: number;
-  onImagesChange: (urls: string[]) => void;
-  existingUrls?: string[];
 }
 
-export default function ImageUploader({ maxFiles = 10, onImagesChange, existingUrls = [] }: ImageUploaderProps) {
-  const [images, setImages] = useState<UploadedImage[]>(
-    existingUrls.map((url) => ({ file: new File([], ""), url, uploading: false }))
-  );
+export default function ImageUploader({
+  multiple = true,
+  value = [],
+  onChange,
+  maxFiles = 20,
+}: ImageUploaderProps) {
+  const [uploading, setUploading] = useState<Record<string, { loading: boolean; error?: string }>>({});
   const [dragOver, setDragOver] = useState(false);
-  const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function addFiles(fileList: FileList | File[]) {
-    setError("");
     const fileArray = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
-    if (fileArray.length === 0) { setError("Only image files are supported"); return; }
-    const remaining = maxFiles - images.length;
-    if (fileArray.length > remaining) { setError(`Only ${remaining} more image(s) allowed`); return; }
-
-    const newImages = [...images, ...fileArray.map((f) => ({ file: f, url: "", uploading: true }))];
-    setImages(newImages);
+    if (fileArray.length === 0) return;
+    const remaining = maxFiles - value.length;
+    if (fileArray.length > remaining) return;
 
     for (const file of fileArray) {
+      const tempId = `${Date.now()}-${Math.random()}`;
+      setUploading((prev) => ({ ...prev, [tempId]: { loading: true } }));
+
       try {
         const token = localStorage.getItem("token");
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(`${API}/upload`, {
+        const res = await fetch(apiUrl("/upload"), {
           method: "POST",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: fd,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Upload failed");
-        setImages((prev) => {
-          const updated = prev.map((img) => img.file === file ? { ...img, url: data.url, uploading: false } : img);
-          onImagesChange(updated.filter((img) => img.url).map((img) => img.url));
-          return updated;
+
+        const updated = [...value, { url: data.url, caption: "" }];
+        onChange?.(updated);
+        setUploading((prev) => {
+          const next = { ...prev };
+          delete next[tempId];
+          return next;
         });
-      } catch (err: unknown) {
-        setImages((prev) => {
-          const updated = prev.map((img) =>
-            img.file === file ? { ...img, uploading: false, error: err instanceof Error ? err.message : "Upload failed" } : img
-          );
-          return updated;
-        });
+      } catch (err) {
+        setUploading((prev) => ({
+          ...prev,
+          [tempId]: { loading: false, error: err instanceof Error ? err.message : "Upload failed" },
+        }));
       }
     }
   }
 
-  function removeImage(index: number) {
-    setImages((prev) => {
-      const updated = prev.filter((_, i) => i !== index);
-      onImagesChange(updated.filter((img) => img.url).map((img) => img.url));
-      return updated;
-    });
+  function removeItem(index: number) {
+    const updated = value.filter((_, i) => i !== index);
+    onChange?.(updated);
   }
+
+  function updateCaption(index: number, caption: string) {
+    const updated = value.map((item, i) => (i === index ? { ...item, caption } : item));
+    onChange?.(updated);
+  }
+
+  const uploadingItems = Object.entries(uploading).filter(([, v]) => v.loading);
+  const errors = Object.values(uploading).filter((v) => !v.loading && v.error);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -85,44 +90,55 @@ export default function ImageUploader({ maxFiles = 10, onImagesChange, existingU
           transition: "all 0.15s", fontSize: "14px", color: "var(--muted)",
         }}
       >
-        {dragOver ? "Drop images here" : "Drag & drop images here, or click to select"}
+        {dragOver ? "Drop images here" : "Click or drag to add photos"}
       </div>
       <input
-        ref={inputRef} type="file" accept="image/*" multiple
+        ref={inputRef} type="file" accept="image/*" multiple={multiple}
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files) addFiles(e.target.files); if (e.target) e.target.value = ""; }}
       />
-      {error && <div style={{ fontSize: "13px", color: "#dc2626" }}>{error}</div>}
-      {images.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "8px" }}>
-          {images.map((img, i) => (
-            <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: "6px", overflow: "hidden", border: "1px solid var(--border)" }}>
-              {img.uploading ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: "12px", color: "var(--muted)" }}>
-                  Uploading...
-                </div>
-              ) : img.url ? (
-                <img src={img.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: "12px", color: "#dc2626", padding: "4px", textAlign: "center" }}>
-                  {img.error || "Error"}
-                </div>
-              )}
-              {img.url && !img.uploading && (
+
+      {uploadingItems.length > 0 && (
+        <div style={{ fontSize: "13px", color: "var(--muted)", padding: "4px 0" }}>
+          Uploading {uploadingItems.length} file(s)...
+        </div>
+      )}
+
+      {errors.map((e, i) => (
+        <div key={i} style={{ fontSize: "13px", color: "#dc2626" }}>{e.error}</div>
+      ))}
+
+      {value.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
+          {value.map((item, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <div style={{ position: "relative", borderRadius: "6px", overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "1" }}>
+                <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); removeImage(i); }}
+                  onClick={() => removeItem(i)}
                   style={{
                     position: "absolute", top: "4px", right: "4px",
-                    width: "22px", height: "22px", borderRadius: "50%",
+                    width: "24px", height: "24px", borderRadius: "50%",
                     border: "none", background: "rgba(0,0,0,0.6)", color: "#fff",
-                    fontSize: "14px", cursor: "pointer", display: "flex",
+                    fontSize: "16px", cursor: "pointer", display: "flex",
                     alignItems: "center", justifyContent: "center", lineHeight: 1,
                   }}
                 >
                   &times;
                 </button>
-              )}
+              </div>
+              <input
+                type="text"
+                value={item.caption}
+                onChange={(e) => updateCaption(i, e.target.value)}
+                placeholder="Caption..."
+                style={{
+                  width: "100%", padding: "4px 8px", fontSize: "12px",
+                  border: "1px solid var(--border)", borderRadius: "4px",
+                  background: "transparent", color: "inherit", boxSizing: "border-box",
+                }}
+              />
             </div>
           ))}
         </div>

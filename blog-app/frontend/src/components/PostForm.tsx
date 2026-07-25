@@ -22,13 +22,14 @@ interface PostFormData {
   type: string;
   imageUrls: string;
   audioUrl: string;
+  media: string;
 }
 
 const defaults: PostFormData = {
   title: "", slug: "", bodyMarkdown: "", excerpt: "",
   tag: "General", tags: "", coverUrl: "", videoUrl: "",
   price: "", status: "draft", featured: false, type: "article",
-  imageUrls: "", audioUrl: "",
+  imageUrls: "", audioUrl: "", media: "",
 };
 
 interface PostFormProps {
@@ -169,8 +170,8 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         <>
           <Field label="Photos">
             <ImageUploader
-              onImagesChange={(urls) => update("imageUrls", JSON.stringify(urls))}
-              existingUrls={form.imageUrls ? JSON.parse(form.imageUrls) : []}
+              value={form.media ? JSON.parse(form.media) : []}
+              onChange={(items) => setForm(p => ({ ...p, media: JSON.stringify(items) }))}
             />
           </Field>
           <Field label="Caption">

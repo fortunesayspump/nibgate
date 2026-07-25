@@ -113,6 +113,30 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             </div>
           )}
 
+          {/* Photo gallery from structured media */}
+          {post.type === "photo" && post.media && (() => {
+            let items;
+            try { items = JSON.parse(post.media); } catch { return null; }
+            if (!Array.isArray(items) || items.length === 0) return null;
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
+                {items.map((item: { url: string; caption?: string }, i: number) => (
+                  <div key={i}>
+                    <img
+                      src={item.url}
+                      alt={item.caption || `${post.title} ${i + 1}`}
+                      style={{ width: "100%", height: "auto", display: "block", borderRadius: "6px" }}
+                      loading="lazy"
+                    />
+                    {item.caption && (
+                      <p className="small muted" style={{ marginTop: "0.5em" }}>{item.caption}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* Embedded media for music/video */}
           {(post.type === "music" || post.type === "video") && links.length > 0 && (
             <div style={{ marginBottom: "1.5rem" }}>

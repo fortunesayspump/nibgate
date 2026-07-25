@@ -1,12 +1,12 @@
 import { createNonce, verifySignatureAndLogin, getUserBySession, logoutSession, constructSignMessage } from '@nibgate/internal/auth.js';
 
 export function registerAuthRoutes(app) {
+  const cookieOpts = { httpOnly: true, sameSite: 'lax', path: '/' };
+  if (process.env.NODE_ENV === 'production') { cookieOpts.secure = true; cookieOpts.domain = '.nibgate.xyz'; }
   
   // 1. Generate Nonce
   app.get('/api/auth/nonce', (req, res) => {
     const nonce = createNonce();
-    const cookieOpts = { httpOnly: true, secure: true, sameSite: 'lax', path: '/' };
-    if (process.env.NODE_ENV === 'production') cookieOpts.domain = '.nibgate.xyz';
     res.cookie('auth_nonce', nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
     
     res.json({ nonce, messageTemplate: constructSignMessage(nonce) });

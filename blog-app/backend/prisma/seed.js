@@ -21,6 +21,7 @@ This is a sample post to help you get started. You can create, edit, and publish
 Happy writing! 🚀`,
     excerpt: 'Welcome to your new blog powered by Nibgate. Get started with writing and publishing.',
     tags: 'welcome,getting-started',
+    coverUrl: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800',
     status: 'published',
     featured: true,
     publishedAt: new Date(),

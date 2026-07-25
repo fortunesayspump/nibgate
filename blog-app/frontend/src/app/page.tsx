@@ -8,7 +8,7 @@ const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos
 const TYPE_ORDER = ["article", "photo", "music", "video"];
 
 function yr(v: string) { return new Date(v).getFullYear().toString(); }
-function ni(i: number) { return String(i + 1).padStart(2, "0"); }
+function mo(v: string) { return String(new Date(v).getMonth() + 1).padStart(2, "0"); }
 
 async function getGrouped() {
   try {
@@ -23,12 +23,12 @@ function TypeIcon({ type }: { type: string }) {
   return null;
 }
 
-function PostListItem({ post, i }: { post: BlogPost; i: number }) {
+function PostListItem({ post }: { post: BlogPost }) {
   return (
     <li>
-      <Link href={`/posts/${post.slug}`} className="internal-link plain">
+      <Link href={`/posts/${post.slug}`} className="internal-link plain" target="_blank" rel="noopener noreferrer">
         <div style={{ display: "flex", alignItems: "baseline" }}>
-          <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {ni(i)}</span>
+          <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {mo(post.publishedAt)}</span>
           {post.type !== "article" && (
             <span className="type-icon"><TypeIcon type={post.type} /></span>
           )}
@@ -82,7 +82,7 @@ function PostSection({ type, posts }: { type: string; posts: BlogPost[] }) {
       ) : (
         <ul className="list-plain tabular-nums">
           {posts.map((post, i) => (
-            <PostListItem key={post.id} post={post} i={i} />
+            <PostListItem key={post.id} post={post} />
           ))}
         </ul>
       )}

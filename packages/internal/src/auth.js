@@ -20,8 +20,8 @@ export async function verifySignatureAndLogin(walletAddress, signature, expected
   const message = constructSignMessage(expectedNonce);
   
   // Verify the cryptographic signature locally (no RPC needed)
-  const digest = hashMessage(message);
-  const recoveredAddress = await recoverAddress({ digest, signature });
+  const hash = hashMessage(message);
+  const recoveredAddress = await recoverAddress({ hash, signature });
   const isValid = recoveredAddress.toLowerCase() === normalizedWalletAddress;
 
   if (!isValid) {

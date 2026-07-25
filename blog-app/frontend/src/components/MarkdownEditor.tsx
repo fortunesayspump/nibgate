@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_ORIGIN = API.replace(/\/api\/?$/, "");
 
 const iconClass = "w-4 h-4";
 const btn = "inline-flex items-center justify-center w-7 h-7 text-xs border rounded cursor-pointer font-medium leading-none transition-all hover:brightness-90";
@@ -109,9 +110,9 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
       if (!res.ok) throw new Error(data.error || "Upload failed");
       const isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
       if (isImg) {
-        editor.chain().focus().setImage({ src: data.url }).run();
+        editor.chain().focus().setImage({ src: data.url.startsWith("http") ? data.url : `${API_ORIGIN}${data.url}` }).run();
       } else {
-        editor.chain().focus().setLink({ href: data.url }).insertContent(file.name).run();
+        editor.chain().focus().setLink({ href: data.url.startsWith("http") ? data.url : `${API_ORIGIN}${data.url}` }).insertContent(file.name).run();
       }
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");

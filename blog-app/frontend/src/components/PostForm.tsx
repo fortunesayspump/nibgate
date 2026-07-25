@@ -233,16 +233,10 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         </>
       )}
 
-      <Field label="Tag">
-        <input
-          type="text" value={form.tag} onChange={(e) => update("tag", e.target.value)}
-          className="input-field" placeholder="General"
-        />
-      </Field>
       <Field label="Tags (comma separated)">
         <input
           type="text" value={form.tags} onChange={(e) => update("tags", e.target.value)}
-          className="input-field" placeholder="tools,craft"
+          className="input-field" placeholder="tools, craft, general"
         />
       </Field>
       <Field label="Price (USDC)">

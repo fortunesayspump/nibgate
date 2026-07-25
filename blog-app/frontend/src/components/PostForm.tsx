@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { apiAuthFetch } from "@/lib/api";
+import { apiAuthFetch, apiUrl } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageUploader from "@/components/ImageUploader";
 import AudioUploader from "@/components/AudioUploader";
@@ -167,11 +167,35 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
               rows={2} className="input-field" placeholder="Short description"
             />
           </Field>
-          <Field label="Cover Image URL">
-            <input
-              type="text" value={form.coverUrl} onChange={(e) => update("coverUrl", e.target.value)}
-              className="input-field" placeholder="https://..."
-            />
+          <Field label="Cover Image">
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" onClick={() => document.getElementById("cover-upload")?.click()} className="btn-ghost text-xs" style={{ padding: "6px 12px" }}>
+                Upload cover
+              </button>
+              <input
+                type="text" value={form.coverUrl} onChange={(e) => update("coverUrl", e.target.value)}
+                className="input-field" placeholder="https://..." style={{ flex: 1, minWidth: 200 }}
+              />
+            </div>
+            {form.coverUrl && (
+              <div style={{ marginTop: 8, position: "relative", width: 200, borderRadius: 6, overflow: "hidden" }}>
+                <img src={form.coverUrl} alt="Cover preview" style={{ width: "100%", height: 110, objectFit: "cover", display: "block" }} />
+                <button type="button" onClick={() => update("coverUrl", "")} style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 14, lineHeight: "22px", textAlign: "center" }}>×</button>
+              </div>
+            )}
+            <input id="cover-upload" type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const token = localStorage.getItem("token");
+              const fd = new FormData();
+              fd.append("file", file);
+              try {
+                const res = await fetch(apiUrl("/upload"), { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+                const data = await res.json();
+                if (data.url) update("coverUrl", data.url);
+              } catch {}
+              e.target.value = "";
+            }} />
           </Field>
         </>
       )}

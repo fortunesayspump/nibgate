@@ -104,7 +104,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                   <span className="opacity-45">/</span>
                   <span>{formatDate(post.publishedAt)}</span>
                 </div>
-                <h1 className="nibgate-display-title text-5xl font-medium md:text-7xl lg:text-8xl">{post.title}</h1>
+                <h1 className="nibgate-display-title text-3xl font-medium md:text-4xl lg:text-5xl">{post.title}</h1>
                 <p className="max-w-3xl text-xl leading-8 md:text-2xl md:leading-9">{post.excerpt}</p>
               </div>
             </div>

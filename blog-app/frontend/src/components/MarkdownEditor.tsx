@@ -30,6 +30,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
   const lastMd = useRef(value);
   const isInternal = useRef(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const editor = useEditor({
     extensions: [
@@ -66,6 +67,26 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
     }
   }, [value, editor]);
 
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const handler = (e: Event) => {
+      const target = e.target as HTMLImageElement;
+      if (target.tagName !== "IMG") return;
+      target.style.display = "none";
+      const placeholder = document.createElement("span");
+      placeholder.textContent = "[Image failed to load]";
+      Object.assign(placeholder.style, {
+        display: "block", padding: "12px", textAlign: "center",
+        color: "var(--muted)", fontSize: "13px",
+        border: "1px dashed var(--border)", borderRadius: "6px", margin: "0.6em 0",
+      });
+      target.parentNode?.insertBefore(placeholder, target.nextSibling);
+    };
+    dom.addEventListener("error", handler, true);
+    return () => dom.removeEventListener("error", handler, true);
+  }, [editor]);
+
   if (!editor) return null;
 
   const as = (active: boolean) => ({
@@ -93,7 +114,8 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
         editor.chain().focus().setLink({ href: data.url }).insertContent(file.name).run();
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Upload failed");
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+      setTimeout(() => setUploadError(""), 5000);
     }
   }
 
@@ -186,6 +208,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
           if (f) handleUpload(f);
           if (e.target) e.target.value = "";
         }} />
+        {uploadError && <div style={{ padding: "6px 12px", fontSize: "13px", color: "#dc2626", background: "var(--surface)", borderTop: "1px solid var(--border)" }}>{uploadError}</div>}
       </div>
     );
   }
@@ -197,6 +220,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
         {toolbar}
         {bubble}
         <EditorContent editor={editor} className="editor-content" />
+        {uploadError && <div style={{ padding: "6px 12px", fontSize: "13px", color: "#dc2626", background: "var(--surface)", borderTop: "1px solid var(--border)" }}>{uploadError}</div>}
       </div>
       <input ref={fileRef} type="file" accept="image/*,.mp4,.webm,.mp3,.pdf" style={{ display: "none" }} onChange={(e) => {
         const f = e.target.files?.[0];

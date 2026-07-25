@@ -16,6 +16,11 @@ async function getGrouped() {
   } catch { return {}; }
 }
 
+function postHref(post: { type: string; slug: string }) {
+  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+  return `/${m[post.type] || 'posts'}/${post.slug}`;
+}
+
 function TypeIcon({ type }: { type: string }) {
   if (type === "photo") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
   if (type === "music") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
@@ -26,7 +31,7 @@ function TypeIcon({ type }: { type: string }) {
 function PostListItem({ post }: { post: BlogPost }) {
   return (
     <li>
-      <Link href={`/posts/${post.slug}`} className="internal-link plain" target="_blank" rel="noopener noreferrer">
+      <Link href={postHref(post)} className="internal-link plain" target="_blank" rel="noopener noreferrer">
         <div style={{ display: "flex", alignItems: "baseline" }}>
           <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {mo(post.publishedAt)}</span>
           {post.type !== "article" && (
@@ -54,9 +59,9 @@ function extractFirstImage(md: string, coverUrl?: string | null, media?: string 
 function ThumbnailCard({ post, icon }: { post: BlogPost; icon?: string }) {
   const img = extractFirstImage(post.bodyMarkdown, post.coverUrl, post.media);
   return (
-    <Link key={post.id} href={`/posts/${post.slug}`} className="plain block" style={{ aspectRatio: "4/3", overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
+    <Link key={post.id} href={postHref(post)} className="plain block" style={{ overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
       {img ? (
-        <img src={img} alt={post.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+        <img src={img} alt={post.title} style={{ width: "100%", height: "auto", maxHeight: 320, objectFit: "cover" }} loading="lazy" />
       ) : (
         <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: "var(--text-sm)" }}>{post.title}</div>
       )}
@@ -73,6 +78,11 @@ function GridSection({ posts, icon }: { posts: BlogPost[]; icon?: string }) {
       {posts.slice(0, 8).map(post => <ThumbnailCard key={post.id} post={post} icon={icon} />)}
     </div>
   );
+}
+
+function sectionHref(type: string) {
+  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+  return `/${m[type] || 'posts'}`;
 }
 
 function PostSection({ type, posts }: { type: string; posts: BlogPost[] }) {
@@ -92,6 +102,11 @@ function PostSection({ type, posts }: { type: string; posts: BlogPost[] }) {
           ))}
         </ul>
       )}
+      <p className="muted font-ui small" style={{ marginTop: "0.5em" }}>
+        <Link href={sectionHref(type)} className="internal-link">
+          View all {label} →
+        </Link>
+      </p>
     </>
   );
 }
@@ -119,9 +134,9 @@ export default async function HomePage() {
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", marginLeft: "auto", marginRight: "auto" }}>
           {latest && (
             <>
-              <p><Link href={`/posts/${latest.slug}`} className="muted font-ui">Latest</Link></p>
+              <p><Link href={postHref(latest)} className="muted font-ui">Latest</Link></p>
               <div>
-                <Link href={`/posts/${latest.slug}`} className="plain">
+                <Link href={postHref(latest)} className="plain">
                   {latest.coverUrl && (
                     <img src={latest.coverUrl} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", borderRadius: 8, marginBottom: 12 }} />
                   )}

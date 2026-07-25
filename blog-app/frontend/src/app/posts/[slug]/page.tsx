@@ -10,6 +10,11 @@ import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 import { detectEmbed } from "@/lib/media";
 
+function postHref(post: { type: string; slug: string }) {
+  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+  return `/${m[post.type] || 'posts'}/${post.slug}`;
+}
+
 async function getPost(slug: string) {
   try {
     const d = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
@@ -81,9 +86,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <div className="wrap">
           {/* Cover image */}
           {post.coverUrl && (
-            <div style={{ marginBottom: "1.5rem", borderRadius: "6px", overflow: "hidden" }}>
+            <a href={post.coverUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: "1.5rem", borderRadius: "6px", overflow: "hidden" }}>
               <img src={post.coverUrl} alt={post.title} style={{ width: "100%", height: "auto", display: "block", maxHeight: "400px", objectFit: "cover" }} />
-            </div>
+            </a>
           )}
 
           {/* Video type: YouTube embed */}
@@ -185,7 +190,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               <ul className="list-plain">
                 {related.map((p) => (
                   <li key={p.id}>
-                    <Link href={`/posts/${p.slug}`} className="internal-link">
+                    <Link href={postHref(p)} className="internal-link">
                       {p.type !== "article" && <span className="type-icon">{TYPE_ICONS[p.type]}</span>}
                       {p.title}
                     </Link>

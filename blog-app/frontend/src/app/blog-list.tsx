@@ -14,6 +14,11 @@ const itemVariants: Variants = {
   visible: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.25, ease: "easeOut" } },
 };
 
+function postHref(post: { type: string; slug: string }) {
+  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+  return `/${m[post.type] || 'posts'}/${post.slug}`;
+}
+
 function formatYear(value: string) {
   return new Date(value).getFullYear().toString();
 }
@@ -29,7 +34,7 @@ export function BlogList({ posts, featuredIndex }: { posts: BlogPost[]; featured
     <motion.ul className="list-none p-0 m-0" variants={containerVariants} initial="hidden" animate="visible">
       {posts.map((post, i) => (
         <motion.li key={post.id} variants={itemVariants} className="mb-3">
-          <Link href={`/posts/${post.slug}`} className="group no-underline text-[var(--fg)] block py-1">
+          <Link href={postHref(post)} className="group no-underline text-[var(--fg)] block py-1">
             <div className="flex items-baseline gap-3 text-sm">
               <span className="text-[var(--faint)] tabular-nums shrink-0 font-medium">
                 {formatYear(post.publishedAt)} · {postNumber(post.publishedAt, i + startNum - 1)}

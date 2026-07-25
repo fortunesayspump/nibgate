@@ -64,7 +64,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
       isInternal.current = true;
       lastMd.current = value;
       editor.commands.setContent(value);
-      setImmediate(() => { isInternal.current = false; });
+      setTimeout(() => { isInternal.current = false; }, 0);
     }
   }, [value, editor]);
 

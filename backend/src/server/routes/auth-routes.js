@@ -5,13 +5,9 @@ export function registerAuthRoutes(app) {
   // 1. Generate Nonce
   app.get('/api/auth/nonce', (req, res) => {
     const nonce = createNonce();
-    res.cookie('auth_nonce', nonce, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 1000 * 60 * 10 // 10 minutes
-    });
+    const cookieOpts = { httpOnly: true, secure: true, sameSite: 'lax', path: '/' };
+    if (process.env.NODE_ENV === 'production') cookieOpts.domain = '.nibgate.xyz';
+    res.cookie('auth_nonce', nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
     
     res.json({ nonce, messageTemplate: constructSignMessage(nonce) });
   });
@@ -28,14 +24,8 @@ export function registerAuthRoutes(app) {
 
       const { user, sessionToken } = await verifySignatureAndLogin(walletAddress, signature, expectedNonce);
 
-      res.clearCookie('auth_nonce');
-      res.cookie('auth_session', sessionToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 1000 * 60 * 60 * 24 * 30 // 30 days
-      });
+      res.clearCookie('auth_nonce', { ...cookieOpts });
+      res.cookie('auth_session', sessionToken, { ...cookieOpts, maxAge: 1000 * 60 * 60 * 24 * 30 });
 
       res.json({ success: true, user });
     } catch (error) {

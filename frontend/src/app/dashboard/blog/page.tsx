@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Check, Edit3, Loader2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Edit3, Loader2, Plus, Trash2, Upload, ExternalLink } from "lucide-react";
 
 type BlogPost = {
   id: string;
@@ -67,6 +67,9 @@ export default function DashboardBlogPage() {
   const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [publishedSlug, setPublishedSlug] = useState("");
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const isEditing = Boolean(form.id);
   const previewUrl = form.slug ? `/blog/${form.slug}` : "";
@@ -137,6 +140,7 @@ export default function DashboardBlogPage() {
     setForm(emptyForm);
     setMessage("");
     setError("");
+    setPublishedSlug("");
   };
 
   const savePost = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -154,6 +158,8 @@ export default function DashboardBlogPage() {
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "Failed to save post");
       setMessage(form.status === "published" ? "Post published." : "Draft saved.");
+      if (form.status === "published" && data.post?.slug) setPublishedSlug(data.post.slug);
+      else if (form.status === "published" && form.slug) setPublishedSlug(form.slug);
       resetForm();
       await loadPosts();
     } catch (err) {
@@ -221,6 +227,14 @@ export default function DashboardBlogPage() {
       {(error || message) && (
         <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: error ? "rgba(160,40,40,0.25)" : "var(--nib-border-soft)", background: error ? "rgba(255,230,230,0.75)" : "var(--nib-surface)" }}>
           {error || message}
+        </div>
+      )}
+      {publishedSlug && (
+        <div className="rounded-2xl border p-4 text-sm flex items-center gap-2" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-surface)" }}>
+          <ExternalLink className="h-4 w-4" />
+          <a href={`/blog/${publishedSlug}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--nib-teal)", textDecoration: "underline" }}>
+            nibgate.xyz/blog/{publishedSlug}
+          </a>
         </div>
       )}
 
@@ -291,8 +305,39 @@ export default function DashboardBlogPage() {
               <input value={form.tags} onChange={(event) => setField("tags", event.target.value)} className="w-full rounded-2xl border bg-transparent px-4 py-3 outline-none" style={{ borderColor: "var(--nib-border-soft)" }} placeholder="agents, discovery, x402" />
             </label>
             <label className="space-y-2 md:col-span-2">
-              <span className="text-sm font-medium opacity-70">Cover image URL</span>
-              <input value={form.coverUrl} onChange={(event) => setField("coverUrl", event.target.value)} className="w-full rounded-2xl border bg-transparent px-4 py-3 outline-none" style={{ borderColor: "var(--nib-border-soft)" }} placeholder="https://..." />
+              <span className="text-sm font-medium opacity-70">Cover image</span>
+              <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
+                <button type="button" onClick={() => coverInputRef.current?.click()} disabled={uploadingCover} className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-surface)" }}>
+                  {uploadingCover ? "Uploading..." : "Upload cover"}
+                </button>
+                {form.coverUrl && (
+                  <div style={{ position: "relative", width: 160, borderRadius: 8, overflow: "hidden" }}>
+                    <img src={form.coverUrl} alt="Cover preview" style={{ width: "100%", height: 90, objectFit: "cover", display: "block" }} />
+                    <button type="button" onClick={() => setField("coverUrl", "")} style={{ position: "absolute", top: 4, right: 4, background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 14, lineHeight: "22px", textAlign: "center" }}>×</button>
+                  </div>
+                )}
+              </div>
+              <input ref={coverInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setUploadingCover(true);
+                try {
+                  const reader = new FileReader();
+                  reader.readAsDataURL(file);
+                  reader.onload = async () => {
+                    const res = await fetch("/api/uploads/profile-image", {
+                      method: "POST", credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ target: "cover", image: reader.result }),
+                    });
+                    const data = await res.json();
+                    if (data.url) setField("coverUrl", data.url);
+                    else throw new Error(data.error || "Upload failed");
+                  };
+                } catch (err: any) { setError(err.message); }
+                setUploadingCover(false);
+                e.target.value = "";
+              }} />
             </label>
             <label className="space-y-2 md:col-span-2">
               <span className="text-sm font-medium opacity-70">Excerpt</span>

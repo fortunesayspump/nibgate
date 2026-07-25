@@ -1,4 +1,4 @@
-import { verifyMessage } from 'viem';
+import { hashMessage, recoverAddress } from 'viem';
 import { db } from './db.js';
 import { nanoid } from 'nanoid';
 
@@ -19,12 +19,10 @@ export async function verifySignatureAndLogin(walletAddress, signature, expected
   const normalizedWalletAddress = walletAddress.toLowerCase();
   const message = constructSignMessage(expectedNonce);
   
-  // Verify the cryptographic signature using viem
-  const isValid = await verifyMessage({
-    address: normalizedWalletAddress,
-    message,
-    signature,
-  });
+  // Verify the cryptographic signature locally (no RPC needed)
+  const digest = hashMessage(message);
+  const recoveredAddress = await recoverAddress({ digest, signature });
+  const isValid = recoveredAddress.toLowerCase() === normalizedWalletAddress;
 
   if (!isValid) {
     throw new Error('Invalid signature');

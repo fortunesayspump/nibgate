@@ -28,10 +28,13 @@ function postHref(post: { type: string; slug: string }) {
 }
 
 export default async function PostPage({ params }: { params: Promise<{ type: string; slug: string }> }) {
-  const { slug } = await params;
+  const { type, slug } = await params;
   const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
   const post = data?.post;
   if (!post) notFound();
+
+  const typeMap: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+  if (typeMap[post.type] !== type) notFound();
 
   const postBody = post.bodyMarkdown || "";
   const isPremium = post.price && Number(post.price) > 0;

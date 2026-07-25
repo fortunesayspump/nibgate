@@ -226,8 +226,8 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
           <Field label="Cover Art">
             <ImageUploader
               maxFiles={1}
-              onImagesChange={(urls) => update("coverUrl", urls[0] || "")}
-              existingUrls={form.coverUrl ? [form.coverUrl] : []}
+              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+              onChange={(items) => update("coverUrl", items[0]?.url || "")}
             />
           </Field>
           <Field label="Audio File">

@@ -7,12 +7,17 @@ import { apiFetch } from "@/lib/api";
 export default function Header() {
   const [dark, setDark] = useState(false);
   const [siteName, setSiteName] = useState("Nibgate");
+  const [routeLabel, setRouteLabel] = useState("");
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
     apiFetch<{ site: { name: string } }>("/site").then(d => {
       if (d.site?.name) setSiteName(d.site.name);
     }).catch(() => {});
+    const p = window.location.pathname;
+    const seg = p.split("/")[1];
+    const labels: Record<string, string> = { writing: "Writing", photos: "Photos", music: "Music", video: "Video" };
+    if (seg && labels[seg]) setRouteLabel(labels[seg]);
   }, []);
 
   function toggleTheme() {
@@ -26,12 +31,7 @@ export default function Header() {
     <nav className="flex align-center font-ui">
       <span className="flex-grow" style={{ display: "flex", alignItems: "baseline", gap: "0.3em" }}>
         <Link href="/" className="internal-link plain" style={{ fontSize: "1.15em", fontWeight: 500 }}>{siteName}</Link>
-        {(() => {
-          const p = typeof window !== "undefined" ? window.location.pathname : "";
-          const seg = p.split("/")[1];
-          const labels: Record<string, string> = { writing: "Writing", photos: "Photos", music: "Music", video: "Video" };
-          return seg && labels[seg] ? <span style={{ color: "var(--accent)", fontSize: "1.15em", fontWeight: 500 }}> /{labels[seg]}</span> : null;
-        })()}
+        {routeLabel && <span style={{ color: "var(--accent)", fontSize: "1.15em", fontWeight: 500 }}> /{routeLabel}</span>}
       </span>
       <span className="flex-shrink ssr">
         <Link href="/about" className="muted plain">About</Link>

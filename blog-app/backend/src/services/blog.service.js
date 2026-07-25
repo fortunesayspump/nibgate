@@ -70,7 +70,6 @@ async function create(data, siteId, authorId) {
     data: {
       siteId, title, slug, bodyMarkdown,
       excerpt: String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown),
-      tag: String(data.tag || 'General').trim().slice(0, 40),
       tags: cleanTags(data.tags),
       type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
       coverUrl: String(data.coverUrl || '').trim() || null,
@@ -101,7 +100,6 @@ async function update(siteId, id, data) {
     updateData.bodyMarkdown = String(data.bodyMarkdown || data.body || '').trim();
   }
   if (data.excerpt !== undefined) updateData.excerpt = String(data.excerpt).trim();
-  if (data.tag !== undefined) updateData.tag = String(data.tag).trim().slice(0, 40);
   if (data.tags !== undefined) updateData.tags = cleanTags(data.tags);
   if (data.coverUrl !== undefined) updateData.coverUrl = String(data.coverUrl).trim() || null;
   if (data.videoUrl !== undefined) updateData.videoUrl = String(data.videoUrl).trim() || null;

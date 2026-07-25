@@ -12,7 +12,6 @@ interface PostFormData {
   slug: string;
   bodyMarkdown: string;
   excerpt: string;
-  tag: string;
   tags: string;
   coverUrl: string;
   videoUrl: string;
@@ -20,16 +19,15 @@ interface PostFormData {
   status: "draft" | "published";
   featured: boolean;
   type: string;
-  imageUrls: string;
   audioUrl: string;
   media: string;
 }
 
 const defaults: PostFormData = {
   title: "", slug: "", bodyMarkdown: "", excerpt: "",
-  tag: "General", tags: "", coverUrl: "", videoUrl: "",
+  tags: "", coverUrl: "", videoUrl: "",
   price: "", status: "draft", featured: false, type: "article",
-  imageUrls: "", audioUrl: "", media: "",
+  audioUrl: "", media: "",
 };
 
 interface PostFormProps {

@@ -75,6 +75,7 @@ async function create(data, siteId, authorId) {
       type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
       coverUrl: String(data.coverUrl || '').trim() || null,
       videoUrl: String(data.videoUrl || '').trim() || null,
+      audioUrl: String(data.audioUrl || '').trim() || null,
       media: String(data.media || '').trim() || null,
       price: data.price && data.price !== '0' ? String(data.price).trim() : null,
       status: statusVal,

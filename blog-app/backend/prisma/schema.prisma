@@ -62,6 +62,7 @@ model BlogPost {
   bodyMarkdown String
   coverUrl     String?
   videoUrl     String?
+  audioUrl     String?
   media        String?
   tags         String?
   type         String    @default("article")

@@ -20,7 +20,6 @@ This is a sample post to help you get started. You can create, edit, and publish
 
 Happy writing! 🚀`,
     excerpt: 'Welcome to your new blog powered by Nibgate. Get started with writing and publishing.',
-    tag: 'General',
     tags: 'welcome,getting-started',
     status: 'published',
     featured: true,
@@ -46,7 +45,6 @@ npm install @nibgate/sdk
 
 Then import and configure it in your application.`,
     excerpt: 'Learn how to use the Nibgate SDK to gate premium content and earn payments.',
-    tag: 'Development',
     tags: 'sdk,development,integration',
     status: 'published',
     publishedAt: new Date(Date.now() - 86400000),

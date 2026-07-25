@@ -116,6 +116,9 @@ export default async function HomePage() {
               <p><Link href={`/posts/${latest.slug}`} className="muted font-ui">Latest</Link></p>
               <div>
                 <Link href={`/posts/${latest.slug}`} className="plain">
+                  {latest.coverUrl && (
+                    <img src={latest.coverUrl} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "cover", borderRadius: 8, marginBottom: 12 }} />
+                  )}
                   <h2>{latest.title}</h2>
                   <div className="metadata muted small pb font-ui">
                     <time>{fd(latest.publishedAt)}</time>

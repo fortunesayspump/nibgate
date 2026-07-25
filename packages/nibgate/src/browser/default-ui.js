@@ -287,7 +287,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   }
 
   if (window.ethereum) {
-    balTimer = setInterval(refreshBal, 3000);
+    balTimer = setInterval(refreshBal, 15000);
     setTimeout(refreshBal, 1000);
     window.ethereum.on('accountsChanged', refreshBal);
   }

@@ -47,8 +47,43 @@ npm install @nibgate/sdk
 Then import and configure it in your application.`,
     excerpt: 'Learn how to use the Nibgate SDK to gate premium content and earn payments.',
     tags: 'sdk,development,integration',
+    coverUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800',
     status: 'published',
     publishedAt: new Date(Date.now() - 86400000),
+  },
+  {
+    title: 'The Art of Creative Coding',
+    slug: 'art-of-creative-coding',
+    bodyMarkdown: `Creative coding blends technology with artistic expression. Whether you're generating visuals or composing music algorithmically, the possibilities are endless.
+
+## Why Creative Coding?
+
+- Express ideas through code
+- Generate unique visual art
+- Create interactive experiences
+- Push the boundaries of traditional media`,
+    excerpt: 'Exploring the intersection of code and creativity through generative art and interactive design.',
+    tags: 'coding,creative,art',
+    coverUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800',
+    status: 'published',
+    publishedAt: new Date(Date.now() - 172800000),
+  },
+  {
+    title: 'Building with Web3 Tools',
+    slug: 'building-with-web3-tools',
+    bodyMarkdown: `The Web3 ecosystem offers powerful tools for creators. From smart contracts to decentralized storage, here's what you need to know.
+
+## Key Tools
+
+- **Smart Contracts**: Automate agreements
+- **IPFS**: Decentralized file storage
+- **Wallet Connect**: User authentication
+- **Circle Gateway**: Payment processing`,
+    excerpt: 'A practical guide to the essential tools and infrastructure powering the decentralized web.',
+    tags: 'web3,tools,blockchain',
+    coverUrl: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800',
+    status: 'published',
+    publishedAt: new Date(Date.now() - 259200000),
   },
 ];
 

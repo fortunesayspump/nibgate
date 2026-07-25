@@ -1,0 +1,5 @@
+[build]
+watchPatterns = ["src/**", "prisma/**", "package.json", "package-lock.json"]
+
+[deploy]
+startCommand = "npm start"

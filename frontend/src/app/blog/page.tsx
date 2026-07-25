@@ -83,9 +83,9 @@ export default async function BlogPage() {
                           <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
                         </div>
                       </div>
-                      <div className="w-full overflow-hidden bg-black max-h-96 flex items-center justify-center">
+                      <div className="w-full bg-black flex items-center justify-center" style={{ minHeight: 240, maxHeight: 400, padding: 12 }}>
                         {featured.coverUrl ? (
-                          <img src={featured.coverUrl} alt="" className="w-full object-cover" />
+                          <img src={featured.coverUrl} alt="" className="h-full w-full object-contain" style={{ maxHeight: "calc(400px - 24px)" }} />
                         ) : (
                           <div className="flex h-full flex-col justify-between p-6 text-white">
                             <span className="text-lg">Nibgate</span>
@@ -99,10 +99,10 @@ export default async function BlogPage() {
 
                 {rest.map((post) => (
                   <Link key={post.id} href={`/blog/${post.slug}`} className="group no-underline text-black border border-dark-gray/50 bg-white transition-colors hover:bg-gray">
-                    <article className="flex h-full">
+                    <article className="flex h-full flex-col">
                       {post.coverUrl && (
-                        <div className="w-1/2 flex-shrink-0 overflow-hidden bg-black">
-                          <img src={post.coverUrl} alt="" className="h-full w-full object-cover" />
+                        <div className="w-full flex-shrink-0 bg-black flex items-center justify-center" style={{ minHeight: 160, maxHeight: 240, padding: 8 }}>
+                          <img src={post.coverUrl} alt="" className="h-full w-full object-contain" style={{ maxHeight: "calc(240px - 16px)" }} />
                         </div>
                       )}
                       <div className="flex flex-1 flex-col justify-between gap-4 p-5">

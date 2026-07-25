@@ -47,7 +47,7 @@ export default async function BlogPage() {
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xl font-medium">Blog</p>
-              <h1 className="nibgate-display-title mt-4 max-w-4xl text-3xl font-medium md:text-4xl">Nibgate blog.</h1>
+              <h1 className="nibgate-display-title mt-4 max-w-4xl text-5xl font-medium md:text-7xl">Blog updates</h1>
               <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">
                 Product updates, creator guides, payment notes, discovery thinking, and the reputation layer behind Nibgate.
               </p>

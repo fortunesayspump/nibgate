@@ -14,7 +14,7 @@ type UnlockResource = {
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef({ destroyed: false });
+  const stateRef = useRef({ destroyed: false, inited: false });
   const [content, setContent] = useState<string | null>(null);
 
   const subdomain = (() => {
@@ -27,7 +27,8 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
   const accessPath = `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`;
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || stateRef.current.inited) return;
+    stateRef.current.inited = true;
     stateRef.current.destroyed = false;
 
     const storedProof = (() => {

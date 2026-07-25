@@ -74,10 +74,22 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     return m ? m[1] : null;
   }
 
-  function canPublish(): boolean {
-    if (!form.title) return false;
-    if (form.type === "article") return !!form.bodyMarkdown;
-    return true;
+  function canPublish(): { ok: boolean; reason?: string } {
+    if (!form.title) return { ok: false, reason: "Title is required" };
+    if (!form.slug) return { ok: false, reason: "Slug is required" };
+    if (form.type === "article") {
+      if (!form.bodyMarkdown) return { ok: false, reason: "Body content is required" };
+    }
+    if (form.type === "photo") {
+      if (!form.media || form.media === "[]") return { ok: false, reason: "At least one photo is required" };
+    }
+    if (form.type === "video") {
+      if (!form.videoUrl) return { ok: false, reason: "YouTube URL is required" };
+    }
+    if (form.type === "music") {
+      if (!form.audioUrl) return { ok: false, reason: "Audio file is required" };
+    }
+    return { ok: true };
   }
 
   function createPost(status: "draft" | "published") {
@@ -133,9 +145,9 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
 
       <Field label="Slug">
         <input
-          type="text" value={form.slug}
-          onChange={(e) => { slugEdited.current = true; update("slug", e.target.value); }}
-          className="input-field font-mono" placeholder="slug"
+          type="text" value={form.slug} maxLength={90}
+          onChange={(e) => { slugEdited.current = true; update("slug", generateSlug(e.target.value)); }}
+          className="input-field font-mono" placeholder="auto-generated-from-title"
         />
       </Field>
 
@@ -263,7 +275,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
           </>
         ) : (
           <>
-            <button type="button" onClick={() => createPost("published")} disabled={saving || !canPublish()} className="btn-primary">
+            <button type="button" onClick={() => createPost("published")} disabled={saving || !canPublish().ok} className="btn-primary" title={canPublish().ok ? "" : canPublish().reason}>
               {saving ? "Publishing..." : "Publish"}
             </button>
             <button type="button" onClick={() => createPost("draft")} disabled={saving || !form.title} className="btn-secondary">

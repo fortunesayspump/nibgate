@@ -1,5 +1,5 @@
-// Sitemap index listing all active Subblog sitemaps
-// Each Subblog generates its own sitemap from its own database
+// Sitemap index — only lists Subblogs registered with the hub
+// Users must register their site in the hub dashboard to appear here
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -10,12 +10,6 @@ export async function GET() {
     const data = await res.json();
     if (data.sites) domains = data.sites;
   } catch {}
-
-  // Fallback to known sites if API is unavailable
-  if (domains.length === 0) {
-    const known = ["benedict", "xwillie", "elite", "shitstories", "blacdany", "jeff", "jedidiah", "fortune", "thepundit", "madman"];
-    domains = known.map((s) => `${s}.nibgate.xyz`);
-  }
 
   const sitemaps = [...new Set(domains)].map((d) => `
   <sitemap>

@@ -158,22 +158,23 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         </select>
       </Field>
 
+      {form.type === "article" && <MarkdownEditor value={form.bodyMarkdown} onChange={(v) => update("bodyMarkdown", v)} />}
       {form.type === "article" && (
-        <>
-          <MarkdownEditor value={form.bodyMarkdown} onChange={(v) => update("bodyMarkdown", v)} />
-          <Field label="Excerpt">
-            <textarea
-              value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
-              rows={2} className="input-field" placeholder="Short description"
-            />
-          </Field>
-          <Field label="Cover Image">
-            <ImageUploader
-              maxFiles={1}
-              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
-              onChange={(items) => update("coverUrl", items[0]?.url || "")}
-            />
-        </>
+        <Field label="Excerpt">
+          <textarea
+            value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+            rows={2} className="input-field" placeholder="Short description"
+          />
+        </Field>
+      )}
+      {form.type === "article" && (
+        <Field label="Cover Image">
+          <ImageUploader
+            maxFiles={1}
+            value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+            onChange={(items) => update("coverUrl", items[0]?.url || "")}
+          />
+        </Field>
       )}
 
       {form.type === "photo" && (
@@ -279,8 +280,8 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
             <button type="button" onClick={() => createPost("draft")} disabled={saving || !form.title} className="btn-secondary">
               Save as Draft
             </button>
-          </>
-        )}
+        </>)}
+
       </div>
     </div>
   );

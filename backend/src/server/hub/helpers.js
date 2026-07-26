@@ -820,8 +820,8 @@ export function serializeContent(content) {
   const unlockReceipts = Array.isArray(content.unlockReceipts) ? content.unlockReceipts : [];
   const hasOnchainProof = unlockReceipts.some((r) => r.txHash && r.txHash.length > 10);
   const views = metrics.filter((metric) => metric.type === 'view').length;
-  const unlocks = metrics.filter((metric) => metric.type === 'unlock' && ['resource_unlock', 'unlock_completed', 'unlock'].includes(metric.eventName || metric.type)).length;
-  const revenueMetrics = metrics.filter((m) => m.type === 'unlock' || m.type === 'payment');
+  const unlocks = metrics.filter((metric) => metric.type === 'unlock' && metric.eventName === 'unlock_completed').length;
+  const revenueMetrics = metrics.filter((m) => m.eventName === 'unlock_completed' || m.eventName === 'payment_completed');
   let revenue = 0;
   if (hasOnchainProof) {
     revenue = revenueMetrics.reduce((total, metric) => total + (metric.revenue || 0), 0);

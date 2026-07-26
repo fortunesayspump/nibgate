@@ -771,7 +771,7 @@ export function ratingAverage(ratings = []) {
   const accepted = ratings.filter((r) => r.proof || r.ratingValue);
   if (!accepted.length) return null;
   const avg = accepted.reduce((sum, r) => sum + (r.ratingValue || 0), 0) / accepted.length;
-  return Math.round(avg * 10) / 10;
+  return Math.round((avg / 10) * 10) / 10;
 }
 
 export function acceptedRatingCount(ratings = []) {

@@ -248,14 +248,69 @@ Required for paid content: `price` and `recipient`.
 
 The package warns in the browser when important metadata is missing and sends a metadata quality summary to the hub with content events. The backend stores that summary so dashboards can surface setup issues instead of silently creating weak content cards.
 
-## Package UI included
+## UI components
 
-The package includes small controller UIs, not a heavy design system:
+The package includes lightweight controller UIs for common integration patterns:
 
-- `createEvmGatewayUnlock(...)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility.
-- `createTransferCheckout(...)` supports direct Arc testnet transfer-style unlocks where Gateway is not used.
-- `createOnchainRating(...)` wires rating buttons, status text, rating panel visibility, payment proof references, onchain rating submission, and hub indexing.
-- `createNibgateContentSettings(...)` gives admin pages stable fields for content type, human/agent access, unlock mode, payment rail, price, recipient wallet, and license.
+### Unlock checkout
+
+`createWalletCheckout(resource, options)` mounts a complete unlock button, status controller, and content display. It handles wallet connect, Gateway payment, proof-backed access retry, and delegating the Gateway signature to your wallet adapter.
+
+`createEvmGatewayUnlock(resource, options)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility for EVM-compatible wallets.
+
+`createTransferCheckout(resource, options)` supports direct Arc testnet transfer-style unlocks where Gateway is not used.
+
+```js
+import { createWalletCheckout, createCircleGatewayBrowserAdapter } from '@nibgate/sdk';
+
+const circle = await createCircleGatewayBrowserAdapter({
+  chainId: 5042002,
+  signer: { address, signTypedData }
+});
+
+createWalletCheckout(premiumGuide, {
+  button: '[data-nibgate-unlock]',
+  status: '[data-nibgate-status]',
+  accessPath: '/api/nibgate/access',
+  pay: circle.pay
+}).mount();
+```
+
+### Gateway balance display and deposit
+
+The SDK exposes Gateway balance queries and deposit/withdraw triggers for buyer wallet management:
+
+- `getGatewayBalances({ buyerPrivateKey })` — returns available USDC balance on the Gateway for the configured buyer.
+- `depositToGateway(amount, { buyerPrivateKey })` — deposits USDC into the Gateway for use in future x402 payments.
+- `withdrawFromGateway(amount, { buyerPrivateKey, recipient })` — withdraws USDC from the Gateway back to a wallet.
+
+Via CLI:
+
+```bash
+npx nibgate balance
+npx nibgate deposit 1.0
+```
+
+### Onchain rating UI
+
+`createOnchainRating(resource, options)` wires rating buttons, status text, rating panel visibility, payment proof references, onchain rating submission, and hub indexing. Ratings are proof-gated — the wallet must have an unlock or payment proof for the content.
+
+```js
+const rating = createOnchainRating(premiumGuide, {
+  contractAddress: process.env.NEXT_PUBLIC_NIBGATE_REPUTATION_CONTRACT,
+  siteId: process.env.NEXT_PUBLIC_NIBGATE_SITE_ID,
+  token: process.env.NEXT_PUBLIC_NIBGATE_SITE_TOKEN,
+  indexUrl: 'https://api.nibgate.xyz/api/hub/reputation/ratings/index',
+  ratingTarget: '[data-nibgate-rating]',
+  ratingButtons: '[data-rating]',
+  paymentId: () => lastPayment?.paymentId,
+  getUnlockRef: () => lastPayment?.paymentId || ''
+});
+```
+
+### Content settings UI
+
+`createNibgateContentSettings(options)` gives admin pages stable fields for content type, human/agent access, unlock mode, payment rail, price, recipient wallet, and license.
 
 Creators keep their own UI/theme. Nibgate provides the hard parts: resource normalization, metadata validation, x402/Gateway unlock, transfer fallback, event streaming, proof storage, rating tx submission, and hub sync.
 

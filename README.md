@@ -1,12 +1,22 @@
-# Nibgate
+# Nibgate — open protocol for paid content
 
-Nibgate is a verified content discovery, unlock, and reputation layer for creator-owned work.
+[Website](https://nibgate.xyz) | [Docs](https://docs.nibgate.xyz) | [X](https://x.com/nibgate)
 
-Creators keep their content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content without moving it into a closed marketplace.
+Nibgate is a verified content discovery, unlock, and reputation layer for creator-owned work. Creators keep their content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content without moving it into a closed marketplace.
+
+Built on Circle Gateway, ARC testnet, and the x402 protocol.
+
+**Key packages:**
+
+- **SDK (`packages/nibgate/`)** — `@nibgate/sdk` npm package for gating paid content on any creator site. Browser and server entrypoints, x402/Gateway unlocks, event streaming, onchain ratings.
+- **Subblogs (`blog-app/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts. Next.js frontend, Express backend, PostgreSQL.
+- **Hub (`frontend/` + `backend/`)** — The main `nibgate.xyz` app: public site, creator dashboard, Explore discovery, analytics, API, and widget hosting.
+- **CLI (`packages/cli/`)** — Internal tooling for local dev, site verification, and hub connection.
+- **Docs (`docs/`)** — Documentation site at docs.nibgate.xyz.
 
 ## Product Thesis
 
-The open web needs a content discovery standard for paid, high-quality resources. Search can find pages, marketplaces can host inventory, and payment rails can unlock access, but creators still need one trusted layer that says:
+The open web needs a content discovery standard for paid, high-quality resources. Nibgate provides the verified layer that says:
 
 1. this domain is controlled by this creator
 2. this content exists at this route
@@ -14,7 +24,7 @@ The open web needs a content discovery standard for paid, high-quality resources
 4. this creator has real reputation signals from verified activity
 5. this payment history routes directly to the configured receiver for the resource
 
-Nibgate is that layer. The creator-owned site remains the source of truth, while the hub becomes the public index, analytics surface, and reputation graph around verified content.
+The creator-owned site remains the source of truth, while the hub becomes the public index, analytics surface, and reputation graph around verified content.
 
 It consists of four connected parts:
 
@@ -28,7 +38,7 @@ It consists of four connected parts:
 ```txt
 backend/       Express hub API — payment verification, metrics, site/manifest sync
 frontend/      Next.js hub UI — public site, dashboard, Explore, leaderboards
-blog-app/      Example creator blog — backend (Express+Prisma) + frontend (Next.js)
+blog-app/      Subblogs — full blog platform for creators (Express+Prisma + Next.js)
 packages/      @nibgate/sdk npm package + CLI tooling
 demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz

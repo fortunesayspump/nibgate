@@ -1,8 +1,19 @@
-# Nibgate Blog
+# Subblogs (blog-app)
 
-A standalone blog platform with database, admin panel, and optional Nibgate premium content gating.
+Full blog platform for creators, deployed on `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts — all with Nibgate premium content gating.
 
 Built for creators who want to write, publish, and optionally gate premium content behind payments.
+
+## Features
+
+- Articles with Markdown editing, cover images, tags, excerpts, and slug auto-generation
+- Photo, music, and video post support
+- Free and paid content gating via `@nibgate/sdk`
+- Admin dashboard with create, edit, publish, draft, and delete
+- Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`)
+- RSS feed
+- Prev/next post navigation
+- About page with bio and social links
 
 ## Pages
 
@@ -67,6 +78,15 @@ Frontend runs on `http://localhost:3001`.
 ### Demo login
 
 After seeding: `author@example.com` / `password123`
+
+### Admin setup
+
+1. Register at `/admin/register` or via the `POST /api/setup` endpoint to create a subdomain site.
+2. Log in at `/admin/login` with email and password.
+3. Manage posts from the admin dashboard at `/admin/posts` — create, edit, publish, draft, or delete.
+4. Configure premium gating per post by setting a price and recipient wallet in the post editor.
+
+The admin uses JWT-based authentication. Set a strong `JWT_SECRET` in production.
 
 ## Deployment
 

@@ -1,6 +1,6 @@
-# Nibgate frontend
+# Nibgate Hub — Frontend
 
-Main Nibgate app for the public site, creator dashboard, Explore, leaderboards, blog, and widget asset.
+Next.js application serving the public Nibgate site at nibgate.xyz. Includes the Explore content discovery grid, creator dashboard with analytics and earnings, leaderboards, public blog, and the widget.js script asset used by all creator sites.
 
 ## Local development
 

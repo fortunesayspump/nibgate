@@ -63,12 +63,12 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             <time>{fd(post.publishedAt)}</time>
             {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
           </div>
-          {post.excerpt && !isPremium && <p className="small muted" style={{ marginTop: "1em" }}>{post.excerpt}</p>}
+          {post.excerpt && !isPremium && <p className="small muted" style={{ marginTop: "1em", marginBottom: "1.5em" }}>{post.excerpt}</p>}
         </div>
 
         <div className="wrap">
           {post.coverUrl && (
-            <a href={post.coverUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: "1.5rem", borderRadius: "6px", overflow: "hidden" }}>
+            <a href={post.coverUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: "1.5rem", marginTop: "0.5rem", borderRadius: "6px", overflow: "hidden" }}>
               <img src={post.coverUrl} alt={post.title} style={{ width: "100%", height: "auto", display: "block", maxHeight: "400px", objectFit: "cover" }} />
             </a>
           )}

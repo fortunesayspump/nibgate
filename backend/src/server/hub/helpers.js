@@ -821,11 +821,12 @@ export function serializeContent(content) {
   const hasOnchainProof = unlockReceipts.some((r) => r.txHash && r.txHash.length > 10);
   const views = metrics.filter((metric) => metric.type === 'view').length;
   const unlocks = metrics.filter((metric) => metric.type === 'unlock' && ['resource_unlock', 'unlock_completed', 'unlock'].includes(metric.eventName || metric.type)).length;
+  const revenueMetrics = metrics.filter((m) => m.type === 'unlock' || m.type === 'payment');
   let revenue = 0;
   if (hasOnchainProof) {
-    revenue = metrics.reduce((total, metric) => total + (metric.revenue || 0), 0);
+    revenue = revenueMetrics.reduce((total, metric) => total + (metric.revenue || 0), 0);
   } else {
-    const smallRevenueMetrics = metrics.filter((m) => m.revenue < 100);
+    const smallRevenueMetrics = revenueMetrics.filter((m) => m.revenue < 100);
     revenue = smallRevenueMetrics.reduce((total, m) => total + (m.revenue || 0), 0);
   }
   const timeEvents = metrics.filter((metric) => metric.durationMs);

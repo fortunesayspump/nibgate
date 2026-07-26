@@ -20,12 +20,14 @@ export const metadata: Metadata = {
     url: "https://nibgate.xyz",
     siteName: "Nibgate",
     type: "website",
+    images: [{ url: "https://nibgate.xyz/og-image", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nibgate - verified content discovery",
     description:
       "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
+    images: ["https://nibgate.xyz/og-image"],
   },
   icons: {
     icon: [

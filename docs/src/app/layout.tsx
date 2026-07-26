@@ -21,11 +21,13 @@ export const metadata: Metadata = {
     url: "https://docs.nibgate.xyz",
     siteName: "Nibgate Docs",
     type: "website",
+    images: [{ url: "https://docs.nibgate.xyz/og-image", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nibgate Docs",
     description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
+    images: ["https://docs.nibgate.xyz/og-image"],
   },
   icons: {
     icon: "/brand/nibgate-mark.svg",

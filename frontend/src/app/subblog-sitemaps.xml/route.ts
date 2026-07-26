@@ -6,7 +6,7 @@ type Site = { domain: string };
 
 const KNOWN_SUBDOMAINS = [
   "benedict", "xwillie", "elite", "shitstories", "blacdany",
-  "jeff", "jedidiah", "fortune", "blactest",
+  "jeff", "jedidiah", "fortune", "blactest", "thepundit",
 ];
 
 export async function GET() {

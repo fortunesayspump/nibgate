@@ -40,15 +40,19 @@ export async function GET() {
 
   const items = posts
     .map(
-      (post) => `
+      (post) => {
+        const typePath = ({ article: "writing", photo: "photos", music: "music", video: "video" })[post.type] || "posts";
+        const postUrl = `${siteUrl}/${typePath}/${post.slug}`;
+        return `
     <item>
       <title>${escapeXml(post.title)}</title>
-      <link>${siteUrl}/posts/${post.slug}</link>
-      <guid isPermaLink="true">${siteUrl}/posts/${post.slug}</guid>
+      <link>${postUrl}</link>
+      <guid isPermaLink="true">${postUrl}</guid>
       <description>${escapeXml(post.excerpt || post.title)}</description>
       <pubDate>${formatRssDate(post.publishedAt)}</pubDate>
       <category>${escapeXml(post.tag || "General")}</category>
-    </item>`
+    </item>`;
+      }
     )
     .join("");
 

@@ -12,6 +12,30 @@ import { fd, rd } from "@/lib/utils";
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
 const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };
 
+function siteUrl() {
+  if (typeof window !== "undefined") return window.location.origin;
+  return process.env.NEXT_PUBLIC_SITE_URL
+    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
+    || "http://localhost:3001";
+}
+
+function jsonLd(post: BlogPost) {
+  const url = `${siteUrl()}/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: post.title,
+    description: post.excerpt || '',
+    image: post.coverUrl || undefined,
+    datePublished: post.publishedAt,
+    dateModified: post.updatedAt || post.publishedAt,
+    author: { "@type": "Person", name: "Author" },
+    publisher: { "@type": "Organization", name: "Nibgate", url: "https://nibgate.xyz" },
+    url,
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+  };
+}
+
 function detectEmbed(url: string) {
   const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
   if (yt) return { type: "youtube" as const, videoId: yt[1], embedUrl: `https://www.youtube.com/embed/${yt[1]}` };
@@ -34,9 +58,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const post = data?.post;
     if (!post) return {};
     return {
+      title: post.title,
+      description: post.excerpt || '',
       openGraph: {
         title: post.title,
         description: post.excerpt || '',
+        type: 'article',
+        publishedTime: post.publishedAt,
         images: post.coverUrl ? [{ url: post.coverUrl }] : [],
       },
       twitter: {
@@ -75,6 +103,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
   return (
     <>
       <Header />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(post)) }} />
       <article>
         <div className="wrap" style={{ maxWidth: "var(--wrap-post)", margin: "0 auto" }}>
           <div className="small muted font-ui" style={{ marginBottom: "0.5em" }}>

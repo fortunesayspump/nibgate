@@ -85,7 +85,7 @@ export default async function BlogPage() {
                       </div>
                       <div className="w-full bg-black flex items-center justify-center" style={{ height: 360, padding: 12 }}>
                         {featured.coverUrl ? (
-                          <img src={featured.coverUrl} alt="" className="h-full w-full object-contain" />
+                          <img src={featured.coverUrl} alt="" className="h-full w-full object-contain" loading="eager" fetchpriority="high" />
                         ) : (
                           <div className="flex h-full flex-col justify-between p-6 text-white">
                             <span className="text-lg">Nibgate</span>
@@ -102,7 +102,7 @@ export default async function BlogPage() {
                     <article className="flex h-full flex-col">
                       {post.coverUrl && (
                         <div className="w-full flex-shrink-0 bg-black flex items-center justify-center" style={{ height: 200, padding: 10 }}>
-                          <img src={post.coverUrl} alt="" className="h-full w-full object-contain" />
+                          <img src={post.coverUrl} alt="" className="h-full w-full object-contain" loading="lazy" />
                         </div>
                       )}
                       <div className="flex flex-1 flex-col justify-between gap-4 p-5">

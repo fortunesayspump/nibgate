@@ -27,6 +27,28 @@ function postHref(post: { type: string; slug: string }) {
   return `/${m[post.type] || "posts"}/${post.slug}`;
 }
 
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<any> {
+  const { slug } = await params;
+  try {
+    const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
+    const post = data?.post;
+    if (!post) return {};
+    return {
+      openGraph: {
+        title: post.title,
+        description: post.excerpt || '',
+        images: post.coverUrl ? [{ url: post.coverUrl }] : [],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: post.title,
+        description: post.excerpt || '',
+        images: post.coverUrl ? [post.coverUrl] : [],
+      },
+    };
+  } catch { return {}; }
+}
+
 export default async function PostPage({ params }: { params: Promise<{ type: string; slug: string }> }) {
   const { type, slug } = await params;
   const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });

@@ -23,7 +23,8 @@ router.get('/:postId', async (req, res, next) => {
 
 router.post('/:postId', validate(ratingValidation.createRating), async (req, res, next) => {
   try {
-    const { wallet, rating, txHash } = req.body;
+    const { wallet, rating: rawRating, txHash } = req.body;
+    const rating = Math.round((Number(rawRating) || 0) / 10 * 10) / 10;
 
     const data = await prisma.rating.upsert({
       where: { postId_wallet: { postId: req.params.postId, wallet } },

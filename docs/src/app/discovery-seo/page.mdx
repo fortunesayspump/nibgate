@@ -1,0 +1,149 @@
+import { Callout, Cards, Steps } from 'nextra/components'
+
+# Google Discovery & SEO
+
+Every Subblog on Nibgate is fully optimized for search engine discovery. Structured data, XML sitemaps, robots.txt files, and Open Graph meta tags are generated automatically.
+
+<Callout type="info">
+SEO features are built into every Subblog. No additional configuration is needed to get indexed by Google and other search engines.
+</Callout>
+
+## Sitemaps
+
+### Subblog sitemap
+
+Every Subblog at `*.nibgate.xyz` has its own `/sitemap.xml`:
+
+```txt
+https://yourname.nibgate.xyz/sitemap.xml
+```
+
+This sitemap lists all public posts on the Subblog with their last-modified dates, helping search engines discover and re-index content efficiently.
+
+### Subblog robots.txt
+
+Each Subblog also has a `/robots.txt`:
+
+```txt
+https://yourname.nibgate.xyz/robots.txt
+```
+
+The default allows all well-behaved crawlers and points to the sitemap:
+
+```
+User-agent: *
+Allow: /
+Sitemap: https://yourname.nibgate.xyz/sitemap.xml
+```
+
+### Hub aggregate sitemap
+
+The main Nibgate hub at `nibgate.xyz` serves `/subblog-sitemaps.xml`, which aggregates sitemaps from all Subblogs. This gives search engines a single entry point to discover every Subblog:
+
+```txt
+https://nibgate.xyz/subblog-sitemaps.xml
+```
+
+This aggregate sitemap is automatically updated as new Subblogs are created and as content is published or updated.
+
+## JSON-LD structured data
+
+Every post page on a Subblog includes JSON-LD structured data for rich search results:
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Post Title",
+  "description": "Post excerpt or summary",
+  "image": "https://yourname.nibgate.xyz/cover-image.jpg",
+  "datePublished": "2025-01-01T00:00:00Z",
+  "dateModified": "2025-01-15T00:00:00Z",
+  "author": {
+    "@type": "Person",
+    "name": "Creator Name"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Subblog Name"
+  }
+}
+```
+
+The `@type` varies by content type:
+
+| Content type | Schema.org type |
+|-------------|-----------------|
+| Article | `Article` |
+| Photo | `ImageGallery` |
+| Music | `MusicRecording` |
+| Video | `VideoObject` |
+
+## Open Graph meta tags
+
+Every page includes standard OG meta tags for rich social sharing previews:
+
+```html
+<meta property="og:title" content="Post Title" />
+<meta property="og:description" content="Post excerpt" />
+<meta property="og:image" content="https://yourname.nibgate.xyz/cover.jpg" />
+<meta property="og:url" content="https://yourname.nibgate.xyz/posts/slug" />
+<meta property="og:type" content="article" />
+<meta name="twitter:card" content="summary_large_image" />
+```
+
+## Hub indexing
+
+Subblogs are automatically registered with the Nibgate hub for Explore indexing. This means content published on a Subblog appears in:
+
+- Explore search results and category pages
+- Creator profiles on the hub
+- Leaderboards (content, creator, and site rankings)
+- The hub's aggregate sitemap for search engine discovery
+
+No additional registration or verification is needed — Subblogs are connected to the hub by default.
+
+## Google Search Console setup
+
+To monitor your Subblog's search performance in Google Search Console:
+
+<Steps>
+### Add property
+
+Add your Subblog URL (`https://yourname.nibgate.xyz`) as a property in Google Search Console.
+
+### Verify ownership
+
+Use the **URL prefix** property type. You can verify ownership using:
+
+- **HTML tag method**: Add the Google verification meta tag to your Subblog. Contact us to add it.
+- **DNS record method**: Add a TXT record to the domain. Only available for custom domains.
+
+### Submit sitemap
+
+Submit your Subblog sitemap URL (`https://yourname.nibgate.xyz/sitemap.xml`) in Google Search Console.
+
+### Monitor performance
+
+Track impressions, clicks, and average position for your Subblog's pages in the Search Console dashboard.
+</Steps>
+
+<Callout type="important">
+For standard `*.nibgate.xyz` Subblogs, we handle verification setup. If you are using a custom domain with your Subblog, you will need to verify via DNS record or HTML tag yourself.
+</Callout>
+
+## Registering a custom domain
+
+If your Subblog uses a custom domain (e.g. `blog.yourname.com`):
+
+1. Point the domain's CNAME or A record to Nibgate's servers.
+2. Verify domain ownership in Google Search Console.
+3. Set up the custom domain in your Subblog admin settings.
+
+## Next reads
+
+<Cards>
+  <Cards.Card title="Create a Subblog" href="/create-subblog" arrow />
+  <Cards.Card title="Revenue and Leaderboards" href="/revenue" arrow />
+  <Cards.Card title="Image Optimization" href="/image-optimization" arrow />
+</Cards>

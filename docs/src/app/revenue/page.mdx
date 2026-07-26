@@ -1,0 +1,124 @@
+import { Callout, Cards, Steps } from 'nextra/components'
+
+# Revenue & Leaderboards
+
+Nibgate provides payment processing, revenue tracking, and competitive leaderboards to help creators understand and grow their earnings.
+
+<Callout type="important">
+Nibgate does not custody creator funds. Payments flow directly from the reader to the creator through the Circle Gateway. Nibgate indexes receipts and displays analytics.
+</Callout>
+
+## Payment flow
+
+The payment flow connects the reader's wallet to the creator's wallet through the Circle Gateway:
+
+```txt
+Reader wallet
+  -> initiates payment on unlock UI
+  -> Circle Gateway processes USDC transfer (ARC testnet)
+  -> Creator wallet receives funds directly
+  -> Package reports receipt to Nibgate hub
+  -> Dashboard and leaderboards update
+```
+
+### Step by step
+
+<Steps>
+### Reader initiates unlock
+
+The reader clicks the unlock button on a paid post. The unlock UI displays the price, the creator's brand, and a connect/pay prompt.
+
+### Payment processing
+
+The reader's wallet signs and submits the USDC payment through the Circle Gateway on ARC testnet. The gateway handles settlement and returns a receipt.
+
+### Funds arrive at creator wallet
+
+The USDC is transferred directly to the creator's configured wallet address. Nibgate never touches the funds.
+
+### Receipt indexed
+
+The Nibgate package or Subblog backend reports the payment receipt to the hub. The receipt includes the amount, currency, buyer wallet, content ID, and transaction hash.
+
+### Analytics update
+
+The dashboard updates earnings, unlock counts, and leaderboard rankings based on the verified receipt.
+</Steps>
+
+## Leaderboard system
+
+Nibgate maintains three types of leaderboards:
+
+<Cards>
+  <Cards.Card title="Creator leaderboard" href="/revenue#leaderboard-system">
+    Ranks creators by total earnings, unlock count, and reputation score.
+  </Cards.Card>
+  <Cards.Card title="Site leaderboard" href="/revenue#leaderboard-system">
+    Ranks registered sites and Subblogs by content quality, engagement, and earnings.
+  </Cards.Card>
+  <Cards.Card title="Content leaderboard" href="/revenue#leaderboard-system">
+    Ranks individual posts by unlocks, revenue generated, and rating.
+  </Cards.Card>
+</Cards>
+
+### Ranking factors
+
+Leaderboard positions are determined by a combination of:
+
+- **Total earnings**: Cumulative USDC revenue from paid unlocks.
+- **Unlock count**: Number of unique paid unlocks.
+- **Content freshness**: Recently published or updated content.
+- **Reputation score**: Average content rating (0.0–5.0 stars).
+- **Engagement**: Views, unlock conversion rate, and time-on-page signals.
+
+### Leaderboard views
+
+Leaderboards are surfaced in the Nibgate Explore section, on creator profile pages, and in the admin dashboard. They support filtering by time range (daily, weekly, monthly, all time) and content type.
+
+## Revenue tracking
+
+The admin dashboard provides detailed revenue tracking:
+
+- **Total earnings**: Aggregate USDC earned across all content.
+- **Per-content earnings**: Revenue breakdown by individual post.
+- **Timeline**: Earnings charted over time with daily/weekly/monthly granularity.
+- **Receipt drilldown**: Click any earnings entry to view the receipt details (transaction hash, buyer wallet, timestamp).
+
+```ts
+// Example receipt event reported after unlock
+{
+  "event": "payment_completed",
+  "amount": "0.01",
+  "currency": "USDC",
+  "receiver": "0xCreatorWallet",
+  "recipient": "0xBuyerWallet",
+  "siteId": "site_...",
+  "contentId": "post_123",
+  "txHash": "0x...",
+  "paidAt": "2025-07-26T12:00:00Z"
+}
+```
+
+## Reputation scores
+
+Reputation scores are computed from verified interactions:
+
+| Score | Range | Source |
+|-------|-------|--------|
+| Content reputation | 0.0–5.0 stars | Ratings from wallets that unlocked the content |
+| Site reputation | 1–100 | Aggregate of content ratings + source health signals |
+| Creator reputation | 1–100 | Aggregate of site reputation + total earnings + unlock success |
+
+Higher reputation scores can lead to better leaderboard placement and increased visibility in Explore.
+
+<Callout type="info">
+Only verified unlocks (with indexed receipts) count toward reputation and leaderboard rankings. This prevents gaming the system with fake transactions.
+</Callout>
+
+## Next reads
+
+<Cards>
+  <Cards.Card title="Payments and receipts" href="/payments-receipts" arrow />
+  <Cards.Card title="Create a Subblog" href="/create-subblog" arrow />
+  <Cards.Card title="Reputation" href="/reputation" arrow />
+</Cards>

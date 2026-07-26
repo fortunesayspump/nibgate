@@ -1,0 +1,116 @@
+import { Callout, Steps, Cards } from 'nextra/components'
+
+# Create a Subblog
+
+A Subblog is a full blog hosted at `yourname.nibgate.xyz`. It gives creators a ready-made publishing platform with Nibgate gating, analytics, and discovery built in — no separate site or custom integration required.
+
+<Callout type="info" emoji="✦">
+Subblogs are currently available by request. DM us with your desired subdomain to get started.
+</Callout>
+
+## What is a Subblog?
+
+A Subblog is a complete, hosted blog on the Nibgate hub. Unlike the standard Nibgate model where content lives on your own domain, a Subblog lives on `*.nibgate.xyz` and uses the hub's built-in publishing tools.
+
+| Feature | Creator-owned site | Subblog |
+|---------|-------------------|---------|
+| Domain | Your own domain | `*.nibgate.xyz` |
+| Hosting | Your own infrastructure | Nibgate-hosted |
+| Integration | Package + widget + server routes | Built in |
+| Editors | Your CMS/admin | Nibgate admin dashboard |
+
+## Features
+
+<Cards>
+  <Cards.Card title="Articles" href="/create-subblog#features">
+    Full Markdown editor with inline images and cover photos.
+  </Cards.Card>
+  <Cards.Card title="Photos" href="/create-subblog#features">
+    Multi-image upload with captions and gallery grid layout.
+  </Cards.Card>
+  <Cards.Card title="Music" href="/create-subblog#features">
+    Audio upload, cover art, and embedded player.
+  </Cards.Card>
+  <Cards.Card title="Video" href="/create-subblog#features">
+    YouTube URL → embedded player with gating support.
+  </Cards.Card>
+  <Cards.Card title="Free and paid posts" href="/create-subblog#features">
+    Each post can be free or gated behind USDC payment.
+  </Cards.Card>
+  <Cards.Card title="Admin dashboard" href="/create-subblog#features">
+    Manage posts, track analytics, view earnings in one place.
+  </Cards.Card>
+</Cards>
+
+## How to get a Subblog
+
+Subblogs are invite-only during the initial launch.
+
+<Steps>
+### DM us
+
+Send a message with your desired subdomain (e.g. `yourname.nibgate.xyz`).
+
+### We set up the blog
+
+We create the Subblog, wire up the admin dashboard, and send you the login.
+
+### Start publishing
+
+Use the admin dashboard to create posts, upload media, and set pricing.
+</Steps>
+
+## Admin dashboard
+
+The Subblog admin dashboard is the control center for your blog. From it you can:
+
+- **Create and edit posts** using the content-type-specific editors.
+- **Manage media** — upload images, audio files, and manage cover art.
+- **Set pricing** — mark posts as free or paid, configure USDC price per post.
+- **View analytics** — track views, unlocks, and earnings over time.
+- **Manage tags** — organize posts for discovery and filtering.
+- **Set cover images and excerpts** — control how each post appears on the blog homepage and in Nibgate Explore.
+
+## Content types and editors
+
+Each content type has a dedicated editor experience:
+
+| Type | Editor | Media |
+|------|--------|-------|
+| Article | Markdown editor | Inline images, cover photo |
+| Photo | Image uploader with gallery builder | Multiple images, captions |
+| Music | Audio upload form | Audio file, cover art |
+| Video | YouTube URL input | Embedded player |
+
+See [Content Types](/content-types) for detailed documentation on each type.
+
+## Payment setup
+
+Paid posts use USDC gating. Each paid post can have its own price. The payment flow is:
+
+1. A visitor lands on a paid post.
+2. The unlock UI shows the price and a connect/pay button.
+3. The visitor pays USDC through the Circle Gateway on ARC testnet.
+4. The content is unlocked and the creator receives the funds.
+
+<Callout type="important">
+You set the price per post in the admin dashboard. Funds go directly to your connected wallet via the Circle Gateway — Nibgate does not custody earnings.
+</Callout>
+
+## Cover images, excerpts, and tags
+
+Each post can include:
+
+- **Cover image** — the hero image shown on the blog homepage and in Explore cards.
+- **Excerpt** — a short summary displayed alongside the cover image.
+- **Tags** — keywords for filtering and discovery on the blog and in Explore.
+
+These fields are set in the post editor and can be updated at any time.
+
+## Next reads
+
+<Cards>
+  <Cards.Card title="Content Types" href="/content-types" arrow />
+  <Cards.Card title="Revenue and Leaderboards" href="/revenue" arrow />
+  <Cards.Card title="Google Discovery and SEO" href="/discovery-seo" arrow />
+</Cards>

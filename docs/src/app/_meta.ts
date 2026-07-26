@@ -8,6 +8,14 @@ export default {
   lifecycle: "End-to-end lifecycle",
   "agent-discovery": "Agent discovery",
   reputation: "Reputation",
+  "---platform": {
+    type: "separator",
+    title: "Subblog Platform",
+  },
+  "create-subblog": "Create a Subblog",
+  "content-types": "Content Types",
+  "image-optimization": "Image optimization",
+  "discovery-seo": "Discovery & SEO",
   "---setup": {
     type: "separator",
     title: "Setup",
@@ -24,6 +32,7 @@ export default {
   "content-events": "Content events",
   "analytics-events": "Analytics events",
   "payments-receipts": "Payments and receipts",
+  revenue: "Revenue & leaderboards",
   "---reference": {
     type: "separator",
     title: "Reference",

@@ -1,0 +1,91 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Image Optimization
+
+Images uploaded to Nibgate Subblogs are processed and optimized automatically. Uploads go through Cloudflare R2 with sharp-based server-side processing, ensuring fast delivery and optimal file sizes.
+
+<Callout type="info">
+All image processing happens server-side at upload time. No client-side libraries or build-time processing needed.
+</Callout>
+
+## Processing pipeline
+
+```txt
+Upload
+  -> R2 storage
+  -> sharp processing (WebP conversion, resizing)
+  -> Optimized variants stored
+  -> Responsive URLs returned
+```
+
+## What sharp does
+
+[sharp](https://sharp.pixelplumbing.com/) is a high-performance Node.js image processing library. When an image is uploaded, sharp:
+
+1. **Converts to WebP** — produces modern, efficiently compressed WebP images that are significantly smaller than JPEG or PNG equivalents.
+2. **Resizes** — generates multiple size variants (thumbnail, medium, full) for responsive delivery.
+3. **Strips metadata** — removes EXIF data to reduce file size and protect privacy.
+
+## Image types
+
+There are three categories of images in the Nibgate system:
+
+<Cards>
+  <Cards.Card title="Cover images" href="/image-optimization#image-types">
+    The primary hero image for a post. Displayed on the blog homepage, in Explore cards, and in social sharing previews. High priority — always optimized at full quality.
+  </Cards.Card>
+  <Cards.Card title="Inline images" href="/image-optimization#image-types">
+    Images embedded within an article body. Stored alongside the post content and served via optimized URLs. Multiple size variants available.
+  </Cards.Card>
+  <Cards.Card title="Gallery images" href="/image-optimization#image-types">
+    Images in a Photo content type gallery. Each image gets its own caption and optimization. Displayed in a responsive grid layout.
+  </Cards.Card>
+</Cards>
+
+## Image specifications
+
+| Type | Recommended size | Formats generated | Usage |
+|------|-----------------|-------------------|-------|
+| Cover image | 1200×630px min | WebP (multiple sizes) | Blog homepage, Explore, OG tags |
+| Inline image | 800px wide | WebP (responsive) | Article body |
+| Gallery image | 1200px wide | WebP (thumb + full) | Photo gallery grid |
+| Cover art (music) | 1400×1400px | WebP (square) | Music player, embed card |
+
+## Storage
+
+Images are stored in **Cloudflare R2** object storage. R2 provides:
+
+- S3-compatible API for easy integration
+- Global content delivery via Cloudflare's edge network
+- No egress fees
+- Automatic caching and CDN distribution
+
+## URL format
+
+Optimized images are served from the R2 public bucket with responsive parameters:
+
+```txt
+https://r2.nibgate.xyz/subblogs/{subblog-id}/posts/{post-id}/{variant}-{filename}.webp
+```
+
+Where `variant` is one of: `cover`, `inline`, `thumb`, `gallery`, or `full`.
+
+## Cover images
+
+Cover images are the most important image on a post. They appear in:
+
+- The blog homepage post card
+- The post page header
+- Nibgate Explore cards
+- Open Graph and Twitter card previews
+- Search engine result snippets
+
+Always set a cover image for each post to ensure it displays correctly across all surfaces.
+
+## Next reads
+
+<Cards>
+  <Cards.Card title="Content Types" href="/content-types" arrow />
+  <Cards.Card title="Create a Subblog" href="/create-subblog" arrow />
+  <Cards.Card title="Architecture" href="/architecture" arrow />
+</Cards>

@@ -1,0 +1,134 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Content Types
+
+Nibgate supports four content types: **Article**, **Photo**, **Music**, and **Video**. Each type has a dedicated editor and presentation format.
+
+<Callout type="info">
+All content types support free and paid gating. Set the price per post in the admin dashboard or via the package configuration.
+</Callout>
+
+<Cards>
+  <Cards.Card title="Article" href="/content-types#article">
+    Markdown editor, inline images, cover photos.
+  </Cards.Card>
+  <Cards.Card title="Photo" href="/content-types#photo">
+    Multi-image upload, captions, gallery grid.
+  </Cards.Card>
+  <Cards.Card title="Music" href="/content-types#music">
+    Audio upload, cover art, embedded player.
+  </Cards.Card>
+  <Cards.Card title="Video" href="/content-types#video">
+    YouTube URL → embedded player with gating.
+  </Cards.Card>
+</Cards>
+
+## Article
+
+Articles are the primary content type for long-form writing.
+
+**Editor**: Full-featured Markdown editor with toolbar support for headings, bold, italic, links, lists, blockquotes, and code blocks.
+
+**Media**: Inline images can be embedded anywhere in the article body. A separate cover photo field controls the hero image shown on the blog homepage and in Explore cards.
+
+**Excerpt**: A short summary displayed alongside the cover image. Set in the post editor.
+
+```ts
+import { gate } from '@nibgate/sdk'
+
+const article = gate({
+  id: 'my-article',
+  type: 'article',
+  title: 'My Premium Article',
+  path: '/articles/my-article',
+  price: '0.01',
+  access: { humans: 'paid', agents: 'paid' },
+  unlock: { mode: 'one_time' }
+})
+
+article.content()
+```
+
+## Photo
+
+Photos are gallery-style posts with multiple images.
+
+**Editor**: Upload one or more images. Each image can have an optional caption.
+
+**Layout**: Images are displayed in a responsive gallery grid on the blog. The first image serves as the cover.
+
+**Paid gating**: When a photo set is paid, the gallery preview shows blurred or count-limited thumbnails. The full gallery is revealed after unlock.
+
+```ts
+const photoSet = gate({
+  id: 'photo-set-1',
+  type: 'image',
+  title: 'Photo Collection',
+  path: '/photos/collection',
+  price: '0.005',
+  access: { humans: 'paid', agents: 'paid' },
+  unlock: { mode: 'one_time' }
+})
+```
+
+## Music
+
+Music posts allow creators to share audio tracks with embedded playback.
+
+**Editor**: Upload an audio file and optional cover art image.
+
+**Player**: A custom audio player is rendered on the post page with play/pause, progress, and volume controls.
+
+**Paid gating**: When gated, the player shows a preview (e.g. 30 seconds) or requires unlock for full playback.
+
+```ts
+const track = gate({
+  id: 'track-1',
+  type: 'music',
+  title: 'Exclusive Track',
+  path: '/music/track-1',
+  price: '0.01',
+  access: { humans: 'paid', agents: 'paid' },
+  unlock: { mode: 'one_time' }
+})
+```
+
+## Video
+
+Video posts embed YouTube videos with optional gating.
+
+**Editor**: Paste a YouTube URL. The system extracts the video ID and generates the embed.
+
+**Player**: The YouTube iframe player is embedded directly on the post page.
+
+**Paid gating**: When gated, the video embed is hidden behind an unlock overlay. The video is revealed after payment.
+
+```ts
+const course = gate({
+  id: 'video-1',
+  type: 'video',
+  title: 'Premium Video Course',
+  path: '/videos/course-1',
+  price: '0.02',
+  access: { humans: 'paid', agents: 'paid' },
+  unlock: { mode: 'one_time' }
+})
+```
+
+## Content type comparison
+
+| Aspect | Article | Photo | Music | Video |
+|--------|---------|-------|-------|-------|
+| Primary input | Markdown | Image files | Audio file | YouTube URL |
+| Cover image | Yes (separate field) | First image | Uploaded art | Auto-generated |
+| Inline media | Yes | Captions per image | Cover art | Embed player |
+| Preview | Excerpt | Blurred/count-limited thumbnails | Short clip | Overlay |
+| Full access | Full article body | Full gallery | Full track | Full video |
+
+## Next reads
+
+<Cards>
+  <Cards.Card title="Create a Subblog" href="/create-subblog" arrow />
+  <Cards.Card title="Content Structures" href="/content-structures" arrow />
+  <Cards.Card title="Image Optimization" href="/image-optimization" arrow />
+</Cards>

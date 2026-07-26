@@ -783,12 +783,11 @@ export function registerHubRoutes(app) {
         const content = await db.content.findMany({
           where: { deletedAt: null, website: { deletedAt: null } },
           include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
-          take: 200,
+          take: 500,
           orderBy: { createdAt: 'desc' }
         });
         const items = content.map(serializeContent)
-          .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
-          .slice(0, limit)
+          .slice(0, 200)
           .map((content, index) => ({ rank: index + 1, ...content }));
         return res.json({ success: true, type: 'content', items });
       }

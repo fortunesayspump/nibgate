@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
-    || "http://localhost:3001";
+export async function GET(request: Request) {
+  const host = request.headers.get("host") || "localhost:3001";
+  const protocol = host.includes("localhost") ? "http" : "https";
+  const siteUrl = `${protocol}://${host}`;
 
   const text = `User-agent: *
 Allow: /

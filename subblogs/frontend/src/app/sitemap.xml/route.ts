@@ -10,11 +10,11 @@ async function getPosts(): Promise<BlogPost[]> {
   } catch { return []; }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const posts = await getPosts();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
-    || "http://localhost:3001";
+  const host = request.headers.get("host") || "localhost:3001";
+  const protocol = host.includes("localhost") ? "http" : "https";
+  const siteUrl = `${protocol}://${host}`;
 
   const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
 

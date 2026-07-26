@@ -32,11 +32,11 @@ async function getSiteName(): Promise<string> {
   } catch { return "Nibgate Blog"; }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const [posts, siteName] = await Promise.all([getPosts(), getSiteName()]);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
-    || "http://localhost:3001";
+  const host = request.headers.get("host") || "localhost:3001";
+  const protocol = host.includes("localhost") ? "http" : "https";
+  const siteUrl = `${protocol}://${host}`;
 
   const items = posts
     .map(

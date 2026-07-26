@@ -398,7 +398,7 @@ export function registerHubRoutes(app) {
       if (!nextCalled) {
         res.status(statusCode).set(headers).send(body);
       } else {
-        res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network, txHash: mwReq.payment?.transaction || '' } });
+        res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network, amount: Number(price || 0), revenue: Number(price || 0), txHash: mwReq.payment?.transaction || '' } });
       }
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
@@ -6,6 +7,15 @@ import Header from "@/components/Header";
 
 const TYPE = "music";
 const LABEL = "Music";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Music",
+    description: "Browse all music posts.",
+    alternates: { canonical: "/music" },
+    openGraph: { title: "Music", description: "Browse all music posts." },
+  };
+}
 
 export default async function MusicPage() {
   const data = await serverFetch<{ posts: BlogPost[]; total: number }>(`/blog/posts?type=${TYPE}&limit=50`);

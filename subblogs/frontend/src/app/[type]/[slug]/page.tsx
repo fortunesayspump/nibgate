@@ -12,24 +12,22 @@ import { fd, rd } from "@/lib/utils";
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
 const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };
 
-function siteUrl() {
-  if (typeof window !== "undefined") return window.location.origin;
-  return process.env.NEXT_PUBLIC_SITE_URL
-    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
-    || "http://localhost:3001";
-}
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
+  || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
+  || "http://localhost:3001";
 
 function jsonLd(post: BlogPost) {
-  const url = `${siteUrl()}/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}`;
+  const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+  const url = `${SITE_URL}/${typePath[post.type] || "posts"}/${post.slug}`;
   return {
     "@context": "https://schema.org",
-    "@type": "NewsArticle",
+    "@type": "Article",
     headline: post.title,
     description: post.excerpt || '',
     image: post.coverUrl || undefined,
     datePublished: post.publishedAt,
     dateModified: post.updatedAt || post.publishedAt,
-    author: { "@type": "Person", name: "Author" },
+    author: { "@type": "Person", name: post.author?.name || "Author" },
     publisher: { "@type": "Organization", name: "Nibgate", url: "https://nibgate.xyz" },
     url,
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
@@ -51,18 +49,23 @@ function postHref(post: { type: string; slug: string }) {
   return `/${m[post.type] || "posts"}/${post.slug}`;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<any> {
-  const { slug } = await params;
+export async function generateMetadata({ params }: { params: Promise<{ type: string; slug: string }> }): Promise<any> {
+  const { type, slug } = await params;
   try {
     const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
     const post = data?.post;
     if (!post) return {};
+    const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+    const canonical = `/${typePath[type] || "posts"}/${slug}`;
     return {
       title: post.title,
       description: post.excerpt || '',
+      metadataBase: new URL(SITE_URL),
+      alternates: { canonical },
       openGraph: {
         title: post.title,
         description: post.excerpt || '',
+        url: `${SITE_URL}${canonical}`,
         type: 'article',
         publishedTime: post.publishedAt,
         images: post.coverUrl ? [{ url: post.coverUrl }] : [],

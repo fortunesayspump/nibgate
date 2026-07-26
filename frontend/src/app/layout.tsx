@@ -10,6 +10,23 @@ export const metadata: Metadata = {
   title: "Nibgate - verified content discovery",
   description:
     "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
+  metadataBase: new URL("https://nibgate.xyz"),
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: "Nibgate - verified content discovery",
+    description:
+      "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
+    url: "https://nibgate.xyz",
+    siteName: "Nibgate",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nibgate - verified content discovery",
+    description:
+      "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico" },

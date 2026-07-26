@@ -12,9 +12,15 @@ async function getSite(): Promise<Record<string, any> | null> {
 export async function generateMetadata(): Promise<Metadata> {
   const data = await getSite();
   const name = data?.site?.name || "Nibgate Blog";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
+    || "http://localhost:3001";
   return {
     title: { default: name, template: `%s · ${name}` },
     description: data?.site?.description || "Product updates, creator guides, and thinking behind the reputation layer.",
+    metadataBase: new URL(siteUrl),
+    alternates: { canonical: "/" },
+    robots: { index: true, follow: true },
   };
 }
 

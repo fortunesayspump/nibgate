@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
@@ -6,6 +7,15 @@ import Header from "@/components/Header";
 
 const TYPE = "photo";
 const LABEL = "Photos";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "Photos",
+    description: "Browse all photo posts.",
+    alternates: { canonical: "/photos" },
+    openGraph: { title: "Photos", description: "Browse all photo posts." },
+  };
+}
 
 export default async function PhotosPage() {
   const data = await serverFetch<{ posts: BlogPost[]; total: number }>(`/blog/posts?type=${TYPE}&limit=50`);

@@ -7,8 +7,26 @@ import "nextra-theme-docs/style.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nibgate Docs",
+  title: {
+    default: "Nibgate Docs",
+    template: "%s · Nibgate Docs",
+  },
   description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
+  metadataBase: new URL("https://docs.nibgate.xyz"),
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: "Nibgate Docs",
+    description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
+    url: "https://docs.nibgate.xyz",
+    siteName: "Nibgate Docs",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nibgate Docs",
+    description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
+  },
   icons: {
     icon: "/brand/nibgate-mark.svg",
     shortcut: "/brand/nibgate-mark.svg",
@@ -46,6 +64,23 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "Nibgate Docs",
+              url: "https://docs.nibgate.xyz",
+              description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
+              potentialAction: {
+                "@type": "SearchAction",
+                target: { "@type": "EntryPoint", urlTemplate: "https://docs.nibgate.xyz/?q={search_term_string}" },
+                "query-input": "required name=search_term_string",
+              },
+            }),
+          }}
+        />
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>

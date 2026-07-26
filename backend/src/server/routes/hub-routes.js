@@ -159,8 +159,6 @@ export function registerHubRoutes(app) {
 
       await middleware.require(`$${price || '0.01'}`)(mwReq, mwRes, () => { nextCalled = true; });
 
-      if (!nextCalled && statusCode === 402) {
-
       if (!nextCalled) {
         res.status(statusCode).set(headers).send(body);
       } else {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, headers } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
@@ -12,13 +12,18 @@ import { fd, rd } from "@/lib/utils";
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
 const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
-  || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
-  || "http://localhost:3001";
+function siteOrigin() {
+  try {
+    const h = headers();
+    const host = h.get("host") || "nibgate.xyz";
+    return `https://${host}`;
+  } catch { return "https://nibgate.xyz"; }
+}
 
 function jsonLd(post: BlogPost) {
+  const origin = siteOrigin();
   const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
-  const url = `${SITE_URL}/${typePath[post.type] || "posts"}/${post.slug}`;
+  const url = `${origin}/${typePath[post.type] || "posts"}/${post.slug}`;
   return {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -55,17 +60,18 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
     const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
     const post = data?.post;
     if (!post) return {};
+    const origin = siteOrigin();
     const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
-    const canonical = `/${typePath[type] || "posts"}/${slug}`;
+    const path = `/${typePath[type] || "posts"}/${slug}`;
     return {
       title: post.title,
       description: post.excerpt || '',
-      metadataBase: new URL(SITE_URL),
-      alternates: { canonical },
+      metadataBase: new URL(origin),
+      alternates: { canonical: path },
       openGraph: {
         title: post.title,
         description: post.excerpt || '',
-        url: `${SITE_URL}${canonical}`,
+        url: `${origin}${path}`,
         type: 'article',
         publishedTime: post.publishedAt,
         images: post.coverUrl ? [{ url: post.coverUrl }] : [],

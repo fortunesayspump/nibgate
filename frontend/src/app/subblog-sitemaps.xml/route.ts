@@ -13,7 +13,7 @@ export async function GET() {
 
   // Fallback to known sites if API is unavailable
   if (domains.length === 0) {
-    const known = ["benedict", "xwillie", "elite", "shitstories", "blacdany", "jeff", "jedidiah", "fortune", "thepundit"];
+    const known = ["benedict", "xwillie", "elite", "shitstories", "blacdany", "jeff", "jedidiah", "fortune", "thepundit", "madman"];
     domains = known.map((s) => `${s}.nibgate.xyz`);
   }
 

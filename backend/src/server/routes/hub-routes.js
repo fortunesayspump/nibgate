@@ -773,6 +773,21 @@ export function registerHubRoutes(app) {
     }
   });
 
+  // ── Sitemap: List Active Sites ──────────────────────────────────────────
+
+  app.get('/api/hub/sitemap-sites', async (req, res) => {
+    try {
+      const sites = await db.website.findMany({
+        where: { deletedAt: null },
+        select: { domain: true },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json({ success: true, sites: sites.filter((s) => s.domain?.endsWith('.nibgate.xyz')).map((s) => s.domain) });
+    } catch (error) {
+      res.json({ success: true, sites: [] });
+    }
+  });
+
   // ── Reputation: Leaderboards ─────────────────────────────────────────────
 
   app.get('/api/hub/reputation/leaderboards', async (req, res) => {

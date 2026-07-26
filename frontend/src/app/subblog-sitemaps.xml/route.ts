@@ -1,33 +1,20 @@
 // Sitemap index listing all active Subblog sitemaps
-// Submit this single URL to Google Search Console to cover all subdomains
+// Each Subblog generates its own sitemap from its own database
 export const dynamic = "force-dynamic";
-
-type Site = { domain: string };
-
-const KNOWN_SUBDOMAINS = [
-  "benedict", "xwillie", "elite", "shitstories", "blacdany",
-  "jeff", "jedidiah", "fortune", "blactest", "thepundit",
-];
 
 export async function GET() {
   let domains: string[] = [];
 
   try {
-    // Fetch active sites from hub with high limit
-    const res = await fetch("https://api.nibgate.xyz/api/hub/reputation/leaderboards?type=sites&limit=200");
+    const res = await fetch("https://api.nibgate.xyz/api/hub/sitemap-sites");
     const data = await res.json();
-    if (data.items) {
-      domains = data.items
-        .map((s: Site) => s.domain)
-        .filter((d: string) => d.endsWith(".nibgate.xyz"));
-    }
+    if (data.sites) domains = data.sites;
   } catch {}
 
-  // Always include known sites (covers cases where leaderboard hasn't indexed them yet)
-  for (const sub of KNOWN_SUBDOMAINS) {
-    if (!domains.includes(`${sub}.nibgate.xyz`)) {
-      domains.push(`${sub}.nibgate.xyz`);
-    }
+  // Fallback to known sites if API is unavailable
+  if (domains.length === 0) {
+    const known = ["benedict", "xwillie", "elite", "shitstories", "blacdany", "jeff", "jedidiah", "fortune", "thepundit"];
+    domains = known.map((s) => `${s}.nibgate.xyz`);
   }
 
   const sitemaps = [...new Set(domains)].map((d) => `

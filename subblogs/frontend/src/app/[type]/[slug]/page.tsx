@@ -13,16 +13,15 @@ import { fd, rd } from "@/lib/utils";
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
 const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };
 
-function siteOrigin() {
+async function siteOrigin() {
   try {
-    const h = headers();
+    const h = await headers();
     const host = h.get("host") || "nibgate.xyz";
     return `https://${host}`;
   } catch { return "https://nibgate.xyz"; }
 }
 
-function jsonLd(post: BlogPost) {
-  const origin = siteOrigin();
+function jsonLd(post: BlogPost, origin: string) {
   const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
   const url = `${origin}/${typePath[post.type] || "posts"}/${post.slug}`;
   return {
@@ -61,7 +60,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
     const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
     const post = data?.post;
     if (!post) return {};
-    const origin = siteOrigin();
+    const origin = await siteOrigin();
     const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
     const path = `/${typePath[type] || "posts"}/${slug}`;
     return {
@@ -109,11 +108,12 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
 
   const relatedData = await serverFetch<{ success: boolean; posts: BlogPost[] }>(`/blog/posts?type=${post.type}&limit=6`, { next: { revalidate: 60 } });
   const related = (relatedData?.posts || []).filter((p) => p.id !== post.id).slice(0, 5);
+  const origin = await siteOrigin();
 
   return (
     <>
       <Header />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(post)) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(post, origin)) }} />
       <article>
         <div className="wrap" style={{ maxWidth: "var(--wrap-post)", margin: "0 auto" }}>
           <div className="small muted font-ui" style={{ marginBottom: "0.5em" }}>

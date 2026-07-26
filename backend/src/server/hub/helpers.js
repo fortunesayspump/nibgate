@@ -450,7 +450,7 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       receiptUrl: input.receiptUrl || null,
       chainId: input.chainId ? String(input.chainId) : null,
       network: input.network || null,
-      amount: Number.parseFloat(input.amount || input.revenue || payload.revenue || '0') || null,
+      amount: Number.parseFloat(input.amount || input.revenue || payload.revenue || input.price || payload.price || input.value || payload.value || '0') || null,
       currency: input.currency || payload.currency || content.currency || null,
       recipientWallet: input.recipient || input.payTo || content.recipientWallet || null,
       status: input.status || 'verified',
@@ -468,7 +468,7 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       receiptUrl: input.receiptUrl || null,
       chainId: input.chainId ? String(input.chainId) : null,
       network: input.network || null,
-      amount: Number.parseFloat(input.amount || input.revenue || payload.revenue || '0') || null,
+      amount: Number.parseFloat(input.amount || input.revenue || payload.revenue || input.price || payload.price || input.value || payload.value || '0') || null,
       currency: input.currency || payload.currency || content.currency || null,
       recipientWallet: input.recipient || input.payTo || content.recipientWallet || null,
       status: input.status || 'verified',
@@ -625,7 +625,7 @@ export async function createMetric(website, content, payload = {}, eventName = '
 
   if (!shouldCreate) return null;
 
-  const revenue = numberOrNull(payload.revenue || payload.amount || payload.value);
+  const revenue = numberOrNull(payload.revenue || payload.amount || payload.value || payload.price);
 
   let metadata;
   try {

@@ -398,7 +398,7 @@ export function registerHubRoutes(app) {
       if (!nextCalled) {
         res.status(statusCode).set(headers).send(body);
       } else {
-        res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network, amount: Number(price || 0), revenue: Number(price || 0), txHash: mwReq.payment?.transaction || '' } });
+        res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network, amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: mwReq.payment?.payer || '', txHash: mwReq.payment?.transaction || '' } });
       }
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });
@@ -412,7 +412,8 @@ export function registerHubRoutes(app) {
 
   const trackHandler = async (req, res) => {
     try {
-      const { siteId, token, event, resource, url, path, visitorId, sessionId, referrer, ...payload } = req.body || {};
+      const { siteId, token, event, resource, url, path, ...payload } = req.body || {};
+      const extras = { referrer: req.body?.referrer || '', visitorId: req.body?.visitorId || '', sessionId: req.body?.sessionId || '' };
       if (!siteId || !token) return res.status(400).json({ error: 'Missing siteId or token.' });
 
       const website = await db.website.findUnique({ where: { id: siteId } });
@@ -424,31 +425,31 @@ export function registerHubRoutes(app) {
 
       const eventName = cleanEventName(event);
       const metricType = eventTypeFor(event);
-      const content = eventName !== 'page_view' ? await upsertTrackedContent(website, { resource, event: eventName, url, path, ...payload }) : null;
+      const content = eventName !== 'page_view' ? await upsertTrackedContent(website, { resource, event: eventName, url, path, ...extras, ...payload }) : null;
 
       if (metricType === 'content' && content) {
-        await createMetric(website, content, { resource, event: eventName, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, 'content');
-        await upsertPublisherIdentity(website, { resource, ...payload });
+        await createMetric(website, content, { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, 'content');
+        await upsertPublisherIdentity(website, { resource, ...extras, ...payload });
       }
       if (['unlock', 'payment'].includes(metricType) && content) {
-        await createMetric(website, content, { resource, event: eventName, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, metricType);
-        await upsertUnlockReceipt(website, content, { resource, event: eventName, ...payload }, eventName);
+        await createMetric(website, content, { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, metricType);
+        await upsertUnlockReceipt(website, content, { resource, event: eventName, ...extras, ...payload }, eventName);
       }
       if (metricType === 'rating' && content) {
         if (payload.paymentMethod === 'onchain' && payload.txHash) {
           const onchain = await upsertOnchainRatingForContent(content, { rater: walletFromPayload(payload), rating: payload.ratingValue }, payload.txHash);
-          if (onchain.ok) await createMetric(website, content, { resource, event: eventName, ...payload }, eventName, 'rating');
+          if (onchain.ok) await createMetric(website, content, { resource, event: eventName, ...extras, ...payload }, eventName, 'rating');
         } else {
-          const rating = await upsertContentRating(website, content, { resource, event: eventName, ...payload }, eventName);
-          if (rating) await createMetric(website, content, { resource, event: eventName, ...payload }, eventName, 'rating');
+          const rating = await upsertContentRating(website, content, { resource, event: eventName, ...extras, ...payload }, eventName);
+          if (rating) await createMetric(website, content, { resource, event: eventName, ...extras, ...payload }, eventName, 'rating');
         }
       }
       if (metricType === 'view') {
-        const viewContent = content || await upsertTrackedContent(website, { resource, event: eventName, url, path, ...payload });
-        await createMetric(website, viewContent, { resource, event: eventName, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, 'view');
+        const viewContent = content || await upsertTrackedContent(website, { resource, event: eventName, url, path, ...extras, ...payload });
+        await createMetric(website, viewContent, { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, 'view');
       }
       if (['time', 'engagement'].includes(metricType) && content) {
-        await createMetric(website, content, { resource, event: eventName, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, metricType);
+        await createMetric(website, content, { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, metricType);
       }
 
       res.json({ success: true });

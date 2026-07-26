@@ -9,7 +9,7 @@ Built on Circle Gateway, ARC testnet, and the x402 protocol.
 **Key packages:**
 
 - **SDK (`packages/nibgate/`)** — `@nibgate/sdk` npm package for gating paid content on any creator site. Browser and server entrypoints, x402/Gateway unlocks, event streaming, onchain ratings.
-- **Subblogs (`blog-app/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts. Next.js frontend, Express backend, PostgreSQL.
+- **Subblogs (`subblogs/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts. Next.js frontend, Express backend, PostgreSQL.
 - **Hub (`frontend/` + `backend/`)** — The main `nibgate.xyz` app: public site, creator dashboard, Explore discovery, analytics, API, and widget hosting.
 - **CLI (`packages/cli/`)** — Internal tooling for local dev, site verification, and hub connection.
 - **Docs (`docs/`)** — Documentation site at docs.nibgate.xyz.
@@ -38,7 +38,7 @@ It consists of four connected parts:
 ```txt
 backend/       Express hub API — payment verification, metrics, site/manifest sync
 frontend/      Next.js hub UI — public site, dashboard, Explore, leaderboards
-blog-app/      Subblogs — full blog platform for creators (Express+Prisma + Next.js)
+subblogs/      Subblogs — full blog platform for creators (Express+Prisma + Next.js)
 packages/      @nibgate/sdk npm package + CLI tooling
 demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz
@@ -55,12 +55,12 @@ The Hub is the main Nibgate app and API surface. It acts as the creator dashboar
 - `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
 - `/api/hub/*` Hub connection, sync, verification, and event ingestion.
 
-### `blog-app/` (Reference Creator Site)
+### `subblogs/` (Subblogs — Creator Blog Platform)
 
 This is an example creator blog with paid content gating. Two services:
 
-- **`blog-app/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after onchain proof verification.
-- **`blog-app/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification.
+- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after onchain proof verification.
+- **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification.
 
 **Critical rule:** The `GET /api/blog/posts/:slug` endpoint strips the `body` from paid posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents content from ever appearing in page source.
 

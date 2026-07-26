@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
     || "http://localhost:3001";
   return {
     title: { default: name, template: `%s · ${name}` },
-    description: data?.site?.description || "Product updates, creator guides, and thinking behind the reputation layer.",
+    description: data?.site?.description || `${name} — a blog on nibgate.xyz. Write, publish, and earn USDC from your content.`,
     metadataBase: new URL(siteUrl),
     alternates: { canonical: "/" },
     robots: { index: true, follow: true },

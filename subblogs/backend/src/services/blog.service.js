@@ -18,7 +18,7 @@ function cleanTags(value) {
 async function listPublished(siteId, options = {}) {
   const { page = 1, limit = 10, tag, type } = options;
   const where = { siteId, status: 'published' };
-  if (tag) where.tag = tag;
+  if (tag) where.tags = { contains: tag, mode: 'insensitive' };
   if (type) where.type = type;
 
   const [posts, total] = await Promise.all([

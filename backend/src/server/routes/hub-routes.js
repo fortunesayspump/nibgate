@@ -89,8 +89,11 @@ export function registerHubRoutes(app) {
       if (existing) return res.json({ success: true, website: serializeWebsite(existing), verifyToken: existing.verifyToken });
 
       const token = hashValue(`${domain}:blog-setup:${Date.now()}:${Math.random()}`).slice(0, 32);
+      let ownerId = '00000000-0000-0000-0000-000000000000';
+      const firstUser = await db.user.findFirst({ orderBy: { createdAt: 'asc' } });
+      if (firstUser) ownerId = firstUser.id;
       const created = await db.website.create({
-        data: { domain: clean, name: name?.trim() || domain, description: description?.trim() || null, ownerId: '00000000-0000-0000-0000-000000000000', verifyToken: token, isVerified: true, verificationStatus: 'verified' },
+        data: { domain: clean, name: name?.trim() || domain, description: description?.trim() || null, ownerId, verifyToken: token, isVerified: true, verificationStatus: 'verified' },
       });
 
       await syncWebsiteManifest(created).catch(() => {});

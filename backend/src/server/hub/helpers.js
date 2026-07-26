@@ -817,11 +817,16 @@ export function serializeContent(content) {
   const metrics = Array.isArray(content.metrics) ? content.metrics : [];
   const ratings = Array.isArray(content.ratings) ? content.ratings : [];
   const unlockReceipts = Array.isArray(content.unlockReceipts) ? content.unlockReceipts : [];
-  const hasAnyReceipt = unlockReceipts.length > 0;
   const hasOnchainProof = unlockReceipts.some((r) => r.txHash && r.txHash.length > 10);
   const views = metrics.filter((metric) => metric.type === 'view').length;
   const unlocks = metrics.filter((metric) => metric.type === 'unlock' && ['resource_unlock', 'unlock_completed', 'unlock'].includes(metric.eventName || metric.type)).length;
-  const revenue = hasOnchainProof ? metrics.reduce((total, metric) => total + (metric.revenue || 0), 0) : hasAnyReceipt ? metrics.reduce((total, metric) => total + (metric.revenue || 0), 0) : metrics.filter((m) => m.revenue < 1000).reduce((total, m) => total + (m.revenue || 0), 0);
+  let revenue = 0;
+  if (hasOnchainProof) {
+    revenue = metrics.reduce((total, metric) => total + (metric.revenue || 0), 0);
+  } else {
+    const smallRevenueMetrics = metrics.filter((m) => m.revenue < 100);
+    revenue = smallRevenueMetrics.reduce((total, m) => total + (m.revenue || 0), 0);
+  }
   const timeEvents = metrics.filter((metric) => metric.durationMs);
   const avgDurationMs = timeEvents.length
     ? Math.round(timeEvents.reduce((total, metric) => total + (metric.durationMs || 0), 0) / timeEvents.length)

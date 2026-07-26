@@ -21,7 +21,7 @@ const tabs: Array<{ id: BoardType; label: string; helper: string }> = [
 ];
 
 function NoRep() {
-  return <span className="inline-flex rounded-full border border-black/10 bg-gray px-3 py-1 text-sm font-medium text-black/55">No rep</span>;
+  return <span className="inline-flex rounded-full border border-dark-gray/40 bg-gray/50 px-3 py-1 text-sm font-medium opacity-60">No rep</span>;
 }
 
 function Stars({ value, ratings = 0 }: { value?: number | null; ratings?: number }) {

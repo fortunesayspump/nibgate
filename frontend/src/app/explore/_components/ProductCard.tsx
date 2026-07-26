@@ -120,7 +120,7 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
   return (
     <article className={`explore-feature-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <figure className="explore-art">
-        <img src={productImage(product)} alt="" loading={priority ? "eager" : "lazy"} fetchpriority={priority ? "high" : undefined} />
+        <img src={productImage(product)} alt="" loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} />
         {product.type === 'Video' && playIcon}
         {product.type === 'Music' && waveform}
       </figure>

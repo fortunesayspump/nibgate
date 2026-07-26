@@ -362,11 +362,12 @@ export function contentDataFor(website, payload = {}, publisher = null) {
   const metadataOnlyPolicy = !accessPolicy && metadataQuality && typeof metadataQuality === 'object' && (metadataQuality.warnings || metadataQuality.errors || metadataQuality.score !== undefined)
     ? { metadataQuality }
     : null;
+  const imgUrl = resource.imageUrl || resource.image || payload.imageUrl || null;
   return {
     externalId,
     title,
     description: resource.description || payload.description || null,
-    imageUrl: resource.imageUrl || resource.image || payload.imageUrl || null,
+    ...(imgUrl ? { imageUrl: imgUrl } : {}),
     contentType,
     tags: tags.join(','),
     url,

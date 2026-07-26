@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
     if (!post) return {};
     const origin = await siteOrigin();
     const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
-    const path = `/${typePath[type] || "posts"}/${slug}`;
+    const path = `/${type}/${slug}`;
     return {
       title: post.title,
       description: post.excerpt || '',

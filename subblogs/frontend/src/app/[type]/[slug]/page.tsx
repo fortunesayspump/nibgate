@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound, headers } from "next/navigation";
+import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import ReactMarkdown from "react-markdown";
 import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";

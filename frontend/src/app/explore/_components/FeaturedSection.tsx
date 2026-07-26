@@ -67,7 +67,7 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
         onScroll={updateActiveIndex}
       >
         {featuredProducts.map((product, i) => (
-          <FeaturedCard key={i} product={product} />
+          <FeaturedCard key={i} product={product} priority={i === 0} />
         ))}
       </div>
     </section>

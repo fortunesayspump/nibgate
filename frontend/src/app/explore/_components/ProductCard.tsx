@@ -114,13 +114,13 @@ function ReputationStars({ stars, ratings = 0 }: { stars?: number | null; rating
   );
 }
 
-export function FeaturedCard({ product }: { product: ExploreProduct }) {
+export function FeaturedCard({ product, priority }: { product: ExploreProduct; priority?: boolean }) {
   const contentType = typeClass(product.type);
 
   return (
     <article className={`explore-feature-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <figure className="explore-art">
-        <img src={productImage(product)} alt="" loading="lazy" />
+        <img src={productImage(product)} alt="" loading={priority ? "eager" : "lazy"} fetchpriority={priority ? "high" : undefined} />
         {product.type === 'Video' && playIcon}
         {product.type === 'Music' && waveform}
       </figure>

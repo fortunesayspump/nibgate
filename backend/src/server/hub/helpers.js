@@ -821,7 +821,7 @@ export function serializeContent(content) {
   const hasOnchainProof = unlockReceipts.some((r) => r.txHash && r.txHash.length > 10);
   const views = metrics.filter((metric) => metric.type === 'view').length;
   const unlocks = metrics.filter((metric) => metric.type === 'unlock' && metric.eventName === 'unlock_completed').length;
-  const revenueMetrics = metrics.filter((m) => m.eventName === 'unlock_completed' || m.eventName === 'payment_completed');
+  const revenueMetrics = metrics.filter((m) => m.eventName === 'unlock_completed');
   let revenue = 0;
   if (hasOnchainProof) {
     revenue = revenueMetrics.reduce((total, metric) => total + (metric.revenue || 0), 0);

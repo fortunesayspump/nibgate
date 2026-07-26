@@ -21,6 +21,20 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(siteUrl),
     alternates: { canonical: "/" },
     robots: { index: true, follow: true },
+    openGraph: {
+      title: name,
+      description: data?.site?.description || `${name} — a blog on nibgate.xyz.`,
+      url: siteUrl,
+      siteName: name,
+      type: "website",
+      images: [{ url: "https://nibgate.xyz/og-image", width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: name,
+      description: data?.site?.description || `${name} — a blog on nibgate.xyz.`,
+      images: ["https://nibgate.xyz/og-image"],
+    },
   };
 }
 

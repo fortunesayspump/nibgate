@@ -153,7 +153,7 @@ export function registerHubRoutes(app) {
             type: 'view', id: v.id, websiteId: v.websiteId,
             actor: v.visitorId || 'anonymous',
             contentId: v.contentId,
-            contentTitle: v.content?.title || 'Unknown content',
+            contentTitle: v.content?.title || (v.url ? v.url.replace(/https?:\/\//, '').slice(0, 60) : 'page view'),
             contentUrl: v.content?.url || v.url || '',
             domain: v.website?.domain || '',
             referrer: v.referrer || null,

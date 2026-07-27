@@ -46,4 +46,24 @@ router.get('/health', (req, res) => {
   res.json({ success: true, env: config.env, timestamp: new Date().toISOString() });
 });
 
+router.post('/sync-hub', async (req, res) => {
+  try {
+    let settings = {};
+    try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
+    const siteId = settings.hubSiteId;
+    const token = settings.hubToken;
+    if (!siteId || !token) return res.status(400).json({ error: 'Blog not linked to hub.' });
+
+    const hubRes = await fetch('https://api.nibgate.xyz/api/hub/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ siteId, token }),
+    });
+    const data = await hubRes.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

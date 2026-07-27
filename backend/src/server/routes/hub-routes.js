@@ -110,6 +110,20 @@ export function registerHubRoutes(app) {
     }
   });
 
+  app.post('/api/hub/sync', async (req, res) => {
+    try {
+      const { siteId, token } = req.body || {};
+      if (!siteId || !token) return res.status(400).json({ error: 'siteId and token required.' });
+      const website = await db.website.findUnique({ where: { id: siteId } });
+      if (!website) return res.status(404).json({ error: 'Website not found.' });
+      if (website.verifyToken !== token) return res.status(403).json({ error: 'Invalid token.' });
+      const result = await syncWebsiteManifest(website);
+      res.json({ success: result.ok, ...result });
+    } catch (error) {
+      res.status(500).json({ error: 'Sync failed', details: error.message });
+    }
+  });
+
   // ── Onchain Rating Sync (admin) ───────────────────────────────────────
 
   app.post('/api/hub/reputation/ratings/sync', async (req, res) => {

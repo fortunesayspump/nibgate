@@ -16,6 +16,7 @@ export default function Header() {
     { label: "Explore", href: "/explore" },
     { label: "Blog", href: "/blog" },
     { label: "Leaderboards", href: "/leaderboards" },
+    { label: "Ledger", href: "/ledger" },
     { label: "About", href: "/about" },
   ];
 

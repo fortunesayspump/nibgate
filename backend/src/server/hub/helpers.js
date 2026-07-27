@@ -116,11 +116,12 @@ export function cleanIp(value = '') {
 
 export function clientIpFor(req) {
   return cleanIp(
-    req.headers['cf-connecting-ip'] ||
-    req.headers['x-real-ip'] ||
-    req.headers['x-forwarded-for'] ||
+    req.headers?.['cf-connecting-ip'] ||
+    req.headers?.['x-real-ip'] ||
+    req.headers?.['x-forwarded-for'] ||
     req.ip ||
     req.socket?.remoteAddress ||
+    (typeof req === 'object' && req !== null ? String(req.ip || req.connection?.remoteAddress || '') : '') ||
     ''
   );
 }

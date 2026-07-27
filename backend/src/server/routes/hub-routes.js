@@ -142,7 +142,7 @@ export function registerHubRoutes(app) {
       // 1. Recent views
       if (!type || type === 'views') {
         const views = await db.metric.findMany({
-          where: { type: 'view', contentId: { not: null } },
+          where: { type: 'view' },
           include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,

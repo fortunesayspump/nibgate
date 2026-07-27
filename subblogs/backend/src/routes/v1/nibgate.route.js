@@ -53,7 +53,7 @@ router.get('/access', async (req, res, next) => {
 
     const access = nibgateServer.accessFor(request, resource);
     if (access.allowed) {
-      return res.json({ ok: true, resource, content: post?.bodyMarkdown || null });
+      return res.json({ ok: true, resource, content: post?.bodyMarkdown || null, videoUrl: post?.videoUrl || null });
     }
     if (access.blocked) {
       return res.status(403).json({ ok: false, error: 'Access blocked' });
@@ -91,7 +91,7 @@ router.get('/access', async (req, res, next) => {
       if (hubData.success) {
         const result = await nibgateServer.unlock(resource, hubData.payment);
         if (result.ok) {
-          return res.json({ ok: true, resource, content: post?.bodyMarkdown || null, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+          return res.json({ ok: true, resource, content: post?.bodyMarkdown || null, videoUrl: post?.videoUrl || null, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
         }
       }
     }

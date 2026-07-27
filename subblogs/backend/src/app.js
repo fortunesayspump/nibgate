@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
@@ -79,7 +80,7 @@ app.get('/', (req, res) => {
   });
 });
 
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api', routes);
 

@@ -128,14 +128,14 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
         </div>
 
         <div className="wrap">
-          {post.coverUrl && (
+          {post.coverUrl && post.type !== "video" && (
             <a href={post.coverUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: "2rem", marginTop: "1rem", borderRadius: "6px", overflow: "hidden" }}>
               <img src={post.coverUrl} alt={post.title} style={{ width: "100%", height: "auto", display: "block", maxHeight: "400px", objectFit: "cover" }} />
             </a>
           )}
 
-          {post.type === "video" && post.videoUrl && (
-            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginBottom: "1.5rem" }}>
+          {post.type === "video" && post.videoUrl && !isPremium && (
+            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginTop: "1.5rem", marginBottom: "1.5rem" }}>
               <iframe src={(() => { const e = detectEmbed(post.videoUrl!); return e.type === "youtube" && e.embedUrl ? e.embedUrl : post.videoUrl; })()} title={post.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }} />
             </div>
           )}

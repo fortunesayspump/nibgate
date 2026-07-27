@@ -24,3 +24,4 @@ packages/nibgate/.npmrc
 # v2 labs (unmaintained experiment)
 v2-labs/
 *.tgz
+writeskill.md

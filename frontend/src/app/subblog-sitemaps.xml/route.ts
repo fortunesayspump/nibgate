@@ -1,11 +1,6 @@
-// Sitemap index listing ALL known Subblogs
+// Sitemap index — lists all Subblogs registered in the hub
+// Google discovers ALL content URLs via all-content-sitemap.xml (linked from robots.txt)
 export const dynamic = "force-dynamic";
-
-const KNOWN_SUBDOMAINS = [
-  "jeff", "fortune", "jedidiah", "benedict", "xwillie", "elite",
-  "shitstories", "blacdany", "thepundit", "madman", "creedreports",
-  "ajayconsult", "blank", "lyricalmusic",
-];
 
 export async function GET() {
   let domains: string[] = [];
@@ -16,7 +11,7 @@ export async function GET() {
     if (data.sites) domains = data.sites;
   } catch {}
 
-  const allDomains = [...new Set([...domains, ...KNOWN_SUBDOMAINS.map((s) => `${s}.nibgate.xyz`)])];
+  const allDomains = [...new Set(domains)];
 
   const sitemaps = allDomains.map((d) => `
   <sitemap>

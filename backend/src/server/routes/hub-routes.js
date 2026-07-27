@@ -125,6 +125,11 @@ export function registerHubRoutes(app) {
   });
 
   // ── Public Ledger / Activity Feed ─────────────────────────────────────
+  // Surfaces ALL verifiable data stored by the widget/SDK:
+  // Views → visitorId, referrer, url, durationMs
+  // Unlocks → visitorId, revenue, content metadata
+  // Payments → paymentId, txHash, chainId, network, payerWallet, recipientWallet, receiptUrl
+  // Ratings → walletAddress, ratingValue, proof, txHash
 
   app.get('/api/hub/ledger', async (req, res) => {
     try {
@@ -138,115 +143,112 @@ export function registerHubRoutes(app) {
       if (!type || type === 'views') {
         const views = await db.metric.findMany({
           where: { type: 'view', contentId: { not: null } },
-          include: { content: { select: { id: true, title: true, url: true } } },
+          include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
         });
         for (const v of views) {
           activities.push({
-            type: 'view',
-            actor: v.visitorId || v.sessionId || 'anonymous',
+            type: 'view', id: v.id, websiteId: v.websiteId,
+            actor: v.visitorId || 'anonymous',
             contentId: v.contentId,
             contentTitle: v.content?.title || 'Unknown content',
             contentUrl: v.content?.url || v.url || '',
-            timestamp: v.createdAt,
-            id: v.id,
-            websiteId: v.websiteId,
+            domain: v.website?.domain || '',
             referrer: v.referrer || null,
+            durationMs: v.durationMs || null,
+            timestamp: v.createdAt,
           });
         }
       }
 
-      // 2. Recent unlocks
+      // 2. Recent unlocks (unlock_completed events stored in Metric)
       if (!type || type === 'unlocks') {
         const unlocks = await db.metric.findMany({
           where: { eventName: 'unlock_completed', contentId: { not: null } },
-          include: { content: { select: { id: true, title: true, url: true, price: true, currency: true } } },
+          include: { content: { select: { id: true, title: true, url: true, price: true, currency: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
         });
         for (const u of unlocks) {
           activities.push({
-            type: 'unlock',
+            type: 'unlock', id: u.id, websiteId: u.websiteId,
             actor: u.visitorId || u.sessionId || 'user',
             contentId: u.contentId,
             contentTitle: u.content?.title || 'Unknown content',
             contentUrl: u.content?.url || u.url || '',
-            price: u.revenue || u.content?.price || 0,
-            currency: u.currency || u.content?.currency || 'USDC',
-            timestamp: u.createdAt,
-            id: u.id,
-            websiteId: u.websiteId,
+            domain: u.website?.domain || '',
             revenue: u.revenue || 0,
+            currency: u.currency || 'USDC',
+            timestamp: u.createdAt,
           });
         }
       }
 
-      // 3. Recent payments with on-chain tx
+      // 3. Recent payments (UnlockReceipt — full verifiable trail)
       if (!type || type === 'payments') {
         const payments = await db.unlockReceipt.findMany({
-          where: { txHash: { not: null }, txHash: { not: '' } },
-          include: { content: { select: { id: true, title: true, url: true } } },
+          include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
         });
         for (const p of payments) {
           activities.push({
-            type: 'payment',
+            type: 'payment', id: p.id, websiteId: p.websiteId,
             actor: p.payerWallet || p.actor || 'wallet',
             contentId: p.contentId,
             contentTitle: p.content?.title || 'Unknown content',
             contentUrl: p.content?.url || '',
-            price: p.amount || 0,
+            domain: p.website?.domain || '',
+            amount: p.amount || 0,
             currency: p.currency || 'USDC',
             timestamp: p.createdAt,
-            id: p.id,
-            websiteId: p.websiteId,
-            txHash: p.txHash,
+            // Verifiable payment fields
             paymentId: p.paymentId,
-            paymentProvider: p.paymentProvider,
-            chainId: p.chainId,
-            network: p.network,
+            txHash: p.txHash || null,
+            chainId: p.chainId || null,
+            network: p.network || null,
+            paymentProvider: p.paymentProvider || null,
             receiptUrl: p.receiptUrl || null,
-            recipientWallet: p.recipientWallet || null,
             payerWallet: p.payerWallet || null,
+            recipientWallet: p.recipientWallet || null,
+            status: p.status || 'verified',
           });
         }
       }
 
-      // 4. Recent ratings
+      // 4. Recent ratings (ContentRating with proofs)
       if (!type || type === 'ratings') {
         const ratings = await db.contentRating.findMany({
           where: { status: 'accepted' },
-          include: { content: { select: { id: true, title: true, url: true } } },
+          include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
         });
         for (const r of ratings) {
           activities.push({
-            type: 'rating',
+            type: 'rating', id: r.id, websiteId: r.websiteId,
             actor: r.walletAddress || r.actor || 'user',
             contentId: r.contentId,
             contentTitle: r.content?.title || 'Unknown content',
             contentUrl: r.content?.url || '',
+            domain: r.website?.domain || '',
             score: Math.round((r.ratingValue || 0) / 10),
             timestamp: r.createdAt,
-            id: r.id,
-            websiteId: r.websiteId,
+            // Verifiable rating fields
+            walletAddress: r.walletAddress || null,
             txHash: r.txHash || null,
             proofType: r.proofType || null,
             proof: r.proof || null,
-            walletAddress: r.walletAddress || null,
-            timestamp: r.createdAt,
           });
         }
       }
 
-      // Sort all by timestamp desc, then limit
+      // Sort all by timestamp desc, cap at limit
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const result = activities.slice(0, limit);
 

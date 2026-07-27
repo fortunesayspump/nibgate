@@ -10,13 +10,18 @@ type Activity = {
   contentTitle: string;
   contentUrl: string;
   contentId: string;
-  price?: number;
-  currency?: string;
-  score?: number;
   timestamp: string;
   id: string;
   websiteId?: string;
-  // Payment fields
+  domain?: string;
+  currency?: string;
+  // View
+  referrer?: string;
+  durationMs?: number;
+  // Unlock
+  revenue?: number;
+  // Payment
+  amount?: number;
   txHash?: string;
   paymentId?: string;
   paymentProvider?: string;
@@ -25,13 +30,12 @@ type Activity = {
   receiptUrl?: string;
   recipientWallet?: string;
   payerWallet?: string;
-  revenue?: number;
-  // Rating fields
+  status?: string;
+  // Rating
+  score?: number;
+  walletAddress?: string;
   proofType?: string;
   proof?: string;
-  walletAddress?: string;
-  // View fields
-  referrer?: string;
 };
 
 const TYPE_ICONS: Record<string, string> = {
@@ -148,46 +152,53 @@ export default function LedgerPage() {
                       <span className="text-yellow-500"> {"★".repeat(a.score)}{"☆".repeat(5 - a.score)}</span>
                     )}
                   </p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-[var(--nib-ink-soft)]">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-[var(--nib-ink-soft)] font-mono">
                     <span>{timeAgo(a.timestamp)}</span>
-                    {a.actor && a.actor.length > 20 && (
-                      <span title={a.actor}>actor: {a.actor.slice(0, 10)}...{a.actor.slice(-6)}</span>
-                    )}
+                    {a.domain && <span>{a.domain}</span>}
+                    {a.id && <span title={a.id}>#{a.id.slice(0, 8)}</span>}
+
+                    {a.type === "view" && a.referrer && <span title={a.referrer}>ref: {a.referrer.slice(0, 30)}</span>}
+                    {a.type === "view" && a.durationMs && <span>{(a.durationMs / 1000).toFixed(0)}s</span>}
+
+                    {a.type === "unlock" && a.revenue && <span>{a.revenue} {a.currency}</span>}
+
                     {a.type === "payment" && (
                       <>
+                        <span>{a.amount} {a.currency}</span>
                         {a.txHash && (
                           <a href={blockExplorerUrl(a.txHash)} target="_blank" rel="noopener noreferrer"
                              className="underline underline-offset-2 hover:text-[var(--nib-olive)]"
-                             title={`Chain: ${a.chainId || "?"} | Network: ${a.network || "?"} | Provider: ${a.paymentProvider || "?"}`}>
+                             title={`Chain: ${a.chainId || "?"} | Provider: ${a.paymentProvider || "?"}`}>
                             tx {a.txHash.slice(0, 8)}...{a.txHash.slice(-4)}
                           </a>
                         )}
-                        {a.paymentId && <span title={`Payment ID: ${a.paymentId}`}>pid: {a.paymentId.slice(0, 8)}...</span>}
-                        {a.network && <span>{a.network}</span>}
-                        {a.recipientWallet && (
-                          <span title={`Recipient: ${a.recipientWallet}`}>
-                            → {a.recipientWallet.slice(0, 6)}...{a.recipientWallet.slice(-4)}
-                          </span>
+                        {a.paymentId && <span title={a.paymentId}>pid: {a.paymentId.slice(0, 8)}...</span>}
+                        {a.network && <span title={`Chain: ${a.chainId}`}>{a.network.replace("eip155:", "")}</span>}
+                        {a.payerWallet && (
+                          <span title={`Payer: ${a.payerWallet}`}>from: {a.payerWallet.slice(0, 6)}...{a.payerWallet.slice(-4)}</span>
                         )}
+                        {a.recipientWallet && (
+                          <span title={`Recipient: ${a.recipientWallet}`}>to: {a.recipientWallet.slice(0, 6)}...{a.recipientWallet.slice(-4)}</span>
+                        )}
+                        {a.status && <span>{a.status}</span>}
                       </>
                     )}
+
                     {a.type === "rating" && (
                       <>
+                        <span className="text-yellow-500">{"★".repeat(a.score || 0)}</span>
+                        {a.walletAddress && (
+                          <span title={`Wallet: ${a.walletAddress}`}>{a.walletAddress.slice(0, 6)}...{a.walletAddress.slice(-4)}</span>
+                        )}
                         {a.txHash && (
                           <a href={blockExplorerUrl(a.txHash)} target="_blank" rel="noopener noreferrer"
                              className="underline underline-offset-2 hover:text-[var(--nib-olive)]">
                             tx {a.txHash.slice(0, 8)}...{a.txHash.slice(-4)}
                           </a>
                         )}
-                        {a.proofType && <span>proof: {a.proofType}</span>}
-                        {a.walletAddress && (
-                          <span title={`Wallet: ${a.walletAddress}`}>
-                            {a.walletAddress.slice(0, 6)}...{a.walletAddress.slice(-4)}
-                          </span>
-                        )}
+                        {a.proof && <span title={a.proof}>proof: {a.proof.slice(0, 12)}...</span>}
                       </>
                     )}
-                    {a.id && <span className="font-mono opacity-50">#{a.id.slice(0, 8)}</span>}
                   </div>
                 </div>
               </div>
@@ -196,7 +207,7 @@ export default function LedgerPage() {
         )}
 
         <p className="mt-8 text-xs text-[var(--nib-ink-soft)] text-center max-w-xl mx-auto leading-relaxed">
-          Ledger auto-refreshes every 30 seconds. All payments include on-chain tx hashes, payment IDs, and wallet addresses — fully verifiable on the Arc Testnet block explorer. Ratings include on-chain proofs where available. Every entry has a unique ID for cross-referencing.
+          Every entry has a unique ID. Payments show on-chain tx hashes (linked to Arc Testnet explorer), payment IDs, chain/network, payer and recipient wallets. Ratings show wallet address, score, and proof type. View events show visitor fingerprint and referrer. All data is stored permanently — fully verifiable and cross-referencable.
         </p>
       </main>
     </>

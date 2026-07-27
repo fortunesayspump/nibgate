@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import Link from "next/link";
 
 type Activity = {
@@ -15,12 +16,9 @@ type Activity = {
   websiteId?: string;
   domain?: string;
   currency?: string;
-  // View
   referrer?: string;
   durationMs?: number;
-  // Unlock
   revenue?: number;
-  // Payment
   amount?: number;
   txHash?: string;
   paymentId?: string;
@@ -31,43 +29,34 @@ type Activity = {
   recipientWallet?: string;
   payerWallet?: string;
   status?: string;
-  // Rating
   score?: number;
   walletAddress?: string;
   proofType?: string;
   proof?: string;
 };
 
-const TYPE_ICONS: Record<string, string> = {
-  view: "👁",
-  unlock: "🔓",
-  payment: "💳",
-  rating: "⭐",
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  view: "viewed",
-  unlock: "unlocked",
-  payment: "paid for",
-  rating: "rated",
-};
+const TYPE_ICONS: Record<string, string> = { view: "👁", unlock: "🔓", payment: "💳", rating: "⭐" };
 
 function timeAgo(date: string) {
   const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
 }
 
 function blockExplorerUrl(txHash: string) {
   return `https://testnet.arc.io/tx/${txHash}`;
 }
 
+function shorten(s: string, len = 8) {
+  return s.length > len + 4 ? `${s.slice(0, len)}...${s.slice(-4)}` : s;
+}
+
 export default function LedgerPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("");
+  const [filter, setFilter] = useState("");
 
   const fetchLedger = useCallback(async () => {
     try {
@@ -89,127 +78,104 @@ export default function LedgerPage() {
   return (
     <>
       <Header />
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Network Ledger</h1>
-          <p className="text-[var(--nib-ink-soft)]">
-            Live activity across the Nibgate network — views, unlocks, payments, and ratings.
-          </p>
-        </div>
+      <div className="explore-page-shell">
+        <main className="explore-body explore-main" role="main">
+          <div className="explore-content">
+            <div className="explore-header">
+              <h1 className="explore-title">Network Ledger</h1>
+              <p className="explore-subtitle">
+                Live activity across the Nibgate network — every view, unlock, payment, and rating is recorded with verifiable proofs.
+              </p>
+            </div>
 
-        {/* Filters */}
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {["", "views", "unlocks", "payments", "ratings"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setFilter(t)}
-              className={`px-4 py-1.5 rounded-full text-sm border transition ${
-                filter === t
-                  ? "bg-[var(--nib-olive)] text-black border-[var(--nib-olive)]"
-                  : "bg-transparent text-[var(--nib-ink)] border-[var(--nib-border-soft)] hover:border-[var(--nib-olive)]"
-              }`}
-            >
-              {t || "All"}
-            </button>
-          ))}
-        </div>
+            <div className="flex gap-2 mb-6 flex-wrap">
+              {["", "views", "unlocks", "payments", "ratings"].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setFilter(t)}
+                  className={`px-3 py-1 rounded text-xs font-medium border transition ${
+                    filter === t
+                      ? "bg-[var(--nib-olive)] text-black border-[var(--nib-olive)]"
+                      : "bg-transparent text-[var(--nib-ink)] border-[var(--nib-border-soft)] hover:border-[var(--nib-olive)]"
+                  }`}
+                >
+                  {t || "All"}
+                </button>
+              ))}
+            </div>
 
-        {/* Activity Feed */}
-        {loading ? (
-          <p className="text-[var(--nib-ink-soft)]">Loading...</p>
-        ) : activities.length === 0 ? (
-          <p className="text-[var(--nib-ink-soft)]">No activity yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {activities.map((a, i) => (
-              <div
-                key={`${a.type}-${a.timestamp}-${i}`}
-                className="flex items-start gap-3 p-4 rounded-lg border border-[var(--nib-border-soft)] bg-[var(--nib-surface)]"
-              >
-                <span className="text-xl mt-0.5">{TYPE_ICONS[a.type]}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm">
-                    <span className="font-medium">{a.actor}</span>{" "}
-                    <span className="text-[var(--nib-ink-soft)]">{TYPE_LABELS[a.type]}</span>{" "}
-                    <Link
-                      href={a.contentUrl || "#"}
-                      className="font-medium underline underline-offset-2 decoration-[var(--nib-border-soft)] hover:decoration-[var(--nib-olive)]"
-                      target="_blank"
-                    >
-                      {a.contentTitle}
-                    </Link>
-                    {a.type === "unlock" && a.price && (
-                      <span className="text-[var(--nib-ink-soft)]">
-                        {" "}for {a.price} {a.currency}
-                      </span>
-                    )}
-                    {a.type === "payment" && a.price && (
-                      <span className="text-[var(--nib-ink-soft)]">
-                        {" "}{a.price} {a.currency}
-                      </span>
-                    )}
-                    {a.type === "rating" && a.score && (
-                      <span className="text-yellow-500"> {"★".repeat(a.score)}{"☆".repeat(5 - a.score)}</span>
-                    )}
-                  </p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-[var(--nib-ink-soft)] font-mono">
-                    <span>{timeAgo(a.timestamp)}</span>
-                    {a.domain && <span>{a.domain}</span>}
-                    {a.id && <span title={a.id}>#{a.id.slice(0, 8)}</span>}
-
-                    {a.type === "view" && a.referrer && <span title={a.referrer}>ref: {a.referrer.slice(0, 30)}</span>}
-                    {a.type === "view" && a.durationMs && <span>{(a.durationMs / 1000).toFixed(0)}s</span>}
-
-                    {a.type === "unlock" && a.revenue && <span>{a.revenue} {a.currency}</span>}
-
-                    {a.type === "payment" && (
-                      <>
-                        <span>{a.amount} {a.currency}</span>
-                        {a.txHash && (
-                          <a href={blockExplorerUrl(a.txHash)} target="_blank" rel="noopener noreferrer"
-                             className="underline underline-offset-2 hover:text-[var(--nib-olive)]"
-                             title={`Chain: ${a.chainId || "?"} | Provider: ${a.paymentProvider || "?"}`}>
-                            tx {a.txHash.slice(0, 8)}...{a.txHash.slice(-4)}
-                          </a>
-                        )}
-                        {a.paymentId && <span title={a.paymentId}>pid: {a.paymentId.slice(0, 8)}...</span>}
-                        {a.network && <span title={`Chain: ${a.chainId}`}>{a.network.replace("eip155:", "")}</span>}
-                        {a.payerWallet && (
-                          <span title={`Payer: ${a.payerWallet}`}>from: {a.payerWallet.slice(0, 6)}...{a.payerWallet.slice(-4)}</span>
-                        )}
-                        {a.recipientWallet && (
-                          <span title={`Recipient: ${a.recipientWallet}`}>to: {a.recipientWallet.slice(0, 6)}...{a.recipientWallet.slice(-4)}</span>
-                        )}
-                        {a.status && <span>{a.status}</span>}
-                      </>
-                    )}
-
-                    {a.type === "rating" && (
-                      <>
-                        <span className="text-yellow-500">{"★".repeat(a.score || 0)}</span>
-                        {a.walletAddress && (
-                          <span title={`Wallet: ${a.walletAddress}`}>{a.walletAddress.slice(0, 6)}...{a.walletAddress.slice(-4)}</span>
-                        )}
-                        {a.txHash && (
-                          <a href={blockExplorerUrl(a.txHash)} target="_blank" rel="noopener noreferrer"
-                             className="underline underline-offset-2 hover:text-[var(--nib-olive)]">
-                            tx {a.txHash.slice(0, 8)}...{a.txHash.slice(-4)}
-                          </a>
-                        )}
-                        {a.proof && <span title={a.proof}>proof: {a.proof.slice(0, 12)}...</span>}
-                      </>
-                    )}
-                  </div>
-                </div>
+            {loading ? (
+              <p className="text-[var(--nib-ink-soft)] text-sm">Loading...</p>
+            ) : activities.length === 0 ? (
+              <p className="text-[var(--nib-ink-soft)] text-sm">No activity yet.</p>
+            ) : (
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[var(--nib-ink-soft)] text-xs uppercase tracking-wider">
+                      <th className="pb-3 pr-3 font-medium">Type</th>
+                      <th className="pb-3 pr-3 font-medium">Time</th>
+                      <th className="pb-3 pr-3 font-medium">Content</th>
+                      <th className="pb-3 pr-3 font-medium">Actor</th>
+                      <th className="pb-3 pr-3 font-medium">Value</th>
+                      <th className="pb-3 pr-3 font-medium">Proof</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activities.map((a, i) => (
+                      <tr key={`${a.id}-${i}`} className="border-t border-[var(--nib-border-soft)] hover:bg-[var(--nib-surface)] transition-colors">
+                        <td className="py-3 pr-3 whitespace-nowrap">
+                          <span title={a.type}>{TYPE_ICONS[a.type]}</span>
+                        </td>
+                        <td className="py-3 pr-3 whitespace-nowrap text-[var(--nib-ink-soft)] font-mono text-xs">
+                          {timeAgo(a.timestamp)}
+                        </td>
+                        <td className="py-3 pr-3 min-w-[200px]">
+                          <Link href={a.contentUrl || "#"} target="_blank" className="underline underline-offset-2 decoration-[var(--nib-border-soft)] hover:decoration-[var(--nib-olive)]">
+                            {a.contentTitle.length > 40 ? `${a.contentTitle.slice(0, 40)}...` : a.contentTitle}
+                          </Link>
+                          <div className="text-[var(--nib-ink-soft)] text-xs font-mono mt-0.5">
+                            {a.domain && <span>{a.domain}</span>}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 whitespace-nowrap font-mono text-xs" title={a.actor}>
+                          {a.actor.length > 20 ? shorten(a.actor) : a.actor}
+                        </td>
+                        <td className="py-3 pr-3 whitespace-nowrap font-mono text-xs">
+                          {a.type === "payment" && <span>{a.amount} {a.currency}</span>}
+                          {a.type === "unlock" && a.revenue ? <span>{a.revenue} {a.currency}</span> : null}
+                          {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
+                          {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
+                        </td>
+                        <td className="py-3 pr-3 whitespace-nowrap font-mono text-xs">
+                          {a.txHash ? (
+                            <a href={blockExplorerUrl(a.txHash)} target="_blank" rel="noopener noreferrer"
+                               className="underline underline-offset-2 text-[var(--nib-olive)]"
+                               title={`Chain: ${a.chainId || "?"} | ${a.network || ""}`}>
+                              tx {shorten(a.txHash, 6)}
+                            </a>
+                          ) : a.paymentId ? (
+                            <span title={a.paymentId}>pid {shorten(a.paymentId, 6)}</span>
+                          ) : a.proof ? (
+                            <span title={a.proof}>{shorten(a.proof, 10)}</span>
+                          ) : a.id ? (
+                            <span className="text-[var(--nib-ink-soft)]" title={a.id}>#{shorten(a.id, 4)}</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        <p className="mt-8 text-xs text-[var(--nib-ink-soft)] text-center max-w-xl mx-auto leading-relaxed">
-          Every entry has a unique ID. Payments show on-chain tx hashes (linked to Arc Testnet explorer), payment IDs, chain/network, payer and recipient wallets. Ratings show wallet address, score, and proof type. View events show visitor fingerprint and referrer. All data is stored permanently — fully verifiable and cross-referencable.
-        </p>
-      </main>
+            <p className="mt-8 text-xs text-[var(--nib-ink-soft)] text-center max-w-lg mx-auto leading-relaxed">
+              Every entry has a unique ID. Payments show on-chain tx hashes (Arc Testnet). Ratings show signed or on-chain proofs. All data is permanently stored — fully verifiable and cross-referencable.
+            </p>
+          </div>
+        </main>
+        <Footer showThemeToggle={true} />
+      </div>
     </>
   );
 }

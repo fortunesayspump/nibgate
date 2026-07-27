@@ -128,12 +128,16 @@ router.get('/manifest', async (req, res, next) => {
 
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
 
+    const forwardedHost = req.get('x-forwarded-host') || '';
+    const origin = forwardedHost ? `https://${forwardedHost}` : `https://${req.subdomain}.nibgate.xyz`;
+
     const manifest = {
       name: req.site.name,
-      origin: `${req.protocol}://${req.get('host')}`,
+      origin,
       content: posts.map((post) => {
         const t = post.type || 'article';
         const isPaid = !!post.price && post.price !== '0';
+        const path = `/${typePath[t] || 'posts'}/${post.slug}`;
         return {
           id: post.id,
           title: post.title,
@@ -141,8 +145,8 @@ router.get('/manifest', async (req, res, next) => {
           type: t,
           price: isPaid ? post.price : null,
           currency: 'USDC',
-          path: `/${typePath[t] || 'posts'}/${post.slug}`,
-          url: `${req.protocol}://${req.get('host')}/${typePath[t] || 'posts'}/${post.slug}`,
+          path,
+          url: `${origin}${path}`,
           tags: (post.tags || '').split(',').filter(Boolean),
           imageUrl: post.coverUrl || post.imageUrl || null,
           access: isPaid ? { humans: 'paid', agents: 'paid' } : { humans: 'free', agents: 'free' },

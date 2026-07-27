@@ -88,7 +88,8 @@ a.plain, a.muted { text-decoration: none; }
 .list-plain { list-style: none; padding: 0; margin: 0; padding-inline-start: 0; margin-left: 0; }
 .block { display: block; }
 flex { display: flex; }
-.type-icon { opacity: 0.5; margin-right: 0.4em; display: inline-flex; vertical-align: middle; }
+.type-icon { opacity: 0.5; margin-right: 0.4em; display: inline-flex; vertical-align: middle; flex-shrink: 0; }
+.type-icon svg { width: 20px; height: 20px; }
 .section-header { margin-bottom: 1.5rem; }
 
 @media (max-width: 600px) {

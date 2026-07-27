@@ -8,7 +8,7 @@ import NibgateUnlock from "@/components/NibgateUnlock";
 import ReputationRating from "@/components/ReputationRating";
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
-import { fd, rd, cleanText } from "@/lib/utils";
+import { fd, rd } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
 const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };

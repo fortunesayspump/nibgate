@@ -122,26 +122,32 @@ router.get('/access', async (req, res, next) => {
 router.get('/manifest', async (req, res, next) => {
   try {
     const posts = await prisma.blogPost.findMany({
-      where: { siteId: req.siteId, status: 'published', price: { not: null } },
+      where: { siteId: req.siteId, status: 'published' },
       orderBy: [{ publishedAt: 'desc' }],
     });
+
+    const typePath: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
 
     const manifest = {
       name: req.site.name,
       origin: `${req.protocol}://${req.get('host')}`,
-      content: posts.map((post) => ({
-        id: post.id,
-        title: post.title,
-        summary: post.excerpt || '',
-        type: 'article',
-        price: post.price,
-        currency: 'USDC',
-        path: `/posts/${post.slug}`,
-        url: `${req.protocol}://${req.get('host')}/posts/${post.slug}`,
-        tags: (post.tags || '').split(',').filter(Boolean),
-        access: { humans: 'paid', agents: 'paid' },
-        unlock: { mode: 'one_time' },
-      })),
+      content: posts.map((post) => {
+        const t = post.type || 'article';
+        const isPaid = !!post.price && post.price !== '0';
+        return {
+          id: post.id,
+          title: post.title,
+          summary: post.excerpt || '',
+          type: t,
+          price: isPaid ? post.price : null,
+          currency: 'USDC',
+          path: `/${typePath[t] || 'posts'}/${post.slug}`,
+          url: `${req.protocol}://${req.get('host')}/${typePath[t] || 'posts'}/${post.slug}`,
+          tags: (post.tags || '').split(',').filter(Boolean),
+          access: isPaid ? { humans: 'paid', agents: 'paid' } : { humans: 'free', agents: 'free' },
+          ...(isPaid ? { unlock: { mode: 'one_time' } } : {}),
+        };
+      }),
     };
 
     res.json(manifest);

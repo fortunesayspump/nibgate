@@ -146,11 +146,14 @@ export function registerHubRoutes(app) {
         for (const v of views) {
           activities.push({
             type: 'view',
-            actor: v.visitorId?.slice(0, 10) || 'anonymous',
+            actor: v.visitorId || v.sessionId || 'anonymous',
             contentId: v.contentId,
             contentTitle: v.content?.title || 'Unknown content',
             contentUrl: v.content?.url || v.url || '',
             timestamp: v.createdAt,
+            id: v.id,
+            websiteId: v.websiteId,
+            referrer: v.referrer || null,
           });
         }
       }
@@ -167,13 +170,16 @@ export function registerHubRoutes(app) {
         for (const u of unlocks) {
           activities.push({
             type: 'unlock',
-            actor: u.visitorId?.slice(0, 10) || 'user',
+            actor: u.visitorId || u.sessionId || 'user',
             contentId: u.contentId,
             contentTitle: u.content?.title || 'Unknown content',
             contentUrl: u.content?.url || u.url || '',
             price: u.revenue || u.content?.price || 0,
             currency: u.currency || u.content?.currency || 'USDC',
             timestamp: u.createdAt,
+            id: u.id,
+            websiteId: u.websiteId,
+            revenue: u.revenue || 0,
           });
         }
       }
@@ -190,16 +196,23 @@ export function registerHubRoutes(app) {
         for (const p of payments) {
           activities.push({
             type: 'payment',
-            actor: p.payerWallet
-              ? `${p.payerWallet.slice(0, 6)}...${p.payerWallet.slice(-4)}`
-              : p.actor?.slice(0, 10) || 'wallet',
+            actor: p.payerWallet || p.actor || 'wallet',
             contentId: p.contentId,
             contentTitle: p.content?.title || 'Unknown content',
             contentUrl: p.content?.url || '',
             price: p.amount || 0,
             currency: p.currency || 'USDC',
-            txHash: p.txHash,
             timestamp: p.createdAt,
+            id: p.id,
+            websiteId: p.websiteId,
+            txHash: p.txHash,
+            paymentId: p.paymentId,
+            paymentProvider: p.paymentProvider,
+            chainId: p.chainId,
+            network: p.network,
+            receiptUrl: p.receiptUrl || null,
+            recipientWallet: p.recipientWallet || null,
+            payerWallet: p.payerWallet || null,
           });
         }
       }
@@ -216,14 +229,18 @@ export function registerHubRoutes(app) {
         for (const r of ratings) {
           activities.push({
             type: 'rating',
-            actor: r.walletAddress
-              ? `${r.walletAddress.slice(0, 6)}...${r.walletAddress.slice(-4)}`
-              : 'user',
+            actor: r.walletAddress || r.actor || 'user',
             contentId: r.contentId,
             contentTitle: r.content?.title || 'Unknown content',
             contentUrl: r.content?.url || '',
             score: Math.round((r.ratingValue || 0) / 10),
-            txHash: r.txHash || undefined,
+            timestamp: r.createdAt,
+            id: r.id,
+            websiteId: r.websiteId,
+            txHash: r.txHash || null,
+            proofType: r.proofType || null,
+            proof: r.proof || null,
+            walletAddress: r.walletAddress || null,
             timestamp: r.createdAt,
           });
         }

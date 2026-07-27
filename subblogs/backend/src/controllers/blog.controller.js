@@ -11,11 +11,12 @@ function transformTags(post) {
 }
 
 const list = catchAsync(async (req, res) => {
-  const { page, limit, tag } = req.query;
+  const { page, limit, tag, type } = req.query;
   const result = await blogService.listPublished(req.siteId, {
     page: parseInt(page) || 1,
     limit: Math.min(parseInt(limit) || 10, 50),
     tag,
+    type,
   });
   res.json({ success: true, ...result, posts: result.posts.map(transformTags) });
 });

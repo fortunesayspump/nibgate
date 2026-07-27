@@ -126,7 +126,7 @@ router.get('/manifest', async (req, res, next) => {
       orderBy: [{ publishedAt: 'desc' }],
     });
 
-    const typePath: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
 
     const manifest = {
       name: req.site.name,

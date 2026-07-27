@@ -1,6 +1,11 @@
-// Sitemap index — only lists Subblogs registered with the hub
-// Users must register their site in the hub dashboard to appear here
+// Sitemap index listing ALL known Subblogs
 export const dynamic = "force-dynamic";
+
+const KNOWN_SUBDOMAINS = [
+  "jeff", "fortune", "jedidiah", "benedict", "xwillie", "elite",
+  "shitstories", "blacdany", "thepundit", "madman", "creedreports",
+  "ajayconsult", "blank", "lyricalmusic",
+];
 
 export async function GET() {
   let domains: string[] = [];
@@ -11,7 +16,9 @@ export async function GET() {
     if (data.sites) domains = data.sites;
   } catch {}
 
-  const sitemaps = [...new Set(domains)].map((d) => `
+  const allDomains = [...new Set([...domains, ...KNOWN_SUBDOMAINS.map((s) => `${s}.nibgate.xyz`)])];
+
+  const sitemaps = allDomains.map((d) => `
   <sitemap>
     <loc>https://${d}/sitemap.xml</loc>
   </sitemap>`).join("");

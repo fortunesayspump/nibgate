@@ -672,11 +672,13 @@ export function registerHubRoutes(app) {
 
       const serialized = content.map(serializeContent);
       const sorted = serialized.sort((a, b) => {
+        const va = a.websiteVerified ? 1 : 0;
+        const vb = b.websiteVerified ? 1 : 0;
         const imgA = a.imageUrl ? 1 : 0;
         const imgB = b.imageUrl ? 1 : 0;
-        if (sort === 'best-sellers') return (imgB - imgA) || (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
-        if (sort === 'hot-new') return (imgB - imgA) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        return (imgB - imgA) || (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
+        if (sort === 'best-sellers') return (vb - va) || (imgB - imgA) || (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
+        if (sort === 'hot-new') return (vb - va) || (imgB - imgA) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (vb - va) || (imgB - imgA) || (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
       });
 
       res.json({ success: true, content: sorted, total, limit, skip });

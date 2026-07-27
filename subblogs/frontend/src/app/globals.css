@@ -91,7 +91,6 @@ flex { display: flex; }
 .type-icon { opacity: 0.5; margin-right: 0.4em; display: inline-flex; vertical-align: middle; }
 .section-header { margin-bottom: 1.5rem; }
 
-
 @media (max-width: 600px) {
   .mh { display: none; }
 }
@@ -198,6 +197,33 @@ main > hr { margin: 4em 0; }
 nav { margin: 0 auto 3.5em; width: var(--wrap-normal); max-width: var(--wrap-wide); }
 main { margin-left: auto; margin-right: auto; }
 .prose { line-height: 1.6; }
+
+.desktop-nav { display: inline-flex; align-items: center; }
+.mobile-hamburger { display: none; }
+.hamburger-btn { background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: flex; align-items: center; }
+.hamburger-btn:hover { color: var(--fg); }
+
+@media (max-width: 600px) {
+  .hide-mobile { display: none !important; }
+  .desktop-nav { display: none !important; }
+  .mobile-hamburger { display: inline-flex; align-items: center; }
+}
+
+.mobile-menu-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.3);
+}
+.mobile-menu {
+  position: fixed; top: 0; right: 0; width: 240px; height: 100%;
+  background: var(--bg); border-left: 1px solid var(--border);
+  padding: 72px 20px 20px;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.mobile-menu-item {
+  display: block; padding: 10px 12px; border-radius: 6px;
+  font-size: 16px; cursor: pointer; color: var(--fg);
+}
+.mobile-menu-item:hover { background: var(--surface); }
 
 @import "prosemirror-virtual-cursor/style/virtual-cursor.css";
 

@@ -48,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link rel="icon" href="/favicon.ico" sizes="32x32" />
-        <link rel="icon" href="/nibgate-mark.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.png" type="image/png" sizes="512x512" />
         <link rel="apple-touch-icon" href="/nibgate-mark.svg" />
         <script dangerouslySetInnerHTML={{
           __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`

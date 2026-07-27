@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     images: ["https://docs.nibgate.xyz/og-image"],
   },
   icons: {
-    icon: "/brand/nibgate-mark.svg",
+    icon: "/favicon.png",
     shortcut: "/brand/nibgate-mark.svg",
     apple: "/brand/nibgate-mark.svg",
   },

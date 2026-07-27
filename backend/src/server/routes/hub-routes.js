@@ -332,7 +332,7 @@ export function registerHubRoutes(app) {
       if (!website || website.verifyToken !== token) return res.status(403).json({ error: 'Invalid site credentials.' });
       if (website.deletedAt) return res.status(410).json({ error: 'This site has been removed.' });
 
-      const rateCheck = checkTrackingRateLimit(siteId, req, visitorId || '');
+      const rateCheck = checkTrackingRateLimit(siteId, req, extras.visitorId);
       if (!rateCheck.ok) return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rateCheck.retryAfter });
 
       const eventName = cleanEventName(event);

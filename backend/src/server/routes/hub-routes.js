@@ -124,6 +124,121 @@ export function registerHubRoutes(app) {
     }
   });
 
+  // ── Public Ledger / Activity Feed ─────────────────────────────────────
+
+  app.get('/api/hub/ledger', async (req, res) => {
+    try {
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '50', 10) || 50, 1), 100);
+      const offset = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
+      const type = String(req.query.type || '').trim().toLowerCase();
+
+      const activities = [];
+
+      // 1. Recent views
+      if (!type || type === 'views') {
+        const views = await db.metric.findMany({
+          where: { type: 'view', contentId: { not: null } },
+          include: { content: { select: { id: true, title: true, url: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        });
+        for (const v of views) {
+          activities.push({
+            type: 'view',
+            actor: v.visitorId?.slice(0, 10) || 'anonymous',
+            contentId: v.contentId,
+            contentTitle: v.content?.title || 'Unknown content',
+            contentUrl: v.content?.url || v.url || '',
+            timestamp: v.createdAt,
+          });
+        }
+      }
+
+      // 2. Recent unlocks
+      if (!type || type === 'unlocks') {
+        const unlocks = await db.metric.findMany({
+          where: { eventName: 'unlock_completed', contentId: { not: null } },
+          include: { content: { select: { id: true, title: true, url: true, price: true, currency: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        });
+        for (const u of unlocks) {
+          activities.push({
+            type: 'unlock',
+            actor: u.visitorId?.slice(0, 10) || 'user',
+            contentId: u.contentId,
+            contentTitle: u.content?.title || 'Unknown content',
+            contentUrl: u.content?.url || u.url || '',
+            price: u.revenue || u.content?.price || 0,
+            currency: u.currency || u.content?.currency || 'USDC',
+            timestamp: u.createdAt,
+          });
+        }
+      }
+
+      // 3. Recent payments with on-chain tx
+      if (!type || type === 'payments') {
+        const payments = await db.unlockReceipt.findMany({
+          where: { txHash: { not: null }, txHash: { not: '' } },
+          include: { content: { select: { id: true, title: true, url: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        });
+        for (const p of payments) {
+          activities.push({
+            type: 'payment',
+            actor: p.payerWallet
+              ? `${p.payerWallet.slice(0, 6)}...${p.payerWallet.slice(-4)}`
+              : p.actor?.slice(0, 10) || 'wallet',
+            contentId: p.contentId,
+            contentTitle: p.content?.title || 'Unknown content',
+            contentUrl: p.content?.url || '',
+            price: p.amount || 0,
+            currency: p.currency || 'USDC',
+            txHash: p.txHash,
+            timestamp: p.createdAt,
+          });
+        }
+      }
+
+      // 4. Recent ratings
+      if (!type || type === 'ratings') {
+        const ratings = await db.contentRating.findMany({
+          where: { status: 'accepted' },
+          include: { content: { select: { id: true, title: true, url: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        });
+        for (const r of ratings) {
+          activities.push({
+            type: 'rating',
+            actor: r.walletAddress
+              ? `${r.walletAddress.slice(0, 6)}...${r.walletAddress.slice(-4)}`
+              : 'user',
+            contentId: r.contentId,
+            contentTitle: r.content?.title || 'Unknown content',
+            contentUrl: r.content?.url || '',
+            score: Math.round((r.ratingValue || 0) / 10),
+            txHash: r.txHash || undefined,
+            timestamp: r.createdAt,
+          });
+        }
+      }
+
+      // Sort all by timestamp desc, then limit
+      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      const result = activities.slice(0, limit);
+
+      res.json({ success: true, activities: result, total: result.length, limit, skip: offset });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch ledger', details: error.message });
+    }
+  });
+
   // ── Onchain Rating Sync (admin) ───────────────────────────────────────
 
   app.post('/api/hub/reputation/ratings/sync', async (req, res) => {

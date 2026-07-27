@@ -5,6 +5,8 @@ import { type BlogPost } from "@/lib/api";
 import { fd } from "@/lib/utils";
 import Header from "@/components/Header";
 
+const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };
+
 const TYPE = "photo";
 const LABEL = "Photos";
 
@@ -33,6 +35,7 @@ export default async function PhotosPage() {
                   <Link href={`/photos/${post.slug}`} className="internal-link plain">
                     <div style={{ display: "flex", alignItems: "baseline" }}>
                       <span className="muted ppr flex-shrink small mh nowrap font-ui">{fd(post.publishedAt)}</span>
+                      <span className="type-icon">{TYPE_ICONS[post.type] || ""}</span>
                       <u>{post.title}</u>
                     </div>
                   </Link>

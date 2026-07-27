@@ -196,7 +196,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
                 {related.map((p) => (
                   <li key={p.id}>
                     <Link href={postHref(p)} className="internal-link">
-                      {p.type !== "article" && <span className="type-icon">{TYPE_ICONS[p.type]}</span>}
+                      <span className="type-icon">{TYPE_ICONS[p.type]}</span>
                       {p.title}
                     </Link>
                   </li>

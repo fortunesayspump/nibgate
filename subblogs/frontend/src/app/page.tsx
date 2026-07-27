@@ -22,6 +22,7 @@ function postHref(post: { type: string; slug: string }) {
 }
 
 function TypeIcon({ type }: { type: string }) {
+  if (type === "article") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>;
   if (type === "photo") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
   if (type === "music") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
   if (type === "video") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
@@ -34,9 +35,7 @@ function PostListItem({ post }: { post: BlogPost }) {
       <Link href={postHref(post)} className="internal-link plain">
         <div style={{ display: "flex", alignItems: "baseline" }}>
           <span className="muted ppr flex-shrink small mh nowrap font-ui">{yr(post.publishedAt)} · {mo(post.publishedAt)}</span>
-          {post.type !== "article" && (
-            <span className="type-icon"><TypeIcon type={post.type} /></span>
-          )}
+          <span className="type-icon"><TypeIcon type={post.type} /></span>
           <u>{post.title}</u>
         </div>
       </Link>

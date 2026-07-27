@@ -91,6 +91,7 @@ flex { display: flex; }
 .type-icon { opacity: 0.5; margin-right: 0.4em; display: inline-flex; vertical-align: middle; }
 .section-header { margin-bottom: 1.5rem; }
 
+
 @media (max-width: 600px) {
   .mh { display: none; }
 }

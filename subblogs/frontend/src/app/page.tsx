@@ -134,7 +134,7 @@ export default async function HomePage() {
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", marginLeft: "auto", marginRight: "auto" }}>
           {latest && (
             <>
-              <p><Link href={postHref(latest)} className="muted font-ui">Latest</Link></p>
+              <p className="section-header"><Link href={postHref(latest)} className="muted font-ui">Latest</Link></p>
               <div>
                 <Link href={postHref(latest)} className="plain">
                   {latest.coverUrl && (

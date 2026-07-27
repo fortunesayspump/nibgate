@@ -18,6 +18,7 @@ export default function Header() {
     const seg = p.split("/")[1];
     const labels: Record<string, string> = { writing: "Writing", photos: "Photos", music: "Music", video: "Video" };
     if (seg && labels[seg]) setRouteLabel(labels[seg]);
+    else if (p === "/") setRouteLabel("Blog");
   }, []);
 
   function toggleTheme() {

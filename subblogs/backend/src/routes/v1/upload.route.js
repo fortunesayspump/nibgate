@@ -56,8 +56,8 @@ const upload = multer({
 async function processImage(buffer, ext) {
   const image = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
   const meta = await image.metadata();
-  const width = Math.min(meta.width || 2000, 2000);
-  const resized = await image.resize({ width, withoutEnlargement: true }).webp({ quality: 82, effort: 4 }).toBuffer();
+  const width = Math.min(meta.width || 2560, 2560);
+  const resized = await image.resize({ width, withoutEnlargement: true }).webp({ quality: 90, effort: 4 }).toBuffer();
   return { buffer: resized, contentType: 'image/webp', ext: '.webp' };
 }
 

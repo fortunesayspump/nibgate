@@ -144,6 +144,7 @@ router.get('/manifest', async (req, res, next) => {
           path: `/${typePath[t] || 'posts'}/${post.slug}`,
           url: `${req.protocol}://${req.get('host')}/${typePath[t] || 'posts'}/${post.slug}`,
           tags: (post.tags || '').split(',').filter(Boolean),
+          imageUrl: post.coverUrl || post.imageUrl || null,
           access: isPaid ? { humans: 'paid', agents: 'paid' } : { humans: 'free', agents: 'free' },
           ...(isPaid ? { unlock: { mode: 'one_time' } } : {}),
         };

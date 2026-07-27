@@ -75,7 +75,7 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     title: content.title,
     summary: content.description || `${type} from ${content.websiteName || content.websiteDomain}`,
     creator: content.websiteName || content.websiteDomain || "Creator",
-    price: `${Number(content.price || 0).toFixed(3)} ${content.currency || "USDC"}`,
+    price: Number(content.price || 0) > 0 ? `${Number(content.price).toFixed(3)} ${content.currency || "USDC"}` : "Free",
     meta: content.websiteDomain,
     unlocks: `${content.unlocks || 0} unlocks`,
     tags: parseTags(content),

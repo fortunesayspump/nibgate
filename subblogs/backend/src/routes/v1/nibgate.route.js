@@ -122,7 +122,7 @@ router.get('/access', async (req, res, next) => {
 router.get('/manifest', async (req, res, next) => {
   try {
     const posts = await prisma.blogPost.findMany({
-      where: { siteId: req.siteId, status: 'published', price: { not: null } },
+      where: { siteId: req.siteId, status: 'published' },
       orderBy: [{ publishedAt: 'desc' }],
     });
 

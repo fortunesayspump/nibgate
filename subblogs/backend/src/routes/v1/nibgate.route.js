@@ -129,7 +129,7 @@ router.get('/manifest', async (req, res, next) => {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
 
     const forwardedHost = req.get('x-forwarded-host') || '';
-    const origin = forwardedHost ? `https://${forwardedHost}` : `https://${req.subdomain}.nibgate.xyz`;
+    const origin = forwardedHost ? `https://${forwardedHost}` : `https://${req.site.subdomain}.nibgate.xyz`;
 
     const manifest = {
       name: req.site.name,

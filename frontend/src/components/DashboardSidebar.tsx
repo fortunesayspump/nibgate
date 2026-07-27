@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useAccount } from "wagmi";
-import { BarChart3, CircleDollarSign, FileLock2, Globe2, Newspaper, UserRound } from "lucide-react";
+import { BarChart3, CircleDollarSign, FileLock2, Globe2, Menu, Newspaper, UserRound, X } from "lucide-react";
 
 const BLOG_OWNER_WALLET = '0x558e7bfaf2cf1a494f44e50d92431afc060c9d12';
 
@@ -26,7 +26,7 @@ const navLinks = [
   { name: 'Blog', description: 'Product posts', path: '/dashboard/blog', id: 'blog', Icon: Newspaper }
 ];
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
   const wagmiAccount = useAccount();
   const appKitAccount = useAppKitAccount({ namespace: "eip155" });
@@ -36,48 +36,51 @@ export default function DashboardSidebar() {
     let cancelled = false;
     async function checkBlogAccess() {
       const liveWalletAddress = normalizeWallet(wagmiAccount.address || appKitAccount.address);
-      if (liveWalletAddress === BLOG_OWNER_WALLET) {
-        setCanPublishBlog(true);
-        return;
-      }
-
+      if (liveWalletAddress === BLOG_OWNER_WALLET) { setCanPublishBlog(true); return; }
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
         const walletAddress = primaryWalletAddress(data.user);
         if (!cancelled) setCanPublishBlog(walletAddress === BLOG_OWNER_WALLET);
-      } catch {
-        if (!cancelled) setCanPublishBlog(false);
-      }
+      } catch { if (!cancelled) setCanPublishBlog(false); }
     }
     void checkBlogAccess();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [wagmiAccount.address, appKitAccount.address]);
 
   const visibleLinks = navLinks.filter((link) => link.id !== "blog" || canPublishBlog);
 
   return (
-    <nav aria-label="Main" className="flex flex-col dashboard-sidebar" style={{ background: 'var(--nib-page-bg)' }}>
-      {visibleLinks.map((link, index) => {
-        const isActive = pathname === link.path || pathname.startsWith(link.path + '/');
-        const Icon = link.Icon;
-        return (
-          <Link
-            key={link.id}
-            title={link.name}
-            href={link.path}
-            className={`dashboard-box box-${index} flex-1 no-underline w-full h-full ${isActive ? 'active' : ''}`}
-            data-tab={link.id}
-          >
-            <Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} />
-            <span className="dashboard-box-label">{link.name}</span>
-            <span className="dashboard-box-description">{link.description}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && <div className="dashboard-mobile-overlay" onClick={onMobileClose} />}
+
+      <nav aria-label="Main" className={`flex flex-col dashboard-sidebar ${isMobileOpen ? 'mobile-open' : ''}`} style={{ background: 'var(--nib-page-bg)' }}>
+        {/* Mobile close button */}
+        <button className="dashboard-mobile-close" onClick={onMobileClose} aria-label="Close sidebar">
+          <X size={20} />
+        </button>
+
+        {visibleLinks.map((link, index) => {
+          const isActive = pathname === link.path || pathname.startsWith(link.path + '/');
+          const Icon = link.Icon;
+          return (
+            <Link
+              key={link.id}
+              title={link.name}
+              href={link.path}
+              className={`dashboard-box box-${index} flex-1 no-underline w-full h-full ${isActive ? 'active' : ''}`}
+              data-tab={link.id}
+              onClick={onMobileClose}
+            >
+              <Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} />
+              <span className="dashboard-box-label">{link.name}</span>
+              <span className="dashboard-box-description">{link.description}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }

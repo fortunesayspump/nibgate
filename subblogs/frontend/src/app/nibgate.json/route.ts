@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const host = request.headers.get("host") || "";
     const subdomain = subdomainFromHost(host) || "";
     const res = await fetch(`${apiBase}/nibgate/manifest`, {
-      headers: subdomain ? { "x-site-subdomain": subdomain } : {},
+      headers: subdomain ? { "x-site-subdomain": subdomain, "x-forwarded-host": host } : {},
       next: { revalidate: 300 },
     });
     const data = await res.json();

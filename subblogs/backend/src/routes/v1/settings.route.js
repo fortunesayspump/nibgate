@@ -57,6 +57,7 @@ router.put('/', authenticate, validate(settingsValidation.updateSettings), async
       ...(req.body.defaultPrice !== undefined ? { defaultPrice: String(req.body.defaultPrice).trim() } : {}),
       ...(req.body.defaultCurrency !== undefined ? { defaultCurrency: String(req.body.defaultCurrency).trim() } : {}),
       ...(req.body.paymentNetwork !== undefined ? { paymentNetwork: String(req.body.paymentNetwork).trim() } : {}),
+      ...(req.body.aboutMarkdown !== undefined ? { aboutMarkdown: String(req.body.aboutMarkdown).trim() } : {}),
     };
     updateData.settings = JSON.stringify(newSettings);
 

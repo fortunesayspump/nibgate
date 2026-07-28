@@ -22,7 +22,7 @@ router.get('/status', (req, res) => {
 
 router.get('/access', async (req, res, next) => {
   try {
-    const slug = req.query.path?.replace('/posts/', '') || '';
+    const slug = req.query.path?.replace(/^\/(?:writing|photos|music|video|posts)\//, '') || '';
     const post = slug ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug } }) : null;
     if (!post && slug) {
       return res.status(404).json({ ok: false, error: 'Post not found' });

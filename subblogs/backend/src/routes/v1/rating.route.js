@@ -26,7 +26,7 @@ router.get('/:postId', async (req, res, next) => {
 
 router.post('/:postId', validate(ratingValidation.createRating), async (req, res, next) => {
   try {
-    const { wallet, rating: rawRating, txHash } = req.body;
+    const { wallet, rating: rawRating, txHash, hubContentId } = req.body;
     const rating = Math.round((Number(rawRating) || 0) / 10 * 10) / 10;
 
     const [post, data] = await Promise.all([
@@ -62,7 +62,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
       try {
         const hubRes = await fetch(`${HUB_API}/api/hub/reputation/ratings/prepare`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contentId: post.id, walletAddress: wallet, ratingValue: rawRating, paymentId: txHash || '' }),
+          body: JSON.stringify({ contentId: hubContentId || post.id, walletAddress: wallet, ratingValue: rawRating, paymentId: txHash || '' }),
         });
         const hubData = await hubRes.json();
         if (hubData.success) onchain = { contentHash: hubData.contentHash, contractAddress: hubData.contractAddress, chainId: hubData.chainId, ratingValue: hubData.ratingValue };

@@ -16,6 +16,7 @@ interface PostFormData {
   coverUrl: string;
   videoUrl: string;
   price: string;
+  recipientWallet: string;
   status: "draft" | "published";
   featured: boolean;
   type: string;
@@ -26,7 +27,7 @@ interface PostFormData {
 const defaults: PostFormData = {
   title: "", slug: "", bodyMarkdown: "", excerpt: "",
   tags: "", coverUrl: "", videoUrl: "",
-  price: "", status: "draft", featured: false, type: "article",
+  price: "", recipientWallet: "", status: "draft", featured: false, type: "article",
   audioUrl: "", media: "",
 };
 
@@ -42,6 +43,20 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   const [saving, setSaving] = useState(false);
   const slugEdited = useRef(!!initialData?.slug);
   const loaded = useRef(false);
+
+  // Load site defaults for price and wallet
+  useEffect(() => {
+    if (postId) return; // editing — keep existing values
+    if (initialData?.price && initialData?.recipientWallet) return; // already have values
+    fetch("/api/settings").then(r => r.json()).then(d => {
+      const s = d.settings || {};
+      setForm((prev) => ({
+        ...prev,
+        price: prev.price || s.defaultPrice || "",
+        recipientWallet: prev.recipientWallet || s.recipientWallet || "",
+      }));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (initialData && !loaded.current) {
@@ -254,6 +269,12 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         <input
           type="text" value={form.price} onChange={(e) => update("price", e.target.value)}
           className="input-field" placeholder="0.01 (leave empty for free)"
+        />
+      </Field>
+      <Field label="Recipient Wallet">
+        <input
+          type="text" value={form.recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
+          className="input-field font-mono" placeholder="0x... (defaults to site wallet)"
         />
       </Field>
 

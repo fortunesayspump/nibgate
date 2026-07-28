@@ -77,6 +77,7 @@ async function create(data, siteId, authorId) {
       audioUrl: String(data.audioUrl || '').trim() || null,
       media: String(data.media || '').trim() || null,
       price: data.price && data.price !== '0' ? String(data.price).trim() : null,
+      recipientWallet: String(data.recipientWallet || '').trim() || null,
       status: statusVal,
       featured: data.featured === true,
       publishedAt: statusVal === 'published' ? new Date() : null,
@@ -106,6 +107,7 @@ async function update(siteId, id, data) {
   if (data.media !== undefined) updateData.media = String(data.media).trim() || null;
   if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article';
   if (data.price !== undefined) updateData.price = data.price && data.price !== '0' ? String(data.price).trim() : null;
+  if (data.recipientWallet !== undefined) updateData.recipientWallet = String(data.recipientWallet).trim() || null;
   if (data.featured !== undefined) updateData.featured = data.featured;
   if (data.status !== undefined) {
     updateData.status = data.status === 'draft' ? 'draft' : 'published';

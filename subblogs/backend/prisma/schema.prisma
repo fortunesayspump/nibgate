@@ -67,6 +67,7 @@ model BlogPost {
   tags         String?
   type         String    @default("article")
   price        String?
+  recipientWallet String?
   status       String    @default("draft")
   featured     Boolean   @default(false)
   publishedAt  DateTime?

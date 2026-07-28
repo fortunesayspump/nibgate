@@ -6,6 +6,8 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import { FiEye, FiUnlock, FiDollarSign, FiStar } from "react-icons/fi";
 
+import styles from "./page.module.css";
+
 type Activity = {
   type: "view" | "unlock" | "payment" | "rating";
   actor: string;
@@ -65,8 +67,10 @@ export default function LedgerPage() {
   const [hasMore, setHasMore] = useState(false);
   const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, total: 0 });
 
+  const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set());
+  const knownIdsRef = useRef<Set<string>>(new Set());
   const activitiesRef = useRef<Activity[]>([]);
-  activitiesRef.current = activities;
+  useEffect(() => { activitiesRef.current = activities; });
 
   const fetchLedger = useCallback(async (append = false) => {
     try {
@@ -76,19 +80,45 @@ export default function LedgerPage() {
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        if (append) setActivities((prev) => [...prev, ...(data.activities || [])]);
-        else setActivities(data.activities || []);
+        const items = data.activities || [];
+        if (append) {
+          setActivities((prev) => [...prev, ...items]);
+        } else {
+          setActivities(items);
+          knownIdsRef.current = new Set(items.map((a: Activity) => a.id));
+        }
         setHasMore(data.hasMore || false);
         if (data.totals) setServerTotals(data.totals);
       }
     } catch {} finally { setLoading(false); setLoadingMore(false); }
   }, [filter]);
 
-  useEffect(() => {
-    fetchLedger(false);
-    const int = setInterval(() => fetchLedger(false), 30000);
-    return () => clearInterval(int);
+  const pollNew = useCallback(async () => {
+    try {
+      const url = `/api/hub/ledger?limit=50${filter ? `&type=${filter}` : ""}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.success) return;
+      const items: Activity[] = data.activities || [];
+      const existingIds = knownIdsRef.current;
+      const unseen = items.filter((a) => !existingIds.has(a.id));
+      if (unseen.length > 0) {
+        const newIds = new Set(unseen.map((a) => a.id));
+        setActivities((prev) => [...unseen, ...prev]);
+        setNewItemIds((prev) => { const n = new Set(prev); newIds.forEach((id) => n.add(id)); return n; });
+      }
+      items.forEach((a) => existingIds.add(a.id));
+      if (data.totals) setServerTotals(data.totals);
+      setHasMore(data.hasMore || false);
+    } catch {}
   }, [filter]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchLedger(false);
+    const int = setInterval(() => pollNew(), 30000);
+    return () => clearInterval(int);
+  }, [filter, pollNew, fetchLedger]);
 
   const filtered = activities.filter((a) => {
     if (!search) return true;
@@ -112,7 +142,7 @@ export default function LedgerPage() {
             </div>
           </div>
 
-          {/* Totals — from server (entire database) */}
+          {/* Totals — barometer animation */}
           <div className="grid gap-3 mt-8 sm:grid-cols-5">
             {[
               { label: "Total", value: serverTotals.total },
@@ -123,7 +153,7 @@ export default function LedgerPage() {
             ].map((s) => (
               <div key={s.label} className="rounded-2xl border border-dark-gray/50 bg-gray px-4 py-3 text-sm">
                 <span className="opacity-60">{s.label}</span>
-                <strong className="ml-2">{s.value}</strong>
+                <strong className="ml-2"><CountUp value={s.value} /></strong>
               </div>
             ))}
           </div>
@@ -172,7 +202,7 @@ export default function LedgerPage() {
                       const meta = TYPE_META[a.type];
                       return (
                         <Fragment key={k}>
-                          <tr className="border-b border-dark-gray/40 transition hover:bg-gray/70 cursor-pointer" onClick={() => toggle(k)}>
+                          <tr className={"border-b border-dark-gray/40 transition hover:bg-gray/70 cursor-pointer" + (newItemIds.has(a.id) ? " " + styles.slideIn : "")} onClick={() => toggle(k)}>
                             <td className="px-5 py-5 opacity-40 text-sm">{open ? "−" : "+"}</td>
                             <td className="px-5 py-5" title={meta.label}>{meta.icon}</td>
                             <td className="px-5 py-5 whitespace-nowrap opacity-60 text-sm">{ta(a.timestamp)}</td>
@@ -205,6 +235,9 @@ export default function LedgerPage() {
                                   className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.txHash}>tx {sn(a.txHash, 6)}</a>
                               ) : a.paymentId ? (
                                 <span title={a.paymentId}>pid {sn(a.paymentId, 6)}</span>
+                              ) : a.proof?.startsWith("onchain:") ? (
+                                <a href={bx(a.proof.replace("onchain:", ""))} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                  className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.proof}>tx {sn(a.proof.replace("onchain:", ""), 6)}</a>
                               ) : a.proof ? (
                                 <span title={a.proof}>{sn(a.proof, 10)}</span>
                               ) : (
@@ -269,6 +302,28 @@ export default function LedgerPage() {
       <Footer showThemeToggle />
     </div>
   );
+}
+
+function CountUp({ value, duration = 600 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    if (prev === value) return;
+    const diff = value - prev;
+    const start = performance.now();
+    const frame = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(prev + diff * eased));
+      if (t < 1) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    prevRef.current = value;
+  }, [value, duration]);
+
+  return <>{display}</>;
 }
 
 function Det({ label, value }: { label: string; value: string }) {

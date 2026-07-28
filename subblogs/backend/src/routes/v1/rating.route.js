@@ -4,7 +4,8 @@ const ratingValidation = require('../../validations/rating.validation');
 const prisma = require('../../lib/prisma');
 const router = express.Router();
 
-const RPC = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/swrm_d012626f61f1e237f9ffa371cd76029976e22bfdd177738b35626b3aaee6608f';
+const RPC = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || '';
+if (!RPC) console.warn('[rating] No ARC_RPC_URL set — on-chain rating verification will fail');
 
 router.get('/:postId', async (req, res, next) => {
   try {
@@ -38,6 +39,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     }
 
     // Step 2: With txHash → verify on-chain proof (SDK)
+    if (!RPC) return res.status(500).json({ error: 'ARC_RPC_URL not configured.' });
     await sdk.verifyRatingTx(txHash, RPC);
 
     // Step 3: Store + fire hub event (SDK)
@@ -53,7 +55,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
         siteId: settings.hubSiteId, token: settings.hubToken,
         postId: post.id, title: post.title, postType: post.type, price: post.price,
         walletAddress: wallet, rating: ratingVal, ratingValue: rawRating, txHash,
-      }).catch(() => {});
+      }).catch((err) => console.warn('[rating] Failed to submit hub event:', err.message));
     }
 
     res.json({ success: true, rating: data });

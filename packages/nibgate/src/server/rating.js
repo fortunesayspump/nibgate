@@ -7,10 +7,9 @@
  *   3. submitOnchainRating() → verify tx, store rating, fire hub event
  */
 
-const HUB_API = 'https://api.nibgate.xyz';
-
 export async function prepareOnchainRating({ contentId, walletAddress, ratingValue, paymentId, hubApiUrl }) {
-  const url = `${hubApiUrl || HUB_API}/api/hub/reputation/ratings/prepare`;
+  const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
+  const url = `${api}/api/hub/reputation/ratings/prepare`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -28,7 +27,8 @@ export async function prepareOnchainRating({ contentId, walletAddress, ratingVal
 }
 
 export async function verifyRatingTx(txHash, rpcUrl) {
-  const url = rpcUrl || 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/swrm_d012626f61f1e237f9ffa371cd76029976e22bfdd177738b35626b3aaee6608f';
+  if (!rpcUrl) throw new Error('RPC URL required to verify on-chain rating. Set ARC_RPC_URL or pass explicitly.');
+  const url = rpcUrl;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -41,8 +41,8 @@ export async function verifyRatingTx(txHash, rpcUrl) {
 }
 
 export async function submitOnchainRating({ siteId, token, postId, title, postType, price, walletAddress, rating, ratingValue, txHash, hubApiUrl }) {
-  // Fire content_rating event to hub
-  const url = `${hubApiUrl || HUB_API}/api/hub/evt`;
+  const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
+  const url = `${api}/api/hub/evt`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

@@ -84,8 +84,23 @@ function refreshBals(container: HTMLElement, addr: string) {
   gatewayBalance(addr).then(b => { const e = qs("[data-gw-balance]", container); if (e) e.textContent = b; });
 }
 
+async function switchToArc() {
+  if (!window.ethereum) return;
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x4CEF8A" }] });
+  } catch (e: any) {
+    if (e.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{ chainId: "0x4CEF8A", chainName: "Arc Testnet", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: ["https://rpc.testnet.arc.io"] }],
+      });
+    }
+  }
+}
+
 async function sendTx(tx: { to: string; data: string; from: string }): Promise<string> {
   if (!window.ethereum) throw new Error("No wallet");
+  await switchToArc();
   return window.ethereum.request({ method: "eth_sendTransaction", params: [tx] });
 }
 
@@ -173,6 +188,7 @@ async function clientWithdraw(from: string, amount: bigint) {
   const message = { maxBlockHeight: maxBlockStr, maxFee: maxFeeStr, spec };
 
   if (!window.ethereum) throw new Error("No wallet");
+  await switchToArc();
   const signature = await window.ethereum.request({
     method: "eth_signTypedData_v4",
     params: [from, JSON.stringify({ domain: { name: "GatewayWallet", version: "1" }, types, primaryType: "BurnIntent", message })],

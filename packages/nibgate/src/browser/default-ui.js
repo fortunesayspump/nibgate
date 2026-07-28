@@ -489,8 +489,22 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     el.textContent = msg;
   }
 
+  async function switchToArc() {
+    try {
+      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x4CEF8A' }] });
+    } catch (e) {
+      if (e.code === 4902) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{ chainId: '0x4CEF8A', chainName: 'Arc Testnet', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: ['https://rpc.testnet.arc.io'] }],
+        });
+      }
+    }
+  }
+
   async function doDeposit() {
     if (!window.ethereum) { setTx('No wallet found'); return; }
+    await switchToArc();
     const input = formEl.querySelector('[data-gw-deposit-amount]');
     const amt = input?.value;
     if (!amt || Number(amt) <= 0) { setTx('Enter an amount'); return; }

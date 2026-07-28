@@ -43,7 +43,7 @@ export function serializeWebsite(website) {
     lastVerificationCheckAt: website.lastVerificationCheckAt || null,
     verificationFailureReason: website.verificationFailureReason || '',
     verifyToken: website.verifyToken,
-    faviconUrl: website.faviconUrl || '',
+    faviconUrl: website.faviconUrl || `https://www.google.com/s2/favicons?domain=${website.domain}&sz=128`,
     ogImageUrl: website.ogImageUrl || '',
     trackingScript: trackingScriptFor(website),
     lastScanAt: website.lastScanAt || null,

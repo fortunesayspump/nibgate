@@ -7,7 +7,7 @@ import { apiAuthFetch, type BlogPost } from "@/lib/api";
 
 const TYPE_COLORS: Record<string, string> = { article: "#7c9a6d", photo: "#8b7e74", music: "#6d8a9a", video: "#9a6d8a" };
 
-import { FiSettings, FiPlus, FiLogOut, FiEdit2, FiTrash2, FiFileText, FiImage, FiMusic, FiVideo, FiCheckCircle, FiClock } from "react-icons/fi";
+import { FiSliders, FiPlus, FiLogOut, FiEdit2, FiTrash2, FiFileText, FiImage, FiMusic, FiVideo, FiCheckCircle, FiClock } from "react-icons/fi";
 
 function TypeIcon({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = { article: <FiFileText size={14} />, photo: <FiImage size={14} />, music: <FiMusic size={14} />, video: <FiVideo size={14} /> };
@@ -75,7 +75,7 @@ export default function AdminPostsPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <Link href="/admin/settings" className="no-underline inline-flex items-center justify-center w-9 h-9 rounded-md border cursor-pointer" style={{ borderColor: "var(--border)" }} title="Settings">
-              <FiSettings size={18} />
+              <FiSliders size={18} />
             </Link>
             <Link href="/admin/posts/new" className="no-underline inline-flex items-center justify-center w-9 h-9 rounded-md border cursor-pointer" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)" }} title="New Post">
               <FiPlus size={18} />

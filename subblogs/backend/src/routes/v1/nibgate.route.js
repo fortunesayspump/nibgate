@@ -29,7 +29,7 @@ router.get('/access', async (req, res, next) => {
     }
 
     const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
-    const recipient = settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
+    const recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
 
     if (!recipient) {
       return res.status(400).json({ ok: false, error: 'Gateway recipient wallet not configured. Set recipientWallet in site settings or NIBGATE_SELLER_ADDRESS env.' });

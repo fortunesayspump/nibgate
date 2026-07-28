@@ -1,0 +1,59 @@
+/**
+ * Server-side rating helpers for Nibgate reputation (on-chain via Arc testnet).
+ *
+ * Flow:
+ *   1. prepareOnchainRating() → get contentHash + contract address
+ *   2. Bot signs + sends tx to reputation contract
+ *   3. submitOnchainRating() → verify tx, store rating, fire hub event
+ */
+
+const HUB_API = 'https://api.nibgate.xyz';
+
+export async function prepareOnchainRating({ contentId, walletAddress, ratingValue, paymentId, hubApiUrl }) {
+  const url = `${hubApiUrl || HUB_API}/api/hub/reputation/ratings/prepare`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ contentId, walletAddress, ratingValue, paymentId }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to prepare onchain rating');
+  return {
+    contentHash: data.contentHash,
+    contractAddress: data.contractAddress,
+    chainId: data.chainId,
+    ratingValue: data.ratingValue,
+    message: data.message,
+  };
+}
+
+export async function verifyRatingTx(txHash, rpcUrl) {
+  const url = rpcUrl || 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/swrm_d012626f61f1e237f9ffa371cd76029976e22bfdd177738b35626b3aaee6608f';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ method: 'eth_getTransactionReceipt', params: [txHash], id: 1, jsonrpc: '2.0' }),
+  });
+  const data = await res.json();
+  const receipt = data?.result;
+  if (!receipt || receipt.status !== '0x1') throw new Error('On-chain proof not found or invalid');
+  return receipt;
+}
+
+export async function submitOnchainRating({ siteId, token, postId, title, postType, price, walletAddress, rating, ratingValue, txHash, hubApiUrl }) {
+  // Fire content_rating event to hub
+  const url = `${hubApiUrl || HUB_API}/api/hub/evt`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      siteId, token, event: 'content_rating',
+      resource: { id: postId, title, type: postType || 'article', price: price || '' },
+      walletAddress, rating, ratingValue, txHash,
+      proof: `onchain:${txHash}`, verified: true,
+    }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Failed to submit rating');
+  return data;
+}

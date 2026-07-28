@@ -16,3 +16,4 @@ export { PAYMENT_RAILS, normalizePaymentRail } from '../core/payment.js';
 export { createAdminApi, adminPageHtml } from './admin.js';
 export { createFileStore, createMemoryStore, createPostgresStore } from './admin-store.js';
 export { createWebhookManager, createWebhookApi } from './webhooks.js';
+export { prepareOnchainRating, verifyRatingTx, submitOnchainRating } from './rating.js';

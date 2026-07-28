@@ -2,7 +2,6 @@ const express = require('express');
 const validate = require('../../middlewares/validate');
 const ratingValidation = require('../../validations/rating.validation');
 const prisma = require('../../lib/prisma');
-const { prepareOnchainRating, verifyRatingTx, submitOnchainRating } = require('@nibgate/sdk/server');
 const router = express.Router();
 
 const RPC = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/swrm_d012626f61f1e237f9ffa371cd76029976e22bfdd177738b35626b3aaee6608f';
@@ -25,9 +24,12 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     const post = await prisma.blogPost.findUnique({ where: { id: req.params.postId } });
     if (!post) return res.status(404).json({ error: 'Post not found.' });
 
+    // Load SDK (ESM → dynamic import from CJS)
+    const sdk = await import('@nibgate/sdk/server');
+
     // Step 1: No txHash → prepare onchain data (SDK)
     if (!txHash) {
-      const onchain = await prepareOnchainRating({
+      const onchain = await sdk.prepareOnchainRating({
         contentId: hubContentId || post.id,
         walletAddress: wallet,
         ratingValue: rawRating,
@@ -36,7 +38,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     }
 
     // Step 2: With txHash → verify on-chain proof (SDK)
-    await verifyRatingTx(txHash, RPC);
+    await sdk.verifyRatingTx(txHash, RPC);
 
     // Step 3: Store + fire hub event (SDK)
     const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
@@ -47,7 +49,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     });
 
     if (settings.hubSiteId && settings.hubToken) {
-      submitOnchainRating({
+      sdk.submitOnchainRating({
         siteId: settings.hubSiteId, token: settings.hubToken,
         postId: post.id, title: post.title, postType: post.type, price: post.price,
         walletAddress: wallet, rating: ratingVal, ratingValue: rawRating, txHash,

@@ -54,7 +54,7 @@ function ta(d: string) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function bx(t: string) { return `https://testnet.arc.io/tx/${t}`; }
+function bx(t: string) { return `https://testnet.arcscan.app/tx/${t}`; }
 function sn(s: string, l = 8) { return s.length > l + 4 ? `${s.slice(0, l)}...${s.slice(-4)}` : s; }
 
 export default function LedgerPage() {

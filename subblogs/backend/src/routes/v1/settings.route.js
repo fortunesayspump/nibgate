@@ -116,6 +116,10 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
     settings.hubSiteId = hubData.siteId;
     settings.hubToken = hubData.verifyToken;
+    // Auto-fill recipient wallet from hub account if not already set
+    if (!settings.recipientWallet && hubData.site?.ownerWallet) {
+      settings.recipientWallet = hubData.site.ownerWallet;
+    }
 
     await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
     invalidateSite(req.subdomain);

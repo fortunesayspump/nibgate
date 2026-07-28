@@ -227,21 +227,21 @@ export default function LedgerPage() {
                               {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
                               {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
                             </td>
-                            <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
+                            <td className="px-5 py-5 whitespace-nowrap text-sm">
                               {a.txHash && a.paymentProvider === "circle-gateway" ? (
-                                <span title={`Gateway ref: ${a.txHash}`} className="text-[var(--nib-ink-soft)]">GW {sn(a.txHash, 6)}</span>
+                                <span title={`Gateway ref: ${a.txHash}`} className="inline-block rounded-md bg-gray-200 px-2 py-0.5 text-xs font-mono text-gray-600">GW {sn(a.txHash, 6)}</span>
                               ) : a.txHash ? (
                                 <a href={bx(a.txHash)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                                  className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.txHash}>tx {sn(a.txHash, 6)}</a>
+                                  className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-mono text-emerald-700 no-underline hover:underline" title={a.txHash}>tx {sn(a.txHash, 6)}</a>
                               ) : a.paymentId ? (
-                                <span title={a.paymentId}>pid {sn(a.paymentId, 6)}</span>
+                                <span title={a.paymentId} className="inline-block rounded-md bg-gray-200 px-2 py-0.5 text-xs font-mono text-gray-600">pid {sn(a.paymentId, 6)}</span>
                               ) : a.proof?.startsWith("onchain:") ? (
                                 <a href={bx(a.proof.replace("onchain:", ""))} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                                  className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.proof}>tx {sn(a.proof.replace("onchain:", ""), 6)}</a>
+                                  className="inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-mono text-emerald-700 no-underline hover:underline" title={a.proof}>tx {sn(a.proof.replace("onchain:", ""), 6)}</a>
                               ) : a.proof ? (
-                                <span title={a.proof}>{sn(a.proof, 10)}</span>
+                                <span title={a.proof} className="inline-block rounded-md bg-gray-200 px-2 py-0.5 text-xs font-mono text-gray-600">{sn(a.proof, 10)}</span>
                               ) : (
-                                <span className="opacity-40" title={a.id}>#{sn(a.id, 4)}</span>
+                                <span className="opacity-40 text-xs font-mono" title={a.id}>#{sn(a.id, 4)}</span>
                               )}
                             </td>
                           </tr>

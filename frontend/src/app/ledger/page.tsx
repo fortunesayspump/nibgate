@@ -151,7 +151,7 @@ export default function LedgerPage() {
               { label: "Payments", value: serverTotals.payments },
               { label: "Ratings", value: serverTotals.ratings },
             ].map((s) => (
-              <div key={s.label} className="rounded-2xl border border-dark-gray/50 bg-gray px-4 py-3 text-sm">
+              <div key={s.label} className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
                 <span className="opacity-60">{s.label}</span>
                 <strong className="ml-2"><CountUp value={s.value} /></strong>
               </div>
@@ -181,11 +181,11 @@ export default function LedgerPage() {
           ) : filtered.length === 0 ? (
             <p className="mt-8 text-sm opacity-65">No activity found.</p>
           ) : (
-            <section className="mt-8 overflow-hidden border border-dark-gray/50 bg-white">
+            <section className="mt-8 overflow-hidden border bg-white" style={{ borderColor: 'var(--nib-border-soft)' }}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[860px] border-collapse text-left">
                   <thead>
-                    <tr className="border-b border-dark-gray/50 bg-gray text-sm">
+                    <tr className="border-b text-sm" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-page-bg)' }}>
                       <th className="w-10 px-5 py-4 font-medium"></th>
                       <th className="px-5 py-4 font-medium">Type</th>
                       <th className="px-5 py-4 font-medium">Time</th>
@@ -202,7 +202,7 @@ export default function LedgerPage() {
                       const meta = TYPE_META[a.type];
                       return (
                         <Fragment key={k}>
-                          <tr className={"border-b border-dark-gray/40 transition hover:bg-gray/70 cursor-pointer" + (newItemIds.has(a.id) ? " " + styles.slideIn : "")} onClick={() => toggle(k)}>
+                          <tr className={"border-b transition cursor-pointer hover:bg-gray/70" + (newItemIds.has(a.id) ? " " + styles.slideIn : "")} onClick={() => toggle(k)} style={{ borderColor: 'var(--nib-border-soft)' }}>
                             <td className="px-5 py-5 opacity-40 text-sm">{open ? "−" : "+"}</td>
                             <td className="px-5 py-5" title={meta.label}>{meta.icon}</td>
                             <td className="px-5 py-5 whitespace-nowrap opacity-60 text-sm">{ta(a.timestamp)}</td>
@@ -246,8 +246,8 @@ export default function LedgerPage() {
                             </td>
                           </tr>
                           {open && (
-                            <tr className="bg-gray/50">
-                              <td colSpan={7} className="border-b border-dark-gray/40">
+                            <tr style={{ backgroundColor: 'var(--nib-page-bg)' }}>
+                              <td colSpan={7} className="border-b" style={{ borderColor: 'var(--nib-border-soft)' }}>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-5 py-5 text-sm">
                                   <Det label="Event ID" value={a.id} />
                                   <Det label="Type" value={meta.label} />

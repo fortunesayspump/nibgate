@@ -40,7 +40,7 @@ export async function verifyRatingTx(txHash, rpcUrl) {
   return receipt;
 }
 
-export async function submitOnchainRating({ siteId, token, postId, title, postType, price, walletAddress, rating, ratingValue, txHash, hubApiUrl }) {
+export async function submitOnchainRating({ siteId, token, hubContentId, title, postType, price, walletAddress, rating, ratingValue, txHash, hubApiUrl }) {
   const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
   const url = `${api}/api/hub/evt`;
   const res = await fetch(url, {
@@ -48,7 +48,7 @@ export async function submitOnchainRating({ siteId, token, postId, title, postTy
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       siteId, token, event: 'content_rating',
-      resource: { id: postId, title, type: postType || 'article', price: price || '' },
+      resource: { id: hubContentId, title, type: postType || 'article', price: price || '' },
       walletAddress, rating, ratingValue, txHash,
       proof: `onchain:${txHash}`, verified: true,
     }),

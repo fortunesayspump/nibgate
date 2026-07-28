@@ -53,7 +53,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     if (settings.hubSiteId && settings.hubToken) {
       sdk.submitOnchainRating({
         siteId: settings.hubSiteId, token: settings.hubToken,
-        postId: post.id, title: post.title, postType: post.type, price: post.price,
+        hubContentId: hubContentId || post.id, title: post.title, postType: post.type, price: post.price,
         walletAddress: wallet, rating: ratingVal, ratingValue: rawRating, txHash,
       }).catch((err) => console.warn('[rating] Failed to submit hub event:', err.message));
     }

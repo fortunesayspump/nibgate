@@ -48,7 +48,9 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   useEffect(() => {
     if (postId) return; // editing — keep existing values
     if (initialData?.price && initialData?.recipientWallet) return; // already have values
-    fetch("/api/settings").then(r => r.json()).then(d => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch("/api/settings", { headers: { "Authorization": `Bearer ${token}` } }).then(r => r.json()).then(d => {
       const s = d.settings || {};
       setForm((prev) => ({
         ...prev,

@@ -115,7 +115,7 @@ export default function LedgerPage() {
               { label: "Payments", value: totals.payments },
               { label: "Ratings", value: totals.ratings },
             ].map((s) => (
-              <div key={s.label} className="rounded-2xl bg-gray px-4 py-3 text-sm">
+              <div key={s.label} className="rounded-2xl border border-dark-gray/50 bg-gray px-4 py-3 text-sm">
                 <span className="opacity-60">{s.label}</span>
                 <strong className="ml-2">{s.value}</strong>
               </div>

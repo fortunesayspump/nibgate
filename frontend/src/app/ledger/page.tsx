@@ -143,7 +143,7 @@ export default function LedgerPage() {
           </div>
 
           {/* Totals — barometer animation */}
-          <div className="grid gap-3 mt-8 sm:grid-cols-5">
+          <div className="grid gap-3 mt-8 grid-cols-2 sm:grid-cols-5">
             {[
               { label: "Total", value: serverTotals.total },
               { label: "Views", value: serverTotals.views },

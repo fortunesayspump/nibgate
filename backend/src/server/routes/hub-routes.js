@@ -124,6 +124,20 @@ export function registerHubRoutes(app) {
     }
   });
 
+  app.post('/api/hub/site/info', async (req, res) => {
+    try {
+      const { siteId, token } = req.body || {};
+      if (!siteId || !token) return res.status(400).json({ error: 'siteId and token required.' });
+      const website = await db.website.findUnique({ where: { id: siteId }, include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } });
+      if (!website) return res.status(404).json({ error: 'Website not found.' });
+      if (website.verifyToken !== token) return res.status(403).json({ error: 'Invalid token.' });
+      const primaryWallet = website.owner?.wallets?.find((w) => w.isPrimary) || website.owner?.wallets?.[0];
+      res.json({ success: true, site: { ownerWallet: primaryWallet?.address || '', name: website.name, domain: website.domain } });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch site info', details: error.message });
+    }
+  });
+
   // ── Public Ledger / Activity Feed ─────────────────────────────────────
   // Surfaces ALL verifiable data stored by the widget/SDK:
   // Views → visitorId, referrer, url, durationMs

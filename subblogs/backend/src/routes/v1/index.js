@@ -25,12 +25,27 @@ defaultRoutes.forEach((route) => {
   router.use(route.path, route.route);
 });
 
-router.get('/site', (req, res) => {
+router.get('/site', async (req, res) => {
   let settings = {};
   try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
 
   const hubSiteId = settings.hubSiteId || req.siteId;
   const hubToken = settings.hubToken || req.site.verifyToken || '';
+
+  // Auto-fill recipientWallet from hub if missing
+  if (!settings.recipientWallet && hubSiteId && hubToken) {
+    try {
+      const hubRes = await fetch('https://api.nibgate.xyz/api/hub/site/info', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteId: hubSiteId, token: hubToken }),
+      });
+      const hubData = await hubRes.json();
+      if (hubData.success && hubData.site?.ownerWallet) {
+        settings.recipientWallet = hubData.site.ownerWallet;
+        await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
+      }
+    } catch {}
+  }
 
   res.json({
     success: true,

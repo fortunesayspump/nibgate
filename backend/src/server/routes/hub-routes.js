@@ -356,7 +356,18 @@ export function registerHubRoutes(app) {
 
       const eventName = cleanEventName(event);
       const metricType = eventTypeFor(event);
-      const content = eventName !== 'page_view' ? await upsertTrackedContent(website, { resource, event: eventName, url, path, ...extras, ...payload }) : null;
+      let content = null;
+      if (eventName !== 'page_view') {
+        try {
+          content = await upsertTrackedContent(website, { resource, event: eventName, url, path, ...extras, ...payload });
+        } catch {
+          // If upsert fails (e.g. unique constraint on websiteId+url), find existing content by URL
+          if (url) {
+            const existing = await db.content.findFirst({ where: { websiteId: website.id, url } });
+            if (existing) content = existing;
+          }
+        }
+      }
 
       if (metricType === 'content' && content) {
         await createMetric(website, content, { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, 'content');

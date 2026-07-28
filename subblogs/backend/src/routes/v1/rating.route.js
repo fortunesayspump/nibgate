@@ -2,7 +2,10 @@ const express = require('express');
 const validate = require('../../middlewares/validate');
 const ratingValidation = require('../../validations/rating.validation');
 const prisma = require('../../lib/prisma');
+const config = require('../../config/config');
 const router = express.Router();
+
+const HUB_API = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
 
 router.get('/:postId', async (req, res, next) => {
   try {
@@ -31,6 +34,25 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
       update: { rating, txHash },
       create: { siteId: req.siteId, postId: req.params.postId, wallet, rating, txHash },
     });
+
+    // Fire content_rating event to hub
+    try {
+      const post = await prisma.blogPost.findUnique({ where: { id: req.params.postId } });
+      const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
+      const siteId = settings.hubSiteId;
+      const token = settings.hubToken;
+      if (siteId && token && post) {
+        const body = JSON.stringify({
+          siteId, token, event: 'content_rating',
+          resource: { id: post.id, title: post.title, type: post.type || 'article', price: post.price || '' },
+          walletAddress: wallet, rating, ratingValue: rawRating,
+          ...(txHash ? { txHash, proof: `receipt:${txHash}` } : {}),
+        });
+        fetch(`${HUB_API}/api/hub/evt`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+        }).catch(() => {});
+      }
+    } catch {}
 
     res.json({ success: true, rating: data });
   } catch (error) {

@@ -25,3 +25,4 @@ packages/nibgate/.npmrc
 v2-labs/
 *.tgz
 writeskill.md
+swarm/

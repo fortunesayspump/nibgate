@@ -5,7 +5,8 @@ const ApiError = require('../utils/ApiError');
 const { status } = require('http-status');
 const prisma = require('../lib/prisma');
 
-const register = async ({ name, email, password, siteId }) => {
+const register = async ({ name, email: rawEmail, password, siteId }) => {
+  const email = (rawEmail || '').toLowerCase();
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new ApiError(status.CONFLICT, 'Email already registered');
 
@@ -18,7 +19,8 @@ const register = async ({ name, email, password, siteId }) => {
   return { user: { id: user.id, name: user.name, email: user.email, role: user.role, siteId: user.siteId }, token };
 };
 
-const login = async ({ email, username, password }) => {
+const login = async ({ email: rawEmail, username, password }) => {
+  const email = rawEmail ? (rawEmail || '').toLowerCase() : null;
   const user = email
     ? await prisma.user.findUnique({ where: { email } })
     : username ? await prisma.user.findFirst({ where: { username } }) : null;

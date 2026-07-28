@@ -51,10 +51,13 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     });
 
     if (settings.hubSiteId && settings.hubToken) {
+      const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+      const pubUrl = `https://${req.site.subdomain}.nibgate.xyz/${typePath[post.type] || 'posts'}/${post.slug}`;
       sdk.submitOnchainRating({
         siteId: settings.hubSiteId, token: settings.hubToken,
         hubContentId: hubContentId || post.id, title: post.title, postType: post.type, price: post.price,
         walletAddress: wallet, rating: ratingVal, ratingValue: rawRating, txHash,
+        url: pubUrl, path: `/${typePath[post.type] || 'posts'}/${post.slug}`,
       }).catch((err) => console.warn('[rating] Failed to submit hub event:', err.message));
     }
 

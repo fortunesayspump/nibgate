@@ -45,6 +45,14 @@ Agent identity and reputation standards focus on whether an agent can be identif
 
 Agents can discover content through Explore, public metadata APIs, search filters, tags, content type routes, creator profiles, and future machine-readable manifests.
 
+### Machine-readable discovery guide
+
+A plain-language agent discovery guide is available at `https://nibgate.xyz/discovery.md`. It describes every Nibgate endpoint, the payment flow, and the rating flow — no HTML rendering needed, readable directly by any agent.
+
+### Public ledger
+
+The ledger at `https://nibgate.xyz/ledger` (API: `GET /api/hub/ledger`) provides a live feed of all views, unlocks, payments, and ratings across sites. Agents can filter by `?domain=` for per-site activity. Each entry includes timestamps, wallet addresses, and on-chain tx hashes where applicable.
+
 ### Hub explore API
 
 ```bash

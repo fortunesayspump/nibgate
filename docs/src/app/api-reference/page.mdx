@@ -21,6 +21,7 @@ https://api.nibgate.xyz
   <Cards.Card title="Sites" href="/api-reference#site-registration" />
   <Cards.Card title="Events" href="/api-reference#event-ingestion" />
   <Cards.Card title="Explore" href="/api-reference#explore-content" />
+  <Cards.Card title="Ledger" href="/api-reference#public-ledger" />
 </Cards>
 
 ## Status
@@ -110,3 +111,49 @@ Explore reads verified content metadata from the backend.
 ```http
 GET /api/hub/explore/content?q=music&type=music&sort=trending
 ```
+
+## Public ledger
+
+The ledger provides a live, auditable feed of views, unlocks, payments, and ratings across all sites.
+
+```http
+GET /api/hub/ledger?limit=50&skip=0&type=&domain=
+```
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `limit` | `50` | Items per page (max 100) |
+| `skip` | `0` | Offset for pagination |
+| `type` | — | Filter by activity type: `views`, `unlocks`, `payments`, `ratings` |
+| `domain` | — | Filter by site domain (e.g. `fortune.nibgate.xyz` for per-site activity) |
+
+Returns sorted activity list plus total counts across all records.
+
+```json
+{
+  "success": true,
+  "activities": [
+    {
+      "type": "payment",
+      "id": "evt_123",
+      "domain": "fortune.nibgate.xyz",
+      "contentTitle": "Premium Post",
+      "amount": 5,
+      "currency": "USDC",
+      "txHash": "0x...",
+      "paymentProvider": "circle-gateway",
+      "payerWallet": "0x...",
+      "timestamp": "2026-07-28T19:17:24.000Z"
+    }
+  ],
+  "totals": {
+    "views": 300,
+    "unlocks": 160,
+    "payments": 175,
+    "ratings": 70
+  },
+  "hasMore": false
+}
+```
+
+The ledger is also available as a UI at `https://nibgate.xyz/ledger` with search, filtering, expandable row details, and live updates.

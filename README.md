@@ -52,15 +52,18 @@ internal-docs/ Architecture, research, design-system notes, and planning
 The Hub is the main Nibgate app and API surface. It acts as the creator dashboard, public site, and discovery directory:
 
 - `/explore` The discovery masonry grid indexing all creator content.
+- `/ledger` Public activity feed — every unlock, payment, and onchain rating across all sites, searchable and filterable. New entries slide in live.
+- `/discovery.md` Agent guidance — plain-language description of Nibgate endpoints, payment flow, and rating flow for AI agents.
 - `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
 - `/api/hub/*` Hub connection, sync, verification, and event ingestion.
+- `/api/hub/ledger?domain=X` Public ledger endpoint with optional domain filter for per-site activity.
 
 ### `subblogs/` (Subblogs — Creator Blog Platform)
 
 This is an example creator blog with paid content gating. Two services:
 
 - **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after onchain proof verification.
-- **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification.
+- **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification. Admin panel (`/admin/posts`) includes a MiniLedger widget showing recent views, unlocks, payments, and ratings for the site.
 
 **Critical rule:** The `GET /api/blog/posts/:slug` endpoint strips the `body` from paid posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents content from ever appearing in page source.
 
@@ -302,6 +305,8 @@ That keeps real content and enforcement on the creator domain while the hub stor
 ## Discovery and Reputation
 
 Nibgate discovery is not just a public gallery. It is the index of verified creator-owned content that humans and agents can trust enough to browse, cite, unlock, and route payments toward.
+
+The public ledger (`/ledger`) provides a live, auditable feed of every view, unlock, payment, and rating with on-chain proof links. Each row is expandable for full detail — wallet addresses, tx hashes, timestamps. Stats totals animate on update.
 
 The hub can rank and filter content using:
 

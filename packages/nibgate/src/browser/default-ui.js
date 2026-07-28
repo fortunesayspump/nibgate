@@ -259,11 +259,11 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     gwOverlay.addEventListener('click', (e) => { if (e.target === gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } });
     document.body.appendChild(gwOverlay);
     document.addEventListener('keydown', onDepKey);
-    import('./default-ui.js').then(m => m.renderDefaultGatewayWalletUI(modal, {
+    renderDefaultGatewayWalletUI(modal, {
       address: ctrl.getWalletAddress(),
       gatewayBalanceUrl: options.gatewayBalanceUrl,
       ...(options.gatewayOptions || {}),
-    })).catch(() => {});
+    });
   }
   function onDepKey(e) { if (e.key === 'Escape' && gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } }
 

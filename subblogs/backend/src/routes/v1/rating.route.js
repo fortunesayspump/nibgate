@@ -21,7 +21,7 @@ router.get('/:postId', async (req, res, next) => {
 router.post('/:postId', validate(ratingValidation.createRating), async (req, res, next) => {
   try {
     const { wallet, rating: rawRating, txHash, hubContentId } = req.body;
-    const ratingVal = Math.round((Number(rawRating) || 0) / 10 * 10) / 10;
+    const ratingVal = Math.round((Number(rawRating) || 0) / 10);
     const post = await prisma.blogPost.findUnique({ where: { id: req.params.postId } });
     if (!post) return res.status(404).json({ error: 'Post not found.' });
 

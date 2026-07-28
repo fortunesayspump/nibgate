@@ -198,7 +198,9 @@ export default function LedgerPage() {
                               {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
                             </td>
                             <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
-                              {a.txHash ? (
+                              {a.txHash && a.paymentProvider === "circle-gateway" ? (
+                                <span title={`Gateway ref: ${a.txHash}`} className="text-[var(--nib-ink-soft)]">GW {sn(a.txHash, 6)}</span>
+                              ) : a.txHash ? (
                                 <a href={bx(a.txHash)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                                   className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.txHash}>tx {sn(a.txHash, 6)}</a>
                               ) : a.paymentId ? (
@@ -225,7 +227,7 @@ export default function LedgerPage() {
                                   {a.type === "unlock" && <Det label="Revenue" value={`${a.revenue || 0} ${a.currency || "USDC"}`} />}
                                   {a.type === "payment" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
                                   {a.paymentId && <Det label="Payment ID" value={a.paymentId} />}
-                                  {a.txHash && <Det label="Tx Hash" value={a.txHash} />}
+                                  {a.txHash && <Det label={a.paymentProvider === "circle-gateway" ? "Gateway Ref" : "Tx Hash"} value={a.txHash} />}
                                   {a.chainId && <Det label="Chain ID" value={a.chainId} />}
                                   {a.network && <Det label="Network" value={a.network} />}
                                   {a.paymentProvider && <Det label="Provider" value={a.paymentProvider} />}
@@ -260,7 +262,7 @@ export default function LedgerPage() {
           {loadingMore && <p className="mt-6 text-sm opacity-60 text-center">Loading more...</p>}
 
           <p className="mt-6 text-sm opacity-60 text-center max-w-lg mx-auto leading-relaxed">
-            Click <strong>+</strong> to expand row details. Tx hashes link to Arc Testnet. Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
+            Click <strong>+</strong> to expand row details. On-chain tx hashes link to Arc Testnet. Gateway payments show reference IDs (not on-chain). Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
           </p>
         </section>
       </main>

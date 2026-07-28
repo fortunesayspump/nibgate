@@ -137,13 +137,21 @@ export function registerHubRoutes(app) {
       const offset = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
       const type = String(req.query.type || '').trim().toLowerCase();
 
+      // Total counts across ALL data (not just paginated)
+      const [totalViews, totalUnlocks, totalPayments, totalRatings] = await Promise.all([
+        db.metric.count({ where: { type: 'view', contentId: { not: null } } }),
+        db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null } } }),
+        db.unlockReceipt.count(),
+        db.contentRating.count({ where: { status: 'accepted' } }),
+      ]);
+
       const activities = [];
 
       // 1. Recent views
       if (!type || type === 'views') {
         const views = await db.metric.findMany({
           where: { type: 'view', contentId: { not: null } },
-          include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
+          include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
@@ -155,6 +163,7 @@ export function registerHubRoutes(app) {
             contentId: v.contentId,
             contentTitle: v.content?.title || 'Unknown content',
             contentUrl: v.content?.url || v.url || '',
+            imageUrl: v.content?.imageUrl || null,
             domain: v.website?.domain || '',
             referrer: v.referrer || null,
             durationMs: v.durationMs || null,
@@ -167,7 +176,7 @@ export function registerHubRoutes(app) {
       if (!type || type === 'unlocks') {
         const unlocks = await db.metric.findMany({
           where: { eventName: 'unlock_completed', contentId: { not: null } },
-          include: { content: { select: { id: true, title: true, url: true, price: true, currency: true } }, website: { select: { domain: true } } },
+          include: { content: { select: { id: true, title: true, url: true, imageUrl: true, price: true, currency: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
@@ -179,6 +188,7 @@ export function registerHubRoutes(app) {
             contentId: u.contentId,
             contentTitle: u.content?.title || 'Unknown content',
             contentUrl: u.content?.url || u.url || '',
+            imageUrl: u.content?.imageUrl || null,
             domain: u.website?.domain || '',
             revenue: u.revenue || 0,
             currency: u.currency || 'USDC',
@@ -190,7 +200,7 @@ export function registerHubRoutes(app) {
       // 3. Recent payments (UnlockReceipt — full verifiable trail)
       if (!type || type === 'payments') {
         const payments = await db.unlockReceipt.findMany({
-          include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
+          include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
@@ -202,6 +212,7 @@ export function registerHubRoutes(app) {
             contentId: p.contentId,
             contentTitle: p.content?.title || 'Unknown content',
             contentUrl: p.content?.url || '',
+            imageUrl: p.content?.imageUrl || null,
             domain: p.website?.domain || '',
             amount: p.amount || 0,
             currency: p.currency || 'USDC',
@@ -224,7 +235,7 @@ export function registerHubRoutes(app) {
       if (!type || type === 'ratings') {
         const ratings = await db.contentRating.findMany({
           where: { status: 'accepted' },
-          include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
+          include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
@@ -236,6 +247,7 @@ export function registerHubRoutes(app) {
             contentId: r.contentId,
             contentTitle: r.content?.title || 'Unknown content',
             contentUrl: r.content?.url || '',
+            imageUrl: r.content?.imageUrl || null,
             domain: r.website?.domain || '',
             score: Math.round((r.ratingValue || 0) / 10),
             timestamp: r.createdAt,
@@ -252,7 +264,14 @@ export function registerHubRoutes(app) {
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const result = activities.slice(0, limit);
 
-      res.json({ success: true, activities: result, total: result.length, limit, skip: offset });
+      res.json({
+        success: true,
+        activities: result,
+        total: result.length,
+        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, total: totalViews + totalUnlocks + totalPayments + totalRatings },
+        hasMore: activities.length > limit,
+        limit, skip: offset
+      });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch ledger', details: error.message });
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback, useRef } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
@@ -12,6 +12,7 @@ type Activity = {
   contentTitle: string;
   contentUrl: string;
   contentId: string;
+  imageUrl?: string;
   timestamp: string;
   id: string;
   websiteId?: string;
@@ -57,24 +58,37 @@ function sn(s: string, l = 8) { return s.length > l + 4 ? `${s.slice(0, l)}...${
 export default function LedgerPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [hasMore, setHasMore] = useState(false);
+  const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, total: 0 });
 
-  const fetchLedger = useCallback(async () => {
+  const activitiesRef = useRef<Activity[]>([]);
+  activitiesRef.current = activities;
+
+  const fetchLedger = useCallback(async (append = false) => {
     try {
-      const url = `/api/hub/ledger?limit=200${filter ? `&type=${filter}` : ""}`;
+      if (append) setLoadingMore(true); else setLoading(true);
+      const currentSkip = append ? activitiesRef.current.length : 0;
+      const url = `/api/hub/ledger?limit=50&skip=${currentSkip}${filter ? `&type=${filter}` : ""}`;
       const res = await fetch(url);
       const data = await res.json();
-      if (data.success) setActivities(data.activities || []);
-    } catch {} finally { setLoading(false); }
+      if (data.success) {
+        if (append) setActivities((prev) => [...prev, ...(data.activities || [])]);
+        else setActivities(data.activities || []);
+        setHasMore(data.hasMore || false);
+        if (data.totals) setServerTotals(data.totals);
+      }
+    } catch {} finally { setLoading(false); setLoadingMore(false); }
   }, [filter]);
 
   useEffect(() => {
-    fetchLedger();
-    const int = setInterval(fetchLedger, 30000);
+    fetchLedger(false);
+    const int = setInterval(() => fetchLedger(false), 30000);
     return () => clearInterval(int);
-  }, [fetchLedger]);
+  }, [filter]);
 
   const filtered = activities.filter((a) => {
     if (!search) return true;
@@ -82,14 +96,6 @@ export default function LedgerPage() {
     return [a.contentTitle, a.id, a.domain, a.actor, a.txHash, a.paymentId, a.walletAddress, a.payerWallet, a.recipientWallet]
       .some((v) => (v || "").toLowerCase().includes(q));
   });
-
-  const totals = {
-    views: activities.filter((a) => a.type === "view").length,
-    unlocks: activities.filter((a) => a.type === "unlock").length,
-    payments: activities.filter((a) => a.type === "payment").length,
-    ratings: activities.filter((a) => a.type === "rating").length,
-    total: activities.length,
-  };
 
   const toggle = (k: string) => setExpanded((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
@@ -106,14 +112,14 @@ export default function LedgerPage() {
             </div>
           </div>
 
-          {/* Totals */}
+          {/* Totals — from server (entire database) */}
           <div className="grid gap-3 mt-8 sm:grid-cols-5">
             {[
-              { label: "Total", value: totals.total },
-              { label: "Views", value: totals.views },
-              { label: "Unlocks", value: totals.unlocks },
-              { label: "Payments", value: totals.payments },
-              { label: "Ratings", value: totals.ratings },
+              { label: "Total", value: serverTotals.total },
+              { label: "Views", value: serverTotals.views },
+              { label: "Unlocks", value: serverTotals.unlocks },
+              { label: "Payments", value: serverTotals.payments },
+              { label: "Ratings", value: serverTotals.ratings },
             ].map((s) => (
               <div key={s.label} className="rounded-2xl border border-dark-gray/50 bg-gray px-4 py-3 text-sm">
                 <span className="opacity-60">{s.label}</span>
@@ -171,11 +177,18 @@ export default function LedgerPage() {
                             <td className="px-5 py-5" title={meta.label}>{meta.icon}</td>
                             <td className="px-5 py-5 whitespace-nowrap opacity-60 text-sm">{ta(a.timestamp)}</td>
                             <td className="px-5 py-5 min-w-[180px]">
-                              <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}
-                                className="underline underline-offset-2 decoration-dark-gray/40 hover:decoration-black font-medium">
-                                {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
-                              </Link>
-                              {a.domain && <div className="mt-1 text-sm opacity-60">{a.domain}</div>}
+                              <div className="flex items-center gap-3">
+                                {a.imageUrl ? (
+                                  <img src={a.imageUrl} alt="" className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" />
+                                ) : null}
+                                <div className="min-w-0">
+                                  <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}
+                                    className="underline underline-offset-2 decoration-dark-gray/40 hover:decoration-black font-medium">
+                                    {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
+                                  </Link>
+                                  {a.domain && <div className="text-sm opacity-60 truncate">{a.domain}</div>}
+                                </div>
+                              </div>
                             </td>
                             <td className="px-5 py-5 whitespace-nowrap text-sm max-w-[120px] truncate font-mono" title={a.actor}>{sn(a.actor)}</td>
                             <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
@@ -235,6 +248,16 @@ export default function LedgerPage() {
               </div>
             </section>
           )}
+
+          {hasMore && !loading && !loadingMore && (
+            <div className="mt-6 text-center">
+              <button onClick={() => fetchLedger(true)}
+                className="rounded-full border border-black/45 bg-white px-6 py-3 text-sm font-medium hover:bg-gray transition">
+                Load more
+              </button>
+            </div>
+          )}
+          {loadingMore && <p className="mt-6 text-sm opacity-60 text-center">Loading more...</p>}
 
           <p className="mt-6 text-sm opacity-60 text-center max-w-lg mx-auto leading-relaxed">
             Click <strong>+</strong> to expand row details. Tx hashes link to Arc Testnet. Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.

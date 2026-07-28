@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import { FiEye, FiUnlock, FiDollarSign, FiStar } from "react-icons/fi";
 
 type Activity = {
   type: "view" | "unlock" | "payment" | "rating";
@@ -35,15 +36,19 @@ type Activity = {
   proof?: string;
 };
 
-const TYPE_ICONS: Record<string, string> = { view: "👁", unlock: "🔓", payment: "💳", rating: "⭐" };
-const TYPE_LABELS: Record<string, string> = { view: "View", unlock: "Unlock", payment: "Payment", rating: "Rating" };
+const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
+  view: { label: "View", icon: <FiEye size={18} /> },
+  unlock: { label: "Unlock", icon: <FiUnlock size={18} /> },
+  payment: { label: "Payment", icon: <FiDollarSign size={18} /> },
+  rating: { label: "Rating", icon: <FiStar size={18} /> },
+};
 
 function ta(d: string) {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
 
 function bx(t: string) { return `https://testnet.arc.io/tx/${t}`; }
@@ -78,13 +83,13 @@ export default function LedgerPage() {
       .some((v) => (v || "").toLowerCase().includes(q));
   });
 
-  const stats = [
-    { label: "Total", value: activities.length },
-    { label: "Views", value: activities.filter((a) => a.type === "view").length },
-    { label: "Unlocks", value: activities.filter((a) => a.type === "unlock").length },
-    { label: "Payments", value: activities.filter((a) => a.type === "payment").length },
-    { label: "Ratings", value: activities.filter((a) => a.type === "rating").length },
-  ];
+  const totals = {
+    views: activities.filter((a) => a.type === "view").length,
+    unlocks: activities.filter((a) => a.type === "unlock").length,
+    payments: activities.filter((a) => a.type === "payment").length,
+    ratings: activities.filter((a) => a.type === "rating").length,
+    total: activities.length,
+  };
 
   const toggle = (k: string) => setExpanded((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
@@ -101,29 +106,33 @@ export default function LedgerPage() {
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 my-8">
-            {stats.map((s) => (
-              <div key={s.label} className="border border-dark-gray/40 rounded-xl p-4 text-center bg-gray/50">
-                <div className="text-2xl font-bold font-mono">{s.value}</div>
-                <div className="text-xs opacity-60 uppercase tracking-wider mt-1">{s.label}</div>
+          {/* Totals */}
+          <div className="grid gap-3 mt-8 sm:grid-cols-5">
+            {[
+              { label: "Total", value: totals.total },
+              { label: "Views", value: totals.views },
+              { label: "Unlocks", value: totals.unlocks },
+              { label: "Payments", value: totals.payments },
+              { label: "Ratings", value: totals.ratings },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl bg-gray px-4 py-3 text-sm">
+                <span className="opacity-60">{s.label}</span>
+                <strong className="ml-2">{s.value}</strong>
               </div>
             ))}
           </div>
 
-          {/* Search + Filters */}
-          <div className="flex flex-col md:flex-row gap-3 mb-6">
-            <input type="text" placeholder="Search by title, ID, site, wallet, tx..."
+          {/* Search + Filter */}
+          <div className="mt-6 flex flex-col gap-3 lg:flex-row">
+            <input
               value={search} onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 px-3 py-2 text-sm border border-dark-gray/40 rounded bg-transparent text-[var(--nib-ink)] outline-none focus:border-[var(--nib-olive)] placeholder:opacity-40 font-mono" />
+              placeholder="Search by title, ID, site, wallet, tx..."
+              className="flex-1 rounded-full border border-black/45 bg-white px-5 py-3 text-sm outline-none transition focus:border-black focus:ring-2 focus:ring-black/10"
+            />
             <div className="flex gap-2 flex-wrap">
               {["", "views", "unlocks", "payments", "ratings"].map((t) => (
                 <button key={t} onClick={() => setFilter(t)}
-                  className={`px-3 py-1.5 rounded text-xs font-medium border transition ${
-                    filter === t
-                      ? "bg-[var(--nib-olive)] text-black border-[var(--nib-olive)]"
-                      : "bg-transparent text-[var(--nib-ink)] border-dark-gray/40 hover:border-[var(--nib-olive)]"
-                  }`}>
+                  className={`rounded-full border px-5 py-3 text-sm font-medium transition ${filter === t ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}>
                   {t || "All"}
                 </button>
               ))}
@@ -132,100 +141,103 @@ export default function LedgerPage() {
 
           {/* Table */}
           {loading ? (
-            <p className="opacity-60 text-sm">Loading...</p>
+            <p className="mt-8 text-sm opacity-65">Loading...</p>
           ) : filtered.length === 0 ? (
-            <p className="opacity-60 text-sm">No activity found.</p>
+            <p className="mt-8 text-sm opacity-65">No activity found.</p>
           ) : (
-            <div className="w-full overflow-x-auto border border-dark-gray/40 rounded-xl bg-gray/50">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left opacity-60 text-xs uppercase tracking-wider border-b border-dark-gray/40">
-                    <th className="p-3 font-medium w-6"></th>
-                    <th className="p-3 font-medium">Type</th>
-                    <th className="p-3 font-medium">Time</th>
-                    <th className="p-3 font-medium">Content</th>
-                    <th className="p-3 font-medium">Actor</th>
-                    <th className="p-3 font-medium">Value</th>
-                    <th className="p-3 font-medium">Proof</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((a, i) => {
-                    const k = `${a.id}-${i}`;
-                    const open = expanded.has(k);
-                    return (
-                      <Fragment key={k}>
-                        <tr className="border-b border-dark-gray/20 hover:bg-gray/30 transition-colors cursor-pointer" onClick={() => toggle(k)}>
-                          <td className="p-3 opacity-40 text-xs">{open ? "−" : "+"}</td>
-                          <td className="p-3 whitespace-nowrap" title={TYPE_LABELS[a.type]}>{TYPE_ICONS[a.type]}</td>
-                          <td className="p-3 whitespace-nowrap opacity-60 font-mono text-xs">{ta(a.timestamp)}</td>
-                          <td className="p-3 min-w-[180px]">
-                            <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}
-                              className="underline underline-offset-2 decoration-dark-gray/40 hover:decoration-[var(--nib-olive)]">
-                              {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
-                            </Link>
-                            {a.domain && <div className="text-[10px] opacity-40 font-mono mt-0.5">{a.domain}</div>}
-                          </td>
-                          <td className="p-3 whitespace-nowrap font-mono text-xs max-w-[100px] truncate" title={a.actor}>{sn(a.actor)}</td>
-                          <td className="p-3 whitespace-nowrap font-mono text-xs">
-                            {a.type === "payment" && <span>{a.amount} {a.currency}</span>}
-                            {a.type === "unlock" && a.revenue ? <span>{a.revenue} {a.currency}</span> : null}
-                            {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
-                            {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
-                          </td>
-                          <td className="p-3 whitespace-nowrap font-mono text-xs">
-                            {a.txHash ? (
-                              <a href={bx(a.txHash)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                                className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.txHash}>tx {sn(a.txHash, 6)}</a>
-                            ) : a.paymentId ? (
-                              <span title={a.paymentId}>pid {sn(a.paymentId, 6)}</span>
-                            ) : a.proof ? (
-                              <span title={a.proof}>{sn(a.proof, 10)}</span>
-                            ) : (
-                              <span className="opacity-40" title={a.id}>#{sn(a.id, 4)}</span>
-                            )}
-                          </td>
-                        </tr>
-                        {open && (
-                          <tr className="bg-gray/30">
-                            <td colSpan={7} className="p-4 border-b border-dark-gray/20">
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
-                                <Det label="Event ID" value={a.id} />
-                                <Det label="Type" value={TYPE_LABELS[a.type]} />
-                                <Det label="Content ID" value={a.contentId} />
-                                <Det label="Timestamp" value={new Date(a.timestamp).toLocaleString()} />
-                                <Det label="Actor" value={a.actor} />
-                                <Det label="Site" value={a.domain || "—"} />
-                                {a.type === "view" && <Det label="Referrer" value={a.referrer || "—"} />}
-                                {a.type === "view" && a.durationMs ? <Det label="Duration" value={`${(a.durationMs / 1000).toFixed(1)}s`} /> : null}
-                                {a.type === "unlock" && <Det label="Revenue" value={`${a.revenue || 0} ${a.currency || "USDC"}`} />}
-                                {a.type === "payment" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
-                                {a.paymentId && <Det label="Payment ID" value={a.paymentId} />}
-                                {a.txHash && <Det label="Tx Hash" value={a.txHash} link />}
-                                {a.chainId && <Det label="Chain ID" value={a.chainId} />}
-                                {a.network && <Det label="Network" value={a.network} />}
-                                {a.paymentProvider && <Det label="Provider" value={a.paymentProvider} />}
-                                {a.payerWallet && <Det label="Payer" value={a.payerWallet} />}
-                                {a.recipientWallet && <Det label="Recipient" value={a.recipientWallet} />}
-                                {a.status && <Det label="Status" value={a.status} />}
-                                {a.score && <Det label="Score" value={`${a.score}/5`} />}
-                                {a.walletAddress && <Det label="Rater" value={a.walletAddress} />}
-                                {a.proofType && <Det label="Proof Type" value={a.proofType} />}
-                                {a.proof && <Det label="Proof" value={a.proof} />}
-                              </div>
+            <section className="mt-8 overflow-hidden border border-dark-gray/50 bg-white">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[860px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-dark-gray/50 bg-gray text-sm">
+                      <th className="w-10 px-5 py-4 font-medium"></th>
+                      <th className="px-5 py-4 font-medium">Type</th>
+                      <th className="px-5 py-4 font-medium">Time</th>
+                      <th className="px-5 py-4 font-medium">Content</th>
+                      <th className="px-5 py-4 font-medium">Actor</th>
+                      <th className="px-5 py-4 font-medium">Value</th>
+                      <th className="px-5 py-4 font-medium">Proof</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((a, i) => {
+                      const k = `${a.id}-${i}`;
+                      const open = expanded.has(k);
+                      const meta = TYPE_META[a.type];
+                      return (
+                        <Fragment key={k}>
+                          <tr className="border-b border-dark-gray/40 transition hover:bg-gray/70 cursor-pointer" onClick={() => toggle(k)}>
+                            <td className="px-5 py-5 opacity-40 text-sm">{open ? "−" : "+"}</td>
+                            <td className="px-5 py-5" title={meta.label}>{meta.icon}</td>
+                            <td className="px-5 py-5 whitespace-nowrap opacity-60 text-sm">{ta(a.timestamp)}</td>
+                            <td className="px-5 py-5 min-w-[180px]">
+                              <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}
+                                className="underline underline-offset-2 decoration-dark-gray/40 hover:decoration-black font-medium">
+                                {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
+                              </Link>
+                              {a.domain && <div className="mt-1 text-sm opacity-60">{a.domain}</div>}
+                            </td>
+                            <td className="px-5 py-5 whitespace-nowrap text-sm max-w-[120px] truncate font-mono" title={a.actor}>{sn(a.actor)}</td>
+                            <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
+                              {a.type === "payment" && <span>{a.amount} {a.currency}</span>}
+                              {a.type === "unlock" && a.revenue ? <span>{a.revenue} {a.currency}</span> : null}
+                              {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
+                              {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
+                            </td>
+                            <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
+                              {a.txHash ? (
+                                <a href={bx(a.txHash)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                  className="underline underline-offset-2 text-[var(--nib-olive)]" title={a.txHash}>tx {sn(a.txHash, 6)}</a>
+                              ) : a.paymentId ? (
+                                <span title={a.paymentId}>pid {sn(a.paymentId, 6)}</span>
+                              ) : a.proof ? (
+                                <span title={a.proof}>{sn(a.proof, 10)}</span>
+                              ) : (
+                                <span className="opacity-40" title={a.id}>#{sn(a.id, 4)}</span>
+                              )}
                             </td>
                           </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          {open && (
+                            <tr className="bg-gray/50">
+                              <td colSpan={7} className="border-b border-dark-gray/40">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-5 py-5 text-sm">
+                                  <Det label="Event ID" value={a.id} />
+                                  <Det label="Type" value={meta.label} />
+                                  <Det label="Content ID" value={a.contentId} />
+                                  <Det label="Timestamp" value={new Date(a.timestamp).toLocaleString()} />
+                                  <Det label="Actor" value={a.actor} />
+                                  <Det label="Site" value={a.domain || "—"} />
+                                  {a.type === "view" && <Det label="Referrer" value={a.referrer || "—"} />}
+                                  {a.type === "view" && a.durationMs ? <Det label="Duration" value={`${(a.durationMs / 1000).toFixed(1)}s`} /> : null}
+                                  {a.type === "unlock" && <Det label="Revenue" value={`${a.revenue || 0} ${a.currency || "USDC"}`} />}
+                                  {a.type === "payment" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
+                                  {a.paymentId && <Det label="Payment ID" value={a.paymentId} />}
+                                  {a.txHash && <Det label="Tx Hash" value={a.txHash} />}
+                                  {a.chainId && <Det label="Chain ID" value={a.chainId} />}
+                                  {a.network && <Det label="Network" value={a.network} />}
+                                  {a.paymentProvider && <Det label="Provider" value={a.paymentProvider} />}
+                                  {a.payerWallet && <Det label="Payer" value={a.payerWallet} />}
+                                  {a.recipientWallet && <Det label="Recipient" value={a.recipientWallet} />}
+                                  {a.status && <Det label="Status" value={a.status} />}
+                                  {a.score && <Det label="Score" value={`${a.score}/5`} />}
+                                  {a.walletAddress && <Det label="Rater" value={a.walletAddress} />}
+                                  {a.proofType && <Det label="Proof Type" value={a.proofType} />}
+                                  {a.proof && <Det label="Proof" value={a.proof} />}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
 
-          <p className="mt-6 text-xs opacity-40 text-center max-w-lg mx-auto leading-relaxed">
-            Click <strong>+</strong> to expand. Tx hashes link to the Arc Testnet block explorer. Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
+          <p className="mt-6 text-sm opacity-60 text-center max-w-lg mx-auto leading-relaxed">
+            Click <strong>+</strong> to expand row details. Tx hashes link to Arc Testnet. Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
           </p>
         </section>
       </main>
@@ -234,14 +246,11 @@ export default function LedgerPage() {
   );
 }
 
-function Det({ label, value, link }: { label: string; value: string; link?: boolean }) {
-  const c = link && value.startsWith("http")
-    ? <a href={value} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-[var(--nib-olive)]">{sn(value, 20)}</a>
-    : <span>{value}</span>;
+function Det({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="opacity-40 uppercase tracking-wider text-[10px] mb-0.5">{label}</div>
-      <div className="break-all">{c}</div>
+      <div className="opacity-60 text-xs uppercase tracking-wider mb-0.5">{label}</div>
+      <div className="break-all font-mono text-sm">{value}</div>
     </div>
   );
 }

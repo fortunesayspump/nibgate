@@ -7,6 +7,7 @@ const settingsRoute = require('./settings.route');
 const setupRoute = require('./setup.route');
 const uploadRoute = require('./upload.route');
 const config = require('../../config/config');
+const prisma = require('../../lib/prisma');
 
 const router = express.Router();
 

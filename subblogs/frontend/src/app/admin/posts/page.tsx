@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiAuthFetch, type BlogPost } from "@/lib/api";
+import MiniLedger from "@/components/MiniLedger";
 
 const TYPE_COLORS: Record<string, string> = { article: "#7c9a6d", photo: "#8b7e74", music: "#6d8a9a", video: "#9a6d8a" };
 
@@ -115,6 +116,8 @@ export default function AdminPostsPage() {
             ))
           )}
         </div>
+
+        <MiniLedger />
       </div>
     </div>
   );

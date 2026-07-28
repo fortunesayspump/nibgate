@@ -150,13 +150,15 @@ export function registerHubRoutes(app) {
       const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '50', 10) || 50, 1), 100);
       const offset = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
       const type = String(req.query.type || '').trim().toLowerCase();
+      const domain = String(req.query.domain || '').trim().toLowerCase() || undefined;
+      const siteWhere = domain ? { website: { domain } } : {};
 
-      // Total counts across ALL data (not just paginated)
+      // Total counts (optionally filtered by domain)
       const [totalViews, totalUnlocks, totalPayments, totalRatings] = await Promise.all([
-        db.metric.count({ where: { type: 'view', contentId: { not: null } } }),
-        db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null } } }),
-        db.unlockReceipt.count(),
-        db.contentRating.count({ where: { status: 'accepted' } }),
+        db.metric.count({ where: { type: 'view', contentId: { not: null }, ...siteWhere } }),
+        db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null }, ...siteWhere } }),
+        db.unlockReceipt.count({ where: { ...siteWhere } }),
+        db.contentRating.count({ where: { status: 'accepted', ...siteWhere } }),
       ]);
 
       const activities = [];
@@ -164,7 +166,7 @@ export function registerHubRoutes(app) {
       // 1. Recent views
       if (!type || type === 'views') {
         const views = await db.metric.findMany({
-          where: { type: 'view', contentId: { not: null } },
+          where: { type: 'view', contentId: { not: null }, ...siteWhere },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -189,7 +191,7 @@ export function registerHubRoutes(app) {
       // 2. Recent unlocks (unlock_completed events stored in Metric)
       if (!type || type === 'unlocks') {
         const unlocks = await db.metric.findMany({
-          where: { eventName: 'unlock_completed', contentId: { not: null } },
+          where: { eventName: 'unlock_completed', contentId: { not: null }, ...siteWhere },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true, price: true, currency: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -214,6 +216,7 @@ export function registerHubRoutes(app) {
       // 3. Recent payments (UnlockReceipt — full verifiable trail)
       if (!type || type === 'payments') {
         const payments = await db.unlockReceipt.findMany({
+          where: { ...siteWhere },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -248,7 +251,7 @@ export function registerHubRoutes(app) {
       // 4. Recent ratings (ContentRating with proofs)
       if (!type || type === 'ratings') {
         const ratings = await db.contentRating.findMany({
-          where: { status: 'accepted' },
+          where: { status: 'accepted', ...siteWhere },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,

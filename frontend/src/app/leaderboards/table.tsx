@@ -148,16 +148,19 @@ export default function LeaderboardTable({ creators, sites, content }: Props) {
       <div className="border-b border-dark-gray/50 p-4 md:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActive(tab.id)}
-                className={`rounded-full border px-5 py-3 text-sm font-medium transition ${active === tab.id ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            {tabs.map((tab) => {
+              const count = tab.id === "creators" ? creators.length : tab.id === "sites" ? sites.length : content.length;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActive(tab.id)}
+                  className={`rounded-full border px-5 py-3 text-sm font-medium transition ${active === tab.id ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}
+                >
+                  {tab.label} <span className="opacity-60">({count})</span>
+                </button>
+              );
+            })}
           </div>
           <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[420px]">
             <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Views</span><strong className="ml-2">{totals.views}</strong></div>

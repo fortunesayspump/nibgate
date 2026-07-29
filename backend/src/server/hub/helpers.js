@@ -43,7 +43,7 @@ export function serializeWebsite(website) {
     lastVerificationCheckAt: website.lastVerificationCheckAt || null,
     verificationFailureReason: website.verificationFailureReason || '',
     verifyToken: website.verifyToken,
-    faviconUrl: website.faviconUrl || `https://${website.domain}/favicon.ico`,
+    faviconUrl: website.faviconUrl || `https://www.google.com/s2/favicons?domain=${website.domain}&sz=128`,
     ogImageUrl: website.ogImageUrl || '',
     trackingScript: trackingScriptFor(website),
     lastScanAt: website.lastScanAt || null,
@@ -704,7 +704,7 @@ export async function checkWebsiteVerification(website) {
 
     return {
       ok: true, status: 'verified', reason: '',
-      data: { ...data, isVerified: true, verificationStatus: 'verified', lastVerifiedAt: checkedAt, verificationFailureReason: null, faviconUrl: `https://${website.domain}/favicon.ico`, ogImageUrl, description }
+      data: { ...data, isVerified: true, verificationStatus: 'verified', lastVerifiedAt: checkedAt, verificationFailureReason: null, faviconUrl: `https://www.google.com/s2/favicons?domain=${website.domain}&sz=128`, ogImageUrl, description }
     };
   } catch (error) {
     return {

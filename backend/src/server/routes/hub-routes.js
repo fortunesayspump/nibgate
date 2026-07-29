@@ -779,7 +779,7 @@ export function registerHubRoutes(app) {
           const score = siteReputationScore(content, website);
           return {
             id: website.id, name: website.name, domain: website.domain, description: website.description || '',
-            faviconUrl: website.faviconUrl || `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${website.domain}&size=128`, ownerName: website.owner?.username || '',
+            faviconUrl: website.faviconUrl || `https://${website.domain}/favicon.ico`, ownerName: website.owner?.username || '',
             ownerWallet: primaryWalletAddress(website.owner || {}), reputationScore: score,
             contentCount: content.length, views: content.reduce((sum, item) => sum + item.views, 0),
             unlocks: content.reduce((sum, item) => sum + item.unlocks, 0),

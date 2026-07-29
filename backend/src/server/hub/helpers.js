@@ -43,7 +43,7 @@ export function serializeWebsite(website) {
     lastVerificationCheckAt: website.lastVerificationCheckAt || null,
     verificationFailureReason: website.verificationFailureReason || '',
     verifyToken: website.verifyToken,
-    faviconUrl: website.faviconUrl || `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${website.domain}&size=128`,
+    faviconUrl: website.faviconUrl || `https://${website.domain}/favicon.ico`,
     ogImageUrl: website.ogImageUrl || '',
     trackingScript: trackingScriptFor(website),
     lastScanAt: website.lastScanAt || null,
@@ -704,7 +704,7 @@ export async function checkWebsiteVerification(website) {
 
     return {
       ok: true, status: 'verified', reason: '',
-      data: { ...data, isVerified: true, verificationStatus: 'verified', lastVerifiedAt: checkedAt, verificationFailureReason: null, faviconUrl: `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${website.domain}&size=128`, ogImageUrl, description }
+      data: { ...data, isVerified: true, verificationStatus: 'verified', lastVerifiedAt: checkedAt, verificationFailureReason: null, faviconUrl: `https://${website.domain}/favicon.ico`, ogImageUrl, description }
     };
   } catch (error) {
     return {

@@ -921,9 +921,14 @@ export function registerHubRoutes(app) {
         return res.status(409).json({ error: 'Domain is already registered by another user.' });
       }
 
-      const website = existing || await db.website.create({
-        data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', siteToken: crypto.randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
-      });
+      const website = existing
+        ? await db.website.update({
+            where: { id: existing.id },
+            data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, deletedAt: null, ownerId: user.id }
+          })
+        : await db.website.create({
+            data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', siteToken: crypto.randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
+          });
 
       await syncWebsiteManifest(website).catch(() => {});
 

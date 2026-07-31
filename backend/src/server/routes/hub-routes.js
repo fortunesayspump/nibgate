@@ -769,7 +769,7 @@ export function registerHubRoutes(app) {
 
       if (type === 'sites') {
         const websites = await db.website.findMany({
-          where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' },
+          where: { deletedAt: null },
           include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } }, _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } },
           take: 200,
           orderBy: { createdAt: 'desc' }
@@ -791,7 +791,7 @@ export function registerHubRoutes(app) {
       }
 
       const users = await db.user.findMany({
-        include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' }, include: { content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } } } },
+        include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null }, include: { content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } } } },
         take: 200,
         orderBy: { createdAt: 'asc' }
       });
@@ -812,8 +812,8 @@ export function registerHubRoutes(app) {
         .map((creator, index) => ({ rank: index + 1, ...creator }));
       const [creatorCount, siteCount, contentCount] = await Promise.all([
         db.user.count({ where: { wallets: { some: {} } } }),
-        db.website.count({ where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } }),
-        db.content.count({ where: { deletedAt: null, website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } } })
+        db.website.count({ where: { deletedAt: null } }),
+        db.content.count({ where: { deletedAt: null, website: { deletedAt: null } } })
       ]);
       return res.json({ success: true, type: 'creators', items, totals: { creators: creatorCount, sites: siteCount, content: contentCount } });
     } catch (error) {
@@ -834,7 +834,7 @@ export function registerHubRoutes(app) {
 
       const where = {
         deletedAt: null,
-        website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' },
+        website: { deletedAt: null },
         ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
         ...(q ? { OR: [
           { title: { contains: q, mode: 'insensitive' } },

@@ -17,8 +17,11 @@ export function originFor(domain) {
 
 export function manifestCandidateUrls(website) {
   const origin = originFor(website.domain).replace(/\/+$/, '');
+  const backendUrl = process.env.NIBGATE_BACKEND_URL || 'https://nibgate-production.up.railway.app';
+  const subdomain = website.domain?.replace(/\.nibgate\.xyz$/, '') || '';
   return [
     `${origin}/nibgate.json`,
+    `${backendUrl}/api/nibgate/manifest?subdomain=${subdomain}`,
     `${origin}/.well-known/nibgate.json`,
     `${origin}/v1/nibgate/manifest`,
     `${origin}/v1/nibgate/nibgate.json`
@@ -394,7 +397,7 @@ export async function upsertTrackedContent(website, payload = {}) {
   const contentId = crypto.createHash('md5').update(website.id + idSeed).digest('hex');
 
   return db.content.upsert({
-    where: { id: contentId },
+    where: { websiteId_url: { websiteId: website.id, url: data.url } },
     update: { ...data, deletedAt: null },
     create: {
       id: contentId,

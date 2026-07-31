@@ -822,8 +822,8 @@ export function serializeContent(content) {
   const metrics = Array.isArray(content.metrics) ? content.metrics : [];
   const ratings = Array.isArray(content.ratings) ? content.ratings : [];
   const unlockReceipts = Array.isArray(content.unlockReceipts) ? content.unlockReceipts : [];
-  // Only verified circle-gateway receipts count as real unlocks
-  const verifiedReceipts = unlockReceipts.filter((r) => r.status === 'verified' && r.paymentProvider === 'circle-gateway' && r.paymentId);
+  // Only verified receipts (gateway x402 or direct on-chain transfer) count as real unlocks
+  const verifiedReceipts = unlockReceipts.filter((r) => r.status === 'verified' && ['circle-gateway', 'direct-transfer'].includes(r.paymentProvider) && r.paymentId);
   const hasOnchainProof = verifiedReceipts.some((r) => r.txHash && r.txHash.length > 10);
   const views = metrics.filter((metric) => metric.type === 'view').length;
   const unlocks = verifiedReceipts.length;

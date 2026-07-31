@@ -73,7 +73,8 @@ function openItem(item: Item, active: BoardType) {
   if (href) window.open(href, "_blank", "noopener,noreferrer");
 }
 
-export default function LeaderboardTable({ creators, sites, content }: Props) {
+type Totals = { creators: number; sites: number; content: number };
+export default function LeaderboardTable({ creators, sites, content, totals }: Props & { totals?: Totals }) {
   const [active, setActive] = useState<BoardType>("creators");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
@@ -149,7 +150,7 @@ export default function LeaderboardTable({ creators, sites, content }: Props) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {tabs.map((tab) => {
-              const count = tab.id === "creators" ? creators.length : tab.id === "sites" ? sites.length : content.length;
+              const count = tab.id === "creators" ? (totals?.creators ?? creators.length) : tab.id === "sites" ? (totals?.sites ?? sites.length) : (totals?.content ?? content.length);
               return (
                 <button
                   key={tab.id}

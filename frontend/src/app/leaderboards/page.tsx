@@ -8,11 +8,11 @@ type LeaderboardItem = Record<string, any> & { rank: number; reputationScore?: n
 async function getBoard(type: string) {
   try {
     const res = await fetch(apiUrl(`/api/hub/reputation/leaderboards?type=${type}&limit=50`), { cache: "no-store" });
-    if (!res.ok) return [] as LeaderboardItem[];
+    if (!res.ok) return { items: [] as LeaderboardItem[], totals: { creators: 0, sites: 0, content: 0 } };
     const data = await res.json();
-    return (data.items || []) as LeaderboardItem[];
+    return { items: (data.items || []) as LeaderboardItem[], totals: data.totals || { creators: 0, sites: 0, content: 0 } };
   } catch {
-    return [] as LeaderboardItem[];
+    return { items: [] as LeaderboardItem[], totals: { creators: 0, sites: 0, content: 0 } };
   }
 }
 
@@ -32,7 +32,7 @@ export default async function LeaderboardsPage() {
             </div>
           </div>
 
-          <LeaderboardTable creators={creators} sites={sites} content={content} />
+          <LeaderboardTable creators={creators.items} sites={sites.items} content={content.items} totals={{ creators: creators.totals, sites: sites.totals, content: content.totals }} />
         </section>
       </main>
       <Footer showThemeToggle />

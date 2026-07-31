@@ -491,12 +491,12 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
 
   async function switchToArc() {
     try {
-      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x4CEF8A' }] });
+      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x4CEF52' }] });
     } catch (e) {
       if (e.code === 4902) {
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
-          params: [{ chainId: '0x4CEF8A', chainName: 'Arc Testnet', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: ['https://rpc.testnet.arc.io'] }],
+          params: [{ chainId: '0x4CEF52', chainName: 'Arc Testnet', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: ['https://rpc.testnet.arc.io'] }],
         });
       }
     }

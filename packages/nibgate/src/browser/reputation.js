@@ -11,6 +11,27 @@ export const NIBGATE_REPUTATION_CHAIN_NAME = 'Arc Testnet';
 export const NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.io';
 export const NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 
+const ARC_CHAIN_HEX = '0x4CEF52';
+
+export async function switchToArcNetwork(provider) {
+  if (!provider?.request) return;
+  try {
+    await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: ARC_CHAIN_HEX }] });
+  } catch (e) {
+    if (e?.code === 4902) {
+      await provider.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: ARC_CHAIN_HEX,
+          chainName: NIBGATE_REPUTATION_CHAIN_NAME,
+          nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+          rpcUrls: [NIBGATE_REPUTATION_RPC_URL]
+        }],
+      });
+    }
+  }
+}
+
 export const NIBGATE_REPUTATION_ABI = [
   {
     type: 'function',
@@ -122,6 +143,7 @@ export async function rateContentOnchain(resource, options = {}) {
   const unlockRef = String(options.unlockRef || options.paymentId || options.txHash || '');
   const data = encodeRateContent({ contentId, ratingValue: rating.ratingValue, reviewHash, unlockRef });
 
+  await switchToArcNetwork(provider);
   const txHash = await provider.request({
     method: 'eth_sendTransaction',
     params: [{

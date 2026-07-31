@@ -45,7 +45,7 @@ export default async function LeaderboardsPage() {
           </div>
 
           <div className="mt-10">
-            <LeaderboardTable creators={creators.items} sites={sites.items} content={content.items} totals={{ creators: stats.creators, sites: stats.sites, content: stats.content }} />
+            <LeaderboardTable creators={creators.items} sites={sites.items} content={content.items} totals={{ creators: stats.creators, sites: stats.sites, content: stats.content }} stats={{ views: stats.views, unlocks: stats.unlocks, revenue: stats.revenue }} />
           </div>
         </section>
       </main>

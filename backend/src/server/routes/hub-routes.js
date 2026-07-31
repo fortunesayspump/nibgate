@@ -16,7 +16,7 @@ import {
   ratingAverage, acceptedRatingCount,
   publisherPayloadFor, upsertPublisherIdentity, contentDataFor
 } from '../hub/helpers.js';
-import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer } from '../hub/monitors.js';
+import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor } from '../hub/monitors.js';
 
 async function requireAuth(req, res, next) {
   const sessionToken = req.cookies.auth_session;
@@ -32,6 +32,7 @@ export function registerHubRoutes(app) {
   startVerificationMonitor();
   startManifestSyncMonitor();
   startReputationIndexer();
+  startDataIntegrityMonitor();
 
   // ── Site Registration ──────────────────────────────────────────────────
 
@@ -154,11 +155,12 @@ export function registerHubRoutes(app) {
       const siteWhere = domain ? { website: { domain } } : { website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } };
 
       // Total counts (optionally filtered by domain)
+      const verifiedUnlockWhere = { ...siteWhere, status: 'verified', paymentProvider: 'circle-gateway' };
       const [totalViews, totalUnlocks, totalPayments, totalRatings] = await Promise.all([
         db.metric.count({ where: { type: 'view', contentId: { not: null }, ...siteWhere } }),
         db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null }, ...siteWhere } }),
-        db.unlockReceipt.count({ where: { ...siteWhere } }),
-        db.contentRating.count({ where: { status: 'accepted', ...siteWhere } }),
+        db.unlockReceipt.count({ where: verifiedUnlockWhere }),
+        db.contentRating.count({ where: { status: 'accepted', proof: { startsWith: 'onchain:' }, ...siteWhere } }),
       ]);
 
       const activities = [];
@@ -216,7 +218,7 @@ export function registerHubRoutes(app) {
       // 3. Recent payments (UnlockReceipt — full verifiable trail)
       if (!type || type === 'payments') {
         const payments = await db.unlockReceipt.findMany({
-          where: { ...siteWhere },
+          where: { ...siteWhere, status: 'verified', paymentProvider: 'circle-gateway' },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -251,7 +253,7 @@ export function registerHubRoutes(app) {
       // 4. Recent ratings (ContentRating with proofs)
       if (!type || type === 'ratings') {
         const ratings = await db.contentRating.findMany({
-          where: { status: 'accepted', ...siteWhere },
+          where: { status: 'accepted', proof: { startsWith: 'onchain:' }, ...siteWhere },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -841,14 +843,14 @@ export function registerHubRoutes(app) {
         db.website.count({ where: verifiedSiteWhere }),
         db.content.count({ where: { deletedAt: null, website: verifiedSiteWhere } }),
         db.metric.count({ where: { type: 'view', contentId: { not: null }, website: verifiedSiteWhere } }).catch(() => 0),
-        db.metric.count({ where: { type: 'unlock', eventName: 'unlock_completed', website: verifiedSiteWhere } }).catch(() => 0),
-        db.metric.findMany({ where: { eventName: 'unlock_completed', website: verifiedSiteWhere }, select: { revenue: true } }).catch(() => [])
+        db.unlockReceipt.count({ where: { status: 'verified', paymentProvider: 'circle-gateway', content: { website: verifiedSiteWhere } } }).catch(() => 0),
+        db.unlockReceipt.findMany({ where: { status: 'verified', paymentProvider: 'circle-gateway', content: { website: verifiedSiteWhere } }, select: { amount: true } }).catch(() => [])
       ]);
 
       const views = Number(viewCount || 0);
       const unlocks = Number(unlockCount || 0);
-      const revenue = (revenueAgg || []).reduce((total, metric) => {
-        const v = Number(metric?.revenue || 0);
+      const revenue = (revenueAgg || []).reduce((total, receipt) => {
+        const v = Number(receipt?.amount || 0);
         return v < 100 ? total + v : total;
       }, 0);
 

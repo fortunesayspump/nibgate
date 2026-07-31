@@ -822,26 +822,30 @@ export function serializeContent(content) {
   const metrics = Array.isArray(content.metrics) ? content.metrics : [];
   const ratings = Array.isArray(content.ratings) ? content.ratings : [];
   const unlockReceipts = Array.isArray(content.unlockReceipts) ? content.unlockReceipts : [];
-  const hasOnchainProof = unlockReceipts.some((r) => r.txHash && r.txHash.length > 10);
+  // Only verified circle-gateway receipts count as real unlocks
+  const verifiedReceipts = unlockReceipts.filter((r) => r.status === 'verified' && r.paymentProvider === 'circle-gateway' && r.paymentId);
+  const hasOnchainProof = verifiedReceipts.some((r) => r.txHash && r.txHash.length > 10);
   const views = metrics.filter((metric) => metric.type === 'view').length;
-  const unlocks = metrics.filter((metric) => metric.type === 'unlock' && metric.eventName === 'unlock_completed').length;
-  const revenueMetrics = metrics.filter((m) => m.eventName === 'unlock_completed');
+  const unlocks = verifiedReceipts.length;
+  const revenueMetrics = verifiedReceipts;
   let revenue = 0;
   if (hasOnchainProof) {
-    revenue = revenueMetrics.reduce((total, metric) => total + (metric.revenue || 0), 0);
+    revenue = revenueMetrics.reduce((total, receipt) => total + (receipt.amount || 0), 0);
   } else {
-    const smallRevenueMetrics = revenueMetrics.filter((m) => m.revenue < 100);
-    revenue = smallRevenueMetrics.reduce((total, m) => total + (m.revenue || 0), 0);
+    const smallRevenueMetrics = revenueMetrics.filter((r) => (r.amount || 0) < 100);
+    revenue = smallRevenueMetrics.reduce((total, r) => total + (r.amount || 0), 0);
   }
   const timeEvents = metrics.filter((metric) => metric.durationMs);
   const avgDurationMs = timeEvents.length
     ? Math.round(timeEvents.reduce((total, metric) => total + (metric.durationMs || 0), 0) / timeEvents.length)
     : 0;
 
-  const explicitStars = ratingAverage(ratings);
+  // Only accepted ratings with on-chain proof count
+  const acceptedRatings = ratings.filter((r) => r.status === 'accepted' && String(r.proof || '').startsWith('onchain:'));
+  const explicitStars = ratingAverage(acceptedRatings);
   const reputationStars = explicitStars || null;
   const reputationScore = explicitStars ? Math.round(explicitStars * 20) : null;
-  const ratingCount = acceptedRatingCount(ratings);
+  const ratingCount = acceptedRatingCount(acceptedRatings);
 
   return {
     id: content.id,

@@ -31,12 +31,13 @@ async function runVerificationSweep() {
   });
 
   for (const website of websites) {
-    // Subblog sites (verified via linking token) keep their verified status.
-    // Homepage widget checks are only for externally hosted origins.
-    if (website.isVerified && website.verificationStatus === 'verified' && website.domain?.endsWith('.nibgate.xyz')) {
+    // Subblog sites are verified via the hub linking token, not the homepage
+    // widget check. All *.nibgate.xyz subblogs are platform-managed, so they
+    // are considered verified regardless of current status.
+    if (website.domain?.endsWith('.nibgate.xyz')) {
       await db.website.update({
         where: { id: website.id },
-        data: { lastVerificationCheckAt: new Date() }
+        data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, lastVerificationCheckAt: new Date() }
       }).catch(() => {});
       continue;
     }

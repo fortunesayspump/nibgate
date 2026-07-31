@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,
       },
+      {
+        source: "/nibgate.json",
+        destination: `${apiUrl}/api/nibgate/manifest`,
+      },
     ];
   },
 };

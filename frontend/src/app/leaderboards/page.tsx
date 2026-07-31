@@ -44,15 +44,6 @@ export default async function LeaderboardsPage() {
             </div>
           </div>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Creators</span><strong className="ml-2">{stats.creators}</strong></div>
-            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Sites</span><strong className="ml-2">{stats.sites}</strong></div>
-            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Content</span><strong className="ml-2">{stats.content}</strong></div>
-            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Views</span><strong className="ml-2">{stats.views}</strong></div>
-            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Unlocks</span><strong className="ml-2">{stats.unlocks}</strong></div>
-            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Revenue</span><strong className="ml-2">{stats.revenue.toFixed(2)} USDC</strong></div>
-          </div>
-
           <div className="mt-10">
             <LeaderboardTable creators={creators.items} sites={sites.items} content={content.items} totals={{ creators: stats.creators, sites: stats.sites, content: stats.content }} />
           </div>

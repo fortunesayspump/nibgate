@@ -17,6 +17,7 @@ type Profile = {
   creatorReputation?: number;
   verifiedSites?: number;
   trackedContent?: number;
+  archivedContent?: number;
   createdAt: string;
 };
 
@@ -76,7 +77,15 @@ export default function ProfilePage() {
         const data = await res.json();
         if (!data.success) throw new Error(data.error || "Failed to load profile");
         const u = data.user || data.profile || {};
-        setProfile((current) => ({ ...(current || u), ...u }));
+        const s = data.stats || {};
+        const rep = data.reputation || {};
+        setProfile((current) => ({
+          ...(current || u), ...u,
+          creatorReputation: typeof rep.reputationScore === 'number' ? rep.reputationScore : u.creatorReputation,
+          verifiedSites: typeof s.sites === 'number' ? s.sites : u.verifiedSites,
+          trackedContent: typeof s.contentCount === 'number' ? s.contentCount : u.trackedContent,
+          archivedContent: typeof s.archivedContent === 'number' ? s.archivedContent : u.archivedContent,
+        }));
         setUsername(u.username || "");
         setBio(u.bio || "");
         setAvatarUrl(u.avatarUrl || "");
@@ -309,6 +318,7 @@ export default function ProfilePage() {
         <div className="rounded-2xl border p-5 shadow-1" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }}>
           <div className="text-sm font-medium opacity-65">Tracked content</div>
           <div className="mt-2 text-4xl font-medium">{profile?.trackedContent || 0}</div>
+          {Boolean(profile?.archivedContent) && <div className="mt-1 text-sm opacity-60">{profile?.archivedContent} archived</div>}
         </div>
       </div>
 

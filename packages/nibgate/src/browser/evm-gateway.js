@@ -5,6 +5,7 @@ import { stringifyJson } from './json.js';
 import { createGate } from './gate.js';
 import { checkResourceAccess } from './access.js';
 import { trackResourcePage } from './track.js';
+import { switchToArcNetwork } from './reputation.js';
 
 export async function createCircleGatewayBrowserAdapter(options = {}) {
   const gateway = await import('./gateway.js');
@@ -118,6 +119,9 @@ export function createEvmGatewayUnlock(resource, options = {}) {
     const currentAccounts = await evm.request({ method: 'eth_accounts' }).catch(() => walletAddress ? [walletAddress] : []);
     const currentAddress = Array.isArray(currentAccounts) && currentAccounts[0] ? currentAccounts[0] : (walletAddress || await connect());
     if (currentAddress !== walletAddress) walletAddress = currentAddress;
+    // Make sure the wallet is on Arc Testnet before signing the Gateway payment
+    // proof — otherwise the sign prompt happens on Ethereum (the wallet's default).
+    await switchToArcNetwork(evm);
     const gatewayWallet = await createCircleGatewayBrowserAdapter({
       network,
       signer: {

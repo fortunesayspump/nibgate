@@ -8,6 +8,7 @@ out/
 .env
 .env.*
 *.log
+.npmrc
 *.tsbuildinfo
 *.db
 *.db-*

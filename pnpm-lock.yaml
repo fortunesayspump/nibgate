@@ -23,8 +23,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/internal
       '@nibgate/sdk':
-        specifier: ^0.2.44
-        version: 0.2.44(typescript@5.9.3)(zod@4.4.3)
+        specifier: ^0.2.45
+        version: 0.2.45(typescript@5.9.3)(zod@4.4.3)
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -1623,8 +1623,8 @@ packages:
     resolution: {directory: packages/cli, type: directory}
     hasBin: true
 
-  '@nibgate/sdk@0.2.44':
-    resolution: {integrity: sha512-7M/+HpJrjYk/ISsTv/Xn8erSPm0IcyDpevlmLKeRJZkUSe+GJiCpQmbLsoUbkzSOI2nsM4s7K7HwQiN7fPDg3g==}
+  '@nibgate/sdk@0.2.45':
+    resolution: {integrity: sha512-Z4wTn4+szWfvNWXQcCsSEkD6Wem6F3BOx7YFVW0kEfYajAfj/Q9U/oOTlYF7gTHlHNsQSN0ytR21pu9qxjRepQ==}
 
   '@nibgate/sdk@file:packages/nibgate':
     resolution: {directory: packages/nibgate, type: directory}
@@ -8657,7 +8657,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@nibgate/sdk@0.2.44(typescript@5.9.3)(zod@4.4.3)':
+  '@nibgate/sdk@0.2.45(typescript@5.9.3)(zod@4.4.3)':
     dependencies:
       '@circle-fin/x402-batching': 3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.55.8(typescript@5.9.3)(zod@4.4.3))
       '@x402/core': 2.19.0

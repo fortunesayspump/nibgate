@@ -4,20 +4,32 @@ import LeaderboardTable from "./table";
 import { apiUrl } from "@/lib/api";
 
 type LeaderboardItem = Record<string, any> & { rank: number; reputationScore?: number | null };
+type PlatformStats = { creators: number; sites: number; content: number; views: number; unlocks: number; revenue: number };
 
 async function getBoard(type: string) {
   try {
     const res = await fetch(apiUrl(`/api/hub/reputation/leaderboards?type=${type}&limit=50`), { cache: "no-store" });
-    if (!res.ok) return [] as LeaderboardItem[];
+    if (!res.ok) return { items: [] as LeaderboardItem[], total: 0 };
     const data = await res.json();
-    return (data.items || []) as LeaderboardItem[];
+    return { items: (data.items || []) as LeaderboardItem[], total: data.total || 0 };
   } catch {
-    return [] as LeaderboardItem[];
+    return { items: [] as LeaderboardItem[], total: 0 };
+  }
+}
+
+async function getStats() {
+  try {
+    const res = await fetch(apiUrl("/api/hub/stats"), { cache: "no-store" });
+    if (!res.ok) return { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
+    const data = await res.json();
+    return data.stats || { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
+  } catch {
+    return { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
   }
 }
 
 export default async function LeaderboardsPage() {
-  const [creators, sites, content] = await Promise.all([getBoard("creators"), getBoard("sites"), getBoard("content")]);
+  const [creators, sites, content, stats] = await Promise.all([getBoard("creators"), getBoard("sites"), getBoard("content"), getStats()]);
 
   return (
     <div className="bg-gray min-h-screen flex flex-col">
@@ -32,7 +44,18 @@ export default async function LeaderboardsPage() {
             </div>
           </div>
 
-          <LeaderboardTable creators={creators} sites={sites} content={content} />
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Creators</span><strong className="ml-2">{stats.creators}</strong></div>
+            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Sites</span><strong className="ml-2">{stats.sites}</strong></div>
+            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Content</span><strong className="ml-2">{stats.content}</strong></div>
+            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Views</span><strong className="ml-2">{stats.views}</strong></div>
+            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Unlocks</span><strong className="ml-2">{stats.unlocks}</strong></div>
+            <div className="rounded-2xl bg-white px-4 py-3"><span className="opacity-60">Revenue</span><strong className="ml-2">{stats.revenue.toFixed(2)} USDC</strong></div>
+          </div>
+
+          <div className="mt-10">
+            <LeaderboardTable creators={creators.items} sites={sites.items} content={content.items} totals={{ creators: stats.creators, sites: stats.sites, content: stats.content }} />
+          </div>
         </section>
       </main>
       <Footer showThemeToggle />

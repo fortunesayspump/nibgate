@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { apiUrl } from "@/lib/api";
 
 type BoardType = "creators" | "sites" | "content";
 type Item = Record<string, any> & { rank: number; reputationScore?: number | null; reputationStars?: number | null; ratings?: number };
@@ -9,6 +10,7 @@ type Props = {
   creators: Item[];
   sites: Item[];
   content: Item[];
+  totals?: { creators: number; sites: number; content: number };
 };
 
 type SortKey = "rank" | "reputation" | "content" | "views" | "unlocks" | "revenue";
@@ -73,12 +75,13 @@ function openItem(item: Item, active: BoardType) {
   if (href) window.open(href, "_blank", "noopener,noreferrer");
 }
 
-export default function LeaderboardTable({ creators, sites, content }: Props) {
+export default function LeaderboardTable({ creators, sites, content, totals }: Props) {
   const [active, setActive] = useState<BoardType>("creators");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const data = active === "creators" ? creators : active === "sites" ? sites : content;
+  const [loaded, setLoaded] = useState({ creators, sites, content });
+  const data = active === "creators" ? loaded.creators : active === "sites" ? loaded.sites : loaded.content;
   const activeTab = tabs.find((tab) => tab.id === active)!;
   const filteredData = useMemo(() => {
     const clean = query.trim().toLowerCase();
@@ -149,7 +152,7 @@ export default function LeaderboardTable({ creators, sites, content }: Props) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {tabs.map((tab) => {
-              const count = tab.id === "creators" ? creators.length : tab.id === "sites" ? sites.length : content.length;
+              const count = tab.id === "creators" ? (totals?.creators ?? loaded.creators.length) : tab.id === "sites" ? (totals?.sites ?? loaded.sites.length) : (totals?.content ?? loaded.content.length);
               return (
                 <button
                   key={tab.id}
@@ -257,6 +260,20 @@ export default function LeaderboardTable({ creators, sites, content }: Props) {
             })}
           </tbody>
         </table>
+      </div>
+      <div className="border-t border-dark-gray/40 p-4 text-center">
+        <button
+          type="button"
+          onClick={async () => {
+            const next = await fetch(apiUrl(`/api/hub/reputation/leaderboards?type=${active}&limit=50&skip=${data.length}`));
+            const json = await next.json();
+            const more = json.items || [];
+            setLoaded((prev) => ({ ...prev, [active]: [...prev[active], ...more] }));
+          }}
+          className="inline-flex items-center gap-2 rounded-full border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
+        >
+          Load more
+        </button>
       </div>
     </section>
   );

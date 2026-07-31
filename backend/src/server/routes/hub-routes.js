@@ -753,27 +753,34 @@ export function registerHubRoutes(app) {
     try {
       const type = String(req.query.type || 'creators').trim().toLowerCase();
       const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '20', 10) || 20, 1), 50);
+      const skip = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
 
       if (type === 'content') {
-        const content = await db.content.findMany({
-          where: { deletedAt: null, website: { deletedAt: null } },
-          include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
-          take: 500,
-          orderBy: { createdAt: 'desc' }
-        });
+        const [content, total] = await Promise.all([
+          db.content.findMany({
+            where: { deletedAt: null, website: { deletedAt: null } },
+            include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
+            take: 500,
+            orderBy: { createdAt: 'desc' }
+          }),
+          db.content.count({ where: { deletedAt: null, website: { deletedAt: null } } })
+        ]);
         const items = content.map(serializeContent)
-          .slice(0, 200)
-          .map((content, index) => ({ rank: index + 1, ...content }));
-        return res.json({ success: true, type: 'content', items });
+          .slice(skip, skip + limit)
+          .map((content, index) => ({ rank: skip + index + 1, ...content }));
+        return res.json({ success: true, type: 'content', items, total, limit, skip });
       }
 
       if (type === 'sites') {
-        const websites = await db.website.findMany({
-          where: { deletedAt: null },
-          include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } }, _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } },
-          take: 200,
-          orderBy: { createdAt: 'desc' }
-        });
+        const [websites, siteTotal] = await Promise.all([
+          db.website.findMany({
+            where: { deletedAt: null },
+            include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } }, _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } },
+            take: 500,
+            orderBy: { createdAt: 'desc' }
+          }),
+          db.website.count({ where: { deletedAt: null } })
+        ]);
         const items = websites.map((website) => {
           const content = website.content.map(serializeContent);
           const score = siteReputationScore(content, website);
@@ -786,15 +793,18 @@ export function registerHubRoutes(app) {
             revenue: content.reduce((sum, item) => sum + item.revenue, 0),
             verificationStatus: website.verificationStatus || '', lastVerifiedAt: website.lastVerifiedAt || null
           };
-        }).sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views)).slice(0, limit).map((site, index) => ({ rank: index + 1, ...site }));
-        return res.json({ success: true, type: 'sites', items });
+        }).sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views)).slice(skip, skip + limit).map((site, index) => ({ rank: skip + index + 1, ...site }));
+        return res.json({ success: true, type: 'sites', items, total: siteTotal, limit, skip });
       }
 
-      const users = await db.user.findMany({
-        include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null }, include: { content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } } } },
-        take: 200,
-        orderBy: { createdAt: 'asc' }
-      });
+      const [users, userTotal] = await Promise.all([
+        db.user.findMany({
+          include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null }, include: { content: { include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } } } },
+          take: 500,
+          orderBy: { createdAt: 'asc' }
+        }),
+        db.user.count({ where: { wallets: { some: {} } } })
+      ]);
       const items = users.map((user) => {
         const websites = user.websites || [];
         const content = websites.flatMap((website) => website.content.map(serializeContent));
@@ -808,16 +818,40 @@ export function registerHubRoutes(app) {
         };
       }).filter((creator) => creator.contentCount > 0 || creator.verifiedSites > 0)
         .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
-        .slice(0, limit)
-        .map((creator, index) => ({ rank: index + 1, ...creator }));
-      const [creatorCount, siteCount, contentCount] = await Promise.all([
-        db.user.count({ where: { wallets: { some: {} } } }),
-        db.website.count({ where: { deletedAt: null } }),
-        db.content.count({ where: { deletedAt: null, website: { deletedAt: null } } })
-      ]);
-      return res.json({ success: true, type: 'creators', items, totals: { creators: creatorCount, sites: siteCount, content: contentCount } });
+        .slice(skip, skip + limit)
+        .map((creator, index) => ({ rank: skip + index + 1, ...creator }));
+      return res.json({ success: true, type: 'creators', items, total: userTotal, limit, skip });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch reputation leaderboards', details: error.message });
+    }
+  });
+
+  // ── Platform Stats (real totals) ────────────────────────────────────────
+
+  app.get('/api/hub/stats', async (req, res) => {
+    try {
+      const [creatorCount, siteCount, contentCount, viewCount, unlockCount, revenueAgg] = await Promise.all([
+        db.user.count({ where: { wallets: { some: {} } } }),
+        db.website.count({ where: { deletedAt: null } }),
+        db.content.count({ where: { deletedAt: null, website: { deletedAt: null } } }),
+        db.metric.count({ where: { type: 'view' } }).catch(() => 0),
+        db.metric.count({ where: { type: 'unlock', eventName: 'unlock_completed' } }).catch(() => 0),
+        db.metric.findMany({ where: { eventName: 'unlock_completed' }, select: { revenue: true } }).catch(() => [])
+      ]);
+
+      const views = Number(viewCount || 0);
+      const unlocks = Number(unlockCount || 0);
+      const revenue = (revenueAgg || []).reduce((total, metric) => {
+        const v = Number(metric?.revenue || 0);
+        return v < 100 ? total + v : total;
+      }, 0);
+
+      res.json({
+        success: true,
+        stats: { creators: creatorCount, sites: siteCount, content: contentCount, views, unlocks, revenue }
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch platform stats', details: error.message });
     }
   });
 

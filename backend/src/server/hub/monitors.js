@@ -10,6 +10,7 @@ import {
 let verificationMonitorStarted = false;
 let manifestSyncMonitorStarted = false;
 let reputationIndexerStarted = false;
+let dataIntegrityMonitorStarted = false;
 let reputationIndexerLastBlock = null;
 
 const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
@@ -197,6 +198,123 @@ export function startReputationIndexer() {
     runReputationIndexSweep().catch((error) => console.log('Reputation index sweep failed:', error.message));
     setInterval(() => {
       runReputationIndexSweep().catch((error) => console.log('Reputation index sweep failed:', error.message));
+    }, intervalMs).unref?.();
+  }, initialDelayMs).unref?.();
+}
+
+// ── Data Integrity Monitor (verification sweep) ─────────────────────────────
+
+function looksLikeOnchainHash(value) {
+  return typeof value === 'string' && /^0x[a-fA-F0-9]{40,}$/.test(value);
+}
+
+function looksLikeValidPaymentId(value) {
+  return typeof value === 'string' && value.length >= 10 && !value.startsWith('0x');
+}
+
+async function runDataIntegritySweep() {
+  // 1. Ratings: reject those without a valid on-chain proof hash
+  try {
+    const badRatings = await db.contentRating.findMany({
+      where: {
+        status: 'accepted',
+        OR: [
+          { proof: null },
+          { proof: '' },
+          { proof: { not: { startsWith: 'onchain:' } } },
+        ],
+      },
+      take: 500,
+    });
+    for (const r of badRatings) {
+      await db.contentRating.update({
+        where: { id: r.id },
+        data: { status: 'rejected' },
+      }).catch(() => {});
+    }
+    if (badRatings.length) console.log(`Data integrity: rejected ${badRatings.length} ratings without on-chain proof`);
+  } catch (error) {
+    console.log('Data integrity sweep (ratings) failed:', error.message);
+  }
+
+  // 2. Ratings: verify on-chain proofs actually exist on the reputation chain (sample-based)
+  try {
+    const client = publicClientForIndexer();
+    const toVerify = await db.contentRating.findMany({
+      where: { status: 'accepted', proof: { startsWith: 'onchain:' } },
+      select: { id: true, proof: true },
+      take: 100,
+    });
+    for (const r of toVerify) {
+      const hash = String(r.proof || '').replace('onchain:', '');
+      if (!looksLikeOnchainHash(hash)) {
+        await db.contentRating.update({ where: { id: r.id }, data: { status: 'rejected' } }).catch(() => {});
+        continue;
+      }
+      if (client) {
+        try {
+          const tx = await client.getTransaction({ hash });
+          if (!tx) {
+            await db.contentRating.update({ where: { id: r.id }, data: { status: 'rejected' } }).catch(() => {});
+          }
+        } catch (e) {
+          // RPC error — leave as is, retry next sweep
+        }
+      }
+    }
+  } catch (error) {
+    console.log('Data integrity sweep (onchain ratings) failed:', error.message);
+  }
+
+  // 3. Unlock receipts: reject malformed ones (missing provider, truncated hashes)
+  try {
+    const badReceipts = await db.unlockReceipt.findMany({
+      where: {
+        OR: [
+          { paymentProvider: null },
+          { paymentProvider: '' },
+          { paymentId: null },
+          { paymentId: '' },
+        ],
+      },
+      take: 500,
+    });
+    for (const r of badReceipts) {
+      await db.unlockReceipt.update({
+        where: { id: r.id },
+        data: { status: 'invalid' },
+      }).catch(() => {});
+    }
+    if (badReceipts.length) console.log(`Data integrity: marked ${badReceipts.length} unlock receipts invalid`);
+
+    // Truncated 0x hashes are invalid payment IDs
+    const truncated = await db.unlockReceipt.findMany({
+      where: { status: 'verified', txHash: { startsWith: '0x' } },
+      select: { id: true, txHash: true },
+      take: 500,
+    });
+    for (const r of truncated) {
+      if (!looksLikeOnchainHash(r.txHash) && !looksLikeValidPaymentId(r.txHash)) {
+        await db.unlockReceipt.update({ where: { id: r.id }, data: { status: 'invalid' } }).catch(() => {});
+      }
+    }
+    if (truncated.length) console.log(`Data integrity: checked ${truncated.length} 0x-prefixed unlock receipts`);
+  } catch (error) {
+    console.log('Data integrity sweep (receipts) failed:', error.message);
+  }
+}
+
+export function startDataIntegrityMonitor() {
+  if (dataIntegrityMonitorStarted || process.env.DATA_INTEGRITY_MONITOR_DISABLED === 'true') return;
+  dataIntegrityMonitorStarted = true;
+
+  const intervalMs = Number.parseInt(process.env.DATA_INTEGRITY_INTERVAL_MS || String(6 * 60 * 60 * 1000), 10);
+  const initialDelayMs = Number.parseInt(process.env.DATA_INTEGRITY_INITIAL_DELAY_MS || '60000', 10);
+
+  setTimeout(() => {
+    runDataIntegritySweep().catch((error) => console.log('Data integrity sweep failed:', error.message));
+    setInterval(() => {
+      runDataIntegritySweep().catch((error) => console.log('Data integrity sweep failed:', error.message));
     }, intervalMs).unref?.();
   }, initialDelayMs).unref?.();
 }

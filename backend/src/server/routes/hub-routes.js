@@ -460,10 +460,13 @@ export function registerHubRoutes(app) {
       });
       if (!user) return res.status(404).json({ error: 'User not found.' });
 
-      const websites = await db.website.findMany({
-        where: { ownerId: user.id, deletedAt: null },
-        include: { content: { where: { deletedAt: null }, include: { metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } }
-      });
+      const [websites, archivedCount] = await Promise.all([
+        db.website.findMany({
+          where: { ownerId: user.id, deletedAt: null },
+          include: { content: { where: { deletedAt: null }, include: { metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } }
+        }),
+        db.content.count({ where: { website: { ownerId: user.id, deletedAt: null }, deletedAt: { not: null } } })
+      ]);
       const allContent = websites.flatMap((w) => w.content.map(serializeContent));
       const score = creatorReputationScore(allContent, websites);
 
@@ -482,6 +485,7 @@ export function registerHubRoutes(app) {
         stats: {
           sites: websites.length,
           contentCount: allContent.length,
+          archivedContent: archivedCount,
           views: allContent.reduce((s, c) => s + c.views, 0),
           unlocks: allContent.reduce((s, c) => s + c.unlocks, 0),
           revenue: allContent.reduce((s, c) => s + c.revenue, 0),

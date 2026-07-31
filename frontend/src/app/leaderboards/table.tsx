@@ -73,8 +73,7 @@ function openItem(item: Item, active: BoardType) {
   if (href) window.open(href, "_blank", "noopener,noreferrer");
 }
 
-type Totals = { creators: number; sites: number; content: number };
-export default function LeaderboardTable({ creators, sites, content, totals }: Props & { totals?: Totals }) {
+export default function LeaderboardTable({ creators, sites, content }: Props) {
   const [active, setActive] = useState<BoardType>("creators");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
@@ -133,7 +132,7 @@ export default function LeaderboardTable({ creators, sites, content, totals }: P
 
   const sortMark = (key: SortKey) => sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕";
 
-  const totals = useMemo(() => {
+  const aggregates = useMemo(() => {
     return filteredData.reduce(
       (acc, item) => ({
         unlocks: acc.unlocks + (item.unlocks || 0),
@@ -150,7 +149,7 @@ export default function LeaderboardTable({ creators, sites, content, totals }: P
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {tabs.map((tab) => {
-              const count = tab.id === "creators" ? (totals?.creators ?? creators.length) : tab.id === "sites" ? (totals?.sites ?? sites.length) : (totals?.content ?? content.length);
+              const count = tab.id === "creators" ? creators.length : tab.id === "sites" ? sites.length : content.length;
               return (
                 <button
                   key={tab.id}
@@ -164,9 +163,9 @@ export default function LeaderboardTable({ creators, sites, content, totals }: P
             })}
           </div>
           <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[420px]">
-            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Views</span><strong className="ml-2">{totals.views}</strong></div>
-            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Unlocks</span><strong className="ml-2">{totals.unlocks}</strong></div>
-            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Revenue</span><strong className="ml-2">{totals.revenue.toFixed(2)}</strong></div>
+            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Views</span><strong className="ml-2">{aggregates.views}</strong></div>
+            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Unlocks</span><strong className="ml-2">{aggregates.unlocks}</strong></div>
+            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Revenue</span><strong className="ml-2">{aggregates.revenue.toFixed(2)}</strong></div>
           </div>
         </div>
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_minmax(280px,420px)] lg:items-center">

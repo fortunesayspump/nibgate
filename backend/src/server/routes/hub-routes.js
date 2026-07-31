@@ -840,7 +840,7 @@ export function registerHubRoutes(app) {
         db.user.count({ where: { wallets: { some: {} }, websites: { some: verifiedSiteWhere } } }),
         db.website.count({ where: verifiedSiteWhere }),
         db.content.count({ where: { deletedAt: null, website: verifiedSiteWhere } }),
-        db.metric.count({ where: { type: 'view', website: verifiedSiteWhere } }).catch(() => 0),
+        db.metric.count({ where: { type: 'view', contentId: { not: null }, website: verifiedSiteWhere } }).catch(() => 0),
         db.metric.count({ where: { type: 'unlock', eventName: 'unlock_completed', website: verifiedSiteWhere } }).catch(() => 0),
         db.metric.findMany({ where: { eventName: 'unlock_completed', website: verifiedSiteWhere }, select: { revenue: true } }).catch(() => [])
       ]);

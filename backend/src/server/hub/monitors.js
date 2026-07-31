@@ -31,6 +31,16 @@ async function runVerificationSweep() {
   });
 
   for (const website of websites) {
+    // Subblog sites (verified via linking token) keep their verified status.
+    // Homepage widget checks are only for externally hosted origins.
+    if (website.isVerified && website.verificationStatus === 'verified' && website.domain?.endsWith('.nibgate.xyz')) {
+      await db.website.update({
+        where: { id: website.id },
+        data: { lastVerificationCheckAt: new Date() }
+      }).catch(() => {});
+      continue;
+    }
+
     const result = await checkWebsiteVerification(website);
     await db.website.update({
       where: { id: website.id },

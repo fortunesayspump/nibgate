@@ -11,6 +11,7 @@ type Props = {
   sites: Item[];
   content: Item[];
   totals?: { creators: number; sites: number; content: number };
+  stats?: { views: number; unlocks: number; revenue: number };
 };
 
 type SortKey = "rank" | "reputation" | "content" | "views" | "unlocks" | "revenue";
@@ -75,7 +76,7 @@ function openItem(item: Item, active: BoardType) {
   if (href) window.open(href, "_blank", "noopener,noreferrer");
 }
 
-export default function LeaderboardTable({ creators, sites, content, totals }: Props) {
+export default function LeaderboardTable({ creators, sites, content, totals, stats }: Props) {
   const [active, setActive] = useState<BoardType>("creators");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
@@ -135,16 +136,7 @@ export default function LeaderboardTable({ creators, sites, content, totals }: P
 
   const sortMark = (key: SortKey) => sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕";
 
-  const aggregates = useMemo(() => {
-    return filteredData.reduce(
-      (acc, item) => ({
-        unlocks: acc.unlocks + (item.unlocks || 0),
-        views: acc.views + (item.views || 0),
-        revenue: acc.revenue + (item.revenue || 0),
-      }),
-      { unlocks: 0, views: 0, revenue: 0 }
-    );
-  }, [filteredData]);
+  const aggregates = stats || { views: 0, unlocks: 0, revenue: 0 };
 
   return (
     <section className="mt-12 overflow-hidden border border-dark-gray/50 bg-white">

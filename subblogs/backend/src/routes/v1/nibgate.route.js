@@ -202,46 +202,6 @@ router.get('/nibgate.json', async (req, res, next) => {
     next(error);
   }
 });
-  try {
-    const posts = await prisma.blogPost.findMany({
-      where: { siteId: req.siteId, status: 'published' },
-      orderBy: [{ publishedAt: 'desc' }],
-    });
-
-    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
-
-    const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
-    const origin = subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`;
-
-    const manifest = {
-      name: req.site.name,
-      origin,
-      content: posts.map((post) => {
-        const t = post.type || 'article';
-        const isPaid = !!post.price && post.price !== '0';
-        const path = `/${typePath[t] || 'posts'}/${post.slug}`;
-        return {
-          id: post.id,
-          title: post.title,
-          summary: post.excerpt || '',
-          type: t,
-          price: isPaid ? post.price : null,
-          currency: 'USDC',
-          path,
-          url: `${origin}${path}`,
-          tags: (post.tags || '').split(',').filter(Boolean),
-          imageUrl: post.coverUrl || post.imageUrl || null,
-          access: isPaid ? { humans: 'paid', agents: 'paid' } : { humans: 'free', agents: 'free' },
-          ...(isPaid ? { unlock: { mode: 'one_time' } } : {}),
-        };
-      }),
-    };
-
-    res.json(manifest);
-  } catch (error) {
-    next(error);
-  }
-});
 
 router.get('/gateway/balances', authenticate, authorize('admin'), async (req, res, next) => {
   try {

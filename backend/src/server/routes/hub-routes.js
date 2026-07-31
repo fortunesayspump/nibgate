@@ -462,7 +462,7 @@ export function registerHubRoutes(app) {
 
       const websites = await db.website.findMany({
         where: { ownerId: user.id, deletedAt: null },
-        include: { content: { include: { metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } }
+        include: { content: { where: { deletedAt: null }, include: { metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } }
       });
       const allContent = websites.flatMap((w) => w.content.map(serializeContent));
       const score = creatorReputationScore(allContent, websites);

@@ -287,18 +287,45 @@ async function runDataIntegritySweep() {
     }
     if (badReceipts.length) console.log(`Data integrity: marked ${badReceipts.length} unlock receipts invalid`);
 
-    // Truncated 0x hashes are invalid payment IDs
-    const truncated = await db.unlockReceipt.findMany({
-      where: { status: 'verified', txHash: { startsWith: '0x' } },
+    // Truncated 0x hashes are invalid for gateway unlocks. Direct-transfer unlocks
+    // legitimately use on-chain tx hashes, so a 0x hash is valid there.
+    const gateways = await db.unlockReceipt.findMany({
+      where: { status: 'verified', paymentProvider: 'circle-gateway', txHash: { startsWith: '0x' } },
       select: { id: true, txHash: true },
       take: 500,
     });
-    for (const r of truncated) {
-      if (!looksLikeOnchainHash(r.txHash) && !looksLikeValidPaymentId(r.txHash)) {
+    for (const r of gateways) {
+      if (!looksLikeValidPaymentId(r.txHash)) {
         await db.unlockReceipt.update({ where: { id: r.id }, data: { status: 'invalid' } }).catch(() => {});
       }
     }
-    if (truncated.length) console.log(`Data integrity: checked ${truncated.length} 0x-prefixed unlock receipts`);
+    if (gateways.length) console.log(`Data integrity: checked ${gateways.length} 0x-prefixed gateway receipts`);
+
+    // Direct-transfer receipts: verify the tx exists on-chain
+    const transfers = await db.unlockReceipt.findMany({
+      where: { status: 'verified', paymentProvider: 'direct-transfer' },
+      select: { id: true, txHash: true },
+      take: 200,
+    });
+    const client = publicClientForIndexer();
+    for (const r of transfers) {
+      const hash = r.txHash;
+      if (!looksLikeOnchainHash(hash)) {
+        await db.unlockReceipt.update({ where: { id: r.id }, data: { status: 'invalid' } }).catch(() => {});
+        continue;
+      }
+      if (client) {
+        try {
+          const tx = await client.getTransaction({ hash });
+          if (!tx) {
+            await db.unlockReceipt.update({ where: { id: r.id }, data: { status: 'invalid' } }).catch(() => {});
+          }
+        } catch (e) {
+          // RPC error — leave as is, retry next sweep
+        }
+      }
+    }
+    if (transfers.length) console.log(`Data integrity: verified ${transfers.length} direct-transfer receipts`);
   } catch (error) {
     console.log('Data integrity sweep (receipts) failed:', error.message);
   }

@@ -155,7 +155,7 @@ export function registerHubRoutes(app) {
       const siteWhere = domain ? { website: { domain } } : { website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } };
 
       // Total counts (optionally filtered by domain)
-      const verifiedUnlockWhere = { ...siteWhere, status: 'verified', paymentProvider: 'circle-gateway' };
+      const verifiedUnlockWhere = { ...siteWhere, status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] } };
       const [totalViews, totalUnlocks, totalPayments, totalRatings] = await Promise.all([
         db.metric.count({ where: { type: 'view', contentId: { not: null }, ...siteWhere } }),
         db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null }, ...siteWhere } }),
@@ -218,7 +218,7 @@ export function registerHubRoutes(app) {
       // 3. Recent payments (UnlockReceipt — full verifiable trail)
       if (!type || type === 'payments') {
         const payments = await db.unlockReceipt.findMany({
-          where: { ...siteWhere, status: 'verified', paymentProvider: 'circle-gateway' },
+          where: { ...siteWhere, status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] } },
           include: { content: { select: { id: true, title: true, url: true, imageUrl: true } }, website: { select: { domain: true } } },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -843,8 +843,8 @@ export function registerHubRoutes(app) {
         db.website.count({ where: verifiedSiteWhere }),
         db.content.count({ where: { deletedAt: null, website: verifiedSiteWhere } }),
         db.metric.count({ where: { type: 'view', contentId: { not: null }, website: verifiedSiteWhere } }).catch(() => 0),
-        db.unlockReceipt.count({ where: { status: 'verified', paymentProvider: 'circle-gateway', content: { website: verifiedSiteWhere } } }).catch(() => 0),
-        db.unlockReceipt.findMany({ where: { status: 'verified', paymentProvider: 'circle-gateway', content: { website: verifiedSiteWhere } }, select: { amount: true } }).catch(() => [])
+        db.unlockReceipt.count({ where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] }, content: { website: verifiedSiteWhere } } }).catch(() => 0),
+        db.unlockReceipt.findMany({ where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] }, content: { website: verifiedSiteWhere } }, select: { amount: true } }).catch(() => [])
       ]);
 
       const views = Number(viewCount || 0);

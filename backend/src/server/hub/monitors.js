@@ -31,17 +31,19 @@ async function runVerificationSweep() {
   });
 
   for (const website of websites) {
-    // Subblog sites are verified via the hub linking token, not the homepage
-    // widget check. All *.nibgate.xyz subblogs are platform-managed, so they
-    // are considered verified regardless of current status.
+    // Subblog sites are verified by being linked to a hub wallet (ownerId set),
+    // not by a homepage widget check. Skip the widget sweep for them entirely.
     if (website.domain?.endsWith('.nibgate.xyz')) {
-      await db.website.update({
-        where: { id: website.id },
-        data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, lastVerificationCheckAt: new Date() }
-      }).catch(() => {});
+      if (website.ownerId) {
+        await db.website.update({
+          where: { id: website.id },
+          data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, lastVerificationCheckAt: new Date() }
+        }).catch(() => {});
+      }
       continue;
     }
 
+    // Externally hosted sites are verified by the widget on their homepage.
     const result = await checkWebsiteVerification(website);
     await db.website.update({
       where: { id: website.id },

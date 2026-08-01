@@ -3,7 +3,7 @@ import { apiUrl } from "@/lib/api";
 type SitemapContent = { urls?: Array<{ url?: string; updatedAt?: string }> };
 
 export const revalidate = 3600;
-
+// force regenerate ISR cache on next deploy
 const HUB_ALWAYS = [
   { path: "/", priority: "1.0", changefreq: "daily" },
   { path: "/blog", priority: "0.9", changefreq: "daily" },

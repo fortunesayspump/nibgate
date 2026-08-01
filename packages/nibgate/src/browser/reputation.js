@@ -1,3 +1,4 @@
+import { keccak256, stringToBytes } from 'viem';
 import { normalizeRating } from '../core/rating.js';
 import { normalizeResource } from '../core/resource.js';
 import { emit, payloadWithResource } from './events.js';
@@ -90,11 +91,13 @@ function encodeRateContent({ contentId, ratingValue, reviewHash, unlockRef }) {
 }
 
 export function contentRatingHash(_resource, options = {}) {
-  const contentId = options.contentId || options.contentHash;
-  if (!contentId) {
-    throw new Error('contentId/contentHash is required. Use the Nibgate backend prepare endpoint or pass a known content hash.');
-  }
-  return contentId;
+  const normalized = normalizeResource(_resource);
+  const explicit = options.contentHash || options.contentId;
+  if (isCanonicalContentHash(explicit)) return explicit;
+  const derived = canonicalContentHash(normalized);
+  if (derived) return derived;
+  if (explicit) return explicit;
+  throw new Error('contentId/contentHash is required. Use the Nibgate backend prepare endpoint or pass a known content hash.');
 }
 
 export function reviewTextHash(review = '') {
@@ -102,8 +105,39 @@ export function reviewTextHash(review = '') {
   throw new Error('Text review hashing is not available in direct-browser mode. Pass reviewHash from your app/backend.');
 }
 
+export function cleanDomain(domain = '') {
+  return String(domain).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+}
+
+export function isCanonicalContentHash(value = '') {
+  return /^0x[0-9a-fA-F]{64}$/.test(String(value || '').trim());
+}
+
+export function contentHashFor(domain, externalId, url) {
+  return keccak256(stringToBytes([
+    NIBGATE_CONTENT_HASH_NAMESPACE,
+    cleanDomain(domain),
+    externalId,
+    url
+  ].join('|')));
+}
+
+export function canonicalContentHash(resource) {
+  const normalized = normalizeResource(resource);
+  const url = normalized.url;
+  const id = normalized.id;
+  if (!url || !id) return undefined;
+  try {
+    const domain = cleanDomain(new URL(url).hostname);
+    return contentHashFor(domain, id, url);
+  } catch (e) {
+    return undefined;
+  }
+}
+
 async function prepareOnchainRating(resource, options = {}) {
-  if (options.contentId || options.contentHash) return { contentId: options.contentId || options.contentHash };
+  if (options.contentHash) return { contentHash: options.contentHash };
+  if (options.contentId) return { contentId: options.contentId };
   const prepareUrl = options.prepareUrl || options.indexUrl?.replace(/\/index$/, '/prepare');
   if (!prepareUrl) throw new Error('contentId/contentHash or prepareUrl is required for onchain rating.');
   const response = await fetch(prepareUrl, {
@@ -138,7 +172,7 @@ export async function rateContentOnchain(resource, options = {}) {
   if (!walletAddress) throw new Error('No wallet account selected.');
 
   const prepared = await prepareOnchainRating(normalized, options);
-  const contentId = prepared.contentHash || prepared.contentId || contentRatingHash(normalized, options);
+  const contentId = prepared.contentHash || contentRatingHash(normalized, { ...options, contentId: prepared.contentId });
   const reviewHash = options.reviewHash || ZERO_HASH;
   const unlockRef = String(options.unlockRef || options.paymentId || options.txHash || '');
   const data = encodeRateContent({ contentId, ratingValue: rating.ratingValue, reviewHash, unlockRef });

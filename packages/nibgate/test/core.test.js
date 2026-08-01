@@ -109,3 +109,19 @@ describe('normalizeRating', () => {
     expect(normalizeRating({ rating: 10 }).ratingValue).toBe(10)
   })
 })
+
+describe('contentRatingHash derivation', () => {
+  it('derives the canonical on-chain hash from resource url/id', async () => {
+    const { contentRatingHash, canonicalContentHash, contentHashFor, isCanonicalContentHash } = await import('../src/browser/reputation.js')
+    const expected = '0x7e99320a18f1a8ce6ad0a9776e726198f47be42bf98d5cf80058058e7e55aeee'
+    expect(contentHashFor('benedict.nibgate.xyz', 'ec845c35-ebc2-490b-b8a5-fa6d0018b7f0', 'https://benedict.nibgate.xyz/writing/the-man-who-prepared-for-the-end-of-the-internet')).toBe(expected)
+    expect(isCanonicalContentHash(expected)).toBe(true)
+    expect(isCanonicalContentHash('0xec845c35ebc2490bb8a5fa6d0018b7f0')).toBe(false)
+    expect(canonicalContentHash({
+      id: 'ec845c35-ebc2-490b-b8a5-fa6d0018b7f0',
+      url: 'https://benedict.nibgate.xyz/writing/the-man-who-prepared-for-the-end-of-the-internet'
+    })).toBe(expected)
+    expect(contentRatingHash({ id: 'ec845c35-ebc2-490b-b8a5-fa6d0018b7f0', url: 'https://benedict.nibgate.xyz/writing/the-man-who-prepared-for-the-end-of-the-internet' })).toBe(expected)
+    expect(contentRatingHash({}, { contentId: '0xec845c35ebc2490bb8a5fa6d0018b7f0' })).toBe('0xec845c35ebc2490bb8a5fa6d0018b7f0')
+  })
+})

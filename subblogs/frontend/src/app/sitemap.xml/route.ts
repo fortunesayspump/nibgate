@@ -1,7 +1,7 @@
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 async function getPosts(): Promise<BlogPost[]> {
   try {

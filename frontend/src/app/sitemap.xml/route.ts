@@ -2,7 +2,7 @@ import { apiUrl } from "@/lib/api";
 
 type BlogPost = { slug: string; updatedAt: string; publishedAt: string };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 async function getPosts(): Promise<BlogPost[]> {
   try {

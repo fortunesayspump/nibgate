@@ -8,5 +8,12 @@
   "implementationTx": "0x58d01c83f088af6eeb9d6d87ace8b120cea642f657f6a964db1f9a50c7b197d0",
   "proxyAddress": "0x9f27fd62e75f86a3c7addfdba443aab1f930e281",
   "proxyTx": "0x1377b3063942e5baa1788cfd47be90fff10850dd3fdb96cb9f9402fa80fa5608",
-  "deployedAt": "2026-07-02T16:37:07.542Z"
+  "deployedAt": "2026-07-02T16:37:07.542Z",
+  "v2": {
+    "implementationAddress": "0x51c061f749561a26cc9b34e3a90027d534e8635e",
+    "implementationTx": "0x52c172c5f49599043a66e69f83916eafbc47109af067901822abd82d0bf3b789",
+    "upgradeTx": "0x3b4d7e70302c8828ae12a079432a4cb5444946391a3059cceafddb3fd7c7a62b",
+    "upgradedAt": "2026-08-01T10:59:42.497Z",
+    "rpcUrl": "https://rpc.testnet.arc.network"
+  }
 }

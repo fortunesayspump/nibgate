@@ -55,6 +55,11 @@ export async function GET(request: Request) {
     <loc>${siteUrl}/video</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${siteUrl}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
   </url>${urls}
 </urlset>`;
 

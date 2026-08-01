@@ -7,6 +7,7 @@ export async function GET(request: Request) {
 
   const text = `User-agent: *
 Allow: /
+Disallow: /admin
 Sitemap: ${siteUrl}/sitemap.xml`;
 
   return new Response(text, { headers: { "Content-Type": "text/plain" } });

@@ -871,7 +871,7 @@ export function registerHubRoutes(app) {
       const type = normalizeContentType(req.query.type || '');
       const requestedType = String(req.query.type || '').trim().toLowerCase();
       const sort = String(req.query.sort || 'trending').trim().toLowerCase();
-      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '100', 10) || 100, 1), 200);
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '100', 10) || 100, 1), 500);
       const skip = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
 
       const where = {

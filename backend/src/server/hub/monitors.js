@@ -46,6 +46,18 @@ async function runVerificationSweep() {
 
     // Externally hosted sites are verified by the widget on their homepage.
     const result = await checkWebsiteVerification(website);
+    if (!result.ok && result.status === 'failed' && website.verificationStatus === 'verified') {
+      // Transient fetch failure — never demote an already-verified site.
+      // Keep it verified and retry on the next sweep.
+      await db.website.update({
+        where: { id: website.id },
+        data: { lastVerificationCheckAt: new Date() }
+      }).catch((error) => {
+        console.log(`Verification sweep fetch-failure kept verified for ${website.domain}:`, error.message);
+      });
+      console.log(`Verification sweep: transient fetch failure for ${website.domain}, kept verified`);
+      continue;
+    }
     await db.website.update({
       where: { id: website.id },
       data: result.data

@@ -38,13 +38,14 @@ Sitemap: https://yourname.nibgate.xyz/sitemap.xml
 
 ### Hub aggregate sitemap
 
-The main Nibgate hub at `nibgate.xyz` serves `/subblog-sitemaps.xml`, which aggregates sitemaps from all Subblogs. This gives search engines a single entry point to discover every Subblog:
+The main Nibgate hub at `nibgate.xyz` serves its own `/sitemap.xml` for hub pages. Subblogs are NOT aggregated into a hub-level sitemap — Google only follows sitemap references on the same host, so cross-host aggregation doesn't work. Instead, every Subblog handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
 
 ```txt
-https://nibgate.xyz/subblog-sitemaps.xml
+https://yourname.nibgate.xyz/robots.txt
+https://yourname.nibgate.xyz/sitemap.xml
 ```
 
-This aggregate sitemap is automatically updated as new Subblogs are created and as content is published or updated.
+Google reaches each Subblog through links from the hub (the Explore index) and from cross-links between posts. No per-Subblog sitemap submission is needed once the Search Console domain property covers `*.nibgate.xyz`.
 
 ## JSON-LD structured data
 

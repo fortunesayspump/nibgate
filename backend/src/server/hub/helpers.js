@@ -386,7 +386,7 @@ export function contentDataFor(website, payload = {}, publisher = null) {
   };
 }
 
-export async function upsertTrackedContent(website, payload = {}) {
+export async function upsertTrackedContent(website, payload = {}, options = {}) {
   const resource = payload.resource || {};
   const hasResourceSignal = resource.id || resource.url || resource.path || resource.title || payload.event === 'content_registered' || payload.event === 'resource_view' || payload.event === 'resource_unlock';
   if (!hasResourceSignal) return null;
@@ -396,9 +396,14 @@ export async function upsertTrackedContent(website, payload = {}) {
   const idSeed = data.externalId || data.url;
   const contentId = crypto.createHash('md5').update(website.id + idSeed).digest('hex');
 
+  // Tombstones are sticky: only a successful manifest sync (allowRevive) may
+  // resurrect a soft-deleted row. Tracking events (views/unlocks/ratings) must
+  // not revive content that was removed from the site's manifest.
+  const update = options.allowRevive ? { ...data, deletedAt: null } : { ...data };
+
   return db.content.upsert({
     where: { websiteId_url: { websiteId: website.id, url: data.url } },
-    update: { ...data, deletedAt: null },
+    update,
     create: {
       id: contentId,
       websiteId: website.id,
@@ -736,9 +741,14 @@ export async function syncWebsiteManifest(website) {
       if (!resources.length) { lastError = `${url} had no content`; continue; }
 
       const upserted = [];
+      const upsertErrors = [];
       for (const resource of resources) {
-        const content = await upsertTrackedContent(website, { event: 'content_registered', resource, url: resource.url, path: resource.path || resource.route });
-        if (content) upserted.push(content);
+        try {
+          const content = await upsertTrackedContent(website, { event: 'content_registered', resource, url: resource.url, path: resource.path || resource.route }, { allowRevive: true });
+          if (content) upserted.push(content);
+        } catch (error) {
+          upsertErrors.push(`${resource.path || resource.url}: ${error.message}`);
+        }
       }
 
       const upsertedIds = upserted.map((c) => c.id).filter(Boolean);
@@ -751,10 +761,14 @@ export async function syncWebsiteManifest(website) {
 
       await db.website.update({
         where: { id: website.id },
-        data: { lastScanAt: new Date(), lastSyncAt: new Date(), lastScanStatus: 'synced', lastScanError: null }
+        data: { lastScanAt: new Date(), lastSyncAt: new Date(), lastScanStatus: 'synced', lastScanError: upsertErrors.length ? `${url}: ${upsertErrors[0].slice(0, 300)}` : null }
       }).catch(() => {});
 
-      return { ok: true, url, content: upserted.length };
+      if (upsertErrors.length) {
+        console.log(`Manifest sync partial failure for ${website.domain} (${upsertErrors.length}/${resources.length}): ${upsertErrors.join(' | ').slice(0, 600)}`);
+      }
+
+      return { ok: true, url, content: upserted.length, errors: upsertErrors };
     } catch (error) {
       lastError = `${url}: ${error.message}`;
     } finally {

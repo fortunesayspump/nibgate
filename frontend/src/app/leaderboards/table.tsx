@@ -17,10 +17,10 @@ type Props = {
 type SortKey = "rank" | "reputation" | "content" | "views" | "unlocks" | "revenue";
 type SortDirection = "asc" | "desc";
 
-const tabs: Array<{ id: BoardType; label: string; helper: string }> = [
-  { id: "creators", label: "Creators", helper: "Wallet accounts ranked by verified content ratings once they have reputation." },
-  { id: "sites", label: "Sites", helper: "Verified domains ranked by accepted content ratings once reputation exists." },
-  { id: "content", label: "Content", helper: "Individual resources ranked by verified 0-5 star ratings." },
+const tabs: Array<{ id: BoardType; label: string; singular: string; helper: string }> = [
+  { id: "creators", label: "Creators", singular: "Creator", helper: "Wallet accounts ranked by verified content ratings once they have reputation." },
+  { id: "sites", label: "Sites", singular: "Site", helper: "Verified domains ranked by accepted content ratings once reputation exists." },
+  { id: "content", label: "Content", singular: "Content", helper: "Individual resources ranked by verified 0-5 star ratings." },
 ];
 
 function NoRep() {
@@ -181,7 +181,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
               <th className="w-20 px-5 py-4 font-medium">
                 <button type="button" onClick={() => changeSort("rank")} className="inline-flex items-center gap-1 font-medium">Rank <span className={sortKey === "rank" ? "" : "opacity-35"}>{sortMark("rank")}</span></button>
               </th>
-              <th className="px-5 py-4 font-medium">{activeTab.label.slice(0, -1)}</th>
+              <th className="px-5 py-4 font-medium">{activeTab.singular}</th>
               <th className="px-5 py-4 font-medium">
                 <button type="button" onClick={() => changeSort("reputation")} className="inline-flex items-center gap-1 font-medium">Reputation <span className={sortKey === "reputation" ? "" : "opacity-35"}>{sortMark("reputation")}</span></button>
               </th>

@@ -784,12 +784,12 @@ export function registerHubRoutes(app) {
           db.content.findMany({
             where: verifiedWhere,
             include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
-            take: 500,
-            orderBy: { createdAt: 'desc' }
+            take: 500
           }),
           db.content.count({ where: verifiedWhere })
         ]);
         const items = content.map(serializeContent)
+          .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views) || (b.revenue - a.revenue) || (new Date(b.createdAt) - new Date(a.createdAt)))
           .slice(skip, skip + limit)
           .map((content, index) => ({ rank: skip + index + 1, ...content }));
         return res.json({ success: true, type: 'content', items, total, limit, skip });

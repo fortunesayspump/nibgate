@@ -108,7 +108,7 @@ function ReputationStars({ stars, ratings = 0 }: { stars?: number | null; rating
         <span className="content-rating-empty">☆☆☆☆☆</span>
         <span className="content-rating-fill" style={{ width: `${percent}%` }}>★★★★★</span>
       </span>
-      <span className="content-rating-value">{rating.toFixed(1)}</span>
+      <span className="content-rating-value">{rating.toFixed(1)} {ratings > 0 && <>({ratings})</>}</span>
       <span className="sr-only">{rating.toFixed(1)} out of 5 stars from {ratings} verified ratings</span>
     </span>
   );
@@ -226,7 +226,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
       <div className="market-info">
         <div className="market-info-header">
           <Link href={productHref(product)} target="_blank" rel="noopener noreferrer"><h3 className="market-title">{product.title}</h3></Link>
-          <span className="market-price">{product.price}</span>
+          <span className="market-price">{product.price}{typeof product.unlockCount === "number" && product.unlockCount > 0 ? ` (${product.unlockCount})` : ""}</span>
         </div>
         
         <p className="market-summary">{product.summary || 'No description available for this content.'}</p>

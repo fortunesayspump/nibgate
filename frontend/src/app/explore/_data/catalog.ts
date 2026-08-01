@@ -20,6 +20,7 @@ export type ExploreProduct = {
   price: string;
   meta?: string;
   unlocks?: string;
+  unlockCount?: number;
   tags?: string[];
   image?: string;
   avatar?: string;

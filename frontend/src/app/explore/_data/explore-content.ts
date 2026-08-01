@@ -78,6 +78,7 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     price: Number(content.price || 0) > 0 ? `${Number(content.price).toFixed(3)} ${content.currency || "USDC"}` : "Free",
     meta: content.websiteDomain,
     unlocks: `${content.unlocks || 0} unlocks`,
+    unlockCount: content.unlocks || 0,
     tags: parseTags(content),
     image: fallbackImage(content),
     avatar: content.websiteFaviconUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(content.websiteName || content.websiteDomain || "N")}`,

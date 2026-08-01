@@ -1,6 +1,6 @@
 import { apiUrl } from "@/lib/api";
 
-type ExploreContent = { content?: Array<{ url?: string }> };
+type SitemapContent = { urls?: Array<{ url?: string; updatedAt?: string }> };
 
 export const revalidate = 3600;
 
@@ -11,14 +11,14 @@ const HUB_ALWAYS = [
 ];
 
 export async function GET() {
-  let subblogUrls: string[] = [];
+  let subblogUrls: Array<{ url: string; updatedAt: string }> = [];
 
   try {
-    const res = await fetch(apiUrl("/api/hub/explore/content?limit=500"), { next: { revalidate: 3600 } });
-    const data = (await res.json()) as ExploreContent;
-    subblogUrls = (data.content || [])
-      .map((c) => c.url)
-      .filter((u): u is string => !!u && u.startsWith("https://") && u.includes(".nibgate.xyz"));
+    const res = await fetch(apiUrl("/api/hub/sitemap/content"), { next: { revalidate: 3600 } });
+    const data = (await res.json()) as SitemapContent;
+    subblogUrls = (data.urls || [])
+      .map((u) => ({ url: u.url || "", updatedAt: u.updatedAt || "" }))
+      .filter((u) => !!u.url && u.url.startsWith("https://") && u.url.includes(".nibgate.xyz"));
   } catch {}
 
   const hubUrls = HUB_ALWAYS.map(
@@ -31,9 +31,10 @@ export async function GET() {
   ).join("");
 
   const allUrls = subblogUrls
-    .map((url) => `
+    .map(({ url, updatedAt }) => `
   <url>
     <loc>${url.replace(/&/g, "&amp;")}</loc>
+    <lastmod>${new Date(updatedAt).toISOString()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>`)

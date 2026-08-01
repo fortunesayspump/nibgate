@@ -753,6 +753,23 @@ export function registerHubRoutes(app) {
     }
   });
 
+  // ── Sitemap: All Content URLs across verified sites (up to Google's 50k limit) ──
+
+  app.get('/api/hub/sitemap/content', async (req, res) => {
+    try {
+      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '50000', 10) || 50000, 1), 50000);
+      const content = await db.content.findMany({
+        where: { deletedAt: null, website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } },
+        select: { url: true, updatedAt: true, createdAt: true },
+        orderBy: { updatedAt: 'desc' },
+        take: limit
+      });
+      res.json({ success: true, urls: content.map((c) => ({ url: c.url, updatedAt: c.updatedAt || c.createdAt })) });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch sitemap content' });
+    }
+  });
+
   // ── Reputation: Leaderboards ─────────────────────────────────────────────
 
   app.get('/api/hub/reputation/leaderboards', async (req, res) => {

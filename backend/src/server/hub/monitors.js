@@ -15,6 +15,7 @@ let reputationIndexerLastBlock = null;
 
 const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 const DEFAULT_ARC_RPC_URL = 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/';
+const VERIFICATION_FAILURE_THRESHOLD = Number.parseInt(process.env.VERIFICATION_FAILURE_THRESHOLD || '3', 10);
 
 // ── Verification Monitor ───────────────────────────────────────────────────
 
@@ -47,20 +48,32 @@ async function runVerificationSweep() {
     // Externally hosted sites are verified by the widget on their homepage.
     const result = await checkWebsiteVerification(website);
     if (!result.ok && result.status === 'failed' && website.verificationStatus === 'verified') {
-      // Transient fetch failure — never demote an already-verified site.
-      // Keep it verified and retry on the next sweep.
-      await db.website.update({
-        where: { id: website.id },
-        data: { lastVerificationCheckAt: new Date() }
-      }).catch((error) => {
-        console.log(`Verification sweep fetch-failure kept verified for ${website.domain}:`, error.message);
-      });
-      console.log(`Verification sweep: transient fetch failure for ${website.domain}, kept verified`);
+      // Homepage fetch failed. A single failure is usually transient (network/timeout),
+      // so keep the site verified — but track consecutive failures and demote once a
+      // dead/unreachable site crosses the threshold instead of keeping it verified forever.
+      const failures = (website.verificationFailures || 0) + 1;
+      if (failures >= VERIFICATION_FAILURE_THRESHOLD) {
+        await db.website.update({
+          where: { id: website.id },
+          data: { ...result.data, verificationFailures: failures }
+        }).catch((error) => {
+          console.log(`Verification sweep demote failed for ${website.domain}:`, error.message);
+        });
+        console.log(`Verification sweep: ${website.domain} failed ${failures} consecutive fetches — demoted`);
+      } else {
+        await db.website.update({
+          where: { id: website.id },
+          data: { lastVerificationCheckAt: new Date(), verificationFailures: failures }
+        }).catch((error) => {
+          console.log(`Verification sweep fetch-failure kept verified for ${website.domain}:`, error.message);
+        });
+        console.log(`Verification sweep: transient fetch failure ${failures}/${VERIFICATION_FAILURE_THRESHOLD} for ${website.domain}, kept verified`);
+      }
       continue;
     }
     await db.website.update({
       where: { id: website.id },
-      data: result.data
+      data: result.ok ? { ...result.data, verificationFailures: 0 } : result.data
     }).catch((error) => {
       console.log(`Verification sweep failed for ${website.domain}:`, error.message);
     });

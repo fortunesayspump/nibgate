@@ -62,6 +62,7 @@ model Website {
   lastVerifiedAt            DateTime?
   lastVerificationCheckAt   DateTime?
   verificationFailureReason String?
+  verificationFailures      Int                 @default(0)
   verifyToken               String
   siteToken                 String              @unique
   faviconUrl                String?

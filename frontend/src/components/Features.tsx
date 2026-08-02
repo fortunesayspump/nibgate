@@ -106,9 +106,6 @@ export default function Features() {
           <Link className="nibgate-soft-cta" href="/get-started">
             Get started
           </Link>
-          <Link className="nibgate-soft-cta" href="/features">
-            See features
-          </Link>
         </div>
       </div>
     </section>

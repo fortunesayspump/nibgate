@@ -24,7 +24,7 @@ sequenceDiagram
     H-->>A: Curated index + endpoint map
     A->>H: GET /api/hub/explore/content?sort=trending
     H-->>A: Content cards (price, creator, signals)
-    A->>S: GET /manifest
+    A->>S: GET /nibgate.json
     S-->>A: Metadata, price, access policy
     end
 
@@ -57,7 +57,8 @@ An agent first learns what Nibgate is and which endpoints exist. Three machine-r
 |---------|-----|--------------------|
 | `llms.txt` | `https://nibgate.xyz/.well-known/llms.txt` | Plain-text guide: what Nibgate is, how to discover, pay, and rate |
 | `llms-full.txt` | `https://nibgate.xyz/.well-known/llms-full.txt` | Full manual: discovery.md + skill.md + top 50 live content items |
-| MCP server | `POST https://nibgate.xyz/mcp` (Streamable HTTP) | `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards` |
+| MCP server | `POST https://api.nibgate.xyz/mcp` (Streamable HTTP) | `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards` |
+| MCP card | `https://api.nibgate.xyz/.well-known/mcp.json` | Machine-readable MCP server card |
 | OpenAPI | `https://nibgate.xyz/api/openapi.json` | Full 3.1.0 spec of every hub API route |
 
 ```bash
@@ -66,7 +67,7 @@ curl -s https://nibgate.xyz/.well-known/llms.txt | head -40
 
 ```bash
 # or via MCP (tools/list shows the four tools)
-curl -s -X POST https://nibgate.xyz/mcp \
+curl -s -X POST https://api.nibgate.xyz/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"agent","version":"1.0"}}}'
@@ -85,39 +86,46 @@ The explore feed returns full content cards — pricing, creator domain, verifie
 
 ```json
 {
-  "id": "ab12...",
-  "title": "Nolan Is the ONLY Director…",
-  "type": "article",
-  "price": "0.05",
+  "id": "1e41543621f936fee87159ff0991eb70",
+  "title": "The Tactic That Changed Modern Football",
+  "contentType": "article",
+  "price": 0.5,
   "currency": "USDC",
-  "creatorDomain": "thedailybyte.nibgate.xyz",
-  "isVerified": true,
-  "views": 4821,
-  "unlocks": 312,
-  "reputationScore": 92.4
+  "websiteDomain": "pitchtalk.nibgate.xyz",
+  "websiteName": "PitchTalk",
+  "websiteVerified": true,
+  "websiteVerificationStatus": "verified",
+  "views": 2,
+  "unlocks": 0,
+  "url": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
+  "path": "/writing/the-tactic-that-changed-modern-football",
+  "tagList": ["tactics", "formations", "football"],
+  "accessPolicy": "{\"humans\":\"paid\",\"agents\":\"paid\"}",
+  "unlockPolicy": "{\"mode\":\"one_time\"}"
 }
 ```
 
-The serialized shape comes from `serializeContent` in `backend/src/server/hub/helpers.js:835`. An agent can also query by site (`?domain=`), tag, or content type, or poll a creator's own `/manifest` / `/nibgate.json` directly.
+The serialized shape comes from `serializeContent` in `backend/src/server/hub/helpers.js:835`. An agent can also query by free-text (`?q=` matches title, description, tags, and site name/domain), by content type (`?type=`), or sort by `trending` / `best-sellers` / `hot-new` — or poll a creator's own `/nibgate.json` manifest directly.
 
 ## Step 3 — Evaluate the resource
 
 Before unlocking, an agent inspects the creator's manifest to confirm the resource metadata and access policy:
 
 ```bash
-curl -s 'https://thedailybyte.nibgate.xyz/manifest' | jq '.content[0]'
+curl -s 'https://thedailybyte.nibgate.xyz/nibgate.json' | jq '.content[0]'
 ```
 
 ```json
 {
-  "id": "…",
-  "title": "Nolan Is the ONLY Director…",
-  "summary": "…",
+  "id": "41b3ccfb-4617-458e-ba0f-5c6d01100df2",
+  "title": "The Tactic That Changed Modern Football",
+  "summary": "One tactical idea changed the game. The inverted full back. Full backs used to stay wide. They hugged the touchline and provided width…",
   "type": "article",
-  "price": "0.05",
+  "price": "0.50",
   "currency": "USDC",
-  "path": "/writing/nolan-director",
-  "url": "https://thedailybyte.nibgate.xyz/writing/nolan-director",
+  "path": "/writing/the-tactic-that-changed-modern-football",
+  "url": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
+  "tags": ["tactics", "formations", "football"],
   "access": { "humans": "paid", "agents": "paid" },
   "unlock": { "mode": "one_time" }
 }
@@ -130,40 +138,46 @@ This is the agent's cost–benefit step: verified creator, clear price, bounded 
 The agent calls the creator's x402 endpoint, declaring itself as an agent:
 
 ```bash
-curl -i 'https://thedailybyte.nibgate.xyz/api/nibgate/access?path=/writing/nolan-director' \
+curl -i 'https://pitchtalk.nibgate.xyz/api/nibgate/access?path=/writing/the-tactic-that-changed-modern-football' \
   -H 'x-nibgate-actor: agent' \
   -H 'Accept: application/json'
 ```
 
-The server responds with **HTTP 402 Payment Required** carrying the x402 v2 challenge:
+The server responds with **HTTP 402 Payment Required** carrying the x402 v2 challenge in the `payment-required` header (base64 JSON):
 
 ```http
 HTTP/1.1 402 Payment Required
-PAYMENT-REQUIRED: eyJ4NDAyVmVyc2lvbiI6Mi…   ← base64 JSON
+payment-required: eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiL3Bvc3RzLy4uLiJ9LCJhY2NlcHRzIjpbeyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6NTA0MjAwMiIsImFzc2V0IjoiMHgzNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwiYW1vdW50IjoiNTAwMDAwIiwicGF5VG8iOiIweDFjN2NmOGM4MzM5MkFGZWUwNzI4NDViMzNDZGY1ZDdhNTM3RjlFNzQiLCJtYXhUaW1lb3V0U2Vjb25kcyI6NjA0OTAwLCJleHRyYSI6eyJuYW1lIjoiR2F0ZXdheVdhbGxldEJhdGNoZWQiLCJ2ZXJzaW9uIjoiMSIsInZlcmlmeWluZ0NvbnRyYWN0IjoiMHgwMDc3Nzc3ZDdlYmE0Njg4YmRlZjNlMzExYjg0NmYyNTg3MGExOWI5In19XX0=
+content-type: application/json; charset=utf-8
+```
 
+Decoded, the challenge is:
+
+```json
 {
   "x402Version": 2,
-  "status": 402,
-  "scheme": "exact",
+  "resource": {
+    "url": "/posts/the-tactic-that-changed-modern-football",
+    "description": "Unlock The Tactic That Changed Modern Football",
+    "mimeType": "application/json"
+  },
   "accepts": [{
-    "asset": "USDC",
-    "network": "arc-testnet",
-    "amount": "0.05",
-    "recipient": "0xSe11er…",
-    "payTo": "0xSe11er…",
-    "maxTimeoutSeconds": 120
-  }],
-  "nibgate": {
-    "contentId": "…",
-    "title": "Nolan Is the ONLY Director…",
-    "contentType": "article",
-    "humanPrice": "0.05",
-    "agentPrice": "0.05",
-    "currency": "USDC",
-    "platformFeeBps": 500
-  }
+    "scheme": "exact",
+    "network": "eip155:5042002",
+    "asset": "0x3600000000000000000000000000000000000000",
+    "amount": "500000",
+    "payTo": "0x1c7cf8c83392AFee072845b33Cdf5d7a537F9E74",
+    "maxTimeoutSeconds": 604900,
+    "extra": {
+      "name": "GatewayWalletBatched",
+      "version": "1",
+      "verifyingContract": "0x0077777d7eba4688bdef3e311b846f25870a19b9"
+    }
+  }]
 }
 ```
+
+Note `amount` is in atomic units (6 decimals of USDC, so `500000` = 0.5 USDC), `network` is `eip155:5042002` (Arc testnet), and `asset` is the USDC token contract address.
 
 The challenge is built by `createPaymentChallenge(route, 'agent')` in `packages/internal/src/gateway.js:35`. An agent parses the `accepts[0]` block to get the amount, asset, network, and payee — then signs without touching the blockchain.
 
@@ -179,12 +193,12 @@ import { GatewayClient } from '@circle-fin/x402-batching/client'
 const agent = new GatewayClient({
   chain: 'arcTestnet',
   privateKey: process.env.AGENT_KEY,
-  rpcUrl: 'https://rpc.testnet.arc-network…'
+  rpcUrl: 'https://rpc.testnet.arc.io'
 })
 
 // Handles 402 → sign → retry in one call
 const result = await agent.pay(
-  'https://thedailybyte.nibgate.xyz/api/nibgate/access?path=/writing/nolan-director',
+  'https://pitchtalk.nibgate.xyz/api/nibgate/access?path=/writing/the-tactic-that-changed-modern-football',
   { headers: { 'x-nibgate-actor': 'agent' } }
 )
 ```
@@ -204,10 +218,31 @@ On success the server settles via Circle Gateway and returns the content plus a 
 ```json
 {
   "ok": true,
-  "resource": { "id": "…", "title": "Nolan Is the ONLY Director…" },
+  "resource": {
+    "id": "41b3ccfb-4617-458e-ba0f-5c6d01100df2",
+    "title": "The Tactic That Changed Modern Football",
+    "type": "article",
+    "price": "0.50",
+    "currency": "USDC",
+    "path": "/posts/the-tactic-that-changed-modern-football",
+    "recipient": "0x1c7cf8c83392AFee072845b33Cdf5d7a537F9E74"
+  },
   "content": "<article>…</article>",
-  "payment": { "id": "pay_…", "amount": "0.05", "currency": "USDC", "txHash": "0x…" },
-  "unlockProof": "0x…",
+  "videoUrl": null,
+  "payment": {
+    "id": "RvwX5xYv9kQz1a",
+    "routeId": "…",
+    "title": "The Tactic That Changed Modern Football",
+    "actor": "agent",
+    "amount": "0.50",
+    "currency": "USDC",
+    "network": "eip155:5042002",
+    "createdAt": "2026-08-02T22:00:00.000Z",
+    "txHash": "0x…",
+    "payer": "0xAgent…",
+    "provider": "gateway"
+  },
+  "unlockProof": "…",
   "expiresInSeconds": 43200
 }
 ```
@@ -224,7 +259,7 @@ A purchase without feedback gives creators no signal. Nibgate lets the agent pub
 curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/prepare \
   -H 'Content-Type: application/json' \
   -d '{
-    "contentId": "ab12…",
+    "contentId": "1e41543621f936fee87159ff0991eb70",
     "walletAddress": "0xAgent…",
     "ratingValue": 45
   }'
@@ -233,12 +268,13 @@ curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/prepare \
 ```json
 {
   "success": true,
-  "message": "Nibgate content rating\nsite:thedailybyte.nibgate.xyz\ncontent:…\nurl:https://…\nrating:45\nI confirm this rating is tied to my unlock/payment proof.",
+  "message": "Nibgate content rating\nsite:pitchtalk.nibgate.xyz\ncontent:…\nurl:https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football\nrating:45\nI confirm this rating is tied to my unlock/payment proof.",
   "ratingValue": 45,
   "contentHash": "0x…",
   "contractAddress": "0xReputation…",
   "chainId": "5042002",
-  "chainName": "Arc Testnet"
+  "chainName": "Arc Testnet",
+  "rpcUrl": "https://rpc.testnet.arc.io"
 }
 ```
 
@@ -271,7 +307,7 @@ const ratingTx = await walletClient.sendTransaction({
 curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/index \
   -H 'Content-Type: application/json' \
   -d '{
-    "contentId": "ab12…",
+    "contentId": "1e41543621f936fee87159ff0991eb70",
     "txHash": "0xRatingTx…",
     "walletAddress": "0xAgent…",
     "contentHash": "0x…",
@@ -279,17 +315,48 @@ curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/index \
   }'
 ```
 
-`POST /api/hub/reputation/ratings/index` (`hub-routes.js:640`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score. The agent's rating is now part of the public ledger and the content's `reputationScore`.
+`POST /api/hub/reputation/ratings/index` (`hub-routes.js:640`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score:
 
-**Reference:** this exact sequence (prepare → sign → index) is what `realRating()` in `swarm/rating-swarm.cjs:125` executes against live testnet.
+```json
+{
+  "success": true,
+  "ok": true,
+  "contentId": "1e41543621f936fee87159ff0991eb70",
+  "walletAddress": "0xagent…",
+  "ratingValue": 45
+}
+```
+
+The agent's rating is now part of the public ledger and the content's `reputationScore`.
+
+**Reference:** this exact sequence (prepare → sign → index) is what `scripts/e2e-onchain-reputation-flow.mjs` executes.
 
 ## Step 8 — Verify it landed
 
 ```bash
-curl -s 'https://nibgate.xyz/api/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10' | jq '.entries[0]'
+curl -s 'https://nibgate.xyz/api/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10' | jq '.activities[0]'
 ```
 
-The ledger shows the agent's unlock (txHash) and rating (proof) as first-class entries — immutable, wallet-attributable, and usable by other agents as a trust signal.
+```json
+{
+  "type": "rating",
+  "id": "3edeb436-4a9a-4a38-b3f3-00d12ddc8ba2",
+  "websiteId": "56ab333e-21f3-4873-acf4-b2272812450f",
+  "actor": "0x084c24fcf44442804642d9432a25a0ac0b8c87b8",
+  "contentId": "30c55628ad9684001f39de0d046b307f",
+  "contentTitle": "The Best Coding Tools in 2026 That Are Actually Free",
+  "contentUrl": "https://thedailybyte.nibgate.xyz/writing/best-free-coding-tools",
+  "domain": "thedailybyte.nibgate.xyz",
+  "score": 5,
+  "timestamp": "2026-08-02T22:14:12.481Z",
+  "walletAddress": "0x084c24fcf44442804642d9432a25a0ac0b8c87b8",
+  "txHash": null,
+  "proofType": null,
+  "proof": "onchain:0x2b23178d8c4420c139eae928c5b09720f27e770f9e3fb46514e4ddb2c68765e0"
+}
+```
+
+The ledger shows the agent's unlock (`txHash`) and rating (`proof`) as first-class entries — immutable, wallet-attributable, and usable by other agents as a trust signal. Note the top-level response is `{ success, activities, total, hasMore, limit, skip }` (a list of activities, not `entries`).
 
 ## What makes this simple
 
@@ -300,16 +367,16 @@ Every step is a plain HTTP request plus one signing operation. The protocol hand
 - **No browser.** Every surface (`llms.txt`, MCP, OpenAPI, manifest, x402 endpoint, ratings API) is JSON/plain-text.
 - **Discovery → payment → feedback in one loop.** The same surfaces that let an agent *find* content also let it *pay* for it and *prove* its review.
 
-## Ready-to-run simulation
+## Ready-to-run scripts
 
-The repo ships two scripts that execute this exact flow against a live hub:
+The repo ships scripts that execute this exact flow:
 
 ```bash
 # Canonical agent flow (discover → 402 → sign → retry → log)
 node demo/stress-test-agents.mjs --hub-url https://nibgate.xyz --agents 3 --concurrency 2
 
-# Rating-majority swarm (unlock + prepare + sign + index)
-node swarm/rating-swarm.cjs
+# On-chain reputation flow (prepare → sign → index)
+node scripts/e2e-onchain-reputation-flow.mjs
 ```
 
-Both are described at a higher level in `swarm/BOT_FLOW.md`.
+Both require a funded agent wallet on Arc Testnet.

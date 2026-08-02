@@ -15,6 +15,8 @@ import { registerHubRoutes } from './routes/hub-routes.js';
 import { registerNewsletterRoutes } from './routes/newsletter-routes.js';
 import { registerUploadRoutes } from './routes/upload-routes.js';
 import { registerRpcRoute } from './routes/rpc-route.js';
+import { openApiSpec } from './openapi.js';
+import { registerMcpRoute } from './mcp.js';
 import { createConfigResolver } from './runtime.js';
 
 export async function createApp(config, options = {}) {
@@ -78,6 +80,12 @@ export async function createApp(config, options = {}) {
   registerAuthRoutes(app);
   registerContentRoutes(app, context);
   registerRpcRoute(app);
+  registerMcpRoute(app);
+
+  // Machine-readable API contract for AI agents and tooling.
+  app.get('/api/openapi.json', (_req, res) => {
+    res.type('application/json').json(openApiSpec);
+  });
 
   return app;
 }

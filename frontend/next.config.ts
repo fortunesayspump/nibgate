@@ -10,6 +10,26 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,
       },
+      {
+        source: "/.well-known/llms.txt",
+        destination: "/llms.txt",
+      },
+      {
+        source: "/.well-known/llms-full.txt",
+        destination: "/llms-full.txt",
+      },
+    ];
+  },
+  async headers() {
+    const llmsHeaders = [
+      { key: "X-Llms-Txt", value: "/llms.txt" },
+      { key: "X-Llms-Full-Txt", value: "/llms-full.txt" },
+    ];
+    return [
+      {
+        source: "/:path*",
+        headers: llmsHeaders,
+      },
     ];
   },
 };

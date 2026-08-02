@@ -12,31 +12,41 @@ A real agent can execute this entire flow with three dependencies: an HTTP clien
 
 ```mermaid
 sequenceDiagram
-    participant A as Agent
+    autonumber
+    participant A as Agent (buyer)
     participant H as Nibgate Hub
-    participant S as Creator (subblog)
-    participant W as Wallet (viem)
+    participant S as Creator (subblog, seller)
     participant C as Circle Gateway
 
-    A->>H: 1. GET /.well-known/llms.txt (or MCP explore_content)
+    rect rgb(232, 242, 255)
+    Note over A,H,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
+    A->>H: GET /.well-known/llms.txt (or MCP explore_content)
     H-->>A: Curated index + endpoint map
-    A->>H: 2. GET /api/hub/explore/content?sort=trending
+    A->>H: GET /api/hub/explore/content?sort=trending
     H-->>A: Content cards (price, creator, signals)
-    A->>S: 3. GET /manifest → evaluate paid vs free
-    S-->>A: Structured metadata, access policy
-    A->>S: 4. GET /api/nibgate/access?slug=... (x-nibgate-actor: agent)
+    A->>S: GET /manifest
+    S-->>A: Metadata, price, access policy
+    end
+
+    rect rgb(232, 255, 235)
+    Note over A,S,C: PHASE 2 · X402 PURCHASE (one retried round trip)
+    A->>S: GET /api/nibgate/access?path=... (x-nibgate-actor: agent)
     S-->>A: 402 + PAYMENT-REQUIRED (base64 x402 v2 challenge)
-    A->>W: 5. Sign EIP-3009 TransferWithAuthorization (gasless)
-    W-->>A: v,r,s + nonce
-    A->>S: 6. Retry with Payment-Signature header
-    S->>C: 7. Verify + settle via Gateway
-    C-->>S: txHash
-    S-->>A: 200 + content + unlockProof + payment
-    A->>H: 8. POST /api/hub/reputation/ratings/prepare
+    Note over A: Sign EIP-3009 TransferWithAuthorization<br/>(gasless, off-chain)
+    A->>S: Retry + PAYMENT-SIGNATURE header
+    S->>C: Verify + settle authorization
+    C-->>S: Settlement receipt (txHash)
+    S-->>A: 200 + content + unlockProof + payment + PAYMENT-RESPONSE
+    end
+
+    rect rgb(255, 244, 230)
+    Note over A,H: PHASE 3 · ON-CHAIN RATING (post-purchase)
+    A->>H: POST /api/hub/reputation/ratings/prepare
     H-->>A: Signable message + contentHash + contract
-    A->>W: 9. Sign rating (rateContent calldata)
-    A->>H: 10. POST /api/hub/reputation/ratings/index { txHash }
+    Note over A: Sign rateContent calldata
+    A->>H: POST /api/hub/reputation/ratings/index { txHash }
     H-->>A: Rating indexed, reputation updated
+    end
 ```
 
 ## Step 1 — Discover the network
@@ -120,7 +130,7 @@ This is the agent's cost–benefit step: verified creator, clear price, bounded 
 The agent calls the creator's x402 endpoint, declaring itself as an agent:
 
 ```bash
-curl -i 'https://thedailybyte.nibgate.xyz/api/nibgate/access?slug=nolan-director' \
+curl -i 'https://thedailybyte.nibgate.xyz/api/nibgate/access?path=/writing/nolan-director' \
   -H 'x-nibgate-actor: agent' \
   -H 'Accept: application/json'
 ```
@@ -174,7 +184,7 @@ const agent = new GatewayClient({
 
 // Handles 402 → sign → retry in one call
 const result = await agent.pay(
-  'https://thedailybyte.nibgate.xyz/api/nibgate/access?slug=nolan-director',
+  'https://thedailybyte.nibgate.xyz/api/nibgate/access?path=/writing/nolan-director',
   { headers: { 'x-nibgate-actor': 'agent' } }
 )
 ```
@@ -184,8 +194,8 @@ Under the hood `GatewayClient.pay()` does exactly what the canonical flow in `de
 1. `GET` the access URL → receive `402` + `PAYMENT-REQUIRED`
 2. Decode the base64 challenge
 3. Sign `TransferWithAuthorization` with the agent private key (EIP-712)
-4. Retry with the base64 `Payment-Signature` header
-5. Return the unlocked response
+4. Retry with the base64 `PAYMENT-SIGNATURE` header
+5. Return the unlocked response (with `PAYMENT-RESPONSE` on success)
 
 ## Step 6 — Unlock receipt
 

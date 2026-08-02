@@ -8,7 +8,6 @@ const footerMenus = [
     title: "Project",
     links: [
       ["Why Nibgate?", "/about"],
-      ["Features", "/features"],
       ["Get started", "/get-started"],
       ["Payments", "/payments"],
       ["Discovery", "/discovery"],

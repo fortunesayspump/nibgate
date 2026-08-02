@@ -594,16 +594,21 @@ export async function upsertOnchainRatingForContent(content, args, txHash) {
   const ratingValue = typeof args.rating === 'bigint' ? Number(args.rating) : Number(args.rating || 0);
   if (!walletAddress || !ratingValue) return { ok: false, reason: 'invalid_args' };
 
+  // Callers pass the resolved content row. Fall back to a contentHash lookup
+  // only when no content object was provided (e.g. caller only has the hash).
   const contentHash = String(args.contentId || '');
-  const indexedContent = await db.content.findFirst({
-    where: {
-      website: { isVerified: true, deletedAt: null },
-      OR: [
-        { id: contentHash },
-        { externalId: contentHash }
-      ]
-    }
-  });
+  let indexedContent = content && content.id ? content : null;
+  if (!indexedContent && contentHash) {
+    indexedContent = await db.content.findFirst({
+      where: {
+        website: { isVerified: true, deletedAt: null },
+        OR: [
+          { id: contentHash },
+          { externalId: contentHash }
+        ]
+      }
+    });
+  }
   if (!indexedContent) return { ok: false, reason: 'content_not_found' };
 
   const unlock = await db.unlockReceipt.findFirst({
@@ -616,7 +621,7 @@ export async function upsertOnchainRatingForContent(content, args, txHash) {
       ]
     }
   });
-  if (!unlock && !content.allowUnverifiedRating) return { ok: false, reason: 'no_unlock_receipt' };
+  if (!unlock && !indexedContent.allowUnverifiedRating) return { ok: false, reason: 'no_unlock_receipt' };
 
   await db.contentRating.upsert({
     where: { contentId_walletAddress: { contentId: indexedContent.id, walletAddress } },

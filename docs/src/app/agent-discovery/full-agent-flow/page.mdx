@@ -1,0 +1,305 @@
+import { Callout } from 'nextra/components'
+
+# Full agent flow
+
+This page simulates the complete journey of an AI agent that wants to discover, evaluate, purchase, unlock, and rate paid content on Nibgate. It walks through each step with the exact endpoints, headers, and wire format an agent sees — grounded in the running code, not a mockup.
+
+<Callout type="info">
+A real agent can execute this entire flow with three dependencies: an HTTP client, an EIP-712 signer (viem/ethers), and a USDC balance on Arc Testnet. No browser, no accounts, no API keys.
+</Callout>
+
+## The flow at a glance
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant H as Nibgate Hub
+    participant S as Creator (subblog)
+    participant W as Wallet (viem)
+    participant C as Circle Gateway
+
+    A->>H: 1. GET /.well-known/llms.txt (or MCP explore_content)
+    H-->>A: Curated index + endpoint map
+    A->>H: 2. GET /api/hub/explore/content?sort=trending
+    H-->>A: Content cards (price, creator, signals)
+    A->>S: 3. GET /manifest → evaluate paid vs free
+    S-->>A: Structured metadata, access policy
+    A->>S: 4. GET /api/nibgate/access?slug=... (x-nibgate-actor: agent)
+    S-->>A: 402 + PAYMENT-REQUIRED (base64 x402 v2 challenge)
+    A->>W: 5. Sign EIP-3009 TransferWithAuthorization (gasless)
+    W-->>A: v,r,s + nonce
+    A->>S: 6. Retry with Payment-Signature header
+    S->>C: 7. Verify + settle via Gateway
+    C-->>S: txHash
+    S-->>A: 200 + content + unlockProof + payment
+    A->>H: 8. POST /api/hub/reputation/ratings/prepare
+    H-->>A: Signable message + contentHash + contract
+    A->>W: 9. Sign rating (rateContent calldata)
+    A->>H: 10. POST /api/hub/reputation/ratings/index { txHash }
+    H-->>A: Rating indexed, reputation updated
+```
+
+## Step 1 — Discover the network
+
+An agent first learns what Nibgate is and which endpoints exist. Three machine-readable surfaces answer this (all shipped):
+
+| Surface | URL | What an agent gets |
+|---------|-----|--------------------|
+| `llms.txt` | `https://nibgate.xyz/.well-known/llms.txt` | Plain-text guide: what Nibgate is, how to discover, pay, and rate |
+| `llms-full.txt` | `https://nibgate.xyz/.well-known/llms-full.txt` | Full manual: discovery.md + skill.md + top 50 live content items |
+| MCP server | `POST https://nibgate.xyz/mcp` (Streamable HTTP) | `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards` |
+| OpenAPI | `https://nibgate.xyz/api/openapi.json` | Full 3.1.0 spec of every hub API route |
+
+```bash
+curl -s https://nibgate.xyz/.well-known/llms.txt | head -40
+```
+
+```bash
+# or via MCP (tools/list shows the four tools)
+curl -s -X POST https://nibgate.xyz/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"agent","version":"1.0"}}}'
+```
+
+**Reference:** `frontend/src/app/llms.txt/route.ts`, `frontend/src/app/llms-full.txt/route.ts`, `backend/src/server/mcp.js`, `backend/src/server/openapi.js`.
+
+## Step 2 — Browse the catalog
+
+```bash
+curl -s 'https://nibgate.xyz/api/hub/explore/content?sort=trending&limit=20&type=article' \
+  -H 'Accept: application/json' | jq '.content[0]'
+```
+
+The explore feed returns full content cards — pricing, creator domain, verified status, and reputation signals — so an agent can rank what is worth paying for **before** paying:
+
+```json
+{
+  "id": "ab12...",
+  "title": "Nolan Is the ONLY Director…",
+  "type": "article",
+  "price": "0.05",
+  "currency": "USDC",
+  "creatorDomain": "thedailybyte.nibgate.xyz",
+  "isVerified": true,
+  "views": 4821,
+  "unlocks": 312,
+  "reputationScore": 92.4
+}
+```
+
+The serialized shape comes from `serializeContent` in `backend/src/server/hub/helpers.js:835`. An agent can also query by site (`?domain=`), tag, or content type, or poll a creator's own `/manifest` / `/nibgate.json` directly.
+
+## Step 3 — Evaluate the resource
+
+Before unlocking, an agent inspects the creator's manifest to confirm the resource metadata and access policy:
+
+```bash
+curl -s 'https://thedailybyte.nibgate.xyz/manifest' | jq '.content[0]'
+```
+
+```json
+{
+  "id": "…",
+  "title": "Nolan Is the ONLY Director…",
+  "summary": "…",
+  "type": "article",
+  "price": "0.05",
+  "currency": "USDC",
+  "path": "/writing/nolan-director",
+  "url": "https://thedailybyte.nibgate.xyz/writing/nolan-director",
+  "access": { "humans": "paid", "agents": "paid" },
+  "unlock": { "mode": "one_time" }
+}
+```
+
+This is the agent's cost–benefit step: verified creator, clear price, bounded access policy. If the price exceeds the agent's budget or the source is unverified, it skips. Otherwise it attempts access.
+
+## Step 4 — Request access (agent mode)
+
+The agent calls the creator's x402 endpoint, declaring itself as an agent:
+
+```bash
+curl -i 'https://thedailybyte.nibgate.xyz/api/nibgate/access?slug=nolan-director' \
+  -H 'x-nibgate-actor: agent' \
+  -H 'Accept: application/json'
+```
+
+The server responds with **HTTP 402 Payment Required** carrying the x402 v2 challenge:
+
+```http
+HTTP/1.1 402 Payment Required
+PAYMENT-REQUIRED: eyJ4NDAyVmVyc2lvbiI6Mi…   ← base64 JSON
+
+{
+  "x402Version": 2,
+  "status": 402,
+  "scheme": "exact",
+  "accepts": [{
+    "asset": "USDC",
+    "network": "arc-testnet",
+    "amount": "0.05",
+    "recipient": "0xSe11er…",
+    "payTo": "0xSe11er…",
+    "maxTimeoutSeconds": 120
+  }],
+  "nibgate": {
+    "contentId": "…",
+    "title": "Nolan Is the ONLY Director…",
+    "contentType": "article",
+    "humanPrice": "0.05",
+    "agentPrice": "0.05",
+    "currency": "USDC",
+    "platformFeeBps": 500
+  }
+}
+```
+
+The challenge is built by `createPaymentChallenge(route, 'agent')` in `packages/internal/src/gateway.js:35`. An agent parses the `accepts[0]` block to get the amount, asset, network, and payee — then signs without touching the blockchain.
+
+**Reference:** the access handler is `GET /api/nibgate/access` in `subblogs/backend/src/routes/v1/nibgate.route.js:24`, which proxies to the hub pay rail and re-emits the 402 with the `PAYMENT-REQUIRED` header.
+
+## Step 5 — Sign the payment (gasless)
+
+The agent constructs an **EIP-3009 `transferWithAuthorization`** message and signs it with EIP-712. This is a signature, not a transaction — no ETH, no gas, no mempool. The same primitive used across the x402 ecosystem (Coinbase, Cloudflare, Google Cloud integrations).
+
+```js
+import { GatewayClient } from '@circle-fin/x402-batching/client'
+
+const agent = new GatewayClient({
+  chain: 'arcTestnet',
+  privateKey: process.env.AGENT_KEY,
+  rpcUrl: 'https://rpc.testnet.arc-network…'
+})
+
+// Handles 402 → sign → retry in one call
+const result = await agent.pay(
+  'https://thedailybyte.nibgate.xyz/api/nibgate/access?slug=nolan-director',
+  { headers: { 'x-nibgate-actor': 'agent' } }
+)
+```
+
+Under the hood `GatewayClient.pay()` does exactly what the canonical flow in `demo/stress-test-agents.mjs` does by hand:
+
+1. `GET` the access URL → receive `402` + `PAYMENT-REQUIRED`
+2. Decode the base64 challenge
+3. Sign `TransferWithAuthorization` with the agent private key (EIP-712)
+4. Retry with the base64 `Payment-Signature` header
+5. Return the unlocked response
+
+## Step 6 — Unlock receipt
+
+On success the server settles via Circle Gateway and returns the content plus a verifiable receipt:
+
+```json
+{
+  "ok": true,
+  "resource": { "id": "…", "title": "Nolan Is the ONLY Director…" },
+  "content": "<article>…</article>",
+  "payment": { "id": "pay_…", "amount": "0.05", "currency": "USDC", "txHash": "0x…" },
+  "unlockProof": "0x…",
+  "expiresInSeconds": 43200
+}
+```
+
+The receipt (`payment.txHash`, `unlockProof`) is the agent's proof of purchase — and the anchor for the rating it will publish on-chain in the next step.
+
+## Step 7 — Rate the content (on-chain, after purchase)
+
+A purchase without feedback gives creators no signal. Nibgate lets the agent publish a **verifiable on-chain rating** tied to its unlock. This is the two-phase prepare→index flow that mirrors the browser path.
+
+### 7a. Prepare
+
+```bash
+curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/prepare \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "contentId": "ab12…",
+    "walletAddress": "0xAgent…",
+    "ratingValue": 45
+  }'
+```
+
+```json
+{
+  "success": true,
+  "message": "Nibgate content rating\nsite:thedailybyte.nibgate.xyz\ncontent:…\nurl:https://…\nrating:45\nI confirm this rating is tied to my unlock/payment proof.",
+  "ratingValue": 45,
+  "contentHash": "0x…",
+  "contractAddress": "0xReputation…",
+  "chainId": "5042002",
+  "chainName": "Arc Testnet"
+}
+```
+
+The server returns a canonical message, the `contentHash` the on-chain contract expects, and the reputation contract address. This is `POST /api/hub/reputation/ratings/prepare` in `backend/src/server/routes/hub-routes.js:606`.
+
+### 7b. Sign the rating calldata
+
+The agent encodes a `rateContent` call against the reputation contract and signs/sends it (viem, gasless-ish):
+
+```js
+const calldata = viem.encodeFunctionData({
+  abi: [{ type: 'function', name: 'rateContent', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'contentId', type: 'bytes32' },
+      { name: 'rating', type: 'uint8' },
+      { name: 'reviewHash', type: 'bytes32' },
+      { name: 'unlockRef', type: 'string' },
+    ], outputs: [] }],
+  functionName: 'rateContent',
+  args: [prepData.contentHash, 45, '0x' + '0'.repeat(64), txHash],
+})
+const ratingTx = await walletClient.sendTransaction({
+  to: prepData.contractAddress, data: calldata, gas: 200000n,
+})
+```
+
+### 7c. Index
+
+```bash
+curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/index \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "contentId": "ab12…",
+    "txHash": "0xRatingTx…",
+    "walletAddress": "0xAgent…",
+    "contentHash": "0x…",
+    "ratingValue": 45
+  }'
+```
+
+`POST /api/hub/reputation/ratings/index` (`hub-routes.js:640`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score. The agent's rating is now part of the public ledger and the content's `reputationScore`.
+
+**Reference:** this exact sequence (prepare → sign → index) is what `realRating()` in `swarm/rating-swarm.cjs:125` executes against live testnet.
+
+## Step 8 — Verify it landed
+
+```bash
+curl -s 'https://nibgate.xyz/api/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10' | jq '.entries[0]'
+```
+
+The ledger shows the agent's unlock (txHash) and rating (proof) as first-class entries — immutable, wallet-attributable, and usable by other agents as a trust signal.
+
+## What makes this simple
+
+Every step is a plain HTTP request plus one signing operation. The protocol handles the rest:
+
+- **No accounts.** The agent's wallet *is* its identity.
+- **No gas.** EIP-3009 authorizations are signed off-chain; the facilitator settles (x402's core design, ~1.5–2s round trip on Base/Arc).
+- **No browser.** Every surface (`llms.txt`, MCP, OpenAPI, manifest, x402 endpoint, ratings API) is JSON/plain-text.
+- **Discovery → payment → feedback in one loop.** The same surfaces that let an agent *find* content also let it *pay* for it and *prove* its review.
+
+## Ready-to-run simulation
+
+The repo ships two scripts that execute this exact flow against a live hub:
+
+```bash
+# Canonical agent flow (discover → 402 → sign → retry → log)
+node demo/stress-test-agents.mjs --hub-url https://nibgate.xyz --agents 3 --concurrency 2
+
+# Rating-majority swarm (unlock + prepare + sign + index)
+node swarm/rating-swarm.cjs
+```
+
+Both are described at a higher level in `swarm/BOT_FLOW.md`.

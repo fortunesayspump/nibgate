@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { headers } from "next/headers";
 import { serverFetch } from "@/lib/server-fetch";
 import Footer from "@/components/Footer";
 
@@ -9,12 +10,18 @@ async function getSite(): Promise<Record<string, any> | null> {
   } catch { return null; }
 }
 
+async function siteOrigin() {
+  try {
+    const h = await headers();
+    const host = h.get("host") || "nibgate.xyz";
+    return `https://${host}`;
+  } catch { return "https://nibgate.xyz"; }
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const data = await getSite();
   const name = data?.site?.name || "Nibgate Blog";
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    || (process.env.NEXT_PUBLIC_VERCEL_URL && `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`)
-    || "http://localhost:3001";
+  const siteUrl = await siteOrigin();
   return {
     title: { default: name, template: `%s · ${name}` },
     description: data?.site?.description || `${name} — a blog on nibgate.xyz. Write, publish, and earn USDC from your content.`,

@@ -19,7 +19,7 @@ docs/.next/
 # hackathon media assets (not for git)
 HACKATHON_VIDEO_*
 *.mp3
-video/
+/video/
 packages/nibgate/.npmrc
 
 # v2 labs (unmaintained experiment)

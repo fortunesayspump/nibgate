@@ -11,7 +11,7 @@ npm install @nibgate/sdk
 Use one package with two entrypoints:
 
 ```js
-import { gate } from '@nibgate/sdk'; // browser/client events and UI helpers
+import { createGate } from '@nibgate/sdk'; // browser/client events and UI helpers
 import { createCircleGatewayServer, createNibgateServer } from '@nibgate/sdk/server'; // server-side access enforcement
 ```
 
@@ -24,7 +24,7 @@ Agents integrating Nibgate should read [`SKILL.md`](./SKILL.md) or the public co
 First paste the widget script from your Nibgate dashboard into your site:
 
 ```html
-<script async src="https://nibgate.xyz/widget.js" data-nibgate-site="SITE_ID" data-nibgate-token="PUBLIC_SITE_TOKEN" data-nibgate-api="https://api.nibgate.xyz"></script>
+<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="SITE_ID" data-nibgate-token="PUBLIC_SITE_TOKEN" data-nibgate-api="https://api.nibgate.xyz"></script>
 ```
 
 Then define a resource and let the package handle the repeated browser wiring. Nibgate registers the content and reports unlock activity through the widget:
@@ -240,11 +240,11 @@ if (!quality.ok) console.warn(quality.errors);
 trackResourcePage(resource);
 ```
 
-Required for clean discovery: `id`, `title`, `url`, `type`.
+Required for clean discovery: `id`, `type`.
 
-Recommended for rich cards: `description`, `imageUrl`, `tags`.
+Recommended for rich cards: `title`, `url`, `description`, `imageUrl`, `tags` (title and url are auto-derived when missing).
 
-Required for paid content: `price` and `recipient`.
+Required for paid content: `price`.
 
 The package warns in the browser when important metadata is missing and sends a metadata quality summary to the hub with content events. The backend stores that summary so dashboards can surface setup issues instead of silently creating weak content cards.
 
@@ -684,7 +684,7 @@ await emitTestEvents(premiumGuide, {
 });
 ```
 
-The browser `gate(...)` API gives creators the simple unlock UX. The server API is what should enforce real paid access.
+The browser `createGate(...)` API gives creators the simple unlock UX. The server API is what should enforce real paid access.
 
 Payments are non-custodial in the Nibgate model. The receiving address belongs to the creator site/package config, and different sites can use different receiving addresses. Nibgate Hub records paid unlock events and payment metadata; it does not hold funds or provide withdrawals.
 

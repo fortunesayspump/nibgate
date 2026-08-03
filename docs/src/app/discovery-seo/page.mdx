@@ -39,7 +39,7 @@ Sitemap: https://yourname.nibgate.xyz/sitemap.xml
 
 ### Hub aggregate sitemap
 
-The main Nibgate hub at `nibgate.xyz` serves `https://nibgate.xyz/all-content-sitemap.xml`, which aggregates content from every verified Subblog (`/api/hub/sitemap/content`). The hub's `robots.txt` advertises it. Each Subblog also handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
+The main Nibgate hub at `nibgate.xyz` serves `https://nibgate.xyz/all-content-sitemap.xml`, which aggregates content from every verified site (Subblogs and SDK-integrated sites alike) via `/api/hub/sitemap/content`. The hub's `robots.txt` advertises it. Each Subblog also handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
 
 ```txt
 https://yourname.nibgate.xyz/robots.txt

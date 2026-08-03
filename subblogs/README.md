@@ -1,4 +1,4 @@
-# Subblogs (blog-app)
+# Subblogs
 
 Full blog platform for creators, deployed on `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts — all with Nibgate premium content gating.
 
@@ -20,7 +20,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 | Page | URL | Description |
 |------|-----|-------------|
 | Blog listing | `/` | Posts with date, read time, tag, excerpt |
-| Single post | `/posts/:slug` | Clean reading layout with prev/next navigation |
+| Single post | `/writing/:slug`, `/photos/:slug`, `/music/:slug`, `/video/:slug` | Clean reading layout with prev/next navigation |
 | About | `/about` | Bio, stack, and social links |
 | RSS Feed | `/api/feed` | XML feed for RSS readers |
 | Admin login | `/admin/login` | Email/password sign in |
@@ -81,7 +81,7 @@ After seeding: `author@example.com` / `password123`
 
 ### Admin setup
 
-1. Register at `/admin/register` or via the `POST /api/setup` endpoint to create a subdomain site.
+1. Create a subdomain site via the `POST /api/setup` endpoint.
 2. Log in at `/admin/login` with email and password.
 3. Manage posts from the admin dashboard at `/admin/posts` — create, edit, publish, draft, or delete.
 4. Configure premium gating per post by setting a price and recipient wallet in the post editor.
@@ -92,14 +92,14 @@ The admin uses JWT-based authentication. Set a strong `JWT_SECRET` in production
 
 ### Backend (Railway)
 
-1. Create a Railway project from `blog-app/backend/`
+1. Create a Railway project from `subblogs/backend/`
 2. Add a PostgreSQL database (Railway auto-injects `DATABASE_URL`)
 3. Set env vars: `JWT_SECRET`, `NODE_ENV=production`, `PORT=4000`
 4. Railway runs `prisma migrate deploy` on start — migrations are in `prisma/migrations/`
 
 ### Frontend (Vercel)
 
-1. Create a Vercel project from `blog-app/frontend/`
+1. Create a Vercel project from `subblogs/frontend/`
 2. Set `NEXT_PUBLIC_API_URL=https://your-railway-url.up.railway.app/api`
 3. Add domain (e.g., `*.nibgate.xyz`) in Vercel project → Settings → Domains
 4. DNS: `*.nibgate.xyz` CNAME → `cname.vercel-dns.com`
@@ -177,7 +177,7 @@ The blog exposes a Nibgate manifest at `GET /api/nibgate/manifest` for hub disco
 ## Directory Structure
 
 ```
-blog-app/
+subblogs/
 ├── backend/
 │   ├── prisma/          # Schema + seeds
 │   └── src/

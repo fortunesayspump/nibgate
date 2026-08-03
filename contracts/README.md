@@ -39,10 +39,10 @@ forge build --contracts contracts --out contracts/out --cache-path contracts/cac
 NIBGATE_DEPLOYER_PRIVATE_KEY=0x... NIBGATE_REPUTATION_OWNER=0x... node scripts/deploy-reputation.mjs
 ```
 
-For local hackathon testing only, the script can use the repo e2e test deployer fallback:
+For local hackathon testing only, the script can fall back to the repo e2e test deployer key:
 
 ```bash
-ALLOW_E2E_DEPLOYER_FALLBACK=true node scripts/deploy-reputation.mjs
+E2E_BUYER_PRIVATE_KEY=0x... node scripts/deploy-reputation.mjs
 ```
 
 Use the printed proxy address as `NIBGATE_REPUTATION_CONTRACT`.

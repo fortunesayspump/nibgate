@@ -42,7 +42,8 @@ subblogs/      Subblogs — full blog platform for creators (Express+Prisma + Ne
 packages/      @nibgate/sdk npm package + CLI tooling
 demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz
-internal-docs/ Architecture, research, design-system notes, and planning
+scripts/       E2E flows and reputation deployment tooling
+contracts/     NibgateReputation contracts (Solidity + Foundry)
 ```
 
 ## Workspace Shape
@@ -82,8 +83,8 @@ Agents and coding assistants should read the compact integration guide before ed
 
 It owns:
 
-- browser entrypoint: `gate(...)`, `nibgate.content(...)`, `nibgate.view(...)`, `nibgate.unlockStarted(...)`, `nibgate.unlockCompleted(...)`, and `nibgate.paymentCompleted(...)`
-- server entrypoint: `createNibgateServer(...)`, `protect(...)`, `accessFor(...)`, payment challenges, and unlock token verification
+- browser entrypoint: `createGate(...)`, `nibgate.content(...)`, `nibgate.view(...)`, `nibgate.unlockStarted(...)`, `nibgate.unlockCompleted(...)`, and `nibgate.paymentCompleted(...)`
+- server entrypoint: `createNibgateServer(...)`, `protect(...)`, `nibgateServer.accessFor(...)`, payment challenges, and unlock token verification
 - queueing events until the Hub widget is ready
 - normalizing content types to `music`, `video`, `article`, and `image`
 - access policies for humans and agents: `free`, `paid`, or `blocked`
@@ -99,7 +100,7 @@ The CLI package is private internal tooling for local development and future set
 - hub connection and domain verification commands
 - future scaffolding around widget/package setup
 
-The public `nibgate` package owns route protection, payment challenge metadata, unlock tokens, and package event APIs.
+The public `@nibgate/sdk` package owns route protection, payment challenge metadata, unlock tokens, and package event APIs.
 
 ### `demo/`
 
@@ -357,9 +358,9 @@ Widget snippet shape:
 Content-level registration and tracking should be emitted by the package through the widget:
 
 ```js
-import { gate } from '@nibgate/sdk';
+import { createGate } from '@nibgate/sdk';
 
-const premiumGuide = gate({
+const premiumGuide = createGate({
   id: "premium-guide",
   title: "Premium Guide",
   type: "article",
@@ -473,13 +474,11 @@ That means one domain can have many tracked resources, but Nibgate content types
 
 ## Storage Model
 
-The current local hub store is SQLite through Prisma:
+The hub store is PostgreSQL through Prisma:
 
 - creator content still lives on the creator site
 - resource metadata is created or updated from streamed widget/package events
-- local stats and connection records are stored in the development database
-
-For production `nibgate.xyz`, durable analytics and verification history still need a real external store such as Postgres, Supabase, or another hosted database/KV layer.
+- site, content, analytics, and earnings records live in Postgres
 
 ## Payments
 

@@ -2,8 +2,11 @@
 
 ## Overview
 
-Nibgate is a pay-per-article blogging network on Arc Testnet. Content is behind
-x402 micropayment walls. Payments and ratings settle on-chain.
+Nibgate is a verification, discovery, and unlock layer for creator-owned paid
+content. Creators keep content on their own sites and integrate the `@nibgate/sdk`
+package for gating, payments, and events. The hub verifies sources, indexes
+public metadata, and serves Explore, the ledger, and reputation. Payments and
+ratings settle on-chain via x402 on Arc Testnet.
 
 ## Endpoints
 
@@ -25,13 +28,18 @@ x402 micropayment walls. Payments and ratings settle on-chain.
 | `POST /api/hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
 | `POST /api/hub/site/info` | Get site info by siteId + token |
 
-### Blogs
+### Creator sites
+
+Any SDK-integrated site exposes machine-readable surfaces on its own domain:
 
 | Pattern | Description |
 |---|---|
-| `https://{subdomain}.nibgate.xyz` | Individual creator blogs |
-| `GET /api/blog/posts` | List posts for a blog |
-| `GET /api/nibgate/access?path=X` | Access endpoint (returns 402 for paid content) |
+| `https://{creator-domain}/nibgate.json` | Content manifest (metadata, price, access policy) |
+| `https://{creator-domain}/api/nibgate/access?path=X` | Access endpoint (returns 402 for paid content) |
+
+Hosted Subblogs at `https://{subdomain}.nibgate.xyz` are one convenience form of
+a creator site; they expose the same `/nibgate.json` manifest and
+`/api/nibgate/access` access endpoint.
 
 ### On-Chain
 
@@ -61,5 +69,5 @@ x402 micropayment walls. Payments and ratings settle on-chain.
 ### Network
 
 - Chain ID: 5042002
-- RPC: `https://rpc.testnet.arc-node.thecanteenapp.com/v1/{key}`
+- RPC: `https://rpc.testnet.arc.io`
 - Native: USDC (18 decimals for gas, 6 decimals for ERC-20)

@@ -300,7 +300,6 @@ async function runDataIntegritySweep() {
         OR: [
           { paymentProvider: null },
           { paymentProvider: '' },
-          { paymentId: null },
           { paymentId: '' },
         ],
       },

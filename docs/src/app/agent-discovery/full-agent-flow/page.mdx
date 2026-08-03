@@ -13,38 +13,38 @@ A real agent can execute this entire flow with three dependencies: an HTTP clien
 ```mermaid
 sequenceDiagram
     autonumber
-    participant A as Agent (buyer)
-    participant H as Nibgate Hub
-    participant S as Creator (subblog, seller)
-    participant C as Circle Gateway
+    participant H as Hub
+    participant A as Agent
+    participant S as Creator site
+    participant C as Gateway
 
     rect rgb(232, 242, 255)
     Note over A,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
-    A->>H: GET /.well-known/llms.txt (or MCP explore_content)
+    A->>H: GET /.well-known/llms.txt
     H-->>A: Curated index + endpoint map
-    A->>H: GET /api/hub/explore/content?sort=trending
-    H-->>A: Content cards (price, creator, signals)
+    A->>H: GET /api/hub/explore/content
+    H-->>A: Content cards
     A->>S: GET /nibgate.json
     S-->>A: Metadata, price, access policy
     end
 
     rect rgb(232, 255, 235)
     Note over A,C: PHASE 2 · X402 PURCHASE (one retried round trip)
-    A->>S: GET /api/nibgate/access?path=... (x-nibgate-actor: agent)
-    S-->>A: 402 + PAYMENT-REQUIRED (base64 x402 v2 challenge)
-    Note over A: Sign EIP-3009 TransferWithAuthorization<br/>(gasless, off-chain)
+    A->>S: GET /api/nibgate/access?path=...
+    S-->>A: 402 + PAYMENT-REQUIRED (base64 x402)
+    Note over A: Sign EIP-3009 authorization<br/>(gasless, off-chain)
     A->>S: Retry + PAYMENT-SIGNATURE header
     S->>C: Verify + settle authorization
     C-->>S: Settlement receipt (txHash)
-    S-->>A: 200 + content + unlockProof + payment + PAYMENT-RESPONSE
+    S-->>A: 200 + content + unlockProof + payment
     end
 
     rect rgb(255, 244, 230)
     Note over A,H: PHASE 3 · ON-CHAIN RATING (post-purchase)
     A->>H: POST /api/hub/reputation/ratings/prepare
-    H-->>A: Signable message + contentHash + contract
+    H-->>A: Signable message + contentHash
     Note over A: Sign rateContent calldata
-    A->>H: POST /api/hub/reputation/ratings/index { txHash }
+    A->>H: POST /api/hub/reputation/ratings/index
     H-->>A: Rating indexed, reputation updated
     end
 ```

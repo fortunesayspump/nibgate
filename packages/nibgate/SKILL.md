@@ -359,9 +359,9 @@ NIBGATE_BUYER_PRIVATE_KEY=0x...   # Only for local testing
 For plain HTML/JS sites without a bundler, use the pre-built CDN bundle:
 
 ```html
-<script src="https://unpkg.com/@nibgate/sdk@0.2.0/dist/nibgate.min.js"></script>
+<script src="https://unpkg.com/@nibgate/sdk/dist/nibgate.min.js"></script>
 <script>
-  const { nibgate, gate, mountRatingUI, createEvmGatewayUnlock, createOnchainRating } = Nibgate
+  const { nibgate, createGate, mountRatingUI, createEvmGatewayUnlock, createOnchainRating } = Nibgate
 </script>
 ```
 
@@ -399,7 +399,7 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
 2. **Access** — agent hits the content's access URL identifying as an agent:
 
    ```bash
-   GET https://creator.example/api/nibgate/access?slug=my-article
+   GET https://creator.example/api/nibgate/access?path=my-article
    x-nibgate-actor: agent
    Accept: application/json
    ```
@@ -420,7 +420,7 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
 5. **Retry** — agent retries the request with the signed payment:
 
    ```bash
-   GET https://creator.example/api/nibgate/access?slug=my-article
+   GET https://creator.example/api/nibgate/access?path=my-article
    payment-signature: <base64 payload>
    Accept: application/json
    ```
@@ -437,10 +437,10 @@ import { GatewayClient } from '@circle-fin/x402-batching/client'
 const agent = new GatewayClient({
   chain: 'arcTestnet',
   privateKey: '0x...',
-  rpcUrl: 'https://rpc.testnet.arc.network'
+  rpcUrl: 'https://rpc.testnet.arc.io'
 })
 
-const result = await agent.pay('https://creator.example/api/nibgate/access?slug=my-article', {
+const result = await agent.pay('https://creator.example/api/nibgate/access?path=my-article', {
   headers: { 'x-nibgate-actor': 'agent' }
 })
 // { data: { ok: true, unlockProof, ... }, formattedAmount: '0.01', transaction: '0x...' }
@@ -460,7 +460,7 @@ Agents identify themselves via headers (in priority order):
 |--------|-------|---------------|
 | `x-nibgate-actor` | `agent` | Explicit agent declaration |
 | `Accept` + `x402` | `application/json` + `true` | Accept header includes JSON and x402 is set |
-| `User-Agent` | bot pattern | Matches `/bot|agent|llm|gpt|claude|perplexity/i` |
+| `User-Agent` | bot pattern | Matches `/bot|crawler|spider|agent|llm|gpt|claude|perplexity|anthropic|openai|mistral|gemini|firecrawl/i` |
 
 ### Agent-Specific Pricing
 
@@ -486,7 +486,7 @@ node demo/stress-test-agents.mjs \
   --mnemonic "twelve word seed phrase here" \
   --agents 50 --concurrency 10 \
   --hub-url "https://nibgate.xyz" \
-  --access-template "https://{origin}/api/nibgate/access?slug={slug}" \
+  --access-template "https://{origin}/api/nibgate/access?path={path}" \
   --fund --fund-amount 5 \
   --loop --interval 300
 ```

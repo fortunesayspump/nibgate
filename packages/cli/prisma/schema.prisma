@@ -265,6 +265,7 @@ model IndexState {
   indexingState   String?
   lastCrawlTime   DateTime?
   isIndexed       Boolean   @default(false)
+  sitemapHash     String?
   lastInspectedAt DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

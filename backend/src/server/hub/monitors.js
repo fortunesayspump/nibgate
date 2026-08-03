@@ -407,7 +407,7 @@ let gscIndexMonitorStarted = false;
 async function runGscIndexSweep() {
   const summary = await runIndexSweep();
   if (summary.disabled) return;
-  console.log(`GSC index sweep: ${summary.inspected} inspected, ${summary.indexed} indexed, ${summary.notIndexed} not indexed, ${summary.newSites} new sites, ${summary.reNudges} sitemap re-submits (${summary.domains} sites)`);
+  console.log(`GSC index sweep: ${summary.inspected} inspected, ${summary.indexed} indexed, ${summary.notIndexed} not indexed, ${summary.newSites} new sites, ${summary.resubmitted} sitemap re-submits, ${summary.indexNow} URLs via IndexNow (${summary.domains} sites)`);
   for (const n of summary.notIndexedList) console.log(`GSC index not-indexed: ${n.domain} (${n.coverageState || n.indexingState || 'unknown'})`);
   for (const e of summary.errors) console.log(`GSC index error: ${e}`);
 }

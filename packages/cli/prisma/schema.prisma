@@ -134,6 +134,7 @@ model Content {
   metrics               Metric[]
   unlockReceipts        UnlockReceipt[]
   ratings               ContentRating[]
+  events                ContentEvent[]
 
   @@unique([websiteId, externalId])
   @@unique([websiteId, url])
@@ -171,6 +172,20 @@ model UnlockReceipt {
   @@index([publisherId])
   @@index([payerWallet])
   @@index([txHash])
+}
+
+model ContentEvent {
+  id        String   @id @default(uuid())
+  contentId String
+  content   Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  websiteId String
+  eventType String
+  url       String?
+  createdAt DateTime @default(now())
+
+  @@index([websiteId, createdAt])
+  @@index([contentId])
+  @@index([eventType])
 }
 
 model ContentRating {

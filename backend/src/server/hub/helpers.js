@@ -401,7 +401,12 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
   // not revive content that was removed from the site's manifest.
   const update = options.allowRevive ? { ...data, deletedAt: null } : { ...data };
 
-  return db.content.upsert({
+  const existing = await db.content.findUnique({
+    where: { websiteId_url: { websiteId: website.id, url: data.url } },
+    select: { id: true, deletedAt: true }
+  }).catch(() => null);
+
+  const content = await db.content.upsert({
     where: { websiteId_url: { websiteId: website.id, url: data.url } },
     update,
     create: {
@@ -411,6 +416,26 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
     },
     include: { publisher: true }
   });
+
+  if (content) {
+    if (!existing) {
+      await recordContentEvent(website.id, content, 'created');
+    } else if (existing.deletedAt && options.allowRevive) {
+      await recordContentEvent(website.id, content, 'revived');
+    }
+  }
+
+  return content;
+}
+
+async function recordContentEvent(websiteId, content, eventType) {
+  try {
+    await db.contentEvent.create({
+      data: { contentId: content.id, websiteId, eventType, url: content.url || null }
+    });
+  } catch (error) {
+    console.warn(`Failed to record content event ${eventType}:`, error.message);
+  }
 }
 
 export function resourcesFromManifest(manifest = {}) {
@@ -758,10 +783,19 @@ export async function syncWebsiteManifest(website) {
 
       const upsertedIds = upserted.map((c) => c.id).filter(Boolean);
       if (upsertedIds.length) {
-        await db.content.updateMany({
+        const toDelete = await db.content.findMany({
           where: { websiteId: website.id, externalId: { not: null }, deletedAt: null, id: { notIn: upsertedIds } },
-          data: { deletedAt: new Date() }
-        }).catch(() => {});
+          select: { id: true, url: true }
+        }).catch(() => []);
+        if (toDelete.length) {
+          await db.content.updateMany({
+            where: { id: { in: toDelete.map((t) => t.id) } },
+            data: { deletedAt: new Date() }
+          }).catch(() => {});
+          await db.contentEvent.createMany({
+            data: toDelete.map((t) => ({ contentId: t.id, websiteId: website.id, eventType: 'deleted', url: t.url }))
+          }).catch(() => {});
+        }
       }
 
       await db.website.update({

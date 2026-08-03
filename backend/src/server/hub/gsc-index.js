@@ -150,7 +150,8 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
           const urls = sitemap.body ? extractSitemapUrls(sitemap.body) : [url];
           const ix = await submitIndexNow(domain, urls).catch((e) => ({ ok: false, message: e.message }));
           if (ix.ok) summary.indexNow += ix.urls;
-          else if (ix.status) summary.indexNowErrors += 1;
+          else if (!ix.skipped) summary.indexNowErrors += 1;
+          await new Promise((r) => setTimeout(r, 400));
         }
       }
     } catch (error) {

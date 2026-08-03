@@ -109,25 +109,26 @@ export async function listSubmittedSitemaps() {
   };
 }
 
-export async function submitAllSiteSitemaps() {
+export async function submitAllSiteSitemaps({ force = false } = {}) {
   creds = creds || readCredentials();
   if (!creds) return { disabled: true, reason: 'GSC_SERVICE_ACCOUNT_JSON is not set' };
   const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';
   const dryRun = process.env.GSC_DRY_RUN === '1';
+  force = force || process.env.GSC_FORCE === '1';
   const domains = await fetchSiteList();
   const token = await getAccessToken();
 
   let existing = new Set();
-  if (!dryRun) {
+  if (!dryRun && !force) {
     const list = await request(`${WEBMASTERS_BASE}/sites/${enc(site)}/sitemaps`, { token });
     existing = new Set((list.sitemap || []).map((s) => s.path));
   }
 
-  const summary = { site, dryRun, domains: domains.length, added: 0, skipped: 0, failed: [] };
+  const summary = { site, dryRun, force, domains: domains.length, added: 0, skipped: 0, failed: [] };
   for (const domain of domains) {
-    const sitemapUrl = `https://${domain}/sitemap.xml`;
+    const sitemapUrl = `https://${domain}/sitemap.xml/`;
     try {
-      if (existing.has(sitemapUrl)) {
+      if (!force && existing.has(sitemapUrl)) {
         summary.skipped += 1;
       } else {
         if (!dryRun) {

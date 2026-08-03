@@ -43,7 +43,7 @@ if (summary.disabled) {
 
 const mode = dryRun ? 'DRY RUN' : inspectOnly ? 'inspect-only (no DB writes)' : 'live';
 console.log(`GSC index sweep (${mode}) → ${summary.site}`);
-console.log(`Sites: ${summary.domains} | New: ${summary.newSites} | Inspected: ${summary.inspected} | Indexed: ${summary.indexed} | Not indexed: ${summary.notIndexed} | Changed: ${summary.changed} | Sitemap re-submits: ${summary.resubmitted} | IndexNow URLs: ${summary.indexNow}`);
+console.log(`Sites: ${summary.domains} | New: ${summary.newSites} | Inspected: ${summary.inspected} | Indexed: ${summary.indexed} | Not indexed: ${summary.notIndexed} | Changed: ${summary.changed} | Sitemap re-submits: ${summary.resubmitted} | IndexNow URLs: ${summary.indexNow} | IndexNow errors: ${summary.indexNowErrors}`);
 for (const n of summary.notIndexedList) console.log(`  not-indexed: ${n.domain} (${n.coverageState || n.indexingState || 'unknown'})`);
 if (summary.errors.length) {
   console.log('Errors:');

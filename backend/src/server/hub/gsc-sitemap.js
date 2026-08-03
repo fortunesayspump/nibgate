@@ -30,7 +30,7 @@ let creds = null;
 let cachedToken = null;
 let tokenExpiresAt = 0;
 
-async function getAccessToken() {
+export async function getAccessToken() {
   const now = Date.now();
   if (cachedToken && now < tokenExpiresAt - 60_000) return cachedToken;
   creds = creds || readCredentials();
@@ -50,7 +50,7 @@ async function getAccessToken() {
   return cachedToken;
 }
 
-function request(url, { method = 'GET', body, headers = {}, token } = {}) {
+export function request(url, { method = 'GET', body, headers = {}, token } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const options = {
@@ -116,6 +116,14 @@ export async function deleteSitemap(sitemapPath) {
   return { deleted: sitemapPath };
 }
 
+export async function submitSitemapForDomain(domain) {
+  const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';
+  const token = await getAccessToken();
+  const sitemapUrl = `https://${domain}/sitemap.xml/`;
+  await request(`${WEBMASTERS_BASE}/sites/${enc(site)}/sitemaps/${enc(sitemapUrl)}`, { method: 'PUT', token, body: '' });
+  return sitemapUrl;
+}
+
 export async function submitAllSiteSitemaps({ force = false } = {}) {
   creds = creds || readCredentials();
   if (!creds) return { disabled: true, reason: 'GSC_SERVICE_ACCOUNT_JSON is not set' };
@@ -139,7 +147,7 @@ export async function submitAllSiteSitemaps({ force = false } = {}) {
         summary.skipped += 1;
       } else {
         if (!dryRun) {
-          await request(`${WEBMASTERS_BASE}/sites/${enc(site)}/sitemaps/${enc(sitemapUrl)}`, { method: 'PUT', token, body: '' });
+          await submitSitemapForDomain(domain);
         }
         summary.added += 1;
       }

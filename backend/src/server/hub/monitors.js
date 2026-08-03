@@ -1,6 +1,7 @@
 import { db } from '@nibgate/internal/db.js';
 import { createPublicClient, decodeEventLog, http } from 'viem';
 import { submitAllSiteSitemaps } from './gsc-sitemap.js';
+import { runIndexSweep } from './gsc-index.js';
 import {
   checkWebsiteVerification, syncWebsiteManifest, serializeContent,
   CONTENT_RATED_EVENT, siteReputationScore, creatorReputationScore,
@@ -395,6 +396,34 @@ export function startGscSitemapMonitor() {
     runGscSitemapSweep().catch((error) => console.log('GSC sitemap sweep failed:', error.message));
     setInterval(() => {
       runGscSitemapSweep().catch((error) => console.log('GSC sitemap sweep failed:', error.message));
+    }, intervalMs).unref?.();
+  }, initialDelayMs).unref?.();
+}
+
+// ── GSC Index Monitor ──────────────────────────────────────────────────
+
+let gscIndexMonitorStarted = false;
+
+async function runGscIndexSweep() {
+  const summary = await runIndexSweep();
+  if (summary.disabled) return;
+  console.log(`GSC index sweep: ${summary.inspected} inspected, ${summary.indexed} indexed, ${summary.notIndexed} not indexed, ${summary.newSites} new sites, ${summary.reNudges} sitemap re-submits (${summary.domains} sites)`);
+  for (const n of summary.notIndexedList) console.log(`GSC index not-indexed: ${n.domain} (${n.coverageState || n.indexingState || 'unknown'})`);
+  for (const e of summary.errors) console.log(`GSC index error: ${e}`);
+}
+
+export function startGscIndexMonitor() {
+  if (gscIndexMonitorStarted || process.env.GSC_INDEX_MONITOR_DISABLED === 'true') return;
+  if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return;
+  gscIndexMonitorStarted = true;
+
+  const intervalMs = Number.parseInt(process.env.GSC_INDEX_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
+  const initialDelayMs = Number.parseInt(process.env.GSC_INDEX_INITIAL_DELAY_MS || String(10 * 60 * 1000), 10);
+
+  setTimeout(() => {
+    runGscIndexSweep().catch((error) => console.log('GSC index sweep failed:', error.message));
+    setInterval(() => {
+      runGscIndexSweep().catch((error) => console.log('GSC index sweep failed:', error.message));
     }, intervalMs).unref?.();
   }, initialDelayMs).unref?.();
 }

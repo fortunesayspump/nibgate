@@ -4,10 +4,15 @@ import { type BlogPost } from "@/lib/api";
 export const revalidate = 3600;
 
 async function getPosts(): Promise<BlogPost[]> {
-  try {
-    const data = await serverFetch<{ success: boolean; posts: BlogPost[] }>("/blog/posts");
-    return data.posts || [];
-  } catch { return []; }
+  const posts: BlogPost[] = [];
+  const pageSize = 50;
+  for (let page = 1; page <= 100; page++) {
+    const data = await serverFetch<{ success: boolean; posts: BlogPost[] }>(`/blog/posts?limit=${pageSize}&page=${page}`);
+    const batch = data.posts || [];
+    posts.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return posts;
 }
 
 export async function GET(request: Request) {

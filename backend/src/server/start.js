@@ -26,8 +26,9 @@ try {
 
 function runPrismaCommand() {
   try {
-    const prismaCli = path.resolve(process.cwd(), 'node_modules/.bin/prisma');
-    const schemaPath = path.resolve(process.cwd(), 'packages/cli/prisma/schema.prisma');
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const prismaCli = path.resolve(repoRoot, 'packages/cli/node_modules/.bin/prisma');
+    const schemaPath = path.resolve(repoRoot, 'packages/cli/prisma/schema.prisma');
     execSync(`node ${prismaCli} generate --schema=${schemaPath} 2>&1`, { stdio: 'pipe', timeout: 30000 });
     execSync(`node ${prismaCli} db push --schema=${schemaPath} --skip-generate --accept-data-loss 2>&1`, { stdio: 'pipe', timeout: 30000 });
     console.log('[nibgate] Prisma client generated and schema synced');

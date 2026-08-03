@@ -768,7 +768,19 @@ export async function syncWebsiteManifest(website) {
 
       const manifest = await response.json();
       const resources = resourcesFromManifest(manifest);
-      if (!resources.length) { lastError = `${url} had no content`; continue; }
+      if (!resources.length) {
+        const looksLikeManifest = manifest && typeof manifest === 'object' && !Array.isArray(manifest)
+          && (Array.isArray(manifest.content) || Array.isArray(manifest.resources) || Array.isArray(manifest.nibgate?.content) || Array.isArray(manifest.nibgate?.resources));
+        if (looksLikeManifest) {
+          await db.website.update({
+            where: { id: website.id },
+            data: { lastScanAt: new Date(), lastSyncAt: new Date(), lastScanStatus: 'synced', lastScanError: null }
+          }).catch(() => {});
+          return { ok: true, url, content: 0, errors: [] };
+        }
+        lastError = `${url} had no content`;
+        continue;
+      }
 
       const upserted = [];
       const upsertErrors = [];

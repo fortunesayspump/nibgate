@@ -109,6 +109,13 @@ export async function listSubmittedSitemaps() {
   };
 }
 
+export async function deleteSitemap(sitemapPath) {
+  const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';
+  const token = await getAccessToken();
+  await request(`${WEBMASTERS_BASE}/sites/${enc(site)}/sitemaps/${enc(sitemapPath)}`, { method: 'DELETE', token, body: '' });
+  return { deleted: sitemapPath };
+}
+
 export async function submitAllSiteSitemaps({ force = false } = {}) {
   creds = creds || readCredentials();
   if (!creds) return { disabled: true, reason: 'GSC_SERVICE_ACCOUNT_JSON is not set' };

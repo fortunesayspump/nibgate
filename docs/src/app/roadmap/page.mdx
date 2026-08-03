@@ -12,19 +12,19 @@ Nibgate is being built as a package-first content unlock layer plus a verified d
 
 ## Next
 
-- Publish the first stable `nibgate` package release.
 - Tighten the demo site into a real end-to-end reference implementation.
 - Improve Circle Gateway/x402 and Arc testnet receipt handling.
-- Add clearer setup checks for stale widgets, removed sites, and failed verification.
+- Add clearer setup checks for missing widgets, removed sites, and failed verification.
 - Improve docs around payment receipts, unlock tokens, and agent-readable discovery.
 
 ## Later
 
-- Browser wallet payment adapters where the creator flow needs direct wallet checkout.
-- Metered unlock modes for video/audio streaming, article sections, time passes, and agent usage quotas.
+- Enforce metered unlock modes for video/audio streaming, article sections, time passes, and agent usage quotas (the policy field exists; enforcement is future).
 - Stronger reputation proofs tied to verified unlocks and signed/onchain ratings.
 - Richer agent discovery metadata for paid routes, citations, licenses, and source quality.
 - More package helpers for common frameworks without making the core package framework-specific.
+
+> Already shipped: the `@nibgate/sdk` package (v0.2.x) is published on npm, and browser wallet checkout adapters (`createWalletCheckout`, `payWithTransfer`, `createEvmGatewayUnlock`, `createCircleGatewayBrowserAdapter`) are implemented.
 
 ## Out of scope
 

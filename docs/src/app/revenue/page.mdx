@@ -63,17 +63,17 @@ Nibgate maintains three types of leaderboards:
 
 ### Ranking factors
 
-Leaderboard positions are determined by a combination of:
+All three boards rank by **reputation score** first (content/site/creator, 1–100), then unlock count, then views. Content additionally breaks ties by revenue, then newest `createdAt`. The current sorters are:
 
-- **Total earnings**: Cumulative USDC revenue from paid unlocks.
-- **Unlock count**: Number of unique paid unlocks.
-- **Content freshness**: Recently published or updated content.
-- **Reputation score**: Average content rating (0.0–5.0 stars).
-- **Engagement**: Views, unlock conversion rate, and time-on-page signals.
+- Content: `reputationScore desc` → `unlocks desc` → `views desc` → `revenue desc` → `createdAt desc`
+- Sites: `reputationScore desc` → `unlocks desc` → `views desc`
+- Creators: `reputationScore desc` → `unlocks desc` → `views desc`
+
+(`backend/src/server/routes/hub-routes.js:792, 820, 844`)
 
 ### Leaderboard views
 
-Leaderboards are surfaced in the Nibgate Explore section, on creator profile pages, and in the admin dashboard. They support filtering by time range (daily, weekly, monthly, all time) and content type.
+Leaderboards are surfaced in the Nibgate Explore section (`frontend/src/app/explore/_components/LeaderboardPreview.tsx`). The board UI supports tab switching between content/sites/creators, search, and column sorting — it does not currently filter by time range or content type.
 
 ## Revenue tracking
 
@@ -85,19 +85,22 @@ The admin dashboard provides detailed revenue tracking:
 - **Receipt drilldown**: Click any earnings entry to view the receipt details (transaction hash, buyer wallet, timestamp).
 
 ```ts
-// Example receipt event reported after unlock
+// Receipt event reported after unlock (the shape the hub indexes)
 {
-  "event": "payment_completed",
+  "paymentProvider": "circle-gateway",
+  "paymentId": "...",
   "amount": "0.01",
+  "revenue": "0.01",
   "currency": "USDC",
-  "receiver": "0xCreatorWallet",
-  "recipient": "0xBuyerWallet",
-  "siteId": "site_...",
-  "contentId": "post_123",
+  "payer": "0xBuyerWallet",
+  "recipient": "0xCreatorWallet",
   "txHash": "0x...",
-  "paidAt": "2025-07-26T12:00:00Z"
+  "chainId": "5042002",
+  "network": "eip155:5042002"
 }
 ```
+
+Note: `recipient` here is the **creator's** wallet (the payment receiver), and `payer` is the buyer's wallet — not the other way around.
 
 ## Reputation scores
 
@@ -105,9 +108,9 @@ Reputation scores are computed from verified interactions:
 
 | Score | Range | Source |
 |-------|-------|--------|
-| Content reputation | 0.0–5.0 stars | Ratings from wallets that unlocked the content |
-| Site reputation | 1–100 | Aggregate of content ratings + source health signals |
-| Creator reputation | 1–100 | Aggregate of site reputation + total earnings + unlock success |
+| Content reputation | 0.0–5.0 stars | Average rating from wallets that unlocked the content (only on-chain-proofed accepted ratings count) |
+| Site reputation | 1–100 | Average content rating × 0.78 + verification bonus + content depth |
+| Creator reputation | 1–100 | Average content rating × 0.76 + verified-site depth + content depth |
 
 Higher reputation scores can lead to better leaderboard placement and increased visibility in Explore.
 

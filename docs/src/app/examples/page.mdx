@@ -20,9 +20,9 @@ A good Nibgate example should always show three things: the protected resource, 
 Protect a premium article route, report article metadata, and stream unlock receipts into earnings.
 
 ```ts
-import { gate } from "@nibgate/sdk"
+import { createGate } from "@nibgate/sdk"
 
-const launchNote = gate({
+const launchNote = createGate({
   id: "article_launch_note",
   type: "article",
   title: "Launch note for paid subscribers",

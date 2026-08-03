@@ -43,7 +43,7 @@ import { GatewayClient } from '@circle-fin/x402-batching/client'
 const agent = new GatewayClient({
   chain: 'arcTestnet',
   privateKey: process.env.AGENT_KEY,
-  rpcUrl: 'https://rpc.testnet.arc.network'
+  rpcUrl: 'https://rpc.testnet.arc.io'
 })
 
 const result = await agent.pay(contentAccessUrl, {

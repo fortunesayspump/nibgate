@@ -44,14 +44,14 @@ The creator pastes the widget into their site HTML.
 ```html
 <script
   async
-  src="https://nibgate.xyz/widget.js"
+  src="https://www.nibgate.xyz/widget.js"
   data-nibgate-site="SITE_ID"
   data-nibgate-token="PUBLIC_SITE_TOKEN"
   data-nibgate-api="https://api.nibgate.xyz"
 ></script>
 ```
 
-Nibgate checks the homepage for the token. If found, the site becomes verified.
+Nibgate checks the homepage for the `data-nibgate-site` widget marker with the site id. If found, the site becomes verified. (Event ingestion separately validates the site token.)
 
 ### Creator installs the package
 
@@ -68,9 +68,9 @@ The package is used where paid content lives.
 The creator marks resources as gated content.
 
 ```ts
-import { gate } from "@nibgate/sdk"
+import { createGate } from "@nibgate/sdk"
 
-const guide = gate({
+const guide = createGate({
   id: "premium-guide",
   title: "Premium Guide",
   type: "article",
@@ -91,7 +91,7 @@ The protected content stays on the creator site. Nibgate stores public metadata 
 
 ### Package reports content metadata
 
-The package/widget sends metadata to Nibgate: content id, type, title, route, price, tags, preview image, verified site, and creator wallet.
+The package/widget sends metadata to Nibgate: content id, type, title, route, price, tags, image, verified site, and creator wallet.
 
 This lets the content appear in dashboard contents, Explore, search, categories, and leaderboards.
 
@@ -123,10 +123,10 @@ After payment succeeds, the receipt is reported to Nibgate. This happens automat
 
 ```ts
 guide.unlockCompleted({
-  buyerWallet: "0x...",
+  payer: "0x...",            // buyer wallet (also accepts walletAddress | buyer | account | address)
   paymentProvider: "x402",
   txHash: "0x...",
-  receiptHash: "0x...",
+  receiptUrl: "https://...", // gateway/provider receipt reference
   amount: "0.01",
   currency: "USDC"
 })

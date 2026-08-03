@@ -12,44 +12,37 @@ All image processing happens server-side at upload time. No client-side librarie
 
 ```txt
 Upload
-  -> R2 storage
-  -> sharp processing (WebP conversion, resizing)
-  -> Optimized variants stored
-  -> Responsive URLs returned
+  -> R2 storage (or local /uploads in dev)
+  -> sharp processing (WebP conversion, resize)
+  -> Single optimized file stored
+  -> Public URL returned
 ```
 
 ## What sharp does
 
 [sharp](https://sharp.pixelplumbing.com/) is a high-performance Node.js image processing library. When an image is uploaded, sharp:
 
-1. **Converts to WebP** — produces modern, efficiently compressed WebP images that are significantly smaller than JPEG or PNG equivalents.
-2. **Resizes** — generates multiple size variants (thumbnail, medium, full) for responsive delivery.
-3. **Strips metadata** — removes EXIF data to reduce file size and protect privacy.
+1. **Auto-rotates** — applies EXIF orientation so the image displays upright.
+2. **Converts to WebP** — produces modern, efficiently compressed WebP images that are significantly smaller than JPEG or PNG equivalents.
+3. **Resizes** — caps the width at 2560px (`withoutEnlargement`), so small images stay untouched and huge images are bounded. A single file is produced per upload — there are no size variants.
 
 ## Image types
 
-There are three categories of images in the Nibgate system:
+Images fall into a few categories depending on where they appear:
 
 <Cards>
   <Cards.Card title="Cover images" href="/image-optimization#image-types">
-    The primary hero image for a post. Displayed on the blog homepage, in Explore cards, and in social sharing previews. High priority — always optimized at full quality.
+    The primary hero image for a post. Displayed on the blog homepage, in Explore cards, and in social sharing previews.
   </Cards.Card>
   <Cards.Card title="Inline images" href="/image-optimization#image-types">
-    Images embedded within an article body. Stored alongside the post content and served via optimized URLs. Multiple size variants available.
+    Images embedded within an article body, stored alongside the post content.
   </Cards.Card>
   <Cards.Card title="Gallery images" href="/image-optimization#image-types">
-    Images in a Photo content type gallery. Each image gets its own caption and optimization. Displayed in a responsive grid layout.
+    Images in a Photo content type gallery. Each image gets its own caption. Displayed in a responsive grid layout.
   </Cards.Card>
 </Cards>
 
-## Image specifications
-
-| Type | Recommended size | Formats generated | Usage |
-|------|-----------------|-------------------|-------|
-| Cover image | 1200×630px min | WebP (multiple sizes) | Blog homepage, Explore, OG tags |
-| Inline image | 800px wide | WebP (responsive) | Article body |
-| Gallery image | 1200px wide | WebP (thumb + full) | Photo gallery grid |
-| Cover art (music) | 1400×1400px | WebP (square) | Music player, embed card |
+All of them go through the same pipeline: auto-rotate, WebP conversion, and a 2560px width cap. There are no per-type size variants or square crop processing.
 
 ## Storage
 
@@ -62,13 +55,15 @@ Images are stored in **Cloudflare R2** object storage. R2 provides:
 
 ## URL format
 
-Optimized images are served from the R2 public bucket with responsive parameters:
+Optimized images are served from the R2 public bucket:
 
 ```txt
-https://r2.nibgate.xyz/subblogs/{subblog-id}/posts/{post-id}/{variant}-{filename}.webp
+{R2_PUBLIC_URL}/blog/{siteId}/{timestamp}-{random}.webp
 ```
 
-Where `variant` is one of: `cover`, `inline`, `thumb`, `gallery`, or `full`.
+Example: `https://pub-…r2.dev/blog/{siteId}/1785469232629-8021a40a8489.webp`
+
+There are no variant sub-paths or responsive parameters — each upload stores exactly one WebP file and returns its URL directly.
 
 ## Cover images
 

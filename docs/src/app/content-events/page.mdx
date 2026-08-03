@@ -18,9 +18,9 @@ Content metadata tells Nibgate what paid resources exist without copying the pro
 Send a stable external id, type, title, URL, price, currency, tags, and optional preview image.
 
 ```ts
-import { gate } from "@nibgate/sdk"
+import { createGate } from "@nibgate/sdk"
 
-const post = gate({
+const post = createGate({
   id: "post_123",
   type: "article",
   title: "Paid research note",
@@ -41,6 +41,8 @@ const post = gate({
 post.content()
 ```
 
+> Note: the package exports `createGate` (and a preconfigured `nibgate.gate(...)`). There is no bare `gate` import.
+
 ## Recommended fields
 
 | Field | Purpose |
@@ -52,7 +54,7 @@ post.content()
 | `price` | Display and analytics price. |
 | `currency` | Usually `USDC` for current flows. |
 | `tags` | Search and Explore filtering. |
-| `previewImage` | Public image shown in Explore. |
+| `imageUrl` | Public image shown in Explore (also accepts `image`). |
 | `recipient` | Wallet or payment receiver for paid unlocks. |
 | `access` | Human and agent access policy. |
 | `unlock` | Unlock policy. Use `mode: "one_time"` for the MVP. |
@@ -81,15 +83,15 @@ The field exists so future versions can add metered streaming, metered reading, 
 
 ## Deterministic content id
 
-For reputation and rating contracts, every content item should resolve to a stable content id.
+For reputation and rating contracts, every content item resolves to a stable content id.
 
-A practical shape is:
+The shape is:
 
 ```txt
-contentId = hash(chainId, creatorWallet, domain, path, id)
+contentHash = keccak256("nibgate:content:v1" + "|" + domain + "|" + externalId + "|" + url)
 ```
 
-The creator should not need to mint each content item. The package can derive this id from the verified site and resource metadata, then use it for unlock receipts, rating eligibility, and rating events.
+The creator does not need to mint each content item. The package derives this id from the verified site domain, the resource's external id, and its URL — then uses it for unlock receipts, rating eligibility, and rating events. The same derivation lives in `contentHashFor` (`backend/src/server/hub/helpers.js:526`) and in the SDK's `contentRatingHash` (`packages/nibgate/src/browser/reputation.js:116`).
 
 ## Rating handoff
 

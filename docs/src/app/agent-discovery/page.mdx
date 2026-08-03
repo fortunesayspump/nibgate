@@ -78,11 +78,11 @@ import { GatewayClient } from '@circle-fin/x402-batching/client'
 const agent = new GatewayClient({
   chain: 'arcTestnet',
   privateKey: '0x...',
-  rpcUrl: 'https://rpc.testnet.arc.network'
+  rpcUrl: 'https://rpc.testnet.arc.io'
 })
 
 const result = await agent.pay(
-  'https://creator.example/api/nibgate/access?slug=my-article',
+  'https://creator.example/api/nibgate/access?path=/writing/my-article',
   {
     headers: { 'x-nibgate-actor': 'agent' }
   }

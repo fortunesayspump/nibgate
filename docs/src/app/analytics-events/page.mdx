@@ -12,7 +12,7 @@ The goal is not just totals. Creators need timeline filters, content-specific de
 
 <Cards>
   <Cards.Card title="Page activity" href="/analytics-events#page-activity">
-    Views, referrers, paths, device hints, and time-on-page signals.
+    Views, referrers, paths, scroll depth, and time-on-page signals.
   </Cards.Card>
   <Cards.Card title="Content activity" href="/analytics-events#content-activity">
     Impressions, preview clicks, content opens, and route-level engagement.
@@ -24,7 +24,7 @@ The goal is not just totals. Creators need timeline filters, content-specific de
 
 ## Page activity
 
-The widget can track views, referrers, path, device hints, and time-on-page style signals.
+The widget can track views, referrers, path, scroll depth, and time-on-page signals.
 
 ```ts
 window.nibgateHub.track("page_view", {
@@ -39,9 +39,9 @@ window.nibgateHub.track("page_view", {
 The package can report impressions, preview clicks, unlock starts, unlock completions, failed unlocks, and receipt references.
 
 ```ts
-import { gate } from "@nibgate/sdk"
+import { createGate } from "@nibgate/sdk"
 
-const post = gate({
+const post = createGate({
   id: "post_123",
   title: "Paid research note",
   type: "article",

@@ -37,11 +37,13 @@ GET /api/nibgate/status
 Dashboard APIs create sites, issue verification tokens, recheck widget health, and archive removed sites.
 
 ```http
-POST /api/hub/sites
+POST /api/hub/sites/register
 GET /api/hub/sites
-POST /api/hub/sites/:siteId/verify
-DELETE /api/hub/sites/:siteId
+POST /api/hub/sites/:websiteId/verify
+DELETE /api/hub/sites/:websiteId
 ```
+
+Note: the path param is `websiteId` (the site UUID), and registration is `/sites/register` — not `POST /api/hub/sites`.
 
 ## Event ingestion
 
@@ -58,6 +60,7 @@ Intended event shape:
 ```json
 {
   "siteId": "site_123",
+  "token": "verify_token",
   "event": "resource_view",
   "resource": {
     "id": "post_123",
@@ -68,7 +71,7 @@ Intended event shape:
 }
 ```
 
-The `siteId` proves the creator origin. The recipient wallet links the content to the creator account and payment receiver for the verified site.
+The `siteId` + `token` (the site's verification token) prove the creator origin. The recipient wallet links the content to the creator account and payment receiver for the verified site. A missing `siteId` or `token` returns `400`, and an invalid token returns `403`.
 
 ## Hosted payments
 
@@ -82,9 +85,6 @@ Request:
 
 ```json
 {
-  "siteId": "site_123",
-  "token": "verify_token",
-  "contentId": "post_123",
   "price": "0.01",
   "recipient": "0xCreatorWallet",
   "title": "Premium Post"
@@ -93,14 +93,11 @@ Request:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `siteId` | Yes | Site UUID from dashboard |
-| `token` | Yes | Site verification token |
-| `contentId` | Yes | Unique content identifier |
 | `price` | No | Defaults to `0.01` |
 | `recipient` | No | Wallet to receive payment. Falls back to `NIBGATE_SELLER_ADDRESS` env var |
 | `title` | No | Content title for the payment challenge |
 
-Returns a `402 Payment Required` challenge on first call. The browser signs it with the visitor's wallet and retries with the signature. On success, returns `200` with an unlock proof.
+Returns a `402 Payment Required` challenge on first call. The browser signs it with the visitor's wallet and retries with the signature. On success, returns `200` with `{ success: true, payment: { paymentProvider, verified, recipient, network, amount, revenue, currency, payer, txHash } }`.
 
 The widget handles this automatically when using `data-nibgate-premium` attributes — no manual API calls needed.
 
@@ -135,22 +132,33 @@ Returns sorted activity list plus total counts across all records.
   "activities": [
     {
       "type": "payment",
-      "id": "evt_123",
-      "domain": "fortune.nibgate.xyz",
+      "id": "…",
+      "websiteId": "…",
+      "actor": "0x…",
+      "contentId": "…",
       "contentTitle": "Premium Post",
-      "amount": 5,
+      "contentUrl": "https://fortune.nibgate.xyz/writing/premium-post",
+      "domain": "fortune.nibgate.xyz",
+      "amount": 0.01,
       "currency": "USDC",
-      "txHash": "0x...",
+      "timestamp": "2026-07-28T19:17:24.000Z",
+      "paymentId": "…",
+      "txHash": "0x…",
+      "chainId": "5042002",
+      "network": "eip155:5042002",
       "paymentProvider": "circle-gateway",
-      "payerWallet": "0x...",
-      "timestamp": "2026-07-28T19:17:24.000Z"
+      "receiptUrl": "…",
+      "payerWallet": "0x…",
+      "recipientWallet": "0x…",
+      "status": "verified"
     }
   ],
   "totals": {
     "views": 300,
     "unlocks": 160,
     "payments": 175,
-    "ratings": 70
+    "ratings": 70,
+    "total": 705
   },
   "hasMore": false
 }

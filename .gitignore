@@ -27,3 +27,6 @@ v2-labs/
 *.tgz
 writeskill.md
 swarm/
+
+# Google service account keys
+.gsc/

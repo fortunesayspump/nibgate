@@ -16,7 +16,7 @@ import {
   ratingAverage, acceptedRatingCount,
   publisherPayloadFor, upsertPublisherIdentity, contentDataFor
 } from '../hub/helpers.js';
-import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor } from '../hub/monitors.js';
+import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor } from '../hub/monitors.js';
 
 async function requireAuth(req, res, next) {
   const sessionToken = req.cookies.auth_session;
@@ -33,6 +33,7 @@ export function registerHubRoutes(app) {
   startManifestSyncMonitor();
   startReputationIndexer();
   startDataIntegrityMonitor();
+  startGscSitemapMonitor();
 
   // ── Site Registration ──────────────────────────────────────────────────
 

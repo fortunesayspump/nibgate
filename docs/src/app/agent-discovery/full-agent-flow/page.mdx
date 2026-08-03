@@ -19,7 +19,7 @@ sequenceDiagram
     participant C as Circle Gateway
 
     rect rgb(232, 242, 255)
-    Note over A,H,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
+    Note over A,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
     A->>H: GET /.well-known/llms.txt (or MCP explore_content)
     H-->>A: Curated index + endpoint map
     A->>H: GET /api/hub/explore/content?sort=trending
@@ -29,7 +29,7 @@ sequenceDiagram
     end
 
     rect rgb(232, 255, 235)
-    Note over A,S,C: PHASE 2 · X402 PURCHASE (one retried round trip)
+    Note over A,C: PHASE 2 · X402 PURCHASE (one retried round trip)
     A->>S: GET /api/nibgate/access?path=... (x-nibgate-actor: agent)
     S-->>A: 402 + PAYMENT-REQUIRED (base64 x402 v2 challenge)
     Note over A: Sign EIP-3009 TransferWithAuthorization<br/>(gasless, off-chain)

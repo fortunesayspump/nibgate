@@ -257,6 +257,21 @@ model BlogPost {
   @@index([authorId])
 }
 
+model IndexState {
+  id              String    @id @default(uuid())
+  url             String    @unique
+  domain          String
+  coverageState   String?
+  indexingState   String?
+  lastCrawlTime   DateTime?
+  isIndexed       Boolean   @default(false)
+  lastInspectedAt DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([domain])
+  @@index([isIndexed])
+}
+
 model NewsletterSubscriber {
   id               String    @id @default(uuid())
   email            String    @unique

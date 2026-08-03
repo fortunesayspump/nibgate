@@ -27,3 +27,6 @@ v2-labs/
 *.tgz
 writeskill.md
 local-ops/
+
+# Google service account keys
+.gsc/

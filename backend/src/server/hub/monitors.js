@@ -1,5 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { createPublicClient, decodeEventLog, http } from 'viem';
+import { submitAllSiteSitemaps } from './gsc-sitemap.js';
 import {
   checkWebsiteVerification, syncWebsiteManifest, serializeContent,
   CONTENT_RATED_EVENT, siteReputationScore, creatorReputationScore,
@@ -367,6 +368,33 @@ export function startDataIntegrityMonitor() {
     runDataIntegritySweep().catch((error) => console.log('Data integrity sweep failed:', error.message));
     setInterval(() => {
       runDataIntegritySweep().catch((error) => console.log('Data integrity sweep failed:', error.message));
+    }, intervalMs).unref?.();
+  }, initialDelayMs).unref?.();
+}
+
+// ── GSC Sitemap Monitor ──────────────────────────────────────────────────
+
+let gscSitemapMonitorStarted = false;
+
+async function runGscSitemapSweep() {
+  const summary = await submitAllSiteSitemaps();
+  if (summary.disabled) return;
+  console.log(`GSC sitemap sweep: ${summary.added} added, ${summary.skipped} already submitted, ${summary.failed.length} failed (${summary.domains} sites)`);
+  for (const f of summary.failed) console.log(`GSC sitemap sweep failed: ${f}`);
+}
+
+export function startGscSitemapMonitor() {
+  if (gscSitemapMonitorStarted || process.env.GSC_SITEMAP_MONITOR_DISABLED === 'true') return;
+  if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return;
+  gscSitemapMonitorStarted = true;
+
+  const intervalMs = Number.parseInt(process.env.GSC_SITEMAP_INTERVAL_MS || String(24 * 60 * 60 * 1000), 10);
+  const initialDelayMs = Number.parseInt(process.env.GSC_SITEMAP_INITIAL_DELAY_MS || String(5 * 60 * 1000), 10);
+
+  setTimeout(() => {
+    runGscSitemapSweep().catch((error) => console.log('GSC sitemap sweep failed:', error.message));
+    setInterval(() => {
+      runGscSitemapSweep().catch((error) => console.log('GSC sitemap sweep failed:', error.message));
     }, intervalMs).unref?.();
   }, initialDelayMs).unref?.();
 }

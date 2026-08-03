@@ -48,9 +48,9 @@ npm install @nibgate/sdk
 Send public metadata for each paid resource. Keep the protected content itself on your own domain.
 
 ```ts
-import { gate } from '@nibgate/sdk'
+import { createGate } from '@nibgate/sdk'
 
-const guide = gate({
+const guide = createGate({
   id: 'premium-guide',
   title: 'Premium Guide',
   type: 'article',

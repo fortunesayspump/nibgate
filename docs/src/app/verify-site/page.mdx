@@ -8,8 +8,8 @@ A site starts pending, becomes verified when the widget is found, and can be rec
 
 - `pending`: site was registered but ownership is not verified yet.
 - `verified`: widget was found on the registered origin.
-- `stale`: widget was previously verified but is missing or failing health checks.
-- `archived`: creator removed the site from active dashboard and Explore surfaces.
+- `missing_widget`: widget was previously verified but the widget marker is no longer found on the homepage.
+- `failed`: the site homepage could not be fetched to verify the widget.
 
 ## Verification process
 
@@ -20,11 +20,11 @@ The dashboard creates the site record and token. Only register domains you contr
 
 ### Crawl homepage
 
-The backend fetches the registered origin and checks for the Nibgate widget marker.
+The backend fetches the registered origin and checks for the Nibgate widget marker (`data-nibgate-site` with the site id).
 
 ### Mark verified
 
-If the token matches, the site can stream content and activity events.
+If the marker is found, the site is marked verified and can stream content and activity events. (Event ingestion separately validates the site token.)
 
 ### Recheck health
 
@@ -32,9 +32,9 @@ Scheduled checks make sure verified sites do not silently remove the widget.
 </Steps>
 
 <Callout type="warning">
-If the widget is removed after verification, the site should eventually become stale and stop contributing new public discovery events until the widget returns.
+If the widget is removed after verification, a recheck flips the site to `missing_widget`. Note that event ingestion still accepts events from any site with a valid token, so the widget marker is a discovery-surface health signal rather than a hard event gate.
 </Callout>
 
 ## Removal behavior
 
-Removing a site should hide it from active dashboard and Explore views. Historical metrics stay archived for reporting and audit context.
+Removing a site soft-deletes it (`deletedAt`), hiding it from active dashboard and Explore views. Historical metrics stay archived for reporting and audit context.

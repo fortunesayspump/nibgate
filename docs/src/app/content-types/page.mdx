@@ -34,9 +34,9 @@ Articles are the primary content type for long-form writing.
 **Excerpt**: A short summary displayed alongside the cover image. Set in the post editor.
 
 ```ts
-import { gate } from '@nibgate/sdk'
+import { createGate } from '@nibgate/sdk'
 
-const article = gate({
+const article = createGate({
   id: 'my-article',
   type: 'article',
   title: 'My Premium Article',
@@ -57,10 +57,10 @@ Photos are gallery-style posts with multiple images.
 
 **Layout**: Images are displayed in a responsive gallery grid on the blog. The first image serves as the cover.
 
-**Paid gating**: When a photo set is paid, the gallery preview shows blurred or count-limited thumbnails. The full gallery is revealed after unlock.
+**Paid gating**: A paid photo set gates the article body text. The gallery images currently render in full; per-image or count-limited previews are not implemented.
 
 ```ts
-const photoSet = gate({
+const photoSet = createGate({
   id: 'photo-set-1',
   type: 'image',
   title: 'Photo Collection',
@@ -77,12 +77,12 @@ Music posts allow creators to share audio tracks with embedded playback.
 
 **Editor**: Upload an audio file and optional cover art image.
 
-**Player**: A custom audio player is rendered on the post page with play/pause, progress, and volume controls.
+**Player**: An audio player is available in the rendering kit, but the default post template does not embed it yet — music posts currently show their body text.
 
-**Paid gating**: When gated, the player shows a preview (e.g. 30 seconds) or requires unlock for full playback.
+**Paid gating**: Music gating is not wired into the default template yet — only the article body is gated on paid posts.
 
 ```ts
-const track = gate({
+const track = createGate({
   id: 'track-1',
   type: 'music',
   title: 'Exclusive Track',
@@ -104,7 +104,7 @@ Video posts embed YouTube videos with optional gating.
 **Paid gating**: When gated, the video embed is hidden behind an unlock overlay. The video is revealed after payment.
 
 ```ts
-const course = gate({
+const course = createGate({
   id: 'video-1',
   type: 'video',
   title: 'Premium Video Course',

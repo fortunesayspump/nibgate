@@ -62,7 +62,7 @@ The default unlock path does not need to go through a Nibgate payment contract. 
 The rating itself is an onchain event after eligibility is proven. The package submits the rating transaction from the visitor or agent wallet, then the Nibgate backend indexes the event and accepts it only when that wallet has a matching unlock receipt/proof for the content.
 
 ```solidity
-rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, bytes unlockProof)
+rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, string calldata unlockRef)
 ```
 
 Recommended encoding:
@@ -70,7 +70,7 @@ Recommended encoding:
 - `contentId`: deterministic hash of site, route, and resource id.
 - `rating`: `1-50`, where `45` means `4.5` stars.
 - `reviewHash`: optional hash of a text review stored offchain.
-- `unlockProof`: proof or attestation that the wallet unlocked the content.
+- `unlockRef`: proof or attestation that the wallet unlocked the content (a payment id, tx hash, or unlock receipt reference).
 - `msg.sender`: wallet or agent wallet that paid/unlocked.
 
 The proof can be a Nibgate/creator attestation, an indexed x402 receipt, or a future onchain unlock receipt if a site chooses to use a contract-based unlock rail.

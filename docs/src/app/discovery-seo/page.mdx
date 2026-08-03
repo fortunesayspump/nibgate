@@ -28,17 +28,18 @@ Each Subblog also has a `/robots.txt`:
 https://yourname.nibgate.xyz/robots.txt
 ```
 
-The default allows all well-behaved crawlers and points to the sitemap:
+The default allows all well-behaved crawlers, blocks the admin area, and points to the sitemap:
 
 ```
 User-agent: *
 Allow: /
+Disallow: /admin
 Sitemap: https://yourname.nibgate.xyz/sitemap.xml
 ```
 
 ### Hub aggregate sitemap
 
-The main Nibgate hub at `nibgate.xyz` serves its own `/sitemap.xml` for hub pages. Subblogs are NOT aggregated into a hub-level sitemap — Google only follows sitemap references on the same host, so cross-host aggregation doesn't work. Instead, every Subblog handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
+The main Nibgate hub at `nibgate.xyz` serves `https://nibgate.xyz/all-content-sitemap.xml`, which aggregates content from every verified Subblog (`/api/hub/sitemap/content`). The hub's `robots.txt` advertises it. Each Subblog also handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
 
 ```txt
 https://yourname.nibgate.xyz/robots.txt
@@ -71,14 +72,14 @@ Every post page on a Subblog includes JSON-LD structured data for rich search re
 }
 ```
 
-The `@type` varies by content type:
+The post page always emits `@type: "Article"` for every content type (`subblogs/frontend/src/app/[type]/[slug]/page.tsx:28`), regardless of whether the post is an article, photo, music, or video:
 
 | Content type | Schema.org type |
 |-------------|-----------------|
 | Article | `Article` |
-| Photo | `ImageGallery` |
-| Music | `MusicRecording` |
-| Video | `VideoObject` |
+| Photo | `Article` |
+| Music | `Article` |
+| Video | `Article` |
 
 ## Open Graph meta tags
 
@@ -88,7 +89,7 @@ Every page includes standard OG meta tags for rich social sharing previews:
 <meta property="og:title" content="Post Title" />
 <meta property="og:description" content="Post excerpt" />
 <meta property="og:image" content="https://yourname.nibgate.xyz/cover.jpg" />
-<meta property="og:url" content="https://yourname.nibgate.xyz/posts/slug" />
+<meta property="og:url" content="https://yourname.nibgate.xyz/writing/slug" />
 <meta property="og:type" content="article" />
 <meta name="twitter:card" content="summary_large_image" />
 ```

@@ -1,6 +1,64 @@
+const crypto = require('crypto');
 const { status } = require('http-status');
 const ApiError = require('../utils/ApiError');
 const prisma = require('../lib/prisma');
+const config = require('../config/config');
+const { registerR2Provider } = require('../lib/storage');
+const { putBlob, getBlob, deleteBlob, generateContentKey, encryptBytes, decryptBytes, packCipherBlob, unpackCipherBlob } = require('@nibgate/sdk/server');
+
+registerR2Provider();
+const ENCRYPT_ENABLED = !!config.r2?.endpoint;
+
+function isPaidValue(price) {
+  return !!price && price !== '0';
+}
+
+function parseMedia(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeMediaForStorage(value, paid) {
+  const items = parseMedia(value);
+  if (paid) {
+    return items
+      .filter((i) => i && i.storageRef)
+      .map((i) => ({
+        storageRef: String(i.storageRef),
+        encryptedKey: i.encryptedKey ? String(i.encryptedKey) : null,
+        contentType: i.contentType || 'image/webp',
+        caption: String(i.caption || '').trim(),
+      }));
+  }
+  return items
+    .map((i) => (typeof i === 'string' ? { url: i, caption: '' } : i))
+    .filter((i) => i && i.url)
+    .map((i) => ({
+      url: String(i.url),
+      caption: String(i.caption || '').trim(),
+    }));
+}
+
+async function encryptBytesToStore(data, siteId, kind) {
+  const contentKey = generateContentKey();
+  const enc = encryptBytes(contentKey, data);
+  const blob = packCipherBlob(enc);
+  const key = `blog/${siteId}/enc/${kind}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
+  const { storageRef } = await putBlob({ key, data: blob, contentType: 'application/octet-stream' });
+  return { storageRef, contentKey: contentKey.toString('base64') };
+}
+
+async function decryptBytesFromStore(storageRef, contentKey) {
+  if (!storageRef || !contentKey) return null;
+  const blob = await getBlob({ storageRef });
+  const { iv, tag, ciphertext } = unpackCipherBlob(blob);
+  return decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
+}
 
 function slugify(value = '') {
   return String(value).trim().toLowerCase().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
@@ -53,10 +111,19 @@ async function listAll(siteId, authorId) {
 }
 
 async function getById(siteId, id) {
-  return prisma.blogPost.findFirst({
+  const post = await prisma.blogPost.findFirst({
     where: { siteId, id },
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
+  if (post && post.bodyStorageRef && post.contentKey) {
+    try {
+      const decrypted = await decryptBytesFromStore(post.bodyStorageRef, post.contentKey);
+      if (decrypted) post.bodyMarkdown = decrypted.toString('utf8');
+    } catch {
+      post.bodyMarkdown = '';
+    }
+  }
+  return post;
 }
 
 async function create(data, siteId, authorId) {
@@ -65,24 +132,41 @@ async function create(data, siteId, authorId) {
   const slug = slugify(data.slug || title);
   if (!slug) throw new ApiError(status.BAD_REQUEST, 'Could not generate slug');
   const statusVal = data.status === 'draft' ? 'draft' : 'published';
+  const isPaid = isPaidValue(data.price);
+  const excerpt = String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown);
+  const mediaItems = normalizeMediaForStorage(data.media, isPaid);
+
+  const postData = {
+    siteId, title, slug,
+    excerpt,
+    tags: cleanTags(data.tags),
+    type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
+    coverUrl: String(data.coverUrl || '').trim() || null,
+    videoUrl: String(data.videoUrl || '').trim() || null,
+    audioUrl: isPaid ? null : String(data.audioUrl || '').trim() || null,
+    audioStorageRef: isPaid ? String(data.audioStorageRef || '').trim() || null : null,
+    audioEncryptedKey: isPaid ? String(data.audioEncryptedKey || '').trim() || null : null,
+    audioContentType: isPaid ? String(data.audioContentType || '').trim() || null : null,
+    media: mediaItems.length ? JSON.stringify(mediaItems) : null,
+    price: isPaid ? String(data.price).trim() : null,
+    recipientWallet: String(data.recipientWallet || '').trim() || null,
+    status: statusVal,
+    featured: data.featured === true,
+    publishedAt: statusVal === 'published' ? new Date() : null,
+    authorId,
+  };
+
+  if (isPaid && ENCRYPT_ENABLED) {
+    const encryptedBody = await encryptBytesToStore(Buffer.from(bodyMarkdown, 'utf8'), siteId, 'body');
+    postData.bodyMarkdown = '';
+    postData.contentKey = encryptedBody.contentKey;
+    postData.bodyStorageRef = encryptedBody.storageRef;
+  } else {
+    postData.bodyMarkdown = bodyMarkdown;
+  }
 
   return prisma.blogPost.create({
-    data: {
-      siteId, title, slug, bodyMarkdown,
-      excerpt: String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown),
-      tags: cleanTags(data.tags),
-      type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
-      coverUrl: String(data.coverUrl || '').trim() || null,
-      videoUrl: String(data.videoUrl || '').trim() || null,
-      audioUrl: String(data.audioUrl || '').trim() || null,
-      media: String(data.media || '').trim() || null,
-      price: data.price && data.price !== '0' ? String(data.price).trim() : null,
-      recipientWallet: String(data.recipientWallet || '').trim() || null,
-      status: statusVal,
-      featured: data.featured === true,
-      publishedAt: statusVal === 'published' ? new Date() : null,
-      authorId,
-    },
+    data: postData,
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
 }
@@ -91,29 +175,67 @@ async function update(siteId, id, data) {
   const existing = await prisma.blogPost.findFirst({ where: { siteId, id } });
   if (!existing) throw new ApiError(status.NOT_FOUND, 'Post not found');
 
+  const willBePaid = isPaidValue(data.price !== undefined ? data.price : existing.price);
   const updateData = {};
   if (data.title !== undefined) {
     updateData.title = String(data.title).trim();
     if (!data.slug) updateData.slug = slugify(data.title);
   }
   if (data.slug !== undefined) updateData.slug = slugify(data.slug);
-  if (data.bodyMarkdown !== undefined || data.body !== undefined) {
-    updateData.bodyMarkdown = String(data.bodyMarkdown || data.body || '').trim();
+
+  const bodyProvided = data.bodyMarkdown !== undefined || data.body !== undefined;
+  if (bodyProvided) {
+    const newBody = String(data.bodyMarkdown || data.body || '').trim();
+    if (willBePaid && ENCRYPT_ENABLED) {
+      if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
+      const encryptedBody = await encryptBytesToStore(Buffer.from(newBody, 'utf8'), siteId, 'body');
+      updateData.bodyMarkdown = '';
+      updateData.contentKey = encryptedBody.contentKey;
+      updateData.bodyStorageRef = encryptedBody.storageRef;
+    } else {
+      if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
+      updateData.bodyMarkdown = newBody;
+      updateData.contentKey = null;
+      updateData.bodyStorageRef = null;
+    }
+  } else if (!willBePaid && existing.bodyStorageRef) {
+    const decrypted = await decryptBytesFromStore(existing.bodyStorageRef, existing.contentKey);
+    if (decrypted) {
+      updateData.bodyMarkdown = decrypted.toString('utf8');
+      await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
+    }
+    updateData.contentKey = null;
+    updateData.bodyStorageRef = null;
   }
+
   if (data.excerpt !== undefined) updateData.excerpt = String(data.excerpt).trim();
   if (data.tags !== undefined) updateData.tags = cleanTags(data.tags);
   if (data.coverUrl !== undefined) updateData.coverUrl = String(data.coverUrl).trim() || null;
   if (data.videoUrl !== undefined) updateData.videoUrl = String(data.videoUrl).trim() || null;
-  if (data.media !== undefined) updateData.media = String(data.media).trim() || null;
+  if (data.media !== undefined) {
+    const mediaItems = normalizeMediaForStorage(data.media, willBePaid);
+    updateData.media = mediaItems.length ? JSON.stringify(mediaItems) : null;
+  }
   if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article';
-  if (data.price !== undefined) updateData.price = data.price && data.price !== '0' ? String(data.price).trim() : null;
+  if (data.price !== undefined) updateData.price = willBePaid ? String(data.price).trim() : null;
   if (data.recipientWallet !== undefined) updateData.recipientWallet = String(data.recipientWallet).trim() || null;
   if (data.featured !== undefined) updateData.featured = data.featured;
+  if (willBePaid) {
+    if (data.audioStorageRef !== undefined) updateData.audioStorageRef = String(data.audioStorageRef).trim() || null;
+    if (data.audioEncryptedKey !== undefined) updateData.audioEncryptedKey = String(data.audioEncryptedKey).trim() || null;
+    if (data.audioContentType !== undefined) updateData.audioContentType = String(data.audioContentType).trim() || null;
+    updateData.audioUrl = null;
+  } else {
+    updateData.audioUrl = data.audioUrl !== undefined ? String(data.audioUrl).trim() || null : existing.audioUrl;
+    updateData.audioStorageRef = null;
+    updateData.audioEncryptedKey = null;
+    updateData.audioContentType = null;
+  }
   if (data.status !== undefined) {
     updateData.status = data.status === 'draft' ? 'draft' : 'published';
     if (updateData.status === 'published' && !existing.publishedAt) updateData.publishedAt = new Date();
   }
-  if (data.bodyMarkdown && !data.excerpt) updateData.excerpt = excerptFrom(data.bodyMarkdown);
+  if (bodyProvided && data.bodyMarkdown && !data.excerpt) updateData.excerpt = excerptFrom(data.bodyMarkdown);
 
   return prisma.blogPost.update({
     where: { id },
@@ -126,6 +248,13 @@ async function remove(siteId, id) {
   const existing = await prisma.blogPost.findFirst({ where: { siteId, id } });
   if (!existing) throw new ApiError(status.NOT_FOUND, 'Post not found');
   await prisma.blogPost.delete({ where: { id } });
+  if (ENCRYPT_ENABLED) {
+    if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
+    if (existing.audioStorageRef) await deleteBlob({ storageRef: existing.audioStorageRef }).catch(() => {});
+    for (const item of parseMedia(existing.media)) {
+      if (item && item.storageRef) await deleteBlob({ storageRef: item.storageRef }).catch(() => {});
+    }
+  }
   return existing;
 }
 

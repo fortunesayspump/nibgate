@@ -26,8 +26,8 @@ const getBySlug = catchAsync(async (req, res) => {
   if (!post) return res.status(status.NOT_FOUND).json({ error: 'Post not found' });
   // For paid posts, NEVER send the body publicly — only a teaser
   if (post.price && post.price !== '0') {
-    const { bodyMarkdown, body, videoUrl, audioUrl, media, ...teaser } = post;
-    return res.json({ success: true, post: transformTags({ ...teaser, bodyMarkdown: null, body: null, videoUrl: null, audioUrl: null, media: null, isLocked: true }) });
+    const { bodyMarkdown, body, videoUrl, audioUrl, audioStorageRef, audioEncryptedKey, audioContentType, contentKey, bodyStorageRef, media, ...teaser } = post;
+    return res.json({ success: true, post: transformTags({ ...teaser, bodyMarkdown: null, body: null, videoUrl: null, audioUrl: null, audioStorageRef: null, audioEncryptedKey: null, audioContentType: null, contentKey: null, bodyStorageRef: null, media: null, isLocked: true }) });
   }
   res.json({ success: true, post: transformTags(post) });
 });

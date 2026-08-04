@@ -2,7 +2,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
-import { createApp } from './server.js';
 import { loadServerConfig } from './runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,8 +28,6 @@ function runPrismaCommand() {
     const repoRoot = path.resolve(__dirname, '../../..');
     const prismaCli = path.resolve(repoRoot, 'packages/cli/node_modules/.bin/prisma');
     const schemaPath = path.resolve(repoRoot, 'packages/cli/prisma/schema.prisma');
-    // cwd=repoRoot so the generated client always lands where @nibgate/internal
-    // resolves @prisma/client (root workspace .pnpm), not an orphaned backend-local copy.
     execSync(`"${prismaCli}" generate --schema=${schemaPath} 2>&1`, { stdio: 'pipe', timeout: 30000, cwd: repoRoot });
     execSync(`"${prismaCli}" db push --schema=${schemaPath} --skip-generate --accept-data-loss 2>&1`, { stdio: 'pipe', timeout: 30000, cwd: repoRoot });
     console.log('[nibgate] Prisma client generated and schema synced');
@@ -39,8 +36,9 @@ function runPrismaCommand() {
   }
 }
 
-export function startAppServer() {
+export async function startAppServer() {
   runPrismaCommand();
+  const { createApp } = await import('./server.js');
   const { config, statePath } = loadServerConfig();
   const port = Number(process.env.PORT || 3000);
 

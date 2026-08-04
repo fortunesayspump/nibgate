@@ -4,20 +4,15 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const sharp = require('sharp');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { putBlob } = require('@nibgate/sdk/server');
+const { registerR2Provider } = require('../../lib/storage');
 const config = require('../../config/config');
 const { authenticate } = require('../../middlewares/auth');
 
 const router = express.Router();
 
-const s3 = config.r2?.endpoint ? new S3Client({
-  region: 'auto',
-  endpoint: config.r2.endpoint,
-  credentials: {
-    accessKeyId: config.r2.accessKeyId,
-    secretAccessKey: config.r2.secretAccessKey,
-  },
-}) : null;
+registerR2Provider();
+const useR2 = config.r2?.endpoint ? true : false;
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 const IMAGE_MIMES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
@@ -25,7 +20,7 @@ const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg']);
 const AUDIO_MIMES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
-const storage = s3 ? multer.memoryStorage() : multer.diskStorage({
+const storage = useR2 ? multer.memoryStorage() : multer.diskStorage({
   destination: (req, file, cb) => {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
     cb(null, UPLOAD_DIR);
@@ -66,7 +61,7 @@ router.post('/', authenticate, async (req, res, next) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
-    if (!s3) {
+    if (!useR2) {
       const ext = path.extname(req.file.originalname).toLowerCase();
       let filename = req.file.filename;
 
@@ -100,15 +95,13 @@ router.post('/', authenticate, async (req, res, next) => {
 
       const key = `blog/${req.siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${finalExt}`;
 
-      await s3.send(new PutObjectCommand({
-        Bucket: config.r2.bucket,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-        CacheControl: 'public, max-age=31536000, immutable',
-      }));
+      const { url } = await putBlob({
+        key,
+        data: body,
+        contentType,
+        cacheControl: 'public, max-age=31536000, immutable',
+      });
 
-      const url = `${config.r2.publicUrl}/${key}`;
       res.json({ success: true, url, filename: key });
     } catch (uploadErr) {
       next(uploadErr);

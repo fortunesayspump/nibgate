@@ -27,12 +27,20 @@ const dryRun = args.includes('--dry-run');
 
 function parseMedia(value) {
   if (!value) return [];
+  let parsed;
   try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
+    parsed = JSON.parse(value);
   } catch {
     return [];
   }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item) => {
+      if (typeof item === 'string') return { url: item, caption: '' };
+      if (item && typeof item === 'object' && item.url) return item;
+      return null;
+    })
+    .filter(Boolean);
 }
 
 function sniffMime(buf) {
@@ -58,12 +66,12 @@ async function encryptAndStore(buffer, siteId, kind) {
   const enc = encryptBytes(contentKey, buffer);
   const blob = packCipherBlob(enc);
   const storageRef = `blog/${siteId}/enc/${kind}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
-  await putBlob({ key: storageRef, data: blob, contentType: 'application/octet-stream' });
+  if (!dryRun) await putBlob({ key: storageRef, data: blob, contentType: 'application/octet-stream' });
   return { storageRef, contentKey: contentKey.toString('base64') };
 }
 
 async function fetchBuffer(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`fetch ${url} -> HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.length === 0) throw new Error(`empty body from ${url}`);

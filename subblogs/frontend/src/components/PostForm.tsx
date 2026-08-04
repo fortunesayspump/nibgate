@@ -21,6 +21,9 @@ interface PostFormData {
   featured: boolean;
   type: string;
   audioUrl: string;
+  audioStorageRef: string;
+  audioEncryptedKey: string;
+  audioContentType: string;
   media: string;
 }
 
@@ -28,7 +31,7 @@ const defaults: PostFormData = {
   title: "", slug: "", bodyMarkdown: "", excerpt: "",
   tags: "", coverUrl: "", videoUrl: "",
   price: "", recipientWallet: "", status: "draft", featured: false, type: "article",
-  audioUrl: "", media: "",
+  audioUrl: "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "", media: "",
 };
 
 interface PostFormProps {
@@ -102,9 +105,19 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
       if (!form.videoUrl) return { ok: false, reason: "YouTube URL is required" };
     }
     if (form.type === "music") {
-      if (!form.audioUrl) return { ok: false, reason: "Audio file is required" };
+      if (!form.audioUrl && !form.audioStorageRef) return { ok: false, reason: "Audio file is required" };
     }
     return { ok: true };
+  }
+
+  const isPaid = !!form.price && form.price !== "0";
+
+  function handleAudioUpload(result: { url?: string; storageRef?: string; encryptedKey?: string; contentType?: string }) {
+    if (result.storageRef) {
+      setForm((prev) => ({ ...prev, audioUrl: "", audioStorageRef: result.storageRef!, audioEncryptedKey: result.encryptedKey || "", audioContentType: result.contentType || "" }));
+    } else {
+      setForm((prev) => ({ ...prev, audioUrl: result.url || "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "" }));
+    }
   }
 
   function createPost(status: "draft" | "published") {
@@ -198,6 +211,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         <>
           <Field label="Photos">
             <ImageUploader
+              encrypted={isPaid}
               value={form.media ? JSON.parse(form.media) : []}
               onChange={(items) => setForm(p => ({ ...p, media: JSON.stringify(items) }))}
             />
@@ -248,8 +262,9 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
           </Field>
           <Field label="Audio File">
             <AudioUploader
-              onUpload={(url) => update("audioUrl", url)}
-              existingUrl={form.audioUrl}
+              encrypted={isPaid}
+              onUpload={handleAudioUpload}
+              existingUrl={form.audioUrl || (form.audioStorageRef ? "Encrypted file" : "")}
             />
           </Field>
           <Field label="Description">

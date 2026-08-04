@@ -4,7 +4,7 @@ const createPost = {
   body: Joi.object().keys({
     title: Joi.string().required().min(4).max(200),
     slug: Joi.string().optional().max(100),
-    bodyMarkdown: Joi.string().required().min(20),
+    bodyMarkdown: Joi.string().optional().min(20).allow(''),
     excerpt: Joi.string().optional().max(300).allow(''),
     tag: Joi.string().optional().max(40).allow(''),
     tags: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())).optional().allow(''),
@@ -26,7 +26,7 @@ const updatePost = {
   body: Joi.object().keys({
     title: Joi.string().min(4).max(200).optional(),
     slug: Joi.string().max(100).optional(),
-    bodyMarkdown: Joi.string().min(20).optional(),
+    bodyMarkdown: Joi.string().min(20).optional().allow(''),
     excerpt: Joi.string().max(300).optional().allow(''),
     tag: Joi.string().max(40).optional().allow(''),
     tags: Joi.alternatives().try(Joi.string(), Joi.array().items(Joi.string())).optional().allow(''),

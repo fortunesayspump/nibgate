@@ -3,10 +3,52 @@ const validate = require('../../middlewares/validate');
 const nibgateValidation = require('../../validations/nibgate.validation');
 const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
-const { createCircleGatewayServer } = require('@nibgate/sdk/server');
+const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
+const { registerR2Provider } = require('../../lib/storage');
 const { authenticate, authorize } = require('../../middlewares/auth');
 const logger = require('../../config/logger');
 const router = express.Router();
+
+registerR2Provider();
+
+function isPaidValue(price) {
+  return !!price && price !== '0';
+}
+
+function parseMedia(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function decryptContentFor(post) {
+  if (!post) return null;
+  if (!post.bodyStorageRef || !post.contentKey) return post.bodyMarkdown || null;
+  const blob = await getBlob({ storageRef: post.bodyStorageRef });
+  const { iv, tag, ciphertext } = unpackCipherBlob(blob);
+  const decrypted = decryptBytes(Buffer.from(post.contentKey, 'base64'), iv, tag, ciphertext);
+  return decrypted.toString('utf8');
+}
+
+function mediaMetaFor(post) {
+  if (!post) return { hasAudio: false, audioContentType: null, photos: 0, hasVideo: false };
+  const photos = parseMedia(post.media).filter((i) => i && i.storageRef).length;
+  return {
+    hasAudio: !!(post.audioStorageRef && post.audioEncryptedKey),
+    audioContentType: post.audioContentType || 'audio/mpeg',
+    photos,
+    hasVideo: !!post.videoUrl,
+  };
+}
+
+async function accessPayloadFor(post) {
+  const content = await decryptContentFor(post);
+  return { content, media: mediaMetaFor(post) };
+}
 
 const nibgateServer = createCircleGatewayServer({
   secret: config.nibgate.gatewaySecret,
@@ -53,7 +95,8 @@ router.get('/access', async (req, res, next) => {
 
     const access = nibgateServer.accessFor(request, resource);
     if (access.allowed) {
-      return res.json({ ok: true, resource, content: post?.bodyMarkdown || null, videoUrl: post?.videoUrl || null });
+      const payload = await accessPayloadFor(post);
+      return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media });
     }
     if (access.blocked) {
       return res.status(403).json({ ok: false, error: 'Access blocked' });
@@ -91,7 +134,8 @@ router.get('/access', async (req, res, next) => {
       if (hubData.success) {
         const result = await nibgateServer.unlock(resource, hubData.payment);
         if (result.ok) {
-          return res.json({ ok: true, resource, content: post?.bodyMarkdown || null, videoUrl: post?.videoUrl || null, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+          const payload = await accessPayloadFor(post);
+          return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
         }
       }
     }
@@ -114,6 +158,55 @@ router.get('/access', async (req, res, next) => {
       .status(response.status)
       .set(Object.fromEntries(response.headers.entries()))
       .send(responseBody);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/media/:postId/:kind', async (req, res, next) => {
+  try {
+    const { postId, kind } = req.params;
+    const post = await prisma.blogPost.findFirst({ where: { siteId: req.siteId, id: postId } });
+    if (!post) return res.status(404).json({ error: 'Not found' });
+
+    let storageRef = null;
+    let contentKey = null;
+    let contentType = null;
+
+    if (kind === 'audio') {
+      storageRef = post.audioStorageRef;
+      contentKey = post.audioEncryptedKey;
+      contentType = post.audioContentType || 'audio/mpeg';
+    } else if (kind === 'photo') {
+      const index = parseInt(req.query.index || '0', 10);
+      const item = parseMedia(post.media)[index];
+      if (item) {
+        storageRef = item.storageRef;
+        contentKey = item.encryptedKey;
+        contentType = item.contentType || 'image/webp';
+      }
+    } else {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    if (!storageRef || !contentKey) return res.status(404).json({ error: 'Not found' });
+
+    if (isPaidValue(post.price)) {
+      const resource = { id: post.id };
+      const mediaRequest = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, { headers: new Headers(req.headers) });
+      if (!nibgateServer.isUnlocked(mediaRequest, resource)) {
+        const challenge = nibgateServer.createPaymentChallenge(resource);
+        return res.status(402).json(challenge);
+      }
+    }
+
+    const blob = await getBlob({ storageRef });
+    const { iv, tag, ciphertext } = unpackCipherBlob(blob);
+    const plain = decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.send(plain);
   } catch (error) {
     next(error);
   }

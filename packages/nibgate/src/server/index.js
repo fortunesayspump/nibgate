@@ -17,3 +17,5 @@ export { createAdminApi, adminPageHtml } from './admin.js';
 export { createFileStore, createMemoryStore, createPostgresStore } from './admin-store.js';
 export { createWebhookManager, createWebhookApi } from './webhooks.js';
 export { prepareOnchainRating, verifyRatingTx, submitOnchainRating } from './rating.js';
+export { generateContentKey, encryptBytes, decryptBytes, packCipherBlob, unpackCipherBlob, wrapKey, unwrapKey, contentHashFor } from './crypto.js';
+export { registerProvider, putBlob, getBlob, deleteBlob } from './storage.js';

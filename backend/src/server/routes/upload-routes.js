@@ -1,6 +1,6 @@
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import crypto from 'node:crypto';
 import { getUserBySession } from '@nibgate/internal/auth.js';
+import { putBlob, deleteBlob } from '@nibgate/sdk/server';
 import sharp from 'sharp';
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif']);
@@ -13,18 +13,8 @@ const OUTPUT_SIZES = {
   cover: { width: 1600, height: 640 }
 };
 
-function uploadConfig() {
-  const endpoint = process.env.R2_ENDPOINT;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  const bucket = process.env.R2_BUCKET;
-  const publicUrl = process.env.R2_PUBLIC_URL;
-
-  if (!endpoint || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) {
-    return null;
-  }
-
-  return { endpoint, accessKeyId, secretAccessKey, bucket, publicUrl: publicUrl.replace(/\/+$/, '') };
+function getNibgatePublicUrl() {
+  return (process.env.R2_PUBLIC_URL || '').replace(/\/+$/, '');
 }
 
 function parseDataUrl(dataUrl) {
@@ -34,17 +24,6 @@ function parseDataUrl(dataUrl) {
     contentType: match[1].toLowerCase(),
     buffer: Buffer.from(match[2].replace(/\s/g, ''), 'base64')
   };
-}
-
-function client(config) {
-  return new S3Client({
-    region: 'auto',
-    endpoint: config.endpoint,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey
-    }
-  });
 }
 
 async function prepareImage(buffer, target) {
@@ -73,13 +52,15 @@ async function prepareImage(buffer, target) {
   };
 }
 
-function managedKeyFromUrl(url, config) {
+function managedKeyFromUrl(url) {
+  const publicUrl = getNibgatePublicUrl();
+  if (!publicUrl) return '';
   try {
-    const publicUrl = new URL(config.publicUrl);
+    const parsed = new URL(publicUrl);
     const imageUrl = new URL(url);
-    if (publicUrl.origin !== imageUrl.origin) return '';
+    if (parsed.origin !== imageUrl.origin) return '';
 
-    const publicPath = publicUrl.pathname.replace(/\/+$/, '');
+    const publicPath = parsed.pathname.replace(/\/+$/, '');
     if (publicPath && !imageUrl.pathname.startsWith(`${publicPath}/`)) return '';
 
     const key = decodeURIComponent(imageUrl.pathname.slice(publicPath.length).replace(/^\/+/, ''));
@@ -91,16 +72,10 @@ function managedKeyFromUrl(url, config) {
 }
 
 export async function deleteManagedProfileImage(url) {
-  const config = uploadConfig();
-  if (!config || !url) return;
-
-  const key = managedKeyFromUrl(url, config);
+  if (!url) return;
+  const key = managedKeyFromUrl(url);
   if (!key) return;
-
-  await client(config).send(new DeleteObjectCommand({
-    Bucket: config.bucket,
-    Key: key
-  }));
+  await deleteBlob({ storageRef: key }).catch(() => {});
 }
 
 async function requireAuth(req, res, next) {
@@ -116,8 +91,7 @@ async function requireAuth(req, res, next) {
 export function registerUploadRoutes(app) {
   app.post('/api/uploads/profile-image', requireAuth, async (req, res) => {
     try {
-      const config = uploadConfig();
-      if (!config) {
+      if (!process.env.R2_ENDPOINT) {
         return res.status(500).json({ error: 'R2 upload environment is not configured' });
       }
 
@@ -144,19 +118,9 @@ export function registerUploadRoutes(app) {
       }
       const key = `${target}s/${req.user.id}/${crypto.randomUUID()}.${image.extension}`;
 
-      await client(config).send(new PutObjectCommand({
-        Bucket: config.bucket,
-        Key: key,
-        Body: image.buffer,
-        ContentType: image.contentType,
-        CacheControl: 'public, max-age=31536000, immutable'
-      }));
+      const { url } = await putBlob({ key, data: image.buffer, contentType: image.contentType });
 
-      res.json({
-        success: true,
-        url: `${config.publicUrl}/${key}`,
-        key
-      });
+      res.json({ success: true, url, key });
     } catch (error) {
       res.status(500).json({ error: 'Upload failed' });
     }

@@ -23,8 +23,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/internal
       '@nibgate/sdk':
-        specifier: ^0.2.46
-        version: 0.2.46(typescript@5.9.3)(zod@4.4.3)
+        specifier: workspace:*
+        version: link:../packages/nibgate
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -1622,9 +1622,6 @@ packages:
   '@nibgate/cli@file:packages/cli':
     resolution: {directory: packages/cli, type: directory}
     hasBin: true
-
-  '@nibgate/sdk@0.2.46':
-    resolution: {integrity: sha512-cg4PJiT0XUjo3qw6x1thDw5s8QuTXt0jJT+LFMEMggOHhPiXItp7OvErial1ikMvddljVEKAMeDp4+kB7Hc+hg==}
 
   '@nibgate/sdk@file:packages/nibgate':
     resolution: {directory: packages/nibgate, type: directory}
@@ -8651,18 +8648,6 @@ snapshots:
       nanoid: 5.1.16
       prisma: 5.22.0
       viem: 2.54.1(typescript@5.9.3)(zod@4.4.3)
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-      - zod
-
-  '@nibgate/sdk@0.2.46(typescript@5.9.3)(zod@4.4.3)':
-    dependencies:
-      '@circle-fin/x402-batching': 3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.55.8(typescript@5.9.3)(zod@4.4.3))
-      '@x402/core': 2.19.0
-      '@x402/evm': 2.19.0(typescript@5.9.3)
-      viem: 2.55.8(typescript@5.9.3)(zod@4.4.3)
     transitivePeerDependencies:
       - bufferutil
       - typescript

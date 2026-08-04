@@ -29,10 +29,17 @@ The backend registers providers at startup and owns all provider-specific code.
 
 | File | Purpose |
 |---|---|
-| `server.js` | Calls `registerProvider('nibgate', createNibgateProvider, config)` |
-| `nibshare/nibgate-provider.js` | R2 S3Client implementation (owns `@aws-sdk/client-s3`) |
-| `nibshare/crypto.js` | Re-exports crypto primitives from SDK |
-| `nibshare/storage.js` | Thin re-exports of putBlob/getBlob/deleteBlob |
+| `server.js` | Calls `registerProvider('nibgate', createNibgateProvider, config)` inside `createApp()` |
+| `lib/nibgate-provider.js` | R2 S3Client implementation (owns `@aws-sdk/client-s3`) |
+| `routes/nibshare-routes.js` | Imports crypto + storage directly from `@nibgate/sdk/server` |
+| `routes/upload-routes.js` | Imports `putBlob`/`deleteBlob` from `@nibgate/sdk/server` |
+
+Consumers (subblogs) register their own provider against the same SDK contract:
+
+| File | Purpose |
+|---|---|
+| `subblogs/backend/src/lib/r2-provider.js` | R2 S3Client implementation (CJS) |
+| `subblogs/backend/src/lib/storage.js` | `registerProvider('nibgate', createR2Provider, config)` |
 
 ### Why this split
 
@@ -135,13 +142,18 @@ Revoke:
 1. Create `packages/nibgate/src/server/crypto.js` — crypto primitives
 2. Create `packages/nibgate/src/server/storage.js` — `registerProvider` + `putBlob`/`getBlob`/`deleteBlob`
 3. Export from `packages/nibgate/src/server/index.js`
-4. Create `backend/src/server/nibshare/nibgate-provider.js` — R2 impl
+4. Create `backend/src/server/lib/nibgate-provider.js` — R2 impl
 5. Register provider in `backend/src/server/server.js`
-6. Turn `nibshare/crypto.js` into re-export from SDK
-7. Turn `nibshare/storage.js` into re-export from SDK
-8. Update `nibshare-routes.js` — import from SDK, server-mode-only unlock, 512KB size cap
-9. Update `upload-routes.js` — import `putBlob`/`deleteBlob` from SDK
-10. Fix backend `package.json` — `@nibgate/sdk` must use `workspace:*`
+6. Update `nibshare-routes.js` — import crypto + storage from SDK, server-mode-only unlock, 512KB size cap
+7. Update `upload-routes.js` — import `putBlob`/`deleteBlob` from SDK
+8. Backend `package.json` — `@nibgate/sdk` published to npm as `^0.3.0` (no `workspace:*`)
+
+### Phase 1b: Subblog media uploads (done)
+
+1. Create `subblogs/backend/src/lib/r2-provider.js` + `lib/storage.js` (CJS, own R2 config)
+2. `upload.route.js` uses `putBlob` from `@nibgate/sdk/server` instead of raw S3Client/PutObjectCommand
+3. Subblog backend is outside the pnpm workspace — installs via its own npm `package-lock.json`
+4. Public assets (cover art, images, audio) stay on the plaintext free tier — only gated content is encrypted
 
 ### Phase 2: Arweave provider (later)
 
@@ -155,7 +167,7 @@ Revoke:
 1. Add `storageProvider` to subblog content model
 2. Reuse SDK crypto + storage for gated posts
 3. Subblog UI: "Nibgate hosted" or "Arweave" selector
-4. Public assets stay on free tier
+4. Public assets stay on free tier (already done in Phase 1b)
 
 ---
 

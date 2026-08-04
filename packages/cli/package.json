@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@nibgate/internal": "workspace:*",
-    "@nibgate/sdk": "workspace:*",
+    "@nibgate/sdk": "^0.3.0",
     "@prisma/client": "^5.22.0",
     "cookie": "^1.1.1",
     "nanoid": "^5.1.5",

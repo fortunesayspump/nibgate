@@ -63,6 +63,11 @@ model BlogPost {
   coverUrl     String?
   videoUrl     String?
   audioUrl     String?
+  audioStorageRef   String?
+  audioEncryptedKey String?
+  audioContentType  String?
+  contentKey   String?
+  bodyStorageRef    String?
   media        String?
   tags         String?
   type         String    @default("article")

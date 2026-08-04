@@ -162,11 +162,17 @@ Revoke:
 3. Wire creator wallet signing
 4. Accept `storageProvider: "arweave"` in UI + routes
 
-### Phase 3: Subblog gated posts (later)
+### Phase 3: Subblog gated content encryption (in progress)
 
-1. Add `storageProvider` to subblog content model
-2. Reuse SDK crypto + storage for gated posts
-3. Subblog UI: "Nibgate hosted" or "Arweave" selector
+1. `BlogPost` gains `contentKey`, `bodyStorageRef`, `audioStorageRef`, `audioEncryptedKey`, `audioContentType` (nullable)
+2. Done — paid subblog content is encrypted at rest with the SDK K-model:
+   - Body: `generateContentKey` → `encryptBytes` → `packCipherBlob` → `putBlob` on create/update (`blog.service.js`); plaintext never written to `bodyMarkdown` for paid posts
+   - Audio/photos: `upload.route.js` supports `?encrypted=1`, returning `{ storageRef, encryptedKey, contentType }` instead of a public URL
+   - Cover art and free-post assets stay on the plaintext free tier
+   - `GET /nibgate/access` decrypts the body server-side after `verifyUnlockToken`
+   - `GET /nibgate/media/:postId/:kind` streams decrypted audio/photos after the same unlock proof (402 challenge otherwise)
+   - Admin `getById` decrypts the body so the author can re-edit; `getBySlug` strips `contentKey`/`bodyStorageRef`/`audioStorageRef` from paid teasers
+3. Subblog UI: "Nibgate hosted" or "Arweave" selector (later)
 4. Public assets stay on free tier (already done in Phase 1b)
 
 ---

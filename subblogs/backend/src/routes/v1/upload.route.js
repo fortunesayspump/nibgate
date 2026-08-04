@@ -5,6 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const sharp = require('sharp');
 const { putBlob } = require('@nibgate/sdk/server');
+const { generateContentKey, encryptBytes, packCipherBlob } = require('@nibgate/sdk/server');
 const { registerR2Provider } = require('../../lib/storage');
 const config = require('../../config/config');
 const { authenticate } = require('../../middlewares/auth');
@@ -62,6 +63,9 @@ router.post('/', authenticate, async (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
     if (!useR2) {
+      if (req.query.encrypted === '1') {
+        return res.status(400).json({ error: 'Encrypted uploads require R2 storage to be configured.' });
+      }
       const ext = path.extname(req.file.originalname).toLowerCase();
       let filename = req.file.filename;
 
@@ -94,6 +98,21 @@ router.post('/', authenticate, async (req, res, next) => {
       }
 
       const key = `blog/${req.siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${finalExt}`;
+
+      if (req.query.encrypted === '1') {
+        const contentKey = generateContentKey();
+        const enc = encryptBytes(contentKey, body);
+        const blob = packCipherBlob(enc);
+        const encKey = `blog/${req.siteId}/enc/media/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
+        const { storageRef } = await putBlob({ key: encKey, data: blob, contentType: 'application/octet-stream' });
+        return res.json({
+          success: true,
+          storageRef,
+          encryptedKey: contentKey.toString('base64'),
+          contentType,
+          encrypted: true,
+        });
+      }
 
       const { url } = await putBlob({
         key,

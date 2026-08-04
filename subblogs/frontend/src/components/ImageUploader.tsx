@@ -4,7 +4,10 @@ import { useState, useRef } from "react";
 import { apiUrl } from "@/lib/api";
 
 interface MediaItem {
-  url: string;
+  url?: string;
+  storageRef?: string | null;
+  encryptedKey?: string | null;
+  contentType?: string;
   caption: string;
 }
 
@@ -13,6 +16,7 @@ interface ImageUploaderProps {
   value?: MediaItem[];
   onChange?: (items: MediaItem[]) => void;
   maxFiles?: number;
+  encrypted?: boolean;
 }
 
 export default function ImageUploader({
@@ -20,6 +24,7 @@ export default function ImageUploader({
   value = [],
   onChange,
   maxFiles = 20,
+  encrypted = false,
 }: ImageUploaderProps) {
   const [uploading, setUploading] = useState<Record<string, { loading: boolean; error?: string }>>({});
   const [dragOver, setDragOver] = useState(false);
@@ -39,7 +44,7 @@ export default function ImageUploader({
         const token = localStorage.getItem("token");
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(apiUrl("/upload"), {
+        const res = await fetch(apiUrl(encrypted ? "/upload?encrypted=1" : "/upload"), {
           method: "POST",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: fd,
@@ -47,7 +52,10 @@ export default function ImageUploader({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Upload failed");
 
-        const updated = [...value, { url: data.url, caption: "" }];
+        const item: MediaItem = encrypted
+          ? { storageRef: data.storageRef, encryptedKey: data.encryptedKey, contentType: data.contentType, caption: "" }
+          : { url: data.url, caption: "" };
+        const updated = [...value, item];
         onChange?.(updated);
         setUploading((prev) => {
           const next = { ...prev };
@@ -113,7 +121,13 @@ export default function ImageUploader({
           {value.map((item, i) => (
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               <div style={{ position: "relative", borderRadius: "6px", overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "1" }}>
-                <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                {item.url ? (
+                  <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                ) : (
+                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: "var(--muted)", background: "var(--surface)" }}>
+                    Encrypted
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => removeItem(i)}

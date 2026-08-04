@@ -56,6 +56,14 @@ export async function apiAuthFetch<T>(
   });
 }
 
+export type MediaItem = {
+  url?: string;
+  storageRef?: string | null;
+  encryptedKey?: string | null;
+  contentType?: string;
+  caption?: string;
+};
+
 export type BlogPost = {
   id: string;
   slug: string;
@@ -64,6 +72,10 @@ export type BlogPost = {
   bodyMarkdown: string;
   coverUrl: string | null;
   videoUrl: string | null;
+  audioUrl: string | null;
+  audioStorageRef: string | null;
+  audioEncryptedKey: string | null;
+  audioContentType: string | null;
   media: string | null;
   tag: string;
   tags: string | string[];
@@ -79,6 +91,13 @@ export type BlogPost = {
     name: string;
     avatarUrl: string | null;
   };
+};
+
+export type UnlockMediaMeta = {
+  hasAudio: boolean;
+  audioContentType: string | null;
+  photos: number;
+  hasVideo: boolean;
 };
 
 export type User = {

@@ -5,11 +5,12 @@ import { useState, useRef } from "react";
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 interface AudioUploaderProps {
-  onUpload: (url: string) => void;
+  onUpload: (result: { url?: string; storageRef?: string; encryptedKey?: string; contentType?: string }) => void;
   existingUrl?: string;
+  encrypted?: boolean;
 }
 
-export default function AudioUploader({ onUpload, existingUrl }: AudioUploaderProps) {
+export default function AudioUploader({ onUpload, existingUrl, encrypted = false }: AudioUploaderProps) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState(existingUrl ? "Existing file" : "");
@@ -30,14 +31,18 @@ export default function AudioUploader({ onUpload, existingUrl }: AudioUploaderPr
       const token = localStorage.getItem("token");
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/upload`, {
+      const res = await fetch(`${API}/upload${encrypted ? "?encrypted=1" : ""}`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      onUpload(data.url);
+      if (encrypted) {
+        onUpload({ storageRef: data.storageRef, encryptedKey: data.encryptedKey, contentType: data.contentType });
+      } else {
+        onUpload({ url: data.url });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {

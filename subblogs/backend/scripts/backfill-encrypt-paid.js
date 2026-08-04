@@ -71,11 +71,34 @@ async function encryptAndStore(buffer, siteId, kind) {
 }
 
 async function fetchBuffer(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-  if (!res.ok) throw new Error(`fetch ${url} -> HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length === 0) throw new Error(`empty body from ${url}`);
-  return buf;
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (!res.ok) throw new Error(`fetch ${url} -> HTTP ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length === 0) throw new Error(`empty body from ${url}`);
+      return buf;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  throw lastErr;
+}
+
+async function withRetry(fn, label) {
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      console.error(`  warn: ${label} attempt ${attempt + 1} failed: ${err.message || err}`);
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  throw lastErr;
 }
 
 async function convertPost(post) {
@@ -165,13 +188,13 @@ async function main() {
     for (const post of posts) {
       const label = `${site.subdomain}/${post.type}/${post.slug}`;
       try {
-        const result = await convertPost(post);
+        const result = await withRetry(() => convertPost(post), label);
         if (result.status === 'converted') { converted += 1; console.log(`[converted] ${label}: ${result.detail} (deleted ${result.deletedOld} plaintext object(s))`); }
         else if (result.status === 'would-convert') { console.log(`[would-convert] ${label}: ${result.detail}`); }
         else { skipped += 1; if (!dryRun) console.log(`[skipped] ${label}: ${result.detail}`); }
       } catch (err) {
         failed += 1;
-        console.error(`[failed] ${label}: ${err.message}`);
+        console.error(`[failed] ${label}: ${err.message || err}${err.stack ? ` | ${err.stack.split('\n').slice(0, 2).join(' <- ')}` : ''}`);
       }
     }
   }

@@ -13,13 +13,29 @@ import { registerBlogRoutes } from './routes/blog-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
 import { registerNewsletterRoutes } from './routes/newsletter-routes.js';
+import { registerNibshareRoutes } from './routes/nibshare-routes.js';
 import { registerUploadRoutes } from './routes/upload-routes.js';
 import { registerRpcRoute } from './routes/rpc-route.js';
 import { openApiSpec } from './openapi.js';
 import { registerMcpRoute } from './mcp.js';
 import { createConfigResolver } from './runtime.js';
+import { registerProvider } from '@nibgate/sdk/server';
+import { createNibgateProvider } from './lib/nibgate-provider.js';
+
+function registerNibgateProvider() {
+  const endpoint = process.env.R2_ENDPOINT;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.R2_BUCKET;
+  const publicUrl = process.env.R2_PUBLIC_URL;
+  if (!endpoint || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) return;
+  registerProvider('nibgate', createNibgateProvider, {
+    endpoint, accessKeyId, secretAccessKey, bucket, publicUrl: publicUrl.replace(/\/+$/, '')
+  });
+}
 
 export async function createApp(config, options = {}) {
+  registerNibgateProvider();
   const app = express();
   app.set('trust proxy', true);
   const store = createStateStore(options.statePath || path.join(rootDir, '.nibgate', 'state.json'));
@@ -33,7 +49,7 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true, limit: '8mb' }));
   app.use(cookieParser());
   app.use(cors((req, callback) => {
-    if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index') {
+    if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index' || req.path === '/api/nibshare' || /^\/api\/nibshare\/[^/]+\/unlock$/.test(req.path)) {
       return callback(null, {
         origin: true,
         credentials: true,
@@ -73,6 +89,7 @@ export async function createApp(config, options = {}) {
   };
 
   registerHubRoutes(app);
+  registerNibshareRoutes(app);
   registerNewsletterRoutes(app);
   registerBlogRoutes(app);
   registerUploadRoutes(app);

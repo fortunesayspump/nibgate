@@ -29,8 +29,10 @@ function runPrismaCommand() {
     const repoRoot = path.resolve(__dirname, '../../..');
     const prismaCli = path.resolve(repoRoot, 'packages/cli/node_modules/.bin/prisma');
     const schemaPath = path.resolve(repoRoot, 'packages/cli/prisma/schema.prisma');
-    execSync(`"${prismaCli}" generate --schema=${schemaPath} 2>&1`, { stdio: 'pipe', timeout: 30000 });
-    execSync(`"${prismaCli}" db push --schema=${schemaPath} --skip-generate --accept-data-loss 2>&1`, { stdio: 'pipe', timeout: 30000 });
+    // cwd=repoRoot so the generated client always lands where @nibgate/internal
+    // resolves @prisma/client (root workspace .pnpm), not an orphaned backend-local copy.
+    execSync(`"${prismaCli}" generate --schema=${schemaPath} 2>&1`, { stdio: 'pipe', timeout: 30000, cwd: repoRoot });
+    execSync(`"${prismaCli}" db push --schema=${schemaPath} --skip-generate --accept-data-loss 2>&1`, { stdio: 'pipe', timeout: 30000, cwd: repoRoot });
     console.log('[nibgate] Prisma client generated and schema synced');
   } catch (error) {
     console.warn('[nibgate] Prisma setup skipped:', error.message?.split('\n')[0] || '');

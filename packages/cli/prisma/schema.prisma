@@ -341,7 +341,7 @@ model NibShare {
   whitelist String[] // empty = anyone who pays; non-empty = only these wallets may unlock
 
   // Storage (ciphertext + public metadata live off-chain)
-  storageProvider String  @default("local") // local | arweave | ipfs
+  storageProvider String  @default("local") // local | nibgate | arweave | ipfs (nibgate = Nibgate-hosted R2, the free tier)
   storageRef      String? // local:<uuid> | ar://<txid> | ipfs://<cid>
   ciphertextUrl   String? // public fetch URL for the encrypted blob (gateway)
   metadataUrl     String? // public fetch URL for the public metadata JSON

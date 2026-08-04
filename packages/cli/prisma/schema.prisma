@@ -304,3 +304,104 @@ model NewsletterSubscriber {
   @@index([resendSyncStatus])
   @@index([createdAt])
 }
+
+// ── Nibshare (hosted quick-share gated content) ─────────────────────────────
+//
+// No domain required: a wallet owner publishes an encrypted payload, sets a
+// price, an optional expiry and an optional wallet whitelist, and gets a short
+// link. Unlock = x402 USDC payment -> access rules checked -> key vended.
+//
+// Decentralization model (see nibshare/README.md):
+//   - The CIPHERTEXT + public metadata live on decentralized storage
+//     (storageProvider/storageRef); the plaintext never does.
+//   - Integrity is a keccak256 commitment (contentHash), same pattern as the
+//     hub's contentHash for Content rows.
+//   - Expiry semantics: expiresAt stops NEW unlocks/key issuance. It CANNOT
+//     revoke keys already vended (immutable permanent storage + issued keys).
+//   - Whitelist is enforced at key-issuance time: wallets outside it are
+//     refused even if they pay.
+//   - keyProvider: 'server' vends the content key from Nibgate backend
+//     (Tier 1). 'lit' defers to a Lit Protocol PKP + Lit Action (Tier 2).
+//
+// NOT in the manifest/ContentEvent sync loop: these are ephemeral and
+// wallet-owned, not site-owned.
+
+model NibShare {
+  id          String     @id @default(uuid())
+  ownerWallet String
+  title       String
+  summary     String?
+  contentType String     @default("text") // text | article | image | link
+  bodyLength  Int        @default(0) // plaintext byte length (for pricing/display)
+
+  // Gating
+  price    Float    @default(0) // USDC; 0 = free unlock (still requires an unlock call + key)
+  currency String   @default("USDC")
+  expiresAt DateTime? // null = never. Stops NEW unlocks only; never revokes issued keys.
+  whitelist String[] // empty = anyone who pays; non-empty = only these wallets may unlock
+
+  // Storage (ciphertext + public metadata live off-chain)
+  storageProvider String  @default("local") // local | arweave | ipfs
+  storageRef      String? // local:<uuid> | ar://<txid> | ipfs://<cid>
+  ciphertextUrl   String? // public fetch URL for the encrypted blob (gateway)
+  metadataUrl     String? // public fetch URL for the public metadata JSON
+
+  // Integrity
+  contentHash String // keccak256("nibshare:v1|ownerWallet|storageRef|plaintextPayload")
+
+  // Key handling
+  keyProvider  String  @default("server") // server | lit
+  encryptedKey String? // server mode: AES-256-GCM wrapped content key; lit mode: PKP id
+
+  // How the body is delivered (decides the revocation guarantee):
+  //   'client' = ciphertext + key vended once; buyer decrypts in-browser.
+  //              Decentralized. Revocation is SOFT: stops future sessions but
+  //              cannot un-read a copy already decrypted.
+  //   'server' = server decrypts and serves the body per session, keyed to a
+  //              valid wallet-linked entitlement. Centralized. Revocation is
+  //              HARD: revoke the entitlement and the wallet stops seeing it.
+  decryptMode String @default("client") // client | server
+
+  // Lifecycle
+  status      String   @default("active") // active | expired | revoked
+  unlockCount Int      @default(0)
+  slug        String   @unique // short link suffix (e.g. 8-char base58)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  receipts    NibShareReceipt[]
+  entitlements NibShareEntitlement[]
+
+  @@index([ownerWallet])
+  @@index([status, expiresAt])
+  @@index([createdAt])
+}
+
+model NibShareEntitlement {
+  id        String    @id @default(uuid())
+  shareId   String
+  share     NibShare  @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  wallet    String
+  // active = wallet may be served (in 'server' mode) / may unlock (in 'client' mode)
+  status    String    @default("active") // active | revoked
+  grantedAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@unique([shareId, wallet])
+  @@index([wallet])
+  @@index([status])
+}
+
+model NibShareReceipt {
+  id          String    @id @default(uuid())
+  shareId     String
+  share       NibShare  @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  payerWallet String
+  txHash      String?
+  amount      Float
+  currency    String    @default("USDC")
+  unlockedAt  DateTime  @default(now())
+  keyGrantedAt DateTime? // when the decryption key was vended (null = not yet)
+
+  @@index([shareId])
+  @@index([payerWallet])
+}

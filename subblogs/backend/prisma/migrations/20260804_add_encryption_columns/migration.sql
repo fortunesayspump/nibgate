@@ -1,10 +1,10 @@
 -- AlterTable
-ALTER TABLE "BlogPost" ADD COLUMN "videoUrl" TEXT,
-ADD COLUMN "audioUrl" TEXT,
-ADD COLUMN "media" TEXT,
-ADD COLUMN "recipientWallet" TEXT,
-ADD COLUMN "audioStorageRef" TEXT,
-ADD COLUMN "audioEncryptedKey" TEXT,
-ADD COLUMN "audioContentType" TEXT,
-ADD COLUMN "contentKey" TEXT,
-ADD COLUMN "bodyStorageRef" TEXT;
+ALTER TABLE "BlogPost" ADD COLUMN IF NOT EXISTS "videoUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "audioUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "media" TEXT,
+ADD COLUMN IF NOT EXISTS "recipientWallet" TEXT,
+ADD COLUMN IF NOT EXISTS "audioStorageRef" TEXT,
+ADD COLUMN IF NOT EXISTS "audioEncryptedKey" TEXT,
+ADD COLUMN IF NOT EXISTS "audioContentType" TEXT,
+ADD COLUMN IF NOT EXISTS "contentKey" TEXT,
+ADD COLUMN IF NOT EXISTS "bodyStorageRef" TEXT;

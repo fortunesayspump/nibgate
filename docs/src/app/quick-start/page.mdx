@@ -28,7 +28,7 @@ Only register domains you control.
 The widget verifies ownership and streams page activity from the verified domain.
 
 ```html
-<script async src="https://nibgate.xyz/widget.js"
+<script async src="https://www.nibgate.xyz/widget.js"
   data-nibgate-site="site_..."
   data-nibgate-token="ngv_..."
   data-nibgate-api="https://api.nibgate.xyz">
@@ -82,7 +82,7 @@ For the first stable package, Nibgate should ship one unlock path well:
 pay once -> verify receipt/proof -> issue unlock token -> serve content -> report receipt
 ```
 
-Future package versions can add metered streaming, metered reading, time passes, and agent quotas through the same `unlock` policy field.
+The `unlock` policy field already supports metered streaming, metered reading, time passes, and agent quotas in the resource schema; their payment/session adapters are not production-ready yet, so `one_time` is the shipped path.
 
 ## Next reads
 

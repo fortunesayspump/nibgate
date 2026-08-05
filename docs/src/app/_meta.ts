@@ -15,6 +15,7 @@ export default {
   "create-subblog": "Create a Subblog",
   "content-types": "Content Types",
   "image-optimization": "Image optimization",
+  encryption: "Content encryption",
   "discovery-seo": "Discovery & SEO",
   "---setup": {
     type: "separator",

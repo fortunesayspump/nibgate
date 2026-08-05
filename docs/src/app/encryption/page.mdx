@@ -1,0 +1,52 @@
+import { Callout } from 'nextra/components'
+
+# Content encryption
+
+Paid content on Subblogs is encrypted at rest. The blog never stores paid media or paid bodies as plaintext, so a storage or database leak does not expose the content. Only the cover stays public.
+
+## What is encrypted
+
+| Content | Storage | Keys |
+|---------|---------|------|
+| Paid photo gallery | Ciphertext blobs (`.bin`) in object storage | Per-file `encryptedKey` |
+| Paid post body | Ciphertext blob | Per-post `contentKey` |
+| Cover image | Plaintext WebP (public) | None |
+
+## Media upload
+
+When the editor uploads media for a paid post, it requests an encrypted upload (`/api/upload?encrypted=1`). The server:
+
+1. Generates a per-file content key.
+2. Encrypts the bytes and packs a ciphertext blob.
+3. Stores the blob and returns a `storageRef` and `encryptedKey`.
+
+The post's media list keeps only `{ storageRef, encryptedKey, contentType, caption }` — never a plaintext file.
+
+## The cover stays public
+
+One gallery image is set as the cover by starring it in the editor. The client sends the starred image's `storageRef` as `coverKey`. The server:
+
+1. Loads the ciphertext blob.
+2. Decrypts it with the item's `encryptedKey`.
+3. Re-uploads the bytes as a plaintext image (`blog/{siteId}/{timestamp}-{random}.webp`).
+4. Sets it as `coverUrl` and removes the item from the gallery.
+
+Extraction runs on both create and update, so existing paid posts can get a new cover. Free posts simply drop the starred item from the gallery without server extraction.
+
+## Paid bodies
+
+Paid post bodies are encrypted at create/update time (`contentKey` + `bodyStorageRef`). Admin reads decrypt them server-side. The public API never returns a paid body — locked posts come back with `isLocked: true` and `body`/`media` set to `null`.
+
+## Access after unlock
+
+The frontend requests media by index from `/api/nibgate/media/:postId/photo` (or `/audio`). For paid posts this route verifies the unlock proof and answers `402` with a payment challenge when proof is missing. Unlocked requests are decrypted server-side and streamed with a private cache directive — plaintext never sits at a public URL.
+
+## What stays public
+
+- Cover image (`coverUrl`), served directly from object storage.
+- Post metadata: title, excerpt, tags, price, slug.
+- Everything else on a paid post is encrypted or withheld until unlock.
+
+<Callout type="info">
+The same encrypted-storage path applies to paid audio files, which decrypt through the same media route.
+</Callout>

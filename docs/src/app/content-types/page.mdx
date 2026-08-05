@@ -55,9 +55,9 @@ Photos are gallery-style posts with multiple images.
 
 **Editor**: Upload one or more images. Each image can have an optional caption.
 
-**Layout**: Images are displayed in a responsive gallery grid on the blog. The first image serves as the cover.
+**Layout**: Images are displayed in a responsive gallery grid on the blog. The cover is chosen per post by starring one image in the editor; the rest of the gallery renders as captioned thumbnails.
 
-**Paid gating**: A paid photo set gates the article body text. The gallery images currently render in full; per-image or count-limited previews are not implemented.
+**Paid gating**: A paid photo set keeps only the starred cover in plaintext; the rest of the gallery is encrypted and stays hidden until the post is unlocked. See [Content Encryption](/encryption) for how paid media and bodies are stored and revealed.
 
 ```ts
 const photoSet = createGate({
@@ -120,9 +120,9 @@ const course = createGate({
 | Aspect | Article | Photo | Music | Video |
 |--------|---------|-------|-------|-------|
 | Primary input | Markdown | Image files | Audio file | YouTube URL |
-| Cover image | Yes (separate field) | First image | Uploaded art | Auto-generated |
+| Cover image | Yes (separate field) | Starred image | Uploaded art | Auto-generated |
 | Inline media | Yes | Captions per image | Cover art | Embed player |
-| Preview | Excerpt | Blurred/count-limited thumbnails | Short clip | Overlay |
+| Preview | Excerpt | Plaintext cover | Short clip | Overlay |
 | Full access | Full article body | Full gallery | Full track | Full video |
 
 ## Next reads

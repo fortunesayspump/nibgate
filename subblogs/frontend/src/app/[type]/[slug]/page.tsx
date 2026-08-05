@@ -140,7 +140,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             </div>
           )}
 
-          {post.type === "photo" && images.length > 0 && (
+          {post.type === "photo" && !isPremium && images.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
               {images.map((url, i) => (
                 <div key={i} style={{ overflow: "hidden", borderRadius: "6px", background: "var(--border)" }}>
@@ -150,7 +150,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             </div>
           )}
 
-          {post.type === "photo" && post.media && (() => {
+          {post.type === "photo" && !isPremium && post.media && (() => {
             let items: { url: string; caption?: string }[];
             try { items = JSON.parse(post.media); } catch { return null; }
             if (!Array.isArray(items) || items.length === 0) return null;

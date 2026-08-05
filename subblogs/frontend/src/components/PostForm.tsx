@@ -44,6 +44,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   const [form, setForm] = useState<PostFormData>({ ...defaults, ...initialData });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [coverKey, setCoverKey] = useState("");
   const slugEdited = useRef(!!initialData?.slug);
   const loaded = useRef(false);
 
@@ -68,6 +69,13 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
       loaded.current = true;
       if (initialData.slug) slugEdited.current = true;
       setForm((prev) => ({ ...prev, ...initialData }));
+      if (initialData.coverUrl && initialData.media) {
+        try {
+          const items = JSON.parse(initialData.media);
+          const match = items.find((m: { url?: string }) => m && m.url === initialData.coverUrl);
+          if (match) setCoverKey(match.url);
+        } catch {}
+      }
     }
   }, [initialData]);
 
@@ -100,6 +108,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     }
     if (form.type === "photo") {
       if (!form.media || form.media === "[]") return { ok: false, reason: "At least one photo is required" };
+      if (isPaid && !form.coverUrl && !coverKey) return { ok: false, reason: "Select a cover photo with the star" };
     }
     if (form.type === "video") {
       if (!form.videoUrl) return { ok: false, reason: "YouTube URL is required" };
@@ -112,6 +121,27 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
 
   const isPaid = !!form.price && form.price !== "0";
 
+  function handleCoverChange(coverUrl: string, key: string) {
+    setForm((prev) => ({ ...prev, coverUrl }));
+    setCoverKey(key);
+  }
+
+  function buildPhotoPayload() {
+    let items: Array<Record<string, unknown>> = [];
+    try { items = JSON.parse(form.media || "[]"); } catch { items = []; }
+    if (!isPaid && coverKey && form.coverUrl) {
+      items = items.filter((m) => {
+        const k = (m as { storageRef?: string; url?: string }).storageRef || (m as { url?: string }).url || "";
+        return k !== coverKey;
+      });
+    }
+    return JSON.stringify(items.map(({ _fileKey, ...m }) => m));
+  }
+
+  function photoBody() {
+    return { ...form, media: buildPhotoPayload(), coverKey };
+  }
+
   function handleAudioUpload(result: { url?: string; storageRef?: string; encryptedKey?: string; contentType?: string }) {
     if (result.storageRef) {
       setForm((prev) => ({ ...prev, audioUrl: "", audioStorageRef: result.storageRef!, audioEncryptedKey: result.encryptedKey || "", audioContentType: result.contentType || "" }));
@@ -123,9 +153,12 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   function createPost(status: "draft" | "published") {
     setError("");
     setSaving(true);
+    const payload = form.type === "photo"
+      ? { ...photoBody(), status }
+      : { ...form, status };
     apiAuthFetch("/blog/admin/posts", {
       method: "POST",
-      body: JSON.stringify({ ...form, status }),
+      body: JSON.stringify(payload),
     })
       .then(() => router.push("/admin/posts"))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to save"))
@@ -136,9 +169,10 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     if (!postId) return;
     setError("");
     setSaving(true);
+    const payload = form.type === "photo" ? photoBody() : form;
     apiAuthFetch(`/blog/admin/posts/${postId}`, {
       method: "PUT",
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     })
       .then(() => router.push("/admin/posts"))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to update"))
@@ -212,9 +246,17 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
           <Field label="Photos">
             <ImageUploader
               encrypted={isPaid}
+              allowCover
+              coverKey={coverKey}
+              onCoverChange={handleCoverChange}
               value={form.media ? JSON.parse(form.media) : []}
               onChange={(items) => setForm(p => ({ ...p, media: JSON.stringify(items) }))}
             />
+            {isPaid && !form.coverUrl && !coverKey && (
+              <div style={{ fontSize: "12px", color: "#d97706" }}>
+                Select a cover photo with the star — it will be public and the rest stay encrypted.
+              </div>
+            )}
           </Field>
           <Field label="Caption">
             <textarea

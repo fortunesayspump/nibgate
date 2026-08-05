@@ -17,6 +17,9 @@ interface ImageUploaderProps {
   onChange?: (items: MediaItem[]) => void;
   maxFiles?: number;
   encrypted?: boolean;
+  allowCover?: boolean;
+  coverKey?: string;
+  onCoverChange?: (coverUrl: string, coverKey: string) => void;
 }
 
 export default function ImageUploader({
@@ -25,6 +28,9 @@ export default function ImageUploader({
   onChange,
   maxFiles = 20,
   encrypted = false,
+  allowCover = false,
+  coverKey = "",
+  onCoverChange,
 }: ImageUploaderProps) {
   const [uploading, setUploading] = useState<Record<string, { loading: boolean; error?: string }>>({});
   const [dragOver, setDragOver] = useState(false);
@@ -71,7 +77,21 @@ export default function ImageUploader({
     }
   }
 
+  function handleCoverSelect(index: number) {
+    const item = value[index];
+    if (!item || !onCoverChange) return;
+    const key = item.storageRef || item.url || "";
+    if (key && key === coverKey) {
+      onCoverChange("", "");
+      return;
+    }
+    onCoverChange(item.url || "", key);
+  }
+
   function removeItem(index: number) {
+    const item = value[index];
+    const key = item?.storageRef || item?.url || "";
+    if (key && key === coverKey) onCoverChange?.("", "");
     const updated = value.filter((_, i) => i !== index);
     onChange?.(updated);
   }
@@ -118,15 +138,40 @@ export default function ImageUploader({
 
       {value.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px" }}>
-          {value.map((item, i) => (
+          {value.map((item, i) => {
+            const isCover = !!coverKey && (item.storageRef || item.url) === coverKey;
+            return (
             <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <div style={{ position: "relative", borderRadius: "6px", overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "1" }}>
+              <div style={{ position: "relative", borderRadius: "6px", overflow: "hidden", border: `1px solid ${isCover ? "var(--accent)" : "var(--border)"}`, aspectRatio: "1" }}>
                 {item.url ? (
                   <img src={item.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 ) : (
                   <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", color: "var(--muted)", background: "var(--surface)" }}>
                     Encrypted
                   </div>
+                )}
+                {isCover && (
+                  <div style={{ position: "absolute", top: "4px", left: "4px", background: "var(--accent)", color: "#fff", fontSize: "10px", fontWeight: 600, borderRadius: "4px", padding: "2px 6px", letterSpacing: "0.03em" }}>
+                    Cover
+                  </div>
+                )}
+                {allowCover && (
+                  <button
+                    type="button"
+                    title="Set as cover"
+                    onClick={() => handleCoverSelect(i)}
+                    style={{
+                      position: "absolute", bottom: "4px", left: "4px",
+                      width: "28px", height: "28px", borderRadius: "50%",
+                      border: `1px solid ${isCover ? "transparent" : "rgba(255,255,255,0.5)"}`,
+                      background: isCover ? "var(--accent)" : "rgba(0,0,0,0.45)",
+                      color: isCover ? "#fff" : "rgba(255,255,255,0.85)",
+                      fontSize: "15px", cursor: "pointer", display: "flex",
+                      alignItems: "center", justifyContent: "center", lineHeight: 1,
+                    }}
+                  >
+                    {isCover ? "\u2605" : "\u2606"}
+                  </button>
                 )}
                 <button
                   type="button"
@@ -154,7 +199,8 @@ export default function ImageUploader({
                 }}
               />
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

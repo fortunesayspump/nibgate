@@ -1,10 +1,44 @@
-import { Callout, Steps } from 'nextra/components'
+import { Callout } from 'nextra/components'
 
 # Content encryption
 
 Paid content on Subblogs is encrypted **at rest**: the blog row and object storage never hold a paid body or paid gallery image as plaintext, so a database or storage leak does not expose the content. Only the starred cover is stored in the clear.
 
 All cryptography lives in `@nibgate/sdk/server` (`packages/nibgate/src/server/crypto.js`). The subblog backend uses these primitives, never its own crypto.
+
+In plain terms: before a paid post's body or gallery images reach object storage, the server scrambles them with AES-256-GCM and keeps the keys out of every public response. A viewer only gets plaintext after presenting proof of payment, and even then it is streamed one asset at a time. The one exception is the cover image, which stays public to anchor the teaser.
+
+## The lifecycle at a glance
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant E as Editor (admin UI)
+    participant B as Subblog backend
+    participant V as Viewer (browser/agent)
+
+    rect rgb(232, 242, 255)
+    Note over E,B: PHASE 1 · UPLOAD — encrypt before storage
+    E->>B: POST /api/upload?encrypted=1 (multipart)
+    B-->>E: 200 + storageRef + encryptedKey (base64)
+    Note over E,B: ciphertext .bin → R2 · keys only in DB
+    end
+
+    rect rgb(255, 244, 230)
+    Note over V,B: PHASE 2 · PUBLIC TEASER — cover only
+    V->>B: GET /writing/:slug
+    B-->>V: isLocked: true · body/media/key nulled<br/>cover + excerpt only
+    end
+
+    rect rgb(232, 255, 235)
+    Note over V,B: PHASE 3 · PROOF-GATED READ — decrypt on proof
+    V->>B: GET /api/nibgate/media/:postId/photo?index=N
+    B-->>V: 402 + x402 payment challenge
+    V->>B: retry + x-nibgate-payment-proof header
+    Note over V,B: fetch .bin from R2 → decrypt server-side
+    B-->>V: 200 plaintext · Cache-Control: private
+    end
+```
 
 ## Threat model
 
@@ -49,20 +83,17 @@ ciphertext blob (.bin, application/octet-stream)
 The editor uploads paid-post media to the **encrypted** variant of the upload route (`POST /api/upload?encrypted=1`, `subblogs/backend/src/routes/v1/upload.route.js:102`). The image optimization pipeline runs **before** encryption, so encrypted blobs are already WebP; the ciphertext then replaces the file bytes.
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant E as Editor (admin UI)
-    participant B as Subblog backend
-    participant R as R2 object storage
+flowchart TD
+    E["Editor (admin UI)<br/>POST /api/upload?encrypted=1 (multipart)"]
+    O["optimize: auto-rotate, resize ≤2560px, WebP q90"]
+    K["generateContentKey() → 32-byte random AES-256 key"]
+    C["AES-256-GCM encryptBytes<br/>packCipherBlob → iv ‖ tag ‖ ciphertext"]
+    U["putBlob .bin → R2<br/>key: blog/{siteId}/enc/media/{ts}-{rand}.bin"]
+    D["post row keeps per item:<br/>storageRef + encryptedKey (base64) + contentType + caption"]
 
-    E->>B: POST /api/upload?encrypted=1 (multipart file)
-    B->>B: sharp: auto-rotate, resize ≤2560px, WebP q90
-    B->>B: generateContentKey() → 32-byte random K
-    B->>B: encryptBytes(K, bytes) → AES-256-GCM
-    B->>B: packCipherBlob → iv ‖ tag ‖ ciphertext
-    B->>R: putBlob("blog/{siteId}/enc/media/{ts}-{rand}.bin")
-    B-->>E: { storageRef, encryptedKey, contentType, encrypted: true }
-    E->>E: media row: [{ storageRef, encryptedKey, contentType, caption }]
+    E --> O --> K --> C --> U
+    U -->|"returns storageRef + encryptedKey"| E
+    E --> D
 ```
 
 The route returns a `storageRef` (the R2 object key) plus the base64 key; the post's `media` JSON stores **only** `{ storageRef, encryptedKey, contentType, caption }` per item (`normalizeMediaForStorage`, `subblogs/backend/src/services/blog.service.js:26`). No plaintext URL is ever persisted for paid media. Encrypted uploads require R2 to be configured; without it the route answers `400`.
@@ -100,22 +131,24 @@ The public post route returns a teaser for locked posts — `isLocked: true` wit
 The media route is where the encryption actually pays off:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant V as Viewer (browser/agent)
-    participant B as Subblog backend
-    participant R as R2 object storage
+flowchart TD
+    V["Viewer (browser/agent)"]
+    B["Subblog backend"]
+    R["R2 object storage"]
+    M{"media[index] has<br/>storageRef + encryptedKey?"}
+    N["404 Not found"]
+    U{"valid unlock proof in<br/>x-nibgate-payment-proof header?"}
+    CH["402 + payment challenge"]
+    G["getBlob(storageRef)<br/>unpackCipherBlob + decryptBytes(base64 key)"]
 
-    V->>B: GET /api/nibgate/media/:postId/photo?index=0
-    B->>B: load post; resolve media[index] → storageRef + encryptedKey
-    B->>B: isPaidValue(price)?
-    alt no x-nibgate-payment-proof header
-        B-->>V: 402 + payment challenge (createPaymentChallenge)
-    else valid unlock proof
-        B->>R: getBlob(storageRef)
-        B->>B: unpackCipherBlob + decryptBytes(base64 key)
-        B-->>V: 200 plaintext · Cache-Control: private, max-age=300
-    end
+    V -->|"GET /api/nibgate/media/:postId/photo?index=N"| B
+    B -->|"resolve media[index] → storageRef + encryptedKey"| M
+    M -- no --> N
+    M -- yes, paid post --> U
+    U -- no proof --> CH
+    U -- yes --> G
+    G -->|"getBlob(storageRef)"| R
+    G -->|"200 plaintext · Cache-Control: private, max-age=300"| V
 ```
 
 The unlock proof is carried in the `x-nibgate-payment-proof` request header and verified by `isUnlocked` (`packages/nibgate/src/server/access.js:45`). The `private` cache directive keeps plaintext out of shared/proxy caches; there is no public object URL for it.

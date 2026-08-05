@@ -60,6 +60,37 @@ async function decryptBytesFromStore(storageRef, contentKey) {
   return decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
 }
 
+function sniffImageMime(buf) {
+  if (!buf || buf.length < 12) return 'application/octet-stream';
+  if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && buf.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  return 'application/octet-stream';
+}
+
+async function extractCoverFromMedia(mediaItems, coverKey, siteId) {
+  if (!coverKey || !Array.isArray(mediaItems)) return { mediaItems, coverUrl: null };
+  const idx = mediaItems.findIndex((m) => m && m.storageRef === coverKey);
+  if (idx === -1) return { mediaItems, coverUrl: null };
+  const item = mediaItems[idx];
+  if (!item.storageRef || !item.encryptedKey) return { mediaItems, coverUrl: null };
+  let data;
+  try {
+    const blob = await getBlob({ storageRef: item.storageRef });
+    const { iv, tag, ciphertext } = unpackCipherBlob(blob);
+    data = decryptBytes(Buffer.from(item.encryptedKey, 'base64'), iv, tag, ciphertext);
+  } catch {
+    return { mediaItems, coverUrl: null };
+  }
+  const contentType = item.contentType || sniffImageMime(data);
+  const ext = contentType === 'image/jpeg' ? '.jpg' : contentType === 'image/png' ? '.png' : contentType === 'image/gif' ? '.gif' : '.webp';
+  const key = `blog/${siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+  const { url } = await putBlob({ key, data, contentType });
+  mediaItems.splice(idx, 1);
+  return { mediaItems, coverUrl: url };
+}
+
 function slugify(value = '') {
   return String(value).trim().toLowerCase().replace(/['"]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90);
 }
@@ -135,13 +166,18 @@ async function create(data, siteId, authorId) {
   const isPaid = isPaidValue(data.price);
   const excerpt = String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown);
   const mediaItems = normalizeMediaForStorage(data.media, isPaid);
+  let coverUrl = String(data.coverUrl || '').trim() || null;
+  if (isPaid && data.coverKey) {
+    const extracted = await extractCoverFromMedia(mediaItems, data.coverKey, siteId);
+    if (extracted.coverUrl) coverUrl = extracted.coverUrl;
+  }
 
   const postData = {
     siteId, title, slug,
     excerpt,
     tags: cleanTags(data.tags),
     type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
-    coverUrl: String(data.coverUrl || '').trim() || null,
+    coverUrl,
     videoUrl: String(data.videoUrl || '').trim() || null,
     audioUrl: isPaid ? null : String(data.audioUrl || '').trim() || null,
     audioStorageRef: isPaid ? String(data.audioStorageRef || '').trim() || null : null,
@@ -214,6 +250,10 @@ async function update(siteId, id, data) {
   if (data.videoUrl !== undefined) updateData.videoUrl = String(data.videoUrl).trim() || null;
   if (data.media !== undefined) {
     const mediaItems = normalizeMediaForStorage(data.media, willBePaid);
+    if (willBePaid && data.coverKey) {
+      const extracted = await extractCoverFromMedia(mediaItems, data.coverKey, siteId);
+      if (extracted.coverUrl) updateData.coverUrl = extracted.coverUrl;
+    }
     updateData.media = mediaItems.length ? JSON.stringify(mediaItems) : null;
   }
   if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article';

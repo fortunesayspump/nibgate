@@ -11,7 +11,7 @@ const origin = process.env.E2E_ORIGIN || 'http://localhost:4304';
 const siteId = process.env.E2E_SITE_ID || 'express-prisma-local';
 const token = process.env.E2E_SITE_TOKEN || 'local-express-token';
 const contractAddress = process.env.NIBGATE_REPUTATION_CONTRACT || '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.network';
+const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.io';
 const privateKey = process.env.E2E_BUYER_PRIVATE_KEY || process.env.NIBGATE_DEPLOYER_PRIVATE_KEY || '';
 if (!privateKey) {
   throw new Error('Set E2E_BUYER_PRIVATE_KEY or NIBGATE_DEPLOYER_PRIVATE_KEY before running the onchain e2e flow.');

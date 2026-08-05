@@ -9,6 +9,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - Articles with Markdown editing, cover images, tags, excerpts, and slug auto-generation
 - Photo, music, and video post support
 - Free and paid content gating via `@nibgate/sdk`
+- Paid posts encrypt media and body at rest; photo covers stay plaintext and galleries reveal after unlock
 - Admin dashboard with create, edit, publish, draft, and delete
 - Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`)
 - RSS feed
@@ -145,7 +146,7 @@ Set `SENTRY_DSN` env var on Railway to enable error tracking. All errors are log
 Add the widget to your site layout and mark premium posts with a data attribute:
 
 ```html
-<script async src="https://nibgate.xyz/widget.js"
+<script async src="https://www.nibgate.xyz/widget.js"
   data-nibgate-site="YOUR_SITE_ID"
   data-nibgate-token="YOUR_TOKEN">
 </script>

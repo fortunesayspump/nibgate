@@ -348,7 +348,7 @@ Widget snippet shape:
 ```html
 <script
   async
-  src="https://nibgate.xyz/widget.js"
+  src="https://www.nibgate.xyz/widget.js"
   data-nibgate-site="SITE_ID"
   data-nibgate-token="PUBLIC_SITE_TOKEN"
   data-nibgate-api="https://api.nibgate.xyz"

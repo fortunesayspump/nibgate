@@ -29,7 +29,7 @@ Read this entire file before editing any routes or checkout code. The guide foll
 Paste the dashboard widget into the verified site layout:
 
 ```html
-<script async src="https://nibgate.xyz/widget.js"
+<script async src="https://www.nibgate.xyz/widget.js"
   data-nibgate-site="site_..."
   data-nibgate-token="ngv_..."
   data-nibgate-api="https://api.nibgate.xyz">

@@ -74,13 +74,15 @@ function postToNibgateResource(post) {
 Request flow:
 
 ```ts
+import { server } from '@nibgate/sdk/server'
+
 const post = await db.posts.findUnique({ where: { slug } })
 const resource = postToNibgateResource(post)
-const access = nibgate.accessFor(request, resource)
+const access = server.accessFor(request, resource)
 
 if (access.allowed) return renderFullPost(post)
 if (access.blocked) return forbidden()
-return paymentRequired(nibgate.createPaymentChallenge(resource, { actor: access.actor }))
+return paymentRequired(server.createPaymentChallenge(resource, { actor: access.actor }))
 ```
 
 Use this for Supabase, Prisma/Postgres, MongoDB, custom dashboards, and creator-owned apps.

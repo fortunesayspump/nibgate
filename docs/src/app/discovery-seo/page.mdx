@@ -39,7 +39,7 @@ Sitemap: https://yourname.nibgate.xyz/sitemap.xml
 
 ### Hub aggregate sitemap
 
-The main Nibgate hub at `nibgate.xyz` serves `https://nibgate.xyz/all-content-sitemap.xml`, which aggregates content from every verified site (Subblogs and SDK-integrated sites alike) via `/api/hub/sitemap/content`. The hub's `robots.txt` advertises it. Each Subblog also handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
+The main Nibgate hub at `nibgate.xyz` serves `https://nibgate.xyz/all-content-sitemap.xml`, aggregating Subblog URLs (anything on `*.nibgate.xyz`) plus hub pages from `/api/hub/sitemap/content` (the endpoint covers all verified sites; the served sitemap keeps only `*.nibgate.xyz` URLs). The hub's `robots.txt` advertises it. Each Subblog also handles its own discovery via its own `robots.txt` + `sitemap.xml`, exactly like Substack:
 
 ```txt
 https://yourname.nibgate.xyz/robots.txt
@@ -67,12 +67,13 @@ Every post page on a Subblog includes JSON-LD structured data for rich search re
   },
   "publisher": {
     "@type": "Organization",
-    "name": "Subblog Name"
+    "name": "Nibgate",
+    "url": "https://nibgate.xyz"
   }
 }
 ```
 
-The post page always emits `@type: "Article"` for every content type (`subblogs/frontend/src/app/[type]/[slug]/page.tsx:28`), regardless of whether the post is an article, photo, music, or video:
+The post page always emits `@type: "Article"` for every content type (`subblogs/frontend/src/app/[type]/[slug]/page.tsx:29`), regardless of whether the post is an article, photo, music, or video:
 
 | Content type | Schema.org type |
 |-------------|-----------------|

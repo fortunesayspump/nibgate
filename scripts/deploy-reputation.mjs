@@ -12,7 +12,7 @@ const { privateKeyToAccount } = await import(viemAccountsEntry);
 const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL
   || process.env.ARC_TESTNET_RPC_URL
   || process.env.RPC_URL
-  || 'https://rpc.testnet.arc.network';
+  || 'https://rpc.testnet.arc.io';
 const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
 const chainName = process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet';
 const configuredPrivateKey = process.env.NIBGATE_DEPLOYER_PRIVATE_KEY

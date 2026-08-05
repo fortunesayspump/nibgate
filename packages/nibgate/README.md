@@ -85,8 +85,10 @@ setupResourcePage(premiumGuide, {
 For a ready-made unlock button/controller, use `createWalletCheckout`. The package owns the UI state, retries, unlock events, and proof-backed access retry; your wallet/Gateway adapter only has to return the payment signature for the `PAYMENT-REQUIRED` challenge.
 
 ```js
+import { createWalletClient, custom } from 'viem';
 import { createCircleGatewayBrowserAdapter, createWalletCheckout } from '@nibgate/sdk';
 
+const walletClient = createWalletClient({ transport: custom(window.ethereum) });
 const [address] = await walletClient.getAddresses();
 const circle = await createCircleGatewayBrowserAdapter({
   chainId: 5042002,
@@ -202,7 +204,7 @@ Ratings are proof-gated. Page views, time spent, scroll depth, and referrers are
 Nibgate reputation uses a versioned content identity:
 
 ```text
-keccak256("nibgate:content:v1|domain|externalContentId|canonicalUrl")
+keccak256("nibgate:content:v1|domain|externalId|url")
 ```
 
 The namespace lets future versions add metadata hashes, content version hashes, IPFS/Arweave pointers, or creator signatures without changing what old ratings mean.
@@ -287,8 +289,9 @@ The SDK exposes Gateway balance queries and deposit/withdraw triggers for buyer 
 Via CLI:
 
 ```bash
-npx nibgate balance
-npx nibgate deposit 1.0
+# @nibgate/cli is in-repo only (not published), so run it via the workspace:
+pnpm --filter @nibgate/cli exec nibgate balance
+pnpm --filter @nibgate/cli exec nibgate deposit 1.0
 ```
 
 ### Onchain rating UI
@@ -303,7 +306,7 @@ const rating = createOnchainRating(premiumGuide, {
   indexUrl: 'https://api.nibgate.xyz/api/hub/reputation/ratings/index',
   ratingTarget: '[data-nibgate-rating]',
   ratingButtons: '[data-rating]',
-  paymentId: () => lastPayment?.paymentId,
+  paymentId: lastPayment?.paymentId || '',
   getUnlockRef: () => lastPayment?.paymentId || ''
 });
 ```
@@ -352,10 +355,14 @@ router.get('/posts/:slug', async (req, res) => {
 });
 
 // Protected endpoint — returns body only after proof verification
+// Note: wrap Express's req in a Fetch Request (accessFor reads headers via
+// request.headers.get(...)) and pass a defined resource + slug.
 router.get('/nibgate/access', async (req, res) => {
+  const request = new Request(`http://localhost${req.originalUrl}`, { headers: new Headers(req.headers) });
+  const resource = { id: 'guide', title: 'Premium Guide', type: 'article', price: '0.01' };
   const access = nibgateServer.accessFor(request, resource);
   if (access.allowed) {
-    const post = await db.post.findUnique({ where: { slug } });
+    const post = await db.post.findUnique({ where: { slug: req.params.slug } });
     return res.json({ ok: true, content: post.body });  // body ONLY here
   }
   // ... 402 challenge or payment processing
@@ -372,6 +379,8 @@ router.get('/nibgate/access', async (req, res) => {
 
 function NibgateUnlock({ resource }) {
   const [content, setContent] = useState('');
+  // storedProof: the unlock proof persisted after a prior payment
+  // handleUnlock: runs the checkout flow (e.g. createWalletCheckout)
 
   useEffect(() => {
     fetch('/api/nibgate/access', {
@@ -450,7 +459,7 @@ If the creator has an admin dashboard, put Nibgate settings in that UI and save 
 import { NIBGATE_CONTENT_SETTING_FIELDS, createNibgateContentSettings } from '@nibgate/sdk';
 
 const defaults = createNibgateContentSettings({
-  recipient: creatorDefaultWallet
+  recipient: creatorDefaultWallet // the logged-in creator's wallet address
 });
 ```
 

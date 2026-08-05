@@ -42,7 +42,7 @@ Images fall into a few categories depending on where they appear:
   </Cards.Card>
 </Cards>
 
-All of them go through the same pipeline: auto-rotate, WebP conversion, and a 2560px width cap. There are no per-type size variants or square crop processing.
+All plaintext uploads go through the same pipeline: auto-rotate, WebP conversion, and a 2560px width cap. There are no per-type size variants or square crop processing.
 
 ## Storage
 
@@ -63,7 +63,11 @@ Optimized images are served from the R2 public bucket:
 
 Example: `https://pub-…r2.dev/blog/{siteId}/1785469232629-8021a40a8489.webp`
 
-There are no variant sub-paths or responsive parameters — each upload stores exactly one WebP file and returns its URL directly.
+There are no variant sub-paths or responsive parameters — each plaintext upload stores exactly one WebP file and returns its URL directly.
+
+## Encrypted media on paid posts
+
+Paid media uploads skip this pipeline — they are stored as encrypted `.bin` blobs and only the starred cover is decrypted to a public WebP. See [Content Encryption](/encryption) for the full flow.
 
 ## Cover images
 

@@ -91,7 +91,7 @@ The shape is:
 contentHash = keccak256("nibgate:content:v1" + "|" + domain + "|" + externalId + "|" + url)
 ```
 
-The creator does not need to mint each content item. The package derives this id from the verified site domain, the resource's external id, and its URL — then uses it for unlock receipts, rating eligibility, and rating events. The same derivation lives in `contentHashFor` (`backend/src/server/hub/helpers.js:526`) and in the SDK's `contentRatingHash` (`packages/nibgate/src/browser/reputation.js:116`).
+The creator does not need to mint each content item. The package derives this id from the verified site domain, the resource's external id, and its URL — then uses it for unlock receipts, rating eligibility, and rating events. The same derivation lives in `contentHashFor` (`backend/src/server/hub/helpers.js:551`) and in the SDK's `contentHashFor` (`packages/nibgate/src/browser/reputation.js:116`).
 
 ## Rating handoff
 

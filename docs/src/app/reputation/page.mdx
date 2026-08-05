@@ -100,7 +100,7 @@ The wallet submits a rating transaction using its unlock proof.
 
 ### Index rating event
 
-Nibgate indexes the rating event and updates content stars once the rating/indexer adapter is live.
+Nibgate indexes the rating event (via the reputation indexer) and updates content stars.
 
 ### Roll up reputation
 
@@ -126,7 +126,7 @@ Supporting signals can include:
 
 ## Site reputation
 
-A site can have its own health: verified, stale, removed, frequently updated, high conversion, or repeatedly disputed.
+A site has a verification state — `verified`, `missing_widget` (widget marker no longer on the homepage), `failed` (unreachable or invalid), or soft-deleted (`deletedAt`) — plus content-level freshness and quality signals.
 
 Site reputation should be a weighted rollup from content ratings on that domain plus source health signals like active widget checks, valid ownership, payment consistency, and content freshness.
 

@@ -2,13 +2,13 @@ import { Callout, Steps } from 'nextra/components'
 
 # Verify a site
 
-A site starts pending, becomes verified when the widget is found, and can be rechecked to make sure the widget still exists.
+A site starts pending and becomes verified when the widget is found on its homepage. Subblog domains (`*.nibgate.xyz`) are auto-verified by being linked to a hub wallet and skip the widget sweep entirely.
 
 ## States
 
 - `pending`: site was registered but ownership is not verified yet.
 - `verified`: widget was found on the registered origin.
-- `missing_widget`: widget was previously verified but the widget marker is no longer found on the homepage.
+- `missing_widget`: the homepage does not carry the widget marker.
 - `failed`: the site homepage could not be fetched to verify the widget.
 
 ## Verification process

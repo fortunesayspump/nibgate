@@ -8,7 +8,7 @@ const viemAccountsEntry = path.join(rootDir, 'backend/node_modules/viem/_esm/acc
 const { createPublicClient, createWalletClient, http, keccak256, stringToBytes } = await import(viemEntry);
 const { privateKeyToAccount } = await import(viemAccountsEntry);
 
-const RPC = process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.network';
+const RPC = process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.io';
 const PROXY = process.env.NIBGATE_REPUTATION_CONTRACT || '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 const OWNER_PK = process.env.NIBGATE_DEPLOYER_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY || '';
 

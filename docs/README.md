@@ -29,12 +29,34 @@ docs.nibgate.xyz
 
 ## Current sections
 
+Overview
+- What is Nibgate?
+- Architecture
+- End-to-end lifecycle
+- Agent discovery
+- Reputation
+
+Subblog platform
+- Create a Subblog
+- Content types
+- Image optimization
+- Content encryption
+- Discovery & SEO
+
+Setup
 - Quick start
 - Install package
+- Content structures
 - Hub widget
 - Verify a site
+
+Data bridge
 - Content events
 - Analytics events
 - Payments and receipts
+- Revenue & leaderboards
+
+Reference
 - API reference
 - Examples
+- Roadmap

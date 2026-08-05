@@ -14,7 +14,7 @@ The payment does not go through this contract. Creator sites still receive unloc
 `contentId` is explicitly versioned:
 
 ```text
-keccak256("nibgate:content:v1|domain|externalContentId|canonicalUrl")
+keccak256("nibgate:content:v1|domain|externalId|url")
 ```
 
 The `nibgate:content:v1` namespace is part of the identity. Future versions can add fields like metadata hash, content version hash, IPFS/Arweave pointers, or creator signatures without changing the meaning of old ratings.
@@ -25,7 +25,7 @@ The backend indexes `ContentRated` events, then only counts a rating when the ra
 
 ```bash
 NIBGATE_REPUTATION_CONTRACT=0x9f27fd62e75f86a3c7addfdba443aab1f930e281
-NIBGATE_REPUTATION_RPC_URL=https://...
+NIBGATE_REPUTATION_RPC_URL=https://rpc.testnet.arc.io
 NIBGATE_REPUTATION_CHAIN_ID=5042002
 NIBGATE_REPUTATION_CHAIN_NAME="Arc Testnet"
 ```

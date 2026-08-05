@@ -105,7 +105,7 @@ The explore feed returns full content cards — pricing, creator domain, verifie
 }
 ```
 
-The serialized shape comes from `serializeContent` in `backend/src/server/hub/helpers.js:835`. An agent can also query by free-text (`?q=` matches title, description, tags, and site name/domain), by content type (`?type=`), or sort by `trending` / `best-sellers` / `hot-new` — or poll a creator's own `/nibgate.json` manifest directly.
+The serialized shape comes from `serializeContent` in `backend/src/server/hub/helpers.js:886`. An agent can also query by free-text (`?q=` matches title, description, tags, and site name/domain), by content type (`?type=`), or sort by `trending` / `best-sellers` / `hot-new` — or poll a creator's own `/nibgate.json` manifest directly.
 
 ## Step 3 — Evaluate the resource
 
@@ -143,11 +143,11 @@ curl -i 'https://pitchtalk.nibgate.xyz/api/nibgate/access?path=/writing/the-tact
   -H 'Accept: application/json'
 ```
 
-The server responds with **HTTP 402 Payment Required** carrying the x402 v2 challenge in the `payment-required` header (base64 JSON):
+The server responds with **HTTP 402 Payment Required** carrying the x402 v2 challenge in the `PAYMENT-REQUIRED` header (base64 JSON):
 
 ```http
 HTTP/1.1 402 Payment Required
-payment-required: eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiL3Bvc3RzLy4uLiJ9LCJhY2NlcHRzIjpbeyJzY2hlbWUiOiJleGFjdCIsIm5ldHdvcmsiOiJlaXAxNTU6NTA0MjAwMiIsImFzc2V0IjoiMHgzNjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwiYW1vdW50IjoiNTAwMDAwIiwicGF5VG8iOiIweDFjN2NmOGM4MzM5MkFGZWUwNzI4NDViMzNDZGY1ZDdhNTM3RjlFNzQiLCJtYXhUaW1lb3V0U2Vjb25kcyI6NjA0OTAwLCJleHRyYSI6eyJuYW1lIjoiR2F0ZXdheVdhbGxldEJhdGNoZWQiLCJ2ZXJzaW9uIjoiMSIsInZlcmlmeWluZ0NvbnRyYWN0IjoiMHgwMDc3Nzc3ZDdlYmE0Njg4YmRlZjNlMzExYjg0NmYyNTg3MGExOWI5In19XX0=
+payment-required: eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiL3dyaXRpbmcvdGhlLXRhY3RpYy10aGF0LWNoYW5nZWQtbW9kZXJuLWZvb3RiYWxsIn0sImFjY2VwdHMiOlt7InNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo1MDQyMDAyIiwiYXNzZXQiOiIweDM2MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJhbW91bnQiOiI1MDAwMDAiLCJwYXlUbyI6IjB4MWM3Y2Y4YzgzMzkyQUZlZTA3Mjg0NWIzM0NkZjVkN2E1MzdGOUU3NCIsIm1heFRpbWVvdXRTZWNvbmRzIjo2MDQ5MDAsImV4dHJhIjp7Im5hbWUiOiJHYXRld2F5V2FsbGV0QmF0Y2hlZCIsInZlcnNpb24iOiIxIiwidmVyaWZ5aW5nQ29udHJhY3QiOiIweDAwNzc3NzdkN2ViYTQ2ODhiZGVmM2UzMTFiODQ2ZjI1ODcwYTE5YjkifX1dfQ==
 content-type: application/json; charset=utf-8
 ```
 
@@ -157,9 +157,7 @@ Decoded, the challenge is:
 {
   "x402Version": 2,
   "resource": {
-    "url": "/posts/the-tactic-that-changed-modern-football",
-    "description": "Unlock The Tactic That Changed Modern Football",
-    "mimeType": "application/json"
+    "url": "/writing/the-tactic-that-changed-modern-football"
   },
   "accepts": [{
     "scheme": "exact",
@@ -179,9 +177,9 @@ Decoded, the challenge is:
 
 Note `amount` is in atomic units (6 decimals of USDC, so `500000` = 0.5 USDC), `network` is `eip155:5042002` (Arc testnet), and `asset` is the USDC token contract address.
 
-The challenge is built by `createPaymentChallenge(route, 'agent')` in `packages/internal/src/gateway.js:35`. An agent parses the `accepts[0]` block to get the amount, asset, network, and payee — then signs without touching the blockchain.
+The challenge is produced by `createGatewayMiddleware` from `@circle-fin/x402-batching/server`, invoked by `POST /api/hub/pay` (`backend/src/server/routes/hub-routes.js:315-358`); the subblog access route proxies the pay request and re-emits the 402 with the `PAYMENT-REQUIRED` header. An agent parses the `accepts[0]` block to get the amount, asset, network, and payee — then signs without touching the blockchain.
 
-**Reference:** the access handler is `GET /api/nibgate/access` in `subblogs/backend/src/routes/v1/nibgate.route.js:24`, which proxies to the hub pay rail and re-emits the 402 with the `PAYMENT-REQUIRED` header.
+**Reference:** the access handler is `GET /api/nibgate/access` in `subblogs/backend/src/routes/v1/nibgate.route.js:65`, which proxies to the hub pay rail and re-emits the 402 with the `PAYMENT-REQUIRED` header.
 
 ## Step 5 — Sign the payment (gasless)
 
@@ -224,23 +222,21 @@ On success the server settles via Circle Gateway and returns the content plus a 
     "type": "article",
     "price": "0.50",
     "currency": "USDC",
-    "path": "/posts/the-tactic-that-changed-modern-football",
+    "path": "/writing/the-tactic-that-changed-modern-football",
     "recipient": "0x1c7cf8c83392AFee072845b33Cdf5d7a537F9E74"
   },
   "content": "<article>…</article>",
   "videoUrl": null,
   "payment": {
-    "id": "RvwX5xYv9kQz1a",
-    "routeId": "…",
-    "title": "The Tactic That Changed Modern Football",
-    "actor": "agent",
-    "amount": "0.50",
-    "currency": "USDC",
+    "paymentProvider": "circle-gateway",
+    "verified": true,
+    "recipient": "0x1c7cf8c83392AFee072845b33Cdf5d7a537F9E74",
     "network": "eip155:5042002",
-    "createdAt": "2026-08-02T22:00:00.000Z",
-    "txHash": "0x…",
+    "amount": 0.5,
+    "revenue": 0.5,
+    "currency": "USDC",
     "payer": "0xAgent…",
-    "provider": "gateway"
+    "txHash": "0x…"
   },
   "unlockProof": "…",
   "expiresInSeconds": 43200
@@ -278,7 +274,7 @@ curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/prepare \
 }
 ```
 
-The server returns a canonical message, the `contentHash` the on-chain contract expects, and the reputation contract address. This is `POST /api/hub/reputation/ratings/prepare` in `backend/src/server/routes/hub-routes.js:606`.
+The server returns a canonical message, the `contentHash` the on-chain contract expects, and the reputation contract address. (`rpcUrl` reflects the production env override; the endpoint's default RPC is the Arc testnet node.) This is `POST /api/hub/reputation/ratings/prepare` in `backend/src/server/routes/hub-routes.js:608`.
 
 ### 7b. Sign the rating calldata
 
@@ -315,7 +311,7 @@ curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/index \
   }'
 ```
 
-`POST /api/hub/reputation/ratings/index` (`hub-routes.js:640`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score:
+`POST /api/hub/reputation/ratings/index` (`hub-routes.js:642`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score:
 
 ```json
 {
@@ -356,14 +352,14 @@ curl -s 'https://nibgate.xyz/api/hub/ledger?domain=thedailybyte.nibgate.xyz&limi
 }
 ```
 
-The ledger shows the agent's unlock (`txHash`) and rating (`proof`) as first-class entries — immutable, wallet-attributable, and usable by other agents as a trust signal. Note the top-level response is `{ success, activities, total, hasMore, limit, skip }` (a list of activities, not `entries`).
+The ledger shows the agent's unlock (`txHash`) and rating (`proof`) as first-class entries — immutable, wallet-attributable, and usable by other agents as a trust signal. Note the top-level response is `{ success, activities, total, totals, hasMore, limit, skip }` (a list of activities, not `entries`; `total` is capped at `limit`, while `totals` holds the global counts).
 
 ## What makes this simple
 
 Every step is a plain HTTP request plus one signing operation. The protocol handles the rest:
 
 - **No accounts.** The agent's wallet *is* its identity.
-- **No gas.** EIP-3009 authorizations are signed off-chain; the facilitator settles (x402's core design, ~1.5–2s round trip on Base/Arc).
+- **No gas.** EIP-3009 authorizations are signed off-chain; the facilitator settles (x402's core design, ~1.5–2s round trip on Arc).
 - **No browser.** Every surface (`llms.txt`, MCP, OpenAPI, manifest, x402 endpoint, ratings API) is JSON/plain-text.
 - **Discovery → payment → feedback in one loop.** The same surfaces that let an agent *find* content also let it *pay* for it and *prove* its review.
 

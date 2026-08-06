@@ -6,6 +6,7 @@ import { apiAuthFetch } from "@/lib/api";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import ImageUploader from "@/components/ImageUploader";
 import AudioUploader from "@/components/AudioUploader";
+import DocumentUploader from "@/components/DocumentUploader";
 
 interface PostFormData {
   title: string;
@@ -24,6 +25,12 @@ interface PostFormData {
   audioStorageRef: string;
   audioEncryptedKey: string;
   audioContentType: string;
+  documentUrl: string;
+  documentName: string;
+  documentSize: number | null;
+  documentStorageRef: string;
+  documentEncryptedKey: string;
+  documentContentType: string;
   media: string;
 }
 
@@ -31,7 +38,9 @@ const defaults: PostFormData = {
   title: "", slug: "", bodyMarkdown: "", excerpt: "",
   tags: "", coverUrl: "", videoUrl: "",
   price: "", recipientWallet: "", status: "draft", featured: false, type: "article",
-  audioUrl: "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "", media: "",
+  audioUrl: "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "",
+  documentUrl: "", documentName: "", documentSize: null, documentStorageRef: "", documentEncryptedKey: "", documentContentType: "",
+  media: "",
 };
 
 interface PostFormProps {
@@ -116,6 +125,9 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     if (form.type === "music") {
       if (!form.audioUrl && !form.audioStorageRef) return { ok: false, reason: "Audio file is required" };
     }
+    if (form.type === "document") {
+      if (!form.documentUrl && !form.documentStorageRef) return { ok: false, reason: "Document file is required" };
+    }
     return { ok: true };
   }
 
@@ -147,6 +159,30 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
       setForm((prev) => ({ ...prev, audioUrl: "", audioStorageRef: result.storageRef!, audioEncryptedKey: result.encryptedKey || "", audioContentType: result.contentType || "" }));
     } else {
       setForm((prev) => ({ ...prev, audioUrl: result.url || "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "" }));
+    }
+  }
+
+  function handleDocumentUpload(result: { url?: string; storageRef?: string; encryptedKey?: string; contentType?: string; name?: string; size?: number }) {
+    if (result.storageRef) {
+      setForm((prev) => ({
+        ...prev,
+        documentUrl: "",
+        documentStorageRef: result.storageRef!,
+        documentEncryptedKey: result.encryptedKey || "",
+        documentContentType: result.contentType || "",
+        documentName: result.name || prev.documentName,
+        documentSize: result.size ?? prev.documentSize,
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        documentUrl: result.url || "",
+        documentStorageRef: "",
+        documentEncryptedKey: "",
+        documentContentType: result.contentType || "",
+        documentName: result.name || prev.documentName,
+        documentSize: result.size ?? prev.documentSize,
+      }));
     }
   }
 
@@ -201,7 +237,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         <input
           type="text" value={form.title} onChange={(e) => handleTitleChange(e.target.value)} required
           className="input-field"
-          placeholder={form.type === "photo" ? "Photo title" : form.type === "video" ? "Video title" : form.type === "music" ? "Track title" : "Post title"}
+          placeholder={form.type === "photo" ? "Photo title" : form.type === "video" ? "Video title" : form.type === "music" ? "Track title" : form.type === "document" ? "Document title" : "Post title"}
         />
       </Field>
 
@@ -219,6 +255,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
           <option value="photo">Photo</option>
           <option value="video">Video</option>
           <option value="music">Music</option>
+          <option value="document">Document</option>
         </select>
       </Field>
 
@@ -313,6 +350,31 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
             <textarea
               value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
               rows={3} className="input-field" placeholder="Describe this track..."
+            />
+          </Field>
+        </>
+      )}
+
+      {form.type === "document" && (
+        <>
+          <Field label="Cover Image">
+            <ImageUploader
+              maxFiles={1}
+              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+              onChange={(items) => update("coverUrl", items[0]?.url || "")}
+            />
+          </Field>
+          <Field label="Document File">
+            <DocumentUploader
+              encrypted={isPaid}
+              onUpload={handleDocumentUpload}
+              existingName={form.documentName || (form.documentStorageRef ? "Encrypted file" : "")}
+            />
+          </Field>
+          <Field label="Description">
+            <textarea
+              value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+              rows={3} className="input-field" placeholder="Describe this document..."
             />
           </Field>
         </>

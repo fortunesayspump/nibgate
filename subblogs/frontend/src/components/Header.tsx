@@ -17,7 +17,7 @@ export default function Header() {
     }).catch(() => {});
     const p = window.location.pathname;
     const seg = p.split("/")[1];
-    const labels: Record<string, string> = { writing: "Writing", photos: "Photos", music: "Music", video: "Video" };
+    const labels: Record<string, string> = { writing: "Writing", photos: "Photos", music: "Music", video: "Video", docs: "Docs" };
     if (seg && labels[seg]) setRouteLabel(labels[seg]);
     else if (p === "/") setRouteLabel("Blog");
   }, []);

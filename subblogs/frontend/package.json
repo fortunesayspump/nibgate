@@ -8,7 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.2.46",
+    "@nibgate/sdk": "^0.4.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tiptap/extension-dropcursor": "^3.28.0",
     "@tiptap/extension-image": "^3.28.0",
@@ -27,6 +27,7 @@
     "@tiptap/starter-kit": "^3.28.0",
     "@tiptap/suggestion": "^3.28.0",
     "clsx": "^2.1.1",
+    "docx-preview": "^0.4.0",
     "lucide-react": "^0.468.0",
     "motion": "^12.42.2",
     "next": "^15.1.0",
@@ -38,7 +39,9 @@
     "shiki": "^4.3.1",
     "tailwind-merge": "^3.6.0",
     "tiptap-extension-code-block-shiki": "^1.2.0",
-    "tiptap-markdown": "^0.9.0"
+    "tiptap-markdown": "^0.9.0",
+    "x-data-spreadsheet": "^1.1.9",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

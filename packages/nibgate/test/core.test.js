@@ -9,6 +9,7 @@ describe('normalizeContentType', () => {
     expect(normalizeContentType('music')).toBe('music')
     expect(normalizeContentType('video')).toBe('video')
     expect(normalizeContentType('image')).toBe('image')
+    expect(normalizeContentType('document')).toBe('document')
   })
 
   it('maps aliases to canonical types', () => {
@@ -16,6 +17,9 @@ describe('normalizeContentType', () => {
     expect(normalizeContentType('song')).toBe('music')
     expect(normalizeContentType('photo')).toBe('image')
     expect(normalizeContentType('movie')).toBe('video')
+    expect(normalizeContentType('doc')).toBe('document')
+    expect(normalizeContentType('pdf')).toBe('document')
+    expect(normalizeContentType('spreadsheet')).toBe('document')
   })
 
   it('defaults unknown types to article', () => {

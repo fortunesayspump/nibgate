@@ -1,8 +1,8 @@
 export type NibgateServerResource = {
   id: string;
   title?: string;
-  type?: 'music' | 'video' | 'article' | 'image' | string;
-  contentType?: 'music' | 'video' | 'article' | 'image' | string;
+  type?: 'music' | 'video' | 'article' | 'image' | 'document' | string;
+  contentType?: 'music' | 'video' | 'article' | 'image' | 'document' | string;
   price?: string | number;
   paymentRail?: NibgatePaymentRail | string;
   amount?: string | number;
@@ -70,7 +70,7 @@ export type NibgateContentSettingField = {
 };
 export type NibgateContentSettings = {
   publishToNibgate: boolean;
-  type: 'music' | 'video' | 'article' | 'image';
+  type: 'music' | 'video' | 'article' | 'image' | 'document';
   humanAccess: NibgateAccessMode;
   agentAccess: NibgateAccessMode;
   unlockMode: NibgateUnlockMode | string;

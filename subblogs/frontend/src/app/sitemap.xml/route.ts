@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   const protocol = host.includes("localhost") ? "http" : "https";
   const siteUrl = `${protocol}://${host}`;
 
-  const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+  const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
 
   const urls = posts.map((post) => {
     const path = typePath[post.type] || "posts";

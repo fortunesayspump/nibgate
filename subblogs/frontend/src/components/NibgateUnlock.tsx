@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import DocxViewer from "@/components/DocxViewer";
+import SheetViewer from "@/components/SheetViewer";
+import TextViewer from "@/components/TextViewer";
+import { UNIVERSAL_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromMeta } from "@/lib/documentKind";
 import type { UnlockMediaMeta } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
@@ -21,6 +25,12 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [docHtml, setDocHtml] = useState<string | null>(null);
+  const [documentName, setDocumentName] = useState<string | null>(null);
+  const [documentContentType, setDocumentContentType] = useState<string | null>(null);
+  const [viewFailed, setViewFailed] = useState(false);
+  const proofRef = useRef("");
 
   function detectEmbed(url: string) {
     const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
@@ -58,13 +68,37 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
       }
       setPhotoUrls(urls);
     }
+    if (meta.hasDocument) {
+      const kind = kindFromMeta(meta.documentName, meta.documentContentType);
+      const universal = kind !== null && UNIVERSAL_KINDS.has(kind);
+      try {
+        const res = await fetch(`${API_BASE}/nibgate/media/${resource.id}/document?inline=1&subdomain=${subdomain}`, {
+          headers: { "x-nibgate-payment-proof": proof },
+        });
+        if (res.ok) setDocumentUrl(URL.createObjectURL(await res.blob()));
+      } catch {}
+      if (!universal) {
+        try {
+          const res = await fetch(`${API_BASE}/nibgate/media/${resource.id}/document/render?subdomain=${subdomain}`, {
+            headers: { "x-nibgate-payment-proof": proof },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.html) setDocHtml(data.html);
+          }
+        } catch {}
+      }
+    }
   }
 
   function applyUnlock(data: any, proof: string) {
+    if (proof) proofRef.current = proof;
     if (data?.content !== undefined && data?.content !== null) setContent(data.content);
     if (data?.videoUrl) setVideoUrl(data.videoUrl);
     if (data?.media) {
-      if (proof && (data.media.hasAudio || data.media.photos > 0)) loadMedia(proof, data.media);
+      if (proof && (data.media.hasAudio || data.media.photos > 0 || data.media.hasDocument)) loadMedia(proof, data.media);
+      if (data.media.documentName) setDocumentName(data.media.documentName);
+      if (data.media.documentContentType) setDocumentContentType(data.media.documentContentType);
     }
     setUnlocked(true);
   }
@@ -113,7 +147,26 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     return () => { stateRef.current.destroyed = true; };
   }, [resource.id]);
 
+  async function onViewerFailed() {
+    setViewFailed(true);
+    try {
+      const res = await fetch(`${API_BASE}/nibgate/media/${resource.id}/document/render?subdomain=${subdomain}`, {
+        headers: { "x-nibgate-payment-proof": proofRef.current },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.html) setDocHtml(data.html);
+      }
+    } catch {}
+  }
+
   if (unlocked) {
+    const kind = kindFromMeta(documentName, documentContentType);
+    const isDocx = kind === "docx" && !!documentUrl && !viewFailed;
+    const isSheet = (kind !== null && SHEET_VIEWER_KINDS.has(kind)) && !!documentUrl && !viewFailed;
+    const isText = (kind !== null && TEXT_VIEWER_KINDS.has(kind)) && !!documentUrl && !viewFailed;
+    const showPdfFrame = kind === "pdf" && !!documentUrl && !isDocx && !isSheet && !isText && !docHtml;
+    const showHtml = !!docHtml && !isDocx && !isSheet && !isText;
     return (
       <>
         {audioUrl && (
@@ -128,6 +181,39 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
                 <img src={url} alt={`${resource.title} ${i + 1}`} style={{ width: "100%", height: "auto", display: "block", borderRadius: "6px", border: "1px solid var(--border)" }} loading="lazy" />
               </a>
             ))}
+          </div>
+        )}
+        {(isDocx || isSheet || isText) && (
+          <div className={`doc-viewer ${isSheet ? "doc-viewer--sheet" : "doc-viewer--app"}`} style={{ marginBottom: "1.5rem" }}>
+            {isDocx ? (
+              <DocxViewer src={documentUrl!} onError={onViewerFailed} />
+            ) : isSheet ? (
+              <SheetViewer src={documentUrl!} onError={onViewerFailed} />
+            ) : (
+              <TextViewer src={documentUrl!} kind={kind || "text"} onError={onViewerFailed} />
+            )}
+          </div>
+        )}
+        {showHtml && (
+          <div className="doc-viewer" style={{ marginBottom: "1.5rem" }}>
+            <div className="doc-stage">
+              <div className="doc-page" dangerouslySetInnerHTML={{ __html: docHtml }} />
+            </div>
+          </div>
+        )}
+        {showPdfFrame && (
+          <iframe src={documentUrl} title={resource.title} style={{ width: "100%", height: "75vh", border: "1px solid var(--border)", borderRadius: "8px", background: "#fff", marginBottom: "1.5rem" }} />
+        )}
+        {documentUrl && (
+          <div style={{ marginBottom: "1.5rem" }}>
+            <a href={documentUrl} download={documentName || "document"} className="btn-primary" style={{ fontSize: "14px", padding: "8px 16px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download {documentName || "file"}
+            </a>
           </div>
         )}
         {videoUrl && (

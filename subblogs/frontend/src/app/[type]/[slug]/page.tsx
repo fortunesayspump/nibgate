@@ -6,12 +6,13 @@ import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
 import ReputationRating from "@/components/ReputationRating";
+import DocumentContent from "@/components/DocumentContent";
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 
-const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
-const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶" };
+const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video", document: "Docs" };
+const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶", document: "▤" };
 
 async function siteOrigin() {
   try {
@@ -22,7 +23,7 @@ async function siteOrigin() {
 }
 
 function jsonLd(post: BlogPost, origin: string) {
-  const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+  const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
   const url = `${origin}/${typePath[post.type] || "posts"}/${post.slug}`;
   return {
     "@context": "https://schema.org",
@@ -50,7 +51,7 @@ function cleanBody(md: string) {
 }
 
 function postHref(post: { type: string; slug: string }) {
-  const m: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+  const m: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
   return `/${m[post.type] || "posts"}/${post.slug}`;
 }
 
@@ -61,7 +62,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
     const post = data?.post;
     if (!post) return {};
     const origin = await siteOrigin();
-    const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+    const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
     const path = `/${type}/${slug}`;
     return {
       title: post.title,
@@ -92,7 +93,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
   const post = data?.post;
   if (!post) notFound();
 
-  const typeMap: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video" };
+  const typeMap: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
   if (typeMap[post.type] !== type) notFound();
 
   const postBody = post.bodyMarkdown || "";
@@ -124,7 +125,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             <time>{fd(post.publishedAt)}</time>
             {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
           </div>
-          {post.excerpt && !isPremium && <p className="small muted" style={{ marginTop: "1em", marginBottom: "2em" }}>{post.excerpt}</p>}
+          {post.excerpt && (post.type === "document" || !isPremium) && <p className="small muted" style={{ marginTop: "1em", marginBottom: "2em" }}>{post.excerpt}</p>}
         </div>
 
         <div className="wrap">
@@ -168,7 +169,18 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             );
           })()}
 
-          {isPremium ? (
+          {post.type === "document" ? (
+            <DocumentContent
+              postId={post.id}
+              title={post.title}
+              name={post.documentName}
+              size={post.documentSize}
+              contentType={post.documentContentType}
+              documentUrl={post.documentUrl}
+              isPaid={!!isPremium}
+              resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }}
+            />
+          ) : isPremium ? (
             <NibgateUnlock resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
           ) : post.type === "article" ? (
             <div className="prose prose-neutral dark:prose-invert">

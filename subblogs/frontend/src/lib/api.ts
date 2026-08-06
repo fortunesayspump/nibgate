@@ -76,6 +76,12 @@ export type BlogPost = {
   audioStorageRef: string | null;
   audioEncryptedKey: string | null;
   audioContentType: string | null;
+  documentUrl: string | null;
+  documentName: string | null;
+  documentSize: number | null;
+  documentStorageRef: string | null;
+  documentEncryptedKey: string | null;
+  documentContentType: string | null;
   media: string | null;
   tag: string;
   tags: string | string[];
@@ -98,6 +104,10 @@ export type UnlockMediaMeta = {
   audioContentType: string | null;
   photos: number;
   hasVideo: boolean;
+  hasDocument: boolean;
+  documentName: string | null;
+  documentSize: number | null;
+  documentContentType: string | null;
 };
 
 export type User = {

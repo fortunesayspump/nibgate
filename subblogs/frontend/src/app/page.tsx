@@ -4,8 +4,8 @@ import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 
-const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video" };
-const TYPE_ORDER = ["article", "photo", "music", "video"];
+const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video", document: "Docs" };
+const TYPE_ORDER = ["article", "photo", "music", "video", "document"];
 
 function yr(v: string) { return new Date(v).getFullYear().toString(); }
 function mo(v: string) { return String(new Date(v).getMonth() + 1).padStart(2, "0"); }
@@ -17,7 +17,7 @@ async function getGrouped() {
 }
 
 function postHref(post: { type: string; slug: string }) {
-  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
   return `/${m[post.type] || 'posts'}/${post.slug}`;
 }
 
@@ -26,6 +26,7 @@ function TypeIcon({ type }: { type: string }) {
   if (type === "photo") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>;
   if (type === "music") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
   if (type === "video") return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>;
+  if (type === "document") return <span style={{ fontSize: "13px", lineHeight: "20px" }}>▤</span>;
   return null;
 }
 
@@ -80,7 +81,7 @@ function GridSection({ posts, icon }: { posts: BlogPost[]; icon?: string }) {
 }
 
 function sectionHref(type: string) {
-  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+  const m: Record<string, string> = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
   return `/${m[type] || 'posts'}`;
 }
 

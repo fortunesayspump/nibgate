@@ -60,6 +60,62 @@ async function decryptBytesFromStore(storageRef, contentKey) {
   return decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
 }
 
+function extForContentType(contentType) {
+  const map = {
+    'application/pdf': '.pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-excel': '.xls',
+    'text/csv': '.csv',
+    'application/vnd.oasis.opendocument.spreadsheet': '.ods',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/msword': '.doc',
+    'text/plain': '.txt',
+    'text/markdown': '.md',
+  };
+  return map[contentType] || null;
+}
+
+function extFromName(name) {
+  if (!name) return null;
+  const m = /\.([a-z0-9]+)$/i.exec(name);
+  return m ? `.${m[1].toLowerCase()}` : null;
+}
+
+async function deleteObjectFromUrl(url) {
+  if (!url || !config.r2.publicUrl || !url.startsWith(config.r2.publicUrl)) return;
+  const key = url.slice(config.r2.publicUrl.length).replace(/^\//, '');
+  if (!key) return;
+  try {
+    await deleteBlob({ storageRef: key });
+  } catch {}
+}
+
+async function convertDocumentInPlace(existing, willBePaid, siteId) {
+  if (willBePaid) {
+    if (existing.documentStorageRef && existing.documentEncryptedKey) return {};
+    if (!existing.documentUrl || !ENCRYPT_ENABLED) return {};
+    const fileRes = await fetch(existing.documentUrl);
+    if (!fileRes.ok) return {};
+    const bytes = Buffer.from(await fileRes.arrayBuffer());
+    const enc = await encryptBytesToStore(bytes, siteId, 'media');
+    await deleteObjectFromUrl(existing.documentUrl);
+    return { documentStorageRef: enc.storageRef, documentEncryptedKey: enc.contentKey };
+  }
+  if (!(existing.documentStorageRef && existing.documentEncryptedKey)) return {};
+  const plain = await decryptBytesFromStore(existing.documentStorageRef, existing.documentEncryptedKey);
+  if (!plain) return {};
+  const ext = extForContentType(existing.documentContentType) || extFromName(existing.documentName) || '.bin';
+  const key = `blog/${siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+  const { url } = await putBlob({
+    key,
+    data: plain,
+    contentType: existing.documentContentType || 'application/octet-stream',
+    cacheControl: 'public, max-age=31536000, immutable',
+  });
+  await deleteBlob({ storageRef: existing.documentStorageRef }).catch(() => {});
+  return { documentUrl: url };
+}
+
 function sniffImageMime(buf) {
   if (!buf || buf.length < 12) return 'application/octet-stream';
   if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
@@ -176,13 +232,19 @@ async function create(data, siteId, authorId) {
     siteId, title, slug,
     excerpt,
     tags: cleanTags(data.tags),
-    type: ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article',
+    type: ['article', 'photo', 'music', 'video', 'document'].includes(data.type) ? data.type : 'article',
     coverUrl,
     videoUrl: String(data.videoUrl || '').trim() || null,
     audioUrl: isPaid ? null : String(data.audioUrl || '').trim() || null,
     audioStorageRef: isPaid ? String(data.audioStorageRef || '').trim() || null : null,
     audioEncryptedKey: isPaid ? String(data.audioEncryptedKey || '').trim() || null : null,
     audioContentType: isPaid ? String(data.audioContentType || '').trim() || null : null,
+    documentUrl: isPaid ? null : String(data.documentUrl || '').trim() || null,
+    documentName: String(data.documentName || '').trim() || null,
+    documentSize: data.documentSize ? Number(data.documentSize) || null : null,
+    documentStorageRef: isPaid ? String(data.documentStorageRef || '').trim() || null : null,
+    documentEncryptedKey: isPaid ? String(data.documentEncryptedKey || '').trim() || null : null,
+    documentContentType: String(data.documentContentType || '').trim() || null,
     media: mediaItems.length ? JSON.stringify(mediaItems) : null,
     price: isPaid ? String(data.price).trim() : null,
     recipientWallet: String(data.recipientWallet || '').trim() || null,
@@ -256,7 +318,7 @@ async function update(siteId, id, data) {
     }
     updateData.media = mediaItems.length ? JSON.stringify(mediaItems) : null;
   }
-  if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video'].includes(data.type) ? data.type : 'article';
+  if (data.type !== undefined) updateData.type = ['article', 'photo', 'music', 'video', 'document'].includes(data.type) ? data.type : 'article';
   if (data.price !== undefined) updateData.price = willBePaid ? String(data.price).trim() : null;
   if (data.recipientWallet !== undefined) updateData.recipientWallet = String(data.recipientWallet).trim() || null;
   if (data.featured !== undefined) updateData.featured = data.featured;
@@ -265,12 +327,34 @@ async function update(siteId, id, data) {
     if (data.audioEncryptedKey !== undefined) updateData.audioEncryptedKey = String(data.audioEncryptedKey).trim() || null;
     if (data.audioContentType !== undefined) updateData.audioContentType = String(data.audioContentType).trim() || null;
     updateData.audioUrl = null;
+    if (data.documentStorageRef !== undefined) {
+      updateData.documentStorageRef = String(data.documentStorageRef).trim() || null;
+    } else {
+      const converted = await convertDocumentInPlace(existing, true, siteId);
+      if (converted.documentStorageRef) updateData.documentStorageRef = converted.documentStorageRef;
+      if (converted.documentEncryptedKey) updateData.documentEncryptedKey = converted.documentEncryptedKey;
+    }
+    if (data.documentEncryptedKey !== undefined) updateData.documentEncryptedKey = String(data.documentEncryptedKey).trim() || null;
+    if (data.documentContentType !== undefined) updateData.documentContentType = String(data.documentContentType).trim() || null;
+    else if (!updateData.documentContentType) updateData.documentContentType = existing.documentContentType;
+    updateData.documentUrl = null;
   } else {
     updateData.audioUrl = data.audioUrl !== undefined ? String(data.audioUrl).trim() || null : existing.audioUrl;
     updateData.audioStorageRef = null;
     updateData.audioEncryptedKey = null;
     updateData.audioContentType = null;
+    updateData.documentStorageRef = null;
+    updateData.documentEncryptedKey = null;
+    if (data.documentUrl !== undefined) {
+      updateData.documentUrl = String(data.documentUrl).trim() || null;
+    } else {
+      const converted = await convertDocumentInPlace(existing, false, siteId);
+      updateData.documentUrl = converted.documentUrl || existing.documentUrl;
+    }
+    updateData.documentContentType = data.documentContentType !== undefined ? String(data.documentContentType).trim() || null : existing.documentContentType;
   }
+  if (data.documentName !== undefined) updateData.documentName = String(data.documentName).trim() || null;
+  if (data.documentSize !== undefined) updateData.documentSize = data.documentSize ? Number(data.documentSize) || null : null;
   if (data.status !== undefined) {
     updateData.status = data.status === 'draft' ? 'draft' : 'published';
     if (updateData.status === 'published' && !existing.publishedAt) updateData.publishedAt = new Date();
@@ -291,6 +375,7 @@ async function remove(siteId, id) {
   if (ENCRYPT_ENABLED) {
     if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
     if (existing.audioStorageRef) await deleteBlob({ storageRef: existing.audioStorageRef }).catch(() => {});
+    if (existing.documentStorageRef) await deleteBlob({ storageRef: existing.documentStorageRef }).catch(() => {});
     for (const item of parseMedia(existing.media)) {
       if (item && item.storageRef) await deleteBlob({ storageRef: item.storageRef }).catch(() => {});
     }
@@ -299,7 +384,7 @@ async function remove(siteId, id) {
 }
 
 async function listByTypes(siteId) {
-  const types = ['article', 'photo', 'music', 'video'];
+  const types = ['article', 'photo', 'music', 'video', 'document'];
   const result = {};
   for (const type of types) {
     const posts = await prisma.blogPost.findMany({

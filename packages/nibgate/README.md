@@ -469,7 +469,7 @@ Then save those values beside the content row:
 ```txt
 Nibgate settings
 - Publish to Nibgate discovery
-- Content type: article / music / image / video
+- Content type: article / music / image / video / document
 - Human access: free / paid / blocked
 - Agent access: free / paid / blocked
 - Unlock mode: one_time for the MVP
@@ -732,7 +732,7 @@ The repo includes a plain Express creator site that uses the package without any
 npm run dev:demo
 ```
 
-The demo imports `@nibgate/sdk/server`, serves the browser client locally, registers article/music/image/video content, and protects `/articles/premium-agent-economy`.
+The demo imports `@nibgate/sdk/server`, serves the browser client locally, registers article/music/image/video/document content, and protects `/articles/premium-agent-economy`.
 
 It also includes local routes for database/custom CMS, MDX/frontmatter, headless CMS, static teaser/protected API, media/file, and agent/API publishing styles under `/examples`.
 

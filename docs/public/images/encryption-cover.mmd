@@ -1,0 +1,10 @@
+flowchart TD
+    A["Editor stars an image<br/>coverKey = item.storageRef"] --> B{post is paid?}
+    B -- yes --> C["extractCoverFromMedia(media, coverKey, siteId)"]
+    C --> D["find item where storageRef === coverKey"]
+    D --> E["getBlob + unpackCipherBlob + decryptBytes"]
+    E --> F["sniff mime from magic bytes<br/>(JPEG/PNG/GIF/WebP)"]
+    F --> G["re-upload plaintext as<br/>blog/{siteId}/{ts}-{rand}.{ext}"]
+    G --> H["coverUrl = public URL<br/>cover item spliced out of gallery"]
+    H --> I["post row: coverUrl + remaining encrypted media"]
+    B -- no (free post) --> J["drop starred item from gallery<br/>no server extraction"]

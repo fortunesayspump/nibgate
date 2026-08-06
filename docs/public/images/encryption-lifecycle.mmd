@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    participant E as Editor (admin UI)
+    participant B as Subblog backend
+    participant V as Viewer (browser/agent)
+
+    rect rgb(232, 242, 255)
+    Note over E,B: PHASE 1 · UPLOAD — encrypt before storage
+    E->>B: POST /api/upload?encrypted=1 (multipart)
+    B-->>E: 200 + storageRef + encryptedKey (base64)
+    Note over E,B: ciphertext .bin → R2 · keys only in DB
+    end
+
+    rect rgb(255, 244, 230)
+    Note over V,B: PHASE 2 · PUBLIC TEASER — cover only
+    V->>B: GET /writing/:slug
+    B-->>V: isLocked: true · body/media/key nulled<br/>cover + excerpt only
+    end
+
+    rect rgb(232, 255, 235)
+    Note over V,B: PHASE 3 · PROOF-GATED READ — decrypt on proof
+    V->>B: GET /api/nibgate/media/:postId/photo?index=N
+    B-->>V: 402 + x402 payment challenge
+    V->>B: retry + x-nibgate-payment-proof header
+    Note over V,B: fetch .bin from R2 → decrypt server-side
+    B-->>V: 200 plaintext · Cache-Control: private
+    end

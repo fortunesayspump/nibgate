@@ -91,7 +91,9 @@ The protected content stays on the creator site. Nibgate stores public metadata 
 
 ### Package reports content metadata
 
-The package/widget sends metadata to Nibgate: content id, type, title, route, price, tags, image, verified site, and creator wallet.
+The package reports content metadata to Nibgate: content id, type, title, route, price, tags, image, verified site, and creator wallet.
+
+The widget on the creator site streams activity to `/api/hub/evt`: page views, resource views, time spent, scroll depth, and unlock/payment events. Each resource event carries the resource id, title, type, price, path, and image URL.
 
 This lets the content appear in dashboard contents, Explore, search, categories, and leaderboards.
 

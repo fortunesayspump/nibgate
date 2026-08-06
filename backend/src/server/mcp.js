@@ -211,7 +211,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Search term across title, description, tags, site name, and domain.' },
-        type: { type: 'string', enum: ['article', 'music', 'video', 'image', 'all'], description: 'Content type filter.' },
+        type: { type: 'string', enum: ['article', 'music', 'video', 'image', 'document', 'all'], description: 'Content type filter.' },
         sort: { type: 'string', enum: ['trending', 'best-sellers', 'hot-new'], description: 'Sort order. Defaults to trending.' },
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default 20).' },
         skip: { type: 'integer', minimum: 0, description: 'Pagination offset.' },

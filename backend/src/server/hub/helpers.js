@@ -244,7 +244,7 @@ export function dateRangeWhere(req) {
 
 // ── Content and publisher helpers ─────────────────────────────────────────
 
-const ALLOWED_CONTENT_TYPES = new Set(['music', 'video', 'article', 'image']);
+const ALLOWED_CONTENT_TYPES = new Set(['music', 'video', 'article', 'image', 'document']);
 
 export function normalizeContentType(value = '') {
   const type = String(value || '').trim().toLowerCase();

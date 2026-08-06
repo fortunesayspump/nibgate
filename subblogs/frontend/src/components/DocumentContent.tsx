@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import NibgateUnlock from "@/components/NibgateUnlock";
-import DocxViewer from "@/components/DocxViewer";
 import SheetViewer from "@/components/SheetViewer";
 import TextViewer from "@/components/TextViewer";
-import { DOCX_KINDS, KIND_LABELS, SHEET_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromName } from "@/lib/documentKind";
+import { KIND_LABELS, SHEET_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromName } from "@/lib/documentKind";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const API_ORIGIN = API.replace(/\/+$/, "").replace(/\/api$/, "");
@@ -100,10 +99,9 @@ export default function DocumentContent({ postId, title, name, size, contentType
   const kind = preview?.kind || kindFromName(name) || null;
   const isPdf = contentType === "application/pdf" || kind === "pdf";
   const hasRender = !!preview?.html;
-  const isDocx = kind !== null && DOCX_KINDS.has(kind);
   const isSheet = kind !== null && SHEET_VIEWER_KINDS.has(kind);
   const isText = kind !== null && TEXT_VIEWER_KINDS.has(kind);
-  const showApp = (isDocx || isSheet || isText) && !appFailed;
+  const showApp = (isSheet || isText) && !appFailed;
   const showHtml = hasRender && !showApp;
   const showPdfFrame = isPdf && !showApp && !hasRender;
   const showUnavailable = !showApp && !hasRender && !showPdfFrame && kind !== null && (kind.startsWith("legacy") || kind === "pptx");
@@ -143,9 +141,7 @@ export default function DocumentContent({ postId, title, name, size, contentType
 
       {showApp && (
         <div className={`doc-viewer ${isSheet ? "doc-viewer--sheet" : "doc-viewer--app"}`}>
-          {isDocx ? (
-            <DocxViewer src={mediaSrc} onError={() => setAppFailed(true)} />
-          ) : isSheet ? (
+          {isSheet ? (
             <SheetViewer src={mediaSrc} onError={() => setAppFailed(true)} />
           ) : (
             <TextViewer src={mediaSrc} kind={kind || "text"} onError={() => setAppFailed(true)} />

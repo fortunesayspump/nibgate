@@ -64,6 +64,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
     const origin = await siteOrigin();
     const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
     const path = `/${type}/${slug}`;
+    const resourcePath = `/${typePath[post.type] || "posts"}/${post.slug}`;
     return {
       title: post.title,
       description: post.excerpt || '',
@@ -82,6 +83,14 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
         title: post.title,
         description: post.excerpt || '',
         images: post.coverUrl ? [post.coverUrl] : [],
+      },
+      other: {
+        'nibgate:resource-id': post.id,
+        'nibgate:title': post.title,
+        'nibgate:type': post.type,
+        'nibgate:price': post.price || '',
+        'nibgate:path': resourcePath,
+        'nibgate:image': post.coverUrl || '',
       },
     };
   } catch { return {}; }
@@ -115,7 +124,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
     <>
       <Header />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(post, origin)) }} />
-      <article>
+      <article data-nibgate-resource data-nibgate-id={post.id} data-nibgate-title={post.title} data-nibgate-type={post.type} data-nibgate-price={post.price || ""} data-nibgate-path={`/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}`} data-nibgate-image={post.coverUrl || ""}>
         <div className="wrap" style={{ maxWidth: "var(--wrap-post)", margin: "0 auto" }}>
           <div className="small muted font-ui" style={{ marginBottom: "0.5em" }}>
             {TYPE_ICONS[post.type] || "✎"} {post.type.charAt(0).toUpperCase() + post.type.slice(1)}

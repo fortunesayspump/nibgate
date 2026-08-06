@@ -16,7 +16,7 @@ Every content system needs to map its own record into a Nibgate resource:
 type NibgateResource = {
   id: string
   title: string
-  type: 'article' | 'music' | 'image' | 'video'
+  type: 'article' | 'music' | 'image' | 'video' | 'document'
   price: string
   path: string
   imageUrl?: string
@@ -133,7 +133,7 @@ type Post = {
   coverImage?: string
   tags: string[]
   nibgateEnabled: boolean
-  nibgateType: 'article' | 'music' | 'image' | 'video'
+  nibgateType: 'article' | 'music' | 'image' | 'video' | 'document'
   nibgatePrice: string
   humanAccess: 'free' | 'paid' | 'blocked'
   agentAccess: 'free' | 'paid' | 'blocked'

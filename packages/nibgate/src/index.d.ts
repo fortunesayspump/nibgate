@@ -1,4 +1,4 @@
-export type NibgateContentType = 'music' | 'video' | 'article' | 'image';
+export type NibgateContentType = 'music' | 'video' | 'article' | 'image' | 'document';
 export type NibgateAccessMode = 'free' | 'paid' | 'blocked';
 export type NibgateUnlockMode = 'one_time' | 'metered_stream' | 'metered_read' | 'time_pass' | 'agent_quota';
 export type NibgatePaymentRail = 'gateway' | 'transfer';
@@ -403,7 +403,7 @@ export declare function settingsToUnlockPolicy(settings?: Partial<NibgateContent
 
 export declare const PAYMENT_RAILS: readonly ['gateway', 'transfer'];
 export declare function normalizePaymentRail(value?: string, fallback?: NibgatePaymentRail): NibgatePaymentRail;
-export declare const CONTENT_TYPES: readonly ['music', 'video', 'article', 'image'];
+export declare const CONTENT_TYPES: readonly ['music', 'video', 'article', 'image', 'document'];
 export declare const ACCESS_MODES: readonly ['free', 'paid', 'blocked'];
 export declare const UNLOCK_MODES: readonly ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
 export declare function normalizeContentType(type?: string): NibgateContentType;

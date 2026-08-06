@@ -1,5 +1,5 @@
 import { normalizePaymentRail } from './payment.js';
-export const CONTENT_TYPES = ['music', 'video', 'article', 'image'];
+export const CONTENT_TYPES = ['music', 'video', 'article', 'image', 'document'];
 export const TYPE_ALIASES = {
   audio: 'music',
   song: 'music',
@@ -11,7 +11,14 @@ export const TYPE_ALIASES = {
   illustration: 'image',
   art: 'image',
   movie: 'video',
-  clip: 'video'
+  clip: 'video',
+  doc: 'document',
+  docs: 'document',
+  file: 'document',
+  pdf: 'document',
+  sheet: 'document',
+  spreadsheet: 'document',
+  worksheet: 'document'
 };
 export const ACCESS_MODES = ['free', 'paid', 'blocked'];
 export const UNLOCK_MODES = ['one_time', 'metered_stream', 'metered_read', 'time_pass', 'agent_quota'];
@@ -84,6 +91,7 @@ function autoDeriveType() {
   if (ogType.includes('music') || ogType.includes('audio') || ogType.includes('song')) return 'music';
   if (ogType.includes('video') || ogType.includes('movie')) return 'video';
   if (ogType.includes('image') || ogType.includes('photo')) return 'image';
+  if (ogType.includes('document') || ogType.includes('pdf') || ogType.includes('paper')) return 'document';
   return 'article';
 }
 
@@ -172,7 +180,7 @@ export function validateResourceMetadata(resource = {}, options = {}) {
     if (!hasValue(normalized[field])) warnings.push(`Missing recommended discovery metadata: ${field}`);
   }
 
-  if (!CONTENT_TYPES.includes(normalized.type)) errors.push('Content type must be one of music, video, article, or image.');
+  if (!CONTENT_TYPES.includes(normalized.type)) errors.push('Content type must be one of music, video, article, image, or document.');
 
   if (normalized.url && !/^https?:\/\//i.test(String(normalized.url))) {
     warnings.push('Use an absolute canonical url for stronger discovery identity.');

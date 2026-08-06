@@ -11,7 +11,7 @@ const contentSchema = {
     title: { type: "string" },
     description: { type: "string" },
     imageUrl: { type: "string" },
-    contentType: { type: "string", enum: ["article", "music", "video", "image"] },
+    contentType: { type: "string", enum: ["article", "music", "video", "image", "document"] },
     tags: { type: "string" },
     tagList: { type: "array", items: { type: "string" } },
     url: { type: "string" },
@@ -114,7 +114,7 @@ export const openApiSpec = {
           "Returns verified content metadata (title, type, price, domain, reputation) filtered and sorted for discovery. This is the primary agent-facing discovery surface.",
         parameters: [
           { name: "q", in: "query", schema: { type: "string" }, description: "Free-text search across title, description, tags, site name, and domain." },
-          { name: "type", in: "query", schema: { type: "string", enum: ["article", "music", "video", "image", "all"] }, description: "Content type filter." },
+          { name: "type", in: "query", schema: { type: "string", enum: ["article", "music", "video", "image", "document", "all"] }, description: "Content type filter." },
           { name: "sort", in: "query", schema: { type: "string", enum: ["trending", "best-sellers", "hot-new"] }, description: "Sort order. Defaults to trending." },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 500, default: 100 }, description: "Max results." },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 }, description: "Pagination offset." },

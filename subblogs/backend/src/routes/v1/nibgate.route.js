@@ -5,6 +5,7 @@ const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
 const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
 const { registerR2Provider } = require('../../lib/storage');
+const { renderDocument } = require('../../services/document-render');
 const { authenticate, authorize } = require('../../middlewares/auth');
 const logger = require('../../config/logger');
 const router = express.Router();
@@ -35,13 +36,17 @@ async function decryptContentFor(post) {
 }
 
 function mediaMetaFor(post) {
-  if (!post) return { hasAudio: false, audioContentType: null, photos: 0, hasVideo: false };
+  if (!post) return { hasAudio: false, audioContentType: null, photos: 0, hasVideo: false, hasDocument: false, documentName: null, documentSize: null, documentContentType: null };
   const photos = parseMedia(post.media).filter((i) => i && i.storageRef).length;
   return {
     hasAudio: !!(post.audioStorageRef && post.audioEncryptedKey),
     audioContentType: post.audioContentType || 'audio/mpeg',
     photos,
     hasVideo: !!post.videoUrl,
+    hasDocument: !!(post.documentStorageRef && post.documentEncryptedKey) || !!post.documentUrl,
+    documentName: post.documentName || null,
+    documentSize: post.documentSize || null,
+    documentContentType: post.documentContentType || null,
   };
 }
 
@@ -64,7 +69,7 @@ router.get('/status', (req, res) => {
 
 router.get('/access', async (req, res, next) => {
   try {
-    const slug = req.query.path?.replace(/^\/(?:writing|photos|music|video|posts)\//, '') || '';
+    const slug = req.query.path?.replace(/^\/(?:writing|photos|music|video|docs|posts)\//, '') || '';
     const post = slug ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug } }) : null;
     if (!post && slug) {
       return res.status(404).json({ ok: false, error: 'Post not found' });
@@ -172,6 +177,7 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
     let storageRef = null;
     let contentKey = null;
     let contentType = null;
+    let filename = null;
 
     if (kind === 'audio') {
       storageRef = post.audioStorageRef;
@@ -185,11 +191,14 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
         contentKey = item.encryptedKey;
         contentType = item.contentType || 'image/webp';
       }
+    } else if (kind === 'document') {
+      storageRef = post.documentStorageRef;
+      contentKey = post.documentEncryptedKey;
+      contentType = post.documentContentType || null;
+      filename = post.documentName || `document-${post.id}.bin`;
     } else {
       return res.status(404).json({ error: 'Not found' });
     }
-
-    if (!storageRef || !contentKey) return res.status(404).json({ error: 'Not found' });
 
     if (isPaidValue(post.price)) {
       const resource = { id: post.id };
@@ -200,13 +209,74 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
       }
     }
 
+    if (!storageRef || !contentKey) {
+      if (kind !== 'document' || !post.documentUrl) return res.status(404).json({ error: 'Not found' });
+      const fileRes = await fetch(post.documentUrl);
+      if (!fileRes.ok) return res.status(404).json({ error: 'Not found' });
+      const fileBytes = Buffer.from(await fileRes.arrayBuffer());
+      const safeName = String(filename || '').replace(/["\r\n]/g, '').replace(/\\/g, '');
+      res.setHeader('Content-Type', post.documentContentType || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${safeName}"`);
+      return res.send(fileBytes);
+    }
+
     const blob = await getBlob({ storageRef });
     const { iv, tag, ciphertext } = unpackCipherBlob(blob);
     const plain = decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
 
-    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Type', contentType || 'application/octet-stream');
     res.setHeader('Cache-Control', 'private, max-age=300');
+    if (kind === 'document') {
+      const safeName = String(filename || '').replace(/["\r\n]/g, '').replace(/\\/g, '');
+      res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${safeName}"`);
+    }
     return res.send(plain);
+  } catch (error) {
+    next(error);
+  }
+});
+
+function documentMetaFor(post) {
+  return {
+    name: post.documentName || null,
+    size: post.documentSize || null,
+    contentType: post.documentContentType || null,
+  };
+}
+
+router.get('/media/:postId/document/preview', async (req, res, next) => {
+  try {
+    const post = await prisma.blogPost.findFirst({ where: { siteId: req.siteId, id: req.params.postId } });
+    if (!post || (!(post.documentStorageRef && post.documentEncryptedKey) && !post.documentUrl)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const isPaid = isPaidValue(post.price);
+    const { kind, html } = await renderDocument(post, { preview: isPaid });
+    res.setHeader('Cache-Control', 'private, max-age=120');
+    return res.json({ ok: true, kind, html: html || null, meta: documentMetaFor(post) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/media/:postId/document/render', async (req, res, next) => {
+  try {
+    const post = await prisma.blogPost.findFirst({ where: { siteId: req.siteId, id: req.params.postId } });
+    if (!post || (!(post.documentStorageRef && post.documentEncryptedKey) && !post.documentUrl)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    if (isPaidValue(post.price)) {
+      const resource = { id: post.id };
+      const mediaRequest = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, { headers: new Headers(req.headers) });
+      if (!nibgateServer.isUnlocked(mediaRequest, resource)) {
+        const challenge = nibgateServer.createPaymentChallenge(resource);
+        return res.status(402).json(challenge);
+      }
+    }
+    const { kind, html } = await renderDocument(post, { preview: false });
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.json({ ok: true, kind, html: html || null, meta: documentMetaFor(post) });
   } catch (error) {
     next(error);
   }
@@ -219,7 +289,7 @@ router.get('/manifest', async (req, res, next) => {
       orderBy: [{ publishedAt: 'desc' }],
     });
 
-    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
     const origin = subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`;
@@ -261,7 +331,7 @@ router.get('/nibgate.json', async (req, res, next) => {
       orderBy: [{ publishedAt: 'desc' }],
     });
 
-    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
     const origin = subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`;

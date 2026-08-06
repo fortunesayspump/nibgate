@@ -66,6 +66,12 @@ model BlogPost {
   audioStorageRef   String?
   audioEncryptedKey String?
   audioContentType  String?
+  documentUrl       String?
+  documentName      String?
+  documentSize      Int?
+  documentStorageRef   String?
+  documentEncryptedKey String?
+  documentContentType  String?
   contentKey   String?
   bodyStorageRef    String?
   media        String?

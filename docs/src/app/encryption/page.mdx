@@ -76,6 +76,7 @@ ciphertext blob (.bin, application/octet-stream)
 | Paid gallery image | `.bin` ciphertext blob, `blog/{siteId}/enc/media/…` | `media[].encryptedKey` (per file) | No |
 | Paid post body | `.bin` ciphertext blob, `blog/{siteId}/enc/body/…` | `contentKey` (per post) | No |
 | Paid audio | `.bin` ciphertext blob | `audioEncryptedKey` | No |
+| Paid document | `.bin` ciphertext blob, `blog/{siteId}/enc/doc/…` | `documentEncryptedKey` | No |
 | Cover image | plaintext WebP, `blog/{siteId}/…` | — | Yes |
 
 ## Encrypted media upload
@@ -123,10 +124,11 @@ At create/update time a paid body is encrypted through `encryptBytesToStore` (`b
 
 ## Read path: locked vs unlocked
 
-The public post route returns a teaser for locked posts — `isLocked: true` with `body`, `media`, `contentKey`, and `bodyStorageRef` all `null` (`subblogs/backend/src/controllers/blog.controller.js:30`). Full content only leaves through two proof-gated endpoints:
+The public post route returns a teaser for locked posts — `isLocked: true` with `body`, `media`, `contentKey`, and `bodyStorageRef` all `null` (`subblogs/backend/src/controllers/blog.controller.js:30`). Full content only leaves through three proof-gated endpoints:
 
-- `GET /api/nibgate/access?path=…` — runs the x402 pay flow; on success decrypts the body server-side and returns `{ content, media }` where `media` is metadata (`{ photos, hasAudio, audioContentType, hasVideo }`), not file URLs (`nibgate.route.js:37`).
+- `GET /api/nibgate/access?path=…` — runs the x402 pay flow; on success decrypts the body server-side and returns `{ content, media }` where `media` is metadata (`{ photos, hasAudio, audioContentType, hasVideo, hasDocument, documentName, documentSize, documentContentType }`), not file URLs (`nibgate.route.js:37`).
 - `GET /api/nibgate/media/:postId/photo?index=N` (or `/audio`) — streams one decrypted asset by gallery index (`nibgate.route.js:166`).
+- `GET /api/nibgate/media/:postId/document/preview` — renders a truncated HTML preview (12 rows for sheets, 1600 chars for text) without proof; `GET /api/nibgate/media/:postId/document/render` returns the full HTML behind proof (`nibgate.route.js:248`).
 
 The media route is where the encryption actually pays off:
 
@@ -154,7 +156,7 @@ flowchart TD
 The unlock proof is carried in the `x-nibgate-payment-proof` request header and verified by `isUnlocked` (`packages/nibgate/src/server/access.js:45`). The `private` cache directive keeps plaintext out of shared/proxy caches; there is no public object URL for it.
 
 <Callout type="info">
-The same `GET /api/nibgate/media/:postId/audio` route decrypts paid audio files; the `/access` response marks them via `media.hasAudio`.
+The same `GET /api/nibgate/media/:postId/audio` route decrypts paid audio files; the `/access` response marks them via `media.hasAudio`. Paid documents follow the same pattern through `GET /api/nibgate/media/:postId/document/render`, with `media.hasDocument` in the `/access` response.
 </Callout>
 
 ## What stays public

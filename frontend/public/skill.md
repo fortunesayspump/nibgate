@@ -86,7 +86,7 @@ The rest fills in automatically from your page's HTML:
 - `access` defaults to `paid` when `price > 0`, otherwise `free`
 - `recipient` is optional (server's 402 challenge provides the real wallet)
 
-Allowed types: `article`, `image`, `music`, `video` (aliases like `audio→music`, `photo→image` are normalized). Use stable IDs — changing IDs breaks continuity for Explore, receipts, and reputation.
+Allowed types: `article`, `image`, `music`, `video`, `document` (aliases like `audio→music`, `photo→image` are normalized). Use stable IDs — changing IDs breaks continuity for Explore, receipts, and reputation.
 
 **Important:** The `image`, `description`, and `title` fields become the public thumbnail and card copy on the Explore page. Use a teaser preview, not the actual paid file.
 

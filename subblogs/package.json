@@ -13,5 +13,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@nibgate/sdk": "^0.4.0"
   }
 }

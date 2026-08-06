@@ -19,6 +19,18 @@ const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 const IMAGE_MIMES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
 const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg']);
 const AUDIO_MIMES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
+const DOCUMENT_EXTS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.ods', '.docx', '.doc', '.txt', '.md']);
+const DOCUMENT_MIMES = {
+  '.pdf': 'application/pdf',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.csv': 'text/csv',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.doc': 'application/msword',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+};
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 const storage = useR2 ? multer.memoryStorage() : multer.diskStorage({
@@ -34,11 +46,15 @@ const storage = useR2 ? multer.memoryStorage() : multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = [...IMAGE_EXTS, ...AUDIO_EXTS, '.pdf'];
+    const allowed = [...IMAGE_EXTS, ...AUDIO_EXTS, ...DOCUMENT_EXTS];
     if (!allowed.includes(ext)) return cb(new Error(`File type ${ext} not allowed.`));
+
+    if (DOCUMENT_EXTS.has(ext)) {
+      return cb(null, true);
+    }
 
     const expectedMime = IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || 'application/pdf';
     if (file.mimetype !== expectedMime) {
@@ -81,13 +97,13 @@ router.post('/', authenticate, async (req, res, next) => {
       }
 
       const url = `/uploads/${filename}`;
-      return res.json({ success: true, url, filename });
+      return res.json({ success: true, url, filename, name: req.file.originalname, size: req.file.size, contentType: IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || DOCUMENT_MIMES[ext] || req.file.mimetype });
     }
 
     try {
       const ext = path.extname(req.file.originalname).toLowerCase();
       let body = req.file.buffer;
-      let contentType = req.file.mimetype;
+      let contentType = DOCUMENT_MIMES[ext] || IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || req.file.mimetype;
       let finalExt = ext;
 
       if (IMAGE_EXTS.has(ext)) {
@@ -110,6 +126,8 @@ router.post('/', authenticate, async (req, res, next) => {
           storageRef,
           encryptedKey: contentKey.toString('base64'),
           contentType,
+          name: req.file.originalname,
+          size: req.file.size,
           encrypted: true,
         });
       }
@@ -121,7 +139,7 @@ router.post('/', authenticate, async (req, res, next) => {
         cacheControl: 'public, max-age=31536000, immutable',
       });
 
-      res.json({ success: true, url, filename: key });
+      res.json({ success: true, url, filename: key, name: req.file.originalname, size: req.file.size, contentType });
     } catch (uploadErr) {
       next(uploadErr);
     }

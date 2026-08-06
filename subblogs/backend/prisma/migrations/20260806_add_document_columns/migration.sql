@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "BlogPost" ADD COLUMN IF NOT EXISTS "documentUrl" TEXT,
+ADD COLUMN IF NOT EXISTS "documentName" TEXT,
+ADD COLUMN IF NOT EXISTS "documentSize" INTEGER,
+ADD COLUMN IF NOT EXISTS "documentStorageRef" TEXT,
+ADD COLUMN IF NOT EXISTS "documentEncryptedKey" TEXT,
+ADD COLUMN IF NOT EXISTS "documentContentType" TEXT;

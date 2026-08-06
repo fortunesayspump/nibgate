@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import DocxViewer from "@/components/DocxViewer";
 import SheetViewer from "@/components/SheetViewer";
 import TextViewer from "@/components/TextViewer";
 import { UNIVERSAL_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromMeta } from "@/lib/documentKind";
@@ -162,11 +161,10 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
 
   if (unlocked) {
     const kind = kindFromMeta(documentName, documentContentType);
-    const isDocx = kind === "docx" && !!documentUrl && !viewFailed;
     const isSheet = (kind !== null && SHEET_VIEWER_KINDS.has(kind)) && !!documentUrl && !viewFailed;
     const isText = (kind !== null && TEXT_VIEWER_KINDS.has(kind)) && !!documentUrl && !viewFailed;
-    const showPdfFrame = kind === "pdf" && !!documentUrl && !isDocx && !isSheet && !isText && !docHtml;
-    const showHtml = !!docHtml && !isDocx && !isSheet && !isText;
+    const showPdfFrame = kind === "pdf" && !!documentUrl && !isSheet && !isText && !docHtml;
+    const showHtml = !!docHtml && !isSheet && !isText;
     return (
       <>
         {audioUrl && (
@@ -183,11 +181,9 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
             ))}
           </div>
         )}
-        {(isDocx || isSheet || isText) && (
+        {(isSheet || isText) && (
           <div className={`doc-viewer ${isSheet ? "doc-viewer--sheet" : "doc-viewer--app"}`} style={{ marginBottom: "1.5rem" }}>
-            {isDocx ? (
-              <DocxViewer src={documentUrl!} onError={onViewerFailed} />
-            ) : isSheet ? (
+            {isSheet ? (
               <SheetViewer src={documentUrl!} onError={onViewerFailed} />
             ) : (
               <TextViewer src={documentUrl!} kind={kind || "text"} onError={onViewerFailed} />

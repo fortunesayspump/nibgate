@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    participant H as Hub
+    participant A as Agent
+    participant S as Creator site
+    participant C as Gateway
+
+    rect rgb(232, 242, 255)
+    Note over A,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
+    A->>H: GET /.well-known/llms.txt
+    H-->>A: Curated index + endpoint map
+    A->>H: GET /api/hub/explore/content
+    H-->>A: Content cards
+    A->>S: GET /nibgate.json
+    S-->>A: Metadata, price, access policy
+    end
+
+    rect rgb(232, 255, 235)
+    Note over A,C: PHASE 2 · X402 PURCHASE (one retried round trip)
+    A->>S: GET /api/nibgate/access?path=...
+    S-->>A: 402 + PAYMENT-REQUIRED (base64 x402)
+    Note over A: Sign EIP-3009 authorization<br/>(gasless, off-chain)
+    A->>S: Retry + PAYMENT-SIGNATURE header
+    S->>C: Verify + settle authorization
+    C-->>S: Settlement receipt (txHash)
+    S-->>A: 200 + content + unlockProof + payment
+    end
+
+    rect rgb(255, 244, 230)
+    Note over A,H: PHASE 3 · ON-CHAIN RATING (post-purchase)
+    A->>H: POST /api/hub/reputation/ratings/prepare
+    H-->>A: Signable message + contentHash
+    Note over A: Sign rateContent calldata
+    A->>H: POST /api/hub/reputation/ratings/index
+    H-->>A: Rating indexed, reputation updated
+    end

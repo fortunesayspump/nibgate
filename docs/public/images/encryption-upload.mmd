@@ -1,0 +1,11 @@
+flowchart TD
+    E["Editor (admin UI)<br/>POST /api/upload?encrypted=1 (multipart)"]
+    O["optimize: auto-rotate, resize ≤2560px, WebP q90"]
+    K["generateContentKey() → 32-byte random AES-256 key"]
+    C["AES-256-GCM encryptBytes<br/>packCipherBlob → iv ‖ tag ‖ ciphertext"]
+    U["putBlob .bin → R2<br/>key: blog/{siteId}/enc/media/{ts}-{rand}.bin"]
+    D["post row keeps per item:<br/>storageRef + encryptedKey (base64) + contentType + caption"]
+
+    E --> O --> K --> C --> U
+    U -->|"returns storageRef + encryptedKey"| E
+    E --> D

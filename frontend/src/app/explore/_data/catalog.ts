@@ -1,7 +1,7 @@
 export const categories = [
   ["All"],
   ["Writing", "Articles", "Essays", "Newsletters"],
-  ["Media", "Images", "Music", "Video"],
+  ["Media", "Images", "Music", "Video", "Documents"],
   ["Software", "APIs", "Code", "Tools"],
   ["Education", "Courses", "Guides", "Workbooks"],
   ["Business", "Research", "Templates", "Reports"],
@@ -9,7 +9,7 @@ export const categories = [
 
 export const sortTabs = ["Trending", "Best Sellers", "Hot & New"];
 
-export const contentTypes = ["All", "Article", "Music", "Image", "Video"];
+export const contentTypes = ["All", "Article", "Music", "Image", "Video", "Document"];
 
 export type ExploreProduct = {
   id?: string;

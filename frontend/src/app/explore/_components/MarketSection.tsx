@@ -27,8 +27,9 @@ function categoryMatches(product: ExploreProduct, category: string) {
   const clean = category.toLowerCase();
   const haystack = [product.type, product.title, product.summary || "", ...(product.tags || [])].join(" ").toLowerCase();
   if (clean === "writing" || clean === "articles") return product.type === "Article";
-  if (clean === "media") return ["Music", "Image", "Video"].includes(product.type);
+  if (clean === "media") return ["Music", "Image", "Video", "Document"].includes(product.type);
   if (clean === "images") return product.type === "Image";
+  if (clean === "documents" || clean === "docs") return product.type === "Document";
   return haystack.includes(clean);
 }
 

@@ -1,0 +1,18 @@
+flowchart TD
+    V["Viewer (browser/agent)"]
+    B["Subblog backend"]
+    R["R2 object storage"]
+    M{"media[index] has<br/>storageRef + encryptedKey?"}
+    N["404 Not found"]
+    U{"valid unlock proof in<br/>x-nibgate-payment-proof header?"}
+    CH["402 + payment challenge"]
+    G["getBlob(storageRef)<br/>unpackCipherBlob + decryptBytes(base64 key)"]
+
+    V -->|"GET /api/nibgate/media/:postId/photo?index=N"| B
+    B -->|"resolve media[index] → storageRef + encryptedKey"| M
+    M -- no --> N
+    M -- yes, paid post --> U
+    U -- no proof --> CH
+    U -- yes --> G
+    G -->|"getBlob(storageRef)"| R
+    G -->|"200 plaintext · Cache-Control: private, max-age=300"| V

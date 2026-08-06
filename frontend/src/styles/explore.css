@@ -874,6 +874,10 @@ html[data-theme="light"] .explore-art {
   background: rgba(124,154,109,0.86);
 }
 
+.doc-icon {
+  background: rgba(143,199,168,0.86);
+}
+
 .market-badges {
   display: flex;
   gap: 8px;
@@ -1005,6 +1009,11 @@ html[data-theme="light"] .explore-art {
 .content-card-image .content-type {
   color: var(--explore-fg);
   background: var(--explore-blue);
+}
+
+.content-card-document .content-type {
+  color: var(--explore-fg);
+  background: rgba(143,199,168,0.72);
 }
 
 .market-load-more {

@@ -54,7 +54,7 @@ export async function connectSite(req, body) {
       connect: `${hubUrl}/api/hub/sites/connect`,
       verify: `${hubUrl}/api/hub/sites/verify`,
       sync: `${hubUrl}/api/hub/sites/sync`,
-      events: `${hubUrl}/api/hub/events`
+      events: `${hubUrl}/api/hub/evt`
     }
   }, existing ? 200 : 201);
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, FileText, Filter, RefreshCw, Search, X } from "lucide-react";
 
-const CONTENT_TYPES = ["music", "video", "article", "image"] as const;
+const CONTENT_TYPES = ["music", "video", "article", "image", "document"] as const;
 
 type DashboardContent = {
   id: string;

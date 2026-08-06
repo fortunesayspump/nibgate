@@ -18,8 +18,6 @@ export const SHEET_KINDS = new Set(["xlsx", "csv", "ods", "legacy_excel", "legac
 
 export const UNIVERSAL_KINDS = new Set(["pdf", "docx", "xlsx", "csv", "ods", "legacy_excel", "legacy-excel", "legacy_spreadsheet", "text", "markdown"]);
 
-export const DOCX_KINDS = new Set(["docx"]);
-
 export const SHEET_VIEWER_KINDS = new Set(["xlsx", "csv", "ods", "legacy_excel", "legacy-excel", "legacy_spreadsheet"]);
 
 export const TEXT_VIEWER_KINDS = new Set(["text", "markdown"]);

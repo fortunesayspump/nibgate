@@ -35,6 +35,7 @@ function displayType(type = "") {
   if (clean === "music") return "Music";
   if (clean === "video") return "Video";
   if (clean === "image") return "Image";
+  if (clean === "document") return "Document";
   return "Article";
 }
 

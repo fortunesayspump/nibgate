@@ -11,6 +11,7 @@ Content metadata tells Nibgate what paid resources exist without copying the pro
   <Cards.Card title="Image" href="/content-events#image" />
   <Cards.Card title="Music" href="/content-events#music" />
   <Cards.Card title="Video" href="/content-events#video" />
+  <Cards.Card title="Document" href="/content-events#document" />
 </Cards>
 
 ## Minimum payload
@@ -48,7 +49,7 @@ post.content()
 | Field | Purpose |
 | --- | --- |
 | `id` | Stable id from the creator app. |
-| `type` | One of `article`, `image`, `music`, `video`. |
+| `type` | One of `article`, `image`, `music`, `video`, `document`. |
 | `title` | Public content title. |
 | `url` | Public route where the resource can be unlocked. |
 | `price` | Display and analytics price. |
@@ -80,6 +81,29 @@ unlock: {
 ```
 
 The field exists so future versions can add metered streaming, metered reading, time passes, and agent quotas without changing how creators describe content.
+
+## Document
+
+Document resources represent PDF, spreadsheet, Word, and text files. The external id, title, URL, price, and tags are reported the same way as other types — the file itself stays on the creator site and is never copied into the hub.
+
+```ts
+const report = createGate({
+  id: "report_456",
+  type: "document",
+  title: "Q3 Revenue Report",
+  path: "/docs/report-456",
+  url: "https://creator.com/docs/report-456",
+  price: "0.01",
+  currency: "USDC",
+  tags: ["report", "finance"],
+  access: { humans: "paid", agents: "paid" },
+  unlock: { mode: "one_time" }
+})
+
+report.content()
+```
+
+Paid documents are encrypted at rest; a truncated preview (12 spreadsheet rows or 1,600 characters of text) is served as a teaser before unlock.
 
 ## Deterministic content id
 

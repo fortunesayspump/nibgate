@@ -209,7 +209,6 @@ export function WalletButton() {
         </button>
         {isWalletConnected && displayAddress ? (
           <div className="nibgate-wallet-dropdown" data-wallet-dropdown style={{ display: 'none' }}>
-            <Link href="/share" className="dropdown-item">Create Nibshare</Link>
             <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
             <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
           </div>
@@ -287,7 +286,6 @@ export function WalletButtonMobile() {
         </button>
         {isWalletConnected && displayAddress ? (
           <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: 'none' }}>
-            <Link href="/share" className="dropdown-item">Create Nibshare</Link>
             <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
             <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
           </div>

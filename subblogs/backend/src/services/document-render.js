@@ -7,6 +7,7 @@ const wordExtractor = new WordExtractor();
 const { DOMParser } = require('@xmldom/xmldom');
 const { Readable } = require('stream');
 const { getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
+const { storedToKey } = require('../lib/keywrap');
 
 const PREVIEW_ROWS = 12;
 const PREVIEW_COLS = 12;
@@ -40,9 +41,11 @@ function docKindFor(post) {
 
 async function documentBytesFor(post) {
   if (post.documentStorageRef && post.documentEncryptedKey) {
+    const key = storedToKey(post.documentEncryptedKey);
+    if (!key) return null;
     const blob = await getBlob({ storageRef: post.documentStorageRef });
     const { iv, tag, ciphertext } = unpackCipherBlob(blob);
-    return decryptBytes(Buffer.from(post.documentEncryptedKey, 'base64'), iv, tag, ciphertext);
+    return decryptBytes(key, iv, tag, ciphertext);
   }
   if (post.documentUrl) {
     const res = await fetch(post.documentUrl);

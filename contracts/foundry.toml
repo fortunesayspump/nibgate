@@ -1,0 +1,8 @@
+[profile.default]
+src = "."
+out = "out"
+cache_path = "cache"
+libs = []
+
+[rpc_endpoints]
+testnet = "https://rpc.testnet.arc.io"

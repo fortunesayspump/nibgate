@@ -11,6 +11,8 @@ router.get('/posts-by-types', blogController.listByTypes);
 router.get('/posts/:slug', blogController.getBySlug);
 
 router.get('/admin/posts', authenticate, authorize('admin', 'author'), blogController.adminList);
+router.get('/admin/posts/stats', authenticate, authorize('admin', 'author'), blogController.adminStats);
+router.get('/admin/activity', authenticate, authorize('admin', 'author'), blogController.adminActivity);
 router.get('/admin/posts/:id', authenticate, authorize('admin', 'author'), blogController.getById);
 router.post('/admin/posts', authenticate, authorize('admin', 'author'), validate(blogValidation.createPost), blogController.create);
 router.put('/admin/posts/:id', authenticate, authorize('admin', 'author'), validate(blogValidation.updatePost), blogController.update);

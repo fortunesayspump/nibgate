@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiAuthFetch } from "@/lib/api";
-import MarkdownEditor from "@/components/MarkdownEditor";
+import MarkdownEditor, { type EmbeddedMediaItem } from "@/components/MarkdownEditor";
 import ImageUploader from "@/components/ImageUploader";
 import AudioUploader from "@/components/AudioUploader";
 import DocumentUploader from "@/components/DocumentUploader";
+import VideoUploader from "@/components/VideoUploader";
 
 interface PostFormData {
   title: string;
@@ -16,6 +17,11 @@ interface PostFormData {
   tags: string;
   coverUrl: string;
   videoUrl: string;
+  videoStorageRef: string;
+  videoEncryptedKey: string;
+  videoContentType: string;
+  videoName: string;
+  videoSize: number | null;
   price: string;
   recipientWallet: string;
   status: "draft" | "published";
@@ -37,6 +43,7 @@ interface PostFormData {
 const defaults: PostFormData = {
   title: "", slug: "", bodyMarkdown: "", excerpt: "",
   tags: "", coverUrl: "", videoUrl: "",
+  videoStorageRef: "", videoEncryptedKey: "", videoContentType: "", videoName: "", videoSize: null,
   price: "", recipientWallet: "", status: "draft", featured: false, type: "article",
   audioUrl: "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "",
   documentUrl: "", documentName: "", documentSize: null, documentStorageRef: "", documentEncryptedKey: "", documentContentType: "",
@@ -54,6 +61,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [coverKey, setCoverKey] = useState("");
+  const [embeddedMedia, setEmbeddedMedia] = useState<EmbeddedMediaItem[]>([]);
   const slugEdited = useRef(!!initialData?.slug);
   const loaded = useRef(false);
 
@@ -81,8 +89,14 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
       if (initialData.coverUrl && initialData.media) {
         try {
           const items = JSON.parse(initialData.media);
-          const match = items.find((m: { url?: string }) => m && m.url === initialData.coverUrl);
-          if (match) setCoverKey(match.url);
+          const match = items.find((m: { storageRef?: string; url?: string }) => m && (m.storageRef === initialData.coverUrl || m.url === initialData.coverUrl));
+          if (match) setCoverKey(match.storageRef || match.url);
+        } catch {}
+      }
+      if (initialData.type === "article" && initialData.media) {
+        try {
+          const items = JSON.parse(initialData.media);
+          if (Array.isArray(items)) setEmbeddedMedia(items.filter((m) => m && m.storageRef));
         } catch {}
       }
     }
@@ -117,10 +131,10 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     }
     if (form.type === "photo") {
       if (!form.media || form.media === "[]") return { ok: false, reason: "At least one photo is required" };
-      if (isPaid && !form.coverUrl && !coverKey) return { ok: false, reason: "Select a cover photo with the star" };
+      if (!form.coverUrl && !coverKey) return { ok: false, reason: "Select a cover photo with the star" };
     }
     if (form.type === "video") {
-      if (!form.videoUrl) return { ok: false, reason: "YouTube URL is required" };
+      if (!form.videoUrl && !form.videoStorageRef) return { ok: false, reason: "Add a YouTube URL or upload a video file" };
     }
     if (form.type === "music") {
       if (!form.audioUrl && !form.audioStorageRef) return { ok: false, reason: "Audio file is required" };
@@ -131,8 +145,6 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     return { ok: true };
   }
 
-  const isPaid = !!form.price && form.price !== "0";
-
   function handleCoverChange(coverUrl: string, key: string) {
     setForm((prev) => ({ ...prev, coverUrl }));
     setCoverKey(key);
@@ -141,7 +153,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   function buildPhotoPayload() {
     let items: Array<Record<string, unknown>> = [];
     try { items = JSON.parse(form.media || "[]"); } catch { items = []; }
-    if (!isPaid && coverKey && form.coverUrl) {
+    if (coverKey && form.coverUrl) {
       items = items.filter((m) => {
         const k = (m as { storageRef?: string; url?: string }).storageRef || (m as { url?: string }).url || "";
         return k !== coverKey;
@@ -186,12 +198,24 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     }
   }
 
+  function handleVideoUpload(result: { url?: string; storageRef?: string; encryptedKey?: string; contentType?: string; name?: string; size?: number }) {
+    if (result.storageRef) {
+      setForm((prev) => ({ ...prev, videoUrl: "", videoStorageRef: result.storageRef!, videoEncryptedKey: result.encryptedKey || "", videoContentType: result.contentType || "", videoName: result.name || prev.videoName, videoSize: result.size ?? prev.videoSize }));
+    } else {
+      setForm((prev) => ({ ...prev, videoUrl: result.url || "", videoStorageRef: "", videoEncryptedKey: "", videoContentType: "", videoName: result.name || prev.videoName, videoSize: result.size ?? prev.videoSize }));
+    }
+  }
+
   function createPost(status: "draft" | "published") {
     setError("");
     setSaving(true);
-    const payload = form.type === "photo"
-      ? { ...photoBody(), status }
-      : { ...form, status };
+    const videoCover = form.type === "video" && vid ? `https://img.youtube.com/vi/${vid}/hqdefault.jpg` : "";
+    const resolved = { ...form, coverUrl: form.coverUrl || videoCover };
+    const payload = resolved.type === "photo"
+      ? { ...photoBody(), coverUrl: resolved.coverUrl, status }
+      : resolved.type === "article"
+        ? { ...resolved, media: JSON.stringify(embeddedMedia), status }
+        : { ...resolved, status };
     apiAuthFetch("/blog/admin/posts", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -205,7 +229,13 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     if (!postId) return;
     setError("");
     setSaving(true);
-    const payload = form.type === "photo" ? photoBody() : form;
+    const videoCover = form.type === "video" && vid ? `https://img.youtube.com/vi/${vid}/hqdefault.jpg` : "";
+    const resolved = { ...form, coverUrl: form.coverUrl || videoCover };
+    const payload = resolved.type === "photo"
+      ? photoBody()
+      : resolved.type === "article"
+        ? { ...resolved, media: JSON.stringify(embeddedMedia) }
+        : resolved;
     apiAuthFetch(`/blog/admin/posts/${postId}`, {
       method: "PUT",
       body: JSON.stringify(payload),
@@ -233,7 +263,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     <div className="space-y-6">
       {error && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{error}</div>}
 
-      <Field label="Title">
+      <Field label="Title" required>
         <input
           type="text" value={form.title} onChange={(e) => handleTitleChange(e.target.value)} required
           className="input-field"
@@ -249,7 +279,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         />
       </Field>
 
-      <Field label="Type">
+      <Field label="Type" required>
         <select value={form.type} onChange={(e) => update("type", e.target.value)} className="input-field">
           <option value="article">Article</option>
           <option value="photo">Photo</option>
@@ -259,7 +289,13 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         </select>
       </Field>
 
-      {form.type === "article" && <MarkdownEditor value={form.bodyMarkdown} onChange={(v) => update("bodyMarkdown", v)} />}
+      {form.type === "article" && (
+        <MarkdownEditor
+          required value={form.bodyMarkdown} onChange={(v) => update("bodyMarkdown", v)}
+          embeddedMedia={embeddedMedia}
+          onEmbeddedMediaChange={setEmbeddedMedia}
+        />
+      )}
       {form.type === "article" && (
         <Field label="Excerpt">
           <textarea
@@ -280,16 +316,16 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
 
       {form.type === "photo" && (
         <>
-          <Field label="Photos">
+          <Field label="Photos" required>
             <ImageUploader
-              encrypted={isPaid}
+              encrypted
               allowCover
               coverKey={coverKey}
               onCoverChange={handleCoverChange}
               value={form.media ? JSON.parse(form.media) : []}
               onChange={(items) => setForm(p => ({ ...p, media: JSON.stringify(items) }))}
             />
-            {isPaid && !form.coverUrl && !coverKey && (
+            {!form.coverUrl && !coverKey && (
               <div style={{ fontSize: "12px", color: "#d97706" }}>
                 Select a cover photo with the star — it will be public and the rest stay encrypted.
               </div>
@@ -306,13 +342,30 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
 
       {form.type === "video" && (
         <>
-          <Field label="YouTube Video URL">
+          <Field label="Upload a video file">
+            <VideoUploader
+              encrypted
+              onUpload={handleVideoUpload}
+              existingName={form.videoName || (form.videoStorageRef ? "Encrypted file" : "")}
+            />
+          </Field>
+          <Field label="Or paste a YouTube URL">
             <input
               type="text" value={form.videoUrl} onChange={(e) => update("videoUrl", e.target.value)}
               className="input-field" placeholder="https://www.youtube.com/watch?v=..."
             />
           </Field>
-          {vid && (
+          <Field label="Cover Image">
+            <ImageUploader
+              maxFiles={1}
+              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+              onChange={(items) => update("coverUrl", items[0]?.url || "")}
+            />
+            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+              Optional — defaults to the YouTube thumbnail if a link is provided.
+            </div>
+          </Field>
+          {vid && !form.videoStorageRef && (
             <div style={{ borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "16/9", background: "var(--surface)" }}>
               <img
                 src={`https://img.youtube.com/vi/${vid}/maxresdefault.jpg`} alt="Video preview"
@@ -339,9 +392,9 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
               onChange={(items) => update("coverUrl", items[0]?.url || "")}
             />
           </Field>
-          <Field label="Audio File">
+          <Field label="Audio File" required>
             <AudioUploader
-              encrypted={isPaid}
+              encrypted
               onUpload={handleAudioUpload}
               existingUrl={form.audioUrl || (form.audioStorageRef ? "Encrypted file" : "")}
             />
@@ -364,9 +417,9 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
               onChange={(items) => update("coverUrl", items[0]?.url || "")}
             />
           </Field>
-          <Field label="Document File">
+          <Field label="Document File" required>
             <DocumentUploader
-              encrypted={isPaid}
+              encrypted
               onUpload={handleDocumentUpload}
               existingName={form.documentName || (form.documentStorageRef ? "Encrypted file" : "")}
             />
@@ -429,10 +482,10 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, required = false }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}</label>
+      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</label>
       {children}
     </div>
   );

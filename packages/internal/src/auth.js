@@ -121,6 +121,16 @@ export async function getUserBySession(sessionToken) {
   return session.user;
 }
 
+export async function requireAuth(req, res, next) {
+  const sessionToken = req.cookies?.auth_session;
+  const user = await getUserBySession(sessionToken);
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
+  }
+  req.user = user;
+  next();
+}
+
 export async function logoutSession(sessionToken) {
   if (!sessionToken) return;
   try {

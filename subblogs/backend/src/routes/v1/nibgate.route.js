@@ -4,6 +4,7 @@ const nibgateValidation = require('../../validations/nibgate.validation');
 const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
 const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
+const { storedToKey } = require('../../lib/keywrap');
 const { registerR2Provider } = require('../../lib/storage');
 const { renderDocument } = require('../../services/document-render');
 const { authenticate, authorize } = require('../../middlewares/auth');
@@ -29,9 +30,11 @@ function parseMedia(value) {
 async function decryptContentFor(post) {
   if (!post) return null;
   if (!post.bodyStorageRef || !post.contentKey) return post.bodyMarkdown || null;
+  const key = storedToKey(post.contentKey);
+  if (!key) return null;
   const blob = await getBlob({ storageRef: post.bodyStorageRef });
   const { iv, tag, ciphertext } = unpackCipherBlob(blob);
-  const decrypted = decryptBytes(Buffer.from(post.contentKey, 'base64'), iv, tag, ciphertext);
+  const decrypted = decryptBytes(key, iv, tag, ciphertext);
   return decrypted.toString('utf8');
 }
 
@@ -42,7 +45,10 @@ function mediaMetaFor(post) {
     hasAudio: !!(post.audioStorageRef && post.audioEncryptedKey),
     audioContentType: post.audioContentType || 'audio/mpeg',
     photos,
-    hasVideo: !!post.videoUrl,
+    hasVideo: !!(post.videoUrl || (post.videoStorageRef && post.videoEncryptedKey)),
+    videoName: post.videoName || null,
+    videoSize: post.videoSize || null,
+    videoContentType: post.videoContentType || null,
     hasDocument: !!(post.documentStorageRef && post.documentEncryptedKey) || !!post.documentUrl,
     documentName: post.documentName || null,
     documentSize: post.documentSize || null,
@@ -183,6 +189,11 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
       storageRef = post.audioStorageRef;
       contentKey = post.audioEncryptedKey;
       contentType = post.audioContentType || 'audio/mpeg';
+    } else if (kind === 'video') {
+      storageRef = post.videoStorageRef;
+      contentKey = post.videoEncryptedKey;
+      contentType = post.videoContentType || 'video/mp4';
+      filename = post.videoName || `video-${post.id}.mp4`;
     } else if (kind === 'photo') {
       const index = parseInt(req.query.index || '0', 10);
       const item = parseMedia(post.media)[index];
@@ -222,12 +233,14 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
     }
 
     const blob = await getBlob({ storageRef });
+    const key = storedToKey(contentKey);
+    if (!key) return res.status(404).json({ error: 'Not found' });
     const { iv, tag, ciphertext } = unpackCipherBlob(blob);
-    const plain = decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
+    const plain = decryptBytes(key, iv, tag, ciphertext);
 
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
     res.setHeader('Cache-Control', 'private, max-age=300');
-    if (kind === 'document') {
+    if (kind === 'document' || kind === 'video') {
       const safeName = String(filename || '').replace(/["\r\n]/g, '').replace(/\\/g, '');
       res.setHeader('Content-Disposition', `${req.query.download === '1' ? 'attachment' : 'inline'}; filename="${safeName}"`);
     }

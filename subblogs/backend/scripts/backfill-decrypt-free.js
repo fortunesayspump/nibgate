@@ -18,6 +18,7 @@ const {
 } = require('@nibgate/sdk/server');
 const config = require('../src/config/config');
 const { registerR2Provider } = require('../src/lib/storage');
+const { storedToKey } = require('../src/lib/keywrap');
 
 registerR2Provider();
 const prisma = new PrismaClient();
@@ -60,9 +61,11 @@ function parseMedia(value) {
 
 async function decryptBlobToPublic(storageRef, encryptedKey, siteId, contentType, name, kind) {
   if (!storageRef || !encryptedKey) return null;
+  const dek = storedToKey(encryptedKey);
+  if (!dek) return null;
   const blob = await getBlob({ storageRef });
   const { iv, tag, ciphertext } = unpackCipherBlob(blob);
-  const plain = decryptBytes(Buffer.from(encryptedKey, 'base64'), iv, tag, ciphertext);
+  const plain = decryptBytes(dek, iv, tag, ciphertext);
   const key = `blog/${siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${kind}${extFor(contentType, name)}`;
   if (dryRun) return { url: null, plain };
   const { url } = await putBlob({

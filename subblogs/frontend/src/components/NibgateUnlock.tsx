@@ -67,6 +67,14 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
       }
       setPhotoUrls(urls);
     }
+    if (meta.hasVideo) {
+      try {
+        const res = await fetch(`${API_BASE}/nibgate/media/${resource.id}/video?subdomain=${subdomain}`, {
+          headers: { "x-nibgate-payment-proof": proof },
+        });
+        if (res.ok) setVideoUrl(URL.createObjectURL(await res.blob()));
+      } catch {}
+    }
     if (meta.hasDocument) {
       const kind = kindFromMeta(meta.documentName, meta.documentContentType);
       const universal = kind !== null && UNIVERSAL_KINDS.has(kind);
@@ -95,7 +103,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     if (data?.content !== undefined && data?.content !== null) setContent(data.content);
     if (data?.videoUrl) setVideoUrl(data.videoUrl);
     if (data?.media) {
-      if (proof && (data.media.hasAudio || data.media.photos > 0 || data.media.hasDocument)) loadMedia(proof, data.media);
+      if (proof && (data.media.hasAudio || data.media.photos > 0 || data.media.hasVideo || data.media.hasDocument)) loadMedia(proof, data.media);
       if (data.media.documentName) setDocumentName(data.media.documentName);
       if (data.media.documentContentType) setDocumentContentType(data.media.documentContentType);
     }
@@ -165,6 +173,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     const isText = (kind !== null && TEXT_VIEWER_KINDS.has(kind)) && !!documentUrl && !viewFailed;
     const showPdfFrame = kind === "pdf" && !!documentUrl && !isSheet && !isText && !docHtml;
     const showHtml = !!docHtml && !isSheet && !isText;
+    const contentHtml = (content || "").replace(/!\[([^\]]*)\]\(nibgate-embed:\/\/(\d+)\)/g, (m, alt, idx) => photoUrls[parseInt(idx, 10)] ? `<img src="${photoUrls[parseInt(idx, 10)]}" alt="${alt}" style="max-width:100%;border-radius:6px" />` : m).replace(/\[([^\]]*)\]\(nibgate-embed:\/\/(\d+)\)/g, (m, label, idx) => photoUrls[parseInt(idx, 10)] ? `<a href="${photoUrls[parseInt(idx, 10)]}" target="_blank" rel="noopener noreferrer">${label}</a>` : m);
     return (
       <>
         {audioUrl && (
@@ -172,7 +181,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
             <audio controls src={audioUrl} style={{ width: "100%" }} />
           </div>
         )}
-        {photoUrls.length > 0 && (
+        {photoUrls.length > 0 && resource.type === "photo" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
             {photoUrls.map((url, i) => (
               <a key={i} href={url} target="_blank" rel="noopener noreferrer">
@@ -212,13 +221,21 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
             </a>
           </div>
         )}
-        {videoUrl && (
-          <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginBottom: "1.5rem" }}>
-            <iframe src={(() => { const e = detectEmbed(videoUrl); return e.type === "youtube" && e.embedUrl ? e.embedUrl : videoUrl; })()} title={resource.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }} />
-          </div>
-        )}
+        {videoUrl && (() => {
+          const embed = detectEmbed(videoUrl);
+          if (embed.type === "youtube") {
+            return (
+              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginBottom: "1.5rem" }}>
+                <iframe src={embed.embedUrl || videoUrl} title={resource.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }} />
+              </div>
+            );
+          }
+          return (
+            <video controls src={videoUrl} style={{ width: "100%", borderRadius: "6px", display: "block", background: "#000", marginBottom: "1.5rem" }} playsInline />
+          );
+        })()}
         {content !== null && content !== "" && (
-          <div className="prose prose-neutral dark:prose-invert" dangerouslySetInnerHTML={{ __html: content }} />
+          <div className="prose prose-neutral dark:prose-invert" dangerouslySetInnerHTML={{ __html: contentHtml }} />
         )}
       </>
     );

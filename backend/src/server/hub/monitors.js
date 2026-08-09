@@ -16,7 +16,7 @@ let dataIntegrityMonitorStarted = false;
 let reputationIndexerLastBlock = null;
 
 const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-const DEFAULT_ARC_RPC_URL = 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/';
+const DEFAULT_ARC_RPC_URL = 'https://rpc.testnet.arc.io';
 const VERIFICATION_FAILURE_THRESHOLD = Number.parseInt(process.env.VERIFICATION_FAILURE_THRESHOLD || '3', 10);
 
 // ── Verification Monitor ───────────────────────────────────────────────────

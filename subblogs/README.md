@@ -9,7 +9,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - Articles with Markdown editing, cover images, tags, excerpts, and slug auto-generation
 - Photo, music, and video post support
 - Free and paid content gating via `@nibgate/sdk`
-- Paid posts encrypt media and body at rest; photo covers stay plaintext and galleries reveal after unlock
+- All post bodies and media are encrypted at rest (free and paid); free posts are decrypted and served to anyone, paid posts stay behind x402 proof; photo covers stay plaintext
 - Admin dashboard with create, edit, publish, draft, and delete
 - Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`)
 - RSS feed

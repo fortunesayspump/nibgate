@@ -20,6 +20,7 @@ Docs examples drift from the code quickly. Before writing or editing anything in
 - MCP server is at `https://api.nibgate.xyz/mcp` (the main site proxies only `/api/*`).
 - The hub serves an aggregate sitemap at `/all-content-sitemap.xml`.
 - The main site is `nibgate.xyz`; the API is `api.nibgate.xyz`; docs are `docs.nibgate.xyz`.
+- Nibshare is a PRIVATE sharing product: never emit its events to `/api/hub/evt` or index it in hub discovery/ledger/reputation — content expires within 7 days and has no creator-verified domain (`backend/src/server/nibshare/service.js`).
 
 ## Never reference `swarm/` in docs or committed files
 

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "BlogPost" ADD COLUMN IF NOT EXISTS "videoName" TEXT,
+ADD COLUMN IF NOT EXISTS "videoSize" INTEGER,
+ADD COLUMN IF NOT EXISTS "videoStorageRef" TEXT,
+ADD COLUMN IF NOT EXISTS "videoEncryptedKey" TEXT,
+ADD COLUMN IF NOT EXISTS "videoContentType" TEXT;

@@ -1,4 +1,5 @@
 export default {
+  index: "Nibgate Docs",
   "---overview": {
     type: "separator",
     title: "Overview",
@@ -10,13 +11,14 @@ export default {
   reputation: "Reputation",
   "---platform": {
     type: "separator",
-    title: "Subblog Platform",
+    title: "Creator Platform",
   },
   "create-subblog": "Create a Subblog",
   "content-types": "Content Types",
   "image-optimization": "Image optimization",
   encryption: "Content encryption",
   "discovery-seo": "Discovery & SEO",
+  nibshare: "Nibshare (quick-share)",
   "---setup": {
     type: "separator",
     title: "Setup",

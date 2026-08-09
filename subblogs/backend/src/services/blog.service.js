@@ -5,6 +5,7 @@ const prisma = require('../lib/prisma');
 const config = require('../config/config');
 const { registerR2Provider } = require('../lib/storage');
 const { putBlob, getBlob, deleteBlob, generateContentKey, encryptBytes, decryptBytes, packCipherBlob, unpackCipherBlob } = require('@nibgate/sdk/server');
+const { wrapContentKey, storedToKey } = require('../lib/keywrap');
 
 registerR2Provider();
 const ENCRYPT_ENABLED = !!config.r2?.endpoint;
@@ -23,23 +24,13 @@ function parseMedia(value) {
   }
 }
 
-function normalizeMediaForStorage(value, paid) {
-  const items = parseMedia(value);
-  if (paid) {
-    return items
-      .filter((i) => i && i.storageRef)
-      .map((i) => ({
-        storageRef: String(i.storageRef),
-        encryptedKey: i.encryptedKey ? String(i.encryptedKey) : null,
-        contentType: i.contentType || 'image/webp',
-        caption: String(i.caption || '').trim(),
-      }));
-  }
-  return items
-    .map((i) => (typeof i === 'string' ? { url: i, caption: '' } : i))
-    .filter((i) => i && i.url)
+function normalizeMediaForStorage(value) {
+  return parseMedia(value)
+    .filter((i) => i && i.storageRef)
     .map((i) => ({
-      url: String(i.url),
+      storageRef: String(i.storageRef),
+      encryptedKey: i.encryptedKey ? String(i.encryptedKey) : null,
+      contentType: i.contentType || 'image/webp',
       caption: String(i.caption || '').trim(),
     }));
 }
@@ -50,70 +41,16 @@ async function encryptBytesToStore(data, siteId, kind) {
   const blob = packCipherBlob(enc);
   const key = `blog/${siteId}/enc/${kind}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
   const { storageRef } = await putBlob({ key, data: blob, contentType: 'application/octet-stream' });
-  return { storageRef, contentKey: contentKey.toString('base64') };
+  return { storageRef, contentKey: wrapContentKey(contentKey.toString('base64')) };
 }
 
 async function decryptBytesFromStore(storageRef, contentKey) {
   if (!storageRef || !contentKey) return null;
+  const key = storedToKey(contentKey);
+  if (!key) return null;
   const blob = await getBlob({ storageRef });
   const { iv, tag, ciphertext } = unpackCipherBlob(blob);
-  return decryptBytes(Buffer.from(contentKey, 'base64'), iv, tag, ciphertext);
-}
-
-function extForContentType(contentType) {
-  const map = {
-    'application/pdf': '.pdf',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-    'application/vnd.ms-excel': '.xls',
-    'text/csv': '.csv',
-    'application/vnd.oasis.opendocument.spreadsheet': '.ods',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-    'application/msword': '.doc',
-    'text/plain': '.txt',
-    'text/markdown': '.md',
-  };
-  return map[contentType] || null;
-}
-
-function extFromName(name) {
-  if (!name) return null;
-  const m = /\.([a-z0-9]+)$/i.exec(name);
-  return m ? `.${m[1].toLowerCase()}` : null;
-}
-
-async function deleteObjectFromUrl(url) {
-  if (!url || !config.r2.publicUrl || !url.startsWith(config.r2.publicUrl)) return;
-  const key = url.slice(config.r2.publicUrl.length).replace(/^\//, '');
-  if (!key) return;
-  try {
-    await deleteBlob({ storageRef: key });
-  } catch {}
-}
-
-async function convertDocumentInPlace(existing, willBePaid, siteId) {
-  if (willBePaid) {
-    if (existing.documentStorageRef && existing.documentEncryptedKey) return {};
-    if (!existing.documentUrl || !ENCRYPT_ENABLED) return {};
-    const fileRes = await fetch(existing.documentUrl);
-    if (!fileRes.ok) return {};
-    const bytes = Buffer.from(await fileRes.arrayBuffer());
-    const enc = await encryptBytesToStore(bytes, siteId, 'media');
-    await deleteObjectFromUrl(existing.documentUrl);
-    return { documentStorageRef: enc.storageRef, documentEncryptedKey: enc.contentKey };
-  }
-  if (!(existing.documentStorageRef && existing.documentEncryptedKey)) return {};
-  const plain = await decryptBytesFromStore(existing.documentStorageRef, existing.documentEncryptedKey);
-  if (!plain) return {};
-  const ext = extForContentType(existing.documentContentType) || extFromName(existing.documentName) || '.bin';
-  const key = `blog/${siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
-  const { url } = await putBlob({
-    key,
-    data: plain,
-    contentType: existing.documentContentType || 'application/octet-stream',
-    cacheControl: 'public, max-age=31536000, immutable',
-  });
-  await deleteBlob({ storageRef: existing.documentStorageRef }).catch(() => {});
-  return { documentUrl: url };
+  return decryptBytes(key, iv, tag, ciphertext);
 }
 
 function sniffImageMime(buf) {
@@ -133,9 +70,11 @@ async function extractCoverFromMedia(mediaItems, coverKey, siteId) {
   if (!item.storageRef || !item.encryptedKey) return { mediaItems, coverUrl: null };
   let data;
   try {
+    const key = storedToKey(item.encryptedKey);
+    if (!key) return { mediaItems, coverUrl: null };
     const blob = await getBlob({ storageRef: item.storageRef });
     const { iv, tag, ciphertext } = unpackCipherBlob(blob);
-    data = decryptBytes(Buffer.from(item.encryptedKey, 'base64'), iv, tag, ciphertext);
+    data = decryptBytes(key, iv, tag, ciphertext);
   } catch {
     return { mediaItems, coverUrl: null };
   }
@@ -152,7 +91,7 @@ function slugify(value = '') {
 }
 
 function excerptFrom(markdown = '') {
-  return String(markdown).replace(/[#*_>`\[\]()]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
+  return String(markdown).replace(/nibgate-embed:\/\/\d+/g, '').replace(/[#*_>`\[\]()]/g, '').replace(/\s+/g, ' ').trim().slice(0, 180);
 }
 
 function cleanTags(value) {
@@ -181,10 +120,19 @@ async function listPublished(siteId, options = {}) {
 }
 
 async function getBySlug(siteId, slug) {
-  return prisma.blogPost.findFirst({
+  const post = await prisma.blogPost.findFirst({
     where: { siteId, slug, status: 'published' },
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
+  if (post && !isPaidValue(post.price) && post.bodyStorageRef && post.contentKey) {
+    try {
+      const decrypted = await decryptBytesFromStore(post.bodyStorageRef, post.contentKey);
+      if (decrypted) post.bodyMarkdown = decrypted.toString('utf8');
+    } catch {
+      post.bodyMarkdown = '';
+    }
+  }
+  return post;
 }
 
 async function listAll(siteId, authorId) {
@@ -221,9 +169,9 @@ async function create(data, siteId, authorId) {
   const statusVal = data.status === 'draft' ? 'draft' : 'published';
   const isPaid = isPaidValue(data.price);
   const excerpt = String(data.excerpt || '').trim() || excerptFrom(bodyMarkdown);
-  const mediaItems = normalizeMediaForStorage(data.media, isPaid);
+  const mediaItems = normalizeMediaForStorage(data.media);
   let coverUrl = String(data.coverUrl || '').trim() || null;
-  if (isPaid && data.coverKey) {
+  if (ENCRYPT_ENABLED && data.coverKey) {
     const extracted = await extractCoverFromMedia(mediaItems, data.coverKey, siteId);
     if (extracted.coverUrl) coverUrl = extracted.coverUrl;
   }
@@ -234,16 +182,21 @@ async function create(data, siteId, authorId) {
     tags: cleanTags(data.tags),
     type: ['article', 'photo', 'music', 'video', 'document'].includes(data.type) ? data.type : 'article',
     coverUrl,
-    videoUrl: String(data.videoUrl || '').trim() || null,
-    audioUrl: isPaid ? null : String(data.audioUrl || '').trim() || null,
-    audioStorageRef: isPaid ? String(data.audioStorageRef || '').trim() || null : null,
-    audioEncryptedKey: isPaid ? String(data.audioEncryptedKey || '').trim() || null : null,
-    audioContentType: isPaid ? String(data.audioContentType || '').trim() || null : null,
-    documentUrl: isPaid ? null : String(data.documentUrl || '').trim() || null,
+    videoUrl: null,
+    videoName: String(data.videoName || '').trim() || null,
+    videoSize: data.videoSize ? Number(data.videoSize) || null : null,
+    videoStorageRef: String(data.videoStorageRef || '').trim() || null,
+    videoEncryptedKey: String(data.videoEncryptedKey || '').trim() || null,
+    videoContentType: String(data.videoContentType || '').trim() || null,
+    audioUrl: null,
+    audioStorageRef: String(data.audioStorageRef || '').trim() || null,
+    audioEncryptedKey: String(data.audioEncryptedKey || '').trim() || null,
+    audioContentType: String(data.audioContentType || '').trim() || null,
+    documentUrl: null,
     documentName: String(data.documentName || '').trim() || null,
     documentSize: data.documentSize ? Number(data.documentSize) || null : null,
-    documentStorageRef: isPaid ? String(data.documentStorageRef || '').trim() || null : null,
-    documentEncryptedKey: isPaid ? String(data.documentEncryptedKey || '').trim() || null : null,
+    documentStorageRef: String(data.documentStorageRef || '').trim() || null,
+    documentEncryptedKey: String(data.documentEncryptedKey || '').trim() || null,
     documentContentType: String(data.documentContentType || '').trim() || null,
     media: mediaItems.length ? JSON.stringify(mediaItems) : null,
     price: isPaid ? String(data.price).trim() : null,
@@ -254,7 +207,7 @@ async function create(data, siteId, authorId) {
     authorId,
   };
 
-  if (isPaid && ENCRYPT_ENABLED) {
+  if (ENCRYPT_ENABLED) {
     const encryptedBody = await encryptBytesToStore(Buffer.from(bodyMarkdown, 'utf8'), siteId, 'body');
     postData.bodyMarkdown = '';
     postData.contentKey = encryptedBody.contentKey;
@@ -284,7 +237,7 @@ async function update(siteId, id, data) {
   const bodyProvided = data.bodyMarkdown !== undefined || data.body !== undefined;
   if (bodyProvided) {
     const newBody = String(data.bodyMarkdown || data.body || '').trim();
-    if (willBePaid && ENCRYPT_ENABLED) {
+    if (ENCRYPT_ENABLED) {
       if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
       const encryptedBody = await encryptBytesToStore(Buffer.from(newBody, 'utf8'), siteId, 'body');
       updateData.bodyMarkdown = '';
@@ -296,14 +249,6 @@ async function update(siteId, id, data) {
       updateData.contentKey = null;
       updateData.bodyStorageRef = null;
     }
-  } else if (!willBePaid && existing.bodyStorageRef) {
-    const decrypted = await decryptBytesFromStore(existing.bodyStorageRef, existing.contentKey);
-    if (decrypted) {
-      updateData.bodyMarkdown = decrypted.toString('utf8');
-      await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
-    }
-    updateData.contentKey = null;
-    updateData.bodyStorageRef = null;
   }
 
   if (data.excerpt !== undefined) updateData.excerpt = String(data.excerpt).trim();
@@ -311,8 +256,8 @@ async function update(siteId, id, data) {
   if (data.coverUrl !== undefined) updateData.coverUrl = String(data.coverUrl).trim() || null;
   if (data.videoUrl !== undefined) updateData.videoUrl = String(data.videoUrl).trim() || null;
   if (data.media !== undefined) {
-    const mediaItems = normalizeMediaForStorage(data.media, willBePaid);
-    if (willBePaid && data.coverKey) {
+    const mediaItems = normalizeMediaForStorage(data.media);
+    if (ENCRYPT_ENABLED && data.coverKey) {
       const extracted = await extractCoverFromMedia(mediaItems, data.coverKey, siteId);
       if (extracted.coverUrl) updateData.coverUrl = extracted.coverUrl;
     }
@@ -322,39 +267,22 @@ async function update(siteId, id, data) {
   if (data.price !== undefined) updateData.price = willBePaid ? String(data.price).trim() : null;
   if (data.recipientWallet !== undefined) updateData.recipientWallet = String(data.recipientWallet).trim() || null;
   if (data.featured !== undefined) updateData.featured = data.featured;
-  if (willBePaid) {
-    if (data.audioStorageRef !== undefined) updateData.audioStorageRef = String(data.audioStorageRef).trim() || null;
-    if (data.audioEncryptedKey !== undefined) updateData.audioEncryptedKey = String(data.audioEncryptedKey).trim() || null;
-    if (data.audioContentType !== undefined) updateData.audioContentType = String(data.audioContentType).trim() || null;
-    updateData.audioUrl = null;
-    if (data.documentStorageRef !== undefined) {
-      updateData.documentStorageRef = String(data.documentStorageRef).trim() || null;
-    } else {
-      const converted = await convertDocumentInPlace(existing, true, siteId);
-      if (converted.documentStorageRef) updateData.documentStorageRef = converted.documentStorageRef;
-      if (converted.documentEncryptedKey) updateData.documentEncryptedKey = converted.documentEncryptedKey;
-    }
-    if (data.documentEncryptedKey !== undefined) updateData.documentEncryptedKey = String(data.documentEncryptedKey).trim() || null;
-    if (data.documentContentType !== undefined) updateData.documentContentType = String(data.documentContentType).trim() || null;
-    else if (!updateData.documentContentType) updateData.documentContentType = existing.documentContentType;
-    updateData.documentUrl = null;
-  } else {
-    updateData.audioUrl = data.audioUrl !== undefined ? String(data.audioUrl).trim() || null : existing.audioUrl;
-    updateData.audioStorageRef = null;
-    updateData.audioEncryptedKey = null;
-    updateData.audioContentType = null;
-    updateData.documentStorageRef = null;
-    updateData.documentEncryptedKey = null;
-    if (data.documentUrl !== undefined) {
-      updateData.documentUrl = String(data.documentUrl).trim() || null;
-    } else {
-      const converted = await convertDocumentInPlace(existing, false, siteId);
-      updateData.documentUrl = converted.documentUrl || existing.documentUrl;
-    }
-    updateData.documentContentType = data.documentContentType !== undefined ? String(data.documentContentType).trim() || null : existing.documentContentType;
-  }
+  if (data.videoStorageRef !== undefined) updateData.videoStorageRef = String(data.videoStorageRef).trim() || null;
+  if (data.videoEncryptedKey !== undefined) updateData.videoEncryptedKey = String(data.videoEncryptedKey).trim() || null;
+  if (data.videoContentType !== undefined) updateData.videoContentType = String(data.videoContentType).trim() || null;
+  updateData.videoUrl = null;
+  if (data.audioStorageRef !== undefined) updateData.audioStorageRef = String(data.audioStorageRef).trim() || null;
+  if (data.audioEncryptedKey !== undefined) updateData.audioEncryptedKey = String(data.audioEncryptedKey).trim() || null;
+  if (data.audioContentType !== undefined) updateData.audioContentType = String(data.audioContentType).trim() || null;
+  updateData.audioUrl = null;
+  if (data.documentStorageRef !== undefined) updateData.documentStorageRef = String(data.documentStorageRef).trim() || null;
+  if (data.documentEncryptedKey !== undefined) updateData.documentEncryptedKey = String(data.documentEncryptedKey).trim() || null;
+  if (data.documentContentType !== undefined) updateData.documentContentType = String(data.documentContentType).trim() || null;
+  updateData.documentUrl = null;
   if (data.documentName !== undefined) updateData.documentName = String(data.documentName).trim() || null;
   if (data.documentSize !== undefined) updateData.documentSize = data.documentSize ? Number(data.documentSize) || null : null;
+  if (data.videoName !== undefined) updateData.videoName = String(data.videoName).trim() || null;
+  if (data.videoSize !== undefined) updateData.videoSize = data.videoSize ? Number(data.videoSize) || null : null;
   if (data.status !== undefined) {
     updateData.status = data.status === 'draft' ? 'draft' : 'published';
     if (updateData.status === 'published' && !existing.publishedAt) updateData.publishedAt = new Date();
@@ -375,12 +303,70 @@ async function remove(siteId, id) {
   if (ENCRYPT_ENABLED) {
     if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
     if (existing.audioStorageRef) await deleteBlob({ storageRef: existing.audioStorageRef }).catch(() => {});
+    if (existing.videoStorageRef) await deleteBlob({ storageRef: existing.videoStorageRef }).catch(() => {});
     if (existing.documentStorageRef) await deleteBlob({ storageRef: existing.documentStorageRef }).catch(() => {});
     for (const item of parseMedia(existing.media)) {
       if (item && item.storageRef) await deleteBlob({ storageRef: item.storageRef }).catch(() => {});
     }
   }
   return existing;
+}
+
+async function adminPostStats(siteId) {
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
+  if (!site) throw new ApiError(status.NOT_FOUND, 'Site not found');
+
+  const domain = `${site.subdomain}.nibgate.xyz`;
+  const hub = config.nibgate.apiBase || 'http://localhost:3000';
+  const res = await fetch(`${hub}/api/hub/ledger?domain=${encodeURIComponent(domain)}&limit=100`).catch(() => null);
+  if (!res || !res.ok) return {};
+
+  const data = await res.json().catch(() => null);
+  const activities = data?.activities || [];
+  const stats = {};
+
+  const bump = (url) => {
+    if (!stats[url]) stats[url] = { url, title: '', views: 0, unlocks: 0, payments: 0, ratings: 0, revenue: 0, receipts: [] };
+    return stats[url];
+  };
+
+  for (const a of activities) {
+    const url = a.contentUrl || '';
+    if (!url) continue;
+    const entry = bump(url);
+    if (!entry.title && a.contentTitle) entry.title = a.contentTitle;
+    if (a.type === 'view') {
+      entry.views += 1;
+    } else if (a.type === 'payment') {
+      entry.unlocks += 1;
+      entry.payments += 1;
+      const amount = Number(a.amount || 0);
+      entry.revenue += amount;
+      entry.receipts.push({ id: a.id, payerWallet: a.payerWallet || a.actor || null, amount, currency: a.currency || 'USDC', timestamp: a.timestamp, txHash: a.txHash || null, provider: a.paymentProvider || 'payment' });
+    } else if (a.type === 'rating') {
+      entry.ratings += 1;
+    }
+  }
+
+  for (const url of Object.keys(stats)) {
+    stats[url].receipts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+  return stats;
+}
+
+async function adminActivity(siteId) {
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
+  if (!site) throw new ApiError(status.NOT_FOUND, 'Site not found');
+
+  const domain = `${site.subdomain}.nibgate.xyz`;
+  const hub = config.nibgate.apiBase || 'http://localhost:3000';
+  const res = await fetch(`${hub}/api/hub/ledger?domain=${encodeURIComponent(domain)}&limit=50`).catch(() => null);
+  if (!res || !res.ok) return { activities: [], totals: { views: 0, unlocks: 0, payments: 0, ratings: 0 } };
+  const data = await res.json().catch(() => null);
+  return {
+    activities: data?.activities || [],
+    totals: data?.totals || { views: 0, unlocks: 0, payments: 0, ratings: 0 },
+  };
 }
 
 async function listByTypes(siteId) {
@@ -398,4 +384,4 @@ async function listByTypes(siteId) {
   return result;
 }
 
-module.exports = { listPublished, getBySlug, listAll, getById, create, update, remove, listByTypes };
+module.exports = { listPublished, getBySlug, listAll, getById, create, update, remove, listByTypes, adminPostStats, adminActivity };

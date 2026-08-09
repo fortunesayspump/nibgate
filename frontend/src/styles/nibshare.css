@@ -5,14 +5,35 @@
  */
 
 @font-face {
-  font-family: 'Kumbh Sans';
+  font-family: 'Kumbh Sans Nibshare';
+  src: url('/fonts/kumbh/KumbhSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Kumbh Sans Nibshare';
   src: url('/fonts/kumbh/KumbhSans-Medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
 }
 
+@font-face {
+  font-family: 'Kumbh Sans Nibshare';
+  src: url('/fonts/kumbh/KumbhSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Kumbh Sans Nibshare';
+  src: url('/fonts/kumbh/KumbhSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
 body:has(.nibshare-root) {
-  --font-content: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-content: "Kumbh Sans Nibshare", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
   --font-ui: var(--font-content);
   --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", "IBM Plex Mono", monospace;
 

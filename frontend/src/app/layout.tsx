@@ -7,14 +7,14 @@ import { Providers } from "./providers";
 import "../styles/styles.css";
 
 export const metadata: Metadata = {
-  title: "Nibgate - Verified Content Discovery",
+  title: "Nibgate - verified content discovery",
   description:
     "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
   metadataBase: new URL("https://nibgate.xyz"),
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
-    title: "Nibgate - Verified Content Discovery",
+    title: "Nibgate - verified content discovery",
     description:
       "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
     url: "https://nibgate.xyz",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nibgate - Verified Content Discovery",
+    title: "Nibgate - verified content discovery",
     description:
       "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
     images: ["https://nibgate.xyz/og-image"],

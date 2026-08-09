@@ -4,6 +4,13 @@
  * leaks into other nibgate routes. Values are byte-identical to subblogs.
  */
 
+@font-face {
+  font-family: 'Kumbh Sans';
+  src: url('/fonts/kumbh/KumbhSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+}
+
 body:has(.nibshare-root) {
   --font-content: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
   --font-ui: var(--font-content);

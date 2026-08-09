@@ -482,9 +482,23 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
   border-radius: 0 0 6px 6px;
   box-shadow: 0 8px 16px rgba(0,0,0,0.1);
   z-index: 100;
-  overflow: hidden;
   display: none;
   flex-direction: column;
+}
+
+/* Hover bridge: covers any sub-pixel gap between the button and the dropdown
+   so the container :hover is not lost while moving the pointer down into it. */
+.nibgate-wallet-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.nibgate-wallet-dropdown.mobile-dropdown::before {
+  display: none;
 }
 
 /* Open on hover if connected or for balance */
@@ -526,6 +540,10 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
 
 .nibgate-wallet-dropdown .dropdown-item:first-child {
   border-top: none;
+}
+
+.nibgate-wallet-dropdown .dropdown-item:last-child {
+  border-radius: 0 0 6px 6px;
 }
 
 .nibgate-wallet-dropdown .dropdown-item:hover,

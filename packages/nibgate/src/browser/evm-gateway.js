@@ -116,8 +116,10 @@ export function createEvmGatewayUnlock(resource, options = {}) {
     if (!evm) throw new Error(options.noWalletMessage || 'Install or open an EVM wallet to continue.');
     // Always fetch the current wallet from MetaMask — the cached walletAddress
     // might be stale if the user switched accounts after connecting.
-    const currentAccounts = await evm.request({ method: 'eth_accounts' }).catch(() => walletAddress ? [walletAddress] : []);
-    const currentAddress = Array.isArray(currentAccounts) && currentAccounts[0] ? currentAccounts[0] : (walletAddress || await connect());
+    const currentAccounts = await evm.request({ method: 'eth_accounts' }).catch(() => []);
+    let currentAddress = Array.isArray(currentAccounts) && currentAccounts[0] ? currentAccounts[0] : '';
+    if (!currentAddress) currentAddress = await connect();
+    if (!currentAddress) throw new Error('No wallet account selected.');
     if (currentAddress !== walletAddress) walletAddress = currentAddress;
     // Make sure the wallet is on Arc Testnet before signing the Gateway payment
     // proof — otherwise the sign prompt happens on Ethereum (the wallet's default).

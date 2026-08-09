@@ -1,4 +1,5 @@
 import { createEvmGatewayUnlock } from './evm-gateway.js';
+import unlockKeyAnimation from './unlock-key.js';
 
 const SID = 'nibgate-ui-styles';
 
@@ -93,25 +94,23 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   `;
 
   (typeof container === 'string' ? document.querySelector(container) : container)?.appendChild(card);
-  // Load Lottie animation
+  // Load Lottie animation (animation data ships inside the SDK)
   (function loadLottie() {
     if (!document.getElementById('nibgate-lottie')) return;
     function startAnim(data) {
-      var d = document.getElementById('nibgate-lottie');
-      if (d && window.lottie) window.lottie.loadAnimation({ container: d, animationData: data, loop: true, autoplay: true });
+      const d = document.getElementById('nibgate-lottie');
+      if (d && window.lottie) window.lottie.loadAnimation({ container: d, animationData: data || unlockKeyAnimation, loop: true, autoplay: true });
     }
     if (window.lottie) {
-      if (window._lottieData) startAnim(window._lottieData);
-      else fetch('/nibgate-unlock-key.json?t=1').then(function(r) { if (!r.ok) throw new Error(); return r.json(); }).then(function(d) { window._lottieData = d; startAnim(d); }).catch(function() {});
+      startAnim(options.lottieData);
       return;
     }
     if (window._lottieLoading) return;
     window._lottieLoading = true;
-    var s = document.createElement('script');
+    const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js';
-    s.onload = function() {
-      fetch('/nibgate-unlock-key.json?t=1').then(function(r) { if (!r.ok) throw new Error(); return r.json(); }).then(function(d) { window._lottieData = d; startAnim(d); }).catch(function() {});
-    };
+    s.onload = function() { startAnim(options.lottieData); };
+    s.onerror = function() { window._lottieLoading = false; };
     document.head.appendChild(s);
   })();
 

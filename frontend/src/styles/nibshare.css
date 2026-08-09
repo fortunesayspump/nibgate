@@ -415,6 +415,16 @@ body:has(.nibshare-root) ::selection {
   position: relative;
   display: inline-flex;
 }
+/* Bridge the 4px gap to the dropdown so onMouseLeave doesn't fire while the
+   cursor is between the button and the menu (part of the container's hit box). */
+.nibshare-root .share-wallet::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
 .nibshare-root .share-wallet-btn {
   background: transparent;
   border: 1px solid var(--border);

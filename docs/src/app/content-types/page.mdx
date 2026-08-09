@@ -2,7 +2,7 @@ import { Callout, Cards } from 'nextra/components'
 
 # Content Types
 
-Nibgate supports six content types: **Article**, **Photo**, **Music**, **Video**, and **Document**. Each type has a dedicated editor and presentation format.
+Nibgate supports five content types: **Article**, **Photo**, **Music**, **Video**, and **Document**. Each type has a dedicated editor and presentation format.
 
 <Callout type="info">
 All content types support free and paid gating. Set the price per post in the admin dashboard or via the package configuration.
@@ -60,7 +60,7 @@ Photos are gallery-style posts with multiple images.
 
 **Layout**: Images are displayed in a responsive gallery grid on the blog. The cover is chosen per post by starring one image in the editor; the rest of the gallery renders as captioned thumbnails.
 
-**Paid gating**: A paid photo set keeps only the starred cover in plaintext; the rest of the gallery is encrypted and stays hidden until the post is unlocked. See [Content Encryption](/encryption) for how paid media and bodies are stored and revealed.
+**Encryption**: All photo galleries are encrypted at rest — free or paid. Free galleries stream decrypted through the media proxy with no proof; a paid set keeps only the starred cover in plaintext, and the rest of the gallery is encrypted and stays hidden until the post is unlocked. See [Content Encryption](/encryption) for how media and bodies are stored and revealed.
 
 ```ts
 const photoSet = createGate({
@@ -126,7 +126,7 @@ Document posts share files that render in the browser and are downloadable after
 
 **Rendering**: Spreadsheets and text files are rendered server-side to HTML (tables for sheets, escaped `<pre>` for text) so raw bytes never reach the client. `.docx` files are converted to HTML with mammoth. PDFs render inline in an iframe. Legacy formats (`.xls`, `.doc`, `.ods`) are download-only.
 
-**Paid gating**: Paid documents are encrypted at rest. A truncated preview (12 rows for spreadsheets, 1600 characters for text) shows as a teaser before unlock; the full document and download are revealed after payment.
+**Paid gating**: All documents are encrypted at rest. Free documents render in full without proof; on paid posts a truncated preview (12 rows for spreadsheets, 1600 characters for text) shows as a teaser before unlock, and the full document and download are revealed after payment.
 
 ```ts
 const report = createGate({

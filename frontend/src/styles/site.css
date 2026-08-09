@@ -37,6 +37,29 @@
   --nib-shadow-1: 0 1px 2px #1111110f;
   --nib-shadow-2: 0 12px 32px #11111114;
   --nib-shadow-3: 0 18px 44px #1111111f;
+
+  /* Nibshare — subblogs style */
+  --nib-fg: var(--nib-page-fg);
+  --nib-muted: var(--nib-page-muted);
+  --nib-border-sub: var(--nib-border-soft);
+  --nib-accent: var(--nib-olive);
+  --nib-accent-soft: var(--nib-soft);
+  --nib-surface-sub: var(--nib-surface);
+  --nib-card-hover: var(--nib-surface-soft);
+  --font-content: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-ui: var(--font-content);
+  --font-display: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+
+  /* Subblogs-compatible aliases */
+  --bg: var(--nib-page-bg);
+  --fg: var(--nib-page-fg);
+  --muted: var(--nib-page-muted);
+  --border: var(--nib-border-soft);
+  --accent: var(--nib-olive);
+  --accent-soft: var(--nib-soft);
+  --surface: var(--nib-surface);
+  --card-hover: var(--nib-surface-soft);
+  --selection: rgba(124, 154, 109, 0.3);
 }
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -77,6 +100,29 @@ html[data-theme="dark"] {
   --nib-shadow-1: 0 1px 2px #0000003d;
   --nib-shadow-2: 0 14px 34px #00000047;
   --nib-shadow-3: 0 20px 52px #0000005c;
+
+  /* Nibshare — subblogs style */
+  --nib-fg: var(--nib-page-fg);
+  --nib-muted: var(--nib-page-muted);
+  --nib-border-sub: var(--nib-border-soft);
+  --nib-accent: var(--nib-olive);
+  --nib-accent-soft: var(--nib-soft);
+  --nib-surface-sub: var(--nib-surface);
+  --nib-card-hover: var(--nib-surface-soft);
+  --font-content: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-ui: var(--font-content);
+  --font-display: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+
+  /* Subblogs-compatible aliases */
+  --bg: var(--nib-page-bg);
+  --fg: var(--nib-page-fg);
+  --muted: var(--nib-page-muted);
+  --border: var(--nib-border-soft);
+  --accent: var(--nib-olive);
+  --accent-soft: var(--nib-soft);
+  --surface: var(--nib-surface);
+  --card-hover: var(--nib-surface-soft);
+  --selection: rgba(60, 80, 50, 0.3);
 }
 .bg-pink {
   background: var(--nib-olive);
@@ -1674,3 +1720,220 @@ body[data-theme="dark"] .nibgate-creator-pill:focus-visible {
     margin-right: 12px;
   }
 }
+
+/* ===== Nibshare utility classes (matching subblogs Tailwind output) ===== */
+
+/* Font sizes — subblogs uses: xs=14px, sm=16px, base=18px, lg=20px */
+.text-xs { font-size: 14px; line-height: 1.5; }
+.text-sm { font-size: 14px; line-height: 1.5; }
+.text-base { font-size: 18px; line-height: 1.5; }
+.text-lg { font-size: 20px; line-height: 1.2; }
+.text-sm font-medium { font-size: 14px; font-weight: 500; }
+
+/* Font weights */
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+
+/* Flex utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.gap-1 { gap: 0.25rem; }
+.gap-1.5 { gap: 0.375rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.shrink-0 { flex-shrink: 0; }
+.inline-flex { display: inline-flex; }
+
+/* Spacing — subblogs uses Tailwind space-y */
+.space-y-1.5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.375rem; }
+.space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem; }
+.space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.75rem; }
+.space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+.space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
+
+/* Margin utilities */
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 0.75rem; }
+.mt-4 { margin-top: 1rem; }
+.mt-5 { margin-top: 1.25rem; }
+.mt-6 { margin-top: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 0.75rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-5 { margin-bottom: 1.25rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.mt-2 { margin-top: 0.5rem; }
+
+/* Text utilities */
+.text-xs { font-size: 14px; line-height: 1.5; }
+.text-center { text-align: center; }
+.text-sm .truncate { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.max-w-None { max-width: none; }
+.max-w-none { max-width: none; }
+
+/* Border */
+.border-b { border-bottom: 1px solid; }
+.border-t { border-top: 1px solid; }
+.border { border: 1px solid; }
+.rounded { border-radius: 6px; }
+.rounded-full { border-radius: 9999px; }
+.rounded-md { border-radius: 6px; }
+
+/* Background */
+.bg-red-50 { background: #fef2f2; }
+.bg-red-600 { background: #dc2626; }
+
+/* Colors — using subblogs variables */
+.text-muted { color: var(--nib-muted); }
+.text-red-600 { color: #dc2626; }
+.border-red-100 { border-color: #fecaca; }
+.border-red-200 { border-color: #fecaca; }
+
+/* Button styles — exact subblogs */
+.btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--nib-muted);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { color: var(--nib-fg); }
+.btn-ghost.no-underline { text-decoration: none; }
+
+.btn-primary {
+  background: var(--nib-accent-soft);
+  border: 1px solid var(--nib-accent);
+  color: var(--nib-fg);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--nib-accent);
+  color: #10110e;
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--nib-border-sub);
+  color: var(--nib-muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--nib-card-hover);
+  color: var(--nib-fg);
+}
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Input styles — exact subblogs */
+.input-field {
+  width: 100%;
+  border: 1px solid var(--nib-border-sub);
+  background: var(--nib-surface-sub);
+  color: var(--nib-fg);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+.input-field:focus { border-color: var(--nib-accent); }
+.input-field::placeholder { color: var(--nib-muted); opacity: 0.6; }
+textarea.input-field { resize: vertical; }
+.input-field.font-mono { font-family: monospace; }
+
+/* Field label — exact subblogs */
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nib-muted);
+  margin-bottom: 4px;
+}
+
+/* Share list items */
+.nibshare-share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 1.5rem;
+  border: 1px solid var(--nib-border-sub);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.nibshare-share-item {
+  display: block;
+  padding: 16px;
+  border-bottom: 1px solid var(--nib-border-sub);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s;
+}
+.nibshare-share-item:hover { background: var(--nib-card-hover); }
+.nibshare-share-item:last-child { border-bottom: none; }
+.nibshare-share-title { font-weight: 500; margin-bottom: 0.5rem; }
+.nibshare-share-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 13px;
+  color: var(--nib-muted);
+}
+
+/* Unlock result */
+.nibshare-unlock-result {
+  margin-top: 1.5rem;
+  padding: 16px;
+  border: 1px solid var(--nib-border-sub);
+  border-radius: 8px;
+  background: var(--nib-card-hover);
+}
+.nibshare-unlock-title {
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: var(--nib-accent);
+}
+.nibshare-content-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: monospace;
+  opacity: 0.8;
+}
+.nibshare-meta { font-size: 13px; color: var(--nib-muted); }
+
+/* Error alert */
+.nibshare-error-alert {
+  border: 1px solid #fca5a5;
+  background: #fee2f2;
+  color: #be123c;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  margin-bottom: 1rem;
+}
+

@@ -40,14 +40,3 @@ export function unlockEventPayloads(route, payment, actor, amount, extra = {}) {
     }
   ];
 }
-
-export function viewEventPayload(route, actor = 'human') {
-  return {
-    type: 'resource_view',
-    resourceId: route.id,
-    actor,
-    metadata: {
-      routePath: route.path
-    }
-  };
-}

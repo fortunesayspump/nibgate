@@ -13,7 +13,7 @@ import { registerBlogRoutes } from './routes/blog-routes.js';
 import { registerContentRoutes } from './routes/content-routes.js';
 import { registerHubRoutes } from './routes/hub-routes.js';
 import { registerNewsletterRoutes } from './routes/newsletter-routes.js';
-import { registerNibshareRoutes } from './routes/nibshare-routes.js';
+import { registerNibshareRoutes } from './nibshare/routes.js';
 import { registerUploadRoutes } from './routes/upload-routes.js';
 import { registerRpcRoute } from './routes/rpc-route.js';
 import { openApiSpec } from './openapi.js';
@@ -49,12 +49,12 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true, limit: '8mb' }));
   app.use(cookieParser());
   app.use(cors((req, callback) => {
-    if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index' || req.path === '/api/nibshare' || /^\/api\/nibshare\/[^/]+\/unlock$/.test(req.path)) {
+    if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index' || req.path === '/api/nibshare' || /^\/api\/nibshare\/[^/]+(\/(unlock|access))?$/.test(req.path)) {
       return callback(null, {
         origin: true,
         credentials: true,
-        methods: ['POST', 'OPTIONS'],
-        allowedHeaders: ['Content-Type']
+        methods: ['POST', 'GET', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'payment-signature', 'payment-memo', 'x-nibgate-payment-proof']
       });
     }
 

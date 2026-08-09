@@ -72,6 +72,11 @@ export type BlogPost = {
   bodyMarkdown: string;
   coverUrl: string | null;
   videoUrl: string | null;
+  videoStorageRef: string | null;
+  videoEncryptedKey: string | null;
+  videoContentType: string | null;
+  videoName: string | null;
+  videoSize: number | null;
   audioUrl: string | null;
   audioStorageRef: string | null;
   audioEncryptedKey: string | null;

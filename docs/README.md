@@ -5,7 +5,7 @@ Dedicated documentation app for `docs.nibgate.xyz`.
 ## Local development
 
 ```bash
-npm --workspace @nibgate/docs run dev
+pnpm --filter @nibgate/docs dev
 ```
 
 The docs app runs on port `3002` by default.
@@ -16,9 +16,9 @@ Create a separate Vercel project from the same GitHub repo with:
 
 ```txt
 Root Directory: docs
-Build Command: npm run build
+Build Command: pnpm --filter @nibgate/docs build
 Output Directory: .next
-Install Command: npm install
+Install Command: pnpm install
 ```
 
 Then add the custom domain:
@@ -36,12 +36,13 @@ Overview
 - Agent discovery
 - Reputation
 
-Subblog platform
+Creator Platform
 - Create a Subblog
 - Content types
 - Image optimization
 - Content encryption
 - Discovery & SEO
+- Nibshare (quick-share)
 
 Setup
 - Quick start

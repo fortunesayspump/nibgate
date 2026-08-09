@@ -1,0 +1,486 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import MarkdownEditor from './MarkdownEditor';
+import ImageUploader from './ImageUploader';
+import AudioUploader from './AudioUploader';
+import DocumentUploader from './DocumentUploader';
+import VideoUploader from './VideoUploader';
+import { nibshareApi } from '../api';
+import type { ContentMedia } from '../types';
+import type { MediaItem } from '../lib/content';
+
+interface ShareFormData {
+  title: string;
+  slug: string;
+  bodyMarkdown: string;
+  excerpt: string;
+  tags: string;
+  coverUrl: string;
+  videoUrl: string;
+  price: string;
+  recipientWallet: string;
+  type: string;
+  audioUrl: string;
+  audioStorageRef: string;
+  audioEncryptedKey: string;
+  audioContentType: string;
+  documentUrl: string;
+  documentName: string;
+  documentSize: number | null;
+  documentStorageRef: string;
+  documentEncryptedKey: string;
+  documentContentType: string;
+  videoStorageRef: string;
+  videoEncryptedKey: string;
+  videoContentType: string;
+  videoName: string;
+  videoSize: number | null;
+  media: string;
+}
+
+const defaults: ShareFormData = {
+  title: "", slug: "", bodyMarkdown: "", excerpt: "",
+  tags: "", coverUrl: "", videoUrl: "",
+  price: "", recipientWallet: "", type: "article",
+  audioUrl: "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "",
+  documentUrl: "", documentName: "", documentSize: null, documentStorageRef: "", documentEncryptedKey: "", documentContentType: "",
+  videoStorageRef: "", videoEncryptedKey: "", videoContentType: "", videoName: "", videoSize: null,
+  media: "",
+};
+
+export default function ShareForm({ defaultRecipientWallet }: { defaultRecipientWallet?: string }) {
+  const router = useRouter();
+  const [form, setForm] = useState<ShareFormData>({ ...defaults, recipientWallet: defaultRecipientWallet ?? "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [coverKey, setCoverKey] = useState("");
+  const [embeddedMedia, setEmbeddedMedia] = useState<MediaItem[]>([]);
+  const [expiryQuick, setExpiryQuick] = useState<number | null>(168);
+  const [customExpiry, setCustomExpiry] = useState("");
+
+  function toLocalInput(date: Date): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  const MAX_EXPIRY_MS = 168 * 3600e3;
+  const expiryMin = toLocalInput(new Date(Date.now() + 5 * 60e3));
+  const expiryMax = toLocalInput(new Date(Date.now() + MAX_EXPIRY_MS));
+
+  function computeExpiryIso(): string {
+    const base = expiryQuick !== null ? Date.now() + expiryQuick * 3600e3 : customExpiry ? new Date(customExpiry).getTime() : Date.now() + MAX_EXPIRY_MS;
+    const clamped = Math.min(Math.max(base, Date.now() + 5 * 60e3), Date.now() + MAX_EXPIRY_MS);
+    return new Date(clamped).toISOString();
+  }
+
+  function generateSlug(title: string): string {
+    return title.toLowerCase().replace(/['"]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 90);
+  }
+
+  function handleTitleChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      title: value,
+      slug: generateSlug(value),
+    }));
+  }
+
+  function update<K extends keyof ShareFormData>(key: K, value: ShareFormData[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function getYoutubeId(url: string): string | null {
+    const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  const isPaid = !!form.price && form.price !== "0";
+
+  function canPublish(): { ok: boolean; reason?: string } {
+    if (!form.title) return { ok: false, reason: "Title is required" };
+    if (form.type === "article") {
+      if (!form.bodyMarkdown) return { ok: false, reason: "Body content is required" };
+    }
+    if (form.type === "photo") {
+      if (!form.media || form.media === "[]") return { ok: false, reason: "At least one photo is required" };
+      if (!form.coverUrl && !coverKey) return { ok: false, reason: "Select a cover photo with the star" };
+    }
+    if (form.type === "video") {
+      if (!form.videoUrl && !form.videoStorageRef) return { ok: false, reason: "Add a YouTube URL or upload a video file" };
+    }
+    if (form.type === "music") {
+      if (!form.audioUrl && !form.audioStorageRef) return { ok: false, reason: "Audio file is required" };
+    }
+    if (form.type === "document") {
+      if (!form.documentUrl && !form.documentStorageRef) return { ok: false, reason: "Document file is required" };
+    }
+    if (isPaid) {
+      const n = parseFloat(form.price);
+      if (!Number.isFinite(n) || n <= 0) return { ok: false, reason: "Enter a valid price in USDC" };
+      if (!form.recipientWallet) return { ok: false, reason: "Recipient wallet is required for paid posts" };
+    }
+    return { ok: true };
+  }
+
+  function handleCoverChange(coverUrl: string, key: string) {
+    setForm((prev) => ({ ...prev, coverUrl }));
+    setCoverKey(key);
+  }
+
+  function buildPhotoPayload() {
+    let items: Array<Record<string, unknown>> = [];
+    try { items = JSON.parse(form.media || "[]"); } catch { items = []; }
+    return items.map(({ _fileKey, previewUrl, ...m }) => m);
+  }
+
+  function buildContent() {
+    if (form.type === "article") {
+      return embeddedMedia.length > 0
+        ? { type: "article", markdown: form.bodyMarkdown, media: embeddedMedia.map(({ previewUrl, ...m }) => m) }
+        : form.bodyMarkdown;
+    }
+    if (form.type === "photo") {
+      return { type: "photo", media: buildPhotoPayload(), coverUrl: form.coverUrl, coverKey, caption: form.excerpt };
+    }
+    if (form.type === "video") {
+      return {
+        type: "video",
+        url: form.videoUrl || null,
+        file: form.videoStorageRef
+          ? { storageRef: form.videoStorageRef, encryptedKey: form.videoEncryptedKey, contentType: form.videoContentType, name: form.videoName, size: form.videoSize }
+          : null,
+        caption: form.excerpt,
+      };
+    }
+    if (form.type === "music") {
+      return {
+        type: "music",
+        coverUrl: form.coverUrl,
+        audio: form.audioStorageRef
+          ? { storageRef: form.audioStorageRef, encryptedKey: form.audioEncryptedKey, contentType: form.audioContentType }
+          : { url: form.audioUrl },
+        caption: form.excerpt,
+      };
+    }
+    return {
+      type: "document",
+      coverUrl: form.coverUrl,
+      document: form.documentStorageRef
+        ? { storageRef: form.documentStorageRef, encryptedKey: form.documentEncryptedKey, contentType: form.documentContentType, name: form.documentName, size: form.documentSize }
+        : { url: form.documentUrl, name: form.documentName, size: form.documentSize },
+      caption: form.excerpt,
+    };
+  }
+
+  function createShare(status: 'active' | 'draft') {
+    setError("");
+    setSaving(true);
+    const videoCover = form.type === "video" && vid ? `https://img.youtube.com/vi/${vid}/hqdefault.jpg` : "";
+    nibshareApi.create({
+      title: form.title,
+      summary: form.excerpt,
+      coverUrl: form.coverUrl || videoCover || null,
+      contentType: form.type,
+      content: buildContent(),
+      price: isPaid ? form.price : "0",
+      status,
+      expiresAt: computeExpiryIso()
+    })
+      .then(() => router.push("/share/mine"))
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to save"))
+      .finally(() => setSaving(false));
+  }
+
+  function handleAudioUpload(result: ContentMedia) {
+    if (result.storageRef) {
+      setForm((prev) => ({ ...prev, audioUrl: "", audioStorageRef: result.storageRef!, audioEncryptedKey: result.encryptedKey || "", audioContentType: result.contentType || "" }));
+    } else {
+      setForm((prev) => ({ ...prev, audioUrl: result.url || "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "" }));
+    }
+  }
+
+  function handleDocumentUpload(result: ContentMedia) {
+    if (result.storageRef) {
+      setForm((prev) => ({
+        ...prev,
+        documentUrl: "",
+        documentStorageRef: result.storageRef!,
+        documentEncryptedKey: result.encryptedKey || "",
+        documentContentType: result.contentType || "",
+        documentName: result.name || prev.documentName,
+        documentSize: result.size ?? prev.documentSize,
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        documentUrl: result.url || "",
+        documentStorageRef: "",
+        documentEncryptedKey: "",
+        documentContentType: result.contentType || "",
+        documentName: result.name || prev.documentName,
+        documentSize: result.size ?? prev.documentSize,
+      }));
+    }
+  }
+
+  function handleVideoUpload(result: ContentMedia) {
+    setForm((prev) => ({
+      ...prev,
+      videoStorageRef: result.storageRef || "",
+      videoEncryptedKey: result.encryptedKey || "",
+      videoContentType: result.contentType || "",
+      videoName: result.name || prev.videoName,
+      videoSize: result.size ?? prev.videoSize,
+    }));
+  }
+
+  const vid = getYoutubeId(form.videoUrl);
+
+  return (
+    <div className="space-y-6">
+      {error && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{error}</div>}
+
+      <Field label="Title" required>
+        <input
+          type="text" value={form.title} onChange={(e) => handleTitleChange(e.target.value)} required
+          className="input-field"
+          placeholder={form.type === "photo" ? "Photo title" : form.type === "video" ? "Video title" : form.type === "music" ? "Track title" : form.type === "document" ? "Document title" : "Post title"}
+        />
+      </Field>
+
+      <Field label="Type" required>
+        <select value={form.type} onChange={(e) => update("type", e.target.value)} className="input-field">
+          <option value="article">Article</option>
+          <option value="photo">Photo</option>
+          <option value="video">Video</option>
+          <option value="music">Music</option>
+          <option value="document">Document</option>
+        </select>
+      </Field>
+
+      {form.type === "article" && (
+        <MarkdownEditor
+          required value={form.bodyMarkdown} onChange={(v) => update("bodyMarkdown", v)}
+          embeddedMedia={embeddedMedia}
+          onEmbeddedMediaChange={setEmbeddedMedia}
+        />
+      )}
+      {form.type === "article" && (
+        <Field label="Excerpt">
+          <textarea
+            value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+            rows={2} className="input-field" placeholder="Short description"
+          />
+        </Field>
+      )}
+      {form.type === "article" && (
+        <Field label="Cover Image">
+          <ImageUploader
+            maxFiles={1}
+            value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+            onChange={(items) => update("coverUrl", items[0]?.url || "")}
+          />
+        </Field>
+      )}
+
+      {form.type === "photo" && (
+        <>
+          <Field label="Photos" required>
+            <ImageUploader
+              encrypted
+              allowCover
+              coverKey={coverKey}
+              onCoverChange={handleCoverChange}
+              value={form.media ? JSON.parse(form.media) : []}
+              onChange={(items) => setForm(p => ({ ...p, media: JSON.stringify(items) }))}
+            />
+            {!form.coverUrl && !coverKey && (
+              <div style={{ fontSize: "12px", color: "#d97706" }}>
+                Select a cover photo with the star — it will be public and the rest stay encrypted.
+              </div>
+            )}
+          </Field>
+          <Field label="Caption">
+            <textarea
+              value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+              rows={3} className="input-field" placeholder="Write a caption for this photo..."
+            />
+          </Field>
+        </>
+      )}
+
+      {form.type === "video" && (
+        <>
+          <Field label="Upload a video file">
+            <VideoUploader
+              onUpload={handleVideoUpload}
+              existingName={form.videoName || (form.videoStorageRef ? "Encrypted file" : "")}
+            />
+          </Field>
+          <Field label="Or paste a YouTube URL">
+            <input
+              type="text" value={form.videoUrl} onChange={(e) => update("videoUrl", e.target.value)}
+              className="input-field" placeholder="https://www.youtube.com/watch?v=..."
+            />
+          </Field>
+          <Field label="Cover Image">
+            <ImageUploader
+              maxFiles={1}
+              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+              onChange={(items) => update("coverUrl", items[0]?.url || "")}
+            />
+            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+              Optional — defaults to the YouTube thumbnail if a link is provided.
+            </div>
+          </Field>
+          {vid && !form.videoStorageRef && (
+            <div style={{ borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "16/9", background: "var(--surface)" }}>
+              <img
+                src={`https://img.youtube.com/vi/${vid}/maxresdefault.jpg`} alt="Video preview"
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                onError={(e) => { (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${vid}/hqdefault.jpg`; }}
+              />
+            </div>
+          )}
+          <Field label="Description">
+            <textarea
+              value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+              rows={3} className="input-field" placeholder="Describe this video..."
+            />
+          </Field>
+        </>
+      )}
+
+      {form.type === "music" && (
+        <>
+          <Field label="Cover Art">
+            <ImageUploader
+              maxFiles={1}
+              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+              onChange={(items) => update("coverUrl", items[0]?.url || "")}
+            />
+          </Field>
+          <Field label="Audio File" required>
+            <AudioUploader
+              onUpload={handleAudioUpload}
+              existingUrl={form.audioUrl || (form.audioStorageRef ? "Encrypted file" : "")}
+            />
+          </Field>
+          <Field label="Description">
+            <textarea
+              value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+              rows={3} className="input-field" placeholder="Describe this track..."
+            />
+          </Field>
+        </>
+      )}
+
+      {form.type === "document" && (
+        <>
+          <Field label="Cover Image">
+            <ImageUploader
+              maxFiles={1}
+              value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
+              onChange={(items) => update("coverUrl", items[0]?.url || "")}
+            />
+          </Field>
+          <Field label="Document File" required>
+            <DocumentUploader
+              onUpload={handleDocumentUpload}
+              existingName={form.documentName || (form.documentStorageRef ? "Encrypted file" : "")}
+            />
+          </Field>
+          <Field label="Description">
+            <textarea
+              value={form.excerpt} onChange={(e) => update("excerpt", e.target.value)}
+              rows={3} className="input-field" placeholder="Describe this document..."
+            />
+          </Field>
+        </>
+      )}
+
+      <Field label="Tags (comma separated)">
+        <input
+          type="text" value={form.tags} onChange={(e) => update("tags", e.target.value)}
+          className="input-field" placeholder="tools, craft, general"
+        />
+      </Field>
+      <Field label="Price (USDC)" required={isPaid}>
+        <input
+          type="text" value={form.price} onChange={(e) => update("price", e.target.value)}
+          className="input-field" placeholder="0.01"
+        />
+        <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+          Leave empty to publish for free.
+        </div>
+      </Field>
+      {isPaid && (
+        <Field label="Recipient Wallet" required>
+          <input
+            type="text" value={form.recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
+            className="input-field font-mono" placeholder="0x..."
+          />
+        </Field>
+      )}
+      <Field label="Expires">
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          {[
+            { h: 24, label: "24 hours" },
+            { h: 72, label: "3 days" },
+            { h: 168, label: "7 days" },
+          ].map(({ h, label }) => (
+            <button
+              key={h}
+              type="button"
+              onClick={() => { setExpiryQuick(h); setCustomExpiry(""); }}
+              style={{
+                padding: "6px 12px", borderRadius: "6px", fontSize: "13px", cursor: "pointer",
+                border: `1px solid ${expiryQuick === h ? "var(--accent)" : "var(--border)"}`,
+                background: expiryQuick === h ? "var(--accent)" : "transparent",
+                color: expiryQuick === h ? "#fff" : "var(--fg)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <span style={{ fontSize: "13px", color: "var(--muted)" }}>or</span>
+          <input
+            type="datetime-local"
+            value={customExpiry}
+            min={expiryMin}
+            max={expiryMax}
+            onChange={(e) => { setCustomExpiry(e.target.value); setExpiryQuick(null); }}
+            style={{
+              padding: "6px 10px", borderRadius: "6px", fontSize: "13px",
+              border: `1px solid ${expiryQuick === null && customExpiry ? "var(--accent)" : "var(--border)"}`,
+              background: "transparent", color: "inherit", colorScheme: "dark",
+            }}
+          />
+        </div>
+        <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+          Shares expire automatically — max 7 days from now.
+        </div>
+      </Field>
+
+      <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+        <button type="button" onClick={() => createShare('active')} disabled={saving || !canPublish().ok} className="btn-primary" title={canPublish().ok ? "" : canPublish().reason}>
+          {saving ? "Publishing..." : "Publish"}
+        </button>
+        <button type="button" onClick={() => createShare('draft')} disabled={saving || !canPublish().ok} className="btn-secondary" title={canPublish().ok ? "" : canPublish().reason}>
+          Save as Draft
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children, required = false }: { label: string; children: React.ReactNode; required?: boolean }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</label>
+      {children}
+    </div>
+  );
+}

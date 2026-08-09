@@ -17,6 +17,7 @@ const {
 } = require('@nibgate/sdk/server');
 const config = require('../src/config/config');
 const { registerR2Provider } = require('../src/lib/storage');
+const { wrapContentKey } = require('../src/lib/keywrap');
 
 registerR2Provider();
 const prisma = new PrismaClient();
@@ -67,7 +68,7 @@ async function encryptAndStore(buffer, siteId, kind) {
   const blob = packCipherBlob(enc);
   const storageRef = `blog/${siteId}/enc/${kind}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
   if (!dryRun) await putBlob({ key: storageRef, data: blob, contentType: 'application/octet-stream' });
-  return { storageRef, contentKey: contentKey.toString('base64') };
+  return { storageRef, contentKey: wrapContentKey(contentKey.toString('base64')) };
 }
 
 async function fetchBuffer(url) {

@@ -1,6 +1,11 @@
 import crypto from 'node:crypto';
-import { getUserBySession } from '@nibgate/internal/auth.js';
-import { putBlob, deleteBlob } from '@nibgate/sdk/server';
+import path from 'node:path';
+import multer from 'multer';
+import { requireAuth } from '@nibgate/internal/auth.js';
+import {
+  putBlob, deleteBlob, generateContentKey, encryptBytes, packCipherBlob, wrapKey
+} from '@nibgate/sdk/server';
+import { shareKeySecret } from '../nibshare/utils.js';
 import sharp from 'sharp';
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif']);
@@ -78,16 +83,6 @@ export async function deleteManagedProfileImage(url) {
   await deleteBlob({ storageRef: key }).catch(() => {});
 }
 
-async function requireAuth(req, res, next) {
-  const sessionToken = req.cookies.auth_session;
-  const user = await getUserBySession(sessionToken);
-  if (!user) {
-    return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
-  }
-  req.user = user;
-  next();
-}
-
 export function registerUploadRoutes(app) {
   app.post('/api/uploads/profile-image', requireAuth, async (req, res) => {
     try {
@@ -125,4 +120,127 @@ export function registerUploadRoutes(app) {
       res.status(500).json({ error: 'Upload failed' });
     }
   });
+
+  app.post('/api/uploads/content', requireAuth, (req, res) => {
+    contentUpload.single('file')(req, res, async (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+      if (!process.env.R2_ENDPOINT) {
+        return res.status(500).json({ error: 'R2 upload environment is not configured' });
+      }
+
+      try {
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        let body = req.file.buffer;
+        let contentType = DOCUMENT_MIMES[ext] || IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || VIDEO_MIMES[ext] || req.file.mimetype;
+        let finalExt = ext;
+
+        if (IMAGE_EXTS.has(ext)) {
+          const processed = await processContentImage(body);
+          body = processed.buffer;
+          contentType = processed.contentType;
+          finalExt = processed.ext;
+        }
+
+        const key = `nibshare/${req.user.id}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${finalExt}`;
+
+        if (req.query.encrypted === '1') {
+          const contentKey = generateContentKey();
+          const enc = encryptBytes(contentKey, body);
+          const blob = packCipherBlob(enc);
+          const encKey = `nibshare/${req.user.id}/enc/media/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
+          const { storageRef } = await putBlob({ key: encKey, data: blob, contentType: 'application/octet-stream' });
+          const result = {
+            success: true,
+            storageRef,
+            encryptedKey: wrapKey(shareKeySecret(), contentKey),
+            contentType,
+            name: req.file.originalname,
+            size: req.file.size,
+            encrypted: true,
+          };
+          if (IMAGE_EXTS.has(ext)) {
+            const preview = await processPreviewImage(body);
+            const previewKey = `nibshare/${req.user.id}/public/preview/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.webp`;
+            const { url } = await putBlob({
+              key: previewKey,
+              data: preview.buffer,
+              contentType: preview.contentType,
+              cacheControl: 'public, max-age=31536000, immutable',
+            });
+            result.previewUrl = url;
+          }
+          return res.json(result);
+        }
+
+        const { url } = await putBlob({
+          key,
+          data: body,
+          contentType,
+          cacheControl: 'public, max-age=31536000, immutable',
+        });
+
+        res.json({ success: true, url, filename: key, name: req.file.originalname, size: req.file.size, contentType });
+      } catch (uploadErr) {
+        console.log('Content upload failed:', uploadErr.message);
+        res.status(500).json({ error: 'Upload failed' });
+      }
+    });
+  });
+}
+
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+const IMAGE_MIMES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.wma']);
+const AUDIO_MIMES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.flac': 'audio/flac', '.aac': 'audio/aac', '.m4a': 'audio/mp4', '.wma': 'audio/x-ms-wma' };
+const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.mkv']);
+const VIDEO_MIMES = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska' };
+const DOCUMENT_EXTS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.ods', '.docx', '.doc', '.txt', '.md']);
+const DOCUMENT_MIMES = {
+  '.pdf': 'application/pdf',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.csv': 'text/csv',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.doc': 'application/msword',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+};
+
+const contentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowed = [...IMAGE_EXTS, ...AUDIO_EXTS, ...VIDEO_EXTS, ...DOCUMENT_EXTS];
+    if (!allowed.includes(ext)) return cb(new Error(`File type ${ext} not allowed.`));
+
+    if (DOCUMENT_EXTS.has(ext)) {
+      return cb(null, true);
+    }
+
+    const expectedMime = IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || VIDEO_MIMES[ext] || 'application/pdf';
+    if (file.mimetype !== expectedMime) {
+      return cb(new Error(`MIME type ${file.mimetype} does not match file extension ${ext}.`));
+    }
+
+    cb(null, true);
+  },
+});
+
+async function processContentImage(buffer) {
+  const image = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
+  const meta = await image.metadata();
+  const width = Math.min(meta.width || 2560, 2560);
+  const resized = await image.resize({ width, withoutEnlargement: true }).webp({ quality: 90, effort: 4 }).toBuffer();
+  return { buffer: resized, contentType: 'image/webp', ext: '.webp' };
+}
+
+async function processPreviewImage(buffer) {
+  const image = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
+  const meta = await image.metadata();
+  const width = Math.min(meta.width || 1200, 1200);
+  const resized = await image.resize({ width, withoutEnlargement: true }).webp({ quality: 78, effort: 4 }).toBuffer();
+  return { buffer: resized, contentType: 'image/webp' };
 }

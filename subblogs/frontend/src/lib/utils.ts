@@ -11,5 +11,6 @@ export function fd(v: string) {
 }
 
 export function rd(body: string) {
+  if (!body || !body.trim()) return "";
   return `${Math.max(1, Math.round(body.trim().split(/\s+/).length / 200))} min read`;
 }

@@ -63,10 +63,21 @@ The Hub is the main Nibgate app and API surface. It acts as the creator dashboar
 
 This is an example creator blog with paid content gating. Two services:
 
-- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after onchain proof verification.
+- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. All post bodies and media are encrypted at rest (free and paid); free content is decrypted server-side and served to anyone, paid content only after onchain proof verification. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after proof verification.
 - **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification. Admin panel (`/admin/posts`) includes a MiniLedger widget showing recent views, unlocks, payments, and ratings for the site.
 
-**Critical rule:** The `GET /api/blog/posts/:slug` endpoint strips the `body` from paid posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents content from ever appearing in page source.
+**Critical rule:** The `GET /api/blog/posts/:slug` endpoint decrypts and returns the body for **free** posts, and strips the `body` from **paid** posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents paid content from ever appearing in page source, while free content still reads publicly.
+
+### `nibshare` (Quick-Share Gated Content)
+
+A hosted quick-share rail inside the hub: a wallet owner publishes an encrypted payload with an optional price, expiry, and wallet whitelist, and gets a short link at `nibgate.xyz/ns/<slug>`. No domain required. Bodies and media are always AES-256-GCM encrypted at rest in Cloudflare R2; unlock is x402 USDC on Arc via the server-side decrypt proxy (free shares read openly, paid shares after payment). This is a **private** product — it is never indexed in hub discovery, the ledger, or reputation.
+
+Docs live with the implementation, not in a separate top-level folder:
+
+- `backend/src/server/nibshare/README.md` — product, threat model, auth, env
+- `backend/src/server/nibshare/API.md` — the HTTP contract
+- `backend/src/server/nibshare/STORAGE.md` — R2 layout, encryption, media serving
+- `backend/src/server/nibshare/STORAGE-TIER-PLAN.md` — planned Arweave/Lit tiers (not shipped)
 
 ### `packages/nibgate/`
 

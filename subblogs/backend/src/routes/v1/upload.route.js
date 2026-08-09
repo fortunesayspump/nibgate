@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const sharp = require('sharp');
 const { putBlob } = require('@nibgate/sdk/server');
 const { generateContentKey, encryptBytes, packCipherBlob } = require('@nibgate/sdk/server');
+const { wrapContentKey } = require('../../lib/keywrap');
 const { registerR2Provider } = require('../../lib/storage');
 const config = require('../../config/config');
 const { authenticate } = require('../../middlewares/auth');
@@ -19,6 +20,8 @@ const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 const IMAGE_MIMES = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
 const AUDIO_EXTS = new Set(['.mp3', '.wav', '.ogg']);
 const AUDIO_MIMES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
+const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.mkv']);
+const VIDEO_MIMES = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska' };
 const DOCUMENT_EXTS = new Set(['.pdf', '.xlsx', '.xls', '.csv', '.ods', '.docx', '.doc', '.txt', '.md']);
 const DOCUMENT_MIMES = {
   '.pdf': 'application/pdf',
@@ -46,17 +49,17 @@ const storage = useR2 ? multer.memoryStorage() : multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: 30 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const allowed = [...IMAGE_EXTS, ...AUDIO_EXTS, ...DOCUMENT_EXTS];
+    const allowed = [...IMAGE_EXTS, ...AUDIO_EXTS, ...VIDEO_EXTS, ...DOCUMENT_EXTS];
     if (!allowed.includes(ext)) return cb(new Error(`File type ${ext} not allowed.`));
 
     if (DOCUMENT_EXTS.has(ext)) {
       return cb(null, true);
     }
 
-    const expectedMime = IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || 'application/pdf';
+    const expectedMime = IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || VIDEO_MIMES[ext] || 'application/pdf';
     if (file.mimetype !== expectedMime) {
       return cb(new Error(`MIME type ${file.mimetype} does not match file extension ${ext}.`));
     }
@@ -79,9 +82,6 @@ router.post('/', authenticate, async (req, res, next) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
     if (!useR2) {
-      if (req.query.encrypted === '1') {
-        return res.status(400).json({ error: 'Encrypted uploads require R2 storage to be configured.' });
-      }
       const ext = path.extname(req.file.originalname).toLowerCase();
       let filename = req.file.filename;
 
@@ -97,49 +97,34 @@ router.post('/', authenticate, async (req, res, next) => {
       }
 
       const url = `/uploads/${filename}`;
-      return res.json({ success: true, url, filename, name: req.file.originalname, size: req.file.size, contentType: IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || DOCUMENT_MIMES[ext] || req.file.mimetype });
+      return res.json({ success: true, url, filename, name: req.file.originalname, size: req.file.size, contentType: IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || VIDEO_MIMES[ext] || DOCUMENT_MIMES[ext] || req.file.mimetype });
     }
 
     try {
       const ext = path.extname(req.file.originalname).toLowerCase();
       let body = req.file.buffer;
-      let contentType = DOCUMENT_MIMES[ext] || IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || req.file.mimetype;
-      let finalExt = ext;
+      let contentType = DOCUMENT_MIMES[ext] || IMAGE_MIMES[ext] || AUDIO_MIMES[ext] || VIDEO_MIMES[ext] || req.file.mimetype;
 
       if (IMAGE_EXTS.has(ext)) {
         const processed = await processImage(body, ext);
         body = processed.buffer;
         contentType = processed.contentType;
-        finalExt = processed.ext;
       }
 
-      const key = `blog/${req.siteId}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${finalExt}`;
-
-      if (req.query.encrypted === '1') {
-        const contentKey = generateContentKey();
-        const enc = encryptBytes(contentKey, body);
-        const blob = packCipherBlob(enc);
-        const encKey = `blog/${req.siteId}/enc/media/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
-        const { storageRef } = await putBlob({ key: encKey, data: blob, contentType: 'application/octet-stream' });
-        return res.json({
-          success: true,
-          storageRef,
-          encryptedKey: contentKey.toString('base64'),
-          contentType,
-          name: req.file.originalname,
-          size: req.file.size,
-          encrypted: true,
-        });
-      }
-
-      const { url } = await putBlob({
-        key,
-        data: body,
+      const contentKey = generateContentKey();
+      const enc = encryptBytes(contentKey, body);
+      const blob = packCipherBlob(enc);
+      const encKey = `blog/${req.siteId}/enc/media/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.bin`;
+      const { storageRef } = await putBlob({ key: encKey, data: blob, contentType: 'application/octet-stream' });
+      res.json({
+        success: true,
+        storageRef,
+        encryptedKey: wrapContentKey(contentKey.toString('base64')),
         contentType,
-        cacheControl: 'public, max-age=31536000, immutable',
+        name: req.file.originalname,
+        size: req.file.size,
+        encrypted: true,
       });
-
-      res.json({ success: true, url, filename: key, name: req.file.originalname, size: req.file.size, contentType });
     } catch (uploadErr) {
       next(uploadErr);
     }

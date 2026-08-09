@@ -36,7 +36,7 @@ app.use(compression());
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || !origin.startsWith('http')) return callback(null, true);
-    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
     if (allowed.some(a => {
       if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
       return a === origin;
@@ -48,7 +48,7 @@ app.use(cors({
 app.options('*', cors({
   origin: (origin, callback) => {
     if (!origin || !origin.startsWith('http')) return callback(null, true);
-    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
     if (allowed.some(a => {
       if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
       return a === origin;

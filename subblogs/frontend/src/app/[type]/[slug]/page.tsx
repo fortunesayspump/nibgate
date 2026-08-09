@@ -50,6 +50,10 @@ function cleanBody(md: string) {
   return md.replace(/<[^>]*>/g, "").replace(/!\[.*?\]\(.*?\)/g, "").replace(/[#*`\[\]()>-]/g, "").trim().slice(0, 300);
 }
 
+function resolveEmbeds(md: string, postId: string) {
+  return md.replace(/nibgate-embed:\/\/(\d+)/g, (_m, idx) => `/api/nibgate/media/${postId}/photo?index=${idx}`);
+}
+
 function postHref(post: { type: string; slug: string }) {
   const m: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
   return `/${m[post.type] || "posts"}/${post.slug}`;
@@ -108,11 +112,17 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
   const postBody = post.bodyMarkdown || "";
   const isPremium = post.price && Number(post.price) > 0;
 
-  let images: string[] = [];
+  let images: { url: string; caption?: string }[] = [];
   if (post.type === "photo" && post.media) {
     try {
       const items = JSON.parse(post.media);
-      if (Array.isArray(items)) images = items.map((i: any) => typeof i === "string" ? i : i.url).filter(Boolean);
+      if (Array.isArray(items)) {
+        images = items.map((i: any, idx: number) => {
+          if (typeof i === "string") return { url: i, caption: "" };
+          if (i?.storageRef) return { url: `/api/nibgate/media/${post.id}/photo?index=${idx}`, caption: i.caption || "" };
+          return { url: i.url, caption: i.caption || "" };
+        });
+      }
     } catch {}
   }
 
@@ -144,39 +154,40 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             </a>
           )}
 
-          {post.type === "video" && post.videoUrl && !isPremium && (
-            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginTop: "1.5rem", marginBottom: "1.5rem" }}>
-              <iframe src={(() => { const e = detectEmbed(post.videoUrl!); return e.type === "youtube" && e.embedUrl ? e.embedUrl : post.videoUrl; })()} title={post.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }} />
-            </div>
-          )}
+          {post.type === "video" && !isPremium && (() => {
+            const src = post.videoStorageRef ? `/api/nibgate/media/${post.id}/video` : post.videoUrl;
+            if (!src) return null;
+            const embed = detectEmbed(src);
+            if (embed.type === "youtube") {
+              return (
+                <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginTop: "1.5rem", marginBottom: "1.5rem" }}>
+                  <iframe src={embed.embedUrl || src} title={post.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }} />
+                </div>
+              );
+            }
+            return (
+              <video controls src={src} style={{ width: "100%", borderRadius: "6px", display: "block", background: "#000", marginTop: "1.5rem", marginBottom: "1.5rem" }} playsInline />
+            );
+          })()}
 
           {post.type === "photo" && !isPremium && images.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-              {images.map((url, i) => (
-                <div key={i} style={{ overflow: "hidden", borderRadius: "6px", background: "var(--border)" }}>
-                  <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={`${post.title} ${i + 1}`} style={{ width: "100%", height: "auto", display: "block" }} loading="lazy" /></a>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
+              {images.map((item, i) => (
+                <div key={i}>
+                  <a href={item.url} target="_blank" rel="noopener noreferrer">
+                    <img src={item.url} alt={item.caption || `${post.title} ${i + 1}`} style={{ width: "100%", height: "auto", display: "block", borderRadius: "6px" }} loading="lazy" />
+                  </a>
+                  {item.caption && <p className="small muted" style={{ marginTop: "0.3em" }}>{item.caption}</p>}
                 </div>
               ))}
             </div>
           )}
 
-          {post.type === "photo" && !isPremium && post.media && (() => {
-            let items: { url: string; caption?: string }[];
-            try { items = JSON.parse(post.media); } catch { return null; }
-            if (!Array.isArray(items) || items.length === 0) return null;
-            return (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
-                {items.map((item, i) => (
-                  <div key={i}>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer">
-                      <img src={item.url} alt={item.caption || `${post.title} ${i + 1}`} style={{ width: "100%", height: "auto", display: "block", borderRadius: "6px" }} loading="lazy" />
-                    </a>
-                    {item.caption && <p className="small muted" style={{ marginTop: "0.3em" }}>{item.caption}</p>}
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+          {post.type === "music" && !isPremium && post.audioStorageRef && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <audio controls src={`/api/nibgate/media/${post.id}/audio`} style={{ width: "100%" }} />
+            </div>
+          )}
 
           {post.type === "document" ? (
             <DocumentContent
@@ -193,7 +204,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             <NibgateUnlock resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
           ) : post.type === "article" ? (
             <div className="prose prose-neutral dark:prose-invert">
-              <ReactMarkdown>{post.bodyMarkdown}</ReactMarkdown>
+              <ReactMarkdown>{resolveEmbeds(post.bodyMarkdown, post.id)}</ReactMarkdown>
             </div>
           ) : (
             cleanBody(post.bodyMarkdown) && (

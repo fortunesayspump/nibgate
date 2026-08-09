@@ -3,7 +3,7 @@ export function printHelp() {
 
 Usage:
   nibgate init       Create nibgate.config.json in this project
-  nibgate dev        Run the Nibgate app and gateway locally
+  nibgate dev        Run the Nibgate backend locally
   nibgate routes     Print protected route config
   nibgate manifest   Print the public site manifest JSON
   nibgate status     Show local site and hub connection status

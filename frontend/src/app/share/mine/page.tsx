@@ -1,0 +1,194 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAccount, useSignMessage } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
+import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { ShareLayout, ShareBtn, ShareIntro } from '@/features/nibshare/components/ShareLayout';
+import ActivityBell from '@/features/nibshare/components/ActivityBell';
+import ShareWallet from '@/features/nibshare/components/ShareWallet';
+import { PostRow } from '@/features/nibshare/components/mine/PostRow';
+import { SettingsSheet } from '@/features/nibshare/components/mine/SettingsSheet';
+import { nibshareApi } from '@/features/nibshare/api';
+import { isEnded } from '@/features/nibshare/lib/shares';
+import type { ShareSummary, ShareActivity } from '@/features/nibshare/types';
+
+type ViewFilter = 'all' | 'active' | 'ended' | 'drafts';
+
+export default function ShareMinePage() {
+  const router = useRouter();
+  const { open } = useAppKit();
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const [shares, setShares] = useState<ShareSummary[]>([]);
+  const [activity, setActivity] = useState<ShareActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<'checking' | 'authed' | 'guest'>('checking');
+  const [error, setError] = useState<string | null>(null);
+  const [settingsFor, setSettingsFor] = useState<ShareSummary | null>(null);
+  const [view, setView] = useState<ViewFilter>('all');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await nibshareApi.listMine();
+      setShares(data.shares || []);
+      setActivity(data.activity || []);
+      setError(null);
+    } catch (err: any) {
+      if (err.status === 401) setSession('guest');
+      else setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await nibshareApi.me();
+        if (cancelled) return;
+        if (data.authenticated) {
+          setSession('authed');
+          await load();
+        } else {
+          setSession('guest');
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setSession('guest');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
+  async function handleAuth() {
+    try {
+      setError(null);
+      const { messageTemplate } = await nibshareApi.authNonce();
+      const signature = await signMessageAsync({ message: messageTemplate });
+      await nibshareApi.authVerify({ walletAddress: address, signature });
+      setSession('authed');
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  }
+
+  async function handleRevoke(slug: string) {
+    try {
+      await nibshareApi.revoke(slug);
+      setShares((prev) => prev.filter((s) => s.slug !== slug));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to revoke");
+    }
+  }
+
+  function handleRotate(oldSlug: string, newSlug: string, url: string) {
+    setShares((prev) => prev.map((s) => (s.slug === oldSlug ? { ...s, slug: newSlug, url } : s)));
+  }
+
+  if (loading || session === 'checking') {
+    return (
+      <ShareLayout tight backHref="/" backLabel="Back to Hub" right={<ShareWallet />}>
+        <div className="flex min-h-screen items-center justify-center text-sm" style={{ color: "var(--muted)" }}>Loading...</div>
+      </ShareLayout>
+    );
+  }
+
+  if (session === 'guest') {
+    return (
+      <ShareLayout tight backHref="/" backLabel="Back to Hub" right={<ShareWallet />}>
+        <h1 className="text-lg font-semibold tracking-tight mt-5">Posts</h1>
+        <div style={{ marginTop: '1rem' }}>
+          <ShareIntro>Connect your wallet to see your posts.</ShareIntro>
+          {!isConnected ? (
+            <ShareBtn onClick={() => open()} style={{ marginTop: '1rem' }}>Connect wallet</ShareBtn>
+          ) : (
+            <>
+              <ShareBtn onClick={handleAuth} style={{ marginTop: '1rem' }}>Sign with wallet</ShareBtn>
+              {error && <p className="text-xs" style={{ color: '#c44', marginTop: '0.5rem' }}>{error}</p>}
+            </>
+          )}
+        </div>
+      </ShareLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <ShareLayout tight backHref="/" backLabel="Back to Hub" right={<ShareWallet />}>
+        <h1 className="text-lg font-semibold tracking-tight mt-5">Posts</h1>
+        <p className="text-xs" style={{ color: '#c44', marginTop: '0.75rem' }}>{error}</p>
+      </ShareLayout>
+    );
+  }
+
+  const published = shares.filter((s) => s.status !== "draft");
+  const drafts = shares.filter((s) => s.status === "draft");
+  const active = published.filter((s) => !isEnded(s));
+  const ended = published.filter((s) => isEnded(s));
+  const visible = view === "drafts" ? drafts : view === "all" ? published : view === "active" ? active : ended;
+
+  return (
+    <ShareLayout tight backHref="/" backLabel="Back to Hub" right={<ShareWallet />}>
+      <div className="flex items-center justify-between mt-5 mb-4">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Posts</h1>
+          <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{published.length} post{published.length !== 1 ? "s" : ""}</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <ActivityBell activity={activity} />
+          <Link href="/share" className="no-underline inline-flex items-center justify-center w-9 h-9 rounded-md border cursor-pointer" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)" }} title="New Post">
+            <FiPlus size={18} />
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex gap-1 p-1 rounded-lg border mb-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        {(["all", "active", "ended"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setView(t)}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-md cursor-pointer transition-colors"
+            style={view === t ? { background: "var(--accent)", color: "#fff" } : { color: "var(--muted)" }}
+          >
+            <span className="capitalize">{t}</span>
+            <span style={{ opacity: 0.8 }}>{t === "all" ? published.length : t === "active" ? active.length : ended.length}</span>
+          </button>
+        ))}
+        <div className="w-px self-stretch my-1" style={{ background: "var(--border)" }} />
+        <button
+          onClick={() => setView("drafts")}
+          className="inline-flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 px-3 rounded-md cursor-pointer transition-colors"
+          style={view === "drafts" ? { background: "var(--accent)", color: "#fff" } : { color: "var(--muted)" }}
+          title="Drafts"
+        >
+          <FiEdit2 size={12} /> Drafts
+          <span style={{ opacity: 0.8 }}>{drafts.length}</span>
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-px">
+        {shares.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-sm" style={{ color: "var(--muted)" }}>No posts yet.</p>
+            <Link href="/share" className="btn-ghost no-underline inline-flex mt-2 text-xs">Create your first post</Link>
+          </div>
+        ) : visible.length === 0 ? (
+          <p className="text-xs py-8 text-center" style={{ color: "var(--muted)" }}>No {view === "drafts" ? "drafts" : `${view} posts`}.</p>
+        ) : (
+          visible.map((share) => (
+            <PostRow key={share.id} share={share} onSettings={() => setSettingsFor(share)} />
+          ))
+        )}
+      </div>
+      {settingsFor && <SettingsSheet share={settingsFor} onClose={() => setSettingsFor(null)} onRotate={handleRotate} onRevoke={handleRevoke} />}
+    </ShareLayout>
+  );
+}

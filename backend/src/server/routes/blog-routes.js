@@ -1,5 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
-import { getUserBySession } from '@nibgate/internal/auth.js';
+import { requireAuth } from '@nibgate/internal/auth.js';
 
 function normalizeWallet(value = '') {
   return String(value).trim().toLowerCase();
@@ -21,15 +21,7 @@ function isBlogOwner(user) {
   return primaryWalletAddress(user) === ownerWallet;
 }
 
-async function requireAuth(req, res, next) {
-  const sessionToken = req.cookies.auth_session;
-  const user = await getUserBySession(sessionToken);
-  if (!user) return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
-  req.user = user;
-  next();
-}
-
-function requireBlogOwner(req, res, next) {
+async function requireBlogOwner(req, res, next) {
   if (!isBlogOwner(req.user)) {
     return res.status(403).json({ error: 'This wallet is not the blog owner.' });
   }

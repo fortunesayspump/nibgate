@@ -38,6 +38,16 @@ const adminList = catchAsync(async (req, res) => {
   res.json({ success: true, posts: posts.map(transformTags) });
 });
 
+const adminStats = catchAsync(async (req, res) => {
+  const stats = await blogService.adminPostStats(req.siteId);
+  res.json({ success: true, stats });
+});
+
+const adminActivity = catchAsync(async (req, res) => {
+  const { activities, totals } = await blogService.adminActivity(req.siteId);
+  res.json({ success: true, activities, totals });
+});
+
 const getById = catchAsync(async (req, res) => {
   const post = await blogService.getById(req.siteId, req.params.id);
   if (!post) return res.status(status.NOT_FOUND).json({ error: 'Post not found' });
@@ -67,4 +77,4 @@ const listByTypes = catchAsync(async (req, res) => {
   res.json({ success: true, ...result });
 });
 
-module.exports = { list, getBySlug, adminList, getById, create, update, remove, listByTypes };
+module.exports = { list, getBySlug, adminList, getById, create, update, remove, listByTypes, adminStats, adminActivity };

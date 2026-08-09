@@ -311,17 +311,18 @@ model NewsletterSubscriber {
 // price, an optional expiry and an optional wallet whitelist, and gets a short
 // link. Unlock = x402 USDC payment -> access rules checked -> key vended.
 //
-// Decentralization model (see nibshare/README.md):
-//   - The CIPHERTEXT + public metadata live on decentralized storage
-//     (storageProvider/storageRef); the plaintext never does.
+// Decentralization model (see backend/src/server/nibshare/README.md):
+//   - The CIPHERTEXT lives on Nibgate-hosted Cloudflare R2
+//     (storageProvider 'nibgate' — the only supported provider today); the
+//     plaintext never does.
 //   - Integrity is a keccak256 commitment (contentHash), same pattern as the
 //     hub's contentHash for Content rows.
 //   - Expiry semantics: expiresAt stops NEW unlocks/key issuance. It CANNOT
-//     revoke keys already vended (immutable permanent storage + issued keys).
+//     revoke keys already vended.
 //   - Whitelist is enforced at key-issuance time: wallets outside it are
 //     refused even if they pay.
-//   - keyProvider: 'server' vends the content key from Nibgate backend
-//     (Tier 1). 'lit' defers to a Lit Protocol PKP + Lit Action (Tier 2).
+//   - keyProvider is always 'server': the Nibgate backend holds K and decrypts
+//     per session (decryptMode 'server'). 'lit' is a planned tier, not shipped.
 //
 // NOT in the manifest/ContentEvent sync loop: these are ephemeral and
 // wallet-owned, not site-owned.
@@ -331,6 +332,7 @@ model NibShare {
   ownerWallet String
   title       String
   summary     String?
+  coverUrl    String? // public thumbnail (extracted cover / cover art); media body stays encrypted
   contentType String     @default("text") // text | article | image | link
   bodyLength  Int        @default(0) // plaintext byte length (for pricing/display)
 
@@ -365,11 +367,13 @@ model NibShare {
   // Lifecycle
   status      String   @default("active") // active | expired | revoked
   unlockCount Int      @default(0)
+  viewCount   Int      @default(0)
   slug        String   @unique // short link suffix (e.g. 8-char base58)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   receipts    NibShareReceipt[]
   entitlements NibShareEntitlement[]
+  events      NibShareEvent[]
 
   @@index([ownerWallet])
   @@index([status, expiresAt])
@@ -389,6 +393,18 @@ model NibShareEntitlement {
   @@unique([shareId, wallet])
   @@index([wallet])
   @@index([status])
+}
+
+model NibShareEvent {
+  id        String    @id @default(uuid())
+  shareId   String
+  share     NibShare  @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  type      String // view | revoke
+  wallet    String?
+  createdAt DateTime  @default(now())
+
+  @@index([shareId, createdAt])
+  @@index([createdAt])
 }
 
 model NibShareReceipt {

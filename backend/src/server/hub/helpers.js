@@ -138,11 +138,14 @@ export function hashValue(value = '') {
 }
 
 export function trackingVisitorHash(req, website) {
-  const salt = process.env.METRIC_HASH_SALT || process.env.SESSION_SECRET || process.env.NIBGATE_INDEXER_SECRET || 'nibgate-metric-salt';
+  const salt = process.env.METRIC_HASH_SALT || process.env.SESSION_SECRET || process.env.NIBGATE_INDEXER_SECRET;
+  if (!salt && process.env.NODE_ENV === 'production') {
+    throw new Error('METRIC_HASH_SALT (or SESSION_SECRET / NIBGATE_INDEXER_SECRET) is required in production');
+  }
   const ip = clientIpFor(req);
   const userAgent = String(req.headers['user-agent'] || '').slice(0, 500);
   const acceptLanguage = String(req.headers['accept-language'] || '').slice(0, 120);
-  return hashValue([salt, dayStamp(), website.id, cleanDomain(website.domain), ip, userAgent, acceptLanguage].join('|'));
+  return hashValue([salt || 'nibgate-metric-salt', dayStamp(), website.id, cleanDomain(website.domain), ip, userAgent, acceptLanguage].join('|'));
 }
 
 // ── Rate limiting ──────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
-import { getUserBySession } from '@nibgate/internal/auth.js';
+import { requireAuth } from '@nibgate/internal/auth.js';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
   cleanDomain, isValidDomain, originFor, serializeWebsite,
@@ -18,14 +18,13 @@ import {
 } from '../hub/helpers.js';
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
 
-async function requireAuth(req, res, next) {
-  const sessionToken = req.cookies.auth_session;
-  const user = await getUserBySession(sessionToken);
-  if (!user) {
-    return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
+function blogLinkSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is required for blog link tokens in production');
   }
-  req.user = user;
-  next();
+  return 'nibgate-link-secret';
 }
 
 export function registerHubRoutes(app) {
@@ -630,7 +629,7 @@ export function registerHubRoutes(app) {
         contractAddress: process.env.NIBGATE_REPUTATION_CONTRACT || '',
         chainId: process.env.NIBGATE_REPUTATION_CHAIN_ID || '5042002',
         chainName: process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet',
-        rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc-node.thecanteenapp.com/v1/'
+        rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.io'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to prepare rating', details: error.message });
@@ -942,7 +941,7 @@ export function registerHubRoutes(app) {
       const code = crypto.randomBytes(16).toString('hex');
       const expiresAt = Date.now() + 15 * 60 * 1000;
       const payload = JSON.stringify({ userId: req.user.id, code, expiresAt });
-      const secret = process.env.JWT_SECRET || 'nibgate-link-secret';
+      const secret = blogLinkSecret();
       const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
       const linkToken = `${code}.${Buffer.from(payload).toString('base64url')}.${signature}`;
 
@@ -962,7 +961,7 @@ export function registerHubRoutes(app) {
       if (parts.length !== 3) return res.status(400).json({ error: 'Invalid link token format.' });
 
       const [, encodedPayload, signature] = parts;
-      const secret = process.env.JWT_SECRET || 'nibgate-link-secret';
+      const secret = blogLinkSecret();
       const decodedPayload = Buffer.from(encodedPayload, 'base64url').toString();
       const expectedSig = crypto.createHmac('sha256', secret).update(decodedPayload).digest('hex');
       if (signature !== expectedSig) return res.status(403).json({ error: 'Invalid link token.' });

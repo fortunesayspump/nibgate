@@ -12,10 +12,10 @@ All image processing happens server-side at upload time. No client-side librarie
 
 ```txt
 Upload
-  -> R2 storage (or local /uploads in dev)
   -> sharp processing (WebP conversion, resize)
-  -> Single optimized file stored
-  -> Public URL returned
+  -> Single optimized WebP file
+  -> Encrypted .bin blob in R2 (covers stay plaintext WebP)
+  -> storageRef + encryptedKey returned (or public URL in dev without R2)
 ```
 
 ## What sharp does
@@ -42,7 +42,7 @@ Images fall into a few categories depending on where they appear:
   </Cards.Card>
 </Cards>
 
-All plaintext uploads go through the same pipeline: auto-rotate, WebP conversion, and a 2560px width cap. There are no per-type size variants or square crop processing.
+All uploads go through the same pipeline: auto-rotate, WebP conversion, and a 2560px width cap. There are no per-type size variants or square crop processing. Images are processed **before** encryption, so encrypted blobs are already WebP — only the cover is re-uploaded as plaintext WebP after decryption.
 
 ## Storage
 
@@ -55,7 +55,7 @@ Images are stored in **Cloudflare R2** object storage. R2 provides:
 
 ## URL format
 
-Optimized images are served from the R2 public bucket:
+Optimized images are served from the R2 public bucket. Covers follow this URL pattern:
 
 ```txt
 {R2_PUBLIC_URL}/blog/{siteId}/{timestamp}-{random}.webp
@@ -63,11 +63,11 @@ Optimized images are served from the R2 public bucket:
 
 Example: `https://pub-…r2.dev/blog/{siteId}/1785469232629-8021a40a8489.webp`
 
-There are no variant sub-paths or responsive parameters — each plaintext upload stores exactly one WebP file and returns its URL directly.
+There are no variant sub-paths or responsive parameters — each cover stores exactly one WebP file and returns its URL directly.
 
-## Encrypted media on paid posts
+## Encrypted media
 
-Paid media uploads skip this pipeline — they are stored as encrypted `.bin` blobs and only the starred cover is decrypted to a public WebP. See [Content Encryption](/encryption) for the full flow.
+All post media (gallery images, audio, uploaded video, documents) is encrypted at rest: the optimized WebP (or raw file for non-images) is AES-256-GCM encrypted and stored as a `.bin` ciphertext blob, and only the starred cover is decrypted back to a public WebP. Media is streamed through the encrypted-media proxy (`/api/nibgate/media/:postId/photo|video|audio`) with server-side decryption — free posts need no proof, paid posts need a valid unlock proof. See [Content Encryption](/encryption) for the full flow.
 
 ## Cover images
 

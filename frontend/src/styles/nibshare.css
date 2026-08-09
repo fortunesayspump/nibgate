@@ -1,0 +1,775 @@
+/*
+ * Nibshare pages — exact copy of subblogs frontend/src/app/globals.css.
+ * Scoped to `.nibshare-root` (and `body:has(.nibshare-root)`) so it never
+ * leaks into other nibgate routes. Values are byte-identical to subblogs.
+ */
+
+body:has(.nibshare-root) {
+  --font-content: "Kumbh Sans", "ABC Favorit", -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-ui: var(--font-content);
+  --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", "IBM Plex Mono", monospace;
+
+  --wrap-normal: 37em;
+  --wrap-wide: 54em;
+  --font-small: 0.875em;
+  --font-smaller: 0.8em;
+  --line-height: 1.5;
+  --heading-weight: 500;
+
+  --bg: #f4f4f0;
+  --fg: #0a0a0a;
+  --muted: #6b6862;
+  --border: #cecdc3;
+  --accent: #7c9a6d;
+  --accent-soft: #d8e8d3;
+  --surface: #eae8e0;
+  --card-hover: #e0ddd3;
+  --selection: rgba(124, 154, 109, 0.3);
+
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-content);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  margin: 0 auto;
+  padding: 20px 0 240px;
+  font-size: 18px;
+  line-height: var(--line-height);
+}
+
+html[data-theme="dark"] body:has(.nibshare-root) {
+  --bg: #10110e;
+  --fg: #cecdc3;
+  --muted: #878580;
+  --border: #403e3c;
+  --accent: #7c9a6d;
+  --accent-soft: #2a3a22;
+  --surface: #1a1c16;
+  --card-hover: #2d2f28;
+  --selection: rgba(60, 80, 50, 0.3);
+
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body:has(.nibshare-root) ::selection {
+  background: var(--selection);
+}
+
+/* Undo nibgate layout wrapper quirks (text-base 16px, tracking-tight, etc.) */
+.nibshare-root {
+  font-size: 18px;
+  line-height: var(--line-height);
+  letter-spacing: 0;
+  color: var(--fg);
+  font-family: var(--font-content);
+}
+
+.nibshare-root a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 0.15s;
+}
+.nibshare-root a:hover {
+  color: var(--accent);
+  text-decoration-thickness: 2px;
+}
+.nibshare-root a.plain,
+.nibshare-root a.muted,
+.nibshare-root a.no-underline {
+  text-decoration: none;
+}
+
+/* Text sizes — subblogs @theme overrides.
+   Kept in @layer utilities (like Tailwind) so the unlayered h1/h2/btn rules
+   above win, exactly as they do on subblogs. */
+@layer utilities {
+  .nibshare-root .text-xs { font-size: 14px; }
+  .nibshare-root .text-sm { font-size: 16px; }
+  .nibshare-root .text-base { font-size: 18px; }
+  .nibshare-root .text-lg { font-size: 20px; }
+}
+
+.nibshare-root .font-ui { font-family: var(--font-ui); }
+.nibshare-root .small { font-size: var(--font-small); line-height: 1.4; }
+.nibshare-root .smaller { font-size: var(--font-smaller); line-height: 1.4; }
+.nibshare-root .muted { color: var(--muted); }
+.nibshare-root .faint { opacity: 0.4; }
+.nibshare-root .muted a { color: var(--muted); }
+.nibshare-root .tabular-nums { font-variant-numeric: tabular-nums; }
+.nibshare-root .align-baseline { align-items: baseline; }
+.nibshare-root .flex-grow { flex-grow: 1; }
+.nibshare-root .flex-shrink { flex-shrink: 1; }
+.nibshare-root .nowrap { white-space: nowrap; }
+.nibshare-root .pb { padding-bottom: 10px; }
+.nibshare-root .bt { border-top: 1px solid var(--border); }
+.nibshare-root .ssr { margin-right: 2rem; }
+.nibshare-root .ssl { margin-left: 2rem; }
+.nibshare-root .ppr { padding-right: 2rem; }
+.nibshare-root .pn1 { padding-top: 1.5em; }
+.nibshare-root .pn2 { padding-top: 4rem; }
+.nibshare-root .list-plain { list-style: none; padding: 0; margin: 0; padding-inline-start: 0; margin-left: 0; }
+.nibshare-root .type-icon { opacity: 0.5; margin-right: 0.4em; display: inline-flex; vertical-align: middle; flex-shrink: 0; }
+.nibshare-root .type-icon svg { width: 20px; height: 20px; }
+.nibshare-root .section-header { margin-bottom: 1.5rem; }
+
+.nibshare-root h1 {
+  font-weight: 500;
+  font-size: calc(1.55em + 0.6vw);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin: 1.5em 0 0.25em;
+}
+.nibshare-root h1:first-child { margin-top: 0; }
+.nibshare-root h2 {
+  font-weight: var(--heading-weight);
+  font-size: calc(1em + 0.2vw);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  margin: 1em 0 0.5em;
+}
+.nibshare-root .heading {
+  display: block;
+  max-width: var(--wrap-wide);
+  width: var(--wrap-normal);
+  margin: 0 auto;
+}
+.nibshare-root .wrap { max-width: var(--wrap-normal); margin: 0 auto; }
+.nibshare-root .hover-underline { text-decoration: underline; text-underline-offset: 3px; }
+
+.nibshare-root .btn-primary {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nibshare-root .btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: white;
+}
+.nibshare-root .btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nibshare-root .btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nibshare-root .btn-secondary:hover:not(:disabled) {
+  background: var(--card-hover);
+  color: var(--fg);
+}
+.nibshare-root .btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.nibshare-root .btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nibshare-root .btn-ghost:hover {
+  color: var(--fg);
+}
+
+.nibshare-root .input-field {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+.nibshare-root .input-field:focus {
+  border-color: var(--accent);
+}
+.nibshare-root .input-field::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.nibshare-root textarea.input-field {
+  resize: vertical;
+}
+
+.nibshare-root hr {
+  width: 100%;
+  border: 0;
+  height: 1px;
+  margin: 1.5em 0;
+  background: var(--border);
+}
+.nibshare-root .mn2 { margin-top: 4rem; }
+.nibshare-root .ms2 { margin-bottom: 4rem; }
+
+@media (max-width: 600px) {
+  body:has(.nibshare-root) {
+    padding: 2rem 24px 24rem;
+  }
+}
+
+/* Nibshare error alert (used on the /ns/[slug] unlock page) */
+.nibshare-root .nibshare-error-alert {
+  border: 1px solid #fca5a5;
+  background: #fee2f2;
+  color: #be123c;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  margin-bottom: 1rem;
+}
+
+/* Nibshare unlock result (used on the /ns/[slug] unlock page) */
+.nibshare-root .nibshare-unlock-result {
+  margin-top: 1.5rem;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.nibshare-root .nibshare-unlock-title {
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+.nibshare-root .nibshare-content-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: monospace;
+  opacity: 0.8;
+}
+.nibshare-root .nibshare-meta { font-size: 13px; color: var(--muted); }
+
+/* ------------------------------------------------------------------ */
+/* Markdown editor — exact copy of subblogs globals.css editor styles  */
+/* (prosemirror-virtual-cursor rules inlined, scoped to .nibshare-root) */
+/* ------------------------------------------------------------------ */
+
+.nibshare-root .ProseMirror.virtual-cursor-enabled {
+  caret-color: transparent;
+}
+.nibshare-root .ProseMirror-focused {
+  --prosemirror-virtual-cursor-color: var(--fg);
+}
+.nibshare-root .ProseMirror .prosemirror-virtual-cursor {
+  position: absolute;
+  cursor: text;
+  pointer-events: none;
+  transform: translate(-1px);
+  user-select: none;
+  -webkit-user-select: none;
+  border-left: 2px solid var(--prosemirror-virtual-cursor-color);
+}
+.nibshare-root .ProseMirror .prosemirror-virtual-cursor-left {
+  width: 1ch;
+  transform: translate(calc(-1ch + -1px));
+  border-bottom: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-right: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-left: none;
+}
+.nibshare-root .ProseMirror .prosemirror-virtual-cursor-right {
+  width: 1ch;
+  border-bottom: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-left: 2px solid var(--prosemirror-virtual-cursor-color);
+  border-right: none;
+}
+.nibshare-root .ProseMirror-focused .prosemirror-virtual-cursor-animation {
+  animation: prosemirror-virtual-cursor-blink 1s linear infinite;
+  animation-delay: 0.5s;
+}
+@keyframes prosemirror-virtual-cursor-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.nibshare-root .editor-content .ProseMirror {
+  min-height: 300px;
+  outline: none;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.nibshare-root .editor-content .ProseMirror.virtual-cursor-enabled {
+  caret-color: transparent;
+}
+.nibshare-root .editor-content--fullscreen .ProseMirror {
+  font-size: 20px;
+  line-height: 1.8;
+  padding: 4px 0;
+  min-height: auto;
+}
+
+.nibshare-root .editor-content .ProseMirror p { margin: 0.4em 0; }
+.nibshare-root .editor-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left; height: 0; pointer-events: none;
+  color: var(--muted); opacity: 0.6;
+}
+.nibshare-root .editor-content .ProseMirror :is(h1,h2,h3) { font-weight: 600; margin: 0.6em 0 0.3em; }
+.nibshare-root .editor-content .ProseMirror h1 { font-size: 1.4em; }
+.nibshare-root .editor-content .ProseMirror h2 { font-size: 1.2em; }
+.nibshare-root .editor-content .ProseMirror h3 { font-size: 1.05em; }
+.nibshare-root .editor-content .ProseMirror :is(ul,ol) { padding-left: 1.4em; margin: 0.4em 0; }
+.nibshare-root .editor-content .ProseMirror li { margin: 0.2em 0; }
+.nibshare-root .editor-content .ProseMirror blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.6em 0; padding: 0.1em 0.8em; opacity: 0.85;
+}
+.nibshare-root .editor-content .ProseMirror pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 12px;
+  font-family: var(--font-mono); font-size: 13px;
+  overflow-x: auto; margin: 0.6em 0;
+}
+.nibshare-root .editor-content .ProseMirror code {
+  font-family: var(--font-mono); font-size: 0.85em;
+  background: var(--surface); padding: 1px 4px; border-radius: 3px;
+}
+.nibshare-root .editor-content .ProseMirror pre code { background: none; padding: 0; border-radius: 0; }
+.nibshare-root .editor-content .ProseMirror img { max-width: 100%; max-height: 60vh; height: auto; border-radius: 6px; margin: 0.6em 0; display: block; }
+.nibshare-root .editor-content .ProseMirror a { color: var(--accent); text-decoration: underline; }
+.nibshare-root .editor-content .ProseMirror hr { margin: 1.2em 0; }
+.nibshare-root .editor-content .ProseMirror table {
+  width: 100%; border-collapse: collapse; margin: 0.6em 0;
+}
+.nibshare-root .editor-content .ProseMirror th,
+.nibshare-root .editor-content .ProseMirror td {
+  border: 1px solid var(--border); padding: 6px 10px; text-align: left; font-size: 13px;
+}
+.nibshare-root .editor-content .ProseMirror th { background: var(--surface); font-weight: 600; }
+.nibshare-root .editor-content .ProseMirror ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.nibshare-root .editor-content .ProseMirror ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 6px; }
+.nibshare-root .editor-content .ProseMirror ul[data-type="taskList"] li > label { flex-shrink: 0; }
+.nibshare-root .editor-content .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p { text-decoration: line-through; opacity: 0.6; }
+
+.nibshare-root .ProseMirror .prosemirror-virtual-cursor {
+  transition: left 80ms cubic-bezier(0.22,1,0.36,1), top 80ms cubic-bezier(0.22,1,0.36,1);
+}
+
+.nibshare-root .bubble-menu {
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Share page wallet (top-right, hub session) */
+.nibshare-root .share-wallet {
+  position: relative;
+  display: inline-flex;
+}
+.nibshare-root .share-wallet-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nibshare-root .share-wallet-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.nibshare-root .share-wallet-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.nibshare-root .share-wallet-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.nibshare-root .share-wallet-item:hover {
+  background: var(--accent-soft);
+}
+.nibshare-root .share-wallet-item-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: default;
+}
+.nibshare-root .share-wallet-item-theme:hover {
+  background: transparent;
+}
+.nibshare-root .share-wallet-item-theme .theme-toggle__label {
+  color: var(--muted);
+  font-size: 10px;
+}
+.nibshare-root .share-wallet-item-theme .theme-toggle__button {
+  width: 46px;
+  height: 24px;
+  border-color: var(--border);
+}
+.nibshare-root .share-wallet-item-theme .theme-toggle__button:before {
+  width: 14px;
+  height: 14px;
+  top: 4px;
+  left: 4px;
+  background: var(--fg);
+}
+.nibshare-root .share-wallet-item-theme .theme-toggle__button[aria-pressed="true"] {
+  background: var(--fg);
+}
+.nibshare-root .share-wallet-item-theme .theme-toggle__button[aria-pressed="true"]:before {
+  background: var(--bg);
+  transform: translate(24px);
+}
+.nibshare-root .share-wallet-item-disconnect {
+  color: #c44;
+}
+
+/* ---- document previews — exact copy of subblogs globals.css (scoped) ---- */
+
+.nibshare-root .prose { font-size: 18px; line-height: 1.6; }
+
+.nibshare-root .doc-viewer {
+  border: 1px solid #dfe2e7;
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 60vh;
+  background: #eef0f4;
+  color: #1f2328;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 10px 30px rgba(16, 24, 40, 0.08);
+  margin-bottom: 1rem;
+  width: min(70rem, 100vw);
+  margin-left: calc(50% - min(35rem, 50vw));
+  display: flex;
+  flex-direction: column;
+}
+
+.nibshare-root .doc-viewer--app {
+  position: relative;
+  height: min(72vh, 840px);
+  max-height: 72vh;
+}
+
+.nibshare-root .doc-viewer--sheet {
+  position: relative;
+  height: auto;
+  max-height: min(72vh, 840px);
+}
+
+.nibshare-root .doc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e4e6ea;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.nibshare-root .doc-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid #d9dce1;
+  border-radius: 6px;
+  background: #fff;
+  color: #3a3f45;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.nibshare-root .doc-tool-btn:disabled { opacity: 0.4; cursor: default; }
+.nibshare-root .doc-tool-btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); text-decoration: none; }
+
+.nibshare-root .doc-tool-label {
+  min-width: 42px;
+  text-align: center;
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.nibshare-root .doc-tool-spacer { flex: 1 1 auto; }
+
+.nibshare-root .doc-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: #eef0f4;
+  padding: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #c3c9d1 transparent;
+}
+.nibshare-root .doc-stage::-webkit-scrollbar { width: 12px; height: 12px; }
+.nibshare-root .doc-stage::-webkit-scrollbar-track { background: transparent; }
+.nibshare-root .doc-stage::-webkit-scrollbar-thumb {
+  background: #c3c9d1;
+  border-radius: 6px;
+  border: 3px solid #eef0f4;
+}
+.nibshare-root .doc-stage::-webkit-scrollbar-thumb:hover { background: #a7aeb8; }
+
+.nibshare-root .doc-page {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 8px 24px rgba(16, 24, 40, 0.12);
+  padding: 2rem 2.5rem;
+  max-width: 52rem;
+  margin: 0 auto;
+  color: #1f2328;
+}
+
+.nibshare-root .doc-sheet-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1), 0 8px 24px rgba(16, 24, 40, 0.12);
+  overflow: hidden;
+  width: fit-content;
+}
+
+.nibshare-root .doc-stage .docx-wrapper {
+  background: transparent !important;
+}
+
+.nibshare-root .doc-viewer-loading,
+.nibshare-root .doc-viewer-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.nibshare-root .doc-viewer-error {
+  border: 1px dashed #d4d7dd;
+  margin: 0;
+}
+
+.nibshare-root .doc-pdf {
+  display: block;
+  width: min(70rem, 100vw);
+  margin-left: calc(50% - min(35rem, 50vw));
+  height: 75vh;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 10px 30px rgba(16, 24, 40, 0.08);
+  background: #eef0f4;
+  margin-bottom: 1rem;
+}
+
+.nibshare-root .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.nibshare-root .btn-icon:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); text-decoration: none; }
+
+.nibshare-root .file-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.nibshare-root .doc-unavailable {
+  border: 1px dashed #d4d7dd;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+  background: #fff;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.nibshare-root .doc-sheet {
+  background: #fff;
+  color: #1f2328;
+}
+
+.nibshare-root .doc-sheet table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+.nibshare-root .doc-sheet th,
+.nibshare-root .doc-sheet td {
+  padding: 6px 12px;
+  border-right: 1px solid rgba(120, 120, 120, 0.18);
+  border-bottom: 1px solid rgba(120, 120, 120, 0.18);
+  white-space: nowrap;
+  text-align: left;
+  font-weight: 400;
+}
+.nibshare-root .doc-sheet td.num { text-align: right; }
+.nibshare-root .doc-sheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f2f3f5;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.nibshare-root .doc-sheet .row-num {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 36px;
+  text-align: right;
+  background: #f7f8f8;
+  color: #9aa0a6;
+  font-size: 11px;
+  font-weight: 500;
+}
+.nibshare-root .doc-sheet thead th.row-num { z-index: 3; }
+.nibshare-root .doc-sheet tbody tr.head-row td {
+  background: #eff6ea;
+  font-weight: 600;
+}
+
+.nibshare-root .doc-note {
+  margin: 12px 16px 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.nibshare-root .doc-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  color: #1f2328;
+}
+
+.nibshare-root .doc-docx {
+  font-size: 15px;
+  line-height: 1.75;
+  color: #1f2328;
+}
+.nibshare-root .doc-docx h1, .nibshare-root .doc-docx h2, .nibshare-root .doc-docx h3, .nibshare-root .doc-docx h4 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.2em 0 0.4em;
+}
+.nibshare-root .doc-docx h1 { font-size: 1.5em; }
+.nibshare-root .doc-docx h2 { font-size: 1.25em; }
+.nibshare-root .doc-docx h3 { font-size: 1.1em; }
+.nibshare-root .doc-docx p { margin: 0 0 0.8em; }
+.nibshare-root .doc-docx ul, .nibshare-root .doc-docx ol { margin: 0 0 0.8em; padding-left: 1.5em; }
+.nibshare-root .doc-docx table { width: 100%; border-collapse: collapse; margin: 0.8em 0; }
+.nibshare-root .doc-docx th, .nibshare-root .doc-docx td { border: 1px solid #dfe2e7; padding: 6px 10px; font-size: 13px; text-align: left; }
+.nibshare-root .doc-docx th { background: #f2f3f5; font-weight: 600; }
+.nibshare-root .doc-docx blockquote { border-left: 3px solid var(--accent); margin: 0.8em 0; padding-left: 1em; opacity: 0.9; }
+.nibshare-root .doc-docx img { max-width: 100%; height: auto; border-radius: 6px; }
+.nibshare-root .doc-docx strong { font-weight: 700; }
+
+.nibshare-root .doc-markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: #f2f3f5;
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+}
+.nibshare-root .doc-markdown pre {
+  background: #f7f8fa;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow: auto;
+  margin: 0 0 0.8em;
+}
+.nibshare-root .doc-markdown pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.nibshare-root .doc-markdown hr { border: none; border-top: 1px solid #e4e6ea; margin: 1.2em 0; }
+.nibshare-root .doc-markdown a { color: var(--accent); }
+.nibshare-root .doc-markdown img { max-width: 100%; height: auto; border-radius: 6px; }
+.nibshare-root .doc-markdown li { margin: 0 0 0.3em; }
+.nibshare-root .doc-markdown table { font-size: 13px; }
+

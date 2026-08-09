@@ -1,7 +1,4 @@
-import path from 'node:path';
-import { loadConfig, rootDir, withConfigDefaults } from '@nibgate/internal/config.js';
 import { createGateway } from '@nibgate/internal/gateway.js';
-import { createStateStore } from '@nibgate/internal/state.js';
 
 export function createAppState(config, store) {
   const gateway = createGateway(config, store);
@@ -35,30 +32,4 @@ export function createAppState(config, store) {
       earnings: gateway.totalEarnings()
     }
   };
-}
-
-export function loadAppState() {
-  let config;
-  let statePath;
-
-  try {
-    ({ config, statePath } = loadConfig());
-  } catch {
-    config = withConfigDefaults({
-      site: {
-        name: 'Nibgate',
-        origin: process.env.NIBGATE_SITE_ORIGIN || 'https://nibgate.xyz'
-      },
-      payments: {
-        mode: 'demo',
-        sellerAddress: '',
-        facilitatorUrl: 'https://gateway-api-testnet.circle.com',
-        networks: ['eip155:5042002']
-      },
-      routes: []
-    });
-  }
-
-  const store = createStateStore(statePath || path.join(rootDir, '.nibgate', 'state.json'));
-  return createAppState(config, store);
 }

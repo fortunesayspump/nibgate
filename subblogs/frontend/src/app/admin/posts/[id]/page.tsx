@@ -30,6 +30,22 @@ export default function EditPostPage() {
           status: p.status,
           featured: p.featured,
           type: p.type || "article",
+          media: p.media || "",
+          videoStorageRef: p.videoStorageRef || "",
+          videoEncryptedKey: p.videoEncryptedKey || "",
+          videoContentType: p.videoContentType || "",
+          videoName: p.videoName || "",
+          videoSize: p.videoSize,
+          audioUrl: p.audioUrl || "",
+          audioStorageRef: p.audioStorageRef || "",
+          audioEncryptedKey: p.audioEncryptedKey || "",
+          audioContentType: p.audioContentType || "",
+          documentUrl: p.documentUrl || "",
+          documentStorageRef: p.documentStorageRef || "",
+          documentEncryptedKey: p.documentEncryptedKey || "",
+          documentContentType: p.documentContentType || "",
+          documentName: p.documentName || "",
+          documentSize: p.documentSize,
         });
       })
       .catch(() => router.push("/admin/posts"))

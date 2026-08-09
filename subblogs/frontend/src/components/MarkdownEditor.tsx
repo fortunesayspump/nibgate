@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
@@ -21,12 +22,23 @@ import {
 } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
-const API_ORIGIN = API.replace(/\/api\/?$/, "");
 
 const iconClass = "w-4 h-4";
 const btn = "inline-flex items-center justify-center w-7 h-7 text-xs border rounded cursor-pointer font-medium leading-none transition-all hover:brightness-90";
 
-export default function MarkdownEditor({ value, onChange, label = "Body" }: { value: string; onChange: (v: string) => void; label?: string }) {
+export interface EmbeddedMediaItem {
+  storageRef: string;
+  encryptedKey?: string | null;
+  contentType?: string;
+  caption?: string;
+  name?: string;
+  size?: number;
+}
+
+export default function MarkdownEditor({ value, onChange, label = "Body", required = false, embeddedMedia = [], onEmbeddedMediaChange }: {
+  value: string; onChange: (v: string) => void; label?: string; required?: boolean;
+  embeddedMedia?: EmbeddedMediaItem[]; onEmbeddedMediaChange?: (items: EmbeddedMediaItem[]) => void;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const lastMd = useRef(value);
   const isInternal = useRef(false);
@@ -69,11 +81,19 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
   }, [value, editor]);
 
   useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [fullscreen]);
+
+  useEffect(() => {
     if (!editor) return;
     const dom = editor.view.dom;
     const handler = (e: Event) => {
       const target = e.target as HTMLImageElement;
       if (target.tagName !== "IMG") return;
+      if ((target.getAttribute("src") || "").startsWith("nibgate-embed://")) return;
       target.style.display = "none";
       const placeholder = document.createElement("span");
       placeholder.textContent = "[Image failed to load]";
@@ -108,11 +128,24 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
+      if (!data.storageRef) throw new Error("Upload failed");
+      const item: EmbeddedMediaItem = {
+        storageRef: data.storageRef,
+        encryptedKey: data.encryptedKey,
+        contentType: data.contentType,
+        caption: file.name,
+        name: data.name || file.name,
+        size: data.size,
+      };
+      const next = [...embeddedMedia, item];
+      onEmbeddedMediaChange?.(next);
+      const idx = next.length - 1;
+      const src = `nibgate-embed://${idx}`;
       const isImg = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name);
       if (isImg) {
-        editor.chain().focus().setImage({ src: data.url.startsWith("http") ? data.url : `${API_ORIGIN}${data.url}` }).run();
+        editor.chain().focus().setImage({ src }).run();
       } else {
-        editor.chain().focus().setLink({ href: data.url.startsWith("http") ? data.url : `${API_ORIGIN}${data.url}` }).insertContent(file.name).run();
+        editor.chain().focus().setLink({ href: src }).insertContent(file.name).run();
       }
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
@@ -177,10 +210,10 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
   );
 
   if (fullscreen) {
-    return (
+    return createPortal(
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--bg)", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 12px", borderBottom: "1px solid var(--border)", background: "var(--surface)", flexShrink: 0, flexWrap: "wrap" }}>
-          <span className="text-xs font-medium" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{label}</span>
+          <span className="text-xs font-medium" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</span>
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "1px", flexWrap: "wrap" }}>
             {groups.slice(0, -1).map((group, gi) => (
               <span key={gi} style={{ display: "flex", gap: "1px" }}>
@@ -198,7 +231,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
             <span style={{ marginLeft: 4, fontSize: 12 }}>Exit</span>
           </button>
         </div>
-        <div style={{ flex: 1, overflow: "auto", padding: "60px 0", display: "flex", justifyContent: "center" }}>
+        <div style={{ flex: 1, overflow: "auto", overscrollBehavior: "contain", padding: "60px 0", display: "flex", justifyContent: "center" }}>
           <div style={{ maxWidth: "720px", width: "100%", padding: "0 24px" }}>
             {bubble}
             <EditorContent editor={editor} className="editor-content editor-content--fullscreen" />
@@ -210,13 +243,14 @@ export default function MarkdownEditor({ value, onChange, label = "Body" }: { va
           if (e.target) e.target.value = "";
         }} />
         {uploadError && <div style={{ padding: "6px 12px", fontSize: "13px", color: "#dc2626", background: "var(--surface)", borderTop: "1px solid var(--border)" }}>{uploadError}</div>}
-      </div>
+      </div>,
+      document.body
     );
   }
 
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}</label>
+      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</label>
       <div className="border rounded-md overflow-hidden" style={{ borderColor: "var(--border)" }}>
         {toolbar}
         {bubble}

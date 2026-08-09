@@ -8,7 +8,8 @@ import AudioUploader from './AudioUploader';
 import DocumentUploader from './DocumentUploader';
 import VideoUploader from './VideoUploader';
 import { nibshareApi } from '../api';
-import type { ContentMedia } from '../types';
+import { ShareSuccess } from './ShareSuccess';
+import type { ContentMedia, CreateShareResponse } from '../types';
 import type { MediaItem } from '../lib/content';
 
 interface ShareFormData {
@@ -55,6 +56,7 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
   const [form, setForm] = useState<ShareFormData>({ ...defaults, recipientWallet: defaultRecipientWallet ?? "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [published, setPublished] = useState<CreateShareResponse | null>(null);
   const [coverKey, setCoverKey] = useState("");
   const [embeddedMedia, setEmbeddedMedia] = useState<MediaItem[]>([]);
   const [expiryQuick, setExpiryQuick] = useState<number | null>(168);
@@ -188,7 +190,13 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
       status,
       expiresAt: computeExpiryIso()
     })
-      .then(() => router.push("/share/mine"))
+      .then((res) => {
+        if (status === 'active') {
+          setPublished(res);
+        } else {
+          router.push("/share/mine");
+        }
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to save"))
       .finally(() => setSaving(false));
   }
@@ -472,6 +480,17 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
           Save as Draft
         </button>
       </div>
+
+      {published && (
+        <ShareSuccess
+          slug={published.slug}
+          url={published.url}
+          title={published.title}
+          price={published.price}
+          expiresAt={published.expiresAt}
+          onDone={() => router.push("/share/mine")}
+        />
+      )}
     </div>
   );
 }

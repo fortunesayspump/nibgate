@@ -5,7 +5,24 @@ if (!/^https?:\/\//.test(apiUrl)) apiUrl = 'https://' + apiUrl;
 
 const nextConfig: NextConfig = {
   async rewrites() {
+    const bare = ["hub", "nibshare", "auth", "newsletter", "uploads", "app"];
     return [
+      ...bare.map((group) => ({
+        source: `/${group}/:path*`,
+        destination: `${apiUrl}/${group}/:path*`,
+      })),
+      {
+        source: "/rpc",
+        destination: `${apiUrl}/rpc`,
+      },
+      {
+        source: "/openapi.json",
+        destination: `${apiUrl}/openapi.json`,
+      },
+      {
+        source: "/blog/admin/:path*",
+        destination: `${apiUrl}/blog/admin/:path*`,
+      },
       {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,

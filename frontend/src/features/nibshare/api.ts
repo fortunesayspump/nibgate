@@ -9,8 +9,8 @@ import type {
   ShareMeta,
 } from "./types";
 
-export const ACCESS_PATH = (slug: string) => `/api/nibshare/${slug}/access`;
-export const GATEWAY_BALANCE_PATH = "/api/nibshare/gateway/balance";
+export const ACCESS_PATH = (slug: string) => `/nibshare/${slug}/access`;
+export const GATEWAY_BALANCE_PATH = "/nibshare/gateway/balance";
 
 async function request<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -28,23 +28,23 @@ async function request<T = unknown>(path: string, options: RequestInit = {}): Pr
 }
 
 export const nibshareApi = {
-  me: () => request<MeResponse>("/api/auth/me", { credentials: "include" }),
-  logout: () => request("/api/auth/logout", { method: "POST", credentials: "include" }),
-  authNonce: () => request<AuthNonceResponse>("/api/auth/nonce"),
+  me: () => request<MeResponse>("/auth/me", { credentials: "include" }),
+  logout: () => request("/auth/logout", { method: "POST", credentials: "include" }),
+  authNonce: () => request<AuthNonceResponse>("/auth/nonce"),
   authVerify: (body: { walletAddress?: string; signature?: string }) =>
-    request("/api/auth/verify", { method: "POST", credentials: "include", body: JSON.stringify(body) }),
+    request("/auth/verify", { method: "POST", credentials: "include", body: JSON.stringify(body) }),
 
-  meta: (slug: string) => request<ShareMeta>(`/api/nibshare/${slug}/meta`),
+  meta: (slug: string) => request<ShareMeta>(`/nibshare/${slug}/meta`),
   access: (slug: string, proof?: string) =>
     request<AccessPayload>(ACCESS_PATH(slug), {
       headers: proof ? { "x-nibgate-payment-proof": proof } : {},
     }),
-  recordView: (slug: string) => request(`/api/nibshare/${slug}/view`, { method: "POST", body: JSON.stringify({}) }),
+  recordView: (slug: string) => request(`/nibshare/${slug}/view`, { method: "POST", body: JSON.stringify({}) }),
 
   create: (payload: CreateSharePayload) =>
-    request<CreateShareResponse>("/api/nibshare", { method: "POST", credentials: "include", body: JSON.stringify(payload) }),
-  listMine: () => request<MineResponse>("/api/nibshare/mine", { credentials: "include" }),
-  revoke: (slug: string) => request(`/api/nibshare/${slug}`, { method: "DELETE", credentials: "include" }),
+    request<CreateShareResponse>("/nibshare", { method: "POST", credentials: "include", body: JSON.stringify(payload) }),
+  listMine: () => request<MineResponse>("/nibshare/mine", { credentials: "include" }),
+  revoke: (slug: string) => request(`/nibshare/${slug}`, { method: "DELETE", credentials: "include" }),
   reslug: (slug: string) =>
-    request<ReslugResponse>(`/api/nibshare/${slug}/reslug`, { method: "POST", credentials: "include" }),
+    request<ReslugResponse>(`/nibshare/${slug}/reslug`, { method: "POST", credentials: "include" }),
 };

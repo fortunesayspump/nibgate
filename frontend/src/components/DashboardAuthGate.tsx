@@ -24,7 +24,7 @@ export default function DashboardAuthGate({ children }: { children: ReactNode })
 
     async function checkAuth() {
       try {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const res = await fetch("/auth/me", { credentials: "include" });
         const data = await safeJson(res);
         if (!cancelled && res.ok && data.authenticated) {
           setState("allowed");

@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import type { ContentMedia } from "../types";
 
-const UPLOAD_URL = "/api/uploads/content";
+const UPLOAD_URL = "/uploads/content";
 
 interface AudioUploaderProps {
   onUpload: (result: ContentMedia) => void;

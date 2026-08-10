@@ -73,7 +73,7 @@ export default function ProfilePage() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch("/api/hub/dashboard/profile");
+        const res = await fetch("/hub/dashboard/profile");
         const data = await res.json();
         if (!data.success) throw new Error(data.error || "Failed to load profile");
         const u = data.user || data.profile || {};
@@ -126,7 +126,7 @@ export default function ProfilePage() {
 
   async function uploadImage(file: File, target: "avatar" | "cover") {
     const dataUrl = await imageFileToDataUrl(file);
-    const res = await fetch("/api/uploads/profile-image", {
+    const res = await fetch("/uploads/profile-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target, image: dataUrl }),
@@ -144,7 +144,7 @@ export default function ProfilePage() {
       const nextAvatarUrl = pendingAvatarFile ? await uploadImage(pendingAvatarFile, "avatar") : draftAvatarUrl;
       const nextCoverUrl = pendingCoverFile ? await uploadImage(pendingCoverFile, "cover") : draftCoverUrl;
 
-      const res = await fetch("/api/hub/dashboard/profile", {
+      const res = await fetch("/hub/dashboard/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

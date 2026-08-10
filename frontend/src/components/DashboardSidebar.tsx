@@ -38,7 +38,7 @@ export default function DashboardSidebar({ isMobileOpen, onMobileClose }: { isMo
       const liveWalletAddress = normalizeWallet(wagmiAccount.address || appKitAccount.address);
       if (liveWalletAddress === BLOG_OWNER_WALLET) { setCanPublishBlog(true); return; }
       try {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const res = await fetch("/auth/me", { credentials: "include" });
         if (!res.ok) return;
         const data = await res.json();
         const walletAddress = primaryWalletAddress(data.user);

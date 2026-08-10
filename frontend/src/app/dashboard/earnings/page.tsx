@@ -58,7 +58,7 @@ async function readApiJson(res: Response) {
 }
 
 async function fetchEarningsForFrame(frame: TimeframeState) {
-  const res = await fetch(`/api/hub/dashboard/earnings?${timeframeParams(frame)}`);
+  const res = await fetch(`/hub/dashboard/earnings?${timeframeParams(frame)}`);
   const data = await readApiJson(res);
   if (!data.success) throw new Error(data.error || "Failed to load earnings");
   return data.earnings as Earnings;

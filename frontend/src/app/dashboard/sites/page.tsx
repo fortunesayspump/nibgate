@@ -151,7 +151,7 @@ export default function SitesPage() {
     if (showLoading) setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/hub/sites");
+      const res = await fetch("/hub/sites");
       const data = await readApiJson(res);
       if (!data.success) throw new Error(data.error || "Failed to load sites");
       const nextSites = data.websites || [];
@@ -185,7 +185,7 @@ export default function SitesPage() {
 
     try {
       const [res] = await Promise.all([
-        fetch("/api/hub/sites/register", {
+        fetch("/hub/sites/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ domain, name, description }),
@@ -230,7 +230,7 @@ export default function SitesPage() {
     setVerifyingId(id);
 
     try {
-      const res = await fetch(`/api/hub/sites/${id}/verify`, {
+      const res = await fetch(`/hub/sites/${id}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -250,7 +250,7 @@ export default function SitesPage() {
     setLinkError("");
     setLinkCodeDisplay("");
     try {
-      const res = await fetch(`/api/hub/blog/link/generate`, { method: "POST", credentials: "include" });
+      const res = await fetch(`/hub/blog/link/generate`, { method: "POST", credentials: "include" });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Failed to generate code");
       setLinkCodeDisplay(data.linkToken);
@@ -267,7 +267,7 @@ export default function SitesPage() {
     setVerifyingId(id);
 
     try {
-      const res = await fetch(`/api/hub/sites/${id}/recheck`, {
+      const res = await fetch(`/hub/sites/${id}/recheck`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -289,7 +289,7 @@ export default function SitesPage() {
     setSyncingId(id);
 
     try {
-      const res = await fetch(`/api/hub/sites/${id}/sync`, {
+      const res = await fetch(`/hub/sites/${id}/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -312,7 +312,7 @@ export default function SitesPage() {
     setRemovingId(id);
 
     try {
-      const res = await fetch(`/api/hub/sites/${id}`, {
+      const res = await fetch(`/hub/sites/${id}`, {
         method: "DELETE",
       });
       const data = await readApiJson(res);

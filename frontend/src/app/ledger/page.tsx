@@ -76,7 +76,7 @@ export default function LedgerPage() {
     try {
       if (append) setLoadingMore(true); else setLoading(true);
       const currentSkip = append ? activitiesRef.current.length : 0;
-      const url = `/api/hub/ledger?limit=50&skip=${currentSkip}${filter ? `&type=${filter}` : ""}`;
+      const url = `/hub/ledger?limit=50&skip=${currentSkip}${filter ? `&type=${filter}` : ""}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
@@ -95,7 +95,7 @@ export default function LedgerPage() {
 
   const pollNew = useCallback(async () => {
     try {
-      const url = `/api/hub/ledger?limit=50${filter ? `&type=${filter}` : ""}`;
+      const url = `/hub/ledger?limit=50${filter ? `&type=${filter}` : ""}`;
       const res = await fetch(url);
       const data = await res.json();
       if (!data.success) return;

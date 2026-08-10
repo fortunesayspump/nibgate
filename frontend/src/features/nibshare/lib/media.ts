@@ -10,7 +10,7 @@ export function storedProofFor(slug: string): string {
 
 export function mediaEndpoint(slug: string, kind: string, index?: number): string {
   const q = index !== undefined ? `?index=${index}` : "";
-  return `/api/nibshare/${slug}/media/${kind}${q}`;
+  return `/nibshare/${slug}/media/${kind}${q}`;
 }
 
 export async function fetchMediaObjectUrl(slug: string, kind: string, index?: number): Promise<string> {

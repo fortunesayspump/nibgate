@@ -90,7 +90,7 @@ async function readApiJson(res: Response) {
 }
 
 async function fetchAnalyticsForFrame(frame: TimeframeState) {
-  const res = await fetch(`/api/hub/dashboard/analytics?${timeframeParams(frame)}`);
+  const res = await fetch(`/hub/dashboard/analytics?${timeframeParams(frame)}`);
   const data = await readApiJson(res);
   if (!data.success) throw new Error(data.error || "Failed to load analytics");
   return data.analytics as Analytics;

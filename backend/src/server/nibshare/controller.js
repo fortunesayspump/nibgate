@@ -109,7 +109,10 @@ export async function getShareMeta(req, res) {
       expiresAt: share.expiresAt,
       createdAt: share.createdAt,
       whitelist: share.whitelist.length > 0,
-      status: share.status
+      status: share.status,
+      viewCount: share.viewCount,
+      unlockCount: share.unlockCount,
+      revenue: (share.unlockCount || 0) * (share.price || 0)
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load share metadata', details: error.message });
@@ -339,5 +342,22 @@ export async function listMine(req, res) {
     res.json({ shares, activity });
   } catch (error) {
     res.status(500).json({ error: 'Failed to list shares', details: error.message });
+  }
+}
+
+export async function dashboardStats(req, res) {
+  try {
+    const data = await service.dashboardStats({ ownerWallet: primaryWallet(req.user), query: req.query || {} });
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load dashboard stats', details: error.message });
+  }
+}
+
+export async function platformStats(req, res) {
+  try {
+    res.json(await service.platformStats());
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load platform stats', details: error.message });
   }
 }

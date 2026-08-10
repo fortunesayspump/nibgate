@@ -64,7 +64,7 @@ R2_PUBLIC_URL         # required (public CDN base for previews + ciphertextUrl)
 | Content | Cap | Enforcement |
 |---|---|---|
 | Nibshare body (text/article) | 512 KB | `POST /api/nibshare` |
-| Nibshare media per item | 10 MB | `POST /api/uploads/content` |
+| Nibshare media per item | 30 MB | `POST /api/uploads/content` |
 
 The future Arweave/Lit tier plan (permanent storage, creator-paid fees, decentralized
 keys) is tracked separately in `STORAGE-TIER-PLAN.md`; none of it is live yet.

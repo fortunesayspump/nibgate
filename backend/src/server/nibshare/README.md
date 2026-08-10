@@ -109,7 +109,7 @@ Viewer (human or agent): open /ns/<slug> (or POST /api/nibshare/:slug/meta -> 40
 |---|---|---|---|
 | POST | `/api/uploads/content?encrypted=1` | wallet-signature session | Upload + encrypt media for a share body (images → WebP first) |
 | POST | `/api/nibshare` | wallet-signature session | Create a share (server encrypts body, stores ciphertext in R2) |
-| GET | `/api/nibshare/:slug/meta` | none | Public metadata (title, summary, price, expiry, whitelist flag) — never body |
+| GET | `/api/nibshare/:slug/meta` | none | Public metadata (title, summary, price, expiry, whitelist flag, view/unlock counts) — never body |
 | GET | `/api/nibshare/:slug/access` | none (proof header for paid) | Server-side body for a session: free shares open, paid shares x402/relay |
 | POST | `/api/nibshare/:slug/unlock` | x402 payment (or `walletAddress` for free shares) | Rules check -> server returns plaintext body |
 | POST | `/api/nibshare/:slug/view` | none | Record a viewer |
@@ -119,6 +119,8 @@ Viewer (human or agent): open /ns/<slug> (or POST /api/nibshare/:slug/meta -> 40
 | POST | `/api/nibshare/:slug/reslug` | owner | Rotate the share's slug |
 | POST | `/api/nibshare/gateway/balance` | none | Look up a Gateway balance |
 | GET | `/api/nibshare/mine` | owner | Creator's shares + receipts |
+| GET | `/api/nibshare/dashboard` | owner | Creator analytics: lifetime summary, range + daily time series, per-share breakdown, recent activity |
+| GET | `/api/nibshare/stats` | none | Public platform aggregates (totals, 24h/7d windows, truncated-wallet activity feed) |
 
 Rules check at unlock time: `status == active AND (expiresAt IS NULL OR now < expiresAt)
 AND (whitelist empty OR payer ∈ whitelist)`.

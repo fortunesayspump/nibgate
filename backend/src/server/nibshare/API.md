@@ -109,7 +109,10 @@ Anyone can fetch metadata — never the body.
   "expiresAt": null,            // null = never expires (capped at 7 days)
   "createdAt": "...",
   "whitelist": true,            // boolean: is access wallet-restricted
-  "status": "active"
+  "status": "active",
+  "viewCount": 0,               // lifetime views
+  "unlockCount": 0,             // lifetime unlocks
+  "revenue": 0                  // unlockCount * price (USDC)
 }
 ```
 
@@ -225,6 +228,49 @@ Revoke sets `status = "revoked"`, which stops new unlocks and deletes the R2 blo
 ```
 200
 { "shares": [ { "id": "...", "slug": "...", "title": "...", "unlockCount": 12, "price": "1.00", ... } ] }
+```
+
+## Dashboard stats (owner only)
+
+`GET /api/nibshare/dashboard?from=&to=` (cookie auth)
+
+Per-creator analytics across all shares (drafts, active, expired, and revoked — a share is
+the published content, not the link). `from`/`to` (ISO) bound the range used for
+`range` and `timeSeries`; without them the range defaults to the last 30 days. The
+`summary` and per-share `views`/`unlocks`/`revenue` are lifetime totals.
+
+```
+200
+{
+  "summary": { "shares": 4, "activeShares": 2, "views": 812, "unlocks": 47, "revenue": 23.5 },
+  "range": { "views": 41, "unlocks": 5, "revenue": 2.5 },
+  "timeSeries": [ { "date": "2026-08-01", "views": 9, "unlocks": 1, "revenue": 0.5 } ],
+  "shares": [ { "slug": "...", "url": "...", "title": "...", "contentType": "text", "price": "1.00",
+                "currency": "USDC", "status": "active", "createdAt": "...", "expiresAt": null,
+                "views": 812, "unlocks": 47, "revenue": 23.5 } ],
+  "recentActivity": [ { "key": "unlock-...", "type": "unlock", "title": "...", "slug": "...",
+                        "amount": 0.5, "wallet": "0x...", "createdAt": "..." } ]
+}
+```
+
+## Platform stats (public)
+
+`GET /api/nibshare/stats`
+
+Platform-wide aggregates. Everything is aggregate or wallet-truncated on purpose: never
+emit nibshare to hub discovery/ledger/reputation, and never expose titles, slugs, or full
+wallets in this public feed.
+
+```
+200
+{
+  "totals": { "sharesCreated": 120, "activeShares": 45, "views": 9120, "unlocks": 510, "revenue": 312.4 },
+  "windows": {
+    "24h": { "views": 310, "unlocks": 12, "revenue": 8.4 },
+    "7d":  { "views": 1900, "unlocks": 91, "revenue": 61.2 }
+  },
+  "recent": [ { "type": "view", "wallet": "0x1a2b...9cD0", "contentType": "text", "createdAt": "..." } ]
+}
 ```
 
 ## Errors

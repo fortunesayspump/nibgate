@@ -330,7 +330,7 @@ Base URL: `https://api.nibgate.xyz`. Routes live under `/api/nibshare/*`, plus t
 |---|---|
 | `POST /api/uploads/content?encrypted=1` | Upload media — encrypted for gated shares (images are WebP-optimized before encryption) |
 | `POST /api/nibshare` | Create a share (title + content + price; optional whitelist / expiry ≤ 7 days) |
-| `GET /api/nibshare/:slug/meta` | Public metadata — title, price, cover, status. Never the body |
+| `GET /api/nibshare/:slug/meta` | Public metadata — title, price, cover, status, view/unlock counts. Never the body |
 | `GET /api/nibshare/:slug/access` | The single read route: free shares open, paid shares relay the x402 challenge |
 | `POST /api/nibshare/:slug/unlock` | Pay (or `walletAddress` for free) → receipt + entitlement → decrypted body |
 | `GET /api/nibshare/:slug/media/:kind?index=N` | Stream one decrypted asset (`photo` / `music` / `video` / `document`) |
@@ -339,6 +339,8 @@ Base URL: `https://api.nibgate.xyz`. Routes live under `/api/nibshare/*`, plus t
 | `DELETE /api/nibshare/:slug` | Owner: revoke the share and delete its R2 body blob |
 | `POST /api/nibshare/:slug/reslug` | Owner: rotate the short-link slug |
 | `GET /api/nibshare/mine` | Owner: list shares + unlock/view activity |
+| `GET /api/nibshare/dashboard?from=&to=` | Owner: analytics across all shares — lifetime summary, range + daily time series, per-share breakdown, recent activity |
+| `GET /api/nibshare/stats` | Public platform aggregates: lifetime totals, 24h/7d windows, truncated-wallet activity feed (no titles, slugs, or full wallets) |
 
 Paid responses carry an `unlockProof` (`{wallet}.{mac}`) the viewer replays on later reads and media. Share slugs are 8-char base58 short links. Full payload shapes, error codes, and status semantics live with the code in `backend/src/server/nibshare/API.md`.
 

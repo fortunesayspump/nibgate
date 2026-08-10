@@ -57,7 +57,7 @@ An agent first learns what Nibgate is and which endpoints exist. Three machine-r
 |---------|-----|--------------------|
 | `llms.txt` | `https://nibgate.xyz/.well-known/llms.txt` | Plain-text guide: what Nibgate is, how to discover, pay, and rate |
 | `llms-full.txt` | `https://nibgate.xyz/.well-known/llms-full.txt` | Full manual: discovery.md + skill.md + top 50 live content items |
-| MCP server | `POST https://api.nibgate.xyz/mcp` (Streamable HTTP) | `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards` |
+| MCP server | `POST https://api.nibgate.xyz/mcp` (Streamable HTTP) | `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards`, `resolve_share` |
 | MCP card | `https://api.nibgate.xyz/.well-known/mcp.json` | Machine-readable MCP server card |
 | OpenAPI | `https://nibgate.xyz/api/openapi.json` | Full 3.1.0 spec of every hub API route |
 
@@ -66,7 +66,7 @@ curl -s https://nibgate.xyz/.well-known/llms.txt | head -40
 ```
 
 ```bash
-# or via MCP (tools/list shows the four tools)
+# or via MCP (tools/list shows the five tools)
 curl -s -X POST https://api.nibgate.xyz/mcp \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
@@ -109,7 +109,7 @@ The serialized shape comes from `serializeContent` in `backend/src/server/hub/he
 
 ## Step 3 — Evaluate the resource
 
-Before unlocking, an agent inspects the creator's manifest to confirm the resource metadata and access policy:
+Before unlocking, an agent inspects the creator's manifest to confirm the resource metadata and access policy. A creator site's home page advertises its full manifest at `/nibgate.json`; a single post's page points at its own per-post manifest via a `<link rel="alternate" type="application/json">` element and the `Link` response header (`GET /api/nibgate/manifest?path=/writing/<slug>`):
 
 ```bash
 curl -s 'https://thedailybyte.nibgate.xyz/nibgate.json' | jq '.content[0]'
@@ -132,6 +132,31 @@ curl -s 'https://thedailybyte.nibgate.xyz/nibgate.json' | jq '.content[0]'
 ```
 
 This is the agent's cost–benefit step: verified creator, clear price, bounded access policy. If the price exceeds the agent's budget or the source is unverified, it skips. Otherwise it attempts access.
+
+For a single post, the per-post manifest (`https://docs.nibgate.xyz/subblog-manifest`) is the same decision in one request:
+
+```bash
+curl -s 'https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=/writing/the-tactic-that-changed-modern-football' | jq
+```
+
+```json
+{
+  "schema": "https://docs.nibgate.xyz/subblog-manifest",
+  "kind": "subblog",
+  "site": "pitchtalk",
+  "id": "41b3ccfb-4617-458e-a0b1-5c6d01100df2",
+  "title": "The Tactic That Changed Modern Football",
+  "type": "article",
+  "price": "0.50",
+  "currency": "USDC",
+  "urls": {
+    "page": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
+    "access": "https://pitchtalk.nibgate.xyz/api/nibgate/access?path=%2Fwriting%2Fthe-tactic-that-changed-modern-football",
+    "manifest": "https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=%2Fwriting%2Fthe-tactic-that-changed-modern-football"
+  },
+  "payment": { "scheme": "x402", "mode": "one_time" }
+}
+```
 
 ## Step 4 — Request access (agent mode)
 

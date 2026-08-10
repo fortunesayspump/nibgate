@@ -119,6 +119,16 @@ export async function getShareMeta(req, res) {
   }
 }
 
+export async function getShareManifest(req, res) {
+  try {
+    const manifest = await service.shareManifest(req.params.slug);
+    if (!manifest) return res.status(404).json({ error: 'Share not found' });
+    res.json(manifest);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load share manifest', details: error.message });
+  }
+}
+
 export async function recordView(req, res) {
   try {
     const share = await service.findShareBySlug(req.params.slug);

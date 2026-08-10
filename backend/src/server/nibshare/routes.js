@@ -3,6 +3,7 @@ import * as controller from './controller.js';
 export function registerNibshareRoutes(app) {
   app.post('/api/nibshare', controller.requireAuth, controller.createShare);
   app.get('/api/nibshare/:slug/meta', controller.getShareMeta);
+  app.get('/api/nibshare/:slug/manifest', controller.getShareManifest);
   app.post('/api/nibshare/:slug/view', controller.recordView);
   app.post('/api/nibshare/:slug/unlock', controller.unlockShare);
   app.get('/api/nibshare/:slug/access', controller.accessShare);

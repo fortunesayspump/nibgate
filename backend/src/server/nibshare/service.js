@@ -123,6 +123,40 @@ export function resourceFor(share) {
   };
 }
 
+export async function shareManifest(slug) {
+  const share = await findShareBySlug(slug);
+  if (!share) return null;
+  const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+  return {
+    schema: 'https://docs.nibgate.xyz/nibshare-manifest',
+    version: 1,
+    kind: 'nibshare',
+    slug: share.slug,
+    title: share.title,
+    summary: share.summary,
+    contentType: share.contentType,
+    price: String(share.price),
+    currency: share.currency,
+    expiresAt: share.expiresAt,
+    status: share.status,
+    createdAt: share.createdAt,
+    viewCount: share.viewCount,
+    unlockCount: share.unlockCount,
+    urls: {
+      page: sharePublicUrl(share),
+      meta: `${apiBase}/api/nibshare/${share.slug}/meta`,
+      manifest: `${apiBase}/api/nibshare/${share.slug}/manifest`,
+      access: `${apiBase}/api/nibshare/${share.slug}/access`,
+      unlock: `${apiBase}/api/nibshare/${share.slug}/unlock`,
+      media: `${apiBase}/api/nibshare/${share.slug}/media/{kind}?index=N`
+    },
+    payment: {
+      scheme: 'x402',
+      description: 'GET urls.access. Free shares return the body directly; paid shares respond 402 with a PAYMENT-REQUIRED x402 envelope. Sign the challenge and resubmit to receive content + unlockProof.',
+    },
+  };
+}
+
 export function isWhitelisted(share, wallet) {
   return share.whitelist.length === 0 || share.whitelist.includes(wallet);
 }

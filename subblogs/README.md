@@ -173,7 +173,7 @@ NIBGATE_SELLER_ADDRESS=0xYourWalletAddress
 NIBGATE_PAYMENT_NETWORK=eip155:5042002
 ```
 
-The blog exposes a Nibgate manifest at `GET /api/nibgate/manifest` for hub discovery.
+The blog exposes a Nibgate manifest at `GET /api/nibgate/manifest` for hub discovery. A per-post agent contract is available at `GET /api/nibgate/manifest?path=/writing/<slug>` (and the post page itself embeds the same facts as `nibgate:*` meta tags, JSON-LD, and a `<link rel="alternate" type="application/json">`).
 
 ## Directory Structure
 

@@ -88,7 +88,7 @@ export interface MeResponse {
 }
 
 export interface AuthNonceResponse {
-  messageTemplate: string;
+  nonce: string;
 }
 
 export interface CreateSharePayload {

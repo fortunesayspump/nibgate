@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { db } from '@nibgate/internal/db.js';
+export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
 import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
 
@@ -170,19 +171,6 @@ export function findLastReceipt({ shareId, wallet }) {
     where: { shareId, payerWallet: wallet },
     orderBy: { unlockedAt: 'desc' }
   });
-}
-
-export async function gatewayBalance(address) {
-  const apiKey = process.env.CIRCLE_API_KEY || '';
-  if (!apiKey) return '';
-  const r = await fetch('https://gateway-api-testnet.circle.com/v1/balances', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: 'USDC', sources: [{ depositor: address, domain: 26 }] }),
-  });
-  const data = await r.json();
-  const bal = data?.balances?.[0]?.balance || '';
-  return bal ? Number(bal).toFixed(2) + ' USDC' : '';
 }
 
 export async function revokeEntitlement({ share, wallet }) {

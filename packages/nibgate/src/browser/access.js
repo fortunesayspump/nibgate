@@ -77,6 +77,12 @@ export async function payWithPaymentSignature(resource, options = {}) {
     const result = await checkout({
       resource: item.resource, challenge, paymentRequiredHeader, accessPath
     });
+    if (result?.self) {
+      const payment = { paymentProvider: 'self', self: true, payer: result.address, amount: 0, revenue: 0, currency: item.resource.currency || 'USDC' };
+      item.markUnlocked(payment);
+      status(options.selfPayMessage || 'This is your content — no payment needed.');
+      return { ok: true, status: 200, self: true, payment, resource: item.resource };
+    }
     paymentSignature = result?.paymentSignature || result?.signature || result?.payment || '';
     paymentMemo = result?.memo || result?.paymentMemo || '';
     paymentMetadata = result?.metadata || result?.paymentMetadata || result || {};

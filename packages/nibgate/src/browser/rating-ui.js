@@ -4,6 +4,7 @@ import { emit } from './events.js';
 import { browserWindow } from './env.js';
 import { rateContentOnchain } from './reputation.js';
 import { createGate } from './gate.js';
+import { getWalletErrorMessage, isWalletRejection } from '@nibgate/wallet';
 
 export function rateResource(resource, rating = {}, extra = {}) {
   const normalized = normalizeResource(resource);
@@ -83,7 +84,7 @@ export function createOnchainRating(resource, options = {}) {
       if (typeof options.onRated === 'function') options.onRated(result);
       return result;
     } catch (error) {
-      const message = error?.message || options.errorMessage || 'Rating failed.';
+      const message = isWalletRejection(error) ? 'Request cancelled.' : getWalletErrorMessage(error) || options.errorMessage || 'Rating failed.';
       setStatus(message);
       if (typeof options.onError === 'function') options.onError(error);
       throw error;

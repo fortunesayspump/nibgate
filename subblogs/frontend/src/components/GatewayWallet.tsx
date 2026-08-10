@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ARC_TESTNET, getWalletErrorMessage, switchToArcNetwork } from "@nibgate/wallet";
 
-const ARC_TESTNET_RPC = "https://arc-testnet.drpc.org";
+const ARC_TESTNET_RPC = ARC_TESTNET.rpcUrl;
 const GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
 const GATEWAY_MINTER = "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
@@ -86,16 +87,7 @@ function refreshBals(container: HTMLElement, addr: string) {
 
 async function switchToArc() {
   if (!window.ethereum) return;
-  try {
-    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x4CEF52" }] });
-  } catch (e: any) {
-    if (e.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [{ chainId: "0x4CEF52", chainName: "Arc Testnet", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: ["https://rpc.testnet.arc.io"] }],
-      });
-    }
-  }
+  await switchToArcNetwork(window.ethereum);
 }
 
 async function sendTx(tx: { to: string; data: string; from: string }): Promise<string> {
@@ -285,7 +277,7 @@ export default function GatewayWallet() {
         gwDeposit.textContent = "Approving\u2026";
         approveAndDeposit(addr, parse6(amount))
           .then(() => { if (txEl) { txEl.style.color = "var(--nibgate-success, #16a34a)"; txEl.textContent = "Successful deposit"; txEl.style.display = "block"; setTimeout(() => { txEl.style.display = "none"; }, 3000); } refreshBals(container, addr); })
-          .catch((err) => { if (txEl) { txEl.textContent = `Error: ${err.message}`; txEl.style.display = "block"; txEl.style.color = "var(--nibgate-error, #dc2626)"; } })
+          .catch((err) => { if (txEl) { txEl.textContent = `Error: ${getWalletErrorMessage(err) || err.message}`; txEl.style.display = "block"; txEl.style.color = "var(--nibgate-error, #dc2626)"; } })
           .finally(() => { gwDeposit.removeAttribute("disabled"); gwDeposit.textContent = "Deposit"; if (input) input.value = ""; });
         return;
       }
@@ -301,7 +293,7 @@ export default function GatewayWallet() {
         gwWithdraw.textContent = "Signing\u2026";
         clientWithdraw(addr, parse6(amount))
           .then(() => { if (txEl) { txEl.style.color = "var(--nibgate-success, #16a34a)"; txEl.textContent = "Successful withdrawal"; txEl.style.display = "block"; setTimeout(() => { txEl.style.display = "none"; }, 3000); } refreshBals(container, addr); })
-          .catch((err) => { if (txEl) { txEl.textContent = `Error: ${err.message}`; txEl.style.display = "block"; txEl.style.color = "var(--nibgate-error, #dc2626)"; } })
+          .catch((err) => { if (txEl) { txEl.textContent = `Error: ${getWalletErrorMessage(err) || err.message}`; txEl.style.display = "block"; txEl.style.color = "var(--nibgate-error, #dc2626)"; } })
           .finally(() => { gwWithdraw.removeAttribute("disabled"); gwWithdraw.textContent = "Withdraw to your wallet"; if (input) input.value = ""; });
         return;
       }

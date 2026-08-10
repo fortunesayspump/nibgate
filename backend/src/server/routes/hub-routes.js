@@ -1,5 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
+import { relayX402Payment } from '@nibgate/internal/payments.js';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
   cleanDomain, isValidDomain, originFor, serializeWebsite,
@@ -317,40 +318,17 @@ export function registerHubRoutes(app) {
       const resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
       if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet provided. Pass recipient in request body or set NIBGATE_SELLER_ADDRESS.' });
 
-      const { createGatewayMiddleware } = await import('@circle-fin/x402-batching/server');
-      const network = process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002';
-
-      const middleware = createGatewayMiddleware({
+      const payment = await relayX402Payment({
         sellerAddress: resolvedRecipient,
-        facilitatorUrl: process.env.NIBGATE_FACILITATOR_URL || process.env.CIRCLE_GATEWAY_FACILITATOR_URL || 'https://gateway-api-testnet.circle.com',
-        networks: [network],
         description: `Unlock ${title || 'content'}`,
+        price: String(price),
+        defaultPrice: '0.01',
+        req,
+        res,
       });
+      if (!payment) return;
 
-      let body = '';
-      const headers = {};
-      let statusCode = 200;
-      let nextCalled = false;
-      const requestHeaders = {};
-      const sourceHeaders = req.headers || {};
-      for (const key of Object.keys(sourceHeaders)) {
-        requestHeaders[key.toLowerCase()] = sourceHeaders[key];
-      }
-      const mwReq = { method: req.method || 'GET', url: req.body?.path || '/', headers: requestHeaders };
-      const mwRes = {
-        get statusCode() { return statusCode; },
-        set statusCode(v) { statusCode = v; },
-        setHeader(name, value) { headers[name] = value; },
-        end(value = '') { body = value; },
-      };
-
-      await middleware.require(`$${price || '0.01'}`)(mwReq, mwRes, () => { nextCalled = true; });
-
-      if (!nextCalled) {
-        res.status(statusCode).set(headers).send(body);
-      } else {
-        res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network, amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: mwReq.payment?.payer || '', txHash: mwReq.payment?.transaction || '' } });
-      }
+      res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network: payment.networks[0], amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: payment.payer, txHash: payment.txHash } });
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });
     }

@@ -2,30 +2,10 @@ import { createAppKit } from '@reown/appkit/react'
 import type { AppKitNetwork } from '@reown/appkit/networks'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { http, createConfig } from 'wagmi'
-import { injected } from 'wagmi/connectors'
-import { defineChain } from 'viem'
+import { injected, walletConnect } from 'wagmi/connectors'
+import { arcTestnet } from '@nibgate/wallet'
 
-export const arcTestnet = defineChain({
-  id: 5_042_002,
-  name: 'Arc Testnet',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'USDC',
-    symbol: 'USDC',
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://api.nibgate.xyz/rpc'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'ArcScan',
-      url: 'https://testnet.arcscan.app',
-    },
-  },
-  testnet: true,
-})
+export { arcTestnet }
 
 export const appKitProjectId = '09580756f3c5f13c5f1aeb2faa9b1696'
 
@@ -35,6 +15,7 @@ const connectors = [
   injected(),
   injected({ target: 'metaMask' }),
   injected({ target: 'rabby' }),
+  walletConnect({ projectId: appKitProjectId }),
 ]
 
 const transports = {

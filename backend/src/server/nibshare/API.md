@@ -8,9 +8,9 @@ public page. The DB keeps `slug @unique` and `id` (uuid) as the internal key.
 ## Auth
 
 Requests that create or manage shares use a Nibgate **session cookie** (`auth_session`)
-issued by the nonce-based PersonalSignature wallet login
-(`packages/cli/src/core/auth.js`). Owner-only routes check that the session wallet owns
-the share. There is no SIWE bearer-token mode.
+issued by the nonce-based SIWE (EIP-4361) wallet login
+(`packages/internal/src/auth.js`). Owner-only routes check that the session wallet owns
+the share. Authentication is cookie-based; there is no bearer-token mode.
 
 ## Creating a share
 

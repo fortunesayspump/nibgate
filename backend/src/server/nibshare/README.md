@@ -35,8 +35,8 @@ Current build (`backend/src/server/nibshare/routes.js`, `controller.js`, `servic
   to the browser.
 - **Integrity:** `contentHash = keccak256("nibshare:v1|{ownerWallet}|{storageRef}|{plaintext}")`
   (`contentHashFor` in `packages/nibgate/src/server/crypto.js`) is stored on the share.
-- **Auth:** wallet login via a nonce-based PersonalSignature
-  (`packages/cli/src/core/auth.js`), establishing an `auth_session` cookie. Owner-only
+- **Auth:** wallet login via a nonce-based SIWE (EIP-4361) signature
+  (`packages/internal/src/auth.js`), establishing an `auth_session` cookie. Owner-only
   routes (delete / revoke / mine) check that the session wallet owns the share.
 - **Viewer flow:** a public viewer page lives at `https://nibgate.xyz/ns/<slug>`
   (`frontend/src/app/ns/[slug]/page.tsx`). Free shares render directly; paid shares
@@ -145,7 +145,7 @@ Unlock response:
 - **Receipts:** `NibShareReceipt` mirrors `UnlockReceipt` (payer, txHash, amount).
 - **Keccak commitment:** `contentHashFor` from `@nibgate/sdk/server`
   (`packages/nibgate/src/server/crypto.js`).
-- **Auth:** nonce-based PersonalSignature session login (`packages/cli/src/core/auth.js`).
+- **Auth:** nonce-based SIWE (EIP-4361) session login (`packages/internal/src/auth.js`).
 
 ## Phasing (Tier 1 shipped, Tiers 2–3 designed)
 

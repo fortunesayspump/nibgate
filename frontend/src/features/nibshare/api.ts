@@ -31,7 +31,7 @@ export const nibshareApi = {
   me: () => request<MeResponse>("/auth/me", { credentials: "include" }),
   logout: () => request("/auth/logout", { method: "POST", credentials: "include" }),
   authNonce: () => request<AuthNonceResponse>("/auth/nonce", { credentials: "include" }),
-  authVerify: (body: { walletAddress?: string; signature?: string }) =>
+  authVerify: (body: { message: string; signature: `0x${string}` }) =>
     request("/auth/verify", { method: "POST", credentials: "include", body: JSON.stringify(body) }),
 
   meta: (slug: string) => request<ShareMeta>(`/nibshare/${slug}/meta`),

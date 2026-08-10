@@ -9,7 +9,7 @@ function creatorAvatar(creator: Creator) {
 
 async function getCreators() {
   try {
-    const res = await fetch(apiUrl("/api/hub/reputation/leaderboards?type=creators&limit=3"), { cache: "no-store" });
+    const res = await fetch(apiUrl("/hub/reputation/leaderboards?type=creators&limit=3"), { cache: "no-store" });
     if (!res.ok) return [] as Creator[];
     const data = await res.json();
     return (data.items || []) as Creator[];

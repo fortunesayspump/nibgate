@@ -28,7 +28,7 @@ The widget is intentionally easy to paste into any site engine: Next.js, static 
 </Callout>
 
 <Callout type="info">
-The widget sends events to `/api/hub/evt` instead of `/api/hub/track` to avoid adblocker filter lists. The legacy `/api/hub/track` endpoint remains available.
+The widget sends events to `/hub/evt` instead of `/api/hub/track` to avoid adblocker filter lists. The legacy `/api/hub/track` endpoint remains available.
 </Callout>
 
 ## What the widget does not do
@@ -54,7 +54,7 @@ The widget can also handle payments for you — no SDK import or server access r
 </div>
 ```
 
-The widget detects `data-nibgate-premium`, calls `POST /api/hub/pay` on Nibgate's server, and runs the x402 payment flow. Money goes directly to the creator's wallet — Nibgate never touches the funds.
+The widget detects `data-nibgate-premium`, calls `POST /hub/pay` on Nibgate's server, and runs the x402 payment flow. Money goes directly to the creator's wallet — Nibgate never touches the funds.
 
 ## Setup flow
 

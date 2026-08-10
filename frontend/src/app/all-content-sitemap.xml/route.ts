@@ -14,7 +14,7 @@ export async function GET() {
   let subblogUrls: Array<{ url: string; updatedAt: string }> = [];
 
   try {
-    const res = await fetch(apiUrl("/api/hub/sitemap/content"), { next: { revalidate: 3600 } });
+    const res = await fetch(apiUrl("/hub/sitemap/content"), { next: { revalidate: 3600 } });
     const data = (await res.json()) as SitemapContent;
     subblogUrls = (data.urls || [])
       .map((u) => ({ url: u.url || "", updatedAt: u.updatedAt || "" }))

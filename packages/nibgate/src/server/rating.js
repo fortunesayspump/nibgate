@@ -9,7 +9,7 @@
 
 export async function prepareOnchainRating({ contentId, walletAddress, ratingValue, paymentId, hubApiUrl }) {
   const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
-  const url = `${api}/api/hub/reputation/ratings/prepare`;
+  const url = `${api}/hub/reputation/ratings/prepare`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -42,7 +42,7 @@ export async function verifyRatingTx(txHash, rpcUrl) {
 
 export async function submitOnchainRating({ siteId, token, hubContentId, title, postType, price, walletAddress, rating, ratingValue, txHash, url: contentUrl, path: contentPath, hubApiUrl }) {
   const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
-  const evtUrl = `${api}/api/hub/evt`;
+  const evtUrl = `${api}/hub/evt`;
   const res = await fetch(evtUrl, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

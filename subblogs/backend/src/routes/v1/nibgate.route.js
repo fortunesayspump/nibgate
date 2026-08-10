@@ -69,9 +69,100 @@ router.get('/status', (req, res) => {
   res.json({
     site: req.site.subdomain,
     hosted: true,
-    payEndpoint: 'https://api.nibgate.xyz/api/hub/pay',
+    payEndpoint: 'https://api.nibgate.xyz/hub/pay',
   });
 });
+
+async function serveAccess(req, res, post, slug) {
+  const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
+  const recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
+
+  if (!recipient) {
+    return res.status(400).json({ ok: false, error: 'Gateway recipient wallet not configured. Set recipientWallet in site settings or NIBGATE_SELLER_ADDRESS env.' });
+  }
+
+  const resource = {
+    id: post?.id || slug || 'unknown',
+    title: post?.title || req.query.title || '',
+    type: post?.type || 'article',
+    price: post ? (isPaidValue(post.price) ? post.price : '0') : (req.query.price || '0.01'),
+    currency: 'USDC',
+    path: slug ? `/posts/${slug}` : req.query.path || '/',
+    description: post?.excerpt || '',
+    recipient,
+  };
+
+  const origin = `${req.protocol}://${req.get('host')}`;
+  const request = new Request(`${origin}${req.originalUrl}`, {
+    headers: new Headers(req.headers),
+  });
+
+  const access = nibgateServer.accessFor(request, resource);
+  if (access.allowed) {
+    const payload = await accessPayloadFor(post);
+    return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media });
+  }
+  if (access.blocked) {
+    return res.status(403).json({ ok: false, error: 'Access blocked' });
+  }
+
+  const hubResponse = await fetch('https://api.nibgate.xyz/hub/pay', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(req.headers['payment-signature'] ? { 'payment-signature': req.headers['payment-signature'] } : {}),
+      ...(req.headers['payment-memo'] ? { 'payment-memo': req.headers['payment-memo'] } : {}),
+    },
+    body: JSON.stringify({
+      price: resource.price,
+      recipient: resource.recipient,
+      title: resource.title,
+      contentId: resource.id,
+      path: resource.path,
+    }),
+  });
+
+  if (hubResponse.status === 402) {
+    const body = await hubResponse.text();
+    const hasSig = !!req.headers['payment-signature'];
+    logger.warn(`nibgate/access 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${body}`);
+    return res
+      .status(402)
+      .set('PAYMENT-REQUIRED', hubResponse.headers.get('PAYMENT-REQUIRED') || '')
+      .set('Content-Type', hubResponse.headers.get('content-type') || 'application/json')
+      .send(body);
+  }
+
+  if (hubResponse.ok) {
+    const hubData = await hubResponse.json();
+    if (hubData.success) {
+      const result = await nibgateServer.unlock(resource, hubData.payment);
+      if (result.ok) {
+        const payload = await accessPayloadFor(post);
+        return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+      }
+    }
+  }
+
+  logger.warn(`nibgate/access hub error subdomain=${req.subdomain} status=${hubResponse.status}`);
+
+  const response = await nibgateServer.accessResponse(request, resource, {
+    ok: true,
+    resource,
+  });
+
+  const responseBody = await response.text();
+
+  if (response.status === 402) {
+    const hasSig = !!req.headers['payment-signature'];
+    logger.warn(`nibgate/access (local) 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${responseBody}`);
+  }
+
+  return res
+    .status(response.status)
+    .set(Object.fromEntries(response.headers.entries()))
+    .send(responseBody);
+}
 
 router.get('/access', async (req, res, next) => {
   try {
@@ -80,95 +171,7 @@ router.get('/access', async (req, res, next) => {
     if (!post && slug) {
       return res.status(404).json({ ok: false, error: 'Post not found' });
     }
-
-    const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
-    const recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
-
-    if (!recipient) {
-      return res.status(400).json({ ok: false, error: 'Gateway recipient wallet not configured. Set recipientWallet in site settings or NIBGATE_SELLER_ADDRESS env.' });
-    }
-
-    const resource = {
-      id: post?.id || slug || 'unknown',
-      title: post?.title || req.query.title || '',
-      type: post?.type || 'article',
-      price: post ? (isPaidValue(post.price) ? post.price : '0') : (req.query.price || '0.01'),
-      currency: 'USDC',
-      path: slug ? `/posts/${slug}` : req.query.path || '/',
-      description: post?.excerpt || '',
-      recipient,
-    };
-
-    const origin = `${req.protocol}://${req.get('host')}`;
-    const request = new Request(`${origin}${req.originalUrl}`, {
-      headers: new Headers(req.headers),
-    });
-
-    const access = nibgateServer.accessFor(request, resource);
-    if (access.allowed) {
-      const payload = await accessPayloadFor(post);
-      return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media });
-    }
-    if (access.blocked) {
-      return res.status(403).json({ ok: false, error: 'Access blocked' });
-    }
-
-    const hubResponse = await fetch('https://api.nibgate.xyz/api/hub/pay', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(req.headers['payment-signature'] ? { 'payment-signature': req.headers['payment-signature'] } : {}),
-        ...(req.headers['payment-memo'] ? { 'payment-memo': req.headers['payment-memo'] } : {}),
-      },
-      body: JSON.stringify({
-        price: resource.price,
-        recipient: resource.recipient,
-        title: resource.title,
-        contentId: resource.id,
-        path: resource.path,
-      }),
-    });
-
-    if (hubResponse.status === 402) {
-      const body = await hubResponse.text();
-      const hasSig = !!req.headers['payment-signature'];
-      logger.warn(`nibgate/access 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${body}`);
-      return res
-        .status(402)
-        .set('PAYMENT-REQUIRED', hubResponse.headers.get('PAYMENT-REQUIRED') || '')
-        .set('Content-Type', hubResponse.headers.get('content-type') || 'application/json')
-        .send(body);
-    }
-
-    if (hubResponse.ok) {
-      const hubData = await hubResponse.json();
-      if (hubData.success) {
-        const result = await nibgateServer.unlock(resource, hubData.payment);
-        if (result.ok) {
-          const payload = await accessPayloadFor(post);
-          return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
-        }
-      }
-    }
-
-    logger.warn(`nibgate/access hub error subdomain=${req.subdomain} status=${hubResponse.status}`);
-
-    const response = await nibgateServer.accessResponse(request, resource, {
-      ok: true,
-      resource,
-    });
-
-    const responseBody = await response.text();
-
-    if (response.status === 402) {
-      const hasSig = !!req.headers['payment-signature'];
-      logger.warn(`nibgate/access (local) 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${responseBody}`);
-    }
-
-    return res
-      .status(response.status)
-      .set(Object.fromEntries(response.headers.entries()))
-      .send(responseBody);
+    return await serveAccess(req, res, post, slug);
   } catch (error) {
     next(error);
   }
@@ -339,7 +342,7 @@ router.get('/manifest', async (req, res, next) => {
         coverUrl: post.coverUrl || post.videoUrl || null,
         urls: {
           page: `${origin}${path}`,
-          access: `${origin}/api/nibgate/access?path=${encodeURIComponent(path)}`,
+          access: `${origin}/api${path}`,
           manifest: `${origin}/api/nibgate/manifest?path=${encodeURIComponent(path)}`,
           media,
         },
@@ -476,3 +479,4 @@ router.post('/gateway/balance', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.serveAccess = serveAccess;

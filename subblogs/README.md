@@ -161,7 +161,7 @@ Add the widget to your site layout and mark premium posts with a data attribute:
 </article>
 ```
 
-The widget calls `POST /api/hub/pay` on Nibgate's server — no backend changes needed.
+The widget calls `POST /hub/pay` on Nibgate's server — no backend changes needed.
 
 **Option B: Self-hosted (use the Nibgate SDK)**
 

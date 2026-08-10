@@ -100,9 +100,9 @@ try {
 }
 
 // ===== Part 2: Nibshare upload (create) =====
-console.log('\n2. Nibshare upload (POST /api/nibshare)');
+console.log('\n2. Nibshare upload (POST /nibshare)');
 const shareContent = 'Secret article content ' + Date.now();
-const createRes = await fetch(API + '/api/nibshare', {
+const createRes = await fetch(API + '/nibshare', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Cookie: cookie },
   body: JSON.stringify({
@@ -113,7 +113,7 @@ const createRes = await fetch(API + '/api/nibshare', {
   })
 });
 const created = await createRes.json();
-test('POST /api/nibshare returns 201', createRes.status === 201);
+test('POST /nibshare returns 201', createRes.status === 201);
 test('response has slug', !!created.slug);
 test('response has id', !!created.id);
 test('storageProvider = nibgate', created.storageProvider === 'nibgate');
@@ -123,8 +123,8 @@ console.log('    slug:', created.slug);
 console.log('    ciphertextUrl:', created.ciphertextUrl);
 
 // ===== Part 3: Unlock (decrypt server-side) =====
-console.log('\n3. Nibshare unlock (POST /api/nibshare/:slug/unlock)');
-const unlockRes = await fetch(API + '/api/nibshare/' + created.slug + '/unlock', {
+console.log('\n3. Nibshare unlock (POST /nibshare/:slug/unlock)');
+const unlockRes = await fetch(API + '/nibshare/' + created.slug + '/unlock', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ walletAddress })
@@ -136,8 +136,8 @@ test('decrypted content matches original', unlocked.access?.body === shareConten
 console.log('    decrypted:', String(unlocked.access?.body).slice(0, 60));
 
 // ===== Part 4: Metadata =====
-console.log('\n4. Nibshare metadata (GET /api/nibshare/:slug/meta)');
-const metaRes = await fetch(API + '/api/nibshare/' + created.slug + '/meta');
+console.log('\n4. Nibshare metadata (GET /nibshare/:slug/meta)');
+const metaRes = await fetch(API + '/nibshare/' + created.slug + '/meta');
 const meta = await metaRes.json();
 test('GET /meta returns 200', metaRes.status === 200);
 test('meta.title matches', meta.title === 'E2E Encrypted Post');
@@ -145,7 +145,7 @@ test('meta.status = active', meta.status === 'active');
 
 // ===== Part 5: Delete + blob cleanup =====
 console.log('\n5. Delete share + blob cleanup');
-const deleteRes = await fetch(API + '/api/nibshare/' + created.slug, {
+const deleteRes = await fetch(API + '/nibshare/' + created.slug, {
   method: 'DELETE',
   headers: { Cookie: cookie }
 });
@@ -168,7 +168,7 @@ if (created.ciphertextUrl) {
 
 // ===== Part 6: Unlock after revoke =====
 console.log('\n6. Unlock after revoke (should fail)');
-const revokedRes = await fetch(API + '/api/nibshare/' + created.slug + '/unlock', {
+const revokedRes = await fetch(API + '/nibshare/' + created.slug + '/unlock', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ walletAddress })
@@ -178,7 +178,7 @@ test('revoked unlock returns 410', revokedRes.status === 410);
 // ===== Part 7: 50KB content =====
 console.log('\n7. Large content (50KB)');
 const largeContent = 'X'.repeat(50000);
-const largeRes = await fetch(API + '/api/nibshare', {
+const largeRes = await fetch(API + '/nibshare', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', Cookie: cookie },
   body: JSON.stringify({ title: 'Large Post', content: largeContent, price: '0' })
@@ -186,7 +186,7 @@ const largeRes = await fetch(API + '/api/nibshare', {
 const largeCreated = await largeRes.json();
 test('large share created', largeRes.status === 201);
 
-const largeUnlock = await fetch(API + '/api/nibshare/' + largeCreated.slug + '/unlock', {
+const largeUnlock = await fetch(API + '/nibshare/' + largeCreated.slug + '/unlock', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ walletAddress })
@@ -196,7 +196,7 @@ test('large unlock = 200', largeUnlock.status === 200);
 test('large content matches', largeUnlocked.access?.body === largeContent);
 
 // cleanup large share
-await fetch(API + '/api/nibshare/' + largeCreated.slug, {
+await fetch(API + '/nibshare/' + largeCreated.slug, {
   method: 'DELETE',
   headers: { Cookie: cookie }
 });

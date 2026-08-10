@@ -15,13 +15,13 @@ sequenceDiagram
     Note over A,API: EVALUATE (read-only, free)
     A->>P: GET /ns/DxqTvRKJ
     P-->>A: HTML with nibgate:* meta tags + JSON-LD
-    A->>API: GET /api/nibshare/DxqTvRKJ/manifest
+    A->>API: GET /nibshare/DxqTvRKJ/manifest
     API-->>A: Structured contract (price, status, urls)
     end
 
     rect rgb(232, 255, 235)
     Note over A,API: READ
-    A->>API: GET /api/nibshare/DxqTvRKJ/access
+    A->>API: GET /ns/DxqTvRKJ
     alt free share
         API-->>A: 200 + decrypted body
     else paid share
@@ -49,18 +49,18 @@ The `<head>` carries `nibgate:` prefixed meta tags:
 <meta name="nibgate:price" content="1"/>
 <meta name="nibgate:currency" content="USDC"/>
 <meta name="nibgate:status" content="active"/>
-<meta name="nibgate:access" content="https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/access"/>
-<meta name="nibgate:manifest" content="https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/manifest"/>
+<meta name="nibgate:access" content="https://api.nibgate.xyz/ns/DxqTvRKJ"/>
+<meta name="nibgate:manifest" content="https://api.nibgate.xyz/nibshare/DxqTvRKJ/manifest"/>
 ```
 
 The response also carries the manifest as a standards `Link` header (`<…/manifest>; rel="alternate"; type="application/json"`), and the body embeds a JSON-LD block and a `<link rel="alternate" type="application/json" href="…/manifest">`, plus the article marker carries the same facts as attributes (`data-nibgate-resource`, `data-nibgate-title`, `data-nibgate-price`, `data-nibgate-path`, `data-nibgate-manifest`). An agent can rely on any of these — they all point at the same machine-readable manifest. MCP-connected agents can skip parsing entirely and call the `resolve_share` tool on the Nibgate MCP server (`POST https://api.nibgate.xyz/mcp`) with the slug or full `/ns/<slug>` URL; it returns the manifest above as JSON.
 
 ## Step 2 — Read the manifest
 
-`GET /api/nibshare/:slug/manifest` is the canonical, structured contract:
+`GET /nibshare/:slug/manifest` is the canonical, structured contract:
 
 ```bash
-curl -s https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/manifest | jq
+curl -s https://api.nibgate.xyz/nibshare/DxqTvRKJ/manifest | jq
 ```
 
 ```json
@@ -81,11 +81,11 @@ curl -s https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/manifest | jq
   "unlockCount": 1,
   "urls": {
     "page": "https://nibgate.xyz/ns/DxqTvRKJ",
-    "meta": "https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/meta",
-    "manifest": "https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/manifest",
-    "access": "https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/access",
-    "unlock": "https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/unlock",
-    "media": "https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/media/{kind}?index=N"
+    "meta": "https://api.nibgate.xyz/nibshare/DxqTvRKJ/meta",
+    "manifest": "https://api.nibgate.xyz/nibshare/DxqTvRKJ/manifest",
+    "access": "https://api.nibgate.xyz/ns/DxqTvRKJ",
+    "unlock": "https://api.nibgate.xyz/nibshare/DxqTvRKJ/unlock",
+    "media": "https://api.nibgate.xyz/nibshare/DxqTvRKJ/media/{kind}?index=N"
   },
   "payment": {
     "scheme": "x402",
@@ -98,7 +98,7 @@ This is the agent's cost–benefit step: confirmed price, currency, content type
 
 ## Step 3 — Read the content
 
-The single read route is `GET /api/nibshare/:slug/access`:
+The single read route is `GET /ns/<slug>` (short mirror of `GET /nibshare/:slug/access`):
 
 - **Free share** (`price = "0"`): returns `200` with the decrypted body and media metadata. No proof needed.
 - **Paid share**: responds `402 Payment Required` with an x402 envelope in the `PAYMENT-REQUIRED` header. Sign the challenge (EIP-3009 authorization, no gas) and retry with the `PAYMENT-SIGNATURE` header — the server verifies, settles via Circle Gateway, and returns the body plus `unlockProof` and `payment.txHash`.
@@ -110,7 +110,7 @@ The same flow an agent already runs against a subblog works unchanged against a 
 Once unlocked, the returned `unlockProof` can be replayed without paying again:
 
 ```bash
-curl -s https://api.nibgate.xyz/api/nibshare/DxqTvRKJ/access \
+curl -s https://api.nibgate.xyz/ns/DxqTvRKJ \
   -H 'x-nibgate-payment-proof: <unlockProof>'
 ```
 
@@ -121,6 +121,6 @@ Nibshare shares are **private**: they are never surfaced in hub discovery, the p
 ## Code reference
 
 - Manifest builder: `shareManifest` in `backend/src/server/nibshare/service.js:126`
-- Manifest route: `GET /api/nibshare/:slug/manifest` in `backend/src/server/nibshare/routes.js`
+- Manifest route: `GET /nibshare/:slug/manifest` in `backend/src/server/nibshare/routes.js`
 - Server-rendered page: `frontend/src/app/ns/[slug]/page.tsx` (meta tags, JSON-LD, `data-nibgate-resource`)
 - Access/unlock logic: `backend/src/server/nibshare/controller.js`

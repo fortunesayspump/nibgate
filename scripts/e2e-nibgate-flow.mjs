@@ -112,7 +112,7 @@ async function ensureSite() {
 }
 
 async function emit(site, event, payload = {}) {
-  return post('/api/hub/track', {
+  return post('/hub/track', {
     siteId: site.id,
     token: site.verifyToken,
     event,
@@ -159,7 +159,7 @@ await emit(site, 'content_rating', {
   proofType: 'signed'
 });
 
-const explore = await get('/api/hub/explore/content?q=E2E');
+const explore = await get('/hub/explore/content?q=E2E');
 const item = (explore.content || []).find((entry) => entry.externalId === resource.id);
 if (!item) throw new Error('E2E content was not discovered in explore API.');
 if (!item.receipts) throw new Error('E2E unlock receipt was not recorded.');

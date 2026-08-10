@@ -9,7 +9,7 @@ sequenceDiagram
     Note over A,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
     A->>H: GET /.well-known/llms.txt
     H-->>A: Curated index + endpoint map
-    A->>H: GET /api/hub/explore/content
+    A->>H: GET /hub/explore/content
     H-->>A: Content cards
     A->>S: GET /nibgate.json
     S-->>A: Metadata, price, access policy
@@ -28,9 +28,9 @@ sequenceDiagram
 
     rect rgb(255, 244, 230)
     Note over A,H: PHASE 3 · ON-CHAIN RATING (post-purchase)
-    A->>H: POST /api/hub/reputation/ratings/prepare
+    A->>H: POST /hub/reputation/ratings/prepare
     H-->>A: Signable message + contentHash
     Note over A: Sign rateContent calldata
-    A->>H: POST /api/hub/reputation/ratings/index
+    A->>H: POST /hub/reputation/ratings/index
     H-->>A: Rating indexed, reputation updated
     end

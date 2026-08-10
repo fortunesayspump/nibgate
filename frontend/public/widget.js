@@ -15,7 +15,7 @@
     try { return new URL(script.src).origin; } catch (_error) { return "https://www.nibgate.xyz"; }
   }
 
-  var endpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/evt";
+  var endpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/hub/evt";
   var queue = [];
   var pageStartedAt = Date.now();
   var maxScrollDepth = 0;
@@ -179,7 +179,7 @@
     var title = container.getAttribute("data-nibgate-title") || document.title || "";
     var unlockMode = container.getAttribute("data-nibgate-unlock") || "one_time";
 
-    var payEndpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/api/hub/pay";
+    var payEndpoint = (apiBase || scriptOrigin()).replace(/\/$/, "") + "/hub/pay";
 
     var unlockCard = container.querySelector("[data-nibgate-unlock-card]");
     if (!unlockCard) return;

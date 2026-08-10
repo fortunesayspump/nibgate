@@ -16,7 +16,7 @@ type ExploreContent = {
 
 async function topContent(): Promise<ExploreContent[]> {
   try {
-    const res = await fetch(apiUrl("/api/hub/explore/content?limit=50"), { next: { revalidate: 3600 } });
+    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { next: { revalidate: 3600 } });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data.content) ? data.content : [];
@@ -63,11 +63,11 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 
 ## API endpoints
 
-- https://api.nibgate.xyz/api/hub/explore/content?limit=100 — Explore feed of verified content.
-- https://api.nibgate.xyz/api/hub/ledger?limit=100 — Public ledger.
-- https://api.nibgate.xyz/api/hub/stats — Platform totals.
-- https://api.nibgate.xyz/api/hub/reputation/leaderboards — Ranked reputation leaderboards.
-- https://api.nibgate.xyz/api/openapi.json — OpenAPI specification.
+- https://api.nibgate.xyz/hub/explore/content?limit=100 — Explore feed of verified content.
+- https://api.nibgate.xyz/hub/ledger?limit=100 — Public ledger.
+- https://api.nibgate.xyz/hub/stats — Platform totals.
+- https://api.nibgate.xyz/hub/reputation/leaderboards — Ranked reputation leaderboards.
+- https://api.nibgate.xyz/openapi.json — OpenAPI specification.
 - https://api.nibgate.xyz/mcp — MCP server for AI agents.
 
 ## Top content on Nibgate

@@ -32,21 +32,21 @@ sequenceDiagram
 
     rect rgb(232, 242, 255)
     Note over C,A: CREATE — encrypt before storage
-    C->>A: POST /api/uploads/content?encrypted=1 (media)
-    C->>A: POST /api/nibshare (title + content + price)
+    C->>A: POST /uploads/content?encrypted=1 (media)
+    C->>A: POST /nibshare (title + content + price)
     Note over A: server generates key, AES-256-GCM encrypts<br/>ciphertext → R2 · key stays in DB
     A-->>C: 201 + slug + short link
     end
 
     rect rgb(255, 244, 230)
     Note over V,A: READ — free share, no proof
-    V->>A: GET /api/nibshare/:slug/access
+    V->>A: GET /nibshare/:slug/access
     A-->>V: 200 decrypted body · media via proxy
     end
 
     rect rgb(232, 255, 235)
     Note over V,A: READ — paid share
-    V->>A: GET /api/nibshare/:slug/access
+    V->>A: GET /nibshare/:slug/access
     A-->>V: 402 + x402 payment challenge
     V->>A: retry with payment proof
     Note over A: active · not expired · whitelisted · paid
@@ -83,11 +83,11 @@ ciphertext blob (.bin, application/octet-stream)
 
 ### Upload & encrypt pipeline
 
-Media uploads go through `POST /api/uploads/content?encrypted=1`. Images are optimized to WebP **before** encryption; the preview WebP is the only public plaintext byte for a share.
+Media uploads go through `POST /uploads/content?encrypted=1`. Images are optimized to WebP **before** encryption; the preview WebP is the only public plaintext byte for a share.
 
 ```mermaid
 flowchart TD
-    E["Creator uploads media<br/>POST /api/uploads/content?encrypted=1 (multipart)"]
+    E["Creator uploads media<br/>POST /uploads/content?encrypted=1 (multipart)"]
     O{"is image?"}
     P["processContentImage → auto-rotate, resize,<br/>WebP q90"]
     K["generateContentKey() → 32-byte random AES-256 key"]
@@ -116,13 +116,13 @@ flowchart TD
 
 The difference is only at serve time, exactly like Subblogs:
 
-- **Free shares** (`price = "0"`): `GET /api/nibshare/:slug/access` decrypts the body server-side and returns it with **no proof**. Anyone — human or agent — reads it.
+- **Free shares** (`price = "0"`): `GET /nibshare/:slug/access` decrypts the body server-side and returns it with **no proof**. Anyone — human or agent — reads it.
 - **Paid shares**: the same route relays the x402 Gateway challenge until payment. After USDC settles, the server checks the rules and returns the decrypted body scoped to that session.
 
 ```mermaid
 flowchart TD
     V["Viewer (browser/agent)"]
-    A["GET /api/nibshare/:slug/access"]
+    A["GET /nibshare/:slug/access"]
     S{"share status?"}
     R["410 revoked"]
     E{"expiresAt passed?"}
@@ -164,7 +164,7 @@ After a paid unlock, the server returns an `unlockProof` that the viewer stores 
 
 Embedded assets stream through a decrypt proxy — the plaintext never lives at a stable public URL. Body references use `nibgate-embed://N` tokens; the viewer rewrites them to this route.
 
-`GET /api/nibshare/:slug/media/:kind?index=N`
+`GET /nibshare/:slug/media/:kind?index=N`
 
 | `kind` | Resolves to |
 |---|---|
@@ -181,7 +181,7 @@ Embedded assets stream through a decrypt proxy — the plaintext never lives at 
 ```mermaid
 flowchart TD
     V["Viewer"]
-    M["GET /api/nibshare/:slug/media/photo?index=N"]
+    M["GET /nibshare/:slug/media/photo?index=N"]
     B["decrypt body → resolve media[index]"]
     H{"item has storageRef + encryptedKey?"}
     N["404 not found"]
@@ -218,7 +218,7 @@ All checks run server-side at unlock/access time:
 
 ```mermaid
 flowchart TD
-    U["POST /api/nibshare/:slug/unlock"]
+    U["POST /nibshare/:slug/unlock"]
     S{"status active?"}
     R["410 revoked"]
     E{"expiresAt passed?"}
@@ -317,31 +317,31 @@ erDiagram
 
 | Content | Cap | Enforcement |
 |---|---|---|
-| Share body (text/article) | 512 KB | `POST /api/nibshare` |
-| Media per item | 30 MB | multer `fileSize` on `POST /api/uploads/content` |
-| Expiry | optional, ≤ 1 week (168h) from now | `POST /api/nibshare` |
+| Share body (text/article) | 512 KB | `POST /nibshare` |
+| Media per item | 30 MB | multer `fileSize` on `POST /uploads/content` |
+| Expiry | optional, ≤ 1 week (168h) from now | `POST /nibshare` |
 
 
 ## API surface
 
-Base URL: `https://api.nibgate.xyz`. Routes live under `/api/nibshare/*`, plus the media upload route under `/api/uploads`. Creating and managing shares uses the Nibgate wallet session cookie (`auth_session`, nonce-based PersonalSignature login, 30 days); owner-only routes also check that the session wallet owns the share.
+Base URL: `https://api.nibgate.xyz`. Routes live under `/nibshare/*`, plus the media upload route under `/uploads`. Creating and managing shares uses the Nibgate wallet session cookie (`auth_session`, nonce-based PersonalSignature login, 30 days); owner-only routes also check that the session wallet owns the share.
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/uploads/content?encrypted=1` | Upload media — encrypted for gated shares (images are WebP-optimized before encryption) |
-| `POST /api/nibshare` | Create a share (title + content + price; optional whitelist / expiry ≤ 7 days) |
-| `GET /api/nibshare/:slug/meta` | Public metadata — title, price, cover, status, view/unlock counts. Never the body |
-| `GET /api/nibshare/:slug/manifest` | Machine-readable agent contract — schema, pricing, expiry, status, and the page/access/unlock/media URLs for this share |
-| `GET /api/nibshare/:slug/access` | The single read route: free shares open, paid shares relay the x402 challenge |
-| `POST /api/nibshare/:slug/unlock` | Pay (or `walletAddress` for free) → receipt + entitlement → decrypted body |
-| `GET /api/nibshare/:slug/media/:kind?index=N` | Stream one decrypted asset (`photo` / `music` / `video` / `document`) |
-| `POST /api/nibshare/:slug/view` | Record a view (increments `viewCount`) |
-| `POST /api/nibshare/:slug/entitlements/:wallet/revoke` | Owner: hard-stop one wallet in `server` mode |
-| `DELETE /api/nibshare/:slug` | Owner: revoke the share and delete its R2 body blob |
-| `POST /api/nibshare/:slug/reslug` | Owner: rotate the short-link slug |
-| `GET /api/nibshare/mine` | Owner: list shares + unlock/view activity |
-| `GET /api/nibshare/dashboard?from=&to=` | Owner: analytics across all shares — lifetime summary, range + daily time series, per-share breakdown, recent activity |
-| `GET /api/nibshare/stats` | Public platform aggregates: lifetime totals, 24h/7d windows, truncated-wallet activity feed (no titles, slugs, or full wallets) |
+| `POST /uploads/content?encrypted=1` | Upload media — encrypted for gated shares (images are WebP-optimized before encryption) |
+| `POST /nibshare` | Create a share (title + content + price; optional whitelist / expiry ≤ 7 days) |
+| `GET /nibshare/:slug/meta` | Public metadata — title, price, cover, status, view/unlock counts. Never the body |
+| `GET /nibshare/:slug/manifest` | Machine-readable agent contract — schema, pricing, expiry, status, and the page/access/unlock/media URLs for this share |
+| `GET /nibshare/:slug/access` | The single read route: free shares open, paid shares relay the x402 challenge |
+| `POST /nibshare/:slug/unlock` | Pay (or `walletAddress` for free) → receipt + entitlement → decrypted body |
+| `GET /nibshare/:slug/media/:kind?index=N` | Stream one decrypted asset (`photo` / `music` / `video` / `document`) |
+| `POST /nibshare/:slug/view` | Record a view (increments `viewCount`) |
+| `POST /nibshare/:slug/entitlements/:wallet/revoke` | Owner: hard-stop one wallet in `server` mode |
+| `DELETE /nibshare/:slug` | Owner: revoke the share and delete its R2 body blob |
+| `POST /nibshare/:slug/reslug` | Owner: rotate the short-link slug |
+| `GET /nibshare/mine` | Owner: list shares + unlock/view activity |
+| `GET /nibshare/dashboard?from=&to=` | Owner: analytics across all shares — lifetime summary, range + daily time series, per-share breakdown, recent activity |
+| `GET /nibshare/stats` | Public platform aggregates: lifetime totals, 24h/7d windows, truncated-wallet activity feed (no titles, slugs, or full wallets) |
 
 Paid responses carry an `unlockProof` (`{wallet}.{mac}`) the viewer replays on later reads and media. Share slugs are 8-char base58 short links. Full payload shapes, error codes, and status semantics live with the code in `backend/src/server/nibshare/API.md`.
 
@@ -350,5 +350,5 @@ Paid responses carry an `unlockProof` (`{wallet}.{mac}`) the viewer replays on l
 - Full API reference (payloads, errors): `backend/src/server/nibshare/API.md`
 - Storage & encryption detail: `backend/src/server/nibshare/STORAGE.md`
 - Planned Arweave/Lit tiers: `backend/src/server/nibshare/STORAGE-TIER-PLAN.md`
-- Payments rail: `backend/src/server/routes/hub-routes.js` (`/api/hub/pay`)
+- Payments rail: `backend/src/server/routes/hub-routes.js` (`/hub/pay`)
 - Integrity commitment: `packages/nibgate/src/server/crypto.js`

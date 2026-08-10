@@ -14,6 +14,8 @@ Endpoint names can still move while the backend settles. Treat this page as the 
 https://api.nibgate.xyz
 ```
 
+The host is already `api.`, so routes live under their group name directly (`/hub/...`, `/nibshare/...`) — no `/api` prefix. The legacy `/api/...` forms still work.
+
 ## API groups
 
 <Cards>
@@ -29,7 +31,7 @@ https://api.nibgate.xyz
 Use the status endpoint to confirm the service is online.
 
 ```http
-GET /api/nibgate/status
+GET /nibgate/status
 ```
 
 ## Site registration
@@ -37,23 +39,23 @@ GET /api/nibgate/status
 Dashboard APIs create sites, issue verification tokens, recheck widget health, and archive removed sites.
 
 ```http
-POST /api/hub/sites/register
-GET /api/hub/sites
-POST /api/hub/sites/:websiteId/verify
-DELETE /api/hub/sites/:websiteId
+POST /hub/sites/register
+GET /hub/sites
+POST /hub/sites/:websiteId/verify
+DELETE /hub/sites/:websiteId
 ```
 
-Note: the path param is `websiteId` (the site UUID), and registration is `/sites/register` — not `POST /api/hub/sites`.
+Note: the path param is `websiteId` (the site UUID), and registration is `/sites/register` — not `POST /hub/sites`.
 
 ## Event ingestion
 
 Widget and package event routes should reject unknown origins, removed sites, stale verification, and malformed content ids.
 
 ```http
-POST /api/hub/evt
+POST /hub/evt
 ```
 
-Accepts the same payload as the legacy `/api/hub/track` endpoint (still available for backward compatibility). The rename avoids adblocker filter lists targeting the word "track".
+Accepts the same payload as the legacy `/hub/track` endpoint (still available for backward compatibility). The rename avoids adblocker filter lists targeting the word "track".
 
 Intended event shape:
 
@@ -78,7 +80,7 @@ The `siteId` + `token` (the site's verification token) prove the creator origin.
 The hosted pay endpoint runs the x402 payment flow on behalf of creators. No server access route needed.
 
 ```http
-POST /api/hub/pay
+POST /hub/pay
 ```
 
 Request:
@@ -106,7 +108,7 @@ The widget handles this automatically when using `data-nibgate-premium` attribut
 Explore reads verified content metadata from the backend.
 
 ```http
-GET /api/hub/explore/content?q=music&type=music&sort=trending
+GET /hub/explore/content?q=music&type=music&sort=trending
 ```
 
 ## Public ledger
@@ -114,7 +116,7 @@ GET /api/hub/explore/content?q=music&type=music&sort=trending
 The ledger provides a live, auditable feed of views, unlocks, payments, and ratings across all sites.
 
 ```http
-GET /api/hub/ledger?limit=50&skip=0&type=&domain=
+GET /hub/ledger?limit=50&skip=0&type=&domain=
 ```
 
 | Param | Default | Description |

@@ -21,6 +21,9 @@ Docs examples drift from the code quickly. Before writing or editing anything in
 - The hub serves an aggregate sitemap at `/all-content-sitemap.xml`.
 - The main site is `nibgate.xyz`; the API is `api.nibgate.xyz`; docs are `docs.nibgate.xyz`.
 - Nibshare is a PRIVATE sharing product: never emit its events to `/api/hub/evt` or index it in hub discovery/ledger/reputation — content expires within 7 days and has no creator-verified domain (`backend/src/server/nibshare/service.js`).
+- Nibshare link manifest: `GET /api/nibshare/:slug/manifest` returns the agent contract (built by `shareManifest()` in `backend/src/server/nibshare/service.js:126`); the share page advertises it via `nibgate:*` meta, JSON-LD, `data-nibgate-*`, `<link rel="alternate">`, and the `Link` response header (`frontend/src/middleware.ts`).
+- Subblog per-post manifest: `GET /api/nibgate/manifest?path=/<type>/<slug>` (same root route as the site manifest, optional `req.query.path`), advertised by `<link rel="alternate">` + `Link` header on post pages (`subblogs/frontend/src/middleware.ts`). No `?slug=` anywhere.
+- MCP tools: `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards`, `resolve_share` (slug or full `/ns/<slug>` URL) — all in `backend/src/server/mcp.js`. The MCP card lists them in `.well-known/mcp.json` on `api.nibgate.xyz`.
 
 ## Never reference `swarm/` in docs or committed files
 

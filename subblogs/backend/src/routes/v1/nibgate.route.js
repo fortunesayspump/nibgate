@@ -297,15 +297,62 @@ router.get('/media/:postId/document/render', async (req, res, next) => {
 
 router.get('/manifest', async (req, res, next) => {
   try {
-    const posts = await prisma.blogPost.findMany({
-      where: { siteId: req.siteId, status: 'published' },
-      orderBy: [{ publishedAt: 'desc' }],
-    });
-
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
     const origin = subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`;
+
+    const requestedPath = req.query.path;
+    if (requestedPath) {
+      const slug = String(requestedPath).replace(/^\/(?:writing|photos|music|video|docs|posts)\//, '');
+      const post = slug
+        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug }, include: { author: { select: { name: true } } } })
+        : null;
+      if (!post) return res.status(404).json({ ok: false, error: 'Post not found' });
+
+      const t = post.type || 'article';
+      const isPaid = isPaidValue(post.price);
+      const path = `/${typePath[t] || 'posts'}/${post.slug}`;
+      const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
+      const recipient = post.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
+      const mediaMeta = mediaMetaFor(post);
+      const media = [];
+      if (mediaMeta.photos) media.push(`${origin}/api/nibgate/media/${post.id}/photo`);
+      if (mediaMeta.hasAudio) media.push(`${origin}/api/nibgate/media/${post.id}/audio`);
+      if (mediaMeta.hasVideo) media.push(`${origin}/api/nibgate/media/${post.id}/video`);
+      if (mediaMeta.hasDocument) media.push(`${origin}/api/nibgate/media/${post.id}/document`);
+
+      return res.json({
+        schema: 'https://docs.nibgate.xyz/subblog-manifest',
+        version: 1,
+        kind: 'subblog',
+        site: subdomain || req.site.name || '',
+        id: post.id,
+        title: post.title,
+        summary: post.excerpt || '',
+        type: t,
+        price: isPaid ? post.price : '0',
+        currency: 'USDC',
+        publishedAt: post.publishedAt,
+        updatedAt: post.updatedAt || post.publishedAt,
+        author: post.author?.name || null,
+        coverUrl: post.coverUrl || post.videoUrl || null,
+        urls: {
+          page: `${origin}${path}`,
+          access: `${origin}/api/nibgate/access?path=${encodeURIComponent(path)}`,
+          manifest: `${origin}/api/nibgate/manifest?path=${encodeURIComponent(path)}`,
+          media,
+        },
+        payment: isPaid
+          ? { scheme: 'x402', mode: 'one_time', recipient, description: `Pay ${post.price} USDC to unlock this ${t} post.` }
+          : { scheme: 'x402', mode: 'none', description: 'This post is free to read.' },
+      });
+    }
+
+    const posts = await prisma.blogPost.findMany({
+      where: { siteId: req.siteId, status: 'published' },
+      orderBy: [{ publishedAt: 'desc' }],
+    });
 
     const manifest = {
       name: req.site.name,

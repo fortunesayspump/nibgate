@@ -1,57 +1,61 @@
-'use client';
-
-import { use, useEffect, useState } from 'react';
-import UnlockGate from '@/features/nibshare/components/UnlockGate';
-import ContentViewer from '@/features/nibshare/components/ContentViewer';
+import type { Metadata } from 'next';
+import { apiUrl } from '@/lib/api';
+import ShareClient from '@/features/nibshare/components/ShareClient';
 import Footer from '@/features/nibshare/components/Footer';
-import { nibshareApi } from '@/features/nibshare/api';
-import { formatLongDate, readTime } from '@/features/nibshare/lib/format';
-import type { AccessPayload, ShareMeta } from '@/features/nibshare/types';
+import { formatLongDate } from '@/features/nibshare/lib/format';
+import type { ShareMeta } from '@/features/nibshare/types';
 import '@/styles/nibshare.css';
 
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || 'https://nibgate.xyz';
 const TYPE_LABELS: Record<string, string> = { article: 'Writing', photo: 'Photos', music: 'Music', video: 'Video', document: 'Docs' };
 const TYPE_ICONS: Record<string, string> = { article: '✎', photo: '▣', music: '♫', video: '▶', document: '▤' };
 
-export default function ShareViewPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params);
-  const [meta, setMeta] = useState<ShareMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [freePayload, setFreePayload] = useState<AccessPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+type Props = { params: Promise<{ slug: string }> };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const m = await nibshareApi.meta(slug);
-        if (cancelled) return;
-        setMeta(m);
-        if (m?.status === 'active') {
-          nibshareApi.recordView(slug).catch(() => {});
-        }
-        const expired = m?.expiresAt && new Date(m.expiresAt).getTime() < Date.now();
-        if (m?.status === 'active' && !(Number(m.price) > 0) && !expired) {
-          try {
-            const data = await nibshareApi.access(slug);
-            if (!cancelled) setFreePayload(data);
-          } catch (err: any) {
-            if (!cancelled) setError(err?.message || 'Could not load this share.');
-          }
-        }
-      } catch {
-        if (!cancelled) setMeta(null);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [slug]);
-
-  function clearPaid() {
-    try { localStorage.removeItem(`nibgate:payment-proof:${slug}`); } catch {}
-    setFreePayload(null);
-    setError(null);
+async function fetchMeta(slug: string): Promise<ShareMeta | null> {
+  try {
+    const res = await fetch(apiUrl(`/api/nibshare/${slug}/meta`), { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    return (await res.json()) as ShareMeta;
+  } catch {
+    return null;
   }
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const meta = await fetchMeta(slug);
+  if (!meta || meta.status !== 'active') {
+    return { title: 'Share not found', description: 'This Nibshare link is broken or has been revoked.' };
+  }
+  return {
+    title: meta.title,
+    description: meta.summary || `Pay-per-view ${meta.contentType} on Nibgate.`,
+    robots: { index: false, follow: false },
+    alternates: { canonical: `/ns/${slug}` },
+    openGraph: {
+      title: meta.title,
+      description: meta.summary || undefined,
+      type: 'article',
+      url: `/ns/${slug}`,
+    },
+    other: {
+      'nibgate:title': meta.title,
+      'nibgate:summary': meta.summary || '',
+      'nibgate:content-type': meta.contentType,
+      'nibgate:price': meta.price,
+      'nibgate:currency': meta.currency,
+      'nibgate:status': meta.status,
+      'nibgate:expires-at': meta.expiresAt || '',
+      'nibgate:access': apiUrl(`/api/nibshare/${slug}/access`),
+      'nibgate:manifest': apiUrl(`/api/nibshare/${slug}/manifest`),
+    },
+  };
+}
+
+export default async function SharePage({ params }: Props) {
+  const { slug } = await params;
+  const meta = await fetchMeta(slug);
 
   const shell = (children: React.ReactNode) => (
     <div className="nibshare-root min-h-screen px-5 py-10">
@@ -59,10 +63,6 @@ export default function ShareViewPage({ params }: { params: Promise<{ slug: stri
       <Footer />
     </div>
   );
-
-  if (loading) {
-    return shell(<p className="small muted" style={{ textAlign: 'center' }}>Loading…</p>);
-  }
 
   if (!meta || meta.status !== 'active') {
     return shell(
@@ -75,11 +75,26 @@ export default function ShareViewPage({ params }: { params: Promise<{ slug: stri
 
   const isExpired = !!meta.expiresAt && new Date(meta.expiresAt).getTime() < Date.now();
   const isPremium = Number(meta.price) > 0;
-  const resource = { id: slug, title: meta.title, type: meta.contentType, price: meta.price, currency: meta.currency, path: `/ns/${slug}` };
-  const body = freePayload?.content;
-  const bodyMarkdown = typeof body === 'object' && body !== null && 'markdown' in body && typeof (body as { markdown?: unknown }).markdown === 'string'
-    ? (body as { markdown: string }).markdown
-    : typeof body === 'string' ? body : '';
+  const manifestUrl = apiUrl(`/api/nibshare/${slug}/manifest`);
+  const accessUrl = apiUrl(`/api/nibshare/${slug}/access`);
+  const pageUrl = `${SITE_ORIGIN}/ns/${slug}`;
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: meta.title,
+    description: meta.summary || undefined,
+    url: pageUrl,
+    isAccessibleForFree: !isPremium,
+    ...(meta.coverUrl ? { image: meta.coverUrl } : {}),
+    'nibgate:contentType': meta.contentType,
+    'nibgate:price': meta.price,
+    'nibgate:currency': meta.currency,
+    'nibgate:status': meta.status,
+    'nibgate:expiresAt': meta.expiresAt || undefined,
+    'nibgate:access': accessUrl,
+    'nibgate:manifest': manifestUrl,
+  };
 
   return shell(
     <article
@@ -89,7 +104,10 @@ export default function ShareViewPage({ params }: { params: Promise<{ slug: stri
       data-nibgate-type={meta.contentType}
       data-nibgate-price={meta.price || ''}
       data-nibgate-path={`/ns/${slug}`}
+      data-nibgate-manifest={manifestUrl}
     >
+      <link rel="alternate" type="application/json" href={manifestUrl} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="wrap" style={{ maxWidth: 'var(--wrap-normal)', margin: '0 auto' }}>
         <div className="small muted font-ui" style={{ marginBottom: '0.5em' }}>
           {TYPE_ICONS[meta.contentType] || '✎'} {TYPE_LABELS[meta.contentType] || meta.contentType}
@@ -97,7 +115,6 @@ export default function ShareViewPage({ params }: { params: Promise<{ slug: stri
         <h1 style={{ marginTop: 0, marginBottom: '0.15em' }}>{meta.title}</h1>
         <div className="small muted font-ui pn1" style={{ paddingTop: '0.75em' }}>
           <time>{formatLongDate(meta.createdAt)}</time>
-          {meta.contentType === 'article' && bodyMarkdown && <> · <span className="reading-time">{readTime(bodyMarkdown)}</span></>}
         </div>
         {meta.summary && (meta.contentType === 'document' || !isPremium) && (
           <p className="small muted" style={{ marginTop: '1em', marginBottom: '2em' }}>{meta.summary}</p>
@@ -110,30 +127,9 @@ export default function ShareViewPage({ params }: { params: Promise<{ slug: stri
         )}
         {isExpired ? (
           <div className="nibshare-error-alert">This share has expired.</div>
-        ) : isPremium ? (
-          freePayload ? (
-            <>
-              <ContentViewer body={freePayload.content} title={meta.title} slug={slug} />
-              <p className="small muted" style={{ marginTop: '1.5rem' }}>
-                Unlocked
-                {freePayload.payment?.txHash ? ` · tx ${freePayload.payment.txHash.slice(0, 10)}…` : ''}
-                <button
-                  onClick={clearPaid}
-                  style={{ background: 'none', border: 'none', color: 'var(--muted)', textDecoration: 'underline', cursor: 'pointer', marginLeft: '8px', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}
-                >
-                  Clear
-                </button>
-              </p>
-            </>
-          ) : (
-            <UnlockGate resource={resource} />
-          )
-        ) : freePayload ? (
-          <ContentViewer body={freePayload.content} title={meta.title} slug={slug} />
         ) : (
-          <p className="small muted">Loading…</p>
+          <ShareClient slug={slug} meta={meta} />
         )}
-        {!freePayload && error && <div className="nibshare-error-alert" style={{ marginTop: '1rem' }}>{error}</div>}
       </div>
     </article>,
   );

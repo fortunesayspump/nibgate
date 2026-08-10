@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { subdomainFromHost } from "@/lib/utils";
 
+const POST_PATH_RE = /^\/(?:writing|photos|music|video|docs|posts)\/[^/]+\/?$/;
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get("host") || "";
   const subdomain = subdomainFromHost(host);
@@ -9,7 +11,14 @@ export function middleware(request: NextRequest) {
     const reqHeaders = new Headers(request.headers);
     reqHeaders.set("x-site-subdomain", subdomain);
     reqHeaders.set("x-forwarded-host", host);
-    return NextResponse.next({ request: { headers: reqHeaders } });
+    const response = NextResponse.next({ request: { headers: reqHeaders } });
+
+    if (POST_PATH_RE.test(request.nextUrl.pathname)) {
+      const path = request.nextUrl.pathname.replace(/\/$/, "");
+      const manifestUrl = `https://${host}/api/nibgate/manifest?path=${encodeURIComponent(path)}`;
+      response.headers.set("Link", `<${manifestUrl}>; rel="alternate"; type="application/json"`);
+    }
+    return response;
   }
 
   const response = NextResponse.next();

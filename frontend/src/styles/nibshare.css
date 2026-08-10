@@ -254,6 +254,10 @@ body:has(.nibshare-root) ::selection {
 .nibshare-root .mn2 { margin-top: 4rem; }
 .nibshare-root .ms2 { margin-bottom: 4rem; }
 
+@media (max-width: 860px) {
+  body:has(.nibshare-root) { --wrap-normal: 88vw; --wrap-wide: 100vw; }
+}
+
 @media (max-width: 600px) {
   body:has(.nibshare-root) {
     padding: 2rem 24px 24rem;

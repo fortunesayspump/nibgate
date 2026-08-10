@@ -92,7 +92,7 @@ router.get('/access', async (req, res, next) => {
       id: post?.id || slug || 'unknown',
       title: post?.title || req.query.title || '',
       type: post?.type || 'article',
-      price: post?.price || '0.01',
+      price: post ? (isPaidValue(post.price) ? post.price : '0') : (req.query.price || '0.01'),
       currency: 'USDC',
       path: slug ? `/posts/${slug}` : req.query.path || '/',
       description: post?.excerpt || '',

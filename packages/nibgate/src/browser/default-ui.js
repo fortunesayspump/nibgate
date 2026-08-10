@@ -1,5 +1,6 @@
 import { createEvmGatewayUnlock } from './evm-gateway.js';
 import unlockKeyAnimation from './unlock-key.js';
+import { ARC_TESTNET, getWalletErrorMessage, isWalletRejection, switchToArcNetwork } from '@nibgate/wallet';
 
 const SID = 'nibgate-ui-styles';
 
@@ -457,7 +458,7 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
   const walletBalEl = wrap.querySelector('[data-gw-wallet-balance]');
   const gwBalEl = wrap.querySelector('[data-gw-balance]');
 
-  const ARC_RPC = 'https://arc-testnet.drpc.org';
+  const ARC_RPC = ARC_TESTNET.rpcUrl;
   const USDC = '0x3600000000000000000000000000000000000000';
   const BALANCE_OF = '0x70a08231';
 
@@ -490,14 +491,9 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
 
   async function switchToArc() {
     try {
-      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x4CEF52' }] });
-    } catch (e) {
-      if (e.code === 4902) {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [{ chainId: '0x4CEF52', chainName: 'Arc Testnet', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: ['https://rpc.testnet.arc.io'] }],
-        });
-      }
+      await switchToArcNetwork(window.ethereum);
+    } catch (error) {
+      if (isWalletRejection(error)) throw error;
     }
   }
 
@@ -528,7 +524,7 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
       setTx('Deposited: ' + depositTx.slice(0, 10) + '\u2026', true);
       updateWallet();
       btn.textContent = 'Deposit';
-    } catch (e) { setTx(e?.message || 'Deposit failed'); }
+    } catch (e) { setTx(getWalletErrorMessage(e) || 'Deposit failed'); }
     btn.disabled = false;
     btn.textContent = 'Deposit';
   }

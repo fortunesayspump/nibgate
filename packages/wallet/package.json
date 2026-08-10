@@ -1,0 +1,24 @@
+{
+  "name": "@nibgate/wallet",
+  "version": "0.1.0",
+  "description": "Single Nibgate wallet standard: chain guard, error mapping, and SIWE sign-in.",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js",
+    "./chain": "./src/chain.js",
+    "./chain.js": "./src/chain.js",
+    "./errors": "./src/errors.js",
+    "./errors.js": "./src/errors.js",
+    "./network": "./src/network.js",
+    "./network.js": "./src/network.js",
+    "./siwe": "./src/siwe.js",
+    "./siwe.js": "./src/siwe.js"
+  },
+  "dependencies": {
+    "viem": "^2.52.2"
+  }
+}

@@ -1,53 +1,60 @@
-import { hashMessage, recoverAddress } from 'viem';
-import { db } from './db.js';
 import { nanoid } from 'nanoid';
+import { db } from './db.js';
+import { ARC_TESTNET } from '@nibgate/wallet/chain.js';
+import { createSignInNonce, parseSignInMessage, validateSignInMessage, verifySignature } from '@nibgate/wallet/siwe.js';
 
 export function createNonce() {
-  return nanoid(32);
+  return createSignInNonce();
 }
 
-export function constructSignMessage(nonce) {
-  return `Welcome to Nibgate!
+export async function verifySignInAndLogin({ message, signature, expectedNonce, expectedDomain }) {
+  const parsed = parseSignInMessage(message);
+  if (!parsed) {
+    throw new Error('Invalid sign-in message');
+  }
 
-Click to sign in and accept the Terms of Service.
-This request will not trigger a blockchain transaction or cost any gas fees.
+  if (!expectedNonce || parsed.nonce !== expectedNonce) {
+    throw new Error('Nonce does not match. Please request a new nonce.');
+  }
 
-Nonce: ${nonce}`;
-}
+  const isValidMessage = validateSignInMessage({
+    message: parsed,
+    expected: {
+      chainId: ARC_TESTNET.id,
+      domain: expectedDomain,
+      time: new Date(),
+    },
+  });
+  if (!isValidMessage) {
+    throw new Error('Sign-in message is invalid or expired.');
+  }
 
-export async function verifySignatureAndLogin(walletAddress, signature, expectedNonce) {
-  const normalizedWalletAddress = walletAddress.toLowerCase();
-  const message = constructSignMessage(expectedNonce);
-  
-  // Verify the cryptographic signature locally (no RPC needed)
-  const hash = hashMessage(message);
-  const recoveredAddress = await recoverAddress({ hash, signature });
-  const isValid = recoveredAddress.toLowerCase() === normalizedWalletAddress;
-
-  if (!isValid) {
+  const walletAddress = parsed.address.toLowerCase();
+  const isValidSignature = await verifySignature({ message, signature, address: parsed.address });
+  if (!isValidSignature) {
     throw new Error('Invalid signature');
   }
 
   // Find or create the user through a linked wallet.
   let wallet = await db.wallet.findUnique({
-    where: { address: normalizedWalletAddress },
+    where: { address: walletAddress },
     include: { user: true }
   });
   let user = wallet?.user;
 
   if (!user) {
     user = await db.user.findUnique({
-      where: { walletAddress: normalizedWalletAddress }
+      where: { walletAddress: walletAddress }
     });
   }
 
   if (!user) {
     user = await db.user.create({
       data: {
-        walletAddress: normalizedWalletAddress,
+        walletAddress: walletAddress,
         wallets: {
           create: {
-            address: normalizedWalletAddress,
+            address: walletAddress,
             isPrimary: true
           }
         }
@@ -57,7 +64,7 @@ export async function verifySignatureAndLogin(walletAddress, signature, expected
     wallet = await db.wallet.create({
       data: {
         userId: user.id,
-        address: normalizedWalletAddress,
+        address: walletAddress,
         isPrimary: true
       },
       include: { user: true }

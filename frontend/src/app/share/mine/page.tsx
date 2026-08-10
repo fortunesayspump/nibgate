@@ -10,6 +10,7 @@ import ActivityBell from '@/features/nibshare/components/ActivityBell';
 import ShareWallet from '@/features/nibshare/components/ShareWallet';
 import { useNibgateConnect } from '@/lib/useNibgateConnect';
 import { HUB_SESSION_UPDATED_EVENT } from '@/lib/hubSession';
+import { signInWithSiwe } from '@/lib/siweAuth';
 import { PostRow } from '@/features/nibshare/components/mine/PostRow';
 import { SettingsSheet } from '@/features/nibshare/components/mine/SettingsSheet';
 import { nibshareApi } from '@/features/nibshare/api';
@@ -75,9 +76,7 @@ export default function ShareMinePage() {
     }
     try {
       setError(null);
-      const { messageTemplate } = await nibshareApi.authNonce();
-      const signature = await signMessageAsync({ message: messageTemplate });
-      await nibshareApi.authVerify({ walletAddress: address, signature });
+      await signInWithSiwe(address, (message) => signMessageAsync({ message }));
       setSession('authed');
       window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT));
       await load();

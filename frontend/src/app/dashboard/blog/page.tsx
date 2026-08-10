@@ -88,7 +88,7 @@ export default function DashboardBlogPage() {
   const loadPosts = async () => {
     setError("");
     try {
-      const res = await fetch("/api/blog/admin/posts", { credentials: "include" });
+      const res = await fetch("/blog/admin/posts", { credentials: "include" });
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "Failed to load posts");
       setPosts(data.posts || []);
@@ -102,7 +102,7 @@ export default function DashboardBlogPage() {
     async function boot() {
       setLoading(true);
       try {
-        const res = await fetch("/api/blog/admin/me", { credentials: "include" });
+        const res = await fetch("/blog/admin/me", { credentials: "include" });
         const data = await readApiJson(res);
         if (cancelled) return;
         const nextAuthor = { checked: true, canPublish: Boolean(data.canPublish), walletAddress: data.walletAddress || "" };
@@ -149,7 +149,7 @@ export default function DashboardBlogPage() {
     setError("");
     setMessage("");
     try {
-      const res = await fetch(isEditing ? `/api/blog/admin/posts/${form.id}` : "/api/blog/admin/posts", {
+      const res = await fetch(isEditing ? `/blog/admin/posts/${form.id}` : "/blog/admin/posts", {
         method: isEditing ? "PUT" : "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -175,7 +175,7 @@ export default function DashboardBlogPage() {
     setError("");
     setMessage("");
     try {
-      const res = await fetch(`/api/blog/admin/posts/${post.id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/blog/admin/posts/${post.id}`, { method: "DELETE", credentials: "include" });
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "Failed to delete post");
       setMessage("Post deleted.");
@@ -325,7 +325,7 @@ export default function DashboardBlogPage() {
                   const reader = new FileReader();
                   reader.readAsDataURL(file);
                   reader.onload = async () => {
-                    const res = await fetch("/api/uploads/profile-image", {
+                    const res = await fetch("/uploads/profile-image", {
                       method: "POST", credentials: "include",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ target: "cover", image: reader.result }),

@@ -61,7 +61,7 @@ export default function SigninFlow() {
 
     async function checkSession() {
       try {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const res = await fetch("/auth/me", { credentials: "include" });
         const data = await readJson(res);
         if (!cancelled && data.authenticated) {
           setUser(data.user);
@@ -100,12 +100,12 @@ export default function SigninFlow() {
 
     try {
       setStatus("signing");
-      const nonceRes = await fetch("/api/auth/nonce", { credentials: "include" });
+      const nonceRes = await fetch("/auth/nonce", { credentials: "include" });
       const nonceData = await readJson(nonceRes);
       if (!nonceRes.ok) throw new Error(nonceData.error || "Could not request sign-in nonce.");
 
       const signature = await signMessageAsync({ message: nonceData.messageTemplate });
-      const verifyRes = await fetch("/api/auth/verify", {
+      const verifyRes = await fetch("/auth/verify", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

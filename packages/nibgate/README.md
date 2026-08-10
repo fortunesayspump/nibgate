@@ -211,7 +211,7 @@ The namespace lets future versions add metadata hashes, content version hashes, 
 
 The package talks to the widget through `window.nibgateHub`. If your app runs before the async widget finishes loading, events are queued and flushed once the widget is ready.
 
-Content types are `music`, `video`, `article`, and `image`.
+Content types are `music`, `video`, `article`, `image`, and `document`.
 
 ## Discovery metadata quality
 
@@ -732,7 +732,7 @@ The repo includes a plain Express creator site that uses the package without any
 npm run dev:demo
 ```
 
-The demo imports `@nibgate/sdk/server`, serves the browser client locally, registers article/music/image/video/document content, and protects `/articles/premium-agent-economy`.
+The demo imports `@nibgate/sdk/server`, serves the browser client locally, registers article/music/image/video content, and protects `/articles/premium-agent-economy`.
 
 It also includes local routes for database/custom CMS, MDX/frontmatter, headless CMS, static teaser/protected API, media/file, and agent/API publishing styles under `/examples`.
 

@@ -31,3 +31,6 @@ local-ops/
 
 # Google service account keys
 .gsc/
+
+# revenue model research (kept local, not committed)
+revenue-model/

@@ -182,6 +182,31 @@ export async function listMine(ownerWallet) {
     }
   });
 
+  const activity = activityFor(shares).slice(0, 50);
+
+  return {
+    shares: shares.map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      url: sharePublicUrl(s),
+      title: s.title,
+      summary: s.summary,
+      coverUrl: s.coverUrl,
+      contentType: s.contentType,
+      price: String(s.price),
+      expiresAt: s.expiresAt,
+      status: s.status,
+      unlockCount: s.unlockCount,
+      viewCount: s.viewCount,
+      storageProvider: s.storageProvider,
+      createdAt: s.createdAt,
+      receipts: s.receipts
+    })),
+    activity
+  };
+}
+
+function activityFor(shares) {
   const now = Date.now();
   const activity = [];
   for (const s of shares) {
@@ -215,26 +240,154 @@ export async function listMine(ownerWallet) {
       }
     }
   }
-  activity.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return activity.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
 
-  return {
-    shares: shares.map((s) => ({
-      id: s.id,
+function parseRange(query = {}) {
+  const gte = new Date(String(query.from || ''));
+  const lte = new Date(String(query.to || ''));
+  const range = {};
+  if (!Number.isNaN(gte.getTime())) range.gte = gte;
+  if (!Number.isNaN(lte.getTime())) range.lte = lte;
+  if (!range.gte && !range.lte) range.gte = new Date(Date.now() - 30 * 24 * 3600e3);
+  return range;
+}
+
+function dayKey(ts) {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+function truncateWallet(wallet) {
+  if (!wallet) return null;
+  const w = String(wallet);
+  return w.length <= 12 ? w : `${w.slice(0, 6)}...${w.slice(-4)}`;
+}
+
+export async function dashboardStats({ ownerWallet, query = {} }) {
+  const range = parseRange(query);
+
+  const shares = await db.nibShare.findMany({
+    where: { ownerWallet },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      receipts: { where: { unlockedAt: range }, orderBy: { unlockedAt: 'desc' } },
+      events: { where: { createdAt: range }, orderBy: { createdAt: 'desc' }, take: 500 }
+    }
+  });
+
+  const seriesMap = new Map();
+  const rangeStats = { views: 0, unlocks: 0, revenue: 0 };
+  const record = (date, kind, revenue = 0) => {
+    let bucket = seriesMap.get(date);
+    if (!bucket) {
+      bucket = { date, views: 0, unlocks: 0, revenue: 0 };
+      seriesMap.set(date, bucket);
+    }
+    if (kind === 'view') bucket.views += 1;
+    if (kind === 'unlock') {
+      bucket.unlocks += 1;
+      bucket.revenue += revenue;
+    }
+  };
+
+  for (const s of shares) {
+    for (const e of s.events) {
+      if (e.type !== 'view') continue;
+      rangeStats.views += 1;
+      record(dayKey(e.createdAt), 'view');
+    }
+    for (const r of s.receipts) {
+      rangeStats.unlocks += 1;
+      rangeStats.revenue += r.amount || 0;
+      record(dayKey(r.unlockedAt), 'unlock', r.amount || 0);
+    }
+  }
+
+  const now = Date.now();
+  const list = shares.map((s) => {
+    const exp = s.expiresAt ? new Date(s.expiresAt).getTime() : null;
+    const status = s.status === 'revoked' ? 'revoked' : exp && exp < now ? 'expired' : s.status;
+    return {
       slug: s.slug,
       url: sharePublicUrl(s),
       title: s.title,
-      summary: s.summary,
-      coverUrl: s.coverUrl,
       contentType: s.contentType,
       price: String(s.price),
-      expiresAt: s.expiresAt,
-      status: s.status,
-      unlockCount: s.unlockCount,
-      viewCount: s.viewCount,
-      storageProvider: s.storageProvider,
+      currency: s.currency,
+      status,
       createdAt: s.createdAt,
-      receipts: s.receipts
-    })),
-    activity: activity.slice(0, 50)
+      expiresAt: s.expiresAt,
+      views: s.viewCount,
+      unlocks: s.unlockCount,
+      revenue: (s.unlockCount || 0) * (s.price || 0)
+    };
+  });
+
+  const summary = list.reduce((acc, s) => {
+    acc.shares += 1;
+    if (s.status === 'active') acc.activeShares += 1;
+    acc.views += s.views;
+    acc.unlocks += s.unlocks;
+    acc.revenue += s.revenue;
+    return acc;
+  }, { shares: 0, activeShares: 0, views: 0, unlocks: 0, revenue: 0 });
+
+  return {
+    summary,
+    range: rangeStats,
+    timeSeries: [...seriesMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    shares: list,
+    recentActivity: activityFor(shares).slice(0, 50)
+  };
+}
+
+export async function platformStats() {
+  const dayAgo = new Date(Date.now() - 24 * 3600e3);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600e3);
+  const activeWhere = { status: 'active', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] };
+
+  const [
+    shareCount, activeCount, viewAgg, unlockAgg, revenueAgg,
+    views24, views7, unlocks24, unlocks7, rev24Agg, rev7Agg, recentEvents
+  ] = await Promise.all([
+    db.nibShare.count(),
+    db.nibShare.count({ where: activeWhere }),
+    db.nibShare.aggregate({ _sum: { viewCount: true } }),
+    db.nibShare.aggregate({ _sum: { unlockCount: true } }),
+    db.nibShareReceipt.aggregate({ _sum: { amount: true } }),
+    db.nibShareEvent.count({ where: { type: 'view', createdAt: { gte: dayAgo } } }),
+    db.nibShareEvent.count({ where: { type: 'view', createdAt: { gte: weekAgo } } }),
+    db.nibShareReceipt.count({ where: { unlockedAt: { gte: dayAgo } } }),
+    db.nibShareReceipt.count({ where: { unlockedAt: { gte: weekAgo } } }),
+    db.nibShareReceipt.aggregate({ where: { unlockedAt: { gte: dayAgo } }, _sum: { amount: true } }),
+    db.nibShareReceipt.aggregate({ where: { unlockedAt: { gte: weekAgo } }, _sum: { amount: true } }),
+    db.nibShareEvent.findMany({ orderBy: { createdAt: 'desc' }, take: 25 })
+  ]);
+
+  const eventIds = [...new Set(recentEvents.map((e) => e.shareId))];
+  const eventShares = eventIds.length
+    ? await db.nibShare.findMany({ where: { id: { in: eventIds } }, select: { id: true, contentType: true } })
+    : [];
+  const byId = new Map(eventShares.map((s) => [s.id, s]));
+
+  return {
+    totals: {
+      sharesCreated: shareCount,
+      activeShares: activeCount,
+      views: viewAgg._sum.viewCount || 0,
+      unlocks: unlockAgg._sum.unlockCount || 0,
+      revenue: revenueAgg._sum.amount || 0
+    },
+    windows: {
+      '24h': { views: views24, unlocks: unlocks24, revenue: rev24Agg._sum.amount || 0 },
+      '7d': { views: views7, unlocks: unlocks7, revenue: rev7Agg._sum.amount || 0 }
+    },
+    recent: recentEvents.map((e) => ({
+      type: e.type,
+      wallet: truncateWallet(e.wallet),
+      contentType: byId.get(e.shareId)?.contentType || null,
+      createdAt: e.createdAt
+    }))
   };
 }

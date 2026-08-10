@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Nibshare live E2E using swarm wallets.
- *   1. Creator (CryptoAlice) signs in via nonce+signature → session cookie.
+ *   1. Creator (CryptoAlice) signs in via SIWE (nonce + EIP-4361 signature) → session cookie.
  *   2. Creator creates a PAID share (price in USDC).
  *   3. Buyer (BlockchainBob) pays via Circle Gateway x402 (GET /access) → content + unlockProof.
  *   4. Proof replay: GET /access with x-nibgate-payment-proof → content, no re-charge.
@@ -13,6 +13,7 @@
  */
 import fs from 'node:fs';
 import { privateKeyToAccount } from 'viem/accounts';
+import { createSiweMessage } from 'viem/siwe';
 import { GatewayClient } from '@circle-fin/x402-batching/client';
 
 const HUB = process.env.HUB_URL || 'http://localhost:3000';
@@ -50,11 +51,22 @@ log(`\n== 1. Creator sign-in (${CREATOR.name} ${CREATOR.address}) ==`);
 const nonce = await api('/auth/nonce');
 if (nonce.status !== 200) throw new Error(`nonce failed: ${JSON.stringify(nonce.data)}`);
 const creatorAccount = privateKeyToAccount(CREATOR.privateKey);
-const signature = await creatorAccount.signMessage({ message: nonce.data.messageTemplate });
+const message = createSiweMessage({
+  address: creatorAccount.address,
+  chainId: 5_042_002,
+  domain: new URL(HUB).host,
+  uri: HUB,
+  nonce: nonce.data.nonce,
+  version: '1',
+  statement: 'Sign in to Nibgate to verify your wallet.',
+  issuedAt: new Date(),
+  expirationTime: new Date(Date.now() + 10 * 60 * 1000),
+});
+const signature = await creatorAccount.signMessage({ message });
 const verify = await api('/auth/verify', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ walletAddress: creatorAccount.address, signature }),
+  body: JSON.stringify({ message, signature }),
 });
 ok(verify.status === 200 && verify.data.success, `creator authenticated as ${verify.data.user?.walletAddress}`);
 const me = await api('/auth/me');

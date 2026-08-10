@@ -1,4 +1,4 @@
-import { createNonce, verifySignatureAndLogin, getUserBySession, logoutSession, constructSignMessage } from '@nibgate/internal/auth.js';
+import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession } from '@nibgate/internal/auth.js';
 
 export function registerAuthRoutes(app) {
   const cookieOpts = { httpOnly: true, sameSite: 'lax', path: '/' };
@@ -9,20 +9,21 @@ export function registerAuthRoutes(app) {
     const nonce = createNonce();
     res.cookie('auth_nonce', nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
     
-    res.json({ nonce, messageTemplate: constructSignMessage(nonce) });
+    res.json({ nonce });
   });
 
   // 2. Verify Signature & Login
   app.post('/api/auth/verify', async (req, res) => {
     try {
-      const { walletAddress, signature } = req.body;
+      const { message, signature } = req.body;
       const expectedNonce = req.cookies.auth_nonce;
+      const expectedDomain = req.headers['x-forwarded-host'] || req.headers.host;
 
       if (!expectedNonce) {
         return res.status(400).json({ error: 'Session expired. Please request a new nonce.' });
       }
 
-      const { user, sessionToken } = await verifySignatureAndLogin(walletAddress, signature, expectedNonce);
+      const { user, sessionToken } = await verifySignInAndLogin({ message, signature, expectedNonce, expectedDomain });
 
       res.clearCookie('auth_nonce', { ...cookieOpts });
       res.cookie('auth_session', sessionToken, { ...cookieOpts, maxAge: 1000 * 60 * 60 * 24 * 30 });

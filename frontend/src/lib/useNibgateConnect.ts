@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConnect, useSwitchChain, useAccount } from "wagmi";
 import { useAppKit } from "@reown/appkit/react";
-import { arcTestnet } from "@/lib/wagmi";
+import { arcTestnet, getWalletErrorMessage, isWalletRejection } from "@nibgate/wallet";
 
 export function useNibgateConnect() {
   const { connectors, connectAsync } = useConnect();
@@ -36,11 +36,15 @@ export function useNibgateConnect() {
           return true;
         }
       }
+      const walletConnectConnector = connectors.find((c) => c.id === "walletConnect");
+      if (walletConnectConnector) {
+        await connectAsync({ connector: walletConnectConnector });
+        return true;
+      }
       open();
       return false;
     } catch (err: unknown) {
-      const e = err as { shortMessage?: string; message?: string };
-      setError(e?.shortMessage || e?.message || "Could not connect to your wallet.");
+      if (!isWalletRejection(err)) setError(getWalletErrorMessage(err));
       return false;
     } finally {
       setBusy(false);

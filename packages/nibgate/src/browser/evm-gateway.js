@@ -5,7 +5,7 @@ import { stringifyJson } from './json.js';
 import { createGate } from './gate.js';
 import { checkResourceAccess } from './access.js';
 import { trackResourcePage } from './track.js';
-import { switchToArcNetwork } from './reputation.js';
+import { ARC_TESTNET, ensureArcNetwork, getWalletErrorMessage, isWalletRejection, isArcNetwork } from '@nibgate/wallet';
 
 export async function createCircleGatewayBrowserAdapter(options = {}) {
   const gateway = await import('./gateway.js');
@@ -121,9 +121,25 @@ export function createEvmGatewayUnlock(resource, options = {}) {
     if (!currentAddress) currentAddress = await connect();
     if (!currentAddress) throw new Error('No wallet account selected.');
     if (currentAddress !== walletAddress) walletAddress = currentAddress;
-    // Make sure the wallet is on Arc Testnet before signing the Gateway payment
-    // proof — otherwise the sign prompt happens on Ethereum (the wallet's default).
-    await switchToArcNetwork(evm);
+    // Self-pay check: if the connected wallet is the content creator (the
+    // recipient of the payment), skip the payment and signing entirely.
+    const recipient = String(item.resource.recipient || item.resource.payTo || input?.challenge?.accepts?.[0]?.recipient || '').toLowerCase();
+    if (recipient && recipient === String(currentAddress).toLowerCase()) {
+      return { self: true, address: currentAddress };
+    }
+    // Chain guard: make sure the wallet is on Arc Testnet and that the switch
+    // actually landed (chainChanged) before signing the Gateway payment proof —
+    // otherwise the sign prompt happens on the wallet's default chain.
+    let currentChainId;
+    try {
+      const hex = await evm.request({ method: 'eth_chainId' });
+      currentChainId = typeof hex === 'string' ? Number(hex) : Number(hex);
+    } catch {
+      currentChainId = undefined;
+    }
+    if (currentChainId === undefined || !isArcNetwork(currentChainId)) {
+      await ensureArcNetwork(evm, { currentChainId, wait: currentChainId !== undefined });
+    }
     const gatewayWallet = await createCircleGatewayBrowserAdapter({
       network,
       signer: {
@@ -170,7 +186,7 @@ export function createEvmGatewayUnlock(resource, options = {}) {
       }
       return result;
     } catch (error) {
-      const message = error?.message || 'Unlock failed. Please try again.';
+      const message = isWalletRejection(error) ? 'Request cancelled.' : getWalletErrorMessage(error) || 'Unlock failed. Please try again.';
       setStatus(message);
       return { ok: false, status: 0, error: message, resource: item.resource };
     } finally {
@@ -196,8 +212,8 @@ export function createEvmGatewayUnlock(resource, options = {}) {
   }
 
   function mount() {
-    connectButton?.addEventListener?.('click', () => connect().catch((error) => setStatus(error?.message || 'Could not connect wallet.')));
-    disconnectButton?.addEventListener?.('click', () => disconnect().catch((error) => setStatus(error?.message || 'Could not disconnect wallet.')));
+    connectButton?.addEventListener?.('click', () => connect().catch((error) => setStatus(getWalletErrorMessage(error) || 'Could not connect wallet.')));
+    disconnectButton?.addEventListener?.('click', () => disconnect().catch((error) => setStatus(getWalletErrorMessage(error) || 'Could not disconnect wallet.')));
     unlockButton?.addEventListener?.('click', () => unlock());
     clearButton?.addEventListener?.('click', clear);
     hydrate();

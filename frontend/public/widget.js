@@ -193,11 +193,43 @@
 
     function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
 
+    var ARC_CHAIN_ID = "0x4CEF52";
+
+    function switchToArc() {
+      if (!window.ethereum) return Promise.resolve();
+      return window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ARC_CHAIN_ID }] })
+        .catch(function (e) {
+          if (e && (e.code === 4902 || String(e.code) === "4902")) {
+            return window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: ARC_CHAIN_ID, chainName: "Arc Testnet", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: ["https://rpc.testnet.arc.io"] }] })
+              .then(function () { return window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ARC_CHAIN_ID }] }); });
+          }
+          throw e;
+        });
+    }
+
+    function walletError(err) {
+      if (!err) return "";
+      var code = err.code;
+      if (code === 4001) return "Request cancelled.";
+      if (code === 4100) return "Reconnect your wallet and approve access to continue.";
+      var msg = String(err.shortMessage || err.message || "");
+      var low = msg.toLowerCase();
+      if (low.indexOf("user rejected") !== -1 || low.indexOf("user denied") !== -1 || low.indexOf("user cancelled") !== -1) return "Request cancelled.";
+      if (low.indexOf("pending request") !== -1 || low.indexOf("already pending") !== -1) return "Check your wallet to approve the pending request.";
+      if (low.indexOf("insufficient funds") !== -1) return "Insufficient funds to complete this transaction.";
+      return msg || "Something went wrong with your wallet. Please try again.";
+    }
+
+    function connectedWallet() {
+      return window.ethereum.request({ method: "eth_requestAccounts" }).then(function (accounts) {
+        return Array.isArray(accounts) && accounts[0] ? accounts[0] : "";
+      });
+    }
+
     unlockBtn && unlockBtn.addEventListener("click", async function () {
       if (!window.ethereum) { setStatus("No wallet detected. Install MetaMask."); return; }
       try {
-        var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        var wallet = Array.isArray(accounts) && accounts[0];
+        var wallet = await connectedWallet();
         if (!wallet) { setStatus("No wallet account selected."); return; }
 
         if (walletLabel) walletLabel.textContent = wallet.slice(0, 6) + "..." + wallet.slice(-4);
@@ -217,6 +249,9 @@
             paymentRequired = btoa(JSON.stringify(challengeData));
           }
           if (!paymentRequired) { setStatus("Failed to get payment challenge."); return; }
+
+          setStatus("Switching to Arc Testnet...");
+          await switchToArc();
 
           setStatus("Sign payment in your wallet...");
           var typedData = JSON.parse(atob(paymentRequired));
@@ -252,7 +287,7 @@
           setStatus(err.error || "Failed to process payment.");
         }
       } catch (err) {
-        setStatus(err.message || "Payment failed. Try again.");
+        setStatus(walletError(err) || "Payment failed. Try again.");
       }
     });
 
@@ -260,12 +295,11 @@
       connectBtn.addEventListener("click", async function () {
         if (!window.ethereum) { setStatus("No wallet detected."); return; }
         try {
-          var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-          var wallet = Array.isArray(accounts) && accounts[0];
+          var wallet = await connectedWallet();
           if (wallet && walletLabel) walletLabel.textContent = wallet.slice(0, 6) + "..." + wallet.slice(-4);
           if (wallet && connectBtn) connectBtn.textContent = "Connected";
           setStatus(wallet ? "Wallet connected." : "No account selected.");
-        } catch (err) { setStatus(err.message || "Connection failed."); }
+        } catch (err) { setStatus(walletError(err) || "Connection failed."); }
       });
     }
   }

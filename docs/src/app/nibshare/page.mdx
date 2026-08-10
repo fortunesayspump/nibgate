@@ -245,7 +245,7 @@ flowchart TD
 
 ## Auth
 
-Creating and managing shares uses a wallet session: a nonce-based **PersonalSignature** login establishes an `auth_session` cookie (30 days). Owner-only routes (revoke entitlement, revoke share, reslug, list mine) check that the session wallet owns the share. Viewing, paying, and media need no session.
+Creating and managing shares uses a wallet session: a nonce-based SIWE (EIP-4361) wallet login establishes an `auth_session` cookie (30 days). Owner-only routes (revoke entitlement, revoke share, reslug, list mine) check that the session wallet owns the share. Viewing, paying, and media need no session.
 
 | Scenario | Credential |
 |---|---|
@@ -324,7 +324,7 @@ erDiagram
 
 ## API surface
 
-Base URL: `https://api.nibgate.xyz`. Routes live under `/nibshare/*`, plus the media upload route under `/uploads`. Creating and managing shares uses the Nibgate wallet session cookie (`auth_session`, nonce-based PersonalSignature login, 30 days); owner-only routes also check that the session wallet owns the share.
+Base URL: `https://api.nibgate.xyz`. Routes live under `/nibshare/*`, plus the media upload route under `/uploads`. Creating and managing shares uses the Nibgate wallet session cookie (`auth_session`, nonce-based SIWE (EIP-4361) login, 30 days); owner-only routes also check that the session wallet owns the share.
 
 | Endpoint | Purpose |
 |---|---|

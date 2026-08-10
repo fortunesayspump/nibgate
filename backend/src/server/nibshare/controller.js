@@ -1,48 +1,19 @@
 import crypto from 'node:crypto';
 import { requireAuth } from '@nibgate/internal/auth.js';
+import { relayX402Payment as relayX402 } from '@nibgate/internal/payments.js';
 import { decryptMediaBlob, decryptShareBody, expirySecondsFor, mediaItemFor, paymentProofFor, primaryWallet, sharePublicUrl, walletFromPaymentProof } from './utils.js';
 import * as service from './service.js';
 
 export { requireAuth };
 
 async function relayX402Payment(req, res, share) {
-  const { createGatewayMiddleware } = await import('@circle-fin/x402-batching/server');
-  const network = process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002';
-
-  const middleware = createGatewayMiddleware({
+  return relayX402({
     sellerAddress: share.ownerWallet,
-    facilitatorUrl: process.env.NIBGATE_FACILITATOR_URL || process.env.CIRCLE_GATEWAY_FACILITATOR_URL || 'https://gateway-api-testnet.circle.com',
-    networks: [network],
     description: `Unlock ${share.title || 'content'}`,
+    price: String(share.price || '0'),
+    req,
+    res,
   });
-
-  let body = '';
-  const headers = {};
-  let statusCode = 200;
-  let nextCalled = false;
-  const requestHeaders = {};
-  const sourceHeaders = req.headers || {};
-  for (const key of Object.keys(sourceHeaders)) {
-    requestHeaders[key.toLowerCase()] = sourceHeaders[key];
-  }
-  const mwReq = { method: req.method || 'GET', url: req.body?.path || '/', headers: requestHeaders };
-  const mwRes = {
-    get statusCode() { return statusCode; },
-    set statusCode(v) { statusCode = v; },
-    setHeader(name, value) { headers[name] = value; },
-    end(value = '') { body = value; },
-  };
-
-  await middleware.require(`$${share.price || '0'}`)(mwReq, mwRes, () => { nextCalled = true; });
-
-  if (!nextCalled) {
-    res.status(statusCode).set(headers).send(body);
-    return null;
-  }
-  return {
-    payer: String(mwReq.payment?.payer || '').toLowerCase(),
-    txHash: String(mwReq.payment?.transaction || '')
-  };
 }
 
 async function resolvePayment(req, res, share) {

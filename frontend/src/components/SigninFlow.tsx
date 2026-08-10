@@ -4,6 +4,7 @@ import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
+import { createSignInMessage } from "@nibgate/wallet";
 
 type AuthUser = {
   id: string;
@@ -104,12 +105,19 @@ export default function SigninFlow() {
       const nonceData = await readJson(nonceRes);
       if (!nonceRes.ok) throw new Error(nonceData.error || "Could not request sign-in nonce.");
 
-      const signature = await signMessageAsync({ message: nonceData.messageTemplate });
+      const message = createSignInMessage({
+        address: displayAddress,
+        nonce: nonceData.nonce,
+        domain: window.location.host,
+        uri: window.location.origin,
+        expirationTime: new Date(Date.now() + 10 * 60 * 1000),
+      });
+      const signature = await signMessageAsync({ message });
       const verifyRes = await fetch("/auth/verify", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: displayAddress, signature }),
+        body: JSON.stringify({ message, signature }),
       });
       const verifyData = await readJson(verifyRes);
       if (!verifyRes.ok || !verifyData.success) {

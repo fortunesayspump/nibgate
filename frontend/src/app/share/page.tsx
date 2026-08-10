@@ -8,6 +8,7 @@ import ShareForm from '@/features/nibshare/components/ShareForm';
 import ShareWallet from '@/features/nibshare/components/ShareWallet';
 import { useNibgateConnect } from '@/lib/useNibgateConnect';
 import { HUB_SESSION_UPDATED_EVENT } from '@/lib/hubSession';
+import { signInWithSiwe } from '@/lib/siweAuth';
 import { nibshareApi } from '@/features/nibshare/api';
 import type { MeResponse } from '@/features/nibshare/types';
 import { FiList } from 'react-icons/fi';
@@ -55,9 +56,7 @@ export default function ShareCreatePage() {
     setAuthError(null);
     setSigning(true);
     try {
-      const { messageTemplate } = await nibshareApi.authNonce();
-      const signature = await signMessageAsync({ message: messageTemplate });
-      await nibshareApi.authVerify({ walletAddress: address, signature });
+      await signInWithSiwe(address, (message) => signMessageAsync({ message }));
       const me = await nibshareApi.me();
       if (!me || !me.authenticated) throw new Error('Could not confirm your session');
       setDefaultRecipient(me.user?.wallets?.[0]?.address ?? '');

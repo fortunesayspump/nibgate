@@ -1,7 +1,10 @@
 import { keccak256, stringToBytes } from 'viem';
+import { switchToArcNetwork } from '@nibgate/wallet';
 import { normalizeRating } from '../core/rating.js';
 import { normalizeResource } from '../core/resource.js';
 import { emit, payloadWithResource } from './events.js';
+
+export { switchToArcNetwork };
 
 const RATE_CONTENT_SELECTOR = '0xc62fad09';
 const ZERO_HASH = `0x${'0'.repeat(64)}`;
@@ -11,27 +14,6 @@ export const NIBGATE_REPUTATION_CHAIN_ID = 5042002;
 export const NIBGATE_REPUTATION_CHAIN_NAME = 'Arc Testnet';
 export const NIBGATE_REPUTATION_RPC_URL = 'https://rpc.testnet.arc.io';
 export const NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-
-const ARC_CHAIN_HEX = '0x4CEF52';
-
-export async function switchToArcNetwork(provider) {
-  if (!provider?.request) return;
-  try {
-    await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: ARC_CHAIN_HEX }] });
-  } catch (e) {
-    if (e?.code === 4902) {
-      await provider.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: ARC_CHAIN_HEX,
-          chainName: NIBGATE_REPUTATION_CHAIN_NAME,
-          nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-          rpcUrls: [NIBGATE_REPUTATION_RPC_URL]
-        }],
-      });
-    }
-  }
-}
 
 export const NIBGATE_REPUTATION_ABI = [
   {

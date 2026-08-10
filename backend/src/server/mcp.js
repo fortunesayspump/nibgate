@@ -3,6 +3,7 @@ import {
   normalizeContentType, serializeContent,
   siteReputationScore, creatorReputationScore, primaryWalletAddress
 } from './hub/helpers.js';
+import { shareManifest } from './nibshare/service.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
@@ -201,6 +202,25 @@ async function getLeaderboards(args = {}) {
   return { success: true, type: 'creators', items, limit, skip };
 }
 
+function shareSlugFrom(input) {
+  const s = String(input || '').trim();
+  if (!s) return '';
+  const m = s.match(/\/ns\/([A-Za-z0-9_-]{1,64})/) || s.match(/^([A-Za-z0-9_-]{3,64})$/);
+  return m ? m[1] : '';
+}
+
+async function resolveShare(args = {}) {
+  const slug = shareSlugFrom(args.url || args.slug);
+  if (!slug) {
+    return { success: false, error: 'Provide a Nibshare slug or full /ns/<slug> URL, e.g. https://nibgate.xyz/ns/DxqTvRKJ.' };
+  }
+  const manifest = await shareManifest(slug);
+  if (!manifest) {
+    return { success: false, error: `No share found for slug "${slug}".` };
+  }
+  return { success: true, manifest };
+}
+
 // ── Tool registry ────────────────────────────────────────────────────────
 
 const TOOLS = [
@@ -240,6 +260,18 @@ const TOOLS = [
     handler: getPlatformStats,
   },
   {
+    name: 'resolve_share',
+    description: 'Resolve a Nibshare link (https://nibgate.xyz/ns/<slug> or a bare slug) to its machine-readable manifest: title, price, currency, content type, status, expiry, and the page/access/unlock/media URLs. Use before attempting payment or access.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'The Nibshare share slug, e.g. DxqTvRKJ.' },
+        url: { type: 'string', description: 'Full share URL, e.g. https://nibgate.xyz/ns/DxqTvRKJ.' },
+      },
+    },
+    handler: resolveShare,
+  },
+  {
     name: 'get_leaderboards',
     description: 'Get ranked creators, sites, or content by reputation score, unlocks, views, and revenue.',
     inputSchema: {
@@ -260,7 +292,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      'Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, and reputation leaderboards. Tools return JSON matching the public hub API. All data is public and read-only.',
+      'Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only.',
   };
 }
 
@@ -334,7 +366,7 @@ export function registerMcpRoute(app) {
         version: SERVER_VERSION,
       },
       description:
-        'Verified content discovery, unlock/payment ledger, platform stats, and reputation leaderboards for the Nibgate open protocol for paid content.',
+        'Verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution for the Nibgate open protocol for paid content.',
       documentationUrl: 'https://docs.nibgate.xyz/agent-discovery',
       transport: {
         type: 'streamable-http',

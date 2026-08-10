@@ -116,6 +116,43 @@ Anyone can fetch metadata — never the body.
 }
 ```
 
+## Manifest (machine-readable contract)
+
+`GET /api/nibshare/:slug/manifest`
+
+The canonical agent-facing contract for a share: pricing, expiry, status, counts, and the
+URLs an agent needs to evaluate and read it. Same shape is embedded in the server-rendered
+share page as `nibgate:*` meta tags, JSON-LD, and `data-nibgate-resource` attributes.
+
+```
+200
+{
+  "schema": "https://docs.nibgate.xyz/nibshare-manifest",
+  "version": 1,
+  "kind": "nibshare",
+  "slug": "...",
+  "title": "...",
+  "summary": "...",
+  "contentType": "text",
+  "price": "1",
+  "currency": "USDC",
+  "expiresAt": null,
+  "status": "active",
+  "createdAt": "...",
+  "viewCount": 0,
+  "unlockCount": 0,
+  "urls": {
+    "page": "https://nibgate.xyz/ns/<slug>",
+    "meta": "https://api.nibgate.xyz/api/nibshare/<slug>/meta",
+    "manifest": "https://api.nibgate.xyz/api/nibshare/<slug>/manifest",
+    "access": "https://api.nibgate.xyz/api/nibshare/<slug>/access",
+    "unlock": "https://api.nibgate.xyz/api/nibshare/<slug>/unlock",
+    "media": "https://api.nibgate.xyz/api/nibshare/<slug>/media/{kind}?index=N"
+  },
+  "payment": { "scheme": "x402", "description": "..." }
+}
+```
+
 ## Access (server-side body)
 
 `GET /api/nibshare/:slug/access`

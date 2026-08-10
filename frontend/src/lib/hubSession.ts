@@ -1,4 +1,5 @@
 export const HUB_SESSION_CLEARED_EVENT = 'nibgate:hub-session-cleared'
+export const HUB_SESSION_UPDATED_EVENT = 'nibgate:hub-session-updated'
 
 export async function getHubSessionAddress(): Promise<string | null> {
   try {

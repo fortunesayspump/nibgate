@@ -8,6 +8,7 @@ import { arcTestnet } from '../lib/wagmi'
 import { getConnectedChainId, isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT } from '../lib/hubSession'
+import { useNibgateConnect } from '../lib/useNibgateConnect'
 
 declare global {
   interface Window { nibgateWalletAddress?: string; nibgateAuthenticated?: boolean }
@@ -119,7 +120,7 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
 }
 
 export function WalletButton() {
-  const { open } = useAppKit()
+  const { connect } = useNibgateConnect()
   const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
   const { address, chainId, isConnected } = useAccount()
   const activeChainId = useChainId()
@@ -184,7 +185,7 @@ export function WalletButton() {
         e.preventDefault()
         if (t.getAttribute('data-connected') !== 'true') {
           sessionStorage.setItem('nibgate-wants-redirect', 'true')
-          open()
+          void connect()
         }
       } else if (t.hasAttribute('data-wallet-disconnect')) {
         e.preventDefault()
@@ -203,7 +204,7 @@ export function WalletButton() {
         setBridgeOpen(true)
       }
     })
-  }, [open, disconnect, disconnectAppKit])
+  }, [connect, disconnect, disconnectAppKit])
 
   return (
     <>

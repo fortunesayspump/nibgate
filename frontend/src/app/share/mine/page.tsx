@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAccount, useSignMessage } from 'wagmi';
-import { useAppKit } from '@reown/appkit/react';
 import { FiPlus, FiEdit2 } from 'react-icons/fi';
-import { ShareLayout, ShareBtn, ShareIntro } from '@/features/nibshare/components/ShareLayout';
+import { ShareLayout, ShareBtn, ShareIntro, ShareError } from '@/features/nibshare/components/ShareLayout';
 import ActivityBell from '@/features/nibshare/components/ActivityBell';
 import ShareWallet from '@/features/nibshare/components/ShareWallet';
+import { useNibgateConnect } from '@/lib/useNibgateConnect';
+import { HUB_SESSION_UPDATED_EVENT } from '@/lib/hubSession';
 import { PostRow } from '@/features/nibshare/components/mine/PostRow';
 import { SettingsSheet } from '@/features/nibshare/components/mine/SettingsSheet';
 import { nibshareApi } from '@/features/nibshare/api';
@@ -19,7 +20,7 @@ type ViewFilter = 'all' | 'active' | 'ended' | 'drafts';
 
 export default function ShareMinePage() {
   const router = useRouter();
-  const { open } = useAppKit();
+  const { connect, busy: connecting, error: connectError } = useNibgateConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [shares, setShares] = useState<ShareSummary[]>([]);
@@ -68,15 +69,26 @@ export default function ShareMinePage() {
   }, [load]);
 
   async function handleAuth() {
+    if (!address) {
+      setError('Wallet not connected — tap "Connect wallet" first.');
+      return;
+    }
     try {
       setError(null);
       const { messageTemplate } = await nibshareApi.authNonce();
       const signature = await signMessageAsync({ message: messageTemplate });
       await nibshareApi.authVerify({ walletAddress: address, signature });
       setSession('authed');
+      window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT));
       await load();
     } catch (err: any) {
-      setError(err.message);
+      const msg = err?.message || 'Signing failed';
+      const expired = msg.toLowerCase().includes('session expired') || msg.toLowerCase().includes('nonce');
+      setError(
+        expired
+          ? 'Your sign-in request expired — sign again below.'
+          : `${msg}. If your wallet did not show a signature request, allow popups for nibgate.xyz and try again.`
+      );
     }
   }
 
@@ -107,8 +119,11 @@ export default function ShareMinePage() {
         <h1 className="text-lg font-semibold tracking-tight mt-5">Posts</h1>
         <div style={{ marginTop: '1rem' }}>
           <ShareIntro>Connect your wallet to see your posts.</ShareIntro>
+          {connectError && <div style={{ marginTop: '0.75rem' }}><ShareError>{connectError}</ShareError></div>}
           {!isConnected ? (
-            <ShareBtn onClick={() => open()} style={{ marginTop: '1rem' }}>Connect wallet</ShareBtn>
+            <ShareBtn onClick={() => void connect()} style={{ marginTop: '1rem' }} disabled={connecting}>
+              {connecting ? 'Connecting...' : 'Connect wallet'}
+            </ShareBtn>
           ) : (
             <>
               <ShareBtn onClick={handleAuth} style={{ marginTop: '1rem' }}>Sign with wallet</ShareBtn>

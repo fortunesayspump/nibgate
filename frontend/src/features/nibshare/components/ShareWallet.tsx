@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useAppKit, useDisconnect as useAppKitDisconnect } from "@reown/appkit/react";
+import { useDisconnect as useAppKitDisconnect } from "@reown/appkit/react";
 import { useDisconnect } from "wagmi";
 import ThemeToggle from "@/components/ThemeToggle";
 import { nibshareApi } from "../api";
 import { shortAddress } from "../lib/shares";
+import { HUB_SESSION_UPDATED_EVENT } from "@/lib/hubSession";
+import { useNibgateConnect } from "@/lib/useNibgateConnect";
 import type { MeResponse } from "../types";
 
 function isHexAddress(address: string): address is `0x${string}` {
@@ -14,11 +16,12 @@ function isHexAddress(address: string): address is `0x${string}` {
 }
 
 export default function ShareWallet() {
-  const { open } = useAppKit();
+  const { connect, busy } = useNibgateConnect();
   const { disconnect } = useDisconnect();
   const { disconnect: disconnectAppKit } = useAppKitDisconnect();
   const [openMenu, setOpenMenu] = useState(false);
   const [hubAddress, setHubAddress] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -32,7 +35,22 @@ export default function ShareWallet() {
 
   useEffect(() => {
     void refresh();
+    window.addEventListener(HUB_SESSION_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(HUB_SESSION_UPDATED_EVENT, refresh);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    function onClickOutside(e: MouseEvent | TouchEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("touchstart", onClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("touchstart", onClickOutside);
+    };
+  }, [openMenu]);
 
   async function handleDisconnect() {
     try {
@@ -46,16 +64,16 @@ export default function ShareWallet() {
 
   if (!hubAddress) {
     return (
-      <div className="share-wallet">
-        <button type="button" className="share-wallet-btn" onClick={() => void open()}>
-          Connect wallet
+      <div className="share-wallet" ref={menuRef}>
+        <button type="button" className="share-wallet-btn" onClick={() => void connect()} disabled={busy}>
+          {busy ? "Connecting..." : "Connect wallet"}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="share-wallet" onMouseEnter={() => setOpenMenu(true)} onMouseLeave={() => setOpenMenu(false)}>
+    <div className="share-wallet" ref={menuRef}>
       <button type="button" className="share-wallet-btn" onClick={() => setOpenMenu((v) => !v)}>
         {shortAddress(hubAddress)}
       </button>

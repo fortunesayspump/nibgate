@@ -15,4 +15,12 @@ export function registerNibshareRoutes(app) {
   app.get('/api/nibshare/mine', controller.requireAuth, controller.listMine);
   app.get('/api/nibshare/dashboard', controller.requireAuth, controller.dashboardStats);
   app.get('/api/nibshare/stats', controller.platformStats);
+
+  // Short mirror of the share page path on the API host: GET /ns/:slug reads
+  // straight through (free → body, paid → 402 x402 challenge).
+  app.get('/ns/:slug', (req, res, next) => {
+    const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+    res.set('Link', `<${apiBase}/nibshare/${req.params.slug}/manifest>; rel="alternate"; type="application/json"`);
+    next();
+  }, controller.accessShare);
 }

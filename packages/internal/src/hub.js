@@ -42,8 +42,8 @@ export function buildSiteManifest(config) {
     },
     hub: {
       apiBaseUrl: config.hub?.apiBaseUrl || '',
-      eventsUrl: `${config.hub?.apiBaseUrl || ''}/api/hub/events`,
-      syncUrl: `${config.hub?.apiBaseUrl || ''}/api/hub/sites/sync`
+      eventsUrl: `${config.hub?.apiBaseUrl || ''}/hub/events`,
+      syncUrl: `${config.hub?.apiBaseUrl || ''}/hub/sites/sync`
     },
     resources: config.routes.map((route) => ({
       id: route.id,
@@ -121,7 +121,7 @@ async function postJson(url, payload, headers = {}) {
 }
 
 export async function connectSiteToHub(config) {
-  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/api/hub/sites/connect`, {
+  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/hub/sites/connect`, {
     origin: config.site.origin,
     domain: safeDomain(config.site.origin),
     site: {
@@ -131,7 +131,7 @@ export async function connectSiteToHub(config) {
 }
 
 export async function verifySiteWithHub(config) {
-  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/api/hub/sites/verify`, {
+  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/hub/sites/verify`, {
     siteId: config.hub.siteId
   });
 }
@@ -143,7 +143,7 @@ export async function syncSiteWithHub(config) {
   };
   const envelope = createSignedEnvelope({ siteId: config.hub.siteId, manifest: payload.manifest }, config.hub.siteToken);
 
-  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/api/hub/sites/sync`, {
+  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/hub/sites/sync`, {
     payload: {
       siteId: config.hub.siteId,
       manifest: payload.manifest
@@ -161,7 +161,7 @@ export async function emitEventToHub(config, event) {
   };
   const envelope = createSignedEnvelope(payload, config.hub.siteToken);
 
-  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/api/hub/events`, {
+  return postJson(`${config.hub.apiBaseUrl.replace(/\/$/, '')}/hub/events`, {
     payload
   }, {
     'x-nibgate-site-id': config.hub.siteId,

@@ -40,7 +40,7 @@ Paste the dashboard widget into the verified site layout:
 
 If the widget loads after app code, the SDK queues events and flushes them when the widget is ready.
 
-**Adblocker bypass:** The widget now sends events to `/api/hub/evt` instead of `/api/hub/track` to avoid adblocker filter lists that target the word "track". The old `/api/hub/track` endpoint is preserved for backward compatibility. If you self-host the backend, ensure both routes are registered.
+**Adblocker bypass:** The widget now sends events to `/hub/evt` instead of `/hub/track` to avoid adblocker filter lists that target the word "track". The old `/hub/track` endpoint is preserved for backward compatibility. If you self-host the backend, ensure both routes are registered.
 
 **Hosted mode (zero backend code):** If you don't want to run your own access route, mark premium content with a data attribute and the widget handles everything:
 

@@ -6,7 +6,7 @@ export const revalidate = 3600;
 
 async function getPosts(): Promise<BlogPost[]> {
   try {
-    const res = await fetch(apiUrl("/api/blog/posts"), { next: { revalidate: 3600 } });
+    const res = await fetch(apiUrl("/blog/posts"), { next: { revalidate: 3600 } });
     const data = await res.json();
     return data.posts || [];
   } catch { return []; }

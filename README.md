@@ -56,22 +56,22 @@ The Hub is the main Nibgate app and API surface. It acts as the creator dashboar
 - `/explore` The discovery masonry grid indexing all creator content.
 - `/ledger` Public activity feed — every unlock, payment, and onchain rating across all sites, searchable and filterable. New entries slide in live.
 - `/discovery.md` Agent guidance — plain-language description of Nibgate endpoints, payment flow, and rating flow for AI agents.
-- `/api/auth/*` Sign-In with Ethereum (SIWE) authentication.
-- `/api/hub/*` Hub connection, sync, verification, and event ingestion.
-- `/api/hub/ledger?domain=X` Public ledger endpoint with optional domain filter for per-site activity.
+- `/auth/*` Sign-In with Ethereum (SIWE) authentication.
+- `/hub/*` Hub connection, sync, verification, and event ingestion.
+- `/hub/ledger?domain=X` Public ledger endpoint with optional domain filter for per-site activity.
 
 ### `subblogs/` (Subblogs — Creator Blog Platform)
 
 This is an example creator blog with paid content gating. Two services:
 
-- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. When R2 is configured, all post bodies and media are encrypted at rest (free and paid); free content is decrypted server-side and served to anyone, paid content only after onchain proof verification. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after proof verification. Each post page also self-describes for agents: `GET /api/nibgate/manifest?path=/<type>/<slug>` returns the per-post machine-readable contract (advertised via a `<link rel="alternate">` element and the `Link` response header).
+- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. When R2 is configured, all post bodies and media are encrypted at rest (free and paid); free content is decrypted server-side and served to anyone, paid content only after onchain proof verification. The access endpoint (`GET /api/<type>/<slug>`, a short mirror of `GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after proof verification. Each post page also self-describes for agents: `GET /api/nibgate/manifest?path=/<type>/<slug>` returns the per-post machine-readable contract (advertised via a `<link rel="alternate">` element and the `Link` response header).
 - **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification. Admin panel (`/admin/posts`) has a per-post stats sheet showing unlocks, revenue in USDC, and the underlying receipts for each post.
 
-**Critical rule:** The `GET /api/blog/posts/:slug` endpoint decrypts and returns the body for **free** posts, and strips the `body` from **paid** posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents paid content from ever appearing in page source, while free content still reads publicly.
+**Critical rule:** The `GET /api/blog/posts/:slug` endpoint decrypts and returns the body for **free** posts, and strips the `body` from **paid** posts. Premium body is only returned by the access endpoint (`GET /api/<type>/<slug>` or `GET /api/nibgate/access`) after valid proof. This prevents paid content from ever appearing in page source, while free content still reads publicly.
 
 ### `nibshare` (Quick-Share Gated Content)
 
-A hosted quick-share rail inside the hub: a wallet owner publishes an encrypted payload with an optional price, expiry, and wallet whitelist, and gets a short link at `nibgate.xyz/ns/<slug>`. No domain required. Bodies and media are always AES-256-GCM encrypted at rest in Cloudflare R2; unlock is x402 USDC on Arc via the server-side decrypt proxy (free shares read openly, paid shares after payment). This is a **private** product — it is never indexed in hub discovery, the ledger, or reputation. The share page self-describes for agents: `GET /api/nibshare/:slug/manifest` returns the machine-readable contract (advertised via `<meta name="nibgate:*">`, JSON-LD, `data-nibgate-*` attributes, a `<link rel="alternate">` element, and the `Link` response header), and the Nibgate MCP server exposes it as the `resolve_share` tool.
+A hosted quick-share rail inside the hub: a wallet owner publishes an encrypted payload with an optional price, expiry, and wallet whitelist, and gets a short link at `nibgate.xyz/ns/<slug>`. No domain required. Bodies and media are always AES-256-GCM encrypted at rest in Cloudflare R2; unlock is x402 USDC on Arc via the server-side decrypt proxy (free shares read openly, paid shares after payment). This is a **private** product — it is never indexed in hub discovery, the ledger, or reputation. The share page self-describes for agents: `GET /nibshare/:slug/manifest` (also reachable at `https://api.nibgate.xyz/ns/<slug>`, the short read route) returns the machine-readable contract (advertised via `<meta name="nibgate:*">`, JSON-LD, `data-nibgate-*` attributes, a `<link rel="alternate">` element, and the `Link` response header), and the Nibgate MCP server exposes it as the `resolve_share` tool.
 
 Docs live with the implementation, not in a separate top-level folder:
 
@@ -465,13 +465,13 @@ Or declared in markup:
 
 Hub endpoints:
 
-- `POST /api/hub/sites/register`
-- `POST /api/hub/sites/:websiteId/verify`
-- `POST /api/hub/track`
-- `GET /api/hub/sites`
-- `GET /api/hub/dashboard/content`
-- `GET /api/hub/dashboard/analytics`
-- `GET /api/hub/dashboard/earnings`
+- `POST /hub/sites/register`
+- `POST /hub/sites/:websiteId/verify`
+- `POST /hub/track`
+- `GET /hub/sites`
+- `GET /hub/dashboard/content`
+- `GET /hub/dashboard/analytics`
+- `GET /hub/dashboard/earnings`
 
 ## Tracking Model
 

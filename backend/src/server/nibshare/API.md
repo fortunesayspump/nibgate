@@ -14,7 +14,7 @@ the share. There is no SIWE bearer-token mode.
 
 ## Creating a share
 
-`POST /api/nibshare` (cookie auth)
+`POST /nibshare` (cookie auth)
 
 ```
 {
@@ -95,7 +95,7 @@ stores a plaintext public blob and returns `{ url }` — used only for non-gated
 
 Anyone can fetch metadata — never the body.
 
-`GET /api/nibshare/:slug/meta`
+`GET /nibshare/:slug/meta`
 
 ```
 200
@@ -118,7 +118,7 @@ Anyone can fetch metadata — never the body.
 
 ## Manifest (machine-readable contract)
 
-`GET /api/nibshare/:slug/manifest`
+`GET /nibshare/:slug/manifest`
 
 The canonical agent-facing contract for a share: pricing, expiry, status, counts, and the
 URLs an agent needs to evaluate and read it. Same shape is embedded in the server-rendered
@@ -143,11 +143,11 @@ share page as `nibgate:*` meta tags, JSON-LD, and `data-nibgate-resource` attrib
   "unlockCount": 0,
   "urls": {
     "page": "https://nibgate.xyz/ns/<slug>",
-    "meta": "https://api.nibgate.xyz/api/nibshare/<slug>/meta",
-    "manifest": "https://api.nibgate.xyz/api/nibshare/<slug>/manifest",
-    "access": "https://api.nibgate.xyz/api/nibshare/<slug>/access",
-    "unlock": "https://api.nibgate.xyz/api/nibshare/<slug>/unlock",
-    "media": "https://api.nibgate.xyz/api/nibshare/<slug>/media/{kind}?index=N"
+    "meta": "https://api.nibgate.xyz/nibshare/<slug>/meta",
+    "manifest": "https://api.nibgate.xyz/nibshare/<slug>/manifest",
+    "access": "https://api.nibgate.xyz/ns/<slug>",
+    "unlock": "https://api.nibgate.xyz/nibshare/<slug>/unlock",
+    "media": "https://api.nibgate.xyz/nibshare/<slug>/media/{kind}?index=N"
   },
   "payment": { "scheme": "x402", "description": "..." }
 }
@@ -155,7 +155,10 @@ share page as `nibgate:*` meta tags, JSON-LD, and `data-nibgate-resource` attrib
 
 ## Access (server-side body)
 
-`GET /api/nibshare/:slug/access`
+`GET /nibshare/:slug/access`
+
+Also mirrored on the API host at `GET /ns/:slug` (the short pay/read URL an agent can
+use straight from a `https://nibgate.xyz/ns/<slug>` link). Both routes behave identically.
 
 Free shares return the decrypted body immediately, matching how free subblog posts are
 served. Paid shares require payment: pass a stored `x-nibgate-payment-proof` header, or
@@ -176,7 +179,7 @@ let the route relay the x402/Gateway challenge and verify a fresh payment.
 
 ## Unlock (x402 pay -> entitlement -> serve)
 
-1. The viewer hits the share page or `GET /api/nibshare/:slug/access`; without payment
+1. The viewer hits the share page or `GET /nibshare/:slug/access`; without payment
    the route returns a `402` challenge via the Circle Gateway x402 middleware.
 2. After USDC settles on Arc (network `eip155:5042002`), the client retries with the
    signed payment (or a stored proof).
@@ -193,7 +196,7 @@ On success the server grants a `NibShareEntitlement` for the paying wallet (`act
 and serves the body. Only `server` mode is implemented — the server decrypts and
 returns the body for this session (no durable key is given to the client):
 
-`POST /api/nibshare/:slug/unlock`
+`POST /nibshare/:slug/unlock`
 
 ```
 200
@@ -218,7 +221,7 @@ Non-success responses:
 
 ## Streaming media
 
-`GET /api/nibshare/:slug/media/:kind?index=N` (`kind` = `photo` | `music` | `video` | `document`)
+`GET /nibshare/:slug/media/:kind?index=N` (`kind` = `photo` | `music` | `video` | `document`)
 
 Decrypts and streams one asset from the body's `media` array (`index` for photos) or the
 body's `audio` / `file` / `document` holders. Free shares serve the bytes with no proof;
@@ -229,13 +232,13 @@ route.
 
 ## View (public)
 
-`POST /api/nibshare/:slug/view` — records a viewer for the share's analytics; `{ "viewer": "0x..." }` optional.
+`POST /nibshare/:slug/view` — records a viewer for the share's analytics; `{ "viewer": "0x..." }` optional.
 
 ## Revoke a wallet's entitlement
 
 Owner action: revoke a single wallet's access so it stops being served.
 
-`POST /api/nibshare/:slug/entitlements/:wallet/revoke` (cookie auth)
+`POST /nibshare/:slug/entitlements/:wallet/revoke` (cookie auth)
 
 ```
 200 { "success": true, "wallet": "0x...", "status": "revoked" }
@@ -246,11 +249,11 @@ content no longer shows.
 
 ## Reslug (owner only)
 
-`POST /api/nibshare/:slug/reslug` (cookie auth) — rotates the share's public slug.
+`POST /nibshare/:slug/reslug` (cookie auth) — rotates the share's public slug.
 
 ## Revoke (owner only)
 
-`DELETE /api/nibshare/:slug` (cookie auth)
+`DELETE /nibshare/:slug` (cookie auth)
 
 ```
 200 { "success": true, "status": "revoked" }
@@ -260,7 +263,7 @@ Revoke sets `status = "revoked"`, which stops new unlocks and deletes the R2 blo
 
 ## List mine (owner only)
 
-`GET /api/nibshare/mine` (cookie auth)
+`GET /nibshare/mine` (cookie auth)
 
 ```
 200
@@ -269,7 +272,7 @@ Revoke sets `status = "revoked"`, which stops new unlocks and deletes the R2 blo
 
 ## Dashboard stats (owner only)
 
-`GET /api/nibshare/dashboard?from=&to=` (cookie auth)
+`GET /nibshare/dashboard?from=&to=` (cookie auth)
 
 Per-creator analytics across all shares (drafts, active, expired, and revoked — a share is
 the published content, not the link). `from`/`to` (ISO) bound the range used for
@@ -292,7 +295,7 @@ the published content, not the link). `from`/`to` (ISO) bound the range used for
 
 ## Platform stats (public)
 
-`GET /api/nibshare/stats`
+`GET /nibshare/stats`
 
 Platform-wide aggregates. Everything is aggregate or wallet-truncated on purpose: never
 emit nibshare to hub discovery/ledger/reputation, and never expose titles, slugs, or full

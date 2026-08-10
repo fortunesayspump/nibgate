@@ -5,7 +5,7 @@
  *   2. Creator creates a PAID share (price in USDC).
  *   3. Buyer (BlockchainBob) pays via Circle Gateway x402 (GET /access) → content + unlockProof.
  *   4. Proof replay: GET /access with x-nibgate-payment-proof → content, no re-charge.
- *   5. Creator lists /api/nibshare/mine → receipt shows buyer + tx.
+ *   5. Creator lists /nibshare/mine → receipt shows buyer + tx.
  *   6. Best-effort: hub discovery must NOT index the share (nibshare is private).
  *
  * Env: HUB_URL (default http://localhost:3000), CREATOR, BUYER, PRICE.
@@ -47,23 +47,23 @@ const ok = (cond, msg) => log(cond ? `  ✓ ${msg}` : `  ✗ FAIL: ${msg}`);
 
 // ── Step 1: creator signs in ───────────────────────────────────────────────
 log(`\n== 1. Creator sign-in (${CREATOR.name} ${CREATOR.address}) ==`);
-const nonce = await api('/api/auth/nonce');
+const nonce = await api('/auth/nonce');
 if (nonce.status !== 200) throw new Error(`nonce failed: ${JSON.stringify(nonce.data)}`);
 const creatorAccount = privateKeyToAccount(CREATOR.privateKey);
 const signature = await creatorAccount.signMessage({ message: nonce.data.messageTemplate });
-const verify = await api('/api/auth/verify', {
+const verify = await api('/auth/verify', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ walletAddress: creatorAccount.address, signature }),
 });
 ok(verify.status === 200 && verify.data.success, `creator authenticated as ${verify.data.user?.walletAddress}`);
-const me = await api('/api/auth/me');
-ok(me.data?.authenticated, 'GET /api/auth/me returns authenticated');
+const me = await api('/auth/me');
+ok(me.data?.authenticated, 'GET /auth/me returns authenticated');
 
 // ── Step 2: create a paid share ────────────────────────────────────────────
 log(`\n== 2. Create paid share (price $${PRICE}) ==`);
-const before = await api('/api/hub/explore/content?q=');
-const create = await api('/api/nibshare', {
+const before = await api('/hub/explore/content?q=');
+const create = await api('/nibshare', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
@@ -78,7 +78,7 @@ if (create.status !== 201) throw new Error(`create failed ${create.status}: ${JS
 const { slug, url, contentHash, ciphertextUrl } = create.data;
 log(`  slug=${slug} url=${url} contentHash=${contentHash.slice(0, 12)}… ciphertextUrl=${ciphertextUrl}`);
 
-const meta = await api(`/api/nibshare/${slug}/meta`);
+const meta = await api(`/nibshare/${slug}/meta`);
 ok(meta.data?.price === PRICE && meta.data?.status === 'active', `meta price=${meta.data?.price} status=${meta.data?.status}`);
 
 // ── Step 3: buyer pays via x402 (GET /access) ──────────────────────────────
@@ -94,7 +94,7 @@ if (bal.gateway.available < priceMicros + 1_000_000n) {
   log(`  deposit tx=${dep.depositTxHash}`);
 }
 
-const pay = await buyer.pay(`${HUB}/api/nibshare/${slug}/access`, {
+const pay = await buyer.pay(`${HUB}/nibshare/${slug}/access`, {
   method: 'GET',
   headers: { accept: 'application/json', 'user-agent': 'nibshare-e2e/1.0' },
 });
@@ -106,7 +106,7 @@ ok(payData?.payment?.payerWallet?.toLowerCase() === buyer.address.toLowerCase(),
 
 // ── Step 4: replay proof, no re-charge ─────────────────────────────────────
 log(`\n== 4. Replay proof via /access ==`);
-const replayRes = await fetch(`${HUB}/api/nibshare/${slug}/access`, {
+const replayRes = await fetch(`${HUB}/nibshare/${slug}/access`, {
   headers: { accept: 'application/json', 'x-nibgate-payment-proof': payData.unlockProof },
 });
 const replay = await replayRes.json();
@@ -114,7 +114,7 @@ ok(replayRes.status === 200 && replay.ok && replay.content?.includes('Nibshare E
 
 // ── Step 5: creator sees the receipt ───────────────────────────────────────
 log(`\n== 5. Creator receipts ==`);
-const mine = await api('/api/nibshare/mine');
+const mine = await api('/nibshare/mine');
 const shareRow = mine.data?.shares?.find((s) => s.slug === slug);
 ok(Boolean(shareRow), `share listed in /mine (status=${shareRow?.status}, unlocks=${shareRow?.unlockCount})`);
 const receipt = shareRow?.receipts?.[0];
@@ -127,15 +127,15 @@ if (receipt) {
 
 // ── Step 6: hub must NOT index the share ───────────────────────────────────
 log(`\n== 6. Hub discovery must not index the share (PRIVATE) ==`);
-const after = await api('/api/hub/explore/content?q=');
+const after = await api('/hub/explore/content?q=');
 const beforeCount = before.data?.total ?? -1;
 const afterCount = after.data?.total ?? -1;
 if (beforeCount >= 0 && afterCount >= 0) {
   ok(afterCount === beforeCount, `hub content count unchanged (${beforeCount} → ${afterCount})`);
 } else {
-  log(`  (skip: /api/hub/explore/content shape unknown: ${JSON.stringify(after.data).slice(0, 120)})`);
+  log(`  (skip: /hub/explore/content shape unknown: ${JSON.stringify(after.data).slice(0, 120)})`);
 }
-const qHit = await api(`/api/hub/explore/content?q=${encodeURIComponent(slug)}`);
+const qHit = await api(`/hub/explore/content?q=${encodeURIComponent(slug)}`);
 ok(qHit.data?.total === 0, `share slug "${slug}" not findable in hub explore (total=0)`);
 
 log(`\nDONE — share ${url}`);

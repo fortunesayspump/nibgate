@@ -144,11 +144,11 @@ export async function shareManifest(slug) {
     unlockCount: share.unlockCount,
     urls: {
       page: sharePublicUrl(share),
-      meta: `${apiBase}/api/nibshare/${share.slug}/meta`,
-      manifest: `${apiBase}/api/nibshare/${share.slug}/manifest`,
-      access: `${apiBase}/api/nibshare/${share.slug}/access`,
-      unlock: `${apiBase}/api/nibshare/${share.slug}/unlock`,
-      media: `${apiBase}/api/nibshare/${share.slug}/media/{kind}?index=N`
+      access: `${apiBase}/ns/${share.slug}`,
+      meta: `${apiBase}/nibshare/${share.slug}/meta`,
+      manifest: `${apiBase}/nibshare/${share.slug}/manifest`,
+      unlock: `${apiBase}/nibshare/${share.slug}/unlock`,
+      media: `${apiBase}/nibshare/${share.slug}/media/{kind}?index=N`
     },
     payment: {
       scheme: 'x402',

@@ -26,7 +26,7 @@ function formatDate(value: string) {
 
 async function getPost(slug: string) {
   try {
-    const res = await fetch(apiUrl(`/api/blog/posts/${slug}`), { next: { revalidate: 60 } });
+    const res = await fetch(apiUrl(`/blog/posts/${slug}`), { next: { revalidate: 60 } });
     if (!res.ok) return null;
     const data = await res.json();
     return data.post as BlogPost;

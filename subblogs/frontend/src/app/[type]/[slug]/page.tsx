@@ -95,7 +95,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
         'nibgate:price': post.price || '',
         'nibgate:path': resourcePath,
         'nibgate:image': post.coverUrl || '',
-        'nibgate:access': `${origin}/api/nibgate/access?path=${encodeURIComponent(resourcePath)}`,
+        'nibgate:access': `${origin}/api${resourcePath}`,
         'nibgate:manifest': `${origin}/api/nibgate/manifest?path=${encodeURIComponent(resourcePath)}`,
       },
     };
@@ -133,7 +133,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
   const origin = await siteOrigin();
   const resourcePath = `/${typeMap[post.type] || "posts"}/${post.slug}`;
   const manifestUrl = `${origin}/api/nibgate/manifest?path=${encodeURIComponent(resourcePath)}`;
-  const accessUrl = `${origin}/api/nibgate/access?path=${encodeURIComponent(resourcePath)}`;
+  const accessUrl = `${origin}/api${resourcePath}`;
 
   return (
     <>

@@ -22,7 +22,7 @@ sequenceDiagram
     Note over A,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
     A->>H: GET /.well-known/llms.txt
     H-->>A: Curated index + endpoint map
-    A->>H: GET /api/hub/explore/content
+    A->>H: GET /hub/explore/content
     H-->>A: Content cards
     A->>S: GET /nibgate.json
     S-->>A: Metadata, price, access policy
@@ -30,7 +30,7 @@ sequenceDiagram
 
     rect rgb(232, 255, 235)
     Note over A,C: PHASE 2 · X402 PURCHASE (one retried round trip)
-    A->>S: GET /api/nibgate/access?path=...
+    A->>S: GET /api/<type>/<slug>  (or /api/nibgate/access?path=...)
     S-->>A: 402 + PAYMENT-REQUIRED (base64 x402)
     Note over A: Sign EIP-3009 authorization<br/>(gasless, off-chain)
     A->>S: Retry + PAYMENT-SIGNATURE header
@@ -41,10 +41,10 @@ sequenceDiagram
 
     rect rgb(255, 244, 230)
     Note over A,H: PHASE 3 · ON-CHAIN RATING (post-purchase)
-    A->>H: POST /api/hub/reputation/ratings/prepare
+    A->>H: POST /hub/reputation/ratings/prepare
     H-->>A: Signable message + contentHash
     Note over A: Sign rateContent calldata
-    A->>H: POST /api/hub/reputation/ratings/index
+    A->>H: POST /hub/reputation/ratings/index
     H-->>A: Rating indexed, reputation updated
     end
 ```
@@ -151,7 +151,7 @@ curl -s 'https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=/writing/the-ta
   "currency": "USDC",
   "urls": {
     "page": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
-    "access": "https://pitchtalk.nibgate.xyz/api/nibgate/access?path=%2Fwriting%2Fthe-tactic-that-changed-modern-football",
+    "access": "https://pitchtalk.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football",
     "manifest": "https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=%2Fwriting%2Fthe-tactic-that-changed-modern-football"
   },
   "payment": { "scheme": "x402", "mode": "one_time" }
@@ -163,7 +163,7 @@ curl -s 'https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=/writing/the-ta
 The agent calls the creator's x402 endpoint, declaring itself as an agent:
 
 ```bash
-curl -i 'https://pitchtalk.nibgate.xyz/api/nibgate/access?path=/writing/the-tactic-that-changed-modern-football' \
+curl -i 'https://pitchtalk.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football' \
   -H 'x-nibgate-actor: agent' \
   -H 'Accept: application/json'
 ```
@@ -202,9 +202,9 @@ Decoded, the challenge is:
 
 Note `amount` is in atomic units (6 decimals of USDC, so `500000` = 0.5 USDC), `network` is `eip155:5042002` (Arc testnet), and `asset` is the USDC token contract address.
 
-The challenge is produced by `createGatewayMiddleware` from `@circle-fin/x402-batching/server`, invoked by `POST /api/hub/pay` (`backend/src/server/routes/hub-routes.js:315-358`); the subblog access route proxies the pay request and re-emits the 402 with the `PAYMENT-REQUIRED` header. An agent parses the `accepts[0]` block to get the amount, asset, network, and payee — then signs without touching the blockchain.
+The challenge is produced by `createGatewayMiddleware` from `@circle-fin/x402-batching/server`, invoked by `POST /hub/pay` (`backend/src/server/routes/hub-routes.js:315-358`); the subblog access route proxies the pay request and re-emits the 402 with the `PAYMENT-REQUIRED` header. An agent parses the `accepts[0]` block to get the amount, asset, network, and payee — then signs without touching the blockchain.
 
-**Reference:** the access handler is `GET /api/nibgate/access` in `subblogs/backend/src/routes/v1/nibgate.route.js:65`, which proxies to the hub pay rail and re-emits the 402 with the `PAYMENT-REQUIRED` header.
+**Reference:** the access handler is `GET /api/<type>/<slug>` (a short mirror) and `GET /api/nibgate/access` (path-based) in `subblogs/backend/src/routes/v1/index.js` and `subblogs/backend/src/routes/v1/nibgate.route.js`, which proxy to the hub pay rail and re-emit the 402 with the `PAYMENT-REQUIRED` header.
 
 ## Step 5 — Sign the payment (gasless)
 
@@ -221,7 +221,7 @@ const agent = new GatewayClient({
 
 // Handles 402 → sign → retry in one call
 const result = await agent.pay(
-  'https://pitchtalk.nibgate.xyz/api/nibgate/access?path=/writing/the-tactic-that-changed-modern-football',
+  'https://pitchtalk.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football',
   { headers: { 'x-nibgate-actor': 'agent' } }
 )
 ```
@@ -299,7 +299,7 @@ curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/prepare \
 }
 ```
 
-The server returns a canonical message, the `contentHash` the on-chain contract expects, and the reputation contract address. (`rpcUrl` reflects the production env override; the endpoint's default RPC is the Arc testnet node.) This is `POST /api/hub/reputation/ratings/prepare` in `backend/src/server/routes/hub-routes.js:608`.
+The server returns a canonical message, the `contentHash` the on-chain contract expects, and the reputation contract address. (`rpcUrl` reflects the production env override; the endpoint's default RPC is the Arc testnet node.) This is `POST /hub/reputation/ratings/prepare` in `backend/src/server/routes/hub-routes.js:608`.
 
 ### 7b. Sign the rating calldata
 
@@ -336,7 +336,7 @@ curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/index \
   }'
 ```
 
-`POST /api/hub/reputation/ratings/index` (`hub-routes.js:642`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score:
+`POST /hub/reputation/ratings/index` (`hub-routes.js:642`) upserts the on-chain rating via `upsertOnchainRatingForContent`, stores the proof, and feeds the creator's reputation score:
 
 ```json
 {

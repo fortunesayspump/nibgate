@@ -58,7 +58,7 @@ export async function getExploreProducts(params: { q?: string; type?: string; so
   if (params.limit) search.set("limit", String(params.limit));
 
   try {
-    const res = await fetch(`${apiOrigin()}/api/hub/explore/content?${search.toString()}`, { cache: "no-store" });
+    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
     const content = Array.isArray(data.content) ? data.content as ExploreContent[] : [];

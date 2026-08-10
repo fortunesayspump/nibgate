@@ -12,7 +12,7 @@ export async function emitHubEvent(event, resourceInput, options = {}) {
     return { skipped: true, reason: 'Missing NIBGATE_SITE_ID or NIBGATE_SITE_TOKEN' };
   }
 
-  const response = await fetch(`${apiBaseUrl}/api/hub/evt`, {
+  const response = await fetch(`${apiBaseUrl}/hub/evt`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

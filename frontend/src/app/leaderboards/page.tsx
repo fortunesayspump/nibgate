@@ -8,7 +8,7 @@ type PlatformStats = { creators: number; sites: number; content: number; views: 
 
 async function getBoard(type: string) {
   try {
-    const res = await fetch(apiUrl(`/api/hub/reputation/leaderboards?type=${type}&limit=50`), { cache: "no-store" });
+    const res = await fetch(apiUrl(`/hub/reputation/leaderboards?type=${type}&limit=50`), { cache: "no-store" });
     if (!res.ok) return { items: [] as LeaderboardItem[], total: 0 };
     const data = await res.json();
     return { items: (data.items || []) as LeaderboardItem[], total: data.total || 0 };
@@ -19,7 +19,7 @@ async function getBoard(type: string) {
 
 async function getStats() {
   try {
-    const res = await fetch(apiUrl("/api/hub/stats"), { cache: "no-store" });
+    const res = await fetch(apiUrl("/hub/stats"), { cache: "no-store" });
     if (!res.ok) return { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
     const data = await res.json();
     return data.stats || { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };

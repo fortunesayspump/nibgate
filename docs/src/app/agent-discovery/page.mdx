@@ -51,7 +51,7 @@ A plain-language agent discovery guide is available at `https://nibgate.xyz/disc
 
 ### Public ledger
 
-The ledger at `https://nibgate.xyz/ledger` (API: `GET /api/hub/ledger`) provides a live feed of all views, unlocks, payments, and ratings across sites. Agents can filter by `?domain=` for per-site activity. Each entry includes timestamps, wallet addresses, and on-chain tx hashes where applicable.
+The ledger at `https://nibgate.xyz/ledger` (API: `GET /hub/ledger`) provides a live feed of all views, unlocks, payments, and ratings across sites. Agents can filter by `?domain=` for per-site activity. Each entry includes timestamps, wallet addresses, and on-chain tx hashes where applicable.
 
 ### Hub explore API
 
@@ -82,7 +82,7 @@ const agent = new GatewayClient({
 })
 
 const result = await agent.pay(
-  'https://creator.example/api/nibgate/access?path=/writing/my-article',
+  'https://creator.example/api/writing/my-article',
   {
     headers: { 'x-nibgate-actor': 'agent' }
   }

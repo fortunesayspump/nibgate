@@ -94,7 +94,7 @@ function enc(path) {
 
 export async function fetchSiteList() {
   const hubBase = (process.env.GSC_HUB_BASE || 'https://api.nibgate.xyz').replace(/\/+$/, '');
-  const res = await request(`${hubBase}/api/hub/sitemap-sites`);
+  const res = await request(`${hubBase}/hub/sitemap-sites`);
   const domains = (res.sites || []).filter((d) => typeof d === 'string' && d);
   return [...new Set(domains.map((d) => d.toLowerCase()))];
 }

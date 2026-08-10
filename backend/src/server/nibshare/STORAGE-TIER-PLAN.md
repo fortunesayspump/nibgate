@@ -130,8 +130,8 @@ Revoke:
 
 | Content type | Free tier cap | Arweave cap | Enforcement |
 |---|---|---|---|
-| Nibshare text | 512 KB | none | POST /api/nibshare |
-| Nibshare media | 30 MB | none | POST /api/nibshare |
+| Nibshare text | 512 KB | none | POST /nibshare |
+| Nibshare media | 30 MB | none | POST /nibshare |
 | Hub avatar | 2 MB | N/A | POST /api/uploads/profile-image |
 | Hub cover | 5 MB | N/A | POST /api/uploads/profile-image |
 | Subblog media | 30 MB | none | multer fileSize |

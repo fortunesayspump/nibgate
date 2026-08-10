@@ -9,7 +9,7 @@ Built on Circle Gateway, ARC testnet, and the x402 protocol.
 **Key packages:**
 
 - **SDK (`packages/nibgate/`)** — `@nibgate/sdk` npm package for gating paid content on any creator site. Browser and server entrypoints, x402/Gateway unlocks, event streaming, onchain ratings.
-- **Subblogs (`subblogs/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts. Next.js frontend, Express backend, PostgreSQL.
+- **Subblogs (`subblogs/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, documents, free and paid posts. Next.js frontend, Express backend, PostgreSQL.
 - **Hub (`frontend/` + `backend/`)** — The main `nibgate.xyz` app: public site, creator dashboard, Explore discovery, analytics, API, and widget hosting.
 - **CLI (`packages/cli/`)** — Internal tooling for local dev, site verification, and hub connection.
 - **Docs (`docs/`)** — Documentation site at docs.nibgate.xyz.
@@ -44,6 +44,7 @@ demo/          Isolated creator-origin demo for package and gating integration
 docs/          Nextra docs site for docs.nibgate.xyz
 scripts/       E2E flows and reputation deployment tooling
 contracts/     NibgateReputation contracts (Solidity + Foundry)
+nibgate.config.json  Sample CLI config (routes to local demo content)
 ```
 
 ## Workspace Shape
@@ -63,8 +64,8 @@ The Hub is the main Nibgate app and API surface. It acts as the creator dashboar
 
 This is an example creator blog with paid content gating. Two services:
 
-- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. All post bodies and media are encrypted at rest (free and paid); free content is decrypted server-side and served to anyone, paid content only after onchain proof verification. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after proof verification.
-- **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification. Admin panel (`/admin/posts`) includes a MiniLedger widget showing recent views, unlocks, payments, and ratings for the site.
+- **`subblogs/backend/`** (Express + Prisma) — serves content pages, handles payments via the hub, issues unlock proofs. When R2 is configured, all post bodies and media are encrypted at rest (free and paid); free content is decrypted server-side and served to anyone, paid content only after onchain proof verification. The access endpoint (`GET /api/nibgate/access`) is the single source of truth for premium content — returns post body only after proof verification.
+- **`subblogs/frontend/`** (Next.js) — public blog UI. Premium content is **never** in the HTML. The `NibgateUnlock` component fetches content from the protected access endpoint after proof verification. Admin panel (`/admin/posts`) has a per-post stats sheet showing unlocks, revenue in USDC, and the underlying receipts for each post.
 
 **Critical rule:** The `GET /api/blog/posts/:slug` endpoint decrypts and returns the body for **free** posts, and strips the `body` from **paid** posts. Premium body is only returned by `GET /api/nibgate/access` after valid proof. This prevents paid content from ever appearing in page source, while free content still reads publicly.
 
@@ -97,7 +98,7 @@ It owns:
 - browser entrypoint: `createGate(...)`, `nibgate.content(...)`, `nibgate.view(...)`, `nibgate.unlockStarted(...)`, `nibgate.unlockCompleted(...)`, and `nibgate.paymentCompleted(...)`
 - server entrypoint: `createNibgateServer(...)`, `protect(...)`, `nibgateServer.accessFor(...)`, payment challenges, and unlock token verification
 - queueing events until the Hub widget is ready
-- normalizing content types to `music`, `video`, `article`, and `image`
+- normalizing content types to `music`, `video`, `article`, `image`, and `document`
 - access policies for humans and agents: `free`, `paid`, or `blocked`
 - unlock policies that start with `one_time` for the MVP and leave room for metered reading, streaming, passes, and agent quotas later
 
@@ -254,7 +255,7 @@ When a creator installs `@nibgate/sdk` on their own site, the package is respons
 
 1. protecting paid routes and gated content on the creator origin with server-side access checks
 2. handling x402/Circle unlock logic
-3. registering content metadata for `music`, `video`, `article`, and `image`
+3. registering content metadata for `music`, `video`, `article`, `image`, and `document`
 4. emitting content-level events such as `resource_view`, `unlock_started`, `unlock_completed`, and `payment_completed`
 5. passing resource ids, titles, prices, and paths to the Hub widget when users interact with protected content
 
@@ -323,7 +324,7 @@ The public ledger (`/ledger`) provides a live, auditable feed of every view, unl
 The hub can rank and filter content using:
 
 1. verified domain ownership
-2. content type: `music`, `video`, `article`, or `image`
+2. content type: `music`, `video`, `article`, `image`, or `document`
 3. creator profile and username
 4. page views, content views, unlock attempts, and paid unlocks
 5. direct x402 or Arc testnet receipt metadata
@@ -481,7 +482,7 @@ The widget does not treat a whole site as one undifferentiated blob. It can reco
 - package events when the installed `nibgate` runtime calls `window.nibgateHub.track(...)`
 - unlock and payment events tied to a specific resource id
 
-That means one domain can have many tracked resources, but Nibgate content types are intentionally limited to `music`, `video`, `article`, and `image`.
+That means one domain can have many tracked resources, but Nibgate content types are intentionally limited to `music`, `video`, `article`, `image`, and `document`.
 
 ## Storage Model
 

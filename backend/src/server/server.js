@@ -38,6 +38,17 @@ export async function createApp(config, options = {}) {
   registerNibgateProvider();
   const app = express();
   app.set('trust proxy', true);
+
+  // On api.nibgate.xyz the /api prefix is redundant with the host. Serve every
+  // route group under its bare name too (/hub/..., /nibshare/..., /rpc, ...) by
+  // rewriting onto the canonical /api/... routes. Both forms stay live.
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    if (/^\/(hub|nibshare|newsletter|blog|upload|app|auth|content|rpc|openapi)(?:\/|$)/.test(req.path)) {
+      req.url = `/api${req.url}`;
+    }
+    next();
+  });
   const store = createStateStore(options.statePath || path.join(rootDir, '.nibgate', 'state.json'));
   const gateway = createGateway(config, store);
   const circleGateway = await createCircleGatewayMiddleware(gateway.paymentProvider);
@@ -49,7 +60,7 @@ export async function createApp(config, options = {}) {
   app.use(express.urlencoded({ extended: true, limit: '8mb' }));
   app.use(cookieParser());
   app.use(cors((req, callback) => {
-    if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index' || req.path === '/api/nibshare' || /^\/api\/nibshare\/[^/]+(\/(unlock|access))?$/.test(req.path)) {
+    if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index' || req.path === '/api/nibshare' || /^\/api\/nibshare\/[^/]+(\/(unlock|access))?$/.test(req.path) || /^\/ns\/[^/]+$/.test(req.path)) {
       return callback(null, {
         origin: true,
         credentials: true,

@@ -25,7 +25,7 @@ function formatDate(value: string) {
 
 async function getPosts() {
   try {
-    const res = await fetch(apiUrl("/api/blog/posts"), { next: { revalidate: 60 } });
+    const res = await fetch(apiUrl("/blog/posts"), { next: { revalidate: 60 } });
     if (!res.ok) return [] as BlogPost[];
     const data = await res.json();
     return (data.posts || []) as BlogPost[];

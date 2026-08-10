@@ -44,7 +44,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
     return "";
   })();
 
-  const accessPath = `${API_BASE}/nibgate/access?path=${resource.path}&subdomain=${subdomain}`;
+  const accessPath = `${API_BASE}${resource.path}`;
 
   async function loadMedia(proof: string, meta: UnlockMediaMeta) {
     if (meta.hasAudio) {

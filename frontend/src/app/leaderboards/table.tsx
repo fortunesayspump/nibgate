@@ -257,7 +257,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
         <button
           type="button"
           onClick={async () => {
-            const next = await fetch(apiUrl(`/api/hub/reputation/leaderboards?type=${active}&limit=50&skip=${data.length}`));
+            const next = await fetch(apiUrl(`/hub/reputation/leaderboards?type=${active}&limit=50&skip=${data.length}`));
             const json = await next.json();
             const more = json.items || [];
             setLoaded((prev) => ({ ...prev, [active]: [...prev[active], ...more] }));

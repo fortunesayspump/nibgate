@@ -22,11 +22,11 @@ ratings settle on-chain via x402 on Arc Testnet.
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
-| `GET /api/hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, ratings |
-| `POST /api/hub/evt` | Track an event (view, unlock, rating, etc.) |
-| `POST /api/hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
-| `POST /api/hub/site/info` | Get site info by siteId + token |
+| `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
+| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, ratings |
+| `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
+| `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
+| `POST /hub/site/info` | Get site info by siteId + token |
 
 ### Creator sites
 
@@ -61,10 +61,10 @@ a creator site; they expose the same `/nibgate.json` manifest and
 
 ### Rating Flow
 
-1. `POST /api/hub/reputation/ratings/prepare` with `contentId`, `walletAddress`, `ratingValue`
+1. `POST /hub/reputation/ratings/prepare` with `contentId`, `walletAddress`, `ratingValue`
 2. Returns `contentHash`, `contractAddress`
 3. Call `rateContent(contentHash, rating, reviewHash, unlockRef)` on the reputation contract
-4. Track via `POST /api/hub/evt` with event `content_rating`
+4. Track via `POST /hub/evt` with event `content_rating`
 
 ### Network
 

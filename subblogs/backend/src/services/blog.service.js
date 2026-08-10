@@ -318,7 +318,7 @@ async function adminPostStats(siteId) {
 
   const domain = `${site.subdomain}.nibgate.xyz`;
   const hub = config.nibgate.apiBase || 'http://localhost:3000';
-  const res = await fetch(`${hub}/api/hub/ledger?domain=${encodeURIComponent(domain)}&limit=100`).catch(() => null);
+  const res = await fetch(`${hub}/hub/ledger?domain=${encodeURIComponent(domain)}&limit=100`).catch(() => null);
   if (!res || !res.ok) return {};
 
   const data = await res.json().catch(() => null);
@@ -360,7 +360,7 @@ async function adminActivity(siteId) {
 
   const domain = `${site.subdomain}.nibgate.xyz`;
   const hub = config.nibgate.apiBase || 'http://localhost:3000';
-  const res = await fetch(`${hub}/api/hub/ledger?domain=${encodeURIComponent(domain)}&limit=50`).catch(() => null);
+  const res = await fetch(`${hub}/hub/ledger?domain=${encodeURIComponent(domain)}&limit=50`).catch(() => null);
   if (!res || !res.ok) return { activities: [], totals: { views: 0, unlocks: 0, payments: 0, ratings: 0 } };
   const data = await res.json().catch(() => null);
   return {

@@ -35,7 +35,7 @@ router.get('/site', async (req, res) => {
   // Auto-fill recipientWallet from hub if missing
   if (!settings.recipientWallet && hubSiteId && hubToken) {
     try {
-      const hubRes = await fetch('https://api.nibgate.xyz/api/hub/site/info', {
+      const hubRes = await fetch('https://api.nibgate.xyz/hub/site/info', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteId: hubSiteId, token: hubToken }),
       });
@@ -70,7 +70,7 @@ router.post('/sync-hub', async (req, res) => {
     const token = settings.hubToken;
     if (!siteId || !token) return res.status(400).json({ error: 'Blog not linked to hub.' });
 
-    const hubRes = await fetch('https://api.nibgate.xyz/api/hub/sync', {
+    const hubRes = await fetch('https://api.nibgate.xyz/hub/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ siteId, token }),
@@ -79,6 +79,25 @@ router.post('/sync-hub', async (req, res) => {
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Short mirror of a post URL on the site origin: GET /api/<type>/<slug> reads
+// straight through (free → body, paid → 402 x402 challenge). Same handler as
+// /access. The type prefix disambiguates slugs shared across post types.
+router.get('/:type/:slug', async (req, res, next) => {
+  try {
+    const post = await prisma.blogPost.findFirst({
+      where: { siteId: req.siteId, slug: req.params.slug },
+      orderBy: { publishedAt: 'desc' },
+    });
+    if (!post) return res.status(404).json({ ok: false, error: 'Post not found' });
+    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
+    const expectedType = typePath[post.type] || 'posts';
+    if (req.params.type !== expectedType) return res.status(404).json({ ok: false, error: 'Post not found' });
+    return await nibgateRoute.serveAccess(req, res, post, req.params.slug);
+  } catch (error) {
+    next(error);
   }
 });
 

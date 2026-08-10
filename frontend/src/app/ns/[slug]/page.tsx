@@ -14,7 +14,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 async function fetchMeta(slug: string): Promise<ShareMeta | null> {
   try {
-    const res = await fetch(apiUrl(`/api/nibshare/${slug}/meta`), { next: { revalidate: 60 } });
+    const res = await fetch(apiUrl(`/nibshare/${slug}/meta`), { next: { revalidate: 60 } });
     if (!res.ok) return null;
     return (await res.json()) as ShareMeta;
   } catch {
@@ -47,8 +47,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       'nibgate:currency': meta.currency,
       'nibgate:status': meta.status,
       'nibgate:expires-at': meta.expiresAt || '',
-      'nibgate:access': apiUrl(`/api/nibshare/${slug}/access`),
-      'nibgate:manifest': apiUrl(`/api/nibshare/${slug}/manifest`),
+      'nibgate:access': apiUrl(`/ns/${slug}`),
+      'nibgate:manifest': apiUrl(`/nibshare/${slug}/manifest`),
     },
   };
 }
@@ -75,8 +75,8 @@ export default async function SharePage({ params }: Props) {
 
   const isExpired = !!meta.expiresAt && new Date(meta.expiresAt).getTime() < Date.now();
   const isPremium = Number(meta.price) > 0;
-  const manifestUrl = apiUrl(`/api/nibshare/${slug}/manifest`);
-  const accessUrl = apiUrl(`/api/nibshare/${slug}/access`);
+  const manifestUrl = apiUrl(`/nibshare/${slug}/manifest`);
+  const accessUrl = apiUrl(`/ns/${slug}`);
   const pageUrl = `${SITE_ORIGIN}/ns/${slug}`;
 
   const jsonLd = {
@@ -104,6 +104,7 @@ export default async function SharePage({ params }: Props) {
       data-nibgate-type={meta.contentType}
       data-nibgate-price={meta.price || ''}
       data-nibgate-path={`/ns/${slug}`}
+      data-nibgate-access={accessUrl}
       data-nibgate-manifest={manifestUrl}
     >
       <link rel="alternate" type="application/json" href={manifestUrl} />

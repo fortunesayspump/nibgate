@@ -138,7 +138,7 @@ The difference between free and paid is only at serve time.
 
 **Paid posts** — `GET /api/blog/posts/:slug` returns a teaser: `isLocked: true` with `body`, `media`, `contentKey`, and `bodyStorageRef` all `null` (`blog.controller.js:28`). Full content only leaves through two proof-gated endpoints:
 
-- `GET /api/nibgate/access?path=…` — runs the x402 pay flow; on success decrypts the body server-side and returns `{ content, media }` where `media` is metadata (`{ photos, hasAudio, audioContentType, hasVideo, hasDocument, documentName, documentSize, documentContentType }`), not file URLs (`nibgate.route.js:73`).
+- `GET /api/<type>/<slug>` (short mirror) and `GET /api/nibgate/access?path=…` — run the x402 pay flow; on success the server decrypts the body and returns `{ content, media }` where `media` is metadata (`{ photos, hasAudio, audioContentType, hasVideo, hasDocument, documentName, documentSize, documentContentType }`), not file URLs (`nibgate.route.js:73`).
 - `GET /api/nibgate/media/:postId/photo?index=N` (or `/video`, `/audio`) — streams one decrypted asset, but only with a valid proof in the `x-nibgate-payment-proof` header (`nibgate.route.js:174`).
 
 Documents follow the same split (`nibgate.route.js:256`, `:271`): free documents render in full without proof; paid documents show a truncated preview (12 rows for sheets, 1600 chars for text) without proof, and the full render/download behind proof.

@@ -49,7 +49,7 @@ Current build (`backend/src/server/nibshare/routes.js`, `controller.js`, `servic
   the share card. The article body is stored as
   `{ type: 'article', markdown, media: [{ storageRef, encryptedKey, contentType, name, size }] }`,
   with `nibgate-embed://N` tokens inline in the markdown. Tokens resolve to
-  `GET /api/nibshare/:slug/media/photo?index=N`, which decrypts and streams the asset
+  `GET /nibshare/:slug/media/photo?index=N`, which decrypts and streams the asset
   (proof-gated on paid shares, open on free ones).
 
 The schema also carries `decryptMode`, `keyProvider`, `lit`/`arweave`/`ipfs` strings,
@@ -95,12 +95,12 @@ Creator: connect wallet -> write -> set price/expiry/whitelist
    -> server encrypts body (AES-GCM, server-generated key)
    -> ciphertext to R2 (nibshare/{id}/body.bin), metadata row created
    -> short link  nibgate.xyz/ns/<slug>
-Viewer (human or agent): open /ns/<slug> (or POST /api/nibshare/:slug/meta -> 402 terms)
+Viewer (human or agent): open /ns/<slug> (or POST /nibshare/:slug/meta -> 402 terms)
    -> pays USDC via x402 (Circle Gateway, eip155:5042002)
-   -> POST /api/nibshare/:slug/unlock (or GET /api/nibshare/:slug/access with proof)
+   -> POST /nibshare/:slug/unlock (or GET /nibshare/:slug/access with proof)
    -> rules checked (active, not expired, whitelisted, paid)
    -> server decrypts and returns body; embedded media streams via
-      GET /api/nibshare/:slug/media/photo?index=N
+      GET /nibshare/:slug/media/photo?index=N
 ```
 
 ## API surface
@@ -108,19 +108,19 @@ Viewer (human or agent): open /ns/<slug> (or POST /api/nibshare/:slug/meta -> 40
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | `/api/uploads/content?encrypted=1` | wallet-signature session | Upload + encrypt media for a share body (images → WebP first) |
-| POST | `/api/nibshare` | wallet-signature session | Create a share (server encrypts body, stores ciphertext in R2) |
-| GET | `/api/nibshare/:slug/meta` | none | Public metadata (title, summary, price, expiry, whitelist flag, view/unlock counts) — never body |
-| GET | `/api/nibshare/:slug/access` | none (proof header for paid) | Server-side body for a session: free shares open, paid shares x402/relay |
-| POST | `/api/nibshare/:slug/unlock` | x402 payment (or `walletAddress` for free shares) | Rules check -> server returns plaintext body |
-| POST | `/api/nibshare/:slug/view` | none | Record a viewer |
-| GET | `/api/nibshare/:slug/media/:kind?index=N` | proof header for paid | Stream one decrypted asset (`photo`/`music`/`video`/`document`) |
-| POST | `/api/nibshare/:slug/entitlements/:wallet/revoke` | owner | Revoke one wallet's entitlement (hard revoke in `server` mode) |
-| DELETE | `/api/nibshare/:slug` | owner | Revoke the share (sets `status=revoked`) and deletes the R2 blob |
-| POST | `/api/nibshare/:slug/reslug` | owner | Rotate the share's slug |
-| POST | `/api/nibshare/gateway/balance` | none | Look up a Gateway balance |
-| GET | `/api/nibshare/mine` | owner | Creator's shares + receipts |
-| GET | `/api/nibshare/dashboard` | owner | Creator analytics: lifetime summary, range + daily time series, per-share breakdown, recent activity |
-| GET | `/api/nibshare/stats` | none | Public platform aggregates (totals, 24h/7d windows, truncated-wallet activity feed) |
+| POST | `/nibshare` | wallet-signature session | Create a share (server encrypts body, stores ciphertext in R2) |
+| GET | `/nibshare/:slug/meta` | none | Public metadata (title, summary, price, expiry, whitelist flag, view/unlock counts) — never body |
+| GET | `/nibshare/:slug/access` | none (proof header for paid) | Server-side body for a session: free shares open, paid shares x402/relay |
+| POST | `/nibshare/:slug/unlock` | x402 payment (or `walletAddress` for free shares) | Rules check -> server returns plaintext body |
+| POST | `/nibshare/:slug/view` | none | Record a viewer |
+| GET | `/nibshare/:slug/media/:kind?index=N` | proof header for paid | Stream one decrypted asset (`photo`/`music`/`video`/`document`) |
+| POST | `/nibshare/:slug/entitlements/:wallet/revoke` | owner | Revoke one wallet's entitlement (hard revoke in `server` mode) |
+| DELETE | `/nibshare/:slug` | owner | Revoke the share (sets `status=revoked`) and deletes the R2 blob |
+| POST | `/nibshare/:slug/reslug` | owner | Rotate the share's slug |
+| POST | `/nibshare/gateway/balance` | none | Look up a Gateway balance |
+| GET | `/nibshare/mine` | owner | Creator's shares + receipts |
+| GET | `/nibshare/dashboard` | owner | Creator analytics: lifetime summary, range + daily time series, per-share breakdown, recent activity |
+| GET | `/nibshare/stats` | none | Public platform aggregates (totals, 24h/7d windows, truncated-wallet activity feed) |
 
 Rules check at unlock time: `status == active AND (expiresAt IS NULL OR now < expiresAt)
 AND (whitelist empty OR payer ∈ whitelist)`.
@@ -137,7 +137,7 @@ Unlock response:
 
 ## Reusing existing Nibgate pieces
 
-- **Payments:** the `POST /api/hub/pay` Circle Gateway x402 middleware pattern
+- **Payments:** the `POST /hub/pay` Circle Gateway x402 middleware pattern
   (`backend/src/server/routes/hub-routes.js`). Nibshare relays the same
   `createGatewayMiddleware` check with `sellerAddress = ownerWallet`,
   `price = NibShare.price`, network `eip155:5042002`
@@ -187,6 +187,6 @@ NIBGATE_FACILITATOR_URL  # Circle Gateway facilitator override
 
 ## Related
 
-- Payments rail: `backend/src/server/routes/hub-routes.js` (`/api/hub/pay`)
+- Payments rail: `backend/src/server/routes/hub-routes.js` (`/hub/pay`)
 - Integrity commitment: `packages/nibgate/src/server/crypto.js` (`contentHashFor`)
 - Schema: `packages/cli/prisma/schema.prisma` (`NibShare`, `NibShareReceipt`, `NibShareEntitlement`)

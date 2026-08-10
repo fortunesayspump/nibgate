@@ -41,7 +41,7 @@ export default function ReputationRating({ resource }: { resource: RatingResourc
           statsUrl: `${apiUrl(`/rating/${resource.id}`)}?subdomain=${siteSubdomain()}`,
           apiBase: apiUrl(""),
           contentId: '0x' + resource.id.replace(/-/g, ''),
-          indexUrl: hubSiteId ? `https://api.nibgate.xyz/api/hub/reputation/ratings/index` : undefined,
+          indexUrl: hubSiteId ? `https://api.nibgate.xyz/hub/reputation/ratings/index` : undefined,
           siteId: hubSiteId || undefined,
           token: hubToken || undefined,
           onRated: (result: any) => {

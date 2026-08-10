@@ -60,7 +60,7 @@ async function get(pathname) {
 }
 
 async function emit(event, payload = {}) {
-  return post('/api/hub/track', {
+  return post('/hub/track', {
     siteId,
     token,
     event,
@@ -98,7 +98,7 @@ await emit('unlock_completed', {
   status: 'verified'
 });
 
-const prepare = await post('/api/hub/reputation/ratings/prepare', {
+const prepare = await post('/hub/reputation/ratings/prepare', {
   siteId,
   token,
   resource,
@@ -138,7 +138,7 @@ const txHash = await walletClient.sendTransaction({
 const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 if (receipt.status !== 'success') throw new Error(`Rating tx failed: ${txHash}`);
 
-const indexed = await post('/api/hub/reputation/ratings/index', {
+const indexed = await post('/hub/reputation/ratings/index', {
   siteId,
   token,
   txHash,
@@ -147,11 +147,11 @@ const indexed = await post('/api/hub/reputation/ratings/index', {
   path: resource.path
 });
 
-const explore = await get('/api/hub/explore/content?q=Agent%20economy');
+const explore = await get('/hub/explore/content?q=Agent%20economy');
 const item = (explore.content || []).find((entry) => entry.externalId === resource.id || entry.websiteId === siteId);
-const sites = await get('/api/hub/reputation/leaderboards?type=sites&limit=50');
+const sites = await get('/hub/reputation/leaderboards?type=sites&limit=50');
 const site = (sites.items || []).find((entry) => entry.id === siteId);
-const creators = await get('/api/hub/reputation/leaderboards?type=creators&limit=50');
+const creators = await get('/hub/reputation/leaderboards?type=creators&limit=50');
 const creator = (creators.items || []).find((entry) => entry.walletAddress?.toLowerCase?.() === '0x558e7bfaf2cf1a494f44e50d92431afc060c9d12' || entry.name === 'Nibgate Studio');
 
 console.log(JSON.stringify({

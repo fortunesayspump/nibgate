@@ -5,7 +5,7 @@ import { getBlob, unwrapKey } from '@nibgate/sdk/server';
 
 // Nibshare is a PRIVATE sharing product. Content expires within 7 days, is revocable,
 // and lives on Nibgate's R2 (no creator-verified domain behind it).
-// Do NOT emit its events to /api/hub/evt, register content in hub discovery/ledger,
+// Do NOT emit its events to /hub/evt, register content in hub discovery/ledger,
 // or feed it into on-chain reputation. The activity bell reads only this DB.
 
 export const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';

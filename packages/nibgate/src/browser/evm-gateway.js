@@ -12,7 +12,7 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
   return gateway.createCircleGatewayBrowserAdapter(options);
 }
 
-const HOSTED_PAY_URL = 'https://api.nibgate.xyz/api/hub/pay';
+const HOSTED_PAY_URL = 'https://api.nibgate.xyz/hub/pay';
 
 function resolveAccessPath(resource, options) {
   if (options.hosted || options.accessPath === 'hosted') return HOSTED_PAY_URL;

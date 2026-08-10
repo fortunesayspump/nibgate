@@ -23,18 +23,18 @@ const HUB_PAGES: Array<[string, string]> = [
 ];
 
 const API_ENDPOINTS: Array<[string, string]> = [
-  ["https://api.nibgate.xyz/api/hub/explore/content?limit=100", "Explore feed of verified content with title, type, price, domain, and reputation signals."],
-  ["https://api.nibgate.xyz/api/hub/ledger?limit=100", "Public ledger of recent views, unlocks, payments, and ratings."],
-  ["https://api.nibgate.xyz/api/hub/stats", "Platform totals for creators, sites, content, views, unlocks, and revenue."],
-  ["https://api.nibgate.xyz/api/hub/reputation/leaderboards", "Ranked creators, sites, and content by reputation score."],
-  ["https://api.nibgate.xyz/api/hub/sitemap/content", "All content URLs across verified sites."],
-  ["https://api.nibgate.xyz/api/openapi.json", "Machine-readable OpenAPI specification for the public hub API."],
+  ["https://api.nibgate.xyz/hub/explore/content?limit=100", "Explore feed of verified content with title, type, price, domain, and reputation signals."],
+  ["https://api.nibgate.xyz/hub/ledger?limit=100", "Public ledger of recent views, unlocks, payments, and ratings."],
+  ["https://api.nibgate.xyz/hub/stats", "Platform totals for creators, sites, content, views, unlocks, and revenue."],
+  ["https://api.nibgate.xyz/hub/reputation/leaderboards", "Ranked creators, sites, and content by reputation score."],
+  ["https://api.nibgate.xyz/hub/sitemap/content", "All content URLs across verified sites."],
+  ["https://api.nibgate.xyz/openapi.json", "Machine-readable OpenAPI specification for the public hub API."],
   ["https://api.nibgate.xyz/mcp", "Model Context Protocol server exposing Nibgate discovery tools to AI agents."],
 ];
 
 async function topContent(): Promise<ExploreContent[]> {
   try {
-    const res = await fetch(apiUrl("/api/hub/explore/content?limit=20"), { next: { revalidate: 3600 } });
+    const res = await fetch(apiUrl("/hub/explore/content?limit=20"), { next: { revalidate: 3600 } });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data.content) ? data.content : [];

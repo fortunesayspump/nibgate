@@ -15,7 +15,7 @@ export const arcTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://api.nibgate.xyz/api/rpc'],
+      http: ['https://api.nibgate.xyz/rpc'],
     },
   },
   blockExplorers: {
@@ -29,7 +29,7 @@ export const arcTestnet = defineChain({
 
 export const appKitProjectId = '09580756f3c5f13c5f1aeb2faa9b1696'
 
-const rpcUrl = 'https://api.nibgate.xyz/api/rpc'
+const rpcUrl = 'https://api.nibgate.xyz/rpc'
 
 const connectors = [
   injected(),

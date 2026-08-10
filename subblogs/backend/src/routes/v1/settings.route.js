@@ -103,7 +103,7 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     const hubApi = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
     const domain = `${req.site.subdomain}.nibgate.xyz`;
 
-    const hubRes = await fetch(`${hubApi}/api/hub/blog/link/verify`, {
+    const hubRes = await fetch(`${hubApi}/hub/blog/link/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ linkToken, domain, name: req.site.name }),
@@ -138,7 +138,7 @@ router.post('/link-hub/disconnect', authenticate, async (req, res, next) => {
     const hubApi = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
 
     if (settings.hubSiteId && settings.hubToken) {
-      const hubRes = await fetch(`${hubApi}/api/hub/blog/link/disconnect`, {
+      const hubRes = await fetch(`${hubApi}/hub/blog/link/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteId: settings.hubSiteId, verifyToken: settings.hubToken }),

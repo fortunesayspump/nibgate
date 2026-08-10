@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const match = request.nextUrl.pathname.match(/^\/ns\/([A-Za-z0-9_-]{1,64})\/?$/);
   const response = NextResponse.next();
   if (match) {
-    const manifestUrl = `${API_BASE.replace(/\/+$/, '')}/api/nibshare/${match[1]}/manifest`;
+    const manifestUrl = `${API_BASE.replace(/\/+$/, '')}/nibshare/${match[1]}/manifest`;
     response.headers.set('Link', `<${manifestUrl}>; rel="alternate"; type="application/json"`);
   }
   return response;

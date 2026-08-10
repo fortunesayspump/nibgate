@@ -64,7 +64,7 @@ export default function ContentsPage() {
     if (showLoading) setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/hub/dashboard/content");
+      const res = await fetch("/hub/dashboard/content");
       const data = await readApiJson(res);
       if (!data.success) throw new Error(data.error || "Failed to load content");
       setContent(data.content || []);

@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import type { ContentMedia } from "../types";
 
-const UPLOAD_URL = "/api/uploads/content";
+const UPLOAD_URL = "/uploads/content";
 const VIDEO_RE = /\.(mp4|webm|mov|mkv)$/i;
 
 interface VideoUploaderProps {

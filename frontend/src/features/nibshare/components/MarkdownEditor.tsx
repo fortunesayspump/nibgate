@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import type { MediaItem } from "../lib/content";
 
-const UPLOAD_URL = "/api/uploads/content?encrypted=1";
+const UPLOAD_URL = "/uploads/content?encrypted=1";
 
 const iconClass = "w-4 h-4";
 const btn = "inline-flex items-center justify-center w-7 h-7 text-xs border rounded cursor-pointer font-medium leading-none transition-all hover:brightness-90";

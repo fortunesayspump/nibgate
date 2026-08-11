@@ -21,6 +21,7 @@ import {
   Maximize2, Minimize2,
 } from "lucide-react";
 import type { MediaItem } from "../lib/content";
+import { uploadJson } from "../lib/upload";
 
 const UPLOAD_URL = "/uploads/content?encrypted=1";
 
@@ -114,13 +115,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(UPLOAD_URL, {
-        method: "POST",
-        credentials: "include",
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const data = await uploadJson(UPLOAD_URL, fd);
       const item: EmbeddedMedia = {
         storageRef: data.storageRef,
         encryptedKey: data.encryptedKey,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppKitAccount, useDisconnect as useAppKitDisconnect } from '@reown/appkit/react'
+import { useDisconnect as useAppKitDisconnect } from '@reown/appkit/react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useAccount, useBalance, useChainId, useDisconnect } from 'wagmi'
@@ -117,14 +117,12 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
 
 export function WalletButton() {
   const { connect } = useNibgateConnect()
-  const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
   const { address, chainId, isConnected } = useAccount()
   const activeChainId = useChainId()
   const { disconnect } = useDisconnect()
   const { disconnect: disconnectAppKit } = useAppKitDisconnect()
-  const appKitAddress = isHexAddress(appKitAccount.address) ? appKitAccount.address : undefined
-  const displayAddress = address ?? appKitAddress
-  const isWalletConnected = isConnected || Boolean(appKitAccount.isConnected && appKitAddress)
+  const displayAddress = isConnected ? address : undefined
+  const isWalletConnected = isConnected
   const connectedChainId = getConnectedChainId(chainId, activeChainId)
   const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
@@ -227,12 +225,10 @@ export function WalletButton() {
 }
 
 export function WalletButtonMobile() {
-  const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
   const { address, chainId, isConnected } = useAccount()
   const activeChainId = useChainId()
-  const appKitAddress = isHexAddress(appKitAccount.address) ? appKitAccount.address : undefined
-  const displayAddress = address ?? appKitAddress
-  const isWalletConnected = isConnected || Boolean(appKitAccount.isConnected && appKitAddress)
+  const displayAddress = isConnected ? address : undefined
+  const isWalletConnected = isConnected
   const connectedChainId = getConnectedChainId(chainId, activeChainId)
   const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)

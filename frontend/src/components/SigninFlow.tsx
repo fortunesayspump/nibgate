@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
+import { useAppKit } from "@reown/appkit/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useSignMessage } from "wagmi";
@@ -14,10 +14,6 @@ type AuthUser = {
 };
 
 type AuthState = "checking" | "ready" | "connecting" | "signing" | "signed-in" | "error";
-
-function isHexAddress(address?: string): address is `0x${string}` {
-  return /^0x[a-fA-F0-9]{40}$/.test(address ?? "");
-}
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -37,15 +33,13 @@ export default function SigninFlow() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/dashboard/profile";
   const { open } = useAppKit();
-  const appKitAccount = useAppKitAccount({ namespace: "eip155" });
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [status, setStatus] = useState<AuthState>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState("");
 
-  const appKitAddress = isHexAddress(appKitAccount.address) ? appKitAccount.address : undefined;
-  const displayAddress = address ?? appKitAddress;
+  const displayAddress = isConnected ? address : undefined;
   const isBusy = status === "checking" || status === "connecting" || status === "signing";
 
   const buttonLabel = useMemo(() => {

@@ -16,7 +16,7 @@ import { FiList } from 'react-icons/fi';
 type AuthState = 'checking' | 'connect' | 'auth' | 'form';
 
 export default function ShareCreatePage() {
-  const { connect, busy: connecting, error: connectError, hasInjected } = useNibgateConnect();
+  const { connect, busy: connecting, error: connectError } = useNibgateConnect();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [step, setStep] = useState<AuthState>('checking');
@@ -93,12 +93,6 @@ export default function ShareCreatePage() {
       ) : step === 'connect' ? (
         <>
           {connectError && <ShareError>{connectError}</ShareError>}
-          {!hasInjected && (
-            <ShareError>
-              No wallet was detected in this browser. If you use the Mises browser, open its wallet and enable web3
-              access, then reload this page. You can also use MetaMask or any Ethereum-compatible wallet.
-            </ShareError>
-          )}
           <ShareIntro>Connect your wallet to start creating.</ShareIntro>
           <ShareBtn onClick={() => void connect()} style={{ marginTop: '2rem' }} disabled={connecting}>
             {connecting ? 'Connecting...' : 'Connect wallet'}

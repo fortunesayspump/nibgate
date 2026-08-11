@@ -20,6 +20,7 @@ import {
   Link2, Image, Code, Code2, Undo2, Redo2, Table2, CheckSquare,
   Maximize2, Minimize2,
 } from "lucide-react";
+import { uploadJson } from "@/lib/upload";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -121,13 +122,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
       const token = localStorage.getItem("token");
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/upload`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const data = await uploadJson(`${API}/upload`, fd, token ? { Authorization: `Bearer ${token}` } : {});
       if (!data.storageRef) throw new Error("Upload failed");
       const item: EmbeddedMediaItem = {
         storageRef: data.storageRef,

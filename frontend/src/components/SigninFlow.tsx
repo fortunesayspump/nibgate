@@ -124,8 +124,6 @@ export default function SigninFlow() {
         throw new Error(verifyData.details || verifyData.error || "Wallet signature could not be verified.");
       }
 
-      window.nibgateAuthenticated = true;
-      window.nibgateWalletAddress = displayAddress;
       setUser(verifyData.user);
       setStatus("signed-in");
       router.replace(nextPath);

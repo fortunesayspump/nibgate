@@ -1,18 +1,14 @@
 'use client'
 
-import { useAppKit, useAppKitAccount, useDisconnect as useAppKitDisconnect } from '@reown/appkit/react'
+import { useAppKitAccount, useDisconnect as useAppKitDisconnect } from '@reown/appkit/react'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAccount, useBalance, useChainId, useDisconnect } from 'wagmi'
 import { arcTestnet } from '../lib/wagmi'
 import { getConnectedChainId, isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT } from '../lib/hubSession'
 import { useNibgateConnect } from '../lib/useNibgateConnect'
-
-declare global {
-  interface Window { nibgateWalletAddress?: string; nibgateAuthenticated?: boolean }
-}
 
 function shortAddress(address: `0x${string}`) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -163,12 +159,6 @@ export function WalletButton() {
   }, [isWalletConnected, displayAddress, isWrongChain])
 
   useEffect(() => {
-    if (isConnectedAny && effectiveAddress) {
-      window.nibgateWalletAddress = effectiveAddress
-    }
-  }, [isConnectedAny, effectiveAddress])
-
-  useEffect(() => {
     let cancelled = false
     getHubSessionAddress().then((addr) => { if (!cancelled) setSessionAddress(addr) })
     const clear = () => setSessionAddress(null)
@@ -184,13 +174,11 @@ export function WalletButton() {
       if (t.hasAttribute('data-wallet-connect')) {
         e.preventDefault()
         if (t.getAttribute('data-connected') !== 'true') {
-          sessionStorage.setItem('nibgate-wants-redirect', 'true')
           void connect()
         }
       } else if (t.hasAttribute('data-wallet-disconnect')) {
         e.preventDefault()
         try { fetch('/api/auth/logout', { method: 'POST' }) } catch {}
-        window.nibgateAuthenticated = false
         window.dispatchEvent(new Event(HUB_SESSION_CLEARED_EVENT))
         setSessionAddress(null)
         disconnect()
@@ -239,12 +227,9 @@ export function WalletButton() {
 }
 
 export function WalletButtonMobile() {
-  const { open } = useAppKit()
   const appKitAccount = useAppKitAccount({ namespace: 'eip155' })
   const { address, chainId, isConnected } = useAccount()
   const activeChainId = useChainId()
-  const { disconnect } = useDisconnect()
-  const { disconnect: disconnectAppKit } = useAppKitDisconnect()
   const appKitAddress = isHexAddress(appKitAccount.address) ? appKitAccount.address : undefined
   const displayAddress = address ?? appKitAddress
   const isWalletConnected = isConnected || Boolean(appKitAccount.isConnected && appKitAddress)
@@ -280,12 +265,6 @@ export function WalletButtonMobile() {
       setGatewayBalance(0)
     })
   }, [isWalletConnected, displayAddress, isWrongChain])
-
-  useEffect(() => {
-    if (isConnectedAny && effectiveAddress) {
-      window.nibgateWalletAddress = effectiveAddress
-    }
-  }, [isConnectedAny, effectiveAddress])
 
   useEffect(() => {
     let cancelled = false

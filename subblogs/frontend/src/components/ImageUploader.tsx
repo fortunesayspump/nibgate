@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { apiUrl } from "@/lib/api";
+import { uploadJson } from "@/lib/upload";
 
 interface MediaItem {
   url?: string;
@@ -50,13 +51,11 @@ export default function ImageUploader({
         const token = localStorage.getItem("token");
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(apiUrl(encrypted ? "/upload?encrypted=1" : "/upload"), {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: fd,
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Upload failed");
+        const data = await uploadJson(
+          apiUrl(encrypted ? "/upload?encrypted=1" : "/upload"),
+          fd,
+          token ? { Authorization: `Bearer ${token}` } : {}
+        );
 
         const item: MediaItem = encrypted
           ? { storageRef: data.storageRef, encryptedKey: data.encryptedKey, contentType: data.contentType, caption: "" }

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import type { ContentMedia } from "../types";
+import { uploadJson } from "../lib/upload";
 
 const UPLOAD_URL = "/uploads/content";
 const VIDEO_RE = /\.(mp4|webm|mov|mkv)$/i;
@@ -35,13 +36,7 @@ export default function VideoUploader({ onUpload, existingName }: VideoUploaderP
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${UPLOAD_URL}?encrypted=1`, {
-        method: "POST",
-        credentials: "include",
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const data = await uploadJson(`${UPLOAD_URL}?encrypted=1`, fd);
       onUpload({ storageRef: data.storageRef, encryptedKey: data.encryptedKey, contentType: data.contentType, name: data.name, size: data.size });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Upload failed");

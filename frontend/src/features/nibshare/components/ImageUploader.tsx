@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import type { ContentMedia } from "../types";
+import { uploadJson } from "../lib/upload";
 
 const UPLOAD_URL = "/uploads/content";
 
@@ -43,13 +44,7 @@ export default function ImageUploader({
       try {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(`${UPLOAD_URL}${encrypted ? "?encrypted=1" : ""}`, {
-          method: "POST",
-          credentials: "include",
-          body: fd,
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Upload failed");
+        const data = await uploadJson(`${UPLOAD_URL}${encrypted ? "?encrypted=1" : ""}`, fd);
 
         const item: ContentMedia = encrypted
           ? { storageRef: data.storageRef, encryptedKey: data.encryptedKey, contentType: data.contentType, previewUrl: data.previewUrl, caption: "" }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { uploadJson } from "@/lib/upload";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -33,13 +34,11 @@ export default function DocumentUploader({ onUpload, existingName, encrypted = f
       const token = localStorage.getItem("token");
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${API}/upload${encrypted ? "?encrypted=1" : ""}`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const data = await uploadJson(
+        `${API}/upload${encrypted ? "?encrypted=1" : ""}`,
+        fd,
+        token ? { Authorization: `Bearer ${token}` } : {}
+      );
       if (encrypted) {
         onUpload({ storageRef: data.storageRef, encryptedKey: data.encryptedKey, contentType: data.contentType, name: data.name, size: data.size });
       } else {

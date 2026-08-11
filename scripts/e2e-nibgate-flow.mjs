@@ -163,8 +163,12 @@ const explore = await get('/hub/explore/content?q=E2E');
 const item = (explore.content || []).find((entry) => entry.externalId === resource.id);
 if (!item) throw new Error('E2E content was not discovered in explore API.');
 if (!item.receipts) throw new Error('E2E unlock receipt was not recorded.');
-if (!item.ratings) throw new Error('E2E signed rating was not recorded.');
-if (Number(item.reputationStars || 0) < 4.5) throw new Error(`Expected signed rating stars, got ${item.reputationStars}`);
+const storedRating = await db.contentRating.findFirst({
+  where: { content: { externalId: resource.id }, walletAddress: buyer.address.toLowerCase() }
+});
+if (!storedRating) throw new Error('E2E signed rating was not recorded in the database.');
+if (item.ratings) throw new Error(`Expected signed rating to be excluded from public ratings, got ${item.ratings}`);
+if (item.reputationStars) throw new Error(`Expected signed rating to be excluded from reputation, got ${item.reputationStars}`);
 
 console.log(JSON.stringify({
   ok: true,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { uploadJson } from "@/lib/upload";
 
 type Profile = {
   id: string;
@@ -126,14 +127,9 @@ export default function ProfilePage() {
 
   async function uploadImage(file: File, target: "avatar" | "cover") {
     const dataUrl = await imageFileToDataUrl(file);
-    const res = await fetch("/uploads/profile-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target, image: dataUrl }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || "Upload failed");
-    return data.url as string;
+    const data = await uploadJson<{ success: boolean; url: string; error?: string }>("/uploads/profile-image", { target, image: dataUrl });
+    if (!data.success || !data.url) throw new Error(data.error || "Upload failed");
+    return data.url;
   }
 
   async function saveProfile() {
@@ -144,25 +140,20 @@ export default function ProfilePage() {
       const nextAvatarUrl = pendingAvatarFile ? await uploadImage(pendingAvatarFile, "avatar") : draftAvatarUrl;
       const nextCoverUrl = pendingCoverFile ? await uploadImage(pendingCoverFile, "cover") : draftCoverUrl;
 
-      const res = await fetch("/hub/dashboard/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: draftUsername,
-          bio: draftBio,
-          avatarUrl: nextAvatarUrl,
-          coverUrl: nextCoverUrl,
-          websiteUrl: draftWebsiteUrl,
-          twitterUrl: draftTwitterUrl,
-          instagramUrl: draftInstagramUrl,
-          tiktokUrl: draftTiktokUrl,
-          youtubeUrl: draftYoutubeUrl,
-        }),
-      });
-      const data = await res.json();
+      const data = await uploadJson<{ success: boolean; user?: Partial<Profile>; profile?: Partial<Profile>; error?: string }>("/hub/dashboard/profile", {
+        username: draftUsername,
+        bio: draftBio,
+        avatarUrl: nextAvatarUrl,
+        coverUrl: nextCoverUrl,
+        websiteUrl: draftWebsiteUrl,
+        twitterUrl: draftTwitterUrl,
+        instagramUrl: draftInstagramUrl,
+        tiktokUrl: draftTiktokUrl,
+        youtubeUrl: draftYoutubeUrl,
+      }, "PUT");
       if (!data.success) throw new Error(data.error || "Failed to save profile");
-      const u = data.user || data.profile || {};
-      setProfile((current) => ({ ...(current || u), ...u }));
+      const u = (data.user || data.profile || {}) as Partial<Profile>;
+      setProfile((current) => ({ ...(current || {}), ...u } as Profile));
       setUsername(u.username || "");
       setBio(u.bio || "");
       setAvatarUrl(u.avatarUrl || "");

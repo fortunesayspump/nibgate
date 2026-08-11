@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, Clipboard, ExternalLink, Globe2, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { apiBaseUrl } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
+import { uploadJson } from "@/lib/upload";
 
 type DashboardSite = {
   id: string;
@@ -250,8 +251,7 @@ export default function SitesPage() {
     setLinkError("");
     setLinkCodeDisplay("");
     try {
-      const res = await fetch(`/hub/blog/link/generate`, { method: "POST", credentials: "include" });
-      const data = await res.json();
+      const data = await uploadJson<{ success: boolean; linkToken: string; error?: string }>("/hub/blog/link/generate");
       if (!data.success) throw new Error(data.error || "Failed to generate code");
       setLinkCodeDisplay(data.linkToken);
     } catch (err) {

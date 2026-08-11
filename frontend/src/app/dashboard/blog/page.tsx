@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Edit3, Loader2, Plus, Trash2, Upload, ExternalLink } from "lucide-react";
+import { uploadJson } from "@/lib/upload";
 
 type BlogPost = {
   id: string;
@@ -325,12 +326,7 @@ export default function DashboardBlogPage() {
                   const reader = new FileReader();
                   reader.readAsDataURL(file);
                   reader.onload = async () => {
-                    const res = await fetch("/uploads/profile-image", {
-                      method: "POST", credentials: "include",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ target: "cover", image: reader.result }),
-                    });
-                    const data = await res.json();
+                    const data = await uploadJson<{ success?: boolean; url?: string; error?: string }>("/uploads/profile-image", { target: "cover", image: reader.result });
                     if (data.url) setField("coverUrl", data.url);
                     else throw new Error(data.error || "Upload failed");
                   };

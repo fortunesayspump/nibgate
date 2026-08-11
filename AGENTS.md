@@ -2,7 +2,7 @@
 
 ## Objective
 - Wallet Standard rollout is complete (committed, published, pushed).
-- Current task: diagnosed and fixed the share cover-upload error "the string did not match the expected pattern". Fix applied, both frontends build green, e2e verified green, DB cleaned, not yet committed.
+- Current task: diagnosed and fixed the share cover-upload error "the string did not match the expected pattern". Fix committed (`cea4207`); cleanup + wallet-connect audit follow-ups filed (`FOLLOWUPS.md`), cleanup commits ready.
 
 ## Important Details
 - "The string did not match the expected pattern" is NOT a backend/library validation message. It is **WebKit's generic `DOMException` SyntaxError** (DOM Exception 12, `SYNTAX_ERR`) — the exact string is defined in `Source/WebCore/dom/DOMException.cpp`. Safari/iOS WebKit throws it when a web-API string argument fails validation. In fetch code the classic trigger is `Response.json()` on a non-JSON body (HTML error/proxy page, redirect to login). Confirmed by: repo-wide grep (no literal in source), node_modules grep (absent from zod 4.4.3 / zod 3.22 / joi / prisma 5.22 runtime), MDN + TrackJS + StackOverflow.
@@ -18,27 +18,37 @@
 ### Completed
 - Diagnosed the Safari cover-upload error to its exact source (WebKit DOMException SyntaxError / `Response.json()` on non-JSON), confirmed no repo/node_modules string matches.
 - Added `frontend/src/features/nibshare/lib/upload.ts` (`uploadJson` helper) and migrated all five share uploaders to it. Same for subblogs (`subblogs/frontend/src/lib/upload.ts` + five uploaders).
-- Verified: `pnpm --filter @nibgate/frontend build` passes AND `subblogs/frontend` `npm run build` passes (TypeScript + Next clean).
+- **COMMITTED as `cea4207`** (`fix(share): harden upload responses against non-JSON bodies (Safari SyntaxError)`) incl. the e2e assertion fix + AGENTS.md. NOT yet pushed.
+- Centralized the hub helper into `frontend/src/lib/upload.ts` (supports FormData + JSON + bodyless, optional method) with the nibshare feature lib as a typed re-export; hardened remaining dashboard write paths: profile upload + PUT save, blog cover upload, sites link-generate. Build green.
+- Cleaned dead code/deps: removed `ethers@5`, `siwe@3`, `@web3modal/ethers5`, `porto`, `@metamask/connect-evm` from `frontend/package.json`; removed dead `window.nibgateWalletAddress`/`nibgateAuthenticated` writes + `sessionStorage 'nibgate-wants-redirect'` + unused `useAppKit`/`useRef`/disconnect hooks in `WalletButton`.
+- Verified: `pnpm --filter @nibgate/frontend build` passes AND `subblogs/frontend` `npm run build` passes (TypeScript + Next clean). Lint: still exactly the pre-existing 46 errors / 59 warnings, ZERO from changed files.
 - SDK tests pass (`pnpm --filter @nibgate/sdk test`, 18/18). Temp `upload-json.test.js` (6 vitest tests importing the real helper files) proved the fix against non-JSON bodies — removed after verification.
 - Live local backend boot verified upload routes always answer JSON (401 from `requireAuth`). Local Postgres `nibgate_hub` up.
 - Investigated the in-repo e2e failure — NOT a regression, stale assertion vs `3349bb2` onchain-only policy (see Important Details). Updated `scripts/e2e-nibgate-flow.mjs:166` to assert signed rating recorded in DB but excluded from public reputation; re-run **passes**.
 - Cleaned local Postgres: removed e2e site/content/ratings/receipts/metrics/user rows. Removed temp artifacts (`backend/boot-temp.mjs`, `packages/nibgate/test/upload-json.test.js`, `/tmp/fake.png`, log).
+- Filed wallet-connect audit follow-ups in `FOLLOWUPS.md` (P1–P8: mobile sign-in chain guard, subblogs/SDK/widget mobile pairing, raw eth_signTypedData_v4 in widget + GatewayWallet, widget chain metadata, mobile header handler, SDK unlock UX, pre-existing lint debt, read-only GET res.json()).
 
 ### Active
-- (none — fix is in; awaiting user decision on commit/deploy)
+- (none — awaiting user decision on pushing `cea4207` and committing the cleanup work)
 
 ### Blocked
 - (none)
 
 ## Next Move
-1. Offer to commit (suggested message: `fix(share): harden upload responses against non-JSON bodies (Safari SyntaxError)`). Now includes the `scripts/e2e-nibgate-flow.mjs` assertion fix; AGENTS.md updated (uncommitted). Per policy, do not commit unless asked.
-2. Optional: apply the same defensive parse to `frontend/src/app/dashboard/profile/page.tsx:134` (`/uploads/profile-image`) and other bare `res.json()` spots if the user wants full coverage.
+1. Offer to commit cleanup: (a) `chore(frontend): remove dead deps + dead wallet globals`, (b) `fix(frontend): centralize uploadJson and harden dashboard write paths`, (c) `docs: wallet-connect follow-ups`. Then push `cea4207` + the new commits.
+2. Work `FOLLOWUPS.md` P1–P8 in priority order.
 3. (Wallet rollout recap, previously established): everything wallet-side is now on the standard — hub SIWE sign-in, SDK unlock/rating embeds, subblogs `GatewayWallet`, widget.js, shared relays — via published `@nibgate/wallet@0.1.0` + `@nibgate/sdk@0.4.5`.
 
 ## Relevant Files
-- `frontend/src/features/nibshare/lib/upload.ts` — NEW shared `uploadJson` helper (defensive text→parse, throws `data.error`).
-- `frontend/src/features/nibshare/components/ImageUploader.tsx` (cover), `AudioUploader.tsx`, `VideoUploader.tsx`, `DocumentUploader.tsx`, `MarkdownEditor.tsx` — migrated to `uploadJson`.
+- `frontend/src/lib/upload.ts` — NEW shared `uploadJson` (defensive text→parse, throws `data.error`; FormData/JSON/bodyless, optional method).
+- `frontend/src/features/nibshare/lib/upload.ts` — typed re-export of `uploadJson` with nibshare `UploadResponse`.
+- `frontend/src/features/nibshare/components/{ImageUploader,AudioUploader,VideoUploader,DocumentUploader,MarkdownEditor}.tsx` + `subblogs/frontend/src/components/{...}.tsx` — migrated to `uploadJson`.
+- `subblogs/frontend/src/lib/upload.ts` — subblogs `uploadJson` (Bearer header passthrough).
+- `frontend/src/app/dashboard/{profile,blog,sites}/page.tsx` — write paths hardened via `uploadJson`.
+- `frontend/src/components/{WalletButton,SigninFlow}.tsx` — dead globals removed.
+- `frontend/package.json` — dead deps removed.
+- `FOLLOWUPS.md` — wallet-connect audit follow-ups (P1–P8) + closed items.
 - `frontend/src/features/nibshare/api.ts` — `nibshareApi.request` already text/parse-safe (reference pattern).
-- `frontend/src/features/nibshare/types.ts:120` — `ContentMedia` type used by `UploadResponse`.
+- `frontend/src/features/nibshare/types.ts:120` — `ContentMedia` type used by nibshare `UploadResponse`.
 - `backend/src/server/routes/upload-routes.js` — `/uploads/profile-image` (line 87), `/uploads/content` (line 124); always JSON.
 - `packages/internal/src/auth.js:135` — `requireAuth` 401 JSON.

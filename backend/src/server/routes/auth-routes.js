@@ -17,7 +17,7 @@ export function registerAuthRoutes(app) {
     try {
       const { message, signature } = req.body;
       const expectedNonce = req.cookies.auth_nonce;
-      const expectedDomain = req.headers['x-forwarded-host'] || req.headers.host;
+      const expectedDomain = req.body?.domain || req.headers['x-forwarded-host'] || req.headers.host;
 
       if (!expectedNonce) {
         return res.status(400).json({ error: 'Session expired. Please request a new nonce.' });

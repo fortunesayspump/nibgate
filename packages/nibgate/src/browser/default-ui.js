@@ -79,7 +79,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   const unlockSVG = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
 
   card.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;max-width:580px;margin:0 auto;padding:40px 52px">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;max-width:580px;margin:0 auto;padding:clamp(32px, 8vw, 52px)">
       <div id="nibgate-lottie" style="width:165px;height:168px;margin-bottom:24px"></div>
       <div style="font-size:50px;font-weight:700;letter-spacing:-.03em;color:${theme.fg};margin-bottom:12px">${esc(resource.price)} USDC</div>
       <div style="font-size:21px;color:${theme.muted};margin-bottom:48px">Pay to unlock this content</div>

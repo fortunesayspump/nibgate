@@ -257,6 +257,21 @@ export function WalletButtonMobile() {
   const [selectedToken, setSelectedToken] = useState<'native' | 'gateway'>('native')
   const [gatewayBalance, setGatewayBalance] = useState(0)
   const [bridgeOpen, setBridgeOpen] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<'balance' | 'wallet' | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!openDropdown) return
+    function onDown(e: MouseEvent | TouchEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpenDropdown(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('touchstart', onDown)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('touchstart', onDown)
+    }
+  }, [openDropdown])
 
   const nativeNum = nativeBalance ? Number(nativeBalance.value) / 10 ** nativeBalance.decimals : 0
   const nativeDisplay = fmt(nativeNum) + ' USDC'
@@ -285,16 +300,19 @@ export function WalletButtonMobile() {
     return () => { cancelled = true; window.removeEventListener(HUB_SESSION_CLEARED_EVENT, clear); window.removeEventListener(HUB_SESSION_UPDATED_EVENT, refresh) }
   }, [])
 
+  const chevron = <span style={{ fontSize: 10, opacity: 0.55, marginLeft: 8 }}>▾</span>
+
   return (
-    <>
+    <div ref={rootRef} style={{ width: '100%' }}>
       <div className="nibgate-wallet-container" data-balance-container style={{ width: '100%' }}>
-        <button type="button" className="nibgate-header-mobile-login" style={{ width: '100%', display: isWalletConnected ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }} data-balance-text data-selected-token={selectedToken} data-native={nativeDisplay} data-gateway={gatewayDisplay}>
+        <button type="button" className="nibgate-header-mobile-login" onClick={() => setOpenDropdown(openDropdown === 'balance' ? null : 'balance')} style={{ width: '100%', display: isWalletConnected ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center' }} data-balance-text data-selected-token={selectedToken} data-native={nativeDisplay} data-gateway={gatewayDisplay}>
           {displayBalance}
+          {isWalletConnected ? chevron : null}
         </button>
-        <div className="nibgate-wallet-dropdown mobile-dropdown" data-balance-dropdown style={{ display: 'none' }}>
-          <button type="button" className="dropdown-item" data-token-select="native" style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{arcTestnet.nativeCurrency.symbol}</button>
-          <button type="button" className="dropdown-item" data-token-select="gateway" style={{ fontWeight: 500, color: selectedToken === 'gateway' ? 'var(--nib-teal)' : '' }}>Gateway</button>
-          <button type="button" className="dropdown-item" data-bridge-open style={{ fontWeight: 500 }}>Bridge</button>
+        <div className="nibgate-wallet-dropdown mobile-dropdown" data-balance-dropdown style={{ display: openDropdown === 'balance' ? 'flex' : 'none' }}>
+          <button type="button" className="dropdown-item" data-token-select="native" onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{arcTestnet.nativeCurrency.symbol}</button>
+          <button type="button" className="dropdown-item" data-token-select="gateway" onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500, color: selectedToken === 'gateway' ? 'var(--nib-teal)' : '' }}>Gateway</button>
+          <button type="button" className="dropdown-item" data-bridge-open onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500 }}>Bridge</button>
         </div>
       </div>
 
@@ -307,19 +325,20 @@ export function WalletButtonMobile() {
           data-address={effectiveAddress || ''}
           onClick={() => {
             if (busy) return
-            if (isWalletConnected && !sessionAddr) void signIn()
-            else if (isConnectedAny && effectiveAddress) return
-            else void connect()
+            if (isWalletConnected && !sessionAddr) { void signIn(); return }
+            if (isConnectedAny && effectiveAddress) { setOpenDropdown(openDropdown === 'wallet' ? null : 'wallet'); return }
+            void connect()
           }}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : status === 'error' ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
+          {isConnectedAny && effectiveAddress ? chevron : null}
         </button>
         {status === 'error' && error ? <span className="nibgate-wallet-error">{error}</span> : null}
         {isConnectedAny && effectiveAddress ? (
-          <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: 'none' }}>
-            <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
-            <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect>Disconnect</button>
+          <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: openDropdown === 'wallet' ? 'flex' : 'none' }}>
+            <Link href="/dashboard" className="dropdown-item" onClick={() => setOpenDropdown(null)}>Dashboard</Link>
+            <button type="button" className="dropdown-item dropdown-disconnect" data-wallet-disconnect onClick={() => setOpenDropdown(null)}>Disconnect</button>
           </div>
         ) : null}
       </div>
@@ -327,6 +346,6 @@ export function WalletButtonMobile() {
       {bridgeOpen && displayAddress && (
         <GatewayBridgeModal address={displayAddress} gatewayBal={gatewayBalance} walletBal={nativeNum} onClose={() => setBridgeOpen(false)} />
       )}
-    </>
+    </div>
   )
 }

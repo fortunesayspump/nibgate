@@ -351,9 +351,11 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
         flexDirection: 'column',
         alignItems: 'center',
         textAlign: 'center',
+        boxSizing: 'border-box',
+        width: '100%',
         maxWidth: 580,
         margin: '0 auto',
-        padding: '40px 52px',
+        padding: 'clamp(32px, 8vw, 52px)',
         fontFamily: 'var(--font-content, inherit)',
         color: 'var(--fg, #0a0a0a)',
       }}
@@ -372,13 +374,17 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
       <div
         style={{
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-          fontSize: 18,
+          fontSize: 'clamp(15px, 4.2vw, 18px)',
           color: 'var(--muted, #6b6862)',
           marginBottom: 40,
           minHeight: 28,
           display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
           alignItems: 'center',
           gap: 6,
+          rowGap: 8,
+          maxWidth: '100%',
         }}
       >
         {isConnected ? (

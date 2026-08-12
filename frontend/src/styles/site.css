@@ -522,26 +522,38 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
   display: none;
 }
 
-/* Open on hover if connected or for balance */
-.nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
-.nibgate-wallet-container:hover [data-balance-text] + .nibgate-wallet-dropdown {
-  display: flex !important;
+/* Open on hover if connected or for balance — hover-capable pointers only.
+   Touch devices get click-toggle state from WalletButtonMobile instead. */
+@media (hover: hover) and (pointer: fine) {
+  .nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
+  .nibgate-wallet-container:hover [data-balance-text] + .nibgate-wallet-dropdown {
+    display: flex !important;
+  }
+
+  /* Force the button hover state when the container is hovered */
+  .nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"],
+  .nibgate-wallet-container:hover [data-balance-text] {
+    background: #f3efe7 !important;
+    color: #10110e !important;
+  }
 }
 
-/* Force the button hover state when the container is hovered */
-.nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"],
-.nibgate-wallet-container:hover [data-balance-text] {
-  background: #f3efe7 !important;
-  color: #10110e !important;
-}
-
+/* Mobile dropdowns open as floating cards below the pill (click-toggle from
+   WalletButtonMobile), not in-flow rows. */
 .nibgate-wallet-dropdown.mobile-dropdown {
-  position: static;
-  width: 100%;
-  margin-top: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+  border-radius: 10px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(17, 17, 17, 0.06);
+}
+
+.nibgate-wallet-dropdown.mobile-dropdown .dropdown-item:last-child {
+  border-radius: 0 0 10px 10px;
 }
 
 .nibgate-wallet-dropdown .dropdown-item {
@@ -576,11 +588,6 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
 html[data-theme="dark"] .nibgate-wallet-dropdown,
 body[data-theme="dark"] .nibgate-wallet-dropdown {
   background: #f3efe7;
-}
-
-html[data-theme="dark"] .nibgate-wallet-dropdown.mobile-dropdown,
-body[data-theme="dark"] .nibgate-wallet-dropdown.mobile-dropdown {
-  background: transparent;
 }
 
 .nibgate-wallet-dropdown .dropdown-disconnect {
@@ -679,13 +686,22 @@ body[data-theme="dark"] .nibgate-wallet-dropdown .dropdown-item:hover {
   background: var(--nib-olive);
   color: #10110e;
 }
+.nibgate-header-mobile .nibgate-wallet-container {
+  padding: 6px 16px;
+}
 .nibgate-header-mobile-login,
 .nibgate-header-mobile-cta {
-  border-bottom: 1px solid #f3efe747;
   justify-content: center;
   align-items: center;
-  min-height: 60px;
+  min-height: 54px;
   display: inline-flex;
+  border-bottom: none;
+  border-radius: 10px;
+  font-size: 16px;
+}
+.nibgate-header-mobile-login {
+  background: rgba(243, 239, 231, 0.08);
+  color: #f3efe7;
 }
 .nibgate-header-mobile-cta {
   background: var(--nib-olive);

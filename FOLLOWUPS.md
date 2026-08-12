@@ -52,3 +52,33 @@ Tracked gaps from the wallet-connect flow audit (hub, subblogs, SDK, widget). It
 - Dead bridge globals removed: `window.nibgateWalletAddress`, `window.nibgateAuthenticated`, `sessionStorage 'nibgate-wants-redirect'`.
 - Unused `useAppKit().open` in `WalletButtonMobile` removed.
 - All hub POST/PUT write-path responses hardened against non-JSON bodies via centralized `frontend/src/lib/upload.ts` (share uploaders, dashboard profile upload/save, blog cover upload, sites link-generate).
+
+---
+
+# Wallet Unify Follow-ups (added during Reown unification)
+
+## W1 — ReputationRating still uses raw `window.ethereum`
+
+- `frontend/src/.../ReputationRating` (rating UI) signs via `window.ethereum` directly, not the shared AppKit account / `@nibgate/wallet/react` primitives — inconsistent with every other flow now on the shared modal.
+- Fix: migrate to `useNibgateConnect` account + viem `signTypedData` (as the SDK `evm-gateway.js:147-159` does), so ratings use the same wallet/session as unlock.
+
+## W2 — `GatewayWallet.tsx` (subblogs) is dead code on raw `window.ethereum`
+
+- `subblogs/frontend/src/components/GatewayWallet.tsx` still does manual `eth_requestAccounts` / `eth_signTypedData_v4`; unused by the migrated unlock flow. Confirm it's unreachable and either delete it or migrate it to the shared wallet (`@nibgate/wallet/react` + Circle withdraw via the AppKit account).
+
+## W3 — widget.js Reown parity
+
+- `frontend/public/widget.js` still connects via `window.ethereum` (`eth_requestAccounts` / `eth_signTypedData_v4`, `wallet_addEthereumChain` with USDC nativeCurrency). It bypasses AppKit entirely, so the embeddable widget has no QR/mobile pairing and no SIWE.
+- Fix: wire widget.js to the same Reown modal/account as the hub (or document in-app-browser-only support). Ties into FOLLOWUPS P2/P3/P4.
+
+## W4 — `/api/auth/verify` crashes (500) on empty body
+
+- `subblogs/backend` `POST /api/auth/verify` with `{}` → `TypeError: Cannot read properties of undefined (reading 'match')` (500 + stack leak). Add a validation guard returning 400 (`msg`/`signature` required) before `parseSignInMessage`. Also consider an express error-handler that doesn't leak stacks in production.
+
+## W5 — webpack fallback list must stay in sync
+
+- The `config.resolve.fallback` stubs in both `next.config` files are the load-bearing fix for webpack builds of the wagmi connector tree. If `@wagmi/connectors`/`wagmi` is ever bumped, re-check for new dead optional imports (`@x402/svm/exact/client`, `accounts`, `@walletconnect/ethereum-provider`, `porto`, `porto/internal`, `@metamask/connect-evm`).
+
+## W6 — stale `.next` / pnpm store drift after version churn
+
+- Repeated publish/reinstall cycles left a stale `.next` cache referencing a nonexistent pnpm store variant (`unstorage@...idb-keyval@6.2.5`). `rm -rf frontend/.next && pnpm install` at root fixed it. If hub webpack builds throw `ENOENT .../node_modules/.pnpm/...`, clear `.next` + reinstall first.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
+import { NibgateRatingUI } from "@nibgate/wallet/react";
 import { apiFetch, apiUrl } from "@/lib/api";
 
 function siteSubdomain() {
@@ -18,48 +19,39 @@ type RatingResource = {
 };
 
 export default function ReputationRating({ resource }: { resource: RatingResource }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inited = useRef(false);
+  const [hub, setHub] = useState<{ siteId?: string; token?: string }>({});
+  const [subdomain, setSubdomain] = useState("");
 
   useEffect(() => {
-    if (inited.current) return;
-    inited.current = true;
+    setSubdomain(siteSubdomain());
+    apiFetch("/site")
+      .then((d: any) => {
+        if (d?.hub?.siteId && d?.hub?.token) {
+          setHub({ siteId: d.hub.siteId, token: d.hub.token });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-    let hubSiteId = "";
-    let hubToken = "";
-
-    apiFetch("/site").then((d: any) => {
-      if (d?.hub?.siteId && d?.hub?.token) {
-        hubSiteId = d.hub.siteId;
-        hubToken = d.hub.token;
-      }
-    }).catch(() => {}).finally(() => {
-      if (!containerRef.current) return;
-      import("@nibgate/sdk").then((mod) => {
-        if (!containerRef.current) return;
-        (mod as any).renderDefaultRatingUI(containerRef.current, resource, {
-          statsUrl: `${apiUrl(`/rating/${resource.id}`)}?subdomain=${siteSubdomain()}`,
-          apiBase: apiUrl(""),
-          contentId: '0x' + resource.id.replace(/-/g, ''),
-          indexUrl: hubSiteId ? `https://api.nibgate.xyz/hub/reputation/ratings/index` : undefined,
-          siteId: hubSiteId || undefined,
-          token: hubToken || undefined,
-          onRated: (result: any) => {
-            apiFetch(`/rating/${resource.id}`, {
-              method: "POST",
-              body: JSON.stringify({
-                wallet: result.walletAddress,
-                rating: result.ratingValue,
-                txHash: result.txHash,
-              }),
-            }).catch(() => {});
-          },
-        });
-      }).catch((err) => {
-        console.error("Rating module failed to load:", err);
-      });
-    });
-  }, [resource]);
-
-  return <div ref={containerRef} />;
+  return (
+    <NibgateRatingUI
+      resource={resource}
+      statsUrl={`${apiUrl(`/rating/${resource.id}`)}?subdomain=${subdomain}`}
+      apiBase={apiUrl("")}
+      contentId={"0x" + resource.id.replace(/-/g, "")}
+      indexUrl={hub.siteId ? `https://api.nibgate.xyz/hub/reputation/ratings/index` : undefined}
+      siteId={hub.siteId || undefined}
+      token={hub.token || undefined}
+      onRated={(result: any) => {
+        apiFetch(`/rating/${resource.id}`, {
+          method: "POST",
+          body: JSON.stringify({
+            wallet: result.walletAddress,
+            rating: result.ratingValue,
+            txHash: result.txHash,
+          }),
+        }).catch(() => {});
+      }}
+    />
+  );
 }

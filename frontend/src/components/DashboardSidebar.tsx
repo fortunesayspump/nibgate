@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAppKitAccount } from "@reown/appkit/react";
-import { useAccount } from "wagmi";
+import { useAppKitAccount, useAccount } from "@nibgate/wallet/react";
 import { BarChart3, CircleDollarSign, FileLock2, Globe2, Menu, Newspaper, UserRound, X } from "lucide-react";
 
 const BLOG_OWNER_WALLET = '0x558e7bfaf2cf1a494f44e50d92431afc060c9d12';

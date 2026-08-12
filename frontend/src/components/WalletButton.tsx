@@ -1,13 +1,12 @@
 'use client'
 
-import { useDisconnect as useAppKitDisconnect } from '@reown/appkit/react'
-import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { useAccount, useBalance, useChainId, useDisconnect } from 'wagmi'
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useAccount, useBalance, useChainId, useDisconnect } from "@nibgate/wallet/react";
 import { arcTestnet } from '../lib/wagmi'
 import { getConnectedChainId, isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
-import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT } from '../lib/hubSession'
+import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT, HUB_SESSION_UPDATED_EVENT } from '../lib/hubSession'
 import { useNibgateConnect } from '../lib/useNibgateConnect'
 
 function shortAddress(address: `0x${string}`) {
@@ -116,11 +115,10 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
 }
 
 export function WalletButton() {
-  const { connect } = useNibgateConnect()
+  const { connect, signIn, busy, status, error } = useNibgateConnect()
   const { address, chainId, isConnected } = useAccount()
   const activeChainId = useChainId()
   const { disconnect } = useDisconnect()
-  const { disconnect: disconnectAppKit } = useAppKitDisconnect()
   const displayAddress = isConnected ? address : undefined
   const isWalletConnected = isConnected
   const connectedChainId = getConnectedChainId(chainId, activeChainId)
@@ -129,6 +127,12 @@ export function WalletButton() {
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined
   const effectiveAddress = displayAddress ?? sessionAddr
   const isConnectedAny = isWalletConnected || Boolean(sessionAddr)
+  const busyRef = useRef(busy)
+  const walletConnectedRef = useRef(isWalletConnected)
+  const sessionAddrRef = useRef(sessionAddr)
+  useEffect(() => { busyRef.current = busy }, [busy])
+  useEffect(() => { walletConnectedRef.current = isWalletConnected }, [isWalletConnected])
+  useEffect(() => { sessionAddrRef.current = sessionAddr }, [sessionAddr])
 
   const { data: nativeBalance } = useBalance({
     address: displayAddress,
@@ -158,20 +162,26 @@ export function WalletButton() {
 
   useEffect(() => {
     let cancelled = false
-    getHubSessionAddress().then((addr) => { if (!cancelled) setSessionAddress(addr) })
+    const refresh = () => getHubSessionAddress().then((addr) => { if (!cancelled) setSessionAddress(addr) })
+    refresh()
     const clear = () => setSessionAddress(null)
     window.addEventListener(HUB_SESSION_CLEARED_EVENT, clear)
-    return () => { cancelled = true; window.removeEventListener(HUB_SESSION_CLEARED_EVENT, clear) }
+    window.addEventListener(HUB_SESSION_UPDATED_EVENT, refresh)
+    return () => { cancelled = true; window.removeEventListener(HUB_SESSION_CLEARED_EVENT, clear); window.removeEventListener(HUB_SESSION_UPDATED_EVENT, refresh) }
   }, [])
 
   useEffect(() => {
-    document.addEventListener('click', (e) => {
+    const onClick = (e: MouseEvent) => {
       const t = (e.target as HTMLElement).closest('button, a')
       if (!t) return
 
       if (t.hasAttribute('data-wallet-connect')) {
         e.preventDefault()
-        if (t.getAttribute('data-connected') !== 'true') {
+        if (t.classList.contains('nibgate-header-mobile-cta')) return
+        if (busyRef.current) return
+        if (walletConnectedRef.current && !sessionAddrRef.current) {
+          void signIn()
+        } else if (t.getAttribute('data-connected') !== 'true') {
           void connect()
         }
       } else if (t.hasAttribute('data-wallet-disconnect')) {
@@ -180,7 +190,6 @@ export function WalletButton() {
         window.dispatchEvent(new Event(HUB_SESSION_CLEARED_EVENT))
         setSessionAddress(null)
         disconnect()
-        void disconnectAppKit({ namespace: 'eip155' })
       } else if (t.hasAttribute('data-token-select')) {
         e.preventDefault()
         const token = t.getAttribute('data-token-select') || 'native'
@@ -189,8 +198,10 @@ export function WalletButton() {
         e.preventDefault()
         setBridgeOpen(true)
       }
-    })
-  }, [connect, disconnect, disconnectAppKit])
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [connect, signIn, disconnect])
 
   return (
     <>
@@ -207,8 +218,9 @@ export function WalletButton() {
 
       <div className="nibgate-wallet-container" data-wallet-container>
         <button className="nibgate-header-cta" type="button" data-wallet-connect data-connected={isConnectedAny && effectiveAddress ? 'true' : 'false'} data-address={effectiveAddress || ''} style={{ display: 'flex' }}>
-          {isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
+          {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : status === 'error' ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
         </button>
+        {status === 'error' && error ? <span className="nibgate-wallet-error">{error}</span> : null}
         {isConnectedAny && effectiveAddress ? (
           <div className="nibgate-wallet-dropdown" data-wallet-dropdown style={{ display: 'none' }}>
             <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
@@ -225,6 +237,7 @@ export function WalletButton() {
 }
 
 export function WalletButtonMobile() {
+  const { connect, signIn, busy, status, error } = useNibgateConnect()
   const { address, chainId, isConnected } = useAccount()
   const activeChainId = useChainId()
   const displayAddress = isConnected ? address : undefined
@@ -264,10 +277,12 @@ export function WalletButtonMobile() {
 
   useEffect(() => {
     let cancelled = false
-    getHubSessionAddress().then((addr) => { if (!cancelled) setSessionAddress(addr) })
+    const refresh = () => getHubSessionAddress().then((addr) => { if (!cancelled) setSessionAddress(addr) })
+    refresh()
     const clear = () => setSessionAddress(null)
     window.addEventListener(HUB_SESSION_CLEARED_EVENT, clear)
-    return () => { cancelled = true; window.removeEventListener(HUB_SESSION_CLEARED_EVENT, clear) }
+    window.addEventListener(HUB_SESSION_UPDATED_EVENT, refresh)
+    return () => { cancelled = true; window.removeEventListener(HUB_SESSION_CLEARED_EVENT, clear); window.removeEventListener(HUB_SESSION_UPDATED_EVENT, refresh) }
   }, [])
 
   return (
@@ -284,9 +299,23 @@ export function WalletButtonMobile() {
       </div>
 
       <div className="nibgate-wallet-container" data-wallet-container style={{ width: '100%' }}>
-        <button className="nibgate-header-mobile-cta" type="button" data-wallet-connect data-connected={isConnectedAny && effectiveAddress ? 'true' : 'false'} data-address={effectiveAddress || ''} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
+        <button
+          className="nibgate-header-mobile-cta"
+          type="button"
+          data-wallet-connect
+          data-connected={isConnectedAny && effectiveAddress ? 'true' : 'false'}
+          data-address={effectiveAddress || ''}
+          onClick={() => {
+            if (busy) return
+            if (isWalletConnected && !sessionAddr) void signIn()
+            else if (isConnectedAny && effectiveAddress) return
+            else void connect()
+          }}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : status === 'error' ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
         </button>
+        {status === 'error' && error ? <span className="nibgate-wallet-error">{error}</span> : null}
         {isConnectedAny && effectiveAddress ? (
           <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: 'none' }}>
             <Link href="/dashboard" className="dropdown-item">Dashboard</Link>

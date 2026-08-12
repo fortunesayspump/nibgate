@@ -3,6 +3,7 @@ import "./globals.css";
 import { headers } from "next/headers";
 import { serverFetch } from "@/lib/server-fetch";
 import Footer from "@/components/Footer";
+import WalletProviders from "@/components/WalletProviders";
 
 async function getSite(): Promise<Record<string, any> | null> {
   try {
@@ -62,7 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
         }} />
       </head>
-      <body>{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}{children}<Footer /></body>
+      <body>{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}<WalletProviders>{children}</WalletProviders><Footer /></body>
     </html>
   );
 }

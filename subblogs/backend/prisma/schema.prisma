@@ -32,12 +32,14 @@ model User {
   bio           String?
   avatarUrl     String?
   isEmailVerified Boolean @default(false)
+  walletAddress String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   tokens        Token[]
   blogPosts     BlogPost[]
 
   @@unique([siteId, email])
+  @@index([siteId, walletAddress])
 }
 
 model Token {

@@ -4,6 +4,19 @@ let apiUrl = (process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === "prod
 if (!/^https?:\/\//.test(apiUrl)) apiUrl = 'https://' + apiUrl;
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@nibgate/wallet"],
+  turbopack: {},
+  webpack(config, _ctx) {
+    config.resolve = config.resolve || {};
+    config.resolve.fallback = config.resolve.fallback || {};
+    config.resolve.fallback["@x402/svm/exact/client"] = false;
+    config.resolve.fallback["accounts"] = false;
+    config.resolve.fallback["@walletconnect/ethereum-provider"] = false;
+    config.resolve.fallback["porto"] = false;
+    config.resolve.fallback["porto/internal"] = false;
+    config.resolve.fallback["@metamask/connect-evm"] = false;
+    return config;
+  },
   async rewrites() {
     const bare = ["hub", "nibshare", "auth", "newsletter", "uploads", "app"];
     return [

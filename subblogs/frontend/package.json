@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "next dev --port 3002",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.4.0",
-    "@nibgate/wallet": "^0.1.0",
+    "@nibgate/sdk": "^0.4.6",
+    "@nibgate/wallet": "0.2.10",
+    "@reown/appkit": "1.8.21",
+    "@reown/appkit-adapter-wagmi": "1.8.21",
+    "@tanstack/react-query": "5.101.2",
     "@tailwindcss/typography": "^0.5.20",
     "@tiptap/extension-dropcursor": "^3.28.0",
     "@tiptap/extension-image": "^3.28.0",
@@ -40,8 +43,15 @@
     "tailwind-merge": "^3.6.0",
     "tiptap-extension-code-block-shiki": "^1.2.0",
     "tiptap-markdown": "^0.9.0",
+    "wagmi": "3.6.21",
     "x-data-spreadsheet": "^1.1.9",
     "xlsx": "^0.18.5"
+  },
+  "overrides": {
+    "@wagmi/connectors": "8.0.20",
+    "@wagmi/core": "3.5.5",
+    "@base-org/account": "2.4.0",
+    "viem": "2.54.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

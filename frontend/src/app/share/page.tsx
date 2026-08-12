@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage } from "@nibgate/wallet/react";
 import { ShareLayout, ShareTitle, ShareIntro, ShareError, ShareBtn } from '@/features/nibshare/components/ShareLayout';
 import ShareForm from '@/features/nibshare/components/ShareForm';
 import ShareWallet from '@/features/nibshare/components/ShareWallet';
@@ -26,7 +26,7 @@ export default function ShareCreatePage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    async function check() {
       let me: MeResponse | null = null;
       try {
         me = await nibshareApi.me();
@@ -38,9 +38,12 @@ export default function ShareCreatePage() {
       } else {
         setStep(isConnected ? 'auth' : 'connect');
       }
-    })();
+    }
+    void check();
+    window.addEventListener(HUB_SESSION_UPDATED_EVENT, check);
     return () => {
       cancelled = true;
+      window.removeEventListener(HUB_SESSION_UPDATED_EVENT, check);
     };
   }, [isConnected]);
 

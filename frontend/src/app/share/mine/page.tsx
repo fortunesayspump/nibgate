@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage } from "@nibgate/wallet/react";
 import { FiPlus, FiEdit2 } from 'react-icons/fi';
 import { ShareLayout, ShareBtn, ShareIntro, ShareError } from '@/features/nibshare/components/ShareLayout';
 import ActivityBell from '@/features/nibshare/components/ActivityBell';
@@ -49,7 +49,7 @@ export default function ShareMinePage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    async function check() {
       try {
         const data = await nibshareApi.me();
         if (cancelled) return;
@@ -63,9 +63,12 @@ export default function ShareMinePage() {
       } catch {
         if (!cancelled) setSession('guest');
       }
-    })();
+    }
+    void check();
+    window.addEventListener(HUB_SESSION_UPDATED_EVENT, check);
     return () => {
       cancelled = true;
+      window.removeEventListener(HUB_SESSION_UPDATED_EVENT, check);
     };
   }, [load]);
 

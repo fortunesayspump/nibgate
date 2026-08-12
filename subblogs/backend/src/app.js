@@ -9,6 +9,7 @@ if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'production' });
 }
 const passport = require('passport');
+const cookieParser = require('cookie-parser');
 const { status } = require('http-status');
 const config = require('./config/config');
 const morgan = require('./config/morgan');
@@ -30,31 +31,34 @@ if (config.env !== 'test') {
 }
 
 app.use(helmet());
+app.use(cookieParser());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || !origin.startsWith('http')) return callback(null, true);
-    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
     if (allowed.some(a => {
       if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
       return a === origin;
     })) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
+  credentials: true,
   exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
 }));
 app.options('*', cors({
   origin: (origin, callback) => {
     if (!origin || !origin.startsWith('http')) return callback(null, true);
-    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
     if (allowed.some(a => {
       if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
       return a === origin;
     })) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
+  credentials: true,
   exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
 }));
 

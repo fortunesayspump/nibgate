@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useAccount } from 'wagmi';
+import { useAccount } from "@nibgate/wallet/react";
 import { FiBell, FiUnlock, FiEye, FiLock, FiClock, FiX } from 'react-icons/fi';
 import type { ShareActivity } from '../types';
 

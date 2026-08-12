@@ -1,9 +1,9 @@
 "use client";
 
-import { useAppKit } from "@reown/appkit/react";
+import { useAppKit } from "@nibgate/wallet/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { useAccount, useSignMessage } from "wagmi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAccount, useSignMessage } from "@nibgate/wallet/react";
 import { createSignInMessage } from "@nibgate/wallet";
 
 type AuthUser = {
@@ -35,6 +35,10 @@ export default function SigninFlow() {
   const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const addressRef = useRef(address);
+  useEffect(() => {
+    addressRef.current = address;
+  }, [address]);
   const [status, setStatus] = useState<AuthState>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState("");
@@ -81,16 +85,26 @@ export default function SigninFlow() {
   async function handleSignin() {
     setError("");
 
-    if (!displayAddress) {
+    let walletAddress = displayAddress;
+
+    if (!walletAddress) {
       setStatus("connecting");
       try {
         await open();
-        setStatus("ready");
+        const started = Date.now();
+        while (!addressRef.current && Date.now() - started < 30000) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        walletAddress = addressRef.current;
+        if (!walletAddress) {
+          setStatus("ready");
+          return;
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Wallet connection failed.");
         setStatus("error");
+        return;
       }
-      return;
     }
 
     try {
@@ -100,7 +114,7 @@ export default function SigninFlow() {
       if (!nonceRes.ok) throw new Error(nonceData.error || "Could not request sign-in nonce.");
 
       const message = createSignInMessage({
-        address: displayAddress,
+        address: walletAddress,
         nonce: nonceData.nonce,
         domain: window.location.host,
         uri: window.location.origin,

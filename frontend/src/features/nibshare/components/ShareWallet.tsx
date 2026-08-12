@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useDisconnect as useAppKitDisconnect } from "@reown/appkit/react";
-import { useDisconnect } from "wagmi";
+import { useDisconnect } from "@nibgate/wallet/react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { nibshareApi } from "../api";
 import { shortAddress } from "../lib/shares";
@@ -18,7 +17,6 @@ function isHexAddress(address: string): address is `0x${string}` {
 export default function ShareWallet() {
   const { connect, busy } = useNibgateConnect();
   const { disconnect } = useDisconnect();
-  const { disconnect: disconnectAppKit } = useAppKitDisconnect();
   const [openMenu, setOpenMenu] = useState(false);
   const [hubAddress, setHubAddress] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -54,10 +52,9 @@ export default function ShareWallet() {
 
   async function handleDisconnect() {
     try {
-      await nibshareApi.logout();
+          await nibshareApi.logout();
     } catch {}
     disconnect();
-    void disconnectAppKit({ namespace: "eip155" });
     setHubAddress(null);
     setOpenMenu(false);
   }

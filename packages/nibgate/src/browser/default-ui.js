@@ -153,7 +153,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   function updateLabel() {
     const addr = ctrl.getWalletAddress();
     if (addr) {
-      label.innerHTML = shortAddress(addr) + ' <span data-nibgate-disconnect style="cursor:pointer">· Disconnect</span> <span data-nibgate-bal style="margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)">· <span data-nibgate-bal-txt></span> | ' + depIcon() + '</span>';
+      label.innerHTML = shortAddress(addr) + ' <span data-nibgate-disconnect style="cursor:pointer">· Disconnect</span> <span data-nibgate-bal style="margin-left:4px;cursor:pointer;white-space:nowrap;color:var(--accent,#7c9a6d)">· <span data-nibgate-bal-txt></span> ' + depIcon() + '</span>';
       balEl = label.querySelector('[data-nibgate-bal]');
       balEl?.addEventListener('click', showDeposit);
       btn.disabled = false;
@@ -529,10 +529,6 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     btn.textContent = 'Deposit';
   }
 
-  async function doWithdraw() {
-    setTx('Withdraw via admin dashboard', false);
-  }
-
   function render(t) {
     tab = t;
     select(tabs, t);
@@ -553,6 +549,10 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
       `;
       formEl.querySelector('[data-gw-withdraw]')?.addEventListener('click', doWithdraw);
     }
+  }
+
+  async function doWithdraw() {
+    setTx('Withdraw via admin dashboard', false);
   }
 
   function shortAddress(a) { return a ? a.slice(0, 6) + '...' + a.slice(-4) : ''; }

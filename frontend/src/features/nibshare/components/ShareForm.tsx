@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FiDollarSign, FiUsers, FiEye } from 'react-icons/fi';
 import MarkdownEditor from './MarkdownEditor';
 import ImageUploader from './ImageUploader';
 import AudioUploader from './AudioUploader';
 import DocumentUploader from './DocumentUploader';
 import VideoUploader from './VideoUploader';
+import { WalletListEditor } from './WalletListEditor';
 import { nibshareApi } from '../api';
 import { ShareSuccess } from './ShareSuccess';
+import { formatUsd } from '../lib/shares';
 import type { ContentMedia, CreateShareResponse } from '../types';
 import type { MediaItem } from '../lib/content';
 
@@ -39,6 +42,9 @@ interface ShareFormData {
   videoName: string;
   videoSize: number | null;
   media: string;
+  whitelist: string[];
+  whitelistPrice: string;
+  inviteOnly: boolean;
 }
 
 const defaults: ShareFormData = {
@@ -49,6 +55,7 @@ const defaults: ShareFormData = {
   documentUrl: "", documentName: "", documentSize: null, documentStorageRef: "", documentEncryptedKey: "", documentContentType: "",
   videoStorageRef: "", videoEncryptedKey: "", videoContentType: "", videoName: "", videoSize: null,
   media: "",
+  whitelist: [], whitelistPrice: "", inviteOnly: false,
 };
 
 export default function ShareForm({ defaultRecipientWallet }: { defaultRecipientWallet?: string }) {
@@ -61,6 +68,9 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
   const [embeddedMedia, setEmbeddedMedia] = useState<MediaItem[]>([]);
   const [expiryQuick, setExpiryQuick] = useState<number | null>(168);
   const [customExpiry, setCustomExpiry] = useState("");
+  const [previewAs, setPreviewAs] = useState<"public" | "whitelisted">("public");
+
+  const invitationEnabled = form.inviteOnly || form.whitelist.length > 0 || form.whitelistPrice.trim() !== "";
 
   function toLocalInput(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -99,7 +109,6 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
   }
 
   const isPaid = !!form.price && form.price !== "0";
-
   function canPublish(): { ok: boolean; reason?: string } {
     if (!form.title) return { ok: false, reason: "Title is required" };
     if (form.type === "article") {
@@ -122,6 +131,17 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
       const n = parseFloat(form.price);
       if (!Number.isFinite(n) || n <= 0) return { ok: false, reason: "Enter a valid price in USDC" };
       if (!form.recipientWallet) return { ok: false, reason: "Recipient wallet is required for paid posts" };
+    }
+    const addrRe = /^0x[a-fA-F0-9]{40}$/;
+    for (const w of form.whitelist) {
+      if (!addrRe.test(w)) return { ok: false, reason: `Invalid wallet address: ${w}` };
+    }
+    if (form.whitelistPrice.trim() !== "") {
+      const n = Number(form.whitelistPrice);
+      if (!Number.isFinite(n) || n < 0) return { ok: false, reason: "Whitelist price must be a non-negative number" };
+    }
+    if (form.inviteOnly && form.whitelist.length === 0) {
+      return { ok: false, reason: "Invite-only needs at least one whitelisted wallet" };
     }
     return { ok: true };
   }
@@ -188,7 +208,10 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
       content: buildContent(),
       price: isPaid ? form.price : "0",
       status,
-      expiresAt: computeExpiryIso()
+      expiresAt: computeExpiryIso(),
+      whitelist: form.whitelist,
+      whitelistPrice: form.whitelistPrice.trim() === "" ? null : form.whitelistPrice,
+      publicAccess: !form.inviteOnly,
     })
       .then((res) => {
         if (status === 'active') {
@@ -415,23 +438,132 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
           className="input-field" placeholder="tools, craft, general"
         />
       </Field>
-      <Field label="Price (USDC)" required={isPaid}>
-        <input
-          type="text" value={form.price} onChange={(e) => update("price", e.target.value)}
-          className="input-field" placeholder="0.01"
-        />
-        <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-          Leave empty to publish for free.
+
+      {/* ---- Price & access ---- */}
+      <div className="rounded-md border p-3 space-y-3" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-1.5">
+          <FiDollarSign size={12} style={{ color: "var(--muted)" }} />
+          <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>
+            {isPaid ? (invitationEnabled ? "Price & access" : "Price") : invitationEnabled ? "Access" : "Price & access"}
+          </span>
         </div>
-      </Field>
-      {isPaid && (
-        <Field label="Recipient Wallet" required>
-          <input
-            type="text" value={form.recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
-            className="input-field font-mono" placeholder="0x..."
+
+        <div>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              { key: "free" as const, title: "Free", desc: "Anyone with the link can read it. No payment." },
+              { key: "paid" as const, title: "Pay to unlock", desc: "Visitors pay a one-time USDC price to see it." },
+            ].map((opt) => {
+              const active = opt.key === "paid" ? isPaid : !isPaid;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => {
+                    if (opt.key === "paid" && !isPaid) update("price", form.price || "1");
+                    if (opt.key === "free" && isPaid) update("price", "");
+                  }}
+                  className="rounded-lg border p-3 text-left cursor-pointer transition-colors"
+                  style={active
+                    ? { borderColor: "var(--accent)", background: "var(--accent-soft)", boxShadow: "0 0 0 1px var(--accent)" }
+                    : { borderColor: "var(--border)", background: "transparent" }}
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">{opt.title}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: active ? "var(--accent)" : "var(--muted)" }}>{active ? "●" : "○"}</span>
+                  </span>
+                  <span className="block text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {isPaid && (
+          <div className="space-y-2 rounded-lg border p-2.5" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <input
+                type="text" inputMode="decimal" value={form.price} onChange={(e) => update("price", e.target.value)}
+                className="input-field flex-1" placeholder="e.g. 1" aria-label="Price in USDC"
+              />
+              <span className="text-xs font-semibold shrink-0" style={{ color: "var(--muted)" }}>USDC</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Pays to</span>
+              <input
+                type="text" value={form.recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
+                className="input-field font-mono flex-1 min-w-0" placeholder="0x… your wallet"
+                spellCheck={false}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-lg border p-2.5" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <FiUsers size={12} style={{ color: "var(--muted)" }} />
+            <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>Whitelist & invite</span>
+            <span className="text-[10px] ml-auto" style={{ color: "var(--muted)" }}>{form.whitelist.length} wallet{form.whitelist.length === 1 ? "" : "s"}</span>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs cursor-pointer mb-2" style={{ color: "var(--fg)" }}>
+            <input
+              type="checkbox" checked={form.inviteOnly} onChange={(e) => update("inviteOnly", e.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            Invite only — <span style={{ color: "var(--muted)" }}>nobody outside the whitelist can unlock, even if they pay</span>
+          </label>
+
+          <WalletListEditor
+            value={form.whitelist}
+            onChange={(next) => update("whitelist", next)}
+            compact
           />
-        </Field>
-      )}
+
+          {form.whitelist.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Whitelisted pay</span>
+                <select
+                  value={form.whitelistPrice === "" ? "__public" : "0" === form.whitelistPrice ? "__free" : "__custom"}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    update("whitelistPrice", v === "__public" ? "" : v === "__free" ? "0" : form.whitelistPrice);
+                  }}
+                  className="input-field flex-1 text-xs py-1.5"
+                >
+                  <option value="__public">same as public price</option>
+                  <option value="__free">free (0)</option>
+                  <option value="__custom">custom price…</option>
+                </select>
+              </div>
+              {form.whitelistPrice !== "" && form.whitelistPrice !== "0" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Custom tier</span>
+                  <input
+                    type="text" inputMode="decimal" value={form.whitelistPrice}
+                    onChange={(e) => update("whitelistPrice", e.target.value)}
+                    className="input-field flex-1" placeholder="e.g. 0.50"
+                  />
+                  <span className="text-xs font-semibold shrink-0" style={{ color: "var(--muted)" }}>USDC</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ---- Live "what visitors see" preview ---- */}
+      <GatePreview
+        isPaid={isPaid}
+        inviteOnly={form.inviteOnly}
+        publicPrice={Number(form.price) || 0}
+        hasWhitelist={form.whitelist.length > 0}
+        whitelistPrice={form.whitelistPrice}
+        previewAs={previewAs}
+        onPreviewAs={setPreviewAs}
+      />
+
       <Field label="Expires">
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           {[
@@ -491,6 +623,77 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
           onDone={() => router.push("/share/mine")}
         />
       )}
+    </div>
+  );
+}
+
+function GatePreview({ isPaid, inviteOnly, publicPrice, hasWhitelist, whitelistPrice, previewAs, onPreviewAs }: {
+  isPaid: boolean;
+  inviteOnly: boolean;
+  publicPrice: number;
+  hasWhitelist: boolean;
+  whitelistPrice: string;
+  previewAs: "public" | "whitelisted";
+  onPreviewAs: (v: "public" | "whitelisted") => void;
+}) {
+  const wlTier = previewAs === "whitelisted" ? (() => {
+    const t = Number(whitelistPrice);
+    return Number.isFinite(t) ? t : publicPrice;
+  })() : publicPrice;
+  const discounted = Number.isFinite(Number(whitelistPrice)) && whitelistPrice !== "" && Number(whitelistPrice) < publicPrice && publicPrice > 0;
+  const freeNow = !isPaid || (previewAs === "whitelisted" && Number(whitelistPrice) === 0);
+
+  return (
+    <div className="rounded-md border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>
+          <FiEye className="inline mr-1" size={11} /> What visitors will see
+        </span>
+        {hasWhitelist && (
+          <div className="flex rounded-md overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+            {(["public", "whitelisted"] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => onPreviewAs(kind)}
+                className="text-[10px] font-semibold px-2 py-0.5 cursor-pointer"
+                style={previewAs === kind ? { background: "var(--accent)", color: "#fff" } : { background: "transparent", color: "var(--muted)" }}
+              >
+                {kind === "public" ? "Visitor" : "Whitelisted"}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: "center", padding: "12px 8px 4px" }}>
+        <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1.1 }}>
+          {freeNow ? "Free" : (
+            <>
+              {formatUsd(wlTier)} <span style={{ fontSize: 16, fontWeight: 600, color: "var(--muted)" }}>USDC</span>
+            </>
+          )}
+        </div>
+        {discounted && (
+          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+            <span style={{ textDecoration: "line-through" }}>{formatUsd(publicPrice)}</span>{" "}
+            <span style={{ color: "#7c9a6d", fontWeight: 600 }}>whitelisted price</span>
+          </div>
+        )}
+        <div style={{ fontSize: 15, color: "var(--muted)", marginTop: 6 }}>Pay to unlock this content</div>
+        <div style={{ margin: "14px auto 0", maxWidth: 280, borderRadius: 10, padding: "13px 0", fontWeight: 600, fontSize: 16, color: "#fff", background: "var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+          {freeNow ? "Unlock for free" : "Hold to pay"}
+        </div>
+        {inviteOnly && (
+          <div style={{ marginTop: 10, fontSize: 12, color: "#b45309", fontWeight: 600 }}>
+            🔒 Invite only — whitelisted wallets can unlock
+          </div>
+        )}
+        {!inviteOnly && hasWhitelist && previewAs === "public" && !freeNow && (
+          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
+            Whitelisted wallets may pay a different price
+          </div>
+        )}
+      </div>
     </div>
   );
 }

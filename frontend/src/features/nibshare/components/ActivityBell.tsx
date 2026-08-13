@@ -23,7 +23,9 @@ function timeLabel(d: string) {
 const TYPE_META = {
   unlock: { Icon: FiUnlock, color: 'var(--accent)', verb: 'unlocked' },
   view: { Icon: FiEye, color: '#6d7a9a', verb: 'viewed' },
-  revoke: { Icon: FiLock, color: '#c44', verb: 'revoked access' },
+  revoke: { Icon: FiLock, color: '#b45309', verb: 'revoked access' },
+  ban: { Icon: FiLock, color: '#c44', verb: 'banned' },
+  refund: { Icon: FiLock, color: '#b45309', verb: 'refunded' },
   expiring: { Icon: FiClock, color: '#c4a060', verb: 'expires' },
   expired: { Icon: FiClock, color: '#c44', verb: 'expired' },
 };

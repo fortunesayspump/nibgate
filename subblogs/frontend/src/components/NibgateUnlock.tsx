@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { FiLock, FiShieldOff, FiRotateCcw } from "react-icons/fi";
 import SheetViewer from "@/components/SheetViewer";
 import TextViewer from "@/components/TextViewer";
-import { NibgateUnlock as SharedNibgateUnlock } from "@nibgate/wallet/react";
+import { NibgateUnlock as SharedNibgateUnlock, useAccount } from "@nibgate/wallet/react";
 import { UNIVERSAL_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromMeta } from "@/lib/documentKind";
 import type { UnlockMediaMeta } from "@/lib/api";
+import { formatUsd } from "@/lib/wallet";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -18,10 +20,50 @@ export type UnlockResource = {
   recipient?: string;
 };
 
+export type Quote = {
+  wallet?: string;
+  price: string;
+  whitelistPrice?: string | null;
+  publicAccess: boolean;
+  whitelisted: boolean;
+  inWhitelist: boolean;
+  effectivePrice: string;
+  status?: string | null;
+  revoked?: boolean;
+  banned?: boolean;
+  canUnlock: boolean;
+  reason?: string | null;
+};
+
 const CONTENT_KINDS_WITH_VIEWERS = new Set([...SHEET_VIEWER_KINDS, ...TEXT_VIEWER_KINDS]);
+const gateBanner: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  textAlign: "center",
+  boxSizing: "border-box",
+  width: "100%",
+  maxWidth: 580,
+  margin: "0 auto",
+  padding: "clamp(32px, 8vw, 52px)",
+  color: "var(--fg)",
+};
+
+function statusChip({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+      style={{ background: `${color}1f`, color, border: `1px solid ${color}55` }}
+    >
+      {children}
+    </span>
+  );
+}
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const accessPath = `${API_BASE}${resource.path}`;
+  const { address } = useAccount();
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [content, setContent] = useState<unknown>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -32,6 +74,50 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
   const [documentContentType, setDocumentContentType] = useState<string | null>(null);
   const [viewFailed, setViewFailed] = useState(false);
   const loadedProofRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setQuote(null);
+    if (!address) return;
+    fetch(`${API_BASE}/nibgate/posts/${resource.id}/quote?wallet=${address}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((q) => { if (!cancelled && q) setQuote(q); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [resource.id, address]);
+
+  if (quote?.banned) {
+    return (
+      <div style={gateBanner}>
+        <div className="mb-4">{statusChip({ color: "#c44", children: (<><FiShieldOff size={12} /> Banned</>) })}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 8 }}>No access</div>
+        <div style={{ fontSize: 15, color: "var(--muted)", lineHeight: 1.5, maxWidth: 380 }}>
+          This wallet is banned from this content. If you think this is a mistake,
+          reach out to the creator.
+        </div>
+      </div>
+    );
+  }
+
+  if (quote && !quote.canUnlock) {
+    return (
+      <div style={gateBanner}>
+        <div className="mb-4">{statusChip({ color: "#b45309", children: (<><FiLock size={12} /> Invite only</>) })}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 8 }}>Invite only</div>
+        <div style={{ fontSize: 15, color: "var(--muted)", lineHeight: 1.5, maxWidth: 380 }}>
+          {quote.reason || "This content is invite-only — only whitelisted wallets can unlock it."}
+        </div>
+      </div>
+    );
+  }
+
+  const effectivePrice = quote?.effectivePrice ?? resource.price;
+  const publicPrice = resource.price;
+  const whitelisted = !!quote?.inWhitelist;
+  const whitelistTier = quote?.whitelistPrice;
+  const hasTier = whitelisted && !!whitelistTier && whitelistTier !== "";
+  const tierDiscounted =
+    hasTier && Number(effectivePrice) < Number(publicPrice) && Number(publicPrice) > 0;
 
   const subdomain = (() => {
     if (typeof window === "undefined") return "";
@@ -111,29 +197,66 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
   }
 
   return (
-    <SharedNibgateUnlock
-      resource={{
-        id: resource.id,
-        title: resource.title,
-        type: resource.type,
-        price: resource.price,
-        currency: "USDC",
-        path: resource.path,
-        recipient: resource.recipient,
-      }}
-      accessPath={accessPath}
-      gatewayBalanceUrl={`${API_BASE}/nibgate/gateway/balance`}
-      noncePath="/api/auth/nonce"
-      verifyPath="/api/auth/verify"
-      onUnlock={(result) => {
-        const payload = (result?.payload || null) as { content?: unknown; videoUrl?: string; media?: UnlockMediaMeta; unlockProof?: string } | null;
-        const proof = payload?.unlockProof || "";
-        if (result?.ok && loadedProofRef.current !== proof) {
-          loadedProofRef.current = proof;
-          applyUnlock(payload, proof);
-        }
-      }}
-    >
+    <>
+      {quote?.revoked && (
+        <div
+          style={{ maxWidth: 580, margin: "0 auto 1rem", textAlign: "center", color: "#b45309", borderColor: "#b4530966", padding: "8px 12px", borderRadius: 8, border: "1px solid #b4530966", background: "#b4530910", fontSize: 13 }}
+        >
+          <FiRotateCcw className="inline mr-1" size={12} /> Your previous access was revoked — pay again to re-unlock.
+        </div>
+      )}
+
+      {whitelisted && (
+        <div
+          style={{
+            maxWidth: 580, margin: "0 auto 1rem", display: "flex", alignItems: "center", justifyContent: "center",
+            gap: 8, textAlign: "center", flexDirection: "row", flexWrap: "wrap", padding: "10px 14px",
+            borderRadius: 10, border: "1px solid #7c9a6d66", background: "#7c9a6d15",
+          }}
+        >
+          <span style={{ color: "#7c9a6d", fontWeight: 700, fontSize: 13 }}>You're on the whitelist</span>
+          {tierDiscounted || (hasTier && Number(effectivePrice) === 0) ? (
+            <span style={{ color: "#7c9a6d", fontSize: 13 }}>
+              — {Number(effectivePrice) === 0 ? "unlock free" : `your price ${formatUsd(Number(effectivePrice))} USDC`}
+              {tierDiscounted && (
+                <>
+                  {" "}
+                  <span style={{ textDecoration: "line-through", opacity: 0.7 }}>{formatUsd(Number(publicPrice))} USDC</span>{" "}
+                  public
+                </>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: "var(--muted)", fontSize: 13 }}>— whitelisted wallets unlock here</span>
+          )}
+        </div>
+      )}
+
+      <SharedNibgateUnlock
+        resource={{
+          id: resource.id,
+          title: resource.title,
+          type: resource.type,
+          price: effectivePrice,
+          whitelistPrice: quote?.whitelistPrice ?? null,
+          publicAccess: quote?.publicAccess ?? true,
+          currency: "USDC",
+          path: resource.path,
+          recipient: resource.recipient,
+        }}
+        accessPath={accessPath}
+        gatewayBalanceUrl={`${API_BASE}/nibgate/gateway/balance`}
+        noncePath="/api/auth/nonce"
+        verifyPath="/api/auth/verify"
+        onUnlock={(result) => {
+          const payload = (result?.payload || null) as { content?: unknown; videoUrl?: string; media?: UnlockMediaMeta; unlockProof?: string } | null;
+          const proof = payload?.unlockProof || "";
+          if (result?.ok && loadedProofRef.current !== proof) {
+            loadedProofRef.current = proof;
+            applyUnlock(payload, proof);
+          }
+        }}
+      >
       {() => {
         const kind = kindFromMeta(documentName, documentContentType);
         const isSheet = kind !== null && SHEET_VIEWER_KINDS.has(kind) && !!documentUrl && !viewFailed;
@@ -207,6 +330,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
           </>
         );
       }}
-    </SharedNibgateUnlock>
+      </SharedNibgateUnlock>
+    </>
   );
 }

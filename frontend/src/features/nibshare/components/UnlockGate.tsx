@@ -1,33 +1,148 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { FiLock, FiShieldOff, FiRotateCcw } from "react-icons/fi";
 import ContentViewer from "./ContentViewer";
-import { NibgateUnlock } from "@nibgate/wallet/react";
-import { ACCESS_PATH, GATEWAY_BALANCE_PATH } from "../api";
-import type { AccessResource } from "../types";
+import { NibgateUnlock, useAccount } from "@nibgate/wallet/react";
+import { ACCESS_PATH, GATEWAY_BALANCE_PATH, nibshareApi } from "../api";
+import { formatUsd } from "../lib/shares";
+import type { AccessResource, Quote } from "../types";
+
+const gateBanner: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  textAlign: "center",
+  boxSizing: "border-box",
+  width: "100%",
+  maxWidth: 580,
+  margin: "0 auto",
+  padding: "clamp(32px, 8vw, 52px)",
+  fontFamily: "var(--font-content, inherit)",
+  color: "var(--fg, #0a0a0a)",
+};
+
+function statusChip({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+      style={{ background: `${color}1f`, color, border: `1px solid ${color}55` }}
+    >
+      {children}
+    </span>
+  );
+}
 
 export default function UnlockGate({ resource }: { resource: AccessResource }) {
+  const { address } = useAccount();
+  const [quote, setQuote] = useState<Quote | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setQuote(null);
+    if (!address) return;
+    nibshareApi
+      .quote(resource.id, address)
+      .then((q) => { if (!cancelled) setQuote(q); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [resource.id, address]);
+
+  if (quote?.banned) {
+    return (
+      <div style={gateBanner}>
+        <div className="mb-4">{statusChip({ color: "#c44", children: (<><FiShieldOff size={12} /> Banned</>) })}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 8 }}>No access</div>
+        <div style={{ fontSize: 15, color: "var(--muted, #6b6862)", lineHeight: 1.5, maxWidth: 380 }}>
+          This wallet is banned from this content. If you think this is a mistake,
+          reach out to the creator.
+        </div>
+      </div>
+    );
+  }
+
+  if (quote && !quote.canUnlock) {
+    return (
+      <div style={gateBanner}>
+        <div className="mb-4">{statusChip({ color: "#b45309", children: (<><FiLock size={12} /> Invite only</>) })}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 8 }}>Invite only</div>
+        <div style={{ fontSize: 15, color: "var(--muted, #6b6862)", lineHeight: 1.5, maxWidth: 380 }}>
+          {quote.reason || "This content is invite-only — only whitelisted wallets can unlock it."}
+        </div>
+      </div>
+    );
+  }
+
+  const effectivePrice = quote?.effectivePrice ?? resource.price;
+  const publicPrice = resource.price;
+  const whitelisted = !!quote?.inWhitelist;
+  const whitelistTier = quote?.whitelistPrice;
+  const hasTier = whitelisted && !!whitelistTier && whitelistTier !== "";
+  const tierDiscounted =
+    hasTier && Number(effectivePrice) < Number(publicPrice) && Number(publicPrice) > 0;
+
   return (
-    <NibgateUnlock
-      resource={{
-        id: resource.id,
-        title: resource.title,
-        type: resource.type,
-        price: resource.price,
-        currency: resource.currency,
-        path: resource.path,
-      }}
-      accessPath={ACCESS_PATH(resource.id)}
-      gatewayBalanceUrl={GATEWAY_BALANCE_PATH}
-      noncePath="/auth/nonce"
-      verifyPath="/auth/verify"
-    >
-      {(state) => (
-        <ContentViewer
-          body={(state.payload as { content?: unknown } | null)?.content}
-          title={resource.title}
-          slug={resource.id}
-        />
+    <>
+      {quote?.revoked && (
+        <div
+          className="nibshare-error-alert"
+          style={{ maxWidth: 580, margin: "0 auto 1rem", textAlign: "center", color: "#b45309", borderColor: "#b4530966" }}
+        >
+          <FiRotateCcw className="inline mr-1" size={12} /> Your previous access was revoked — pay again to re-unlock.
+        </div>
       )}
-    </NibgateUnlock>
+
+      {/* Whitelist / invite context banner rendered inside the gate card */}
+      {whitelisted && (
+        <div
+          style={{
+            maxWidth: 580, margin: "0 auto 1rem", display: "flex", alignItems: "center", justifyContent: "center",
+            gap: 8, textAlign: "center", flexDirection: "row", flexWrap: "wrap", padding: "10px 14px",
+            borderRadius: 10, border: "1px solid #7c9a6d66", background: "#7c9a6d15",
+          }}
+        >
+          <span style={{ color: "#7c9a6d", fontWeight: 700, fontSize: 13 }}>You're on the whitelist</span>
+          {tierDiscounted || (hasTier && Number(effectivePrice) === 0) ? (
+            <span style={{ color: "#7c9a6d", fontSize: 13 }}>
+              — {Number(effectivePrice) === 0 ? "unlock free" : `your price ${formatUsd(Number(effectivePrice))} USDC`}
+              {tierDiscounted && (
+                <>
+                  {" "}
+                  <span style={{ textDecoration: "line-through", opacity: 0.7 }}>{formatUsd(Number(publicPrice))} USDC</span>{" "}
+                  public
+                </>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: "var(--muted, #6b6862)", fontSize: 13 }}>— whitelisted wallets unlock here</span>
+          )}
+        </div>
+      )}
+
+      <NibgateUnlock
+        resource={{
+          id: resource.id,
+          title: resource.title,
+          type: resource.type,
+          price: effectivePrice,
+          whitelistPrice: quote?.whitelistPrice ?? null,
+          publicAccess: quote?.publicAccess ?? resource.publicAccess ?? true,
+          currency: resource.currency,
+          path: resource.path,
+        }}
+        accessPath={ACCESS_PATH(resource.id)}
+        gatewayBalanceUrl={GATEWAY_BALANCE_PATH}
+        noncePath="/auth/nonce"
+        verifyPath="/auth/verify"
+      >
+        {(state) => (
+          <ContentViewer
+            body={(state.payload as { content?: unknown } | null)?.content}
+            title={resource.title}
+            slug={resource.id}
+          />
+        )}
+      </NibgateUnlock>
+    </>
   );
 }

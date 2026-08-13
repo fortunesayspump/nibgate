@@ -50,7 +50,8 @@ Current build (`backend/src/server/nibshare/routes.js`, `controller.js`, `servic
   `{ type: 'article', markdown, media: [{ storageRef, encryptedKey, contentType, name, size }] }`,
   with `nibgate-embed://N` tokens inline in the markdown. Tokens resolve to
   `GET /nibshare/:slug/media/photo?index=N`, which decrypts and streams the asset
-  (proof-gated on paid shares, open on free ones).
+  (paid and free-invite-only shares gate on an active possessed entitlement; free
+  public shares are open).
 
 The schema also carries `decryptMode`, `keyProvider`, `lit`/`arweave`/`ipfs` strings,
 and a `whitelist`/`expiresAt` — forward-compatible fields for the tiers below, but
@@ -110,10 +111,10 @@ Viewer (human or agent): open /ns/<slug> (or POST /nibshare/:slug/meta -> 402 te
 | POST | `/api/uploads/content?encrypted=1` | wallet-signature session | Upload + encrypt media for a share body (images → WebP first) |
 | POST | `/nibshare` | wallet-signature session | Create a share (server encrypts body, stores ciphertext in R2) |
 | GET | `/nibshare/:slug/meta` | none | Public metadata (title, summary, price, expiry, whitelist flag, view/unlock counts) — never body |
-| GET | `/nibshare/:slug/access` | none (proof header for paid) | Server-side body for a session: free shares open, paid shares x402/relay |
-| POST | `/nibshare/:slug/unlock` | x402 payment (or `walletAddress` for free shares) | Rules check -> server returns plaintext body |
+| GET | `/nibshare/:slug/access` | none (proof/session for paid + free-invite) | Server-side body: free public open, paid x402/relay, free invite-only requires possessed whitelisted wallet |
+| POST | `/nibshare/:slug/unlock` | x402 payment (or session/proof for free tiers) | Rules check -> server returns plaintext body |
 | POST | `/nibshare/:slug/view` | none | Record a viewer |
-| GET | `/nibshare/:slug/media/:kind?index=N` | proof header for paid | Stream one decrypted asset (`photo`/`music`/`video`/`document`) |
+| GET | `/nibshare/:slug/media/:kind?index=N` | proof/session for non-public | Stream one decrypted asset (`photo`/`music`/`video`/`document`) |
 | POST | `/nibshare/:slug/entitlements/:wallet/revoke` | owner | Revoke one wallet's entitlement (hard revoke in `server` mode) |
 | DELETE | `/nibshare/:slug` | owner | Revoke the share (sets `status=revoked`) and deletes the R2 blob |
 | POST | `/nibshare/:slug/reslug` | owner | Rotate the share's slug |
@@ -122,8 +123,11 @@ Viewer (human or agent): open /ns/<slug> (or POST /nibshare/:slug/meta -> 402 te
 | GET | `/nibshare/dashboard` | owner | Creator analytics: lifetime summary, range + daily time series, per-share breakdown, recent activity |
 | GET | `/nibshare/stats` | none | Public platform aggregates (totals, 24h/7d windows, truncated-wallet activity feed) |
 
-Rules check at unlock time: `status == active AND (expiresAt IS NULL OR now < expiresAt)
-AND (whitelist empty OR payer ∈ whitelist)`.
+Rules check at unlock time: `status == active AND not past expiresAt AND not banned AND
+(not invite-only OR payer in whitelist)`. A bare `?wallet=` is a *claim*, not an identity —
+granting paths (free invite-only reads, lifetime re-issue, free-tier grants, media)
+require possession: a valid bound `unlockProof` or a SIWE session matching the claim.
+Invite-only paid shares `403` a non-whitelisted wallet before any payment challenge.
 
 Unlock response:
 

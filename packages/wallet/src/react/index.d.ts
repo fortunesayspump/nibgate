@@ -58,6 +58,8 @@ export interface UnlockResource {
   title?: string;
   type?: string;
   price?: string;
+  whitelistPrice?: string | null;
+  publicAccess?: boolean;
   currency?: string;
   path?: string;
   recipient?: string;

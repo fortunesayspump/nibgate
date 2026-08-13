@@ -1,22 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAccount } from '@nibgate/wallet/react';
 import ContentViewer from './ContentViewer';
 import UnlockGate from './UnlockGate';
+import { useNibgateConnect } from '@/lib/useNibgateConnect';
 import { nibshareApi } from '../api';
 import type { AccessPayload, ShareMeta } from '../types';
 
 export default function ShareClient({ slug, meta }: { slug: string; meta: ShareMeta }) {
+  const { address } = useAccount();
+  const { connect, busy: connecting } = useNibgateConnect();
   const [freePayload, setFreePayload] = useState<AccessPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      nibshareApi.recordView(slug).catch(() => {});
+      nibshareApi.recordView(slug, address).catch(() => {});
       if (!(Number(meta.price) > 0)) {
         try {
-          const data = await nibshareApi.access(slug);
+          const data = await nibshareApi.access(slug, { wallet: address });
           if (!cancelled) setFreePayload(data);
         } catch (err: any) {
           if (!cancelled) setError(err?.message || 'Could not load this share.');
@@ -24,7 +28,7 @@ export default function ShareClient({ slug, meta }: { slug: string; meta: ShareM
       }
     })();
     return () => { cancelled = true; };
-  }, [slug, meta.price]);
+  }, [slug, meta.price, address]);
 
   if (Number(meta.price) > 0) {
     return (
@@ -36,6 +40,16 @@ export default function ShareClient({ slug, meta }: { slug: string; meta: ShareM
   }
 
   if (!freePayload) {
+    if (error && !meta.publicAccess && !address) {
+      return (
+        <div>
+          <div className="nibshare-error-alert">{error}</div>
+          <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={() => void connect()} disabled={connecting}>
+            {connecting ? 'Connecting…' : 'Connect wallet to view'}
+          </button>
+        </div>
+      );
+    }
     return error ? <div className="nibshare-error-alert">{error}</div> : <p className="small muted">Loading…</p>;
   }
 

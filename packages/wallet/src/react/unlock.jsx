@@ -126,6 +126,15 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   const siweEnabledRef = useRef(Boolean(authBase || noncePath || verifyPath))
   const signInRef = useRef(async () => {})
 
+  // The backend mints the x402 challenge (amount = payer's whitelist tier)
+  // before the wallet signs, so it must know WHO is asking. Old backends
+  // simply ignore the extra query param.
+  const accessPathFor = useCallback((path) => {
+    const w = addressRef.current
+    if (!w || !path) return path
+    return `${path}${path.includes('?') ? '&' : '?'}wallet=${encodeURIComponent(w)}`
+  }, [])
+
   const signInIfEnabled = useCallback(async () => {
     if (!siweEnabledRef.current) return
     const addr = addressRef.current
@@ -181,7 +190,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       }
       const { checkResourceAccess } = await import('@nibgate/sdk')
       const result = await checkResourceAccess(resource, {
-        accessPath,
+        accessPath: accessPathFor(accessPath),
         paymentProvider: 'circle-gateway-browser',
         challengeMessage: 'Payment required. Approve the Gateway payment in your wallet...',
         paymentMessage: 'Waiting for wallet approval...',
@@ -191,6 +200,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       })
       if (result.ok) {
         const nextProof = result.payload?.unlockProof || storedProof(resource.id)
+        try { if (result.payload?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, result.payload.unlockProof) } catch {}
         setPayload(result.payload)
         setProof(nextProof)
         setUnlocked(true)
@@ -210,7 +220,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       setBusy(false)
       runningRef.current = false
     }
-  }, [resource, accessPath, checkout, open])
+  }, [resource, accessPath, accessPathFor, checkout, open])
 
   const clear = useCallback(() => {
     try {
@@ -232,13 +242,15 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         return
       }
       try {
-        const res = await fetch(accessPath, {
+        const res = await fetch(accessPathFor(accessPath), {
           headers: { accept: 'application/json', 'x-nibgate-payment-proof': existingProof },
         })
         const data = await res.json().catch(() => ({}))
         if (!cancelled && data?.ok) {
+          const nextProof = data?.unlockProof && data.unlockProof !== existingProof ? data.unlockProof : existingProof
+          try { localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, nextProof) } catch {}
           setPayload(data)
-          setProof(existingProof)
+          setProof(nextProof)
           setUnlocked(true)
           onUnlockRef.current?.({ ok: true, payload: data, resource })
         }
@@ -247,7 +259,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     }
     init()
     return () => { cancelled = true }
-  }, [resource.id, accessPath])
+  }, [resource.id, accessPath, accessPathFor])
 
   return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance }
 }
@@ -289,6 +301,7 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
   const price = resource.price && resource.price !== '0'
     ? `${resource.price} ${resource.currency || 'USDC'}`
     : 'free'
+  const isFree = !resource.price || String(resource.price).trim() === '0' || String(resource.price).trim() === ''
 
   useEffect(() => {
     let cancelled = false
@@ -314,6 +327,10 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
 
   const startHold = (e) => {
     e?.preventDefault()
+    if (isFree) {
+      unlock()
+      return
+    }
     if (holdRef.current.active || isBusy || !isConnected) return
     holdRef.current.active = true
     holdRef.current.complete = false
@@ -341,7 +358,7 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
     setHoldPct(0)
   }
 
-  const buttonText = checking ? 'Checking…' : busy ? 'Processing…' : 'Hold to pay'
+  const buttonText = checking ? 'Checking…' : busy ? 'Processing…' : isFree ? 'Unlock for free' : 'Hold to pay'
   const disabled = isBusy || !isConnected
 
   return (

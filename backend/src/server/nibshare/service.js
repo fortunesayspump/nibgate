@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { db } from '@nibgate/internal/db.js';
 export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
+import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets } from '@nibgate/sdk/server';
 import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
 
 export class HttpError extends Error {
@@ -11,7 +12,7 @@ export class HttpError extends Error {
   }
 }
 
-export async function createShare({ title, summary, coverUrl, content, price, expiresAt, whitelist, storageProvider, contentType, status, ownerWallet }) {
+export async function createShare({ title, summary, coverUrl, content, price, expiresAt, whitelist, whitelistPrice, publicAccess, storageProvider, contentType, status, ownerWallet }) {
   const shareStatus = status === 'draft' ? 'draft' : 'active';
 
   if (!title || typeof title !== 'string') {
@@ -42,6 +43,23 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
     throw new HttpError(400, 'Sign-in wallet could not be determined.');
   }
 
+  // Whitelist is normalized through the SDK rule (lowercase dedupe). Sloppy
+  // input is rejected rather than silently rewritten, so owners can't
+  // accidentally lock everyone out with a typo'd address.
+  if (whitelist !== undefined && !Array.isArray(whitelist)) {
+    throw new HttpError(400, 'whitelist must be an array of wallet addresses');
+  }
+  const cleanWhitelist = normalizeWhitelist(whitelist);
+  if (Array.isArray(whitelist) && cleanWhitelist.length !== whitelist.length) {
+    throw new HttpError(400, 'whitelist contains an invalid wallet address');
+  }
+  if (whitelistPrice !== undefined && whitelistPrice !== null && whitelistPrice !== '') {
+    const wp = parsePrice(whitelistPrice);
+    if (String(whitelistPrice).trim() !== '' && Number(whitelistPrice) !== wp) {
+      throw new HttpError(400, 'whitelistPrice must be a non-negative number or null');
+    }
+  }
+
   const contentKey = generateContentKey();
   const enc = encryptBytes(contentKey, Buffer.from(plaintext, 'utf8'));
   const blob = packCipherBlob(enc);
@@ -64,7 +82,9 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
         price: parsePrice(price),
         currency: 'USDC',
         expiresAt: expiresAt ? new Date(expiresAt) : null,
-        whitelist: Array.isArray(whitelist) ? whitelist.map((w) => String(w).toLowerCase()) : [],
+        whitelist: normalizeWhitelist(whitelist),
+        whitelistPrice: whitelistPrice == null || whitelistPrice === '' ? null : parsePrice(whitelistPrice),
+        publicAccess: publicAccess !== false,
         storageProvider,
         storageRef,
         ciphertextUrl: url,
@@ -93,24 +113,76 @@ export async function recordView(share, viewer) {
   });
 }
 
-export async function grantUnlock({ share, payer, txHash }) {
-  const receipt = await db.nibShareReceipt.create({
-    data: {
-      shareId: share.id,
-      payerWallet: payer,
-      amount: share.price,
-      currency: share.currency,
-      txHash
+// Grants exactly-one access per payment (ACCESS-CONTROL-DESIGN §5). The caller
+// supplies the x402 settlement (txHash) which is the ONLY stable id x402 offers
+// (it has no paymentId). `atomicIdempotentGrant` does a find-or-create on
+// (paymentNonce, shareId); a replayed proof/txHash hits the SAME receipt and is
+// returned without a second grant, unlockCount bump, or view event.
+async function atomicIdempotentGrant({ share, payer, txHash, amount }) {
+  const paymentNonce = txHash || null;
+  if (paymentNonce) {
+    const existing = await db.nibShareReceipt.findUnique({
+      where: { paymentNonce_shareId: { paymentNonce, shareId: share.id } }
+    });
+    if (existing) return { receipt: existing, replay: true };
+  }
+
+  const paid = amount == null ? share.price : amount;
+  let receipt;
+  try {
+    receipt = await db.nibShareReceipt.create({
+      data: {
+        shareId: share.id,
+        payerWallet: payer,
+        paymentNonce: paymentNonce || `free-${crypto.randomUUID()}`,
+        amount: paid,
+        currency: share.currency,
+        txHash
+      }
+    });
+  } catch (error) {
+    // Two rapid retries can race through the findUnique above; the UNIQUE
+    // (paymentNonce, shareId) constraint is the real arbiter. Re-read and
+    // return the stored receipt instead of double-granting.
+    if (error?.code === 'P2002' && paymentNonce) {
+      const raced = await db.nibShareReceipt.findUnique({
+        where: { paymentNonce_shareId: { paymentNonce, shareId: share.id } }
+      });
+      if (raced) return { receipt: raced, replay: true };
     }
-  });
+    throw error;
+  }
+
+  // A payment-only reach is either a real paid unlock or the whitelist free tier
+  // (amount 0). Free-tier grant => source 'free' (re-granted per visit); anything
+  // with a real amount => 'paid' (lifetime, the receipt backs it forever).
+  const source = Number(paid) > 0 ? 'paid' : 'free';
   await db.nibShareEntitlement.upsert({
     where: { shareId_wallet: { shareId: share.id, wallet: payer } },
-    create: { shareId: share.id, wallet: payer, status: 'active' },
-    update: { status: 'active', revokedAt: null }
+    create: { shareId: share.id, wallet: payer, status: 'active', source },
+    update: { status: 'active', revokedAt: null, source: sourceMax(source, 'paid') }
   });
   await db.nibShare.update({ where: { id: share.id }, data: { unlockCount: { increment: 1 } } });
   await db.nibShareReceipt.update({ where: { id: receipt.id }, data: { keyGrantedAt: new Date() } });
-  return receipt;
+  // Attribute the content view to the payer wallet server-side, so owners can
+  // always see who unlocked/accessed their work even when the page view was
+  // anonymous (wallet not connected at page-load time).
+  await db.nibShareEvent.create({ data: { shareId: share.id, type: 'view', wallet: payer } });
+  return { receipt, replay: false };
+}
+
+// 'paid' outranks 'free' on a collision: a wallet that was handed a free grant
+// and later pays must never be downgraded to a re-grant-per-visit 'free' source.
+function sourceMax(a, b) {
+  return a === 'paid' || b === 'paid' ? 'paid' : 'free';
+}
+
+export async function grantUnlock({ share, payer, txHash, amount }) {
+  const ent = await findEntitlement({ shareId: share.id, wallet: payer });
+  if (ent && ent.status === 'banned') {
+    throw new HttpError(403, 'This wallet is banned from this share.');
+  }
+  return atomicIdempotentGrant({ share, payer, txHash, amount });
 }
 
 export function resourceFor(share) {
@@ -119,6 +191,8 @@ export function resourceFor(share) {
     title: share.title,
     type: share.contentType,
     price: String(share.price),
+    whitelistPrice: share.whitelistPrice == null ? null : String(share.whitelistPrice),
+    publicAccess: share.publicAccess,
     currency: share.currency,
     path: `/ns/${share.slug}`,
   };
@@ -137,6 +211,8 @@ export async function shareManifest(slug) {
     summary: share.summary,
     contentType: share.contentType,
     price: String(share.price),
+    whitelistPrice: share.whitelistPrice == null ? null : String(share.whitelistPrice),
+    publicAccess: share.publicAccess,
     currency: share.currency,
     expiresAt: share.expiresAt,
     status: share.status,
@@ -159,7 +235,33 @@ export async function shareManifest(slug) {
 }
 
 export function isWhitelisted(share, wallet) {
-  return share.whitelist.length === 0 || share.whitelist.includes(wallet);
+  return sdkIsWhitelisted(share, wallet);
+}
+
+// Strict membership: wallet is listed AND the list is non-empty (legacy
+// "empty list = open to everyone" semantics). Used for tier pricing and
+// invite-only enforcement, where an empty list must not grant everyone a
+// whitelist tier.
+export function inWhitelist(share, wallet) {
+  return sdkInWhitelist(share, wallet);
+}
+
+// The price THIS wallet must pay right now.
+//   whitelist member + whitelistPrice set  -> whitelistPrice
+//   everything else                         -> share.price (public tier)
+export function effectivePrice(share, wallet) {
+  return sdkEffectivePrice(share, wallet);
+}
+
+// Non-payment gate check (who is allowed to even try). Payment/entitlement
+// state is layered on top by the controller.
+//   publicAccess=false -> invite-only: only listed wallets may try.
+//   publicAccess=true  -> everyone may try; whitelist members simply get the
+//                         whitelistPrice tier (legacy "whitelist = invite-only"
+//                         shares are migrated with publicAccess=false).
+export function accessDecision(share, wallet) {
+  const decision = sdkAccessDecision(share, wallet);
+  return { ok: decision.ok, reason: decision.reason || null, message: decision.message || null };
 }
 
 export function findEntitlement({ shareId, wallet }) {
@@ -173,13 +275,165 @@ export function findLastReceipt({ shareId, wallet }) {
   });
 }
 
+// Free-tier grant (whitelistPrice=0 member): activates the entitlement so
+// media + proof-replay work, WITHOUT a receipt, unlockCount bump, or view event.
+// Paid unlocks are the revenue signal; free members don't distort it. `source`
+// stays 'free' unless the wallet has already paid (never downgrade a paid grant).
+export async function grantEntitlement({ share, wallet }) {
+  const ent = await findEntitlement({ shareId: share.id, wallet });
+  if (ent && ent.status === 'banned') {
+    throw new HttpError(403, 'This wallet is banned from this share.');
+  }
+  const source = ent && ent.source === 'paid' ? 'paid' : 'free';
+  return db.nibShareEntitlement.upsert({
+    where: { shareId_wallet: { shareId: share.id, wallet } },
+    create: { shareId: share.id, wallet, status: 'active', source: 'free' },
+    update: { status: 'active', revokedAt: null, source }
+  });
+}
+
+export async function refundLastReceipt({ shareId, wallet }) {
+  const receipt = await db.nibShareReceipt.findFirst({
+    where: { shareId, payerWallet: wallet, refundedAt: null, amount: { gt: 0 } },
+    orderBy: { unlockedAt: 'desc' }
+  });
+  if (!receipt) return null;
+  await db.nibShareReceipt.update({ where: { id: receipt.id }, data: { refundedAt: new Date() } });
+  return receipt;
+}
+
 export async function revokeEntitlement({ share, wallet }) {
   await db.nibShareEntitlement.upsert({
     where: { shareId_wallet: { shareId: share.id, wallet } },
-    create: { shareId: share.id, wallet, status: 'revoked', revokedAt: new Date() },
+    create: { shareId: share.id, wallet, status: 'revoked', revokedAt: new Date(), source: 'paid' },
     update: { status: 'revoked', revokedAt: new Date() }
   });
+  const refunded = await refundLastReceipt({ shareId: share.id, wallet });
   await db.nibShareEvent.create({ data: { shareId: share.id, type: 'revoke', wallet } });
+  if (refunded) {
+    await db.nibShareEvent.create({ data: { shareId: share.id, type: 'refund_mark', wallet } });
+  }
+  return { refunded };
+}
+
+export async function banEntitlement({ share, wallet }) {
+  await db.nibShareEntitlement.upsert({
+    where: { shareId_wallet: { shareId: share.id, wallet } },
+    create: { shareId: share.id, wallet, status: 'banned', revokedAt: new Date(), source: 'paid' },
+    update: { status: 'banned', revokedAt: new Date() }
+  });
+  const refunded = await refundLastReceipt({ shareId: share.id, wallet });
+  await db.nibShareEvent.create({ data: { shareId: share.id, type: 'ban', wallet } });
+  if (refunded) {
+    await db.nibShareEvent.create({ data: { shareId: share.id, type: 'refund_mark', wallet } });
+  }
+  return { refunded };
+}
+
+// Restore is bookkeeping-only (ACCESS-CONTROL-DESIGN §7): the wallet goes back
+// to active under its original source, and any refund-mark on a paid receipt is
+// reversed. We cannot claw back on-chain; this documents that the refund is void.
+export async function restoreEntitlement({ share, wallet }) {
+  const ent = await findEntitlement({ shareId: share.id, wallet });
+  const source = ent && ent.source === 'paid' ? 'paid' : 'free';
+  await db.nibShareEntitlement.upsert({
+    where: { shareId_wallet: { shareId: share.id, wallet } },
+    create: { shareId: share.id, wallet, status: 'active', source },
+    update: { status: 'active', revokedAt: null }
+  });
+  const receipt = await db.nibShareReceipt.findFirst({
+    where: { shareId: share.id, payerWallet: wallet, refundedAt: { not: null } },
+    orderBy: { unlockedAt: 'desc' }
+  });
+  if (receipt) {
+    await db.nibShareReceipt.update({ where: { id: receipt.id }, data: { refundedAt: null } });
+    await db.nibShareEvent.create({ data: { shareId: share.id, type: 'refund_reverse', wallet } });
+  }
+}
+
+// Approves ONLY via server-side default for `canAccess` facts. `serveAccess`/
+// `mediaAccessResult` in the controller wrap the full §4 rule: ban/revoke/invite
+// gates, paid-lifetime entitlement, whitelist free tier, legacy free grant,
+// proof fast path, then the 402 challenge.
+
+export async function updateAccessPolicy(share, patch) {
+  const data = {};
+  if (patch.whitelist !== undefined) {
+    if (!Array.isArray(patch.whitelist)) {
+      throw new HttpError(400, 'whitelist must be an array of wallet addresses');
+    }
+    const cleaned = normalizeWhitelist(patch.whitelist);
+    if (cleaned.length !== patch.whitelist.length) {
+      throw new HttpError(400, 'whitelist contains an invalid wallet address');
+    }
+    data.whitelist = cleaned;
+  }
+  if (patch.whitelistPrice === null || patch.whitelistPrice === '' || typeof patch.whitelistPrice === 'number') {
+    data.whitelistPrice = patch.whitelistPrice === null || patch.whitelistPrice === '' ? null : parsePrice(patch.whitelistPrice);
+  }
+  if (typeof patch.publicAccess === 'boolean') data.publicAccess = patch.publicAccess;
+
+  const alreadyInviteOnly = share.publicAccess === false;
+  const flippingInviteOnly = data.publicAccess === false && !alreadyInviteOnly;
+  const whitelistChanged = data.whitelist !== undefined && JSON.stringify(data.whitelist) !== JSON.stringify(share.whitelist);
+  const nextWhitelist = data.whitelist ?? share.whitelist;
+
+  await db.nibShare.update({ where: { id: share.id }, data });
+
+  // Gap #11 (ACCESS-CONTROL-DESIGN §6 row 7 / §10.1): invite-only content must
+  // not keep serving paid wallets that are no longer listed. This fires on the
+  // flip AND on later whitelist edits while already invite-only (removing a
+  // wallet from an invite-only share cuts that payer off). Wallets still listed
+  // are untouched; already-revoked wallets are not re-processed.
+  const cuttingOff = (data.publicAccess === false && flippingInviteOnly) || (alreadyInviteOnly && whitelistChanged);
+  const cutOffWallets = [];
+  if (cuttingOff) {
+    const [activeEnts, receipts] = await Promise.all([
+      db.nibShareEntitlement.findMany({ where: { shareId: share.id, status: 'active' } }),
+      db.nibShareReceipt.findMany({ where: { shareId: share.id } })
+    ]);
+    const cutOff = paidCutoffWallets({
+      policy: { whitelist: nextWhitelist, publicAccess: false },
+      entitlements: activeEnts,
+      receipts
+    });
+
+    for (const wallet of cutOff) {
+      await revokeEntitlement({ share, wallet });
+      await db.nibShareEvent.create({ data: { shareId: share.id, type: 'invite_only_flip', wallet } });
+      cutOffWallets.push(wallet);
+    }
+  }
+
+  return {
+    whitelist: data.whitelist ?? share.whitelist,
+    whitelistPrice: data.whitelistPrice !== undefined ? data.whitelistPrice : share.whitelistPrice,
+    publicAccess: data.publicAccess !== undefined ? data.publicAccess : share.publicAccess,
+    cutOffWallets
+  };
+}
+
+export async function listEntitlements(shareId) {
+  const rows = await db.nibShareEntitlement.findMany({ where: { shareId }, orderBy: { grantedAt: 'desc' } });
+  return rows.map((e) => ({ wallet: e.wallet, status: e.status, grantedAt: e.grantedAt, revokedAt: e.revokedAt }));
+}
+
+export async function listViewers(shareId) {
+  const events = await db.nibShareEvent.findMany({
+    where: { shareId, type: 'view', wallet: { not: null } },
+    orderBy: { createdAt: 'desc' }
+  });
+  const seen = new Map();
+  for (const e of events) {
+    const w = e.wallet;
+    const rec = seen.get(w);
+    if (rec) {
+      rec.count += 1;
+    } else {
+      seen.set(w, { wallet: w, count: 1, lastSeenAt: e.createdAt });
+    }
+  }
+  return [...seen.values()];
 }
 
 export async function revokeShare(share) {
@@ -216,6 +470,8 @@ export async function listMine(ownerWallet) {
       coverUrl: s.coverUrl,
       contentType: s.contentType,
       price: String(s.price),
+      whitelistPrice: s.whitelistPrice == null ? null : String(s.whitelistPrice),
+      publicAccess: s.publicAccess,
       expiresAt: s.expiresAt,
       status: s.status,
       unlockCount: s.unlockCount,

@@ -24,10 +24,13 @@ const list = catchAsync(async (req, res) => {
 const getBySlug = catchAsync(async (req, res) => {
   const post = await blogService.getBySlug(req.siteId, req.params.slug);
   if (!post) return res.status(status.NOT_FOUND).json({ error: 'Post not found' });
-  // For paid posts, NEVER send the body publicly — only a teaser
-  if (post.price && post.price !== '0') {
-    const { bodyMarkdown, body, videoUrl, audioUrl, audioStorageRef, audioEncryptedKey, audioContentType, contentKey, bodyStorageRef, media, ...teaser } = post;
-    return res.json({ success: true, post: transformTags({ ...teaser, bodyMarkdown: null, body: null, videoUrl: null, audioUrl: null, audioStorageRef: null, audioEncryptedKey: null, audioContentType: null, contentKey: null, bodyStorageRef: null, media: null, isLocked: true }) });
+  // For paid posts, NEVER send the body publicly — only a teaser.
+  // Invite-only (publicAccess=false) posts are locked too, even when free.
+  const isPaid = post.price && post.price !== '0';
+  const isInviteOnly = post.publicAccess === false;
+  if (isPaid || isInviteOnly) {
+    const { bodyMarkdown, body, videoUrl, audioUrl, audioStorageRef, audioEncryptedKey, audioContentType, contentKey, bodyStorageRef, media, whitelist, ...teaser } = post;
+    return res.json({ success: true, post: transformTags({ ...teaser, bodyMarkdown: null, body: null, videoUrl: null, audioUrl: null, audioStorageRef: null, audioEncryptedKey: null, audioContentType: null, contentKey: null, bodyStorageRef: null, media: null, whitelist: null, isLocked: true }) });
   }
   res.json({ success: true, post: transformTags(post) });
 });
@@ -51,6 +54,10 @@ const adminActivity = catchAsync(async (req, res) => {
 const getById = catchAsync(async (req, res) => {
   const post = await blogService.getById(req.siteId, req.params.id);
   if (!post) return res.status(status.NOT_FOUND).json({ error: 'Post not found' });
+  // Authors may only read their own posts' full bodies; admins may read any.
+  if (req.user.role !== 'admin' && post.authorId !== req.user.id) {
+    return res.status(status.FORBIDDEN).json({ error: 'You can only view your own posts' });
+  }
   res.json({ success: true, post: transformTags(post) });
 });
 
@@ -60,12 +67,14 @@ const create = catchAsync(async (req, res) => {
 });
 
 const update = catchAsync(async (req, res) => {
-  const post = await blogService.update(req.siteId, req.params.id, req.body);
+  const actor = req.user.role === 'admin' ? null : req.user.id;
+  const post = await blogService.update(req.siteId, req.params.id, req.body, actor);
   res.json({ success: true, post: transformTags(post) });
 });
 
 const remove = catchAsync(async (req, res) => {
-  await blogService.remove(req.siteId, req.params.id);
+  const actor = req.user.role === 'admin' ? null : req.user.id;
+  await blogService.remove(req.siteId, req.params.id, actor);
   res.json({ success: true });
 });
 

@@ -8,6 +8,7 @@ const { storedToKey } = require('../../lib/keywrap');
 const { registerR2Provider } = require('../../lib/storage');
 const { renderDocument } = require('../../services/document-render');
 const { authenticate, authorize } = require('../../middlewares/auth');
+const accessService = require('../../services/access.service');
 const logger = require('../../config/logger');
 const router = express.Router();
 
@@ -73,7 +74,63 @@ router.get('/status', (req, res) => {
   });
 });
 
+// Wallet identity embedded in a valid SDK unlock-proof token (minted by
+// nibgateServer.unlock). Used to gate media + proof replay on entitlements.
+function proofWalletFor(req, resource) {
+  const proof =
+    req.headers['x-nibgate-payment-proof'] ||
+    req.query.proof ||
+    '';
+  if (!proof) return null;
+  const payload = nibgateServer.verifyUnlockToken(proof, resource);
+  const w = payload?.payment?.payer || '';
+  return /^0x[0-9a-f]{40}$/i.test(w) ? w.toLowerCase() : null;
+}
+
+// Confirm the request may stream this post's media:
+//   paid            -> valid proof OR active paid entitlement (lifetime);
+//                      never banned/revoked
+//   invite-only     -> wallet MUST be whitelisted (even free posts)
+// Returns null if allowed, else a { status, body } response to send.
+async function mediaAccessResult(req, post, resource) {
+  if (!isPaidValue(post?.price) && post?.publicAccess !== false) return null;
+  const isInviteOnly = post.publicAccess === false;
+  // The wallet is trusted from a valid proof, OR from a session-corroborated
+  // claim. A bare ?wallet= claim alone cannot unlock media.
+  let wallet = proofWalletFor(req, resource);
+  if (!wallet) wallet = await accessService.possessedWalletFor(req, accessService.walletFor(req));
+  if (!wallet) {
+    if (!isPaidValue(post?.price)) {
+      return { status: 403, body: { error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view its media.' } };
+    }
+    const challenge = nibgateServer.createPaymentChallenge(resource);
+    return { status: 402, body: challenge };
+  }
+  if (isInviteOnly && !accessService.inWhitelist(post, wallet)) {
+    return { status: 403, body: { error: 'This post is invite-only — only whitelisted wallets can access it.' } };
+  }
+  if (isPaidValue(post.price) && !nibgateServer.isUnlocked(new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, { headers: new Headers(req.headers) }), resource)) {
+    // No valid proof: gate on a lifetime active paid entitlement.
+    const paidEnt = await accessService.findEntitlement({ postId: post.id, wallet });
+    const hasPaidReceipt = paidEnt && paidEnt.status === 'active'
+      ? await accessService.findLastReceipt({ postId: post.id, wallet })
+      : null;
+    if (!hasPaidReceipt) {
+      const challenge = nibgateServer.createPaymentChallenge(resource);
+      return { status: 402, body: challenge };
+    }
+  }
+  const ent = await accessService.findEntitlement({ postId: post.id, wallet });
+  if (ent && (ent.status === 'banned' || ent.status === 'revoked')) {
+    return { status: 403, body: { error: 'You must unlock this post to view its media.' } };
+  }
+  return null;
+}
+
 async function serveAccess(req, res, post, slug) {
+  // Hardened cache hygiene (x402 Attack III): gated bodies must never be
+  // cached by a shared proxy, or a non-payer could read a cached 200.
+  res.setHeader('Cache-Control', 'private, no-store');
   const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
   const recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
 
@@ -87,7 +144,7 @@ async function serveAccess(req, res, post, slug) {
     type: post?.type || 'article',
     price: post ? (isPaidValue(post.price) ? post.price : '0') : (req.query.price || '0.01'),
     currency: 'USDC',
-    path: slug ? `/posts/${slug}` : req.query.path || '/',
+    path: req.query.path || (slug ? `/posts/${slug}` : '/'),
     description: post?.excerpt || '',
     recipient,
   };
@@ -97,10 +154,138 @@ async function serveAccess(req, res, post, slug) {
     headers: new Headers(req.headers),
   });
 
-  const access = nibgateServer.accessFor(request, resource);
+  // ---------- Free posts (price 0 / empty) ----------
+  if (!isPaidValue(post?.price)) {
+    // Invite-only free posts still require a listed, un-banned, un-revoked
+    // wallet — and only a session-corroborated claim is trusted. A bare
+    // ?wallet= cannot unlock free content.
+    if (!post?.publicAccess) {
+      const possessed = await accessService.possessedWalletFor(req, accessService.walletFor(req));
+      if (!possessed) {
+        return res.status(403).json({ ok: false, error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view it.' });
+      }
+      const decision = accessService.accessDecision(post, possessed);
+      if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
+      const ent = await accessService.findEntitlement({ postId: post.id, wallet: possessed });
+      if (ent && ent.status === 'banned') {
+        return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+      }
+      if (ent && ent.status === 'revoked') {
+        return res.status(403).json({ ok: false, error: 'Access to this post has been revoked.' });
+      }
+    }
+    const payload = await accessPayloadFor(post);
+    const result = await nibgateServer.unlock(resource, { id: `${post.id}:free`, payer: accessService.walletFor(req) || '', amount: 0, txHash: null });
+    return res.json({
+      ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
+      payment: { id: null, amount: '0', currency: 'USDC', txHash: null, payerWallet: accessService.walletFor(req) || '' },
+      unlockProof: result.unlockProof,
+      expiresInSeconds: result.expiresInSeconds,
+    });
+  }
+
+  // ---------- Paid posts ----------
+
+  // Replay an existing SDK unlock-proof (wallet already paid / was granted).
+  const proofWallet = proofWalletFor(req, resource);
+  if (proofWallet) {
+    // Invite-only: even a valid old proof does NOT unlock outside the whitelist.
+    // Nobody outside the whitelist can unlock OR pay for an invite-only post.
+    if (!post?.publicAccess && !accessService.inWhitelist(post, proofWallet)) {
+      return res.status(403).json({ ok: false, error: 'This post is invite-only — only whitelisted wallets can access it.' });
+    }
+    const ent = await accessService.findEntitlement({ postId: post.id, wallet: proofWallet });
+    if (ent && ent.status === 'banned') {
+      return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+    }
+    if (ent && ent.status === 'revoked') {
+      return res.status(403).json({ ok: false, error: 'Access to this post has been revoked. Pay again to re-unlock.' });
+    }
+    const payload = await accessPayloadFor(post);
+    const lastReceipt = await accessService.findLastReceipt({ postId: post.id, wallet: proofWallet });
+    return res.json({
+      ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
+      payment: { id: lastReceipt?.id || null, amount: String(post.price), currency: 'USDC', txHash: lastReceipt?.txHash || null, payerWallet: proofWallet },
+      unlockProof: req.headers['x-nibgate-payment-proof'],
+      expiresInSeconds: 12 * 60 * 60,
+    });
+  }
+
+  // Per-wallet tier pricing: the x402 challenge amount is minted BEFORE the
+  // wallet pays, so the requester must identify itself up-front (?wallet=).
+  // Only a session-corroborated claim may influence the tier — a bare claim
+  // charges the PUBLIC price and grants nothing.
+  const claimed = accessService.walletFor(req);
+  const wallet = await accessService.possessedWalletFor(req, claimed);
+
+  // Invite-only paid posts: only a possessed, whitelisted wallet may even
+  // attempt a payment — anonymous requests get 403, never a charge.
+  if (!post?.publicAccess) {
+    if (!wallet) {
+      return res.status(403).json({ ok: false, error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view it.' });
+    }
+    const inviteDecision = accessService.accessDecision(post, wallet);
+    if (!inviteDecision.ok) return res.status(403).json({ ok: false, error: inviteDecision.message });
+  }
+
+  const challengePrice = wallet ? accessService.effectivePrice(post, wallet) : post.price;
+
+  // Banned wallets must be refused before we spend a challenge on them.
+  if (wallet) {
+    const tryEnt = await accessService.findEntitlement({ postId: post.id, wallet });
+    if (tryEnt && tryEnt.status === 'banned') {
+      return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+    }
+  }
+
+  // Whitelist-free tier (whitelistPrice=0 member of a paid post): x402 rejects
+  // $0, so grant an active entitlement without a challenge instead.
+  if (isPaidValue(post.price) && String(challengePrice) === '0' && wallet) {
+    const decision = accessService.accessDecision(post, wallet);
+    if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
+    const freeEnt = await accessService.findEntitlement({ postId: post.id, wallet });
+    if (freeEnt && freeEnt.status === 'banned') {
+      return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+    }
+    await accessService.grantEntitlement({ post, wallet });
+    const freeResult = await nibgateServer.unlock({ ...resource, price: '0' }, { id: `${post.id}:free`, payer: wallet, amount: 0, txHash: null });
+    const payload = await accessPayloadFor(post);
+    return res.json({
+      ok: true, resource: { ...resource, price: '0' }, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
+      payment: { id: null, amount: '0', currency: 'USDC', txHash: null, payerWallet: wallet },
+      unlockProof: freeResult.unlockProof,
+      expiresInSeconds: freeResult.expiresInSeconds,
+    });
+  }
+
+  // Lifetime access: an active entitlement backed by a REAL paid receipt means
+  // the wallet already paid. When their 12h unlock-proof lapses, re-issue a
+  // fresh proof for free instead of charging them again.
+  if (wallet) {
+    const lifetime = await accessService.findEntitlement({ postId: post.id, wallet });
+    if (lifetime && lifetime.status === 'active') {
+      const paidReceipt = await accessService.findLastReceipt({ postId: post.id, wallet });
+      if (paidReceipt) {
+        const refreshedProof = await nibgateServer.unlock(
+          { ...resource, price: String(challengePrice || post.price) },
+          { id: `${post.id}:lifetime:${wallet}`, payer: wallet, amount: 0, txHash: null }
+        );
+        const payload = await accessPayloadFor(post);
+        return res.json({
+          ok: true, resource: { ...resource, price: String(challengePrice || post.price) }, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
+          payment: { id: paidReceipt.id, amount: String(post.price), currency: 'USDC', txHash: paidReceipt.txHash || null, payerWallet: wallet },
+          unlockProof: refreshedProof.unlockProof,
+          expiresInSeconds: refreshedProof.expiresInSeconds,
+        });
+      }
+    }
+  }
+
+  const paidResource = { ...resource, price: String(challengePrice) };
+  const access = nibgateServer.accessFor(request, paidResource);
   if (access.allowed) {
     const payload = await accessPayloadFor(post);
-    return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media });
+    return res.json({ ok: true, resource: paidResource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media });
   }
   if (access.blocked) {
     return res.status(403).json({ ok: false, error: 'Access blocked' });
@@ -114,11 +299,11 @@ async function serveAccess(req, res, post, slug) {
       ...(req.headers['payment-memo'] ? { 'payment-memo': req.headers['payment-memo'] } : {}),
     },
     body: JSON.stringify({
-      price: resource.price,
-      recipient: resource.recipient,
-      title: resource.title,
-      contentId: resource.id,
-      path: resource.path,
+      price: paidResource.price,
+      recipient: paidResource.recipient,
+      title: paidResource.title,
+      contentId: paidResource.id,
+      path: paidResource.path,
     }),
   });
 
@@ -136,19 +321,40 @@ async function serveAccess(req, res, post, slug) {
   if (hubResponse.ok) {
     const hubData = await hubResponse.json();
     if (hubData.success) {
-      const result = await nibgateServer.unlock(resource, hubData.payment);
+      const result = await nibgateServer.unlock(paidResource, hubData.payment);
       if (result.ok) {
+        const payer = String(hubData.payment?.payer || hubData.payment?.payerWallet || '').toLowerCase();
+        if (payer) {
+          // Invite-only: the account that pays must be the account that
+          // identified itself (a bare claim cannot route a whitelist tier).
+          if (!post?.publicAccess && payer !== wallet) {
+            return res.status(403).json({ ok: false, error: 'This post is invite-only — the wallet that pays must be the wallet you signed in with.' });
+          }
+          const decision = accessService.accessDecision(post, payer);
+          if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
+          const configEnt = await accessService.findEntitlement({ postId: post.id, wallet: payer });
+          if (configEnt && configEnt.status === 'banned') {
+            return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+          }
+          if (String(accessService.effectivePrice(post, payer)) !== String(challengePrice)) {
+            return res.status(409).json({ ok: false, error: 'The price changed for your wallet. Please retry unlocking.' });
+          }
+          await accessService.grantUnlock({ post, payer, txHash: hubData.payment?.txHash || null, amount: String(challengePrice) });
+        }
         const payload = await accessPayloadFor(post);
-        return res.json({ ok: true, resource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media, payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+        return res.json({
+          ok: true, resource: paidResource, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
+          payment: hubData.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds,
+        });
       }
     }
   }
 
   logger.warn(`nibgate/access hub error subdomain=${req.subdomain} status=${hubResponse.status}`);
 
-  const response = await nibgateServer.accessResponse(request, resource, {
+  const response = await nibgateServer.accessResponse(request, paidResource, {
     ok: true,
-    resource,
+    resource: paidResource,
   });
 
   const responseBody = await response.text();
@@ -171,9 +377,142 @@ router.get('/access', async (req, res, next) => {
     if (!post && slug) {
       return res.status(404).json({ ok: false, error: 'Post not found' });
     }
+    if (post && post.status !== 'published') {
+      return res.status(404).json({ ok: false, error: 'Post not found' });
+    }
     return await serveAccess(req, res, post, slug);
   } catch (error) {
     next(error);
+  }
+});
+
+// ---------- Owner/admin access-control ----------
+
+// GET /posts/:key/quote?wallet=0x… — per-wallet pricing snapshot for the gate UI.
+router.get('/posts/:key/quote', async (req, res) => {
+  try {
+    const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const wallet = accessService.walletFor(req);
+    if (!wallet) return res.status(400).json({ error: 'wallet query param is required' });
+    const ent = await accessService.findEntitlement({ postId: post.id, wallet });
+    const inWL = accessService.inWhitelist(post, wallet);
+    const decision = accessService.accessDecision(post, wallet);
+    const revoked = ent?.status === 'revoked';
+    const banned = ent?.status === 'banned';
+    const canUnlock = decision.ok && !banned;
+    res.json({
+      wallet,
+      price: String(isPaidValue(post.price) ? post.price : '0'),
+      whitelistPrice: post.whitelistPrice == null || post.whitelistPrice === '' ? null : String(post.whitelistPrice),
+      publicAccess: post.publicAccess,
+      whitelisted: accessService.isWhitelisted(post, wallet),
+      inWhitelist: inWL,
+      effectivePrice: accessService.effectivePrice(post, wallet),
+      status: ent?.status || null,
+      revoked,
+      banned,
+      canUnlock,
+      reason: canUnlock ? null : (banned ? 'This wallet is banned from this post.' : decision.message),
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to quote post', details: error.message });
+  }
+});
+
+// GET /posts/:key/access-control — whitelist policy + entitlements + viewers.
+router.get('/posts/:key/access-control', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const [entitlements, viewers] = await Promise.all([
+      accessService.listEntitlements(post.id),
+      accessService.listViewers(post.id),
+    ]);
+    res.json({
+      whitelist: post.whitelist || [],
+      whitelistPrice: post.whitelistPrice == null || post.whitelistPrice === '' ? null : String(post.whitelistPrice),
+      publicAccess: post.publicAccess,
+      entitlements,
+      viewers,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load access control', details: error.message });
+  }
+});
+
+// PUT /posts/:key/access-control — { whitelist?, whitelistPrice?, publicAccess? }.
+router.put('/posts/:key/access-control', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const { whitelist, whitelistPrice, publicAccess } = req.body || {};
+    if (whitelist !== undefined && !Array.isArray(whitelist)) {
+      return res.status(400).json({ error: 'whitelist must be an array of wallet addresses' });
+    }
+    if (whitelist !== undefined) {
+      for (const w of whitelist) {
+        if (typeof w !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(w.trim())) {
+          return res.status(400).json({ error: `Invalid wallet address: ${w}` });
+        }
+      }
+    }
+    if (whitelistPrice !== undefined && whitelistPrice !== null && whitelistPrice !== '') {
+      const n = Number(whitelistPrice);
+      if (!Number.isFinite(n) || n < 0) {
+        return res.status(400).json({ error: 'whitelistPrice must be a non-negative number or null' });
+      }
+    }
+    if (publicAccess !== undefined && typeof publicAccess !== 'boolean') {
+      return res.status(400).json({ error: 'publicAccess must be a boolean' });
+    }
+    const updated = await accessService.updateAccessPolicy(post, { whitelist, whitelistPrice, publicAccess });
+    res.json({ success: true, ...updated });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update access control', details: error.message });
+  }
+});
+
+// POST /posts/:key/entitlements/:wallet/revoke
+router.post('/posts/:key/entitlements/:wallet/revoke', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const wallet = String(req.params.wallet).toLowerCase();
+    const { refunded } = await accessService.revokeEntitlement({ post, wallet });
+    res.json({ success: true, wallet, status: 'revoked', refunded: Boolean(refunded) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to revoke entitlement', details: error.message });
+  }
+});
+
+// POST /posts/:key/entitlements/:wallet/ban
+router.post('/posts/:key/entitlements/:wallet/ban', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const wallet = String(req.params.wallet).toLowerCase();
+    const { refunded } = await accessService.banEntitlement({ post, wallet });
+    res.json({ success: true, wallet, status: 'banned', refunded: Boolean(refunded) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to ban wallet', details: error.message });
+  }
+});
+
+// DELETE /posts/:key/entitlements/:wallet — restore to active.
+router.delete('/posts/:key/entitlements/:wallet', authenticate, authorize('admin'), async (req, res) => {
+  try {
+    const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const wallet = String(req.params.wallet).toLowerCase();
+    const restored = await accessService.restoreEntitlement({ post, wallet });
+    if (!restored) {
+      return res.status(404).json({ error: 'No entitlement found for this wallet' });
+    }
+    res.json({ success: true, wallet, status: 'active' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to restore entitlement', details: error.message });
   }
 });
 
@@ -182,6 +521,7 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
     const { postId, kind } = req.params;
     const post = await prisma.blogPost.findFirst({ where: { siteId: req.siteId, id: postId } });
     if (!post) return res.status(404).json({ error: 'Not found' });
+    if (post.status !== 'published') return res.status(404).json({ error: 'Not found' });
 
     let storageRef = null;
     let contentKey = null;
@@ -214,14 +554,8 @@ router.get('/media/:postId/:kind', async (req, res, next) => {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    if (isPaidValue(post.price)) {
-      const resource = { id: post.id };
-      const mediaRequest = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, { headers: new Headers(req.headers) });
-      if (!nibgateServer.isUnlocked(mediaRequest, resource)) {
-        const challenge = nibgateServer.createPaymentChallenge(resource);
-        return res.status(402).json(challenge);
-      }
-    }
+    const gate = await mediaAccessResult(req, post, { id: post.id });
+    if (gate) return res.status(gate.status).json(gate.body);
 
     if (!storageRef || !contentKey) {
       if (kind !== 'document' || !post.documentUrl) return res.status(404).json({ error: 'Not found' });
@@ -267,7 +601,8 @@ router.get('/media/:postId/document/preview', async (req, res, next) => {
     if (!post || (!(post.documentStorageRef && post.documentEncryptedKey) && !post.documentUrl)) {
       return res.status(404).json({ error: 'Not found' });
     }
-    const isPaid = isPaidValue(post.price);
+    if (post.status !== 'published') return res.status(404).json({ error: 'Not found' });
+    const isPaid = isPaidValue(post.price) || post.publicAccess === false;
     const { kind, html } = await renderDocument(post, { preview: isPaid });
     res.setHeader('Cache-Control', 'private, max-age=120');
     return res.json({ ok: true, kind, html: html || null, meta: documentMetaFor(post) });
@@ -282,14 +617,9 @@ router.get('/media/:postId/document/render', async (req, res, next) => {
     if (!post || (!(post.documentStorageRef && post.documentEncryptedKey) && !post.documentUrl)) {
       return res.status(404).json({ error: 'Not found' });
     }
-    if (isPaidValue(post.price)) {
-      const resource = { id: post.id };
-      const mediaRequest = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, { headers: new Headers(req.headers) });
-      if (!nibgateServer.isUnlocked(mediaRequest, resource)) {
-        const challenge = nibgateServer.createPaymentChallenge(resource);
-        return res.status(402).json(challenge);
-      }
-    }
+    if (post.status !== 'published') return res.status(404).json({ error: 'Not found' });
+    const gate = await mediaAccessResult(req, post, { id: post.id });
+    if (gate) return res.status(gate.status).json(gate.body);
     const { kind, html } = await renderDocument(post, { preview: false });
     res.setHeader('Cache-Control', 'private, max-age=300');
     return res.json({ ok: true, kind, html: html || null, meta: documentMetaFor(post) });

@@ -9,11 +9,11 @@
   },
   "dependencies": {
     "@nibgate/sdk": "^0.4.6",
-    "@nibgate/wallet": "0.2.10",
+    "@nibgate/wallet": "file:nibgate-wallet-0.2.13.tgz",
     "@reown/appkit": "1.8.21",
     "@reown/appkit-adapter-wagmi": "1.8.21",
-    "@tanstack/react-query": "5.101.2",
     "@tailwindcss/typography": "^0.5.20",
+    "@tanstack/react-query": "5.101.2",
     "@tiptap/extension-dropcursor": "^3.28.0",
     "@tiptap/extension-image": "^3.28.0",
     "@tiptap/extension-link": "^3.28.0",

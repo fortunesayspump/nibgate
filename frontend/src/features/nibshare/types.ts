@@ -3,6 +3,8 @@ export interface ShareMeta {
   summary: string | null;
   coverUrl: string | null;
   price: string;
+  whitelistPrice: string | null;
+  publicAccess: boolean;
   currency: string;
   contentType: string;
   expiresAt: string | null;
@@ -16,8 +18,25 @@ export interface AccessResource {
   title: string;
   type: string;
   price: string;
+  whitelistPrice?: string | null;
+  publicAccess?: boolean;
   currency: string;
   path: string;
+}
+
+export interface Quote {
+  wallet: string;
+  price: string;
+  whitelistPrice: string | null;
+  publicAccess: boolean;
+  whitelisted: boolean;
+  inWhitelist: boolean;
+  effectivePrice: string;
+  status: "active" | "revoked" | "banned" | null;
+  revoked: boolean;
+  banned: boolean;
+  canUnlock: boolean;
+  reason: string | null;
 }
 
 export interface AccessPayment {
@@ -45,6 +64,7 @@ export interface ShareReceipt {
   payerWallet?: string;
   txHash?: string | null;
   unlockedAt: string;
+  refundedAt?: string | null;
 }
 
 export interface ShareSummary {
@@ -56,6 +76,8 @@ export interface ShareSummary {
   coverUrl: string | null;
   contentType: string;
   price: string;
+  whitelistPrice?: string | null;
+  publicAccess?: boolean;
   status: string;
   expiresAt: string | null;
   unlockCount: number;
@@ -65,7 +87,7 @@ export interface ShareSummary {
   receipts: ShareReceipt[];
 }
 
-export type ShareActivityType = "unlock" | "view" | "revoke" | "expiring" | "expired";
+export type ShareActivityType = "unlock" | "view" | "revoke" | "ban" | "refund" | "expiring" | "expired";
 
 export interface ShareActivity {
   key: string;
@@ -75,6 +97,27 @@ export interface ShareActivity {
   amount?: number;
   wallet?: string | null;
   createdAt: string;
+}
+
+export interface EntitlementRecord {
+  wallet: string;
+  status: "active" | "revoked" | "banned";
+  grantedAt: string;
+  revokedAt: string | null;
+}
+
+export interface ViewerRecord {
+  wallet: string;
+  count: number;
+  lastSeenAt: string;
+}
+
+export interface AccessControl {
+  whitelist: string[];
+  whitelistPrice: string | null;
+  publicAccess: boolean;
+  entitlements: EntitlementRecord[];
+  viewers: ViewerRecord[];
 }
 
 export interface MineResponse {
@@ -100,6 +143,9 @@ export interface CreateSharePayload {
   price: string;
   status: "active" | "draft";
   expiresAt: string;
+  whitelist?: string[];
+  whitelistPrice?: string | null;
+  publicAccess?: boolean;
 }
 
 export interface CreateShareResponse {
@@ -108,7 +154,17 @@ export interface CreateShareResponse {
   url: string;
   title: string;
   price: string;
+  whitelistPrice: string | null;
+  publicAccess: boolean;
   expiresAt: string | null;
+}
+
+export interface AccessPolicyUpdate {
+  success: boolean;
+  whitelist: string[];
+  whitelistPrice: string | null;
+  publicAccess: boolean;
+  cutOffWallets?: string[];
 }
 
 export interface ReslugResponse {

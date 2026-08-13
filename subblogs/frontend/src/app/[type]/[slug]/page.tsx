@@ -11,6 +11,14 @@ import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 
+interface GateResource {
+  id: string;
+  title: string;
+  type: string;
+  price: string;
+  path: string;
+}
+
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video", document: "Docs" };
 const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music: "♫", video: "▶", document: "▤" };
 
@@ -113,6 +121,11 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
 
   const postBody = post.bodyMarkdown || "";
   const isPremium = post.price && Number(post.price) > 0;
+  const gated = isPremium || post.publicAccess === false;
+
+  function gateResource() {
+    return { id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` };
+  }
 
   let images: { url: string; caption?: string }[] = [];
   if (post.type === "photo" && post.media) {
@@ -160,7 +173,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             </a>
           )}
 
-          {post.type === "video" && !isPremium && (() => {
+          {post.type === "video" && !gated && (() => {
             const src = post.videoStorageRef ? `/api/nibgate/media/${post.id}/video` : post.videoUrl;
             if (!src) return null;
             const embed = detectEmbed(src);
@@ -176,7 +189,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             );
           })()}
 
-          {post.type === "photo" && !isPremium && images.length > 0 && (
+          {post.type === "photo" && !gated && images.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
               {images.map((item, i) => (
                 <div key={i}>
@@ -189,7 +202,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             </div>
           )}
 
-          {post.type === "music" && !isPremium && post.audioStorageRef && (
+          {post.type === "music" && !gated && post.audioStorageRef && (
             <div style={{ marginBottom: "1.5rem" }}>
               <audio controls src={`/api/nibgate/media/${post.id}/audio`} style={{ width: "100%" }} />
             </div>
@@ -203,11 +216,11 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
               size={post.documentSize}
               contentType={post.documentContentType}
               documentUrl={post.documentUrl}
-              isPaid={!!isPremium}
-              resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }}
+              isPaid={gated}
+              resource={gateResource()}
             />
-          ) : isPremium ? (
-            <NibgateUnlock resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
+          ) : gated ? (
+            <NibgateUnlock resource={gateResource()} />
           ) : post.type === "article" ? (
             <div className="prose prose-neutral dark:prose-invert">
               <ReactMarkdown>{resolveEmbeds(post.bodyMarkdown, post.id)}</ReactMarkdown>

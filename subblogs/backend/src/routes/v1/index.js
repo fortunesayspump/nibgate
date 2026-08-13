@@ -95,6 +95,7 @@ router.get('/:type/:slug', async (req, res, next) => {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
     const expectedType = typePath[post.type] || 'posts';
     if (req.params.type !== expectedType) return res.status(404).json({ ok: false, error: 'Post not found' });
+    req.query.path = `/${req.params.type}/${req.params.slug}`;
     return await nibgateRoute.serveAccess(req, res, post, req.params.slug);
   } catch (error) {
     next(error);

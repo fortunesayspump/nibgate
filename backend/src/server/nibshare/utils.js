@@ -69,20 +69,40 @@ export function storedContentKey(stored) {
   return unwrapKey(shareKeySecret(), String(stored));
 }
 
+// Mint-time claim proof. Format: `wallet.iat.exp.mac` — the HMAC binds
+// (shareId, wallet, iat, exp) so tampering with either claim breaks it, and the
+// 12h exp mirrors the SDK's DEFAULT_UNLOCK_SECONDS. Legacy `wallet.mac` proofs
+// (no claims, never expire) still verify for back-compat. Expiry is HARMLESS:
+// entitlements (rule 6/7) decide access before any proof check, so an expired
+// proof is simply re-minted on the next legit visit.
 export function paymentProofFor(share, wallet) {
-  const mac = crypto.createHmac('sha256', proofSecret()).update(`nibshare:${share.id}:${wallet}`).digest('base64url');
-  return `${wallet}.${mac}`;
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 12 * 3600;
+  const mac = crypto.createHmac('sha256', proofSecret()).update(`nibshare:${share.id}:${wallet}:${now}:${exp}`).digest('base64url');
+  return `${wallet}.${now}.${exp}.${mac}`;
 }
 
 export function walletFromPaymentProof(share, proof) {
   if (typeof proof !== 'string') return null;
-  const dot = proof.lastIndexOf('.');
-  if (dot <= 0) return null;
-  const wallet = proof.slice(0, dot);
-  const mac = proof.slice(dot + 1);
+  const parts = proof.split('.');
+  if (parts.length !== 2 && parts.length !== 4) return null;
+  const wallet = parts[0];
   if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return null;
-  const expected = crypto.createHmac('sha256', proofSecret()).update(`nibshare:${share.id}:${wallet}`).digest('base64url');
-  return mac === expected ? wallet.toLowerCase() : null;
+
+  if (parts.length === 2) {
+    const [mac = ''] = parts;
+    const expected = crypto.createHmac('sha256', proofSecret()).update(`nibshare:${share.id}:${wallet}`).digest('base64url');
+    return mac === expected ? wallet.toLowerCase() : null;
+  }
+
+  const [, iatRaw, expRaw, mac] = parts;
+  const iat = Number(iatRaw);
+  const exp = Number(expRaw);
+  if (!Number.isFinite(iat) || !Number.isFinite(exp)) return null;
+  const expected = crypto.createHmac('sha256', proofSecret()).update(`nibshare:${share.id}:${wallet}:${iat}:${exp}`).digest('base64url');
+  if (mac !== expected) return null;
+  if (exp < Math.floor(Date.now() / 1000)) return null;
+  return wallet.toLowerCase();
 }
 
 export async function decryptShareBody(share) {

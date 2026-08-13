@@ -8,8 +8,8 @@
     "start": "next start"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.4.6",
-    "@nibgate/wallet": "file:nibgate-wallet-0.2.13.tgz",
+    "@nibgate/sdk": "^0.4.8",
+    "@nibgate/wallet": "0.2.13",
     "@reown/appkit": "1.8.21",
     "@reown/appkit-adapter-wagmi": "1.8.21",
     "@tailwindcss/typography": "^0.5.20",

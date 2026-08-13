@@ -368,8 +368,16 @@ export async function updateAccessPolicy(share, patch) {
     }
     data.whitelist = cleaned;
   }
-  if (patch.whitelistPrice === null || patch.whitelistPrice === '' || typeof patch.whitelistPrice === 'number') {
-    data.whitelistPrice = patch.whitelistPrice === null || patch.whitelistPrice === '' ? null : parsePrice(patch.whitelistPrice);
+  if (patch.whitelistPrice === undefined) {
+    // omitted — leave unchanged
+  } else if (patch.whitelistPrice === null || patch.whitelistPrice === '') {
+    data.whitelistPrice = null;
+  } else {
+    const n = Number(patch.whitelistPrice);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new HttpError(400, 'whitelistPrice must be a non-negative number or null');
+    }
+    data.whitelistPrice = n;
   }
   if (typeof patch.publicAccess === 'boolean') data.publicAccess = patch.publicAccess;
 

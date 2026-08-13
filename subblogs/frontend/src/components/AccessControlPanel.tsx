@@ -130,7 +130,7 @@ export default function AccessControlPanel({ postId }: { postId: string }) {
                               onClick={() => act(v.wallet, "ban")}
                               className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-md border cursor-pointer disabled:opacity-50"
                               style={{ borderColor: "#c44", color: "#c44" }}
-                              title="Ban (refund last payment)"
+                              title="Ban — revoke access, cannot re-purchase"
                             >
                               <FiUserX size={10} /> Ban
                             </button>

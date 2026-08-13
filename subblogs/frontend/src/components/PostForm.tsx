@@ -272,7 +272,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         const cutOff = Array.isArray(data.post?.cutOffWallets) ? data.post.cutOffWallets : [];
         if (cutOff.length > 0 && form.inviteOnly) {
           const n = cutOff.length;
-          alert(`Made invite-only. ${n} wallet${n === 1 ? "" : "s"} that paid outside the whitelist ${n === 1 ? "was" : "were"} revoked and refund-marked (bookkeeping).`);
+          alert(`Made invite-only. ${n} wallet${n === 1 ? "" : "s"} that paid outside the whitelist ${n === 1 ? "was" : "were"} revoked.`);
         }
         router.push("/admin/posts");
       })

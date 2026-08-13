@@ -8,7 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.4.8",
+    "@nibgate/sdk": "^0.4.9",
     "@nibgate/wallet": "0.2.13",
     "@reown/appkit": "1.8.21",
     "@reown/appkit-adapter-wagmi": "1.8.21",

@@ -64,7 +64,6 @@ export interface ShareReceipt {
   payerWallet?: string;
   txHash?: string | null;
   unlockedAt: string;
-  refundedAt?: string | null;
 }
 
 export interface ShareSummary {
@@ -87,7 +86,7 @@ export interface ShareSummary {
   receipts: ShareReceipt[];
 }
 
-export type ShareActivityType = "unlock" | "view" | "revoke" | "ban" | "refund" | "expiring" | "expired";
+export type ShareActivityType = "unlock" | "view" | "revoke" | "ban" | "expiring" | "expired";
 
 export interface ShareActivity {
   key: string;

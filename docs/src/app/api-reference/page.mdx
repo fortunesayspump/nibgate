@@ -213,7 +213,7 @@ POST /api/nibshare/:slug/unlock           # x402 unlock; binds proof to (wallet,
 GET  /api/nibshare/:slug/media/:kind      # encrypted media (proof-gated for paid/invite-only)
 GET  /api/nibshare/:slug/entitlements/:wallet      # current entitlement for a wallet
 POST /api/nibshare/:slug/entitlements/:wallet/ban  # ban (hard deny, no re-purchase)
-POST /api/nibshare/:slug/entitlements/:wallet/revoke # revoke (may re-purchase after refund-mark)
+POST /api/nibshare/:slug/entitlements/:wallet/revoke # revoke (may re-purchase)
 POST /api/nibshare/:slug/access-control   # edit price/whitelist/publicAccess (owner + SIWE)
 GET  /api/nibshare/:slug/view             # imply a view
 GET  /api/nibshare/stats                  # per-owner dashboard stats

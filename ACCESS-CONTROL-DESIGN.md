@@ -1,10 +1,10 @@
-# Design: Whitelist Access, Proofs, Entitlements, Revoke / Ban / Refund
+# Design: Whitelist Access, Proofs, Entitlements, Revoke / Ban
 
 **Status:** IMPLEMENTED (see §10 for resolved decisions).
 
 How Nibgate decides *who may read a gated resource* (paid post, free-tier share,
 invite-only blog), with fair semantics for `whitelist` edits, price changes,
-`revoke`, `ban`, and refunds. Covers the hub (nibshare) and subblogs/SDK on one
+`revoke`, `ban`, and `restore`. Covers the hub (nibshare) and subblogs/SDK on one
 rule, and fixes the two defects found this session (the 12h re-charge bug on
 proof expiry, and the media gate ignoring entitlements).
 
@@ -36,9 +36,10 @@ proof expiry, and the media gate ignoring entitlements).
   `revoke`, `ban`, `restore`).
 - **Idempotent payments** — one x402 proof buys exactly one grant, replays safe
   (Attack II / replay is the #1 x402 production failure mode; see §5).
-- **Refund bookkeeping is explicit and auditable.** Revoking someone who paid is a
-  refundable action. `refunded` is marked on the receipt; actual on-chain return is
-  a separate, manual/later step (x402 has no native refund; see §7).
+- **No refunds, by construction.** Revoke/ban flip *access*, never money. x402
+  payments are one-shot irreversible transfers to the creator's wallet; there is
+  no escrow, no chargeback, and no refund primitive. `revoke`/`ban` therefore do
+  not (and cannot) return USDC — there is no "refund" feature to build on top.
 
 ## 2. Grounding: what actually matters in practice (researched)
 
@@ -60,8 +61,9 @@ relevant docs; the decisions that flow from them are flagged inline.
   short `validBefore`/TTL (120–300 s) prevents stale-price replay. We already mint
   challenges server-side with a TTL; keep it. → §5 (binding).
 - **x402 has no native refunds** (PayAI guide: "blockchain transactions are
-  irreversible; build manual refund processes"). Bookkeeping-refund on a receipt is
-  the honest way to represent "we revoked what you paid for". → §7.
+  irreversible; build manual refund processes"). Nibgate does **not** build a
+  refund process: access-control actions (`revoke`/`ban`) are purely entitlement
+  flip, and money stays where it landed in the creator's wallet.
 - **Webhook reality (Circle/PayAI/etc.): at-least-once delivery.** Replays of
   `cpn.payment.*` arrive on retry; side effects must be idempotent and deduped by
   event id. → §5 (receipt uniqueness).
@@ -71,16 +73,16 @@ relevant docs; the decisions that flow from them are flagged inline.
 Three records per grant, with a strict join invariant:
 
 - **`Receipt`** — immutable proof of a *paid* purchase. `{ id, resourceId, wallet,
-  amount, paymentNonce, status }`. `status ∈ { paid, refunded, refundPending }`.
-  A receipt exists **iff** the wallet paid (`amount > 0`) for this resource. Free
-  grants have *no* receipt.
+  amount, paymentNonce, status }`. `status ∈ { paid }`. (No `refunded`/`refundPending`
+  states exist.) A receipt exists **iff** the wallet paid (`amount > 0`) for this
+  resource. Free grants have *no* receipt.
 - **`Entitlement`** — *current access state* for `(resourceId, wallet)`.
   `{ status ∈ { active, revoked, banned, expired }, source: 'paid' | 'free',
-  grantedAt, refundedReceiptId? }`. One per `(resourceId, wallet)`, updated (not
-  recreated) on every transition. This is what the access decision reads.
+  grantedAt }`. One per `(resourceId, wallet)`, updated (not recreated) on every
+  transition. This is what the access decision reads.
 - **`Event`** — append-only audit log for admin actions & grant transitions
   (`grant`, `revoke`, `restore`, `ban`, `price_change`, `whitelist_flip`,
-  `invite_only_flip`, `refund_mark`). Exists on hub (`NibShareEvent`) and subblogs
+  `invite_only_flip`). Exists on hub (`NibShareEvent`) and subblogs
   (`Event` in `subblogs/backend/prisma/schema.prisma`).
 - **`Proof`** — *not stored*. A short-TTL signed token derived from the
   entitlement, used only as a cheap transport for media/`<img>` requests. Its
@@ -89,8 +91,7 @@ Three records per grant, with a strict join invariant:
 **Invariants**
 
 ```
-active && source='paid'  ⇔  ∃ receipt with amount>0, status in (paid, refundPending)
-   (refunded receipt ⇒ entitlement must no longer be active-or-paid: revoked/banned)
+active && source='paid'  ⇔  ∃ receipt with amount > 0
 revoked/banned          ⇒  NOT granted, regardless of any proof age
 expired                 ⇒  the grant would be re-granted free on next visit (no receipt)
 ```
@@ -165,29 +166,24 @@ Admin can edit anything at any time (edit stays enabled after publish). The
 transition table — **one row per reachable state** — is the contract tests must
 encode:
 
-| # | Starting state                                               | Admin action           | Resulting access for a *prior non-whitelisted acquirer*                    | Refund? |
-|---|--------------------------------------------------------------|------------------------|----------------------------------------------------------------------------|---------|
-| 1 | paid post, wallet paid once                                  | (nothing)              | keeps forever (lifetime), across proof expiry & storage clears             | —       |
-| 2 | paid post, wallet paid once at $X                            | price → $Y (≠ X)       | keeps at $X (grandfathered terms)                                          | —       |
-| 3 | paid post, wallet paid once, later whitelisted               | (nothing)              | active-paid, kept                                                          | —       |
-| 4 | whitelist (free), wallet granted free                        | whitelist → removed    | keeps until last grant's proof-class term; must pay on fresh visit         | — (free grant, no receipt) |
-| 5 | whitelist (free) → paid (price set), free grants exist       | price set              | served free until grant expiry, then 402 (no receipt exists)               | — |
-| 6 | paid → free (price removed / whitelisted)                    | price removed          | everyone granted free per visit                                            | — |
-| 7 | invite-only off → on, some paid non-whitelisted exists       | `publicAccess:false`   | **denied** (membership rule) — paid and now cut off                         | **yes (gap #11)** |
-| 8 | invite-only on → off                                         | `publicAccess:true`    | prior paid-but-denied regain gate access (entitlement intact)              | — |
-| 9 | active paid wallet                                          | admin `revoke`         | 403 "pay again"; can re-purchase; receipt marked refunded/refundPending     | yes   |
-| 10 | active wallet (free or paid)                                | admin `ban`            | 403 everywhere, cannot re-purchase (rule 4 is hard)                         | yes (paid) / n/a (free) |
-| 11 | revoked wallet                                              | admin `restore`        | back to active under original terms (receipt refund-mark reversed)         | no    |
-| 12 | paid then banned, admin restores                             | `restore` after `ban`  | active again per original terms                                             | —     |
+| # | Starting state                                               | Admin action           | Resulting access for a *prior non-whitelisted acquirer*                    |
+|---|--------------------------------------------------------------|------------------------|----------------------------------------------------------------------------|
+| 1 | paid post, wallet paid once                                  | (nothing)              | keeps forever (lifetime), across proof expiry & storage clears             |
+| 2 | paid post, wallet paid once at $X                            | price → $Y (≠ X)       | keeps at $X (grandfathered terms)                                          |
+| 3 | paid post, wallet paid once, later whitelisted               | (nothing)              | active-paid, kept                                                          |
+| 4 | whitelist (free), wallet granted free                        | whitelist → removed    | keeps until last grant's proof-class term; must pay on fresh visit         |
+| 5 | whitelist (free) → paid (price set), free grants exist       | price set              | served free until grant expiry, then 402 (no receipt exists)               |
+| 6 | paid → free (price removed / whitelisted)                    | price removed          | everyone granted free per visit                                            |
+| 7 | invite-only off → on, some paid non-whitelisted exists       | `publicAccess:false`   | **denied** (membership rule) — paid and now cut off (gap #11)              |
+| 8 | invite-only on → off                                         | `publicAccess:true`    | prior paid-but-denied regain gate access (entitlement intact)              |
+| 9 | active paid wallet                                          | admin `revoke`         | 403 "pay again"; can re-purchase                                           |
+| 10 | active wallet (free or paid)                                | admin `ban`            | 403 everywhere, cannot re-purchase (rule 4 is hard)                         |
+| 11 | revoked wallet                                              | admin `restore`        | back to active under original terms                                        |
+| 12 | paid then banned, admin restores                             | `restore` after `ban`  | active again per original terms                                             |
 | 13 | free grant exists, admin sets price AND removes whitelist    | price set + whitelist off | served free till expiry; then 402 — *but* still membership-eligible (not invite-only) | — |
 
-**Gap #11 (the one open unfairness):** flipping to invite-only (row 7) cuts off
-non-whitelisted payers *without* a refund. Design decision required — offered here,
-default **no auto-refund** (manual/clerical refund via admin UI) to avoid
-accidentally refunding people who were honestly offered and honestly cooked, but the
-**admin UI must surface** "N paid non-whitelisted wallets will lose access" with an
-optional "auto-mark refunded" toggle. (Recommendation: default to *bookkeeping-refund
-those N receipts* — amounts are tiny, and it's the same rule as `revoke`.)
+No cut-off state carries a refund: revoke/ban flip entitlements only, and money
+already in the creator's wallet stays there (there is no refund primitive).
 
 ### Free vs paid gate mode (rule 3)
 
@@ -199,24 +195,21 @@ those N receipts* — amounts are tiny, and it's the same rule as `revoke`.)
 - Lifetime (rule 6) requires `source='paid'`, which requires `amount > 0` —
   **a free-tier grant is NOT lifetime** by construction.
 
-## 7. Revoke / ban / refund
+## 7. Revoke / ban / restore
 
-- **`revoke`** (`revokeEntitlement`): `entitlement.status='revoked'`; if the wallet
-  has a `paid` receipt, that receipt → `refundPending` (or `refunded` if we actually
-  returned funds). Wallet may re-purchase (rule 5) → new receipt, entitlement
-  `active, source='paid'` again. Old receipt stays refunded (audit trail).
-- **`ban`** (`banEntitlement`): `entitlement.status='banned'`; receipt refund-marked
-  the same way. Hard deny (rule 4) — **cannot re-purchase**, unlike revoke. Reverting
-  a ban is `restore` from the admin panel only.
-- **`restore`**: entitlement back to `active` under original `source`; if it was
-  `source='paid'`, the refund-mark on the receipt is **reversed** (this is
-  bookkeeping, we can't actually claw back on-chain — document as such).
-- **Refund is two steps by design**: (a) bookkeeping mark on the receipt (the "fair"
-  part, immediate, atomic with the revoke/ban), (b) *actual* on-chain return
-  (manual later, x402 has no refund primitive; PayAI/MagicStraw convention). The
-  admin UI shows "refunded (booked)" vs "refunded (sent)" — avoids over-promising.
+- **`revoke`** (`revokeEntitlement`): `entitlement.status='revoked'`. Wallet may
+  re-purchase (rule 5) → new receipt, entitlement `active, source='paid'` again.
+- **`ban`** (`banEntitlement`): `entitlement.status='banned'`. Hard deny (rule 4) —
+  **cannot re-purchase**, unlike revoke. Reverting a ban is `restore` from the
+  admin panel only.
+- **`restore`**: entitlement back to `active` under original `source`.
+- **No money moves in any of the above.** x402 payments are one-shot irreversible
+  transfers to the creator's gateway wallet; there is no escrow and no chargeback.
+  Revoking or banning a payer does not return their USDC — it only changes whether
+  they may (re-)access the resource. If a creator wants to return funds, they send
+  the transfer from their own wallet outside the platform.
 - **Audit:** every transition above writes an `Event` with actor + reason
-  (`revoke`, `ban`, `restore`, `refund_mark`, `refund_reverse`).
+  (`revoke`, `ban`, `restore`).
 
 ## 8. Parity across apps / SDK
 
@@ -243,29 +236,28 @@ exactly drift between them).
 - `revoke` is effective immediately for the revoked wallet (no TTL window) — old
   proof is meaningless because rule 5 precedes rule 8.
 - `ban` is harder than `revoke`: no re-purchase path; reversed only by `restore`.
-- Every admin action that changes access writes an `Event`; refunds are receipt-marked
-  and shown as booked-vs-sent.
+- Every admin action that changes access writes an `Event`.
 - Policy edits never secretly change prior terms for existing acquirers except the
   explicit membership (invite-only) exception in row 7 — which requires the
-  automatic surface of paid-cut-off wallets + optional auto-refund (gap #11).
+  automatic surface of paid-cut-off wallets (gap #11).
 
 ## 10. Open decisions — RESOLVED
 
-1. **Gap #11 default**: **auto bookkeeping-refund** the N cut-off wallets on an
-   invite-only flip. Implemented in both `updateAccessPolicy` paths: when
-   `publicAccess` flips to `false`, every active *paid* entitlement whose wallet is
-   not in the (new) whitelist is revoked and its latest paid receipt marked
-   `refunded` — exactly the `revoke` rule. The response reports `cutOffWallets`
-   so both admin UIs can warn before and surface the count after.
+1. **Gap #11 default**: on an invite-only flip, every active *paid* entitlement
+   whose wallet is not in the (new) whitelist is revoked — no refund is possible
+   or implied. Implemented in both `updateAccessPolicy` paths: when `publicAccess`
+   flips to `false`, non-whitelisted active-paid wallets are revoked via the
+   `revoke` rule. The response reports `cutOffWallets` so both admin UIs can warn
+   before and surface the count after.
 2. **Proof TTL on the hub**: **align to 12 h** (`DEFAULT_UNLOCK_SECONDS`), the same
    TTL subblogs already uses, for a single uniform rule across apps. Hub proofs get
    `iat`/`exp` claims; expiry is harmless because §4 rules 4–7 (entitlements) run
    before any proof check, and the client re-mints on every visit.
 3. **Centralize §4 where?**: **the SDK** — new pure module
    `packages/nibgate/src/server/access-policy.js` (all §4 helpers + `canAccess` +
-   transition/refund helpers), exported from `server/index.js` + `server.d.ts`.
+   transition helpers), exported from `server/index.js` + `server.d.ts`.
    Hub imports it live (workspace); subblogs backend gets it via a repacked
    `@nibgate/sdk` tarball (same flow as the wallet).
 4. **When a revoked wallet re-purchases**: treat as a **brand-new grant** (current
-   behavior, kept). The refund un-reverses the prior transaction, so a fresh
-   purchase is clean and gets a brand-new receipt + entitlement.
+   behavior, kept). A fresh purchase is clean and gets a brand-new receipt +
+   entitlement.

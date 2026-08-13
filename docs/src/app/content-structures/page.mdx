@@ -26,10 +26,13 @@ type NibgateResource = {
     humans: 'free' | 'paid' | 'blocked'
     agents: 'free' | 'paid' | 'blocked'
   }
+  whitelist?: string[]        // supporter wallets — a price tier and/or invite list
+  whitelistPrice?: string     // price whitelisted wallets pay (null = same, '0' = free tier)
+  publicAccess?: boolean      // false = invite-only: unlisted wallets get 403 before any payment
 }
 ```
 
-The creator's system remains the source of truth. Nibgate uses the mapped resource to enforce access, build payment challenges, report events, and index public metadata.
+The creator's system remains the source of truth. Nibgate uses the mapped resource to enforce access, build payment challenges, report events, and index public metadata. The `whitelist`/`whitelistPrice`/`publicAccess` trio and the shared access rule are fully documented on [Whitelists & access control](/access-control) — every structure below can add those three fields to the same resource shape.
 
 ## Database or custom CMS
 

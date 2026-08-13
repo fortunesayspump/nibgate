@@ -23,6 +23,10 @@ export default function DocumentUploader({ onUpload, existingName, encrypted = f
 
   async function handleFile(file: File) {
     setError("");
+    if (file.size > 30 * 1024 * 1024) {
+      setError("Documents must be 30MB or smaller");
+      return;
+    }
     if (!file.name.match(DOC_EXTS)) {
       setError("Unsupported file type. Use PDF, spreadsheet (xlsx/xls/csv/ods), Word (docx/doc), or text (txt/md).");
       return;

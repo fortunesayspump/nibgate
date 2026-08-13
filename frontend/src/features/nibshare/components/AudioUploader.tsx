@@ -21,6 +21,10 @@ export default function AudioUploader({ onUpload, existingUrl }: AudioUploaderPr
 
   async function handleFile(file: File) {
     setError("");
+    if (file.size > 30 * 1024 * 1024) {
+      setError("Audio files must be 30MB or smaller");
+      return;
+    }
     if (!file.type.startsWith("audio/") && !file.name.match(/\.(mp3|wav|ogg|flac|aac|m4a|wma)$/i)) {
       setError("Only audio files are supported");
       return;

@@ -19,7 +19,7 @@ All content types support free and paid gating. Set the price per post in the ad
     Audio upload, cover art, embedded player.
   </Cards.Card>
   <Cards.Card title="Video" href="/content-types#video">
-    YouTube URL → embedded player with gating.
+    YouTube URL or upload → embedded player with gating.
   </Cards.Card>
   <Cards.Card title="Document" href="/content-types#document">
     PDF, spreadsheet, Word, and text files with in-browser rendering and download.
@@ -78,11 +78,11 @@ const photoSet = createGate({
 
 Music posts allow creators to share audio tracks with embedded playback.
 
-**Editor**: Upload an audio file and optional cover art image.
+**Editor**: Upload an audio file (`.mp3`, `.wav`, `.ogg`) and optional cover art image. The audio file is **encrypted at rest** — only the cover art is stored in the clear.
 
-**Player**: An audio player is available in the rendering kit, but the default post template does not embed it yet — music posts currently show their body text.
+**Player**: The post page embeds an `<audio>` player that streams the track through the encrypted-media proxy (`/api/nibgate/media/:postId/audio`).
 
-**Paid gating**: Music gating is not wired into the default template yet — only the article body is gated on paid posts.
+**Paid gating**: When a track is premium, the player is hidden behind the unlock gate. Audio streams on paid posts only after the `x-nibgate-payment-proof` header is verified; free tracks stream decrypted to anyone.
 
 ```ts
 const track = createGate({
@@ -100,11 +100,11 @@ const track = createGate({
 
 Video posts embed YouTube videos with optional gating.
 
-**Editor**: Paste a YouTube URL. The system extracts the video ID and generates the embed.
+**Editor**: Paste a YouTube (or Vimeo, SoundCloud, Spotify) URL, **or** upload a video file. YouTube URLs are detected and the video ID extracted for embed; uploaded video files are **encrypted at rest** (`videoEncryptedKey`). A cover image is optional — it defaults to the YouTube thumbnail when a link is provided.
 
-**Player**: The YouTube iframe player is embedded directly on the post page.
+**Player**: The embed is rendered as an iframe (YouTube/Vimeo/SoundCloud/Spotify) or an inline `<video>` player for uploaded files.
 
-**Paid gating**: When gated, the video embed is hidden behind an unlock overlay. The video is revealed after payment.
+**Paid gating**: When gated, the player is hidden behind an unlock overlay. Uploaded videos stream through the encrypted-media proxy only after proof; the full video is revealed after payment. YouTube embeds remain public (the video lives on YouTube) — gating covers the page and any companion material.
 
 ```ts
 const course = createGate({
@@ -144,11 +144,11 @@ const report = createGate({
 
 | Aspect | Article | Photo | Music | Video | Document |
 |--------|---------|-------|-------|-------|----------|
-| Primary input | Markdown | Image files | Audio file | YouTube URL | Document file |
-| Cover image | Yes (separate field) | Starred image | Uploaded art | Auto-generated | Optional |
-| Inline media | Yes | Captions per image | Cover art | Embed player | Rendered sheet/doc |
-| Preview | Excerpt | Plaintext cover | Short clip | Overlay | Truncated preview |
-| Full access | Full article body | Full gallery | Full track | Full video | Full file + download |
+| Primary input | Markdown | Image files | Audio file | URL or video file | Document file |
+| Cover image | Yes (separate field) | Starred image | Uploaded art | Auto (YouTube thumb) or upload | Optional |
+| Inline media | Yes | Captions per image | Cover art | Embed or `<video>` player | Rendered sheet/doc |
+| Preview | Excerpt | Plaintext cover | Encrypted audio | Overlay | Truncated preview |
+| Full access | Full article body | Full gallery | Full track (encrypted) | Full video (uploaded) | Full file + download |
 
 ## Next reads
 

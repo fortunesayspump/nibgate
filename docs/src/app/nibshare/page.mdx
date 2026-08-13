@@ -116,8 +116,8 @@ flowchart TD
 
 The difference is only at serve time, exactly like Subblogs:
 
-- **Free shares** (`price = "0"`): `GET /nibshare/:slug/access` decrypts the body server-side and returns it with **no proof**. Anyone — human or agent — reads it.
-- **Paid shares**: the same route relays the x402 Gateway challenge until payment. After USDC settles, the server checks the rules and returns the decrypted body scoped to that session.
+- **Free shares** (`price = "0"`): `GET /nibshare/:slug/access` decrypts the body server-side and returns it. Public shares need **no proof**; **invite-only** free shares (`whitelist` + `publicAccess: false`) require a possession-corroborated whitelisted wallet (session or proof) → `403`.
+- **Paid shares**: the same route relays the x402 Gateway challenge until payment. After USDC settles, the server checks the rules and returns the decrypted body scoped to that session. A whitelist turns it into a **tier** — whitelisted wallets pay `whitelistPrice` instead of `price`; invite-only paid shares demand a whitelisted (and possessed) payer before any charge.
 
 ```mermaid
 flowchart TD
@@ -155,10 +155,21 @@ flowchart TD
 After a paid unlock, the server returns an `unlockProof` that the viewer stores and replays on later reads (including media):
 
 ```text
-{wallet}.{mac}   e.g. 0xabc...A7F3.5x2fYv...   (base64url)
+{wallet}.{iat}.{exp}.{mac}   e.g. 0xabc...A7F3.1786123456.1786172256.5x2fYv...
 ```
 
-`mac = HMAC-SHA256("nibshare:{shareId}:{wallet}")` keyed with a backend-only secret. The proof is sent back in the `x-nibgate-payment-proof` header (media also accepts `?proof=`). The server recomputes the MAC and looks up the wallet's entitlement — the proof only replays while that wallet's entitlement is `active`.
+`mac = HMAC-SHA256("nibshare:{shareId}:{wallet}:{iat}:{exp}")` keyed with a backend-only secret. The `iat`/`exp` claims pin the proof to a 12-hour window (mirroring the SDK's `DEFAULT_UNLOCK_SECONDS`); tampering with either claim breaks the MAC. Legacy `{wallet}.{mac}` proofs (no claims, never expire) still verify for back-compat. Expiry is **harmless** — entitlements (rule 6/7) decide access before any proof check, so an expired proof is simply re-minted on the next legit visit.
+
+The proof is sent back in the `x-nibgate-payment-proof` header (media also accepts `?proof=`). The server recomputes the MAC and looks up the wallet's entitlement — the proof only replays while that wallet's entitlement is `active`.
+
+### Wallet possession
+
+A bare `?wallet=` / `walletAddress` parameter is a client **claim**, never an identity. A claim may only influence pricing (whitelist tier, invite-only eligibility) and never grant content on its own. Granting paths — free **invite-only** reads, **lifetime** re-issue, whitelist **free-tier** grants, and **media** — require proof of possession, which is one of:
+
+1. a valid, bound `unlockProof` for that wallet, or
+2. a SIWE session (`auth_session` cookie) whose wallet matches the claim.
+
+The unlock flow connects + SIWE-signs in before unlocking, so the session is normally present. A wallet with a stored proof keeps working without a session. If neither exists, an anonymous view of a paid share is charged the **public** price and paid wallets are never granted to a bare claim.
 
 ## Media streaming
 
@@ -173,9 +184,10 @@ Embedded assets stream through a decrypt proxy — the plaintext never lives at 
 | `video` | `body.file` |
 | `document` | `body.document` |
 
-- Free shares stream with no proof.
-- Paid shares require an active entitlement (proof header or `?proof=`), otherwise `403`.
-- Responses are `Cache-Control: private, max-age=300`; documents/video also set `Content-Disposition` (`?download=1` → `attachment`, else `inline`).
+- Free **public** shares stream with no proof.
+- **Paid** shares require an active entitlement (valid proof, or `?wallet=` corroborated by the SIWE session, or a verified payer) → `403` otherwise.
+- **Free invite-only** shares require a possession-corroborated whitelisted wallet (proof or session) → `403`.
+- Responses are `Cache-Control: private, max-age=300`; documents/video also set `Content-Disposition` (`?download=1` → `attachment`, else `inline`). Decrypted **bodies** (access/unlock) are served with `Cache-Control: private, no-store` so a shared proxy/CDN can never replay a paid or invite-only 200 to a non-payer.
 - Legacy shares (pre-encryption, plaintext `url` fields) redirect to the stored URL.
 
 ```mermaid
@@ -188,8 +200,9 @@ flowchart TD
     L{"legacy item.url?"}
     LG["302 redirect to legacy URL"]
     F{"share is paid?"}
-    P{"valid proof → active entitlement?"}
-    PF["403 must unlock"]
+    PV{"free but invite-only<br/>(whitelist, publicAccess:false)?"}
+    P{"possessed whitelisted wallet?<br/>(proof / session)"}
+    PF["403 must unlock / not listed"]
     G["getBlob(storageRef) → unpack → decryptBytes"]
     OK["200 plaintext · Content-Type + Cache-Control: private"]
 
@@ -198,10 +211,12 @@ flowchart TD
     L -- yes --> LG
     L -- no --> N
     H -- yes --> F
-    F -- no (free) --> G
-    F -- yes --> P
+    F -- no (free) --> PV
+    PV -- no (public) --> G
+    PV -- yes --> P
     P -- no --> PF
     P -- yes --> G
+    F -- yes (paid) --> P
     G --> OK
 ```
 
@@ -211,7 +226,10 @@ All checks run server-side at unlock/access time:
 
 - `status` is `active` (revoked shares → `410 Gone`)
 - not past `expiresAt` (→ `419`, "no new unlocks after expiry")
-- payer wallet is in the `whitelist` when one is set (→ `403`)
+- access granted only to a wallet that **possesses** the route's identity (session match, valid proof, or a verified payer) — a bare `?wallet=` claim never grants content
+- **whitelist semantics** depend on `publicAccess`:
+  - `publicAccess: true` — whitelist is a **price tier**: whitelisted wallets pay `whitelistPrice`, everyone else pays `price` (whitelist-free tier `whitelistPrice = 0` additionally requires possession, so it is invite-only in practice)
+  - `publicAccess: false` (**invite-only**) — a non-whitelisted wallet gets `403` **before any charge or free grant**; free invite-only reads and free-tier grants require a possessed whitelisted wallet
 - payment received for paid shares
 
 **Expiry** stops *new* unlocks and sessions; it never revokes access already granted. Because the backend holds the key and decrypts per request, revoking a wallet's entitlement is a **hard** stop — the content stops being served to it. This is the hosted `server`-mode trade: clean revocation, but Nibgate serves every read. A future `client` mode (decentralized keys/storage) would relax that but cannot take a decrypted copy back.
@@ -223,11 +241,14 @@ flowchart TD
     R["410 revoked"]
     E{"expiresAt passed?"}
     X["419 expired"]
+    IO{"invite-only (whitelist +<br/>publicAccess:false)?"}
+    IOCHK{"possessed whitelisted wallet?"}
+    IOF["403 no unlock / free entry"]
     P{"share.price > 0?"}
-    PA["paid: relay x402/Gateway<br/>payment must resolve payer wallet"]
-    PF["free: walletAddress in body required"]
-    W{"payer in whitelist?"}
-    WF["403 not whitelisted"]
+    PA["paid: relay x402/Gateway<br/>payment must resolve possessed<br/>whitelisted payer"]
+    PF["free invite-only: possessed<br/>whitelisted wallet required"]
+    W{"possessed wallet in whitelist tier?"}
+    WF["charge public price or 403<br/>(free-tier without possession)"]
     G["grant NibShareReceipt + NibShareEntitlement(active)"]
     D["decrypt body server-side"]
     OK["200 { success, receipt, access:<br/>sessionId + 1h expiresAt + body }"]
@@ -236,23 +257,31 @@ flowchart TD
     S -- revoked --> R
     S -- active --> E
     E -- yes --> X
-    E -- no --> P
-    P -- yes --> PA --> W
-    P -- no --> PF --> W
+    E -- no --> IO
+    IO -- yes --> IOCHK
+    IOCHK -- no --> IOF
+    IOCHK -- yes --> P
+    IO -- no --> P
+    P -- no (free) --> W
     W -- no --> WF
-    W -- yes --> G --> D --> OK
+    W -- yes --> G
+    P -- yes --> W
+    W -- yes --> G
+    W -- no --> WF
+    G --> D --> OK
 ```
 
 ## Auth
 
-Creating and managing shares uses a wallet session: a nonce-based SIWE (EIP-4361) wallet login establishes an `auth_session` cookie (30 days). Owner-only routes (revoke entitlement, revoke share, reslug, list mine) check that the session wallet owns the share. Viewing, paying, and media need no session.
+Creating and managing shares uses a wallet session: a nonce-based SIWE (EIP-4361) wallet login establishes an `auth_session` cookie (30 days). Owner-only routes (revoke entitlement, revoke share, reslug, list mine) check that the session wallet owns the share. Reading generally needs no session — except where content is gated to a class of wallets: invite-only free reads, lifetime re-issue, and free-tier grants all require the session wallet (or a valid proof) to **possess** the claimed wallet.
 
 | Scenario | Credential |
 |---|---|
 | Create / upload / manage | `auth_session` cookie (owner wallet) |
-| View, meta, free read | none |
+| View, meta, free public read | none |
+| Free invite-only read / free-tier grant / lifetime re-issue | `auth_session` possessing the whitelisted wallet, or valid `unlockProof` |
 | Paid unlock | x402 payment (or stored proof) |
-| Media replay | `x-nibgate-payment-proof` (or `?proof=`) |
+| Media replay | `x-nibgate-payment-proof` (or `?proof=`, or `?wallet=` + session) |
 
 ## Data model
 
@@ -343,7 +372,7 @@ Base URL: `https://api.nibgate.xyz`. Routes live under `/nibshare/*`, plus the m
 | `GET /nibshare/dashboard?from=&to=` | Owner: analytics across all shares — lifetime summary, range + daily time series, per-share breakdown, recent activity |
 | `GET /nibshare/stats` | Public platform aggregates: lifetime totals, 24h/7d windows, truncated-wallet activity feed (no titles, slugs, or full wallets) |
 
-Paid responses carry an `unlockProof` (`{wallet}.{mac}`) the viewer replays on later reads and media. Share slugs are 8-char base58 short links. Full payload shapes, error codes, and status semantics live with the code in `backend/src/server/nibshare/API.md`.
+Paid responses carry an `unlockProof` (`{wallet}.{iat}.{exp}.{mac}`) the viewer replays on later reads and media. Share slugs are 8-char base58 short links. Full payload shapes, error codes, and status semantics live with the code in `backend/src/server/nibshare/API.md`.
 
 ## Related
 

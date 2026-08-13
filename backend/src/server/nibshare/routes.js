@@ -10,6 +10,11 @@ export function registerNibshareRoutes(app) {
   app.get('/api/nibshare/:slug/media/:kind', controller.getShareMedia);
   app.post('/api/nibshare/gateway/balance', controller.gatewayBalance);
   app.post('/api/nibshare/:slug/entitlements/:wallet/revoke', controller.requireAuth, controller.revokeEntitlement);
+  app.post('/api/nibshare/:slug/entitlements/:wallet/ban', controller.requireAuth, controller.banEntitlement);
+  app.delete('/api/nibshare/:slug/entitlements/:wallet', controller.requireAuth, controller.restoreEntitlement);
+  app.put('/api/nibshare/:slug/access-control', controller.requireAuth, controller.updateAccessPolicy);
+  app.get('/api/nibshare/:slug/access-control', controller.requireAuth, controller.getAccessControl);
+  app.get('/api/nibshare/:slug/quote', controller.quoteShare);
   app.delete('/api/nibshare/:slug', controller.requireAuth, controller.revokeShare);
   app.post('/api/nibshare/:slug/reslug', controller.requireAuth, controller.rotateShare);
   app.get('/api/nibshare/mine', controller.requireAuth, controller.listMine);

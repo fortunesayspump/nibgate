@@ -26,6 +26,9 @@ const createPost = {
     status: Joi.string().valid('draft', 'published').optional(),
     featured: Joi.boolean().optional(),
     price: Joi.string().optional().allow('', null),
+    whitelist: Joi.array().items(Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/)).optional(),
+    whitelistPrice: Joi.alternatives().try(Joi.string().allow(''), Joi.number().min(0), Joi.allow(null)).optional(),
+    publicAccess: Joi.boolean().optional(),
   }).unknown(true),
 };
 
@@ -58,6 +61,9 @@ const updatePost = {
     status: Joi.string().valid('draft', 'published').optional(),
     featured: Joi.boolean().optional(),
     price: Joi.string().optional().allow('', null),
+    whitelist: Joi.array().items(Joi.string().pattern(/^0x[a-fA-F0-9]{40}$/)).optional(),
+    whitelistPrice: Joi.alternatives().try(Joi.string().allow(''), Joi.number().min(0), Joi.allow(null)).optional(),
+    publicAccess: Joi.boolean().optional(),
   }).unknown(true).min(1),
 };
 

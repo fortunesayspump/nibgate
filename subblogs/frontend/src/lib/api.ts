@@ -91,6 +91,9 @@ export type BlogPost = {
   tag: string;
   tags: string | string[];
   price: string | null;
+  whitelist: string[] | null;
+  whitelistPrice: string | null;
+  publicAccess: boolean;
   type: string;
   status: "draft" | "published";
   featured: boolean;

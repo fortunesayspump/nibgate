@@ -22,13 +22,19 @@ the share. Authentication is cookie-based; there is no bearer-token mode.
   "summary": "gated notes",
   "content": { "type": "article", "markdown": "# hi", "media": [ { "storageRef": "nibshare/...bin", "encryptedKey": "<base64>", "contentType": "image/webp", "name": "pic.png", "size": 1234 } ] },
   "coverUrl": "https://pub-...r2.dev/nibshare/.../preview.webp", // optional public preview
-  "price": "1.00",                     // USDC; "0" = free
+  "price": "1.00",                     // public USDC price; "0" = free
+  "whitelistPrice": "0.00",            // optional USDC for whitelisted wallets; null/blank = same as price
+  "publicAccess": true,                // false = invite-only (only whitelisted wallets may unlock)
   "expiresAt": "2026-08-05T00:00:00Z", // optional, null = never (capped at 7 days)
-  "whitelist": [ "0xabc...", "0xdef..." ], // optional; empty = anyone who pays
+  "whitelist": [ "0xabc...", "0xdef..." ], // optional; empty = no tier members
   "storageProvider": "nibgate",        // only "nibgate" is supported today
   "contentType": "text"                // legacy: "text" for plain bodies
 }
 ```
+
+Pricing tiers: whitelisted wallets pay `whitelistPrice` when set (0 = free for them),
+everyone else pays `price`. `publicAccess=false` makes the share invite-only regardless of
+price — non-whitelisted wallets get 403 before any payment.
 
 `content` is either:
 
@@ -104,11 +110,13 @@ Anyone can fetch metadata — never the body.
   "summary": "gated notes",
   "coverUrl": "...",
   "price": "1.00",
+  "whitelistPrice": "0.00",       // null = no tier
+  "publicAccess": true,
   "currency": "USDC",
   "contentType": "text",
   "expiresAt": null,            // null = never expires (capped at 7 days)
   "createdAt": "...",
-  "whitelist": true,            // boolean: is access wallet-restricted
+  "whitelist": true,            // boolean: has a non-empty whitelist
   "status": "active",
   "viewCount": 0,               // lifetime views
   "unlockCount": 0,             // lifetime unlocks
@@ -135,6 +143,8 @@ share page as `nibgate:*` meta tags, JSON-LD, and `data-nibgate-resource` attrib
   "summary": "...",
   "contentType": "text",
   "price": "1",
+  "whitelistPrice": "0",          // null = no tier
+  "publicAccess": true,
   "currency": "USDC",
   "expiresAt": null,
   "status": "active",
@@ -160,9 +170,29 @@ share page as `nibgate:*` meta tags, JSON-LD, and `data-nibgate-resource` attrib
 Also mirrored on the API host at `GET /ns/:slug` (the short pay/read URL an agent can
 use straight from a `https://nibgate.xyz/ns/<slug>` link). Both routes behave identically.
 
-Free shares return the decrypted body immediately, matching how free subblog posts are
-served. Paid shares require payment: pass a stored `x-nibgate-payment-proof` header, or
-let the route relay the x402/Gateway challenge and verify a fresh payment.
+Free shares return the decrypted body immediately (free **invite-only** shares only to a
+possession-corroborated whitelisted wallet), matching how free subblog posts are served.
+Paid shares require payment: pass a stored `x-nibgate-payment-proof` header, or let the
+route relay the x402/Gateway challenge and verify a fresh payment.
+
+For paid shares the challenge amount is the **requester's effective price**, computed
+from the wallet passed as `?wallet=0x...` (the unlock UI appends it). Without a wallet the
+route mints at the base `price`; if the actual payer's tier differs after verification, the
+route returns `409` so the client retries with a correct challenge. Banned wallets are
+refused with `403` before and after payment.
+
+**Wallet possession** (ACCESS-CONTROL-DESIGN §3): a `?wallet=` / `walletAddress` value is a
+client claim, not an identity. It may influence pricing (whitelist tier, invite-only
+eligibility) but never grants content alone. Granting paths — free **invite-only** reads,
+**lifetime** re-issue, whitelist **free-tier** grants, and **media** — require one of:
+
+1. a valid, bound `unlockProof` for that wallet, or
+2. a SIWE session (`auth_session`) whose wallet matches the claim.
+
+The unlock UI connects + SIWE-signs before unlocking, so the session is normally present.
+A wallet with a stored proof keeps working without a session. A paid unlock on an
+**invite-only** share also requires the paying wallet to equal the possessed wallet
+(`403` otherwise).
 
 ```
 200
@@ -184,13 +214,22 @@ let the route relay the x402/Gateway challenge and verify a fresh payment.
 2. After USDC settles on Arc (network `eip155:5042002`), the client retries with the
    signed payment (or a stored proof).
 
-Rules (evaluated server-side, wallet known via the x402 pending payer):
+Rules (evaluated server-side, wallet known via the x402 pending payer or session):
 
 ```
 status == "active"
 AND (expiresAt IS NULL OR now() < expiresAt)
-AND (whitelist empty OR payerWallet in whitelist)
+AND entitlement != "banned"
+AND not-invite-only OR (payer in whitelist AND payer == possessed wallet)
 ```
+
+Invite-only (`publicAccess=false`) shares refuse **any** non-whitelisted wallet with `403`
+before a payment challenge is even minted (no pay-before-deny). Free shares return the
+body directly — but free **invite-only** reads and the whitelist **free tier**
+(`whitelistPrice=0`) still require a possession-corroborated whitelisted wallet.
+
+If the payer has an entitlement with `status == "revoked"`, paying again re-activates it
+(soft revoke = re-pay to re-unlock). A `banned` entitlement can never re-pay.
 
 On success the server grants a `NibShareEntitlement` for the paying wallet (`active`)
 and serves the body. Only `server` mode is implemented — the server decrypts and
@@ -211,41 +250,155 @@ returns the body for this session (no durable key is given to the client):
 }
 ```
 
+Idempotency: x402 has no payment id, so the **nonce is the x402 `txHash`** and the DB
+enforces a UNIQUE `(paymentNonce, shareId)` — a replayed proof/txHash hits the **same**
+receipt (`{ receipt, replay: true }`) instead of double-granting, double-counting unlocks,
+or firing a second view event.
+
+The `unlockProof` on paid/access responses is a claims-MAC in the form
+`{wallet}.{iat}.{exp}.{mac}`: `mac = HMAC-SHA256("nibshare:{shareId}:{wallet}:{iat}:{exp}")`
+with a backend-only secret (windowing and back-compat details in `utils.js` /
+`paymentProofFor`, `walletFromPaymentProof`).
+
 Non-success responses:
 
 - `402 Payment Required` + x402 terms when payment is absent.
-- `403 Forbidden` when whitelist excludes the payer, or the wallet's entitlement is
-  `revoked` (the hard-revoke path).
+- `403 Forbidden` when the wallet is not allowed (invite-only, not whitelisted, banned)
+  or its entitlement is `revoked` on a free read / proof replay.
+- `409 Conflict` when the minted challenge price no longer matches the payer's tier —
+  retry the unlock.
 - `410 Gone` when `status == revoked`.
 - `419` when `expiresAt` passed — "no new unlocks after expiry".
+
+## Quote (public, per-wallet price)
+
+`GET /nibshare/:slug/quote?wallet=0x...`
+
+The unlock UI and agents call this to show the **effective price for a specific wallet**
+and its access state before attempting payment.
+
+```
+200
+{
+  "wallet": "0x...",
+  "price": "1.00",                     // public price
+  "whitelistPrice": "0.00",            // null = no tier
+  "publicAccess": true,
+  "whitelisted": true,                 // legacy: empty whitelist = true
+  "inWhitelist": true,                 // listed in a non-empty whitelist
+  "effectivePrice": "0.00",            // what THIS wallet pays now
+  "status": "active" | "revoked" | "banned" | null,
+  "revoked": false,
+  "banned": false,
+  "canUnlock": true,
+  "reason": null                       // why not, when canUnlock=false
+}
+```
 
 ## Streaming media
 
 `GET /nibshare/:slug/media/:kind?index=N` (`kind` = `photo` | `music` | `video` | `document`)
 
 Decrypts and streams one asset from the body's `media` array (`index` for photos) or the
-body's `audio` / `file` / `document` holders. Free shares serve the bytes with no proof;
-paid shares require an active entitlement via `x-nibgate-payment-proof` (or `?proof=`),
-otherwise `403`. Responses are `Cache-Control: private, max-age=300`. Article bodies
-reference embedded images as `nibgate-embed://N` tokens; the viewer rewrites them to this
-route.
+body's `audio` / `file` / `document` holders. Free **public** shares serve the bytes with
+no proof; free **invite-only** shares and paid shares require an active, possessed
+entitlement — via `x-nibgate-payment-proof` (or `?proof=`), or `?wallet=` corroborated by
+the SIWE session — otherwise `403`. Responses are `Cache-Control: private, max-age=300`.
+Article bodies reference embedded images as `nibgate-embed://N` tokens; the viewer
+rewrites them to this route.
 
 ## View (public)
 
 `POST /nibshare/:slug/view` — records a viewer for the share's analytics; `{ "viewer": "0x..." }` optional.
+Connected wallets are attributed to the view (the share page sends the wallet it has); paid
+unlocks also attribute the payer server-side, so owners always see who actually accessed the work.
 
-## Revoke a wallet's entitlement
+## Access control (owner only)
+
+`GET /nibshare/:slug/access-control` (cookie auth) — the owner's view of who can and who has
+viewed a share. Returns the whitelist + pricing policy, every entitlement (active / revoked /
+banned), and the deduped list of connected wallets that have seen the work.
+
+```
+200
+{
+  "whitelist": ["0xabc..."],          // tier members / invite-only list
+  "whitelistPrice": "0.00",           // null = no tier
+  "publicAccess": true,               // false = invite-only
+  "entitlements": [
+    { "wallet": "0xabc...", "status": "active",  "grantedAt": "...", "revokedAt": null },
+    { "wallet": "0xdef...", "status": "revoked", "grantedAt": "...", "revokedAt": "..." },
+    { "wallet": "0x...",   "status": "banned",   "grantedAt": "...", "revokedAt": "..." }
+  ],
+  "viewers": [
+    { "wallet": "0xabc...", "count": 3, "lastSeenAt": "..." }
+  ]
+}
+```
+
+## Update access policy (owner only)
+
+`PUT /nibshare/:slug/access-control` (cookie auth) — sets the whitelist, the whitelist
+price tier, and/or the invite-only flag in one call. Any field is optional; unspecified
+fields are left unchanged. Body:
+
+```
+{ "whitelist": ["0x...", ...], "whitelistPrice": "0.00", "publicAccess": false }
+```
+
+- `whitelist` — array of valid `0x` addresses (lowercased). Empty = no tier members.
+- `whitelistPrice` — non-negative number; `null` or `""` removes the tier (whitelisted
+  wallets pay the public `price`); `"0"` = whitelisted wallets unlock free.
+- `publicAccess` — `false` makes the share invite-only: only whitelisted wallets can
+  unlock (403 otherwise). Pre-existing whitelist shares were migrated with
+  `publicAccess=false` to preserve the old "whitelist = invite-only" behavior.
+
+Flipping a share invite-only — or **editing the whitelist of a share that is already
+invite-only** (e.g. removing a wallet) — revokes active entitlements of listed-but-now-cut
+paid wallets and marks their latest paid receipt `refundedAt`. The response lists the
+wallets cut off:
+
+```
+200 { "success": true, "whitelist": ["0x..."], "whitelistPrice": "0.00", "publicAccess": false, "cutOffWallets": ["0x..."] }
+```
+
+## Soft-revoke a wallet (owner only)
 
 Owner action: revoke a single wallet's access so it stops being served.
 
 `POST /nibshare/:slug/entitlements/:wallet/revoke` (cookie auth)
 
+**Soft** revoke: the wallet loses current access but may pay again to re-unlock. The most
+recent still-unrefunded paid receipt for that wallet is marked `refundedAt` (bookkeeping;
+the USDC return happens outside x402) and `revoke`/`refund` events are recorded.
+
 ```
-200 { "success": true, "wallet": "0x...", "status": "revoked" }
+200 { "success": true, "wallet": "0x...", "status": "revoked", "refunded": true }
 ```
 
-In `server` mode this is a **hard** stop: the wallet has no valid entitlement, so the
-content no longer shows.
+## Hard-ban a wallet (owner only)
+
+`POST /nibshare/:slug/entitlements/:wallet/ban` (cookie auth)
+
+**Hard** ban: same as revoke plus the wallet can never pay/unlock again — the entitlement
+becomes `banned` and every access/unlock path refuses it with 403. Refunds a paid receipt
+if one exists and records `ban`/`refund` events.
+
+```
+200 { "success": true, "wallet": "0x...", "status": "banned", "refunded": false }
+```
+
+For never-paid wallets a ban still works: a `banned` entitlement is created so even a
+future payment attempt is refused.
+
+## Restore a wallet's entitlement
+
+`DELETE /nibshare/:slug/entitlements/:wallet` (cookie auth) — reverses a revoke or ban,
+setting the entitlement back to `active`.
+
+```
+200 { "success": true, "wallet": "0x...", "status": "active" }
+```
 
 ## Reslug (owner only)
 
@@ -321,7 +474,8 @@ All errors: `{ "error": "<message>", "details"?: "<string>" }` with a 4xx/5xx st
 |---|---|
 | 400 | malformed payload / invalid rules |
 | 401 | missing/invalid session |
-| 403 | payer not whitelisted, or media/entitlement revoked |
+| 403 | invite-only / not whitelisted / banned / entitlement revoked |
+| 409 | tier price changed for the payer — retry unlock |
 | 410 | share revoked |
 | 419 | expired (no new unlocks) |
 | 429 | rate limited |

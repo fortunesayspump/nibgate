@@ -1,5 +1,6 @@
 import { createNibgateServer } from './access.js';
 
+export { normalizeWalletAddress, normalizeWhitelist, isPaidValue, isWhitelisted, inWhitelist, effectivePrice, accessDecision, canAccess, hasPaidReceipt, paidCutoffWallets } from './access-policy.js';
 export { actorFromRequest, accessModeFor } from './actor.js';
 export { createPaymentChallenge } from './challenge.js';
 export { createManifest, manifestResponse } from './manifest.js';

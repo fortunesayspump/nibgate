@@ -19,6 +19,7 @@ export default {
   encryption: "Content encryption",
   "discovery-seo": "Discovery & SEO",
   nibshare: "Nibshare (quick-share)",
+  "access-control": "Whitelists & access control",
   "---setup": {
     type: "separator",
     title: "Setup",

@@ -86,12 +86,18 @@ model BlogPost {
   type         String    @default("article")
   price        String?
   recipientWallet String?
+  whitelist    String[]  @default([])
+  whitelistPrice String?
+  publicAccess Boolean   @default(true)
   status       String    @default("draft")
   featured     Boolean   @default(false)
   publishedAt  DateTime?
   authorId     String
   author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   ratings     Rating[]
+  entitlements BlogPostEntitlement[]
+  receipts    BlogPostReceipt[]
+  events      BlogPostEvent[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -113,6 +119,61 @@ model Rating {
   post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([postId, wallet])
+  @@index([siteId])
+  @@index([postId])
+}
+
+model BlogPostEntitlement {
+  id        String    @id @default(uuid())
+  siteId    String
+  postId    String
+  wallet    String
+  status    String    @default("active")
+  source    String    @default("free") // paid | free (paid = lifetime, backed by receipt)
+  grantedAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, wallet])
+  @@index([siteId])
+  @@index([postId])
+}
+
+model BlogPostReceipt {
+  id          String    @id @default(uuid())
+  siteId      String
+  postId      String
+  payerWallet String
+  txHash      String?
+  // Idempotency key: (txHash, postId) is the durable identity of one payment +
+  // grant; a replayed proof hits this row and yields the SAME receipt, never a
+  // second grant (ACCESS-CONTROL-DESIGN §5).
+  paymentNonce String?
+  amount      String    @default("0")
+  currency    String    @default("USDC")
+  unlockedAt  DateTime  @default(now())
+  keyGrantedAt DateTime?
+  refundedAt  DateTime?
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@index([postId])
+  @@index([payerWallet])
+  @@unique([paymentNonce, postId])
+}
+
+model BlogPostEvent {
+  id        String    @id @default(uuid())
+  siteId    String
+  postId    String
+  type      String
+  wallet    String?
+  createdAt DateTime  @default(now())
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   @@index([siteId])
   @@index([postId])
 }

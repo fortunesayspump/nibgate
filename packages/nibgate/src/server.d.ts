@@ -219,6 +219,40 @@ export declare function validateResourceMetadata(resource?: NibgateServerResourc
 export declare function normalizeAccessPolicy(access?: NibgateAccessMode | NibgateAccessPolicy): Required<Pick<NibgateAccessPolicy, 'humans' | 'agents'>>;
 export declare function normalizeUnlockPolicy(unlock?: NibgateUnlockMode | NibgateUnlockPolicy): Required<Pick<NibgateUnlockPolicy, 'mode'>> & NibgateUnlockPolicy;
 
+// Access policy (ACCESS-CONTROL-DESIGN §4/§6) — shared by hub + subblogs
+export type NibgateAccessPolicyInput = {
+  price?: string | number | null;
+  whitelist?: string[];
+  whitelistPrice?: string | number | null;
+  publicAccess?: boolean;
+};
+export type NibgateAccessEntitlement = {
+  status: 'active' | 'revoked' | 'banned' | string;
+} | null;
+export type NibgateCanAccessFacts = {
+  wallet?: string | null;
+  entitlement?: NibgateAccessEntitlement;
+  hasPaidReceipt?: boolean;
+  proofValid?: boolean;
+};
+export type NibgateCanAccessResult = {
+  allowed: boolean;
+  reason: string | null;
+  grant: 'paid' | 'free' | 'proof' | null;
+  message: string | null;
+  challenge: boolean;
+};
+export declare function normalizeWalletAddress(value: string | unknown): string | null;
+export declare function normalizeWhitelist(value: string[] | unknown): string[];
+export declare function isPaidValue(value: string | number | null | undefined): boolean;
+export declare function isWhitelisted(policy: NibgateAccessPolicyInput, wallet: string): boolean;
+export declare function inWhitelist(policy: NibgateAccessPolicyInput, wallet: string): boolean;
+export declare function effectivePrice(policy: NibgateAccessPolicyInput, wallet?: string | null): number;
+export declare function accessDecision(policy: NibgateAccessPolicyInput, wallet: string): { ok: boolean; reason?: string; message?: string };
+export declare function canAccess(policy: NibgateAccessPolicyInput, facts: NibgateCanAccessFacts): NibgateCanAccessResult;
+export declare function hasPaidReceipt(receipt?: { amount?: string | number; refundedAt?: string | Date | null } | null): boolean;
+export declare function paidCutoffWallets(args: { policy: NibgateAccessPolicyInput; entitlements?: Array<Record<string, unknown> | null>; receipts?: Array<{ payerWallet: string; amount?: string | number; refundedAt?: string | Date | null } | null> }): string[];
+
 // Admin API
 export interface NibgateAdminStore {
   list(): Record<string, unknown>[];

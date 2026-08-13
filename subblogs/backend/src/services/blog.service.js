@@ -6,6 +6,7 @@ const config = require('../config/config');
 const { registerR2Provider } = require('../lib/storage');
 const { putBlob, getBlob, deleteBlob, generateContentKey, encryptBytes, decryptBytes, packCipherBlob, unpackCipherBlob } = require('@nibgate/sdk/server');
 const { wrapContentKey, storedToKey } = require('../lib/keywrap');
+const accessService = require('./access.service');
 
 registerR2Provider();
 const ENCRYPT_ENABLED = !!config.r2?.endpoint;
@@ -201,6 +202,9 @@ async function create(data, siteId, authorId) {
     media: mediaItems.length ? JSON.stringify(mediaItems) : null,
     price: isPaid ? String(data.price).trim() : null,
     recipientWallet: String(data.recipientWallet || '').trim() || null,
+    whitelist: accessService.normalizeWhitelist(data.whitelist),
+    whitelistPrice: data.whitelistPrice === undefined || data.whitelistPrice === null || data.whitelistPrice === '' ? null : String(data.whitelistPrice).trim(),
+    publicAccess: data.publicAccess !== false,
     status: statusVal,
     featured: data.featured === true,
     publishedAt: statusVal === 'published' ? new Date() : null,
@@ -222,9 +226,13 @@ async function create(data, siteId, authorId) {
   });
 }
 
-async function update(siteId, id, data) {
+async function update(siteId, id, data, actor) {
   const existing = await prisma.blogPost.findFirst({ where: { siteId, id } });
   if (!existing) throw new ApiError(status.NOT_FOUND, 'Post not found');
+  // Authors may only edit their own posts; admins may edit anything.
+  if (actor && existing.authorId !== actor) {
+    throw new ApiError(status.FORBIDDEN, 'You can only edit your own posts');
+  }
 
   const willBePaid = isPaidValue(data.price !== undefined ? data.price : existing.price);
   const updateData = {};
@@ -288,17 +296,55 @@ async function update(siteId, id, data) {
     if (updateData.status === 'published' && !existing.publishedAt) updateData.publishedAt = new Date();
   }
   if (bodyProvided && data.bodyMarkdown && !data.excerpt) updateData.excerpt = excerptFrom(data.bodyMarkdown);
+  if (data.whitelist !== undefined) updateData.whitelist = accessService.normalizeWhitelist(data.whitelist);
+  if (data.whitelistPrice !== undefined) {
+    updateData.whitelistPrice = data.whitelistPrice === null || data.whitelistPrice === '' ? null : String(data.whitelistPrice).trim();
+  }
+  if (data.publicAccess !== undefined) updateData.publicAccess = data.publicAccess !== false;
 
-  return prisma.blogPost.update({
+  // Gap #11 (ACCESS-CONTROL-DESIGN §6 row 7): invite-only content must not
+  // keep serving paid wallets that are no longer listed. This fires on the flip
+  // AND on later whitelist edits while already invite-only, so the same rule
+  // applies whether an owner edits policy via this admin form or via the
+  // access-control endpoint.
+  const alreadyInviteOnly = existing.publicAccess === false;
+  const flippingInviteOnly = updateData.publicAccess === false && !alreadyInviteOnly;
+  const whitelistChanged = updateData.whitelist !== undefined && JSON.stringify(updateData.whitelist) !== JSON.stringify(existing.whitelist);
+  const cuttingOff = (updateData.publicAccess === false && flippingInviteOnly) || (alreadyInviteOnly && whitelistChanged);
+  const updated = await prisma.blogPost.update({
     where: { id },
     data: updateData,
     include: { author: { select: { id: true, name: true, avatarUrl: true } } },
   });
+
+  if (cuttingOff && updated.id) {
+    const [activeEnts, receipts] = await Promise.all([
+      prisma.blogPostEntitlement.findMany({ where: { postId: updated.id, status: 'active' } }),
+      prisma.blogPostReceipt.findMany({ where: { postId: updated.id } }),
+    ]);
+    const cutoff = accessService.paidCutoffWallets({
+      policy: { whitelist: updated.whitelist || [], publicAccess: false },
+      entitlements: activeEnts,
+      receipts: receipts.map((r) => ({ payerWallet: r.payerWallet, amount: r.amount, refundedAt: r.refundedAt })),
+    });
+    for (const wallet of cutoff) {
+      await accessService.revokeEntitlement({ post: updated, wallet });
+      await prisma.blogPostEvent.create({
+        data: { siteId: updated.siteId, postId: updated.id, type: 'invite_only_flip', wallet },
+      });
+    }
+    if (cutoff.length > 0) updated.cutOffWallets = cutoff;
+  }
+  return updated;
 }
 
-async function remove(siteId, id) {
+async function remove(siteId, id, actor) {
   const existing = await prisma.blogPost.findFirst({ where: { siteId, id } });
   if (!existing) throw new ApiError(status.NOT_FOUND, 'Post not found');
+  // Authors may only delete their own posts; admins may delete anything.
+  if (actor && existing.authorId !== actor) {
+    throw new ApiError(status.FORBIDDEN, 'You can only delete your own posts');
+  }
   await prisma.blogPost.delete({ where: { id } });
   if (ENCRYPT_ENABLED) {
     if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});

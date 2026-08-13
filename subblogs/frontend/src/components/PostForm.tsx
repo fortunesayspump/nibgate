@@ -2,12 +2,15 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { FiUsers, FiEye } from "react-icons/fi";
 import { apiAuthFetch } from "@/lib/api";
 import MarkdownEditor, { type EmbeddedMediaItem } from "@/components/MarkdownEditor";
 import ImageUploader from "@/components/ImageUploader";
 import AudioUploader from "@/components/AudioUploader";
 import DocumentUploader from "@/components/DocumentUploader";
 import VideoUploader from "@/components/VideoUploader";
+import { WalletListEditor } from "@/components/WalletListEditor";
+import { formatUsd, ADDR_RE } from "@/lib/wallet";
 
 interface PostFormData {
   title: string;
@@ -38,6 +41,9 @@ interface PostFormData {
   documentEncryptedKey: string;
   documentContentType: string;
   media: string;
+  whitelist: string[];
+  whitelistPrice: string;
+  inviteOnly: boolean;
 }
 
 const defaults: PostFormData = {
@@ -48,6 +54,7 @@ const defaults: PostFormData = {
   audioUrl: "", audioStorageRef: "", audioEncryptedKey: "", audioContentType: "",
   documentUrl: "", documentName: "", documentSize: null, documentStorageRef: "", documentEncryptedKey: "", documentContentType: "",
   media: "",
+  whitelist: [], whitelistPrice: "", inviteOnly: false,
 };
 
 interface PostFormProps {
@@ -62,6 +69,7 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
   const [saving, setSaving] = useState(false);
   const [coverKey, setCoverKey] = useState("");
   const [embeddedMedia, setEmbeddedMedia] = useState<EmbeddedMediaItem[]>([]);
+  const [previewAs, setPreviewAs] = useState<"public" | "whitelisted">("public");
   const slugEdited = useRef(!!initialData?.slug);
   const loaded = useRef(false);
 
@@ -142,6 +150,16 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     if (form.type === "document") {
       if (!form.documentUrl && !form.documentStorageRef) return { ok: false, reason: "Document file is required" };
     }
+    for (const w of form.whitelist) {
+      if (!ADDR_RE.test(w)) return { ok: false, reason: `Invalid address: ${w}` };
+    }
+    if (form.whitelistPrice.trim() !== "" && form.whitelistPrice !== "0") {
+      const n = Number(form.whitelistPrice);
+      if (!Number.isFinite(n) || n < 0) return { ok: false, reason: "Whitelist price must be a non-negative number" };
+    }
+    if (form.inviteOnly && form.whitelist.length === 0) {
+      return { ok: false, reason: "Invite-only needs at least one whitelisted wallet" };
+    }
     return { ok: true };
   }
 
@@ -211,11 +229,16 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     setSaving(true);
     const videoCover = form.type === "video" && vid ? `https://img.youtube.com/vi/${vid}/hqdefault.jpg` : "";
     const resolved = { ...form, coverUrl: form.coverUrl || videoCover };
+    const accessFields = {
+      whitelist: form.whitelist,
+      whitelistPrice: form.whitelistPrice.trim() === "" ? null : form.whitelistPrice,
+      publicAccess: !form.inviteOnly,
+    };
     const payload = resolved.type === "photo"
-      ? { ...photoBody(), coverUrl: resolved.coverUrl, status }
+      ? { ...photoBody(), coverUrl: resolved.coverUrl, status, ...accessFields }
       : resolved.type === "article"
-        ? { ...resolved, media: JSON.stringify(embeddedMedia), status }
-        : { ...resolved, status };
+        ? { ...resolved, media: JSON.stringify(embeddedMedia), status, ...accessFields }
+        : { ...resolved, status, ...accessFields };
     apiAuthFetch("/blog/admin/posts", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -231,16 +254,28 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
     setSaving(true);
     const videoCover = form.type === "video" && vid ? `https://img.youtube.com/vi/${vid}/hqdefault.jpg` : "";
     const resolved = { ...form, coverUrl: form.coverUrl || videoCover };
+    const accessFields = {
+      whitelist: form.whitelist,
+      whitelistPrice: form.whitelistPrice.trim() === "" ? null : form.whitelistPrice,
+      publicAccess: !form.inviteOnly,
+    };
     const payload = resolved.type === "photo"
-      ? photoBody()
+      ? { ...photoBody(), ...accessFields }
       : resolved.type === "article"
-        ? { ...resolved, media: JSON.stringify(embeddedMedia) }
-        : resolved;
+        ? { ...resolved, media: JSON.stringify(embeddedMedia), ...accessFields }
+        : { ...resolved, ...accessFields };
     apiAuthFetch(`/blog/admin/posts/${postId}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     })
-      .then(() => router.push("/admin/posts"))
+      .then((data: any) => {
+        const cutOff = Array.isArray(data.post?.cutOffWallets) ? data.post.cutOffWallets : [];
+        if (cutOff.length > 0 && form.inviteOnly) {
+          const n = cutOff.length;
+          alert(`Made invite-only. ${n} wallet${n === 1 ? "" : "s"} that paid outside the whitelist ${n === 1 ? "was" : "were"} revoked and refund-marked (bookkeeping).`);
+        }
+        router.push("/admin/posts");
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to update"))
       .finally(() => setSaving(false));
   }
@@ -452,6 +487,69 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
         />
       </Field>
 
+      <div className="rounded-lg border p-2.5" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-1.5 mb-2">
+          <FiUsers size={12} style={{ color: "var(--muted)" }} />
+          <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>Whitelist & invite</span>
+          <span className="text-[10px] ml-auto" style={{ color: "var(--muted)" }}>{form.whitelist.length} wallet{form.whitelist.length === 1 ? "" : "s"}</span>
+        </div>
+
+        <label className="flex items-center gap-2 text-xs cursor-pointer mb-2" style={{ color: "var(--fg)" }}>
+          <input
+            type="checkbox" checked={form.inviteOnly} onChange={(e) => update("inviteOnly", e.target.checked)}
+            className="accent-[var(--accent)]"
+          />
+          Invite only — <span style={{ color: "var(--muted)" }}>nobody outside the whitelist can unlock, even if they pay</span>
+        </label>
+
+        <WalletListEditor
+          value={form.whitelist}
+          onChange={(next) => update("whitelist", next)}
+          compact
+        />
+
+        {form.whitelist.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Whitelisted pay</span>
+              <select
+                value={form.whitelistPrice === "" ? "__public" : "0" === form.whitelistPrice ? "__free" : "__custom"}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  update("whitelistPrice", v === "__public" ? "" : v === "__free" ? "0" : form.whitelistPrice);
+                }}
+                className="input-field flex-1 text-xs py-1.5"
+              >
+                <option value="__public">same as public price</option>
+                <option value="__free">free (0)</option>
+                <option value="__custom">custom price…</option>
+              </select>
+            </div>
+            {form.whitelistPrice !== "" && form.whitelistPrice !== "0" && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Custom tier</span>
+                <input
+                  type="text" inputMode="decimal" value={form.whitelistPrice}
+                  onChange={(e) => update("whitelistPrice", e.target.value)}
+                  className="input-field flex-1" placeholder="e.g. 0.50"
+                />
+                <span className="text-xs font-semibold shrink-0" style={{ color: "var(--muted)" }}>USDC</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <GatePreview
+        isPaid={!!form.price && form.price !== "0"}
+        inviteOnly={form.inviteOnly}
+        publicPrice={Number(form.price) || 0}
+        hasWhitelist={form.whitelist.length > 0}
+        whitelistPrice={form.whitelistPrice}
+        previewAs={previewAs}
+        onPreviewAs={setPreviewAs}
+      />
+
       <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
         {postId ? (
           <>
@@ -477,6 +575,77 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
             </button>
         </>)}
 
+      </div>
+    </div>
+  );
+}
+
+function GatePreview({ isPaid, inviteOnly, publicPrice, hasWhitelist, whitelistPrice, previewAs, onPreviewAs }: {
+  isPaid: boolean;
+  inviteOnly: boolean;
+  publicPrice: number;
+  hasWhitelist: boolean;
+  whitelistPrice: string;
+  previewAs: "public" | "whitelisted";
+  onPreviewAs: (v: "public" | "whitelisted") => void;
+}) {
+  const wlTier = previewAs === "whitelisted" ? (() => {
+    const t = Number(whitelistPrice);
+    return Number.isFinite(t) ? t : publicPrice;
+  })() : publicPrice;
+  const discounted = Number.isFinite(Number(whitelistPrice)) && whitelistPrice !== "" && Number(whitelistPrice) < publicPrice && publicPrice > 0;
+  const freeNow = !isPaid || (previewAs === "whitelisted" && Number(whitelistPrice) === 0);
+
+  return (
+    <div className="rounded-md border p-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>
+          <FiEye className="inline mr-1" size={11} /> What visitors will see
+        </span>
+        {hasWhitelist && (
+          <div className="flex rounded-md overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+            {(["public", "whitelisted"] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => onPreviewAs(kind)}
+                className="text-[10px] font-semibold px-2 py-0.5 cursor-pointer"
+                style={previewAs === kind ? { background: "var(--accent)", color: "#fff" } : { background: "transparent", color: "var(--muted)" }}
+              >
+                {kind === "public" ? "Visitor" : "Whitelisted"}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ textAlign: "center", padding: "12px 8px 4px" }}>
+        <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1.1 }}>
+          {freeNow ? "Free" : (
+            <>
+              {formatUsd(wlTier)} <span style={{ fontSize: 16, fontWeight: 600, color: "var(--muted)" }}>USDC</span>
+            </>
+          )}
+        </div>
+        {discounted && (
+          <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+            <span style={{ textDecoration: "line-through" }}>{formatUsd(publicPrice)}</span>{" "}
+            <span style={{ color: "#7c9a6d", fontWeight: 600 }}>whitelisted price</span>
+          </div>
+        )}
+        <div style={{ fontSize: 15, color: "var(--muted)", marginTop: 6 }}>Pay to unlock this content</div>
+        <div style={{ margin: "14px auto 0", maxWidth: 280, borderRadius: 10, padding: "13px 0", fontWeight: 600, fontSize: 16, color: "#fff", background: "var(--accent)", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+          {freeNow ? "Unlock for free" : "Hold to pay"}
+        </div>
+        {inviteOnly && (
+          <div style={{ marginTop: 10, fontSize: 12, color: "#b45309", fontWeight: 600 }}>
+            🔒 Invite only — whitelisted wallets can unlock
+          </div>
+        )}
+        {!inviteOnly && hasWhitelist && previewAs === "public" && !freeNow && (
+          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
+            Whitelisted wallets may pay a different price
+          </div>
+        )}
       </div>
     </div>
   );

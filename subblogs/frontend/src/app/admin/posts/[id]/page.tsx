@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { apiAuthFetch, type BlogPost } from "@/lib/api";
 import PostForm from "@/components/PostForm";
+import AccessControlPanel from "@/components/AccessControlPanel";
 
 export default function EditPostPage() {
   const router = useRouter();
@@ -46,6 +47,9 @@ export default function EditPostPage() {
           documentContentType: p.documentContentType || "",
           documentName: p.documentName || "",
           documentSize: p.documentSize,
+          whitelist: Array.isArray(p.whitelist) ? p.whitelist : [],
+          whitelistPrice: p.whitelistPrice != null ? String(p.whitelistPrice) : "",
+          inviteOnly: p.publicAccess === false,
         });
       })
       .catch(() => router.push("/admin/posts"))
@@ -62,6 +66,7 @@ export default function EditPostPage() {
         </button>
         <h1 className="text-lg font-semibold mb-6">Edit Post</h1>
         {initialData && <PostForm initialData={initialData} postId={params.id as string} />}
+        {initialData && <AccessControlPanel postId={params.id as string} />}
       </div>
     </div>
   );

@@ -1,10 +1,13 @@
 import type {
+  AccessControl,
   AccessPayload,
+  AccessPolicyUpdate,
   AuthNonceResponse,
   CreateSharePayload,
   CreateShareResponse,
   MeResponse,
   MineResponse,
+  Quote,
   ReslugResponse,
   ShareMeta,
 } from "./types";
@@ -35,11 +38,12 @@ export const nibshareApi = {
     request("/auth/verify", { method: "POST", credentials: "include", body: JSON.stringify(body) }),
 
   meta: (slug: string) => request<ShareMeta>(`/nibshare/${slug}/meta`),
-  access: (slug: string, proof?: string) =>
-    request<AccessPayload>(ACCESS_PATH(slug), {
-      headers: proof ? { "x-nibgate-payment-proof": proof } : {},
+  access: (slug: string, opts?: { proof?: string; wallet?: string }) =>
+    request<AccessPayload>(`${ACCESS_PATH(slug)}${opts?.wallet ? `?wallet=${encodeURIComponent(opts.wallet)}` : ""}`, {
+      headers: opts?.proof ? { "x-nibgate-payment-proof": opts.proof } : {},
     }),
-  recordView: (slug: string) => request(`/nibshare/${slug}/view`, { method: "POST", body: JSON.stringify({}) }),
+  recordView: (slug: string, viewer?: string) =>
+    request(`/nibshare/${slug}/view`, { method: "POST", body: JSON.stringify({ viewer: viewer || "" }) }),
 
   create: (payload: CreateSharePayload) =>
     request<CreateShareResponse>("/nibshare", { method: "POST", credentials: "include", body: JSON.stringify(payload) }),
@@ -47,4 +51,20 @@ export const nibshareApi = {
   revoke: (slug: string) => request(`/nibshare/${slug}`, { method: "DELETE", credentials: "include" }),
   reslug: (slug: string) =>
     request<ReslugResponse>(`/nibshare/${slug}/reslug`, { method: "POST", credentials: "include" }),
+
+  accessControl: (slug: string) => request<AccessControl>(`/nibshare/${slug}/access-control`, { credentials: "include" }),
+  updateAccessPolicy: (slug: string, patch: { whitelist?: string[]; whitelistPrice?: string | null; publicAccess?: boolean }) =>
+    request<AccessPolicyUpdate>(`/nibshare/${slug}/access-control`, {
+      method: "PUT",
+      credentials: "include",
+      body: JSON.stringify(patch),
+    }),
+  quote: (slug: string, wallet: string) =>
+    request<Quote>(`/nibshare/${slug}/quote?wallet=${encodeURIComponent(wallet)}`),
+  revokeWallet: (slug: string, wallet: string) =>
+    request(`/nibshare/${slug}/entitlements/${wallet}/revoke`, { method: "POST", credentials: "include" }),
+  banWallet: (slug: string, wallet: string) =>
+    request(`/nibshare/${slug}/entitlements/${wallet}/ban`, { method: "POST", credentials: "include" }),
+  restoreWallet: (slug: string, wallet: string) =>
+    request(`/nibshare/${slug}/entitlements/${wallet}`, { method: "DELETE", credentials: "include" }),
 };

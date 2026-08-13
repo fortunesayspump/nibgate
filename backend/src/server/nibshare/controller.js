@@ -519,8 +519,8 @@ export async function revokeEntitlement(req, res) {
       return res.status(403).json({ error: 'Only the owner can revoke entitlements.' });
     }
     const wallet = String(req.params.wallet).toLowerCase();
-    const { refunded } = await service.revokeEntitlement({ share, wallet });
-    res.json({ success: true, wallet, status: 'revoked', refunded: Boolean(refunded) });
+    await service.revokeEntitlement({ share, wallet });
+    res.json({ success: true, wallet, status: 'revoked' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to revoke entitlement', details: error.message });
   }
@@ -534,8 +534,8 @@ export async function banEntitlement(req, res) {
       return res.status(403).json({ error: 'Only the owner can ban wallets.' });
     }
     const wallet = String(req.params.wallet).toLowerCase();
-    const { refunded } = await service.banEntitlement({ share, wallet });
-    res.json({ success: true, wallet, status: 'banned', refunded: Boolean(refunded) });
+    await service.banEntitlement({ share, wallet });
+    res.json({ success: true, wallet, status: 'banned' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to ban wallet', details: error.message });
   }

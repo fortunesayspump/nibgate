@@ -292,28 +292,16 @@ export async function grantEntitlement({ share, wallet }) {
   });
 }
 
-export async function refundLastReceipt({ shareId, wallet }) {
-  const receipt = await db.nibShareReceipt.findFirst({
-    where: { shareId, payerWallet: wallet, refundedAt: null, amount: { gt: 0 } },
-    orderBy: { unlockedAt: 'desc' }
-  });
-  if (!receipt) return null;
-  await db.nibShareReceipt.update({ where: { id: receipt.id }, data: { refundedAt: new Date() } });
-  return receipt;
-}
-
+// Revoke/ban do NOT touch money: x402 payments are one-shot irreversible
+// transfers to the creator's wallet, so there is no refund primitive. These
+// actions only flip the entitlement so the wallet loses/keeps future access.
 export async function revokeEntitlement({ share, wallet }) {
   await db.nibShareEntitlement.upsert({
     where: { shareId_wallet: { shareId: share.id, wallet } },
     create: { shareId: share.id, wallet, status: 'revoked', revokedAt: new Date(), source: 'paid' },
     update: { status: 'revoked', revokedAt: new Date() }
   });
-  const refunded = await refundLastReceipt({ shareId: share.id, wallet });
   await db.nibShareEvent.create({ data: { shareId: share.id, type: 'revoke', wallet } });
-  if (refunded) {
-    await db.nibShareEvent.create({ data: { shareId: share.id, type: 'refund_mark', wallet } });
-  }
-  return { refunded };
 }
 
 export async function banEntitlement({ share, wallet }) {
@@ -322,17 +310,11 @@ export async function banEntitlement({ share, wallet }) {
     create: { shareId: share.id, wallet, status: 'banned', revokedAt: new Date(), source: 'paid' },
     update: { status: 'banned', revokedAt: new Date() }
   });
-  const refunded = await refundLastReceipt({ shareId: share.id, wallet });
   await db.nibShareEvent.create({ data: { shareId: share.id, type: 'ban', wallet } });
-  if (refunded) {
-    await db.nibShareEvent.create({ data: { shareId: share.id, type: 'refund_mark', wallet } });
-  }
-  return { refunded };
 }
 
-// Restore is bookkeeping-only (ACCESS-CONTROL-DESIGN §7): the wallet goes back
-// to active under its original source, and any refund-mark on a paid receipt is
-// reversed. We cannot claw back on-chain; this documents that the refund is void.
+// Restore just reactivates the wallet under its original source. No refund
+// bookkeeping exists to reverse — money stays where it landed.
 export async function restoreEntitlement({ share, wallet }) {
   const ent = await findEntitlement({ shareId: share.id, wallet });
   const source = ent && ent.source === 'paid' ? 'paid' : 'free';
@@ -341,14 +323,6 @@ export async function restoreEntitlement({ share, wallet }) {
     create: { shareId: share.id, wallet, status: 'active', source },
     update: { status: 'active', revokedAt: null }
   });
-  const receipt = await db.nibShareReceipt.findFirst({
-    where: { shareId: share.id, payerWallet: wallet, refundedAt: { not: null } },
-    orderBy: { unlockedAt: 'desc' }
-  });
-  if (receipt) {
-    await db.nibShareReceipt.update({ where: { id: receipt.id }, data: { refundedAt: null } });
-    await db.nibShareEvent.create({ data: { shareId: share.id, type: 'refund_reverse', wallet } });
-  }
 }
 
 // Approves ONLY via server-side default for `canAccess` facts. `serveAccess`/

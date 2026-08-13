@@ -355,8 +355,7 @@ fields are left unchanged. Body:
 
 Flipping a share invite-only — or **editing the whitelist of a share that is already
 invite-only** (e.g. removing a wallet) — revokes active entitlements of listed-but-now-cut
-paid wallets and marks their latest paid receipt `refundedAt`. The response lists the
-wallets cut off:
+paid wallets. The response lists the wallets cut off:
 
 ```
 200 { "success": true, "whitelist": ["0x..."], "whitelistPrice": "0.00", "publicAccess": false, "cutOffWallets": ["0x..."] }
@@ -368,12 +367,12 @@ Owner action: revoke a single wallet's access so it stops being served.
 
 `POST /nibshare/:slug/entitlements/:wallet/revoke` (cookie auth)
 
-**Soft** revoke: the wallet loses current access but may pay again to re-unlock. The most
-recent still-unrefunded paid receipt for that wallet is marked `refundedAt` (bookkeeping;
-the USDC return happens outside x402) and `revoke`/`refund` events are recorded.
+**Soft** revoke: the wallet loses current access but may pay again to re-unlock. No money
+returns — x402 payments go straight to the creator's wallet and there is no refund
+primitive (see ACCESS-CONTROL-DESIGN §7). `revoke` events are recorded.
 
 ```
-200 { "success": true, "wallet": "0x...", "status": "revoked", "refunded": true }
+200 { "success": true, "wallet": "0x...", "status": "revoked" }
 ```
 
 ## Hard-ban a wallet (owner only)
@@ -381,11 +380,12 @@ the USDC return happens outside x402) and `revoke`/`refund` events are recorded.
 `POST /nibshare/:slug/entitlements/:wallet/ban` (cookie auth)
 
 **Hard** ban: same as revoke plus the wallet can never pay/unlock again — the entitlement
-becomes `banned` and every access/unlock path refuses it with 403. Refunds a paid receipt
-if one exists and records `ban`/`refund` events.
+becomes `banned` and every access/unlock path refuses it with 403. No money returns —
+the entitlement flip is the entire effect (ACCESS-CONTROL-DESIGN §7); `ban` events are
+recorded.
 
 ```
-200 { "success": true, "wallet": "0x...", "status": "banned", "refunded": false }
+200 { "success": true, "wallet": "0x...", "status": "banned" }
 ```
 
 For never-paid wallets a ban still works: a `banned` entitlement is created so even a

@@ -133,12 +133,12 @@ export function canAccess(policy, facts = {}) {
 }
 
 export function hasPaidReceipt(receipt) {
-  return Boolean(receipt && toNumber(receipt.amount) > 0 && receipt.refundedAt == null);
+  return Boolean(receipt && toNumber(receipt.amount) > 0);
 }
 
 // Gap #11 (ACCESS-CONTROL-DESIGN §6 row 7): wallets whose active paid
 // entitlement would be cut off by an invite-only flip under the NEW whitelist.
-// Receipts shape: [{ payerWallet, amount, refundedAt }].
+// Receipts shape: [{ payerWallet, amount }].
 export function paidCutoffWallets({ policy, entitlements, receipts = [] }) {
   const paidByWallet = new Map();
   for (const r of receipts || []) {

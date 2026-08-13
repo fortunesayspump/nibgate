@@ -101,18 +101,6 @@ async function findLastReceipt({ postId, wallet }) {
   });
 }
 
-// Marks the most recent still-unrefunded paid receipt as refunded. Bookkeeping
-// only — the actual USDC return happens on the hub gateway side.
-async function refundLastReceipt({ postId, wallet }) {
-  const receipt = await prisma.blogPostReceipt.findFirst({
-    where: { postId, payerWallet: wallet, refundedAt: null },
-    orderBy: { unlockedAt: 'desc' },
-  });
-  if (!receipt) return null;
-  await prisma.blogPostReceipt.update({ where: { id: receipt.id }, data: { refundedAt: new Date() } });
-  return receipt;
-}
-
 // Free-tier grant (whitelistPrice=0 member): activates the entitlement so
 // proof-replay + media work, WITHOUT a receipt, unlockCount bump, or view event.
 async function grantEntitlement({ post, wallet }) {
@@ -183,22 +171,18 @@ function sourceMax(a, b) {
   return a === 'paid' || b === 'paid' ? 'paid' : 'free';
 }
 
+// Revoke/ban do NOT touch money: x402 payments are one-shot irreversible
+// transfers to the creator's wallet, so there is no refund primitive. These
+// actions only flip the entitlement so the wallet loses/keeps future access.
 async function revokeEntitlement({ post, wallet }) {
   await prisma.blogPostEntitlement.upsert({
     where: { postId_wallet: { postId: post.id, wallet } },
     create: { siteId: post.siteId, postId: post.id, wallet, status: 'revoked', revokedAt: new Date(), source: 'paid' },
     update: { status: 'revoked', revokedAt: new Date() },
   });
-  const refunded = await refundLastReceipt({ postId: post.id, wallet });
   await prisma.blogPostEvent.create({
     data: { siteId: post.siteId, postId: post.id, type: 'revoke', wallet },
   });
-  if (refunded) {
-    await prisma.blogPostEvent.create({
-      data: { siteId: post.siteId, postId: post.id, type: 'refund_mark', wallet },
-    });
-  }
-  return { refunded };
 }
 
 async function banEntitlement({ post, wallet }) {
@@ -207,40 +191,22 @@ async function banEntitlement({ post, wallet }) {
     create: { siteId: post.siteId, postId: post.id, wallet, status: 'banned', revokedAt: new Date(), source: 'paid' },
     update: { status: 'banned', revokedAt: new Date() },
   });
-  const refunded = await refundLastReceipt({ postId: post.id, wallet });
   await prisma.blogPostEvent.create({
     data: { siteId: post.siteId, postId: post.id, type: 'ban', wallet },
   });
-  if (refunded) {
-    await prisma.blogPostEvent.create({
-      data: { siteId: post.siteId, postId: post.id, type: 'refund_mark', wallet },
-    });
-  }
-  return { refunded };
 }
 
-// Restore is bookkeeping-only (§7): entitlement back to active under original
-// source; any refund-mark on a paid receipt is reversed (refund void).
+// Restore just reactivates the wallet under its original terms. No refund
+// bookkeeping exists to reverse — money stays where it landed.
 async function restoreEntitlement({ post, wallet }) {
   const existing = await prisma.blogPostEntitlement.findUnique({
     where: { postId_wallet: { postId: post.id, wallet } },
   });
   if (!existing) return null;
-  const updated = await prisma.blogPostEntitlement.update({
+  return prisma.blogPostEntitlement.update({
     where: { postId_wallet: { postId: post.id, wallet } },
     data: { status: 'active', revokedAt: null },
   });
-  const receipt = await prisma.blogPostReceipt.findFirst({
-    where: { postId: post.id, payerWallet: wallet, refundedAt: { not: null } },
-    orderBy: { unlockedAt: 'desc' },
-  });
-  if (receipt) {
-    await prisma.blogPostReceipt.update({ where: { id: receipt.id }, data: { refundedAt: null } });
-    await prisma.blogPostEvent.create({
-      data: { siteId: post.siteId, postId: post.id, type: 'refund_reverse', wallet },
-    });
-  }
-  return updated;
 }
 
 async function listEntitlements(postId) {
@@ -303,7 +269,7 @@ async function updateAccessPolicy(post, patch) {
     const cutoff = sdk.paidCutoffWallets({
       policy: { whitelist: nextWhitelist, publicAccess: false },
       entitlements: activeEnts,
-      receipts: receipts.map((r) => ({ payerWallet: r.payerWallet, amount: r.amount, refundedAt: r.refundedAt })),
+      receipts: receipts.map((r) => ({ payerWallet: r.payerWallet, amount: r.amount })),
     });
     for (const wallet of cutoff) {
       await revokeEntitlement({ post, wallet });
@@ -337,7 +303,6 @@ module.exports = {
   possessedWalletFor,
   findEntitlement,
   findLastReceipt,
-  refundLastReceipt,
   grantEntitlement,
   grantUnlock,
   revokeEntitlement,

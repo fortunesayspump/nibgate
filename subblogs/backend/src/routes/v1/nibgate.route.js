@@ -480,8 +480,8 @@ router.post('/posts/:key/entitlements/:wallet/revoke', authenticate, authorize('
     const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     const wallet = String(req.params.wallet).toLowerCase();
-    const { refunded } = await accessService.revokeEntitlement({ post, wallet });
-    res.json({ success: true, wallet, status: 'revoked', refunded: Boolean(refunded) });
+    await accessService.revokeEntitlement({ post, wallet });
+    res.json({ success: true, wallet, status: 'revoked' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to revoke entitlement', details: error.message });
   }
@@ -493,8 +493,8 @@ router.post('/posts/:key/entitlements/:wallet/ban', authenticate, authorize('adm
     const post = await accessService.findPostBySlugOrId(req.siteId, req.params.key);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     const wallet = String(req.params.wallet).toLowerCase();
-    const { refunded } = await accessService.banEntitlement({ post, wallet });
-    res.json({ success: true, wallet, status: 'banned', refunded: Boolean(refunded) });
+    await accessService.banEntitlement({ post, wallet });
+    res.json({ success: true, wallet, status: 'banned' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to ban wallet', details: error.message });
   }

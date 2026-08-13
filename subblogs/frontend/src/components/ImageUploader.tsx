@@ -35,11 +35,18 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
   const [uploading, setUploading] = useState<Record<string, { loading: boolean; error?: string }>>({});
   const [dragOver, setDragOver] = useState(false);
+  const [blockError, setBlockError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function addFiles(fileList: FileList | File[]) {
     const fileArray = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
     if (fileArray.length === 0) return;
+    const oversized = fileArray.find((f) => f.size > 30 * 1024 * 1024);
+    if (oversized) {
+      setBlockError("Images must be 30MB or smaller");
+      return;
+    }
+    setBlockError("");
     const remaining = maxFiles - value.length;
     if (fileArray.length > remaining) return;
 
@@ -124,6 +131,8 @@ export default function ImageUploader({
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files) addFiles(e.target.files); if (e.target) e.target.value = ""; }}
       />
+
+      {blockError && <div style={{ fontSize: "13px", color: "#dc2626" }}>{blockError}</div>}
 
       {uploadingItems.length > 0 && (
         <div style={{ fontSize: "13px", color: "var(--muted)", padding: "4px 0" }}>

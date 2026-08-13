@@ -58,7 +58,8 @@ post.content()
 | `imageUrl` | Public image shown in Explore (also accepts `image`). |
 | `recipient` | Wallet or payment receiver for paid unlocks. |
 | `access` | Human and agent access policy. |
-| `unlock` | Unlock policy. Use `mode: "one_time"` for the MVP. |
+| `unlock` | Unlock policy. Use `mode: "one_time"` — the shipped, production-ready mode. |
+| `whitelist` | Supporter wallets — a price tier (with `whitelistPrice`) and/or invite list (`publicAccess: false`). |
 
 <Callout type="important">
 The creator site remains the source of truth. Nibgate stores metadata for search, analytics, and Explore, not the protected paid file itself.
@@ -72,7 +73,7 @@ When metadata changes on the creator site, the hub refreshes the stored record t
 
 ## Unlock policy
 
-The MVP package should treat `one_time` as the supported unlock mode.
+The shipped unlock mode is `one_time`:
 
 ```ts
 unlock: {

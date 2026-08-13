@@ -31,6 +31,18 @@ Most marketplaces solve discovery by hosting the work. Nibgate takes a different
   </Cards.Card>
 </Cards>
 
+## The product rails
+
+Nibgate ships three integration surfaces on the same access rule:
+
+| Rail | What it is | Where to start |
+|---|---|---|
+| **SDK** | The `@nibgate/sdk` + `@nibgate/wallet` packages you install on any creator-owned site for gating, x402 unlocks, and events | [Quick start](/quick-start) |
+| **Subblogs** | The hosted blog platform at `*.nibgate.xyz` — articles, photos, music, video, documents, free/paid posts, whitelists, invite-only | [Create a Subblog](/create-subblog) |
+| **Nibshare** | The hosted quick-share rail at `/ns/<slug>` — publish an encrypted, optionally paid/invite-only payload and get a short link. Private by default, never indexed in discovery | [Nibshare](/nibshare) |
+
+All three feed the same hub (Explore, analytics, reputation) and enforce the identical access-control rule — see [Whitelists & access control](/access-control).
+
 ## Human and agent discovery
 
 Nibgate Explore can be used by people browsing for paid content and by AI agents searching for useful resources. Agents should be able to inspect public metadata, understand pricing, check source reputation, and follow an unlock route without scraping random pages blindly.

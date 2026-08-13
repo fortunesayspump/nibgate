@@ -59,6 +59,19 @@ export async function createApp(config, options = {}) {
   app.use(express.json({ limit: '8mb' }));
   app.use(express.urlencoded({ extended: true, limit: '8mb' }));
   app.use(cookieParser());
+
+  // Baseline security headers (helmet-equivalent, no extra dependency). CSP is
+  // intentionally omitted: subblogs/hub pages embed YouTube/Vimeo/SoundCloud
+  // players and Reown iframes. Referrer-Policy keeps tokens/query secrets off
+  // cross-origin requests while still passing same-origin context.
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+    next();
+  });
+
   app.use(cors((req, callback) => {
     if (req.path === '/api/rpc' || req.path === '/api/hub/pay' || req.path === '/api/hub/evt' || req.path === '/api/hub/track' || req.path === '/api/hub/reputation/ratings/prepare' || req.path === '/api/hub/reputation/ratings/index' || req.path === '/api/nibshare' || /^\/api\/nibshare\/[^/]+(\/(unlock|access))?$/.test(req.path) || /^\/ns\/[^/]+$/.test(req.path)) {
       return callback(null, {

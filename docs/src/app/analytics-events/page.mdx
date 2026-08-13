@@ -24,7 +24,7 @@ The goal is not just totals. Creators need timeline filters, content-specific de
 
 ## Page activity
 
-The widget can track views, referrers, path, scroll depth, and time-on-page signals.
+The widget tracks views, referrers, path, scroll depth, and time-on-page signals automatically. Events are batched to `POST /hub/evt` (legacy alias: `/hub/track`).
 
 ```ts
 window.nibgateHub.track("page_view", {
@@ -36,7 +36,17 @@ window.nibgateHub.track("page_view", {
 
 ## Content activity
 
-The package can report impressions, preview clicks, unlock starts, unlock completions, failed unlocks, and receipt references.
+The widget is event sink; the package is the emitter. The widget exposes a small window API that the SDK calls under the hood:
+
+```ts
+window.nibgateHub.registerContent(resource)   // (alias: .content) register metadata  → content_registered
+window.nibgateHub.track(eventName, payload)   // arbitrary activity → custom/<eventName>
+window.nibgateHub.unlockStarted(resource)     // user begins checkout   → unlock_started
+window.nibgateHub.unlockCompleted(resource, payment) // successful unlock → unlock_completed
+window.nibgateHub.paymentCompleted(resource, payment) // payment settled  → payment_completed
+```
+
+Content on a verified page is detected from `data-nibgate-*` attributes or `nibgate:*` meta tags; the package can also send events directly:
 
 ```ts
 import { createGate } from "@nibgate/sdk"
@@ -53,8 +63,21 @@ const post = createGate({
   }
 })
 
-post.track("content_impression")
+post.content()                     // content_registered
+post.track("content_impression")   // arbitrary event
 ```
+
+## The canonical event set
+
+| Event | Emitted when | Payload carries |
+|---|---|---|
+| `content_registered` | metadata first published / updated | resource id, title, type, price, path, image, tags |
+| `resource_view` | page with a registered resource rendered | content id, url, route |
+| `unlock_started` | checkout intent begins | content id, price, wallet last seen |
+| `unlock_completed` | server verified the unlock proof | content id, payer wallet, amount, currency |
+| `payment_completed` | payment settled (x402/gateway/transfer) | content id, payer, recipient, txHash, paymentId, provider, network, amount, revenue, currency |
+
+Server-side (package/x402) flows emit `payment_completed` + `unlock_completed` to the hub automatically from `accessResponse()` / `payAndUnlockResponse()` — but only when the creator site sets `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE`. Without those, payments still process and return proofs; only hub counts/Explore volume stay static.
 
 ## Unlock flow
 

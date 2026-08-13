@@ -1,11 +1,35 @@
 import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession } from '@nibgate/internal/auth.js';
 
+// In-memory SIWE brute-force guard: the verify endpoint gets a tight cap (20
+// attempts per IP per 15 min); the nonce endpoint is fetched on every
+// wallet-connect modal open, so it gets a generous cap (300/15 min) to avoid
+// locking out legit users behind shared NAT/VPN. Mirrors the tracking-rate-limit
+// bucket pattern; resets on restart, which is acceptable for an auth throttle.
+const authBuckets = new Map();
+const AUTH_LIMITS = { nonce: 300, verify: 20 };
+function checkAuthRateLimit(req, kind) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const key = `${kind}:${ip}`;
+  const bucket = authBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    authBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return { ok: true };
+  }
+  bucket.count += 1;
+  const max = AUTH_LIMITS[kind] || 20;
+  return bucket.count > max ? { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) } : { ok: true };
+}
+
 export function registerAuthRoutes(app) {
   const cookieOpts = { httpOnly: true, sameSite: 'lax', path: '/' };
   if (process.env.NODE_ENV === 'production') { cookieOpts.secure = true; cookieOpts.domain = '.nibgate.xyz'; }
   
   // 1. Generate Nonce
   app.get('/api/auth/nonce', (req, res) => {
+    const rate = checkAuthRateLimit(req, 'nonce');
+    if (!rate.ok) return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rate.retryAfter });
     const nonce = createNonce();
     res.cookie('auth_nonce', nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
     
@@ -14,6 +38,8 @@ export function registerAuthRoutes(app) {
 
   // 2. Verify Signature & Login
   app.post('/api/auth/verify', async (req, res) => {
+    const rate = checkAuthRateLimit(req, 'verify');
+    if (!rate.ok) return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rate.retryAfter });
     try {
       const { message, signature } = req.body;
       const expectedNonce = req.cookies.auth_nonce;

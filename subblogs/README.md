@@ -7,10 +7,12 @@ Built for creators who want to write, publish, and optionally gate premium conte
 ## Features
 
 - Articles with Markdown editing, cover images, tags, excerpts, and slug auto-generation
-- Photo, music, and video post support
+- Photo, music, and video post support (music: encrypted audio + embedded player; video: upload or YouTube/Vimeo/SoundCloud/Spotify)
 - Free and paid content gating via `@nibgate/sdk`
+- Whitelists, supporter price tiers, and invite-only posts (shared access-control rule)
 - All post bodies and media are encrypted at rest (free and paid); free posts are decrypted and served to anyone, paid posts stay behind x402 proof; photo covers stay plaintext
-- Admin dashboard with create, edit, publish, draft, and delete
+- SIWE wallet sign-in plus email/password admin (wallet is a possession signal for proof-bound access)
+- Admin dashboard with create, edit, publish, draft, delete, and per-post stats (unlocks, revenue, receipts)
 - Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`)
 - RSS feed
 - Prev/next post navigation
@@ -32,10 +34,10 @@ Built for creators who want to write, publish, and optionally gate premium conte
 ## Stack
 
 - **Backend**: Express.js + Prisma ORM + PostgreSQL
-- **Frontend**: Next.js 15 + React 19 + Tailwind CSS 4 + Motion
-- **Auth**: JWT (email/password)
+- **Frontend**: Next.js 15 + React 19 + Tailwind CSS 4 + Motion (port 3002)
+- **Auth**: SIWE wallet sign-in (HttpOnly `sb_auth_session` JWT) + email/password
 - **Content**: Markdown with react-markdown
-- **Premium gating**: Optional — `@nibgate/sdk`
+- **Premium gating**: `@nibgate/sdk` (`^0.4.8`) + `@nibgate/wallet` (`0.2.13`) from npm, exact-pinned wagmi/appkit/viem peers
 
 ## Quick Start
 
@@ -68,12 +70,12 @@ npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:3001`.
+Frontend runs on `http://localhost:3002`.
 
 ### 4. Open it
 
-- **Blog**: http://localhost:3001
-- **Admin**: http://localhost:3001/admin/posts
+- **Blog**: http://localhost:3002
+- **Admin**: http://localhost:3002/admin/posts
 - **API**: http://localhost:4000/api
 
 ### Demo login
@@ -82,10 +84,12 @@ After seeding: `author@example.com` / `password123`
 
 ### Admin setup
 
-1. Create a subdomain site via the `POST /api/setup` endpoint.
-2. Log in at `/admin/login` with email and password.
-3. Manage posts from the admin dashboard at `/admin/posts` — create, edit, publish, draft, or delete.
-4. Configure premium gating per post by setting a price and recipient wallet in the post editor.
+1. Connect a wallet with SIWE (`/auth/nonce` → `/auth/verify`) or log in at `/admin/login` with email/password. Wallet sign-in is the primary flow; email/password remains for multi-editor sites.
+2. Manage posts from the admin dashboard at `/admin/posts` — create, edit, publish, draft, or delete.
+3. Configure gating per post in the editor: price, recipient wallet, **whitelist**, **whitelistPrice** (supporter tier, `0` = free for whitelisted), and **publicAccess** (`false` = invite-only).
+4. Revoke/ban individual wallets from a post's access-control panel; flipping to invite-only automatically cuts off non-whitelisted paid wallets and refund-marks their receipts.
+
+Admin auth uses JWT (email) or SIWE sessions. The wallet that owns a post (its `authorId`'s wallet) is the only actor allowed to edit/delete it — other wallets get `403` unless promoted to admin.
 
 The admin uses JWT-based authentication. Set a strong `JWT_SECRET` in production.
 
@@ -130,14 +134,27 @@ Set `SENTRY_DSN` env var on Railway to enable error tracking. All errors are log
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/api/blog/posts` | No | List published posts |
-| GET | `/api/blog/posts/:slug` | No | Get single post |
-| POST | `/api/auth/register` | No | Create account |
-| POST | `/api/auth/login` | No | Sign in |
-| GET | `/api/auth/me` | Yes | Current user |
+| GET | `/api/blog/posts/:slug` | No | Get single post (free bodies decrypted; paid returns teaser only) |
 | GET | `/api/blog/admin/posts` | Yes | List all posts |
-| POST | `/api/blog/admin/posts` | Yes | Create post |
-| PUT | `/api/blog/admin/posts/:id` | Yes | Update post |
-| DELETE | `/api/blog/admin/posts/:id` | Yes | Delete post |
+| POST | `/api/blog/admin/posts` | Yes (author/admin) | Create post |
+| PUT | `/api/blog/admin/posts/:id` | Yes (author/admin) | Update post |
+| DELETE | `/api/blog/admin/posts/:id` | Yes (author/admin) | Delete post |
+| GET | `/api/blog/admin/posts/stats` | Yes | Per-post stats (unlocks, revenue, receipts) |
+| POST | `/api/auth/nonce` | No | SIWE nonce for a wallet |
+| POST | `/api/auth/verify` | No | Verify signed SIWE message → `sb_auth_session` cookie |
+| GET | `/api/auth/me` | Yes | Current user |
+| POST | `/api/auth/logout` | Yes | Clear session |
+| POST | `/api/auth/login` | No | Email/password sign in |
+| POST | `/api/auth/register` | No | Create account |
+| GET | `/api/setup` / POST | — | Create/read a subdomain site |
+| GET | `/api/nibgate/access?path=…` | No | x402 access; 200 with decrypted content / 402 challenge |
+| GET | `/api/nibgate/manifest?path=…` | No | Per-post agent contract |
+| GET | `/api/nibgate/media/:postId/:kind` | No | Encrypted media proxy (proof-gated for paid posts) |
+| GET | `/api/nibgate/posts/:key/quote` | No | Price + access decision |
+| GET | `/api/nibgate/gateway/balances` | Yes (admin) | Depositor USDC balance |
+| POST | `/api/nibgate/posts/:key/access-control` | Author/admin | Edit whitelist / publicAccess (auto-cutoff on invite-only flip) |
+| POST | `/api/nibgate/posts/:key/entitlements/:wallet/revoke` | Author/admin | Revoke (may re-purchase) |
+| POST | `/api/nibgate/posts/:key/entitlements/:wallet/ban` | Author/admin | Ban (hard deny) |
 
 ## Nibgate Integration
 
@@ -170,8 +187,14 @@ Set these env vars in `backend/.env` and run your own access route:
 ```
 NIBGATE_SECRET=your-unlock-secret
 NIBGATE_SELLER_ADDRESS=0xYourWalletAddress
-NIBGATE_PAYMENT_NETWORK=eip155:5042002
+NIBGATE_SHARE_KEY_SECRET=your-encryption-key-encryption-key
+CIRCLE_API_KEY=your-circle-api-key
+NIBGATE_SITE_ID=nibgate-blog
+NIBGATE_SITE_TOKEN=your-hub-site-token
+NIBGATE_API_BASE=https://api.nibgate.xyz
 ```
+
+`NIBGATE_SHARE_KEY_SECRET` is the KEK that wraps every post/file DEK before it is stored (see [Content encryption](/encryption)); `CIRCLE_API_KEY` powers the gateway balance/deposit endpoints; the `NIBGATE_SITE_ID`/`NIBGATE_SITE_TOKEN`/`NIBGATE_API_BASE` trio sends unlock/payment events to the hub so Explore counts update.
 
 The blog exposes a Nibgate manifest at `GET /api/nibgate/manifest` for hub discovery. A per-post agent contract is available at `GET /api/nibgate/manifest?path=/writing/<slug>` (and the post page itself embeds the same facts as `nibgate:*` meta tags, JSON-LD, and a `<link rel="alternate" type="application/json">`).
 

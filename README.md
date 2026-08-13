@@ -8,9 +8,10 @@ Built on Circle Gateway, ARC testnet, and the x402 protocol.
 
 **Key packages:**
 
-- **SDK (`packages/nibgate/`)** — `@nibgate/sdk` npm package for gating paid content on any creator site. Browser and server entrypoints, x402/Gateway unlocks, event streaming, onchain ratings.
-- **Subblogs (`subblogs/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, documents, free and paid posts. Next.js frontend, Express backend, PostgreSQL.
-- **Hub (`frontend/` + `backend/`)** — The main `nibgate.xyz` app: public site, creator dashboard, Explore discovery, analytics, API, and widget hosting.
+- **SDK (`packages/nibgate/`)** — `@nibgate/sdk` npm package for gating paid content on any creator site. Browser and server entrypoints, x402/Gateway unlocks, event streaming, onchain ratings. Includes the shared access-control rule (`canAccess`, `normalizeWhitelist`, `paidCutoffWallets`) used by both rails and the encryption primitives (`crypto.js`).
+- **Wallet (`packages/wallet/`)** — `@nibgate/wallet` npm package with a `./react` entry: shared Reown (AppKit + wagmi) wallet provider, SIWE sign-in, and the `<NibgateUnlock>`/`GatewayWallet` single-checkout used by the hub header, Nibshare, and Subblogs.
+- **Subblogs (`subblogs/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, documents, free and paid posts. Next.js frontend (port 3002), Express backend (port 4000), PostgreSQL. SIWE wallet auth, whitelists/invite-only tiers, AES-256-GCM encryption at rest.
+- **Hub (`frontend/` + `backend/`)** — The main `nibgate.xyz` app: public site, creator dashboard, Explore discovery, analytics, API, Nibshare quick-share rail, and widget hosting.
 - **CLI (`packages/cli/`)** — Internal tooling for local dev, site verification, and hub connection.
 - **Docs (`docs/`)** — Documentation site at docs.nibgate.xyz.
 
@@ -72,6 +73,8 @@ This is an example creator blog with paid content gating. Two services:
 ### `nibshare` (Quick-Share Gated Content)
 
 A hosted quick-share rail inside the hub: a wallet owner publishes an encrypted payload with an optional price, expiry, and wallet whitelist, and gets a short link at `nibgate.xyz/ns/<slug>`. No domain required. Bodies and media are always AES-256-GCM encrypted at rest in Cloudflare R2; unlock is x402 USDC on Arc via the server-side decrypt proxy (free public shares read openly, invite-only shares require a session-corroborated whitelisted wallet, paid shares after payment). This is a **private** product — it is never indexed in hub discovery, the ledger, or reputation. The share page self-describes for agents: `GET /nibshare/:slug/manifest` (also reachable at `https://api.nibgate.xyz/ns/<slug>`, the short read route) returns the machine-readable contract (advertised via `<meta name="nibgate:*">`, JSON-LD, `data-nibgate-*` attributes, a `<link rel="alternate">` element, and the `Link` response header), and the Nibgate MCP server exposes it as the `resolve_share` tool.
+
+Server source is at `backend/src/server/nibshare/{controller,service,utils,routes}.js`; it delegates access decisions to the SDK's `access-policy.js` (possession rule, pay-before-deny, idempotent receipt granting) and exposes the same entitlement/ban/revoke finance as Subblogs.
 
 Docs live with the implementation, not in a separate top-level folder:
 
@@ -523,9 +526,11 @@ npx nibgate deposit 1.0
 
 ## Local URLs
 
-- Frontend home: `http://localhost:3001`
-- Explore: `http://localhost:3001/explore`
-- Backend API: `http://localhost:3000`
+- Hub frontend: `http://localhost:3001`
+- Hub Explore: `http://localhost:3001/explore`
+- Hub backend API: `http://localhost:3000`
+- Subblogs frontend: `http://localhost:3002`
+- Subblogs backend API: `http://localhost:4000`
 - Example origin: `http://localhost:4301`
 - Demo premium route: `http://localhost:4301/hello-world`
 - Hub widget: `http://localhost:3001/widget.js`

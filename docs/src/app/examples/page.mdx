@@ -47,13 +47,87 @@ launchNote.view()
 
 Publish public metadata for a track, gate the full audio, and show unlock/conversion analytics in the dashboard.
 
+```ts
+import { createGate } from "@nibgate/sdk"
+import { createNibgateServer } from "@nibgate/sdk/server"
+
+const track = createGate({
+  id: "track_drop_01",
+  type: "music",
+  title: "Midnight Session — Exclusives",
+  path: "/music/midnight-session",
+  url: "https://creator.com/music/midnight-session",
+  price: "0.10",
+  currency: "USDC",
+  access: { humans: "paid", agents: "paid" },
+  unlock: { mode: "one_time" }
+})
+track.content()
+
+const server = createNibgateServer({
+  secret: process.env.NIBGATE_SECRET,
+  recipient: process.env.NIBGATE_SELLER_ADDRESS,
+  paymentMode: "circle-gateway",
+  network: "eip155:5042002"
+})
+
+export const GET = server.protect({
+  id: "track_drop_01", title: "Midnight Session", type: "music", price: "0.10", path: "/music/midnight-session"
+}, () => streamAudioFileFromR2()) // decrypted only after proof
+```
+
+The `<audio>` element streams through a proof-gated media proxy (`/api/nibgate/media/:id/audio`) — see [Content encryption](/encryption).
+
 ## Video course
 
-Index the public course page, then gate individual lessons, downloads, or bonus clips behind unlocks.
+Index the public course page, then gate individual lessons, downloads, or bonus clips behind unlocks. Uploaded video files are encrypted at rest and streamed via the media proxy only after proof.
+
+```ts
+import { createGate } from "@nibgate/sdk"
+
+const lesson = createGate({
+  id: "course_lesson_02",
+  type: "video",
+  title: "Lesson 2 — Design tokens",
+  path: "/course/lesson-2",
+  url: "https://creator.com/course/lesson-2",
+  price: "0.50",
+  currency: "USDC",
+  access: { humans: "paid", agents: "blocked" },
+  unlock: { mode: "one_time" }
+})
+lesson.content()
+lesson.view()
+
+// Server route mirrors the access rule; an uploaded .mp4 streams from
+// /api/nibgate/media/:id/video only after the x-nibgate-payment-proof header verifies.
+```
 
 ## Agent route
 
-Expose a paid API or data route that humans and AI agents can discover through verified metadata.
+Expose a paid API or data route that humans and AI agents can discover through verified metadata. Agents pay with an x402 wallet client — no browser needed.
+
+```ts
+import { createNibgateServer } from "@nibgate/sdk/server"
+
+const server = createNibgateServer({
+  secret: process.env.NIBGATE_SECRET,
+  recipient: process.env.NIBGATE_SELLER_ADDRESS,
+  paymentMode: "circle-gateway",
+  network: "eip155:5042002"
+})
+
+export const GET = server.protect({
+  id: "dataset_market_scraper",
+  title: "Market scraper dataset",
+  type: "document",
+  price: "0.25",
+  path: "/api/datasets/market",
+  access: { humans: "paid", agents: "paid" }
+}, () => Response.json(buildDataset()))
+```
+
+An agent pays via `GatewayClient` (see [x402 gateway receipt](/payments-receipts#x402-gateway-receipt)) and receives the JSON body after the challenge/retry cycle.
 
 ## Example checklist
 

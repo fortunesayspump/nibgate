@@ -2,7 +2,7 @@ import { Cards, Steps } from 'nextra/components'
 
 # Architecture
 
-Nibgate v1 is built around a creator-owned origin, a package that gates content, a widget that verifies the site, and a hub that indexes metadata and events.
+Nibgate is built around a creator-owned origin, a package that gates content, a widget that verifies the site, and a hub that indexes metadata and events. On top sit two hosted rails — Subblogs and Nibshare — that reuse the same package, access rule, and encryption primitives.
 
 ## System parts
 
@@ -19,6 +19,12 @@ Nibgate v1 is built around a creator-owned origin, a package that gates content,
   <Cards.Card title="Nibgate hub" href="/architecture#nibgate-hub">
     The backend, dashboard, Explore index, analytics, and reputation layer.
   </Cards.Card>
+  <Cards.Card title="Subblogs" href="/create-subblog">
+    Hosted blog rail (`*.nibgate.xyz`) — the package plus a full CMS, SIWE auth, and encryption.
+  </Cards.Card>
+  <Cards.Card title="Nibshare" href="/nibshare">
+    Hosted quick-share rail (`/ns/<slug>`) — short-link gated content with no domain required.
+  </Cards.Card>
 </Cards>
 
 ## Creator site
@@ -29,7 +35,17 @@ The creator site is the source of truth. It serves the public route, protects pa
 
 The package lives inside the creator app. It should gate resources, send content metadata, report unlock events, and attach receipt references after payment succeeds.
 
-The first stable unlock strategy is `one_time`: a buyer or agent pays once, the creator site verifies the receipt, then the server issues access. The package keeps an `unlock` policy field so later strategies can add metered video/audio streaming, section-based reading, time passes, and agent quotas without changing the core integration.
+The stable unlock strategy is `one_time`: a buyer or agent pays once, the creator site verifies the receipt, then the server issues access. The package keeps an `unlock` policy field so later strategies can add metered video/audio streaming, section-based reading, time passes, and agent quotas without changing the core integration.
+
+The wallet package (`@nibgate/wallet/react`) supplies the shared Reown wallet modal, SIWE sign-in, and the `<NibgateUnlock>` checkout component so every rail has one wallet UX.
+
+## The shared access rule
+
+Both hosted rails and the SDK run **one** access decision (`canAccess` in `@nibgate/sdk/server`, `packages/nibgate/src/server/access-policy.js`) over three policy knobs — `price`, `whitelist`/`whitelistPrice`, and `publicAccess`. The rule's order is: ban → invite-only deny → active paid entitlement → active free grant → valid bound proof → `402` challenge. A bare `?wallet=` is a client claim, never an identity; possession comes from a bound unlock proof or a SIWE session wallet. Full detail: [Whitelists & access control](/access-control).
+
+## Encryption at rest
+
+Every Subblogs post body and uploaded media file, and every Nibshare body and media blob, is AES-256-GCM encrypted before it reaches object storage (R2). Keys are envelope-wrapped with a backend-only KEK; only the wrapped key is persisted. Encryption is confidentiality at rest, not access control — free content is decrypted server-side and served to anyone, paid content only after proof. See [Content encryption](/encryption).
 
 ## Hub widget
 
@@ -56,9 +72,7 @@ The package sends structured content records for public discovery.
 
 ### Gate and unlock
 
-The creator site handles the protected route and payment flow.
-
-For MVP, this means one verified payment unlocks one resource. Streaming or metered unlocks are future adapters, not the default launch requirement.
+The creator site handles the protected route and payment flow. One verified payment unlocks one resource (lifetime entitlement). Streaming or metered unlocks are future adapters, not the default requirement.
 
 ### Report events
 

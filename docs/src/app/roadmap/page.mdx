@@ -1,21 +1,22 @@
 # Roadmap
 
-Nibgate is being built as a package-first content unlock layer plus a verified discovery hub. The roadmap is focused on making that flow simple for creators and trustworthy for humans and agents.
+Nibgate is a package-first content unlock layer plus a verified discovery hub, with two hosted creator rails (Subblogs and Nibshare) on top. The roadmap is focused on making that flow simple for creators and trustworthy for humans and agents.
 
-## Now
+## Shipped
 
+- **`@nibgate/sdk` (0.4.x)** published on npm: browser + server entrypoints, x402/Circle gateway unlocks, `createGate`, content events, ratings, and the shared access-control rule (`canAccess`, `normalizeWhitelist`, `paidCutoffWallets`).
+- **`@nibgate/wallet` (0.2.x)** published on npm: shared Reown (AppKit + wagmi) wallet provider, SIWE sign-in, and the `<NibgateUnlock>`/`GatewayWallet` single-checkout flow used by the hub header and both rails (`./react` entry).
+- **Subblogs** — the full creator blog rail (`*.nibgate.xyz`) with articles, photos, music, video, documents; free and paid posts; whitelists, invite-only posts, and supporter price tiers; AES-256-GCM encryption at rest for every body and media file; SIWE wallet auth plus email/password admin.
+- **Nibshare** — the hosted quick-share rail at `/ns/<slug>`: a wallet owner publishes an encrypted, optionally paid/invite-only payload with short-link sharing. Not indexed in discovery.
+- **Access control hardening** — the possession rule (a `?wallet=` claim never grants content on its own), pay-before-deny on invite-only, draft/revoked/expired reachability, subblogs author-authz, atomic receipt idempotency (one grant per payment), and whitelist-edit cutoffs with auto refund-marking. All verified on both backends by a graded e2e stress suite.
 - Stable creator profiles, verified sites, dashboard content, analytics, earnings records, and Explore indexing.
-- Package APIs for browser content events and server-side unlock enforcement.
-- One-time unlock mode for the first real paid-content flow.
-- Widget verification for creator-owned domains.
 - Content reputation, creator leaderboards, and site/content ranking surfaces.
 
 ## Next
 
-- Tighten the demo site into a real end-to-end reference implementation.
-- Improve Circle Gateway/x402 and Arc testnet receipt handling.
-- Add clearer setup checks for missing widgets, removed sites, and failed verification.
-- Improve docs around payment receipts, unlock tokens, and agent-readable discovery.
+- Extend the browser/MetaMask UI suite to cover whitelist banner, invite-only free unlock, banned UI, draft 404, tier-switch pricing, and paid-unlock up to the signature step.
+- Work the `FOLLOWUPS.md` P1–P8 items and wallet-unify follow-ups (ReputationRating raw `window.ethereum`, dead `GatewayWallet.tsx`, widget.js Reown parity).
+- Add suppliers of testnet USDC on Arc so paid unlocks can complete end-to-end in CI without a manual faucet.
 
 ## Later
 
@@ -23,8 +24,6 @@ Nibgate is being built as a package-first content unlock layer plus a verified d
 - Stronger reputation proofs tied to verified unlocks and signed/onchain ratings.
 - Richer agent discovery metadata for paid routes, citations, licenses, and source quality.
 - More package helpers for common frameworks without making the core package framework-specific.
-
-> Already shipped: the `@nibgate/sdk` package (v0.2.x) is published on npm, and browser wallet checkout adapters (`createWalletCheckout`, `payWithTransfer`, `createEvmGatewayUnlock`, `createCircleGatewayBrowserAdapter`) are implemented.
 
 ## Out of scope
 

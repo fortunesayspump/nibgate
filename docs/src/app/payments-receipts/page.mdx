@@ -12,15 +12,28 @@ The creator package controls the receiver address. A creator can run multiple si
 Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock.
 </Callout>
 
-## MVP unlock model
+## Unlock model
 
-The first package release should support one reliable path:
+One reliable path powers every rail:
 
 ```txt
-one resource -> one payment -> one verified unlock receipt -> one unlock token
+one resource -> one payment -> one verified unlock receipt -> one entitlement -> one unlock proof
 ```
 
-Metered streaming, metered reading, passes, and agent quotas are future unlock strategies. They should still produce receipt events that can be indexed by Nibgate, but they are not required for the hackathon MVP.
+The entitlement is **lifetime** for paid unlocks: once a receipt exists, the wallet keeps access even after the proof expires or browser storage clears (the server re-issues a fresh proof on every legit visit). Free grants are re-granted per visit and are *not* lifetime. Metered streaming, metered reading, passes, and agent quotas are future unlock strategies; they should still produce receipt events that can be indexed by Nibgate.
+
+## Unlock proofs (the short-lived cache)
+
+Proofs are the browser/agent cache over the database; they are bindable and short-lived. Full grant logic lives on [Whitelists & access control](/access-control).
+
+- **Nibshare — server-minted**: `{wallet}.{iat}.{exp}.{mac}`, `mac = HMAC-SHA256("nibshare:{shareId}:{wallet}:{iat}:{exp}")` keyed by `NIBGATE_GATEWAY_SECRET`/`NIBGATE_PROOF_SECRET`. 12h window.
+- **Subblogs — SDK-signed**: unlock token minted by `createNibgateServer(...)` after proof verification, 12h TTL.
+
+An expired proof is **harmless** — entitlements + receipts are checked *before* proof freshness, so the server simply re-mints on the next legit visit. The `x-nibgate-payment-proof` header carries the proof to media/document routes; `?wallet=` on the query can authenticate `<img>`/`<audio>` tags that cannot send headers.
+
+## Payment idempotency: one grant per payment
+
+x402 has no native payment id — the settlement `txHash` is the only stable identity. Both backends enforce a unique `(paymentNonce=txHash, resourceId)` index and do find-or-create on grant. A replayed proof hits the stored receipt and returns `{receipt, replay: true}` — no second grant, no double unlock count, no double event. This is the #1 x402 production failure mode (248 grants per single payment measured on a live endpoint without the guard).
 
 ## Receipt types
 
@@ -69,6 +82,13 @@ Without these, x402 payments still work and return unlock proofs, but unlock cou
 
 Use this when the payment can link to an Arc testnet transaction hash or Arcscan URL.
 
+## Gateway balance & deposit
+
+The hub backend exposes Circle Gateway helper status on both rails via the shared `packages/internal/src/payments.js`:
+
+- `GET /api/nibshare/gateway/balance` (hub) and `GET /api/gateway/balances` (subblogs) — return the depositor's testnet USDC balance (needs `CIRCLE_API_KEY` set on the backend; response shows `{ balance: "0.00 USDC" }`).
+- Deposit/withdraw are handled through Circle's Gateway API with the configured depositor/source — no custody by Nibgate.
+
 ## Event payload
 
 Unlock completion events should include:
@@ -79,7 +99,7 @@ Unlock completion events should include:
 - `recipient`
 - `siteId`
 - `contentId`
-- `txHash` for chain transactions
+- `txHash` for chain transactions (this doubles as the `paymentNonce` for idempotent granting)
 - `paymentId` for gateway/provider records
 - `receiptUrl` when the provider returns a real receipt URL
 - `chainExplorerUrl` when available

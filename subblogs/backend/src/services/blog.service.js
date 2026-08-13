@@ -325,7 +325,7 @@ async function update(siteId, id, data, actor) {
     const cutoff = accessService.paidCutoffWallets({
       policy: { whitelist: updated.whitelist || [], publicAccess: false },
       entitlements: activeEnts,
-      receipts: receipts.map((r) => ({ payerWallet: r.payerWallet, amount: r.amount, refundedAt: r.refundedAt })),
+      receipts: receipts.map((r) => ({ payerWallet: r.payerWallet, amount: r.amount })),
     });
     for (const wallet of cutoff) {
       await accessService.revokeEntitlement({ post: updated, wallet });

@@ -111,7 +111,7 @@ export function SettingsSheet({ share, onClose, onRotate, onRevoke }: {
       setWlPriceInput((prev) => (patch.whitelistPrice !== undefined ? (data.whitelistPrice ?? "") : prev));
       if (Array.isArray(data.cutOffWallets) && data.cutOffWallets.length > 0) {
         const n = data.cutOffWallets.length;
-        alert(`Made invite-only. ${n} wallet${n === 1 ? "" : "s"} that paid outside the whitelist ${n === 1 ? "was" : "were"} revoked and refund-marked (bookkeeping).`);
+        alert(`Made invite-only. ${n} wallet${n === 1 ? "" : "s"} that paid outside the whitelist ${n === 1 ? "was" : "were"} revoked.`);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update access');
@@ -525,7 +525,6 @@ export function SettingsSheet({ share, onClose, onRotate, onRevoke }: {
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {r.refundedAt && <span className="text-[10px] font-semibold" style={{ color: "#b45309" }}>refunded</span>}
                   <span className="text-xs font-semibold shrink-0" style={{ color: Number(r.amount) > 0 ? "#7c9a6d" : "var(--muted)" }}>
                     {Number(r.amount) > 0 ? `${formatUsd(Number(r.amount))} USDC` : "Free"}
                   </span>

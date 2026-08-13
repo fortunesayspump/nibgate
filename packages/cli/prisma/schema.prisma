@@ -429,7 +429,6 @@ model NibShareReceipt {
   currency    String    @default("USDC")
   unlockedAt  DateTime  @default(now())
   keyGrantedAt DateTime? // when the decryption key was vended (null = not yet)
-  refundedAt DateTime? // set when a revoke refunds this payment
 
   @@index([shareId])
   @@index([payerWallet])

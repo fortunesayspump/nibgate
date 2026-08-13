@@ -85,34 +85,30 @@ async function unlock(share, wallet, at) {
   return receipt;
 }
 
-// Hard ban: revoke + never able to pay again. Refunds any paid receipt.
+// Hard ban: revoke + never able to pay again.
 async function ban(share, wallet, at) {
   await service.banEntitlement({ share, wallet });
   await db.nibShareEntitlement.update({
     where: { shareId_wallet: { shareId: share.id, wallet } },
     data: { revokedAt: new Date(at) },
   });
-  for (const type of ['ban', 'refund']) {
-    const ev = await db.nibShareEvent.findFirst({
-      where: { shareId: share.id, type, wallet }, orderBy: { createdAt: 'desc' },
-    });
-    if (ev) await db.nibShareEvent.update({ where: { id: ev.id }, data: { createdAt: new Date(at) } });
-  }
+  const ev = await db.nibShareEvent.findFirst({
+    where: { shareId: share.id, type: 'ban', wallet }, orderBy: { createdAt: 'desc' },
+  });
+  if (ev) await db.nibShareEvent.update({ where: { id: ev.id }, data: { createdAt: new Date(at) } });
 }
 
-// Soft revoke: loses current access, may re-pay to re-unlock. Refunds the last paid receipt.
+// Soft revoke: loses current access, may re-pay to re-unlock.
 async function revoke(share, wallet, at) {
   await service.revokeEntitlement({ share, wallet });
   await db.nibShareEntitlement.update({
     where: { shareId_wallet: { shareId: share.id, wallet } },
     data: { revokedAt: new Date(at) },
   });
-  for (const type of ['revoke', 'refund']) {
-    const ev = await db.nibShareEvent.findFirst({
-      where: { shareId: share.id, type, wallet }, orderBy: { createdAt: 'desc' },
-    });
-    if (ev) await db.nibShareEvent.update({ where: { id: ev.id }, data: { createdAt: new Date(at) } });
-  }
+  const ev = await db.nibShareEvent.findFirst({
+    where: { shareId: share.id, type: 'revoke', wallet }, orderBy: { createdAt: 'desc' },
+  });
+  if (ev) await db.nibShareEvent.update({ where: { id: ev.id }, data: { createdAt: new Date(at) } });
 }
 
 async function views(share, entries) {
@@ -184,7 +180,7 @@ const s7 = await createShare({
   title: 'Private Beta: Gateway Patterns', summary: 'Public pays $1; early members unlock for free.',
   price: '1', whitelist: [W.alice, W.bob], whitelistPrice: '0',
   content: md({ title: 'Private Beta: Gateway Patterns', intro: 'Patterns we found building gateway v2 — early adopters get it free.',
-    what: 'Pay-per-call models, credit top-ups, and the refund-shaped hole in x402.', why: 'A thank-you to the beta cohort: public pays, whitelist rides free.' }),
+    what: 'Pay-per-call models, credit top-ups, and the missing refund path in x402.', why: 'A thank-you to the beta cohort: public pays, whitelist rides free.' }),
 });
 
 // S8 — paid, invite-only, whitelist gets a discount
@@ -217,7 +213,7 @@ await unlock(s8, W.dave, '2026-08-12T08:00:00Z'); // whitelist → $0.50
 
 // Bans (hard) and soft revokes
 await ban(s2, W.eve, '2026-08-11T09:00:00Z'); // eve never paid — pure ban
-await ban(s3, W.carol, '2026-08-11T16:30:00Z'); // carol paid $1, got banned → refunded
+await ban(s3, W.carol, '2026-08-11T16:30:00Z'); // carol paid $1, got banned
 await revoke(s3, W.dave, '2026-08-12T09:00:00Z'); // dave never unlocked s3 but owner revokes anyway (soft)
 
 // Views (deduped per wallet in the UI via access-control)

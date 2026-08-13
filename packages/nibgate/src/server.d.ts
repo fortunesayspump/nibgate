@@ -250,8 +250,8 @@ export declare function inWhitelist(policy: NibgateAccessPolicyInput, wallet: st
 export declare function effectivePrice(policy: NibgateAccessPolicyInput, wallet?: string | null): number;
 export declare function accessDecision(policy: NibgateAccessPolicyInput, wallet: string): { ok: boolean; reason?: string; message?: string };
 export declare function canAccess(policy: NibgateAccessPolicyInput, facts: NibgateCanAccessFacts): NibgateCanAccessResult;
-export declare function hasPaidReceipt(receipt?: { amount?: string | number; refundedAt?: string | Date | null } | null): boolean;
-export declare function paidCutoffWallets(args: { policy: NibgateAccessPolicyInput; entitlements?: Array<Record<string, unknown> | null>; receipts?: Array<{ payerWallet: string; amount?: string | number; refundedAt?: string | Date | null } | null> }): string[];
+export declare function hasPaidReceipt(receipt?: { amount?: string | number } | null): boolean;
+export declare function paidCutoffWallets(args: { policy: NibgateAccessPolicyInput; entitlements?: Array<Record<string, unknown> | null>; receipts?: Array<{ payerWallet: string; amount?: string | number } | null> }): string[];
 
 // Admin API
 export interface NibgateAdminStore {

@@ -87,7 +87,7 @@ After seeding: `author@example.com` / `password123`
 1. Connect a wallet with SIWE (`/auth/nonce` → `/auth/verify`) or log in at `/admin/login` with email/password. Wallet sign-in is the primary flow; email/password remains for multi-editor sites.
 2. Manage posts from the admin dashboard at `/admin/posts` — create, edit, publish, draft, or delete.
 3. Configure gating per post in the editor: price, recipient wallet, **whitelist**, **whitelistPrice** (supporter tier, `0` = free for whitelisted), and **publicAccess** (`false` = invite-only).
-4. Revoke/ban individual wallets from a post's access-control panel; flipping to invite-only automatically cuts off non-whitelisted paid wallets and refund-marks their receipts.
+4. Revoke/ban individual wallets from a post's access-control panel; flipping to invite-only automatically cuts off non-whitelisted paid wallets (revoke only — no refunds; x402 payments go straight to the creator's wallet and are irreversible).
 
 Admin auth uses JWT (email) or SIWE sessions. The wallet that owns a post (its `authorId`'s wallet) is the only actor allowed to edit/delete it — other wallets get `403` unless promoted to admin.
 

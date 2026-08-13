@@ -154,7 +154,6 @@ model BlogPostReceipt {
   currency    String    @default("USDC")
   unlockedAt  DateTime  @default(now())
   keyGrantedAt DateTime?
-  refundedAt  DateTime?
 
   post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 

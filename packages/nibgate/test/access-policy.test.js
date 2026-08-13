@@ -99,10 +99,10 @@ describe('canAccess (§4 rule)', () => {
 })
 
 describe('hasPaidReceipt / paidCutoffWallets (gap #11)', () => {
-  it('only amount > 0, un-refunded receipts count as paid', () => {
-    expect(hasPaidReceipt({ amount: '1', refundedAt: null })).toBe(true)
-    expect(hasPaidReceipt({ amount: '1', refundedAt: new Date() })).toBe(false)
-    expect(hasPaidReceipt({ amount: '0', refundedAt: null })).toBe(false)
+  it('only amount > 0 receipts count as paid', () => {
+    expect(hasPaidReceipt({ amount: '1' })).toBe(true)
+    expect(hasPaidReceipt({ amount: '0' })).toBe(false)
+    expect(hasPaidReceipt({ amount: null })).toBe(false)
   })
 
   it('lists active paid non-whitelisted wallets under the NEW invite-only whitelist', () => {
@@ -112,7 +112,7 @@ describe('hasPaidReceipt / paidCutoffWallets (gap #11)', () => {
       { status: 'active', wallet: W }, // member -> not cut off
       { status: 'revoked', wallet: OTHER }, // not active -> not cut off
     ]
-    const receipts = [{ payerWallet: W2, amount: '1', refundedAt: null }]
+    const receipts = [{ payerWallet: W2, amount: '1' }]
     expect(paidCutoffWallets({ policy, entitlements, receipts })).toEqual([W2])
   })
 

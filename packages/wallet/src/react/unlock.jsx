@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useDisconnect, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi'
 import { useAppKit } from '@reown/appkit/react'
-import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
+import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
 import { ARC_TESTNET, isArcNetwork } from '../chain.js'
 import { signInWithSiwe } from './siwe.js'
@@ -187,6 +187,11 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
           return false
         }
         await signInRef.current()
+      } else {
+        // Ensure a SIWE session exists even for an already-connected wallet so
+        // free / whitelist-free unlocks are granted instead of 402ing with no
+        // session (finding #2). No-op when SIWE isn't configured.
+        await signInRef.current()
       }
       const { checkResourceAccess } = await import('@nibgate/sdk')
       const result = await checkResourceAccess(resource, {
@@ -208,7 +213,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         onUnlockRef.current?.(result)
         return true
       }
-      setError(result.error || 'Could not unlock.')
+      setError(getPaymentErrorMessage(result.error || ''))
       setStatus('')
       return false
     } catch (err) {

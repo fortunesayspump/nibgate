@@ -476,6 +476,19 @@ error banner — no retry affordance anywhere (see #14).
   freshly UI-published post).
 - Buckets to expand: expired shares, drafts → publish, banned/revoked wallet,
   uploaded media (photo/video/music/document), agent purchases, hub route pricing.
+- **Batch17 whitelist-bulk-management now verified live** (`checks-batch17.js`):
+  3 checks green against production. `wl-import-csv-header-aware` imports a
+  `name,wallet,price` CSV via the real hidden file input → `Added 3`, all 3 chips
+  render, price column reported as ignored, Export + Template buttons present.
+  `wl-import-txt-excel-accept` confirms the file input accepts csv/txt/xlsx/xls
+  and a real `.xlsx` buffer imports (`Added 2`). `wl-ban-strips-whitelist`
+  confirms ban (`POST …/entitlements/:wallet/ban`) returns 200 and **strips the
+  wallet from `whitelist[]`** in the access-control payload (W1 gone, W2 kept)
+  with a `banned` entitlement — the #40 fix holds end-to-end. Only mark is WARN
+  from the known mine-page 403/400 session-poll noise (see #39); all assertions
+  pass. (`e2e/stress/checks-batch17.js` requires the frontend's `xlsx` for the
+  Excel buffer fixture.)
+
 - Batch16 run (`/tmp/opencode/new3.log`): 34 checks → 14 pass / 6 fail / 14 warn.
   Real product findings: mobile `/explore` horizontal overflow; draft row has no
   publish control. Harness gaps (not product bugs): dashboard redirects anon

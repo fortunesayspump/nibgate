@@ -215,6 +215,24 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     ActivityBell panel is `w-80` (320px) anchored `right-0`; on a 375–390px
     viewport its left edge can pass the screen edge. Fixed with
     `max-width: min(20rem, calc(100vw - 16px))`. Pending deploy to verify.
+29. **Anon `/dashboard` redirects to the marketing home — no dashboard leak, but
+    also no "sign in to view your dashboard" prompt.** `GET /dashboard` without a
+    session lands on `nibgate.xyz/` (nav + "Get started" marketing). Good for
+    auth, but the user gets no explanation; the first "Connect wallet" moment
+    happens on the marketing page. With a SIWE session the real creator
+    dashboard renders (Profile / Creator setup, Sites / Connected origin,
+    Contents / Protected routes, Analytics, Earnings).
+30. **Share-site gates render no rating widget; subblog gates do.** The reader
+    gate at `nibgate.xyz/ns/<slug>` (connected or anon) shows price + Hold-to-pay
+    but no star rating row, while the subblog gate
+    (`catwalk.nibgate.xyz/docs/lookbook-materials-d14`) renders `☆ ☆ ☆ ☆ ☆ |
+    No ratings`. Inconsistent rating surfaces across the two gate UIs.
+31. **(minor) Disconnect on the share gate can leave the account displayed.**
+    Clicking Disconnect clears the SIWE session (fetch `/api/auth/logout` +
+    session-clear event) and the wallet menu closes, but the AppKit account can
+    persist so the address chip stays until the account itself drops. The gate
+    then still shows the wallet's balance row. Mostly cosmetic; worth a `disconnect()`
+    after session clear on the share gate to keep the two in sync.
 
 ## Payment reality-check (production, Arc Testnet)
 
@@ -249,6 +267,18 @@ error banner — no retry affordance anywhere (see #14).
   - free (E2E Free Alpha), paid (E2E Paid Playbook $5), wlfree (E2E Whitelist Free $9→0),
     wldrop (E2E Whitelist Drop $9→2), invite (E2E Invite Only, invite-only $12),
     custom (E2E Matrix Custom Tier $12→2), draft (E2E Matrix Draft4).
+- The battery is **frontend-first**: every surface that has a real UI is driven by
+  navigation + clicks (`e2e/stress/checks-batch1..9.js`, 107 checks). The only
+  API-layer checks live in batch8 (`platform-api` group) for endpoints with NO
+  dedicated UI (manifest, status, hub-pay challenge, ban/revoke/reslug/access-
+  policy, gateway balance). Each check runs in an isolated Playwright context;
+  a hard 85s per-check timeout prevents one slow page from stalling the run.
+  `node stress/run.js` (all batches), `--only id,id` (subset), `--groups name`
+  (one batch).
+- Dashboard routes (`/dashboard*`) require a SIWE session; anon hits redirect
+  to `/` (#29). The Mine filters (All/Active/Ended/Drafts) filter correctly and
+  each row has a working delete/revoke `×` control (used by lc-03 to revoke a
+  freshly UI-published post).
 - Buckets to expand: expired shares, drafts → publish, banned/revoked wallet,
   uploaded media (photo/video/music/document), agent purchases, hub route pricing.
 

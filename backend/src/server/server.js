@@ -44,7 +44,7 @@ export async function createApp(config, options = {}) {
   // rewriting onto the canonical /api/... routes. Both forms stay live.
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    if (/^\/(hub|nibshare|newsletter|blog|upload|app|auth|content|rpc|openapi)(\.json|\/|$)/.test(req.path)) {
+    if (/^\/(hub|nibshare|newsletter|blog|uploads|app|auth|content|rpc|openapi)(\.json|\/|$)/.test(req.path)) {
       req.url = `/api${req.url}`;
     }
     next();

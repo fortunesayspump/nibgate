@@ -179,6 +179,42 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     media URL could 404/leak on host-switch; also the public `/api/nibgate/status`
     already exposes `http://localhost:3000` (see #20). Recommend a stable
     canonical API base.
+23. **Owners get 402 on their own paid post — no owner/preview bypass.** `GET
+    /api/nibshare/:slug/access?wallet=<owner>` returns `402 {}` for the creator's
+    own wallet on a paid share, and the reader gate (`/ns/<slug>`) shows
+    "Pay to unlock" to the signed-in owner too. There is no owner-gratis path or
+    "preview own post" affordance; the owner must pay through the Hold-to-pay
+    flow like a stranger. Minor: acceptable for a marketplace (owner-as-buyer
+    is a real use case) but surprising with no owner badge/preview.
+24. **Server-side `contentType` is not validated.** `POST /api/nibshare` returns
+    201 for `contentType: "not-a-real-type"` and stores it (row shows the bogus
+    type in `/share/mine`). The frontend restricts via the `Type` select, but the
+    API accepts anything — revoke API + agent/import clients can create corrupt
+    types. Fix: whitelist ['article','photo','video','music','document'] in
+    `createShare` validation.
+25. **(minor) No title length cap.** The title input accepts 300+ chars (no
+    `maxLength`), and the server stores it (Prisma `String` → TEXT, no bound).
+    Risk: pathological titles break layout in gates/ledger truncation. Add a cap
+    (~120) client + server.
+26. **(mobile) `/explore` header expands the layout viewport on phones.** With a
+    wallet installed and the mobile menu in the DOM, `document.documentElement.scrollWidth`
+    → 1232px on a 390px phone: the fixed mobile nav (`inset: 80px 0 auto`) spans
+    the expanded layout viewport, and its column nav contributes no min-width
+    guard. Fixed in `site.css` (`overflow-x: hidden; width: 100%; max-width:
+    100vw` on `.nibgate-header-mobile` + `min-width: 0` on its nav). Pending
+    deploy to verify scrollWidth returns to 390.
+27. **(fix deployed pending) Paid-price input snaps back to Free while typing.**
+    Selecting "Pay to unlock" seeds price `"1"`; clearing the input sets
+    `form.price=""` → `isPaid=false` → the Free card re-activates and the price
+    field unmounts, so a buyer can't type a value that doesn't start with `1`
+    (e.g. "2.50"). Fixed in `ShareForm.tsx`: sticky `priceFocused` state keeps
+    Pay mode active while the input is focused; only blurring an empty field
+    reverts to Free. Also added a 16px mobile font-size bump in `nibshare.css`
+    to stop iOS Safari zooming on input focus.
+28. **(mobile) Notification dropdown can overflow small screens.** The
+    ActivityBell panel is `w-80` (320px) anchored `right-0`; on a 375–390px
+    viewport its left edge can pass the screen edge. Fixed with
+    `max-width: min(20rem, calc(100vw - 16px))`. Pending deploy to verify.
 
 ## Payment reality-check (production, Arc Testnet)
 
@@ -206,15 +242,13 @@ error banner — no retry affordance anywhere (see #14).
 
 ## State
 
-- `scratch/prod-state.json` holds live posts:
-  - 4xtUB8ZP E2E Free Alpha (free)
-  - dR21SdTL E2E Paid Playbook (paid $5) — ban/restore exercised
-  - imDUxdsv E2E Whitelist Drop (paid $9, whitelist=public-price tier)
-  - ZmUbhLiR E2E Invite Only (invite-only, paid $12)
-  - JsLravCn E2E Whitelist Free (paid $9, whitelist=free)
-  - ddLEPvxv E2E Matrix Custom Tier (paid $12, whitelist tier $2) → matrix3/4
-  - TfVK63oj E2E Matrix Expiring (paid $3, now expired) → matrix4/6
-  - hscrh4WQ E2E Matrix Draft4 (status=draft) → matrix4/6
+- Fixtures are now **self-contained**: `e2e/stress/setup-fixtures.js` rebuilds the
+  canonical post set and writes fresh slugs to `e2e/stress/fixtures.json`, which
+  the battery reads at require-time (no hardcoded prod slugs — the earlier static
+  fixtures were all revoked during an over-broad cleanup).
+  - free (E2E Free Alpha), paid (E2E Paid Playbook $5), wlfree (E2E Whitelist Free $9→0),
+    wldrop (E2E Whitelist Drop $9→2), invite (E2E Invite Only, invite-only $12),
+    custom (E2E Matrix Custom Tier $12→2), draft (E2E Matrix Draft4).
 - Buckets to expand: expired shares, drafts → publish, banned/revoked wallet,
   uploaded media (photo/video/music/document), agent purchases, hub route pricing.
 

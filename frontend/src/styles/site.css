@@ -1733,3 +1733,21 @@ body[data-theme="dark"] .nibgate-creator-pill:focus-visible {
     margin-right: 12px;
   }
 }
+
+/* iOS Safari pinch-zooms the page when focusing any input whose font-size is
+   under 16px. Bump every text-entry surface (not just nibshare forms) to at
+   least 16px on touch/small screens so focusing a field never zooms. max()
+   preserves inputs already styled larger. */
+@media (pointer: coarse), (max-width: 767px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}

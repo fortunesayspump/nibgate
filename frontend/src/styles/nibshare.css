@@ -828,3 +828,19 @@ body:has(.nibshare-root) ::selection {
 .nibshare-root .doc-markdown li { margin: 0 0 0.3em; }
 .nibshare-root .doc-markdown table { font-size: 13px; }
 
+
+/* Activity bell dropdown: on phones pin it to the viewport (centered card) so a
+   horizontally-scrolled header or wider-than-viewport container can never push
+   it off-screen (it used to anchor to the bell with absolute right-0). */
+@media (max-width: 767px) {
+  .nibshare-activity-dropdown {
+    position: fixed;
+    top: 62px;
+    right: 8px;
+    left: 8px;
+    margin: 0 auto;
+    max-width: 26rem;
+    width: auto;
+    z-index: 9999;
+  }
+}

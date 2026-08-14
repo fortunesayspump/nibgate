@@ -26,7 +26,7 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
     throw new HttpError(400, `contentType must be one of: ${VALID_CONTENT_TYPES.join(', ')}`);
   }
   const plaintext = typeof content === 'string' ? content : content ? JSON.stringify(content) : '';
-  if (!plaintext) {
+  if (!plaintext && shareStatus !== 'draft') {
     throw new HttpError(400, 'content is required');
   }
   if (storageProvider !== 'nibgate') {

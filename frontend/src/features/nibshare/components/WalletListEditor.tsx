@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FiX, FiPlus, FiUsers, FiDownload, FiUpload, FiTrash2 } from "react-icons/fi";
+import { FiX, FiPlus, FiUsers, FiDownload, FiUpload, FiTrash2, FiFileText } from "react-icons/fi";
+import * as XLSX from "xlsx";
 import { shortAddress } from "../lib/shares";
 
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -12,26 +13,130 @@ function splitAddresses(input: string): string[] {
   return [...new Set(input.split(/[\s,;]+/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
 }
 
+// Header names that identify the wallet-address column in an import file.
+// Matches the convention used by minting/allowlist tools (AutoMinter, Bueno,
+// HeyMint, nfts2me): a named `address` / `wallet` / `wallet_address` column.
+const ADDR_HEADER_RE = /^(wallet[ _-]*address|wallet|address|recipient|owner|user|account|0x[ _-]*address|ethereum[ _-]*address|evm[ _-]*address|member|holder|collector|minter|to)$/i;
+// Header names for a per-wallet price/tier column we can't honor (single tier).
+const PRICE_HEADER_RE = /^(price|tier|amount|mintfee|mintprice|whitelistprice|maxmints|mintlimit|allocation|slots|count|quantity|qty|limit)$/i;
+
+// Minimal CSV row splitter that respects double-quoted fields (addresses never
+// contain quotes, but a spreadsheet export may quote a label/price cell).
+function parseCsvRow(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === "," || ch === "\t" || ch === ";") { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
+// Locate the address column by scanning up to the first 5 rows for a header
+// cell matching the address header names. Returns the column index or -1.
+function findAddressColumn(rows: string[][]): { col: number; headerRow: number } {
+  const maxScan = Math.min(rows.length, 5);
+  for (let r = 0; r < maxScan; r++) {
+    const cells = rows[r];
+    const idx = cells.findIndex((h) => ADDR_HEADER_RE.test(String(h ?? "").trim()));
+    if (idx >= 0) return { col: idx, headerRow: r };
+  }
+  return { col: -1, headerRow: -1 };
+}
+
+function isPriceHeader(cells: string[]): boolean {
+  return cells.some((h) => PRICE_HEADER_RE.test(String(h ?? "").trim()));
+}
+
+// Header-aware CSV import: finds the `address`/`wallet` column by header name,
+// falls back to the first column when no header row is present. Reports any
+// price/tier column that the single-tier model ignores.
 function parseCsv(text: string): { wallets: string[]; invalid: string[]; skippedPrice: boolean } {
   const invalid: string[] = [];
   const seen = new Set<string>();
   const wallets: string[] = [];
   let skippedPrice = false;
   const lines = text.split(/\r?\n/);
+  const rows: string[][] = [];
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line || /^(address|wallet|wallet_address)/i.test(line)) continue;
-    const [first, second] = line.split(/[,\t]/).map((c) => c.trim());
-    const candidate = first?.toLowerCase() || "";
-    if (second) skippedPrice = true;
+    if (!line) continue;
+    rows.push(parseCsvRow(line));
+  }
+  if (rows.length === 0) return { wallets, invalid, skippedPrice };
+  const { col, headerRow } = findAddressColumn(rows);
+  const addressCol = col >= 0 ? col : 0;
+  const hasHeader = col >= 0;
+  if (hasHeader) {
+    if (isPriceHeader(rows[headerRow])) skippedPrice = true;
+    rows.splice(headerRow, 1);
+  }
+  for (const cells of rows) {
+    const candidate = (cells[addressCol] ?? "").toLowerCase();
+    const nonEmpty = cells.filter((c) => c && c !== "").length;
+    if (nonEmpty > 1 && !hasHeader && cells.length > 1) skippedPrice = true;
+    if (!candidate) continue;
     if (!ADDR_RE.test(candidate)) {
-      invalid.push(first || line);
+      invalid.push(candidate);
       continue;
     }
     if (!seen.has(candidate)) {
       seen.add(candidate);
       wallets.push(candidate);
     }
+  }
+  return { wallets, invalid, skippedPrice };
+}
+
+// Header-aware Excel import (.xlsx/.xls). Same column-detection as the CSV
+// path: finds the `address`/`wallet` column by header name and pulls addresses
+// only from that column — no blind whole-sheet scan that could grab a price
+// cell or a hex-ish string from an unrelated column.
+function parseExcel(data: Uint8Array): { wallets: string[]; invalid: string[]; skippedPrice: boolean } {
+  const invalid: string[] = [];
+  const seen = new Set<string>();
+  const wallets: string[] = [];
+  let skippedPrice = false;
+  try {
+    const wb = XLSX.read(data, { type: "array" });
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName];
+      if (!ws) continue;
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false, defval: "" });
+      const stringRows: string[][] = rows.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "").trim()) : []));
+      if (stringRows.length === 0) continue;
+      const { col, headerRow } = findAddressColumn(stringRows);
+      const addressCol = col >= 0 ? col : 0;
+      const hasHeader = col >= 0;
+      const start = hasHeader ? headerRow + 1 : 0;
+      if (hasHeader && isPriceHeader(stringRows[headerRow])) skippedPrice = true;
+      for (let r = start; r < stringRows.length; r++) {
+        const cells = stringRows[r];
+        const candidate = (cells[addressCol] ?? "").toLowerCase();
+        const nonEmpty = cells.filter((c) => c !== "").length;
+        if (nonEmpty > 1 && !hasHeader) skippedPrice = true;
+        if (!candidate) continue;
+        if (!ADDR_RE.test(candidate)) {
+          invalid.push(candidate);
+          continue;
+        }
+        if (!seen.has(candidate)) {
+          seen.add(candidate);
+          wallets.push(candidate);
+        }
+      }
+    }
+  } catch {
+    invalid.push("<unreadable workbook>");
   }
   return { wallets, invalid, skippedPrice };
 }
@@ -92,10 +197,14 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     setImporting(true);
     setError("");
     setNotice("");
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const { wallets, invalid, skippedPrice } = parseCsv(String(reader.result || ""));
+        const parsed = isExcel
+          ? parseExcel(new Uint8Array(reader.result as ArrayBuffer))
+          : parseCsv(String(reader.result || ""));
+        const { wallets, invalid, skippedPrice } = parsed;
         if (wallets.length === 0 && invalid.length === 0) {
           setError("No wallet addresses found in that file.");
           return;
@@ -111,7 +220,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
         if (skippedPrice) parts.push("price column ignored — one whitelist tier applies to all");
         setNotice(parts.join(" · "));
       } catch {
-        setError("Could not read that file. Use a .csv or .txt with one address per line.");
+        setError("Could not read that file. Use a .csv, .txt, .xlsx, or .xls file.");
       } finally {
         setImporting(false);
         if (fileRef.current) fileRef.current.value = "";
@@ -122,7 +231,11 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
       setImporting(false);
       if (fileRef.current) fileRef.current.value = "";
     };
-    reader.readAsText(file);
+    if (isExcel) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   }
 
   function handleExport() {
@@ -132,6 +245,26 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     const a = document.createElement("a");
     a.href = url;
     a.download = "whitelist.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Download a sample file showing the expected import format. Uses the same
+  // `address` header convention as allowlist tools so users can fill it in.
+  function handleTemplate() {
+    const sample = [
+      "address",
+      "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "",
+    ].join("\n");
+    const blob = new Blob([sample], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "whitelist-template.csv";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -223,9 +356,19 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
           disabled={disabled || importing}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer shrink-0"
           style={{ border: "1px solid var(--border)", background: "transparent", color: "var(--fg)" }}
-          title="Import wallets from a .csv or .txt file"
+          title="Import wallets from a .csv, .txt, .xlsx, or .xls file"
         >
-          <FiUpload size={11} /> {importing ? "Importing…" : "Import CSV"}
+          <FiUpload size={11} /> {importing ? "Importing…" : "Import CSV / Excel"}
+        </button>
+        <button
+          type="button"
+          onClick={handleTemplate}
+          disabled={disabled}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer shrink-0"
+          style={{ border: "1px solid var(--border)", background: "transparent", color: "var(--fg)" }}
+          title="Download a sample .csv showing the expected address column"
+        >
+          <FiFileText size={11} /> Template
         </button>
         {value.length > 0 && (
           <button
@@ -254,7 +397,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
         <input
           ref={fileRef}
           type="file"
-          accept=".csv,.txt,text/csv,text/plain"
+          accept=".csv,.txt,.xlsx,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           className="hidden"
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
@@ -263,8 +406,9 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
       {notice && <p className="text-[10px]" style={{ color: "#7c9a6d" }}>{notice}</p>}
       {!compact && (
         <p className="text-[10px] leading-relaxed" style={{ color: "var(--muted)" }}>
-          Paste multiple addresses at once, separated by spaces or commas — or import a CSV. Whitelisted wallets pay the
-          whitelist tier instead of the public price.
+          Paste multiple addresses at once, separated by spaces or commas — or import a CSV / Excel file with an
+          `address` (or `wallet`) column. Any price/tier column is ignored since one whitelist tier applies to all.
+          Whitelisted wallets pay the whitelist tier instead of the public price.
         </p>
       )}
     </div>

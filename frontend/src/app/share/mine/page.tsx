@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAccount, useSignMessage } from "@nibgate/wallet/react";
-import { FiPlus, FiEdit2 } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiSearch } from 'react-icons/fi';
 import { ShareLayout, ShareBtn, ShareIntro, ShareError } from '@/features/nibshare/components/ShareLayout';
 import ActivityBell from '@/features/nibshare/components/ActivityBell';
 import ShareWallet from '@/features/nibshare/components/ShareWallet';
@@ -28,9 +28,11 @@ export default function ShareMinePage() {
   const [activity, setActivity] = useState<ShareActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<'checking' | 'authed' | 'guest'>('checking');
+  const [publishing, setPublishing] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [settingsFor, setSettingsFor] = useState<ShareSummary | null>(null);
   const [view, setView] = useState<ViewFilter>('all');
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,13 +96,10 @@ export default function ShareMinePage() {
     }
   }
 
-  async function handleRevoke(slug: string) {
-    try {
-      await nibshareApi.revoke(slug);
-      setShares((prev) => prev.filter((s) => s.slug !== slug));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to revoke");
-    }
+  // SettingsSheet already persisted the revoke (DELETE) before calling back;
+  // this handler only drops the row from the local list — no second DELETE.
+  function handleRevoke(slug: string) {
+    setShares((prev) => prev.filter((s) => s.slug !== slug));
   }
 
   function handleRotate(oldSlug: string, newSlug: string, url: string) {
@@ -108,11 +107,15 @@ export default function ShareMinePage() {
   }
 
   async function handlePublish(slug: string) {
+    if (publishing.has(slug)) return;
+    setPublishing((prev) => new Set(prev).add(slug));
     try {
       await nibshareApi.publish(slug);
       setShares((prev) => prev.map((s) => (s.slug === slug ? { ...s, status: "active" } : s)));
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to publish");
+    } finally {
+      setPublishing((prev) => { const next = new Set(prev); next.delete(slug); return next; });
     }
   }
 
@@ -159,7 +162,9 @@ export default function ShareMinePage() {
   const drafts = shares.filter((s) => s.status === "draft");
   const active = published.filter((s) => !isEnded(s));
   const ended = published.filter((s) => isEnded(s));
-  const visible = view === "drafts" ? drafts : view === "all" ? published : view === "active" ? active : ended;
+  let visible = view === "drafts" ? drafts : view === "all" ? published : view === "active" ? active : ended;
+  const q = search.trim().toLowerCase();
+  if (q) visible = visible.filter((s) => s.title.toLowerCase().includes(q) || s.slug.includes(q));
 
   return (
     <ShareLayout tight backHref="/" backLabel="Back to Hub" right={<ShareWallet />}>
@@ -200,9 +205,21 @@ export default function ShareMinePage() {
         </button>
       </div>
 
+      {shares.length > 8 && (
+        <div className="relative mb-3">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2" size={13} style={{ color: "var(--muted)" }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search posts…"
+            className="w-full text-xs px-3 py-2 rounded-md border pl-9"
+            style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--fg)" }}
+          />
+        </div>
+      )}
+
       <div className="flex flex-col gap-px">
-        {shares.length === 0 ? (
-          <div className="py-10 text-center">
+        {shares.length === 0 ? (          <div className="py-10 text-center">
             <p className="text-sm" style={{ color: "var(--muted)" }}>No posts yet.</p>
             <Link href="/share" className="btn-ghost no-underline inline-flex mt-2 text-xs">Create your first post</Link>
           </div>
@@ -210,7 +227,7 @@ export default function ShareMinePage() {
           <p className="text-xs py-8 text-center" style={{ color: "var(--muted)" }}>No {view === "drafts" ? "drafts" : `${view} posts`}.</p>
         ) : (
           visible.map((share) => (
-            <PostRow key={share.id} share={share} onSettings={() => setSettingsFor(share)} onPublish={handlePublish} />
+            <PostRow key={share.id} share={share} onSettings={() => setSettingsFor(share)} onPublish={handlePublish} publishing={publishing.has(share.slug)} />
           ))
         )}
       </div>

@@ -15,7 +15,7 @@ function isHexAddress(address: string): address is `0x${string}` {
 }
 
 export default function ShareWallet() {
-  const { connect, busy } = useNibgateConnect();
+  const { connect, busy, error: connectError } = useNibgateConnect();
   const { disconnect } = useDisconnect();
   const [openMenu, setOpenMenu] = useState(false);
   const [hubAddress, setHubAddress] = useState<string | null>(null);
@@ -65,6 +65,11 @@ export default function ShareWallet() {
         <button type="button" className="share-wallet-btn" onClick={() => void connect()} disabled={busy}>
           {busy ? "Connecting..." : "Connect wallet"}
         </button>
+        {connectError && (
+          <div className="share-wallet-error" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, fontSize: "11px", padding: "6px 10px", borderRadius: "8px", border: "1px solid #c446", background: "var(--bg, #fff)", color: "#c44", maxWidth: 260, whiteSpace: "normal" }}>
+            {connectError}
+          </div>
+        )}
       </div>
     );
   }

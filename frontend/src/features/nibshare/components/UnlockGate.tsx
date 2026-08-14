@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FiLock, FiShieldOff, FiRotateCcw } from "react-icons/fi";
+import { FiLock, FiShieldOff, FiRotateCcw, FiAlertTriangle } from "react-icons/fi";
 import ContentViewer from "./ContentViewer";
 import { NibgateUnlock, useAccount } from "@nibgate/wallet/react";
 import { ACCESS_PATH, GATEWAY_BALANCE_PATH, nibshareApi } from "../api";
@@ -35,17 +35,40 @@ function statusChip({ children, color }: { children: React.ReactNode; color: str
 export default function UnlockGate({ resource }: { resource: AccessResource }) {
   const { address } = useAccount();
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoteError, setQuoteError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setQuote(null);
+    setQuoteError(false);
     if (!address) return;
     nibshareApi
       .quote(resource.id, address)
       .then((q) => { if (!cancelled) setQuote(q); })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setQuoteError(true); });
     return () => { cancelled = true; };
   }, [resource.id, address]);
+
+  if (quoteError) {
+    return (
+      <div style={gateBanner}>
+        <div className="mb-4">{statusChip({ color: "#b45309", children: (<><FiAlertTriangle size={12} /> Can&apos;t check access</>) })}</div>
+        <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 8 }}>Couldn&apos;t load your access status</div>
+        <div style={{ fontSize: 15, color: "var(--muted, #6b6862)", lineHeight: 1.5, maxWidth: 380 }}>
+          We couldn&apos;t check whether your wallet has a whitelist tier or existing access, so pricing may not be
+          accurate. Try again before unlocking.
+        </div>
+        <button
+          type="button"
+          onClick={() => { setQuote(null); setQuoteError(false); }}
+          className="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[13px] font-semibold cursor-pointer"
+          style={{ marginTop: 16, border: "1px solid var(--border, #ddd)", background: "transparent", color: "var(--fg, #0a0a0a)" }}
+        >
+          <FiRotateCcw size={13} /> Retry
+        </button>
+      </div>
+    );
+  }
 
   if (quote?.banned) {
     return (

@@ -537,7 +537,9 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
                   value={form.whitelistPrice === "" ? "__public" : "0" === form.whitelistPrice ? "__free" : "__custom"}
                   onChange={(e) => {
                     const v = e.target.value;
-                    update("whitelistPrice", v === "__public" ? "" : v === "__free" ? "0" : form.whitelistPrice);
+                    if (v === "__public") update("whitelistPrice", "");
+                    else if (v === "__free") update("whitelistPrice", "0");
+                    else update("whitelistPrice", form.whitelistPrice && form.whitelistPrice !== "0" ? form.whitelistPrice : (isPaid ? form.price : "1"));
                   }}
                   className="input-field flex-1 text-xs py-1.5"
                 >

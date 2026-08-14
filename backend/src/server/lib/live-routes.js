@@ -1,5 +1,11 @@
 import { db } from '@nibgate/internal/db.js';
 
+function primaryWalletOf(owner) {
+  const wallets = owner?.wallets || [];
+  const primary = wallets.find((w) => w.isPrimary) || wallets[0];
+  return primary?.walletAddress || '';
+}
+
 // In production the api backend boots from environment config with no static
 // `routes` list (NIBGATE_CONFIG unset), which left the generic /api/content/:id/*
 // gateway (price/access/unlock) permanently empty. Backfill the route table from
@@ -11,7 +17,10 @@ export async function liveRoutesFromContent({ max = 500 } = {}) {
       deletedAt: null,
       website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' }
     },
-    include: { website: true },
+    include: {
+      website: { include: { owner: { include: { wallets: true } } } },
+      publisher: true
+    },
     orderBy: { createdAt: 'desc' },
     take: max
   });
@@ -27,6 +36,9 @@ export async function liveRoutesFromContent({ max = 500 } = {}) {
     currency: c.currency || 'USDC',
     network: 'eip155:5042002',
     license: '',
-    splits: []
+    splits: [],
+    // Per-content recipient (set at publish / admin): the creator's wallet, not
+    // a platform env var. Same model as shares (share.ownerWallet).
+    recipientWallet: c.recipientWallet || c.publisher?.walletAddress || c.publisherWallet || primaryWalletOf(c.website?.owner) || ''
   }));
 }

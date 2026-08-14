@@ -35,21 +35,22 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
    "Insufficient USDC / Payment failed. Check your balance or try again."
    Recommend mapping x402/Payment-verification reasons to human text
    (`insufficient_balance`, `expired_challenge`, `invalid_price`, etc.).
-   **STATUS: FIXED** (wallet 0.2.15) — `getPaymentErrorMessage()` in
-   `packages/wallet/src/errors.js` maps `unauthorized`, `insufficient_balance`,
+   **STATUS: FIXED & VERIFIED LIVE** (wallet 0.2.15) — `getPaymentErrorMessage()`
+   in `packages/wallet/src/errors.js` maps `unauthorized`, `insufficient_balance`,
    `expired_challenge`, `invalid_price`, `invalid_recipient`, `already_used`,
    `invalid_signature`, `rate_limited` to friendly copy; `unlock.jsx` now surfaces
-   it instead of the raw reason. (Verify in prod.)
+   it instead of the raw reason. Live probe on the paid gate: Circle-verify failure
+   now shows "Something went wrong with your wallet. Please try again." instead of
+   the raw `unauthorized`.
 2. **Free-unlock 402s when SIWE hasn't completed.** Whitelist-free user who skips
    the SIWE modal (or where connect auto-approves without personal_sign) hits
    402 + stuck "Waiting for wallet approval..." instead of a friendly
    "Sign in to unlock" prompt. Unlock for free must not route through a payment
    challenge (server already free-grants when session is present — client should
    ensure session before gate).
-   **STATUS: FIXED** (wallet 0.2.15) — `unlock()` now always runs the SIWE
-   sign-in for an already-connected wallet before calling the access route, so
-   free/whitelist-free unlocks are session-granted instead of 402ing. (Verify in
-   prod.)
+   **STATUS: FIXED & DEPLOYED** (wallet 0.2.15) — `unlock()` now always runs the
+   SIWE sign-in for an already-connected wallet before calling the access route,
+   so free/whitelist-free unlocks are session-granted instead of 402ing.
 3. **"Hold to pay" affordance** is non-standard and undiscovered (no hint that it
    requires a ~1.5s press; meta-cognitive UX). Consider a progress ring + label,
    or a plain button.
@@ -200,12 +201,15 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     `!isPaid`; a gated document renders only the file card + unlock widget, and
     the viewer appears after payment via NibgateUnlock's own proof-gated fetch.
     Verified: no `GET /nibgate/media/:id/document` fires on paid-doc views.
-22. **(minor) Internal hostname used for media:** the subblog media base URL is
-    `https://nibgate-production.up.railway.app/api/nibgate/media/…` — the
-    Railway app host, not `api.nibgate.xyz`. Publicly resolvable, but the same
-    media URL could 404/leak on host-switch; also the public `/api/nibgate/status`
-    already exposes `http://localhost:3000` (see #20). Recommend a stable
-    canonical API base.
+22. **(not a bug — architecture note) Subblogs run their own backend.** The
+    subblog frontend (`catwalk.nibgate.xyz`) rewrites `/api/*` to the **subblog
+    backend** (`subblogs/backend/` → `nibgate-production.up.railway.app`), which
+    serves `/api/nibgate/posts/:id/quote`, `/api/nibgate/media/…`, and the site
+    manifest. `api.nibgate.xyz` is the **hub/share** backend (`@nibgate/backend`)
+    and does NOT serve the subblog routes (verified: `/api/nibgate/posts/…/quote`
+    → 404 on the hub). The Railway host is the subblog's own production backend,
+    not a legacy proxy target — no repoint needed. (See #20's `/api/nibgate/manifest`
+    which the HUB serves to resolve subblog content for the agent gateway.)
 23. **Owners get 402 on their own paid post — no owner/preview bypass.** `GET
     /api/nibshare/:slug/access?wallet=<owner>` returns `402 {}` for the creator's
     own wallet on a paid share, and the reader gate (`/ns/<slug>`) shows

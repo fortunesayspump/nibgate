@@ -88,6 +88,9 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     Fix is 1 token: add the plural `uploads` to that regex (or rewrite uploads →
     `api.nibgate.xyz/api/uploads/:path*` in next.config). Tested with real,
     valid tiny files (png/mp4/mp3/pdf).
+    **STATUS: FIXED & VERIFIED LIVE** (commit a5e2e19) — `POST
+    nibgate.xyz/uploads/content?encrypted=1` now returns 401 (route resolved,
+    auth-gated), not 404.
 11. **`expiresAt` is server-validated to be in the future** (`{"error":"expiresAt
     must be in the future."}`) so you cannot create an already-expired post via
     API — sensible, but it means the expired-state UI is only reachable by
@@ -192,10 +195,15 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     API accepts anything — revoke API + agent/import clients can create corrupt
     types. Fix: whitelist ['article','photo','video','music','document'] in
     `createShare` validation.
+    **STATUS: FIXED & VERIFIED LIVE** (commit 7a129e6) — the battery's px-14
+    check now asserts `400` and passes; bogus types are rejected at the API.
 25. **(minor) No title length cap.** The title input accepts 300+ chars (no
     `maxLength`), and the server stores it (Prisma `String` → TEXT, no bound).
     Risk: pathological titles break layout in gates/ledger truncation. Add a cap
     (~120) client + server.
+    **STATUS: SERVER-SIDE FIXED** (commit 7a129e6 caps at 150) — the input UI
+    still accepts long strings client-side, but the API now rejects titles over
+    150 chars. Consider a UI `maxLength` hint too.
 26. **(mobile) `/explore` header expands the layout viewport on phones.** With a
     wallet installed and the mobile menu in the DOM, `document.documentElement.scrollWidth`
     → 1232px on a 390px phone: the fixed mobile nav (`inset: 80px 0 auto`) spans

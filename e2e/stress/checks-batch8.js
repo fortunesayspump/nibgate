@@ -9,8 +9,14 @@ const BUY = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
 async function sellerAuthed(page) {
   await h.gotoSafe(page, 'https://nibgate.xyz/share');
   const { connectSellerFlow } = require('../harness/prod-lib.js');
-  await connectSellerFlow(page, { label: 's', log: () => {} });
-  await page.waitForTimeout(800);
+  for (let i = 0; i < 3; i++) {
+    await connectSellerFlow(page, { label: 's', log: () => {} });
+    await page.waitForTimeout(1200);
+    if ((await page.locator('input[placeholder="Post title"]').count()) > 0) return true;
+    await page.reload({ waitUntil: 'commit' }).catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+  return false;
 }
 
 const checks = [
@@ -117,13 +123,10 @@ const checks = [
       const j = await r.json().catch(() => ({}));
       return [[r.status() === 200, 'meta 200'], [j.price != null, `price=${j.price}`], [j.publicAccess != null, `publicAccess=${j.publicAccess}`]];
     } },
-  { id: 'px-14-bogus-type', name: 'api-only: bogus contentType accepted (server validation gap — finding) then revoked', group: 'platform-api', run: async (h, { page, context }) => {
+  { id: 'px-14-bogus-type', name: 'api-only: bogus contentType rejected (server validation deployed — #24 fixed)', group: 'platform-api', run: async (h, { page, context }) => {
       await sellerAuthed(page);
       const r = await context.request.post('https://api.nibgate.xyz/api/nibshare', { data: { title: 'E2E Bogus Tmp ' + Date.now().toString(36), content: 'x', contentType: 'not-a-real-type', price: '0', status: 'active' } });
-      const slug = (await r.json().catch(() => ({}))).slug;
-      const expects = [[r.status() === 201, `bogus type accepted -> ${r.status()} (validation gap)`]];
-      if (slug) { const d = await context.request.delete('https://api.nibgate.xyz/api/nibshare/' + slug); expects.push([d.status() === 200, `cleaned -> ${d.status()}`]); }
-      return expects;
+      return [[r.status() === 400, `bogus type -> ${r.status()} (validated server-side now)`]];
     } },
   { id: 'px-15-gateway-balance', name: 'api-only: gateway balance returns SCW vault balance', group: 'platform-api', run: async (h, { page, context }) => {
       await sellerAuthed(page);

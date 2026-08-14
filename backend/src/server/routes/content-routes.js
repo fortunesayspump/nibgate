@@ -18,6 +18,10 @@ function emitUnlockEvents(forwardHubEvent, route, payment, actor, amount, extra 
 export function registerContentRoutes(app, context) {
   const { gateway, circleGateway, gatewayBuyer, forwardHubEvent, getConfig } = context;
 
+  app.get('/api/content/manifest', (_req, res) => {
+    res.json(gateway.agentManifest());
+  });
+
   app.get('/api/content/:id/price', (req, res) => {
     const route = gateway.routeById(req.params.id);
     if (!route) return res.status(404).json({ error: 'Unknown content id' });

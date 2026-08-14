@@ -153,6 +153,18 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
     return { ok: true };
   }
 
+  // Drafts only need enough to be identifiable and re-opened: a title and no
+  // malformed wallet entries. Body/media/price can be filled in later — the
+  // whole point of a draft is saving partial work.
+  function canDraft(): { ok: boolean; reason?: string } {
+    if (!form.title) return { ok: false, reason: "Title is required" };
+    const addrRe = /^0x[a-fA-F0-9]{40}$/;
+    for (const w of form.whitelist) {
+      if (!addrRe.test(w)) return { ok: false, reason: `Invalid wallet address: ${w}` };
+    }
+    return { ok: true };
+  }
+
   function handleCoverChange(coverUrl: string, key: string) {
     setForm((prev) => ({ ...prev, coverUrl }));
     setCoverKey(key);
@@ -619,7 +631,7 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
         <button type="button" onClick={() => createShare('active')} disabled={saving || !canPublish().ok} className="btn-primary" title={canPublish().ok ? "" : canPublish().reason}>
           {saving ? "Publishing..." : "Publish"}
         </button>
-        <button type="button" onClick={() => createShare('draft')} disabled={saving || !canPublish().ok} className="btn-secondary" title={canPublish().ok ? "" : canPublish().reason}>
+        <button type="button" onClick={() => createShare('draft')} disabled={saving || !canDraft().ok} className="btn-secondary" title={canDraft().ok ? "Save an in-progress post to finish later" : canDraft().reason}>
           Save as Draft
         </button>
       </div>

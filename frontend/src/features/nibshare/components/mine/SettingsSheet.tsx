@@ -29,6 +29,7 @@ export function SettingsSheet({ share, onClose, onRotate, onRevoke }: {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyWallets, setBusyWallets] = useState<Set<string>>(new Set());
+  const [saveProgress, setSaveProgress] = useState<number | null>(null);
   const [ac, setAc] = useState<AccessControl | null>(null);
   const [acLoading, setAcLoading] = useState(true);
   const [wlPriceInput, setWlPriceInput] = useState("");
@@ -106,6 +107,33 @@ export function SettingsSheet({ share, onClose, onRotate, onRevoke }: {
   async function patchAccess(patch: { whitelist?: string[]; whitelistPrice?: string | null; publicAccess?: boolean }) {
     setBusy(true);
     try {
+      // Large whitelist edits are persisted in cumulative chunks so a single
+      // multi-thousand-wallet PUT never stalls the request. Each chunk is a
+      // full-replace of the list up to that point, so intermediate states only
+      // ever grow toward the final list. Skipped for invite-only shares with
+      // active payers: a chunked save would re-run the paid-cutoff pass on
+      // intermediate (smaller) lists and could revoke a wallet that the final
+      // list re-includes — correctness first there.
+      const CHUNK = 200;
+      const wlNext = patch.whitelist;
+      const hasPayers = (ac?.entitlements || []).some((e) => e.status === "active");
+      const canChunk = Array.isArray(wlNext) && wlNext.length > CHUNK && (ac?.publicAccess !== false) && !hasPayers;
+      if (canChunk && wlNext) {
+        const total = wlNext.length;
+        const last = await nibshareApi.updateAccessPolicy(current.slug, { ...patch, whitelist: wlNext.slice(0, CHUNK) });
+        setAc((prev) => (prev ? { ...prev, whitelist: last.whitelist, whitelistPrice: last.whitelistPrice, publicAccess: last.publicAccess } : prev));
+        let done = CHUNK;
+        while (done < total) {
+          const next = Math.min(done + CHUNK, total);
+          setSaveProgress(next / total);
+          const data = await nibshareApi.updateAccessPolicy(current.slug, { ...patch, whitelist: wlNext.slice(0, next) });
+          setAc((prev) => (prev ? { ...prev, whitelist: data.whitelist } : prev));
+          done = next;
+        }
+        setSaveProgress(null);
+        setBusy(false);
+        return;
+      }
       const data = await nibshareApi.updateAccessPolicy(current.slug, patch);
       setAc((prev) => (prev ? { ...prev, whitelist: data.whitelist, whitelistPrice: data.whitelistPrice, publicAccess: data.publicAccess } : prev));
       setWlPriceInput((prev) => (patch.whitelistPrice !== undefined ? (data.whitelistPrice ?? "") : prev));
@@ -409,7 +437,14 @@ export function SettingsSheet({ share, onClose, onRotate, onRevoke }: {
               {/* Whitelist members */}
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>Whitelist</span>
-                <span className="text-[10px]" style={{ color: "var(--muted)" }}>{whitelist.length} wallet{whitelist.length !== 1 ? "s" : ""}</span>
+                <span className="text-[10px] flex items-center gap-1" style={{ color: "var(--muted)" }}>
+                  {saveProgress != null && (
+                    <span style={{ color: "var(--accent)" }}>
+                      Saving {Math.round(saveProgress * 100)}%…
+                    </span>
+                  )}
+                  {whitelist.length} wallet{whitelist.length !== 1 ? "s" : ""}
+                </span>
               </div>
               <WalletListEditor
                 value={whitelist}

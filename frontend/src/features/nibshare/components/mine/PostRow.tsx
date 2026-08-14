@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FiSettings, FiEdit2, FiLock, FiStar, FiSend } from "react-icons/fi";
+import { FiSettings, FiEye, FiLock, FiStar, FiSend } from "react-icons/fi";
 import { TypeBadge, StatusBadge, ActiveBadge } from "./StatusBadges";
 import { isEnded, endLabel } from "../../lib/shares";
 import type { ShareSummary } from "../../types";
 
-export function PostRow({ share, onSettings, onPublish }: { share: ShareSummary; onSettings: () => void; onPublish?: (slug: string) => void }) {
+export function PostRow({ share, onSettings, onPublish, publishing = false }: { share: ShareSummary; onSettings: () => void; onPublish?: (slug: string) => void; publishing?: boolean }) {
   const inviteOnly = share.publicAccess === false;
   const hasTier = share.whitelistPrice != null && share.whitelistPrice !== "";
   const isDraft = share.status === "draft";
@@ -34,18 +34,19 @@ export function PostRow({ share, onSettings, onPublish }: { share: ShareSummary;
         {isDraft && onPublish && (
           <button
             onClick={() => onPublish(share.slug)}
+            disabled={publishing}
             className="inline-flex items-center justify-center gap-1 px-2.5 h-8 rounded-md border cursor-pointer text-xs font-semibold"
-            style={{ borderColor: "var(--accent)", background: "var(--accent)", color: "#fff" }}
+            style={{ borderColor: "var(--accent)", background: "var(--accent)", color: "#fff", opacity: publishing ? 0.6 : 1 }}
             title="Publish draft"
           >
-            <FiSend size={13} /> Publish
+            <FiSend size={13} /> {publishing ? "Publishing…" : "Publish"}
           </button>
         )}
         <button onClick={onSettings} className="inline-flex items-center justify-center w-8 h-8 rounded-md border cursor-pointer" style={{ borderColor: "var(--border)" }} title="Settings">
           <FiSettings size={15} />
         </button>
         <Link href={`/ns/${share.slug}`} className="no-underline inline-flex items-center justify-center w-8 h-8 rounded-md border cursor-pointer" style={{ borderColor: "var(--border)" }} title="View">
-          <FiEdit2 size={15} />
+          <FiEye size={15} />
         </Link>
       </div>
     </div>

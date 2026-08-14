@@ -756,17 +756,20 @@ html[data-theme="light"] .explore-art {
 
 .market-layout {
   display: block;
+  min-width: 0;
 }
 
 .market-products {
   display: grid;
   gap: 32px;
+  min-width: 0;
 }
 
 .market-grid {
   columns: 3 280px;
   column-gap: 24px;
   width: 100%;
+  min-width: 0;
 }
 
 .market-card {
@@ -781,6 +784,8 @@ html[data-theme="light"] .explore-art {
   flex-direction: column;
   break-inside: avoid;
   margin-bottom: 24px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .market-card:hover {
@@ -924,6 +929,7 @@ html[data-theme="light"] .explore-art {
   padding: 16px;
   gap: 12px;
   flex: 1;
+  min-width: 0;
 }
 
 .market-info-header {
@@ -931,6 +937,7 @@ html[data-theme="light"] .explore-art {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+  min-width: 0;
 }
 
 .market-title {
@@ -966,6 +973,8 @@ html[data-theme="light"] .explore-art {
   justify-content: space-between;
   gap: 12px;
   margin-top: auto;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .market-creator {

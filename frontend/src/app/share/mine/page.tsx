@@ -107,6 +107,15 @@ export default function ShareMinePage() {
     setShares((prev) => prev.map((s) => (s.slug === oldSlug ? { ...s, slug: newSlug, url } : s)));
   }
 
+  async function handlePublish(slug: string) {
+    try {
+      await nibshareApi.publish(slug);
+      setShares((prev) => prev.map((s) => (s.slug === slug ? { ...s, status: "active" } : s)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to publish");
+    }
+  }
+
   if (loading || session === 'checking') {
     return (
       <ShareLayout tight backHref="/" backLabel="Back to Hub" right={<ShareWallet />}>
@@ -201,7 +210,7 @@ export default function ShareMinePage() {
           <p className="text-xs py-8 text-center" style={{ color: "var(--muted)" }}>No {view === "drafts" ? "drafts" : `${view} posts`}.</p>
         ) : (
           visible.map((share) => (
-            <PostRow key={share.id} share={share} onSettings={() => setSettingsFor(share)} />
+            <PostRow key={share.id} share={share} onSettings={() => setSettingsFor(share)} onPublish={handlePublish} />
           ))
         )}
       </div>

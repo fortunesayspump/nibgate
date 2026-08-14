@@ -26,9 +26,9 @@ function write(line) {
   try { require('fs').appendFileSync(OUT, line + '\n'); } catch {}
 }
 
-async function newBrowser(pk = SEL_PK) {
+async function newBrowser(pk = SEL_PK, viewport = { width: 1440, height: 1100 }) {
   const browser = await chromium.launch({ headless: true, channel: 'chromium' });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
+  const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.setDefaultTimeout(35000);
   if (pk !== 'anon') await install({ page, pk });
@@ -71,7 +71,7 @@ async function runCheck(check, batch) {
   const r = { id: check.id, name: esc(check.name), group: check.group || batch, result: 'ok', notes: [], http: [], console: '' };
   let browser;
   try {
-    const { browser: b, context, page } = await newBrowser(check.pk || SEL_PK);
+    const { browser: b, context, page } = await newBrowser(check.pk || SEL_PK, check.viewport);
     browser = b;
     const w = h.watcher(page, check.accept || (() => true));
     const ctx = { browser, context, page, log: (msg) => r.notes.push(esc(msg)) };
@@ -116,7 +116,7 @@ async function runAll(batches, { only = [], skip = [], groups = [] } = {}) {
   const groupsSet = new Set(groups);
   write(`\n${'='.repeat(90)}\nSTRESS RUN ${new Date().toISOString()}  (${batches.length} batches)\n${'='.repeat(90)}`);
   for (const batch of batches) {
-    if (groupsSet.size && !groupsSet.has(batch.name)) continue;
+    if (groupsSet.size && !batch.checks.some((c) => groupsSet.has(c.group) || groupsSet.has(batch.name))) continue;
     write(`\n## BATCH: ${batch.name}`);
     for (const check of batch.checks) {
       if (want.size && !want.has(check.id)) continue;

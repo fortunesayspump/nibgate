@@ -51,6 +51,8 @@ export const nibshareApi = {
   revoke: (slug: string) => request(`/nibshare/${slug}`, { method: "DELETE", credentials: "include" }),
   reslug: (slug: string) =>
     request<ReslugResponse>(`/nibshare/${slug}/reslug`, { method: "POST", credentials: "include" }),
+  publish: (slug: string) =>
+    request<ReslugResponse>(`/nibshare/${slug}/publish`, { method: "POST", credentials: "include" }),
 
   accessControl: (slug: string) => request<AccessControl>(`/nibshare/${slug}/access-control`, { credentials: "include" }),
   updateAccessPolicy: (slug: string, patch: { whitelist?: string[]; whitelistPrice?: string | null; publicAccess?: boolean }) =>

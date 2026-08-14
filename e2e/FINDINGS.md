@@ -269,6 +269,154 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     persist so the address chip stays until the account itself drops. The gate
     then still shows the wallet's balance row. Mostly cosmetic; worth a `disconnect()`
     after session clear on the share gate to keep the two in sync.
+32. **Banned-wallet flow can't be exercised via the reader/anon path.** The
+    `ban` API (`POST /api/nibshare/:slug/entitlements/:wallet/ban`) returned **401**
+    for a throwaway wallet, and the share gate at `nibgate.xyz/ns/<slug>` with
+    `?wallet=<banned>` never rendered banned copy (no "banned" text). Either the
+    ban endpoint needs a seller-authed session (our anon request was rejected) or
+    the reader does not key off the query-param wallet for banned state. Since the
+    ban UI lives only in the seller dashboard, the reader "banned" state is not
+    verifiable through the public gate — worth a dedicated seller-side UI check or
+    an authenticated ban + view.
+33. **Subblog reader pages don't render a stable identity string.** Visiting
+    `catwalk.nibgate.xyz/writing/*`, `/docs/*`, `/photos/*`, `/music/*` as anon
+    returns 200 with no error boundary and correct paywall/price state, but the
+    word **"Catwalk"** never appears in the rendered body text. The subblog brand
+    name is not surfaced on the reader route (or is client-rendered after our
+    2.6s snapshot). Cosmetic / naming consistency — the home page shows it, the
+    per-post reader may not.
+34. **Ratings widget absent on share-site gate (confirms #30).** The matrix check
+    confirmed `nibgate.xyz/ns/<article-free>` renders no star/rating element,
+    while the subblog gate renders `☆ ☆ ☆ ☆ ☆ | No ratings`. Non-blocking
+    inconsistency across the two gate UIs.
+35. **Form-create matrix is green across all 5 content types × 5 access modes.**
+    UI-publishing an article/photo/video/music/document post for free/paid/
+    wlfree/wldrop/invite all publish and produce the expected gate (paywall on
+    paid/invite, none on free) with no error boundary. The one soft spot: the
+    banned matrix (see #32) needs an authed seller session to be meaningful.
+36. **Non-article types replace the prose editor with a media-upload drop area.**
+    Selecting Photo/Video/Music/Document on the share form removes the `Body *`
+    Tiptap editor and swaps in the type-specific uploader (Photos */ audio */
+    video */ document *). The generic `fillNewShare` body-typing helper must
+    therefore branch per type; a raw editor click times out on these types. This
+    is expected product behavior (not a bug) but worth an explicit caption field
+    note — the photo type's "Write a caption" input is separate from the upload.
+37. **Media upload works end-to-end with valid files.** `POST /uploads/content?encrypted=1`
+    (rewritten to `api.nibgate.xyz` via `next.config.ts` `/uploads/:path*` → API,
+    then the backend's bare-path proxy in `server.js` maps `/uploads/*` → `/api/uploads/*`)
+    returns 200 with `{ success, storageRef, encryptedKey, previewUrl }` for a real
+    PNG. Invalid/corrupt image bytes 500 with `{"error":"Upload failed"}` from the
+    catch in `upload-routes.js` — acceptable, though the message could hint the
+    file was rejected (see #15 error-shape note). Video/music/document uploads use
+    the unencrypted path with a public `url`.
+38. **NEW: backend architecture audit (staff+ review) — 20 findings.** A read-only
+    audit of `backend/` + `subblogs/backend/` + `packages/` produced a ranked list
+    (full detail captured in session notes; high-signal items below):
+    - **[BLOCKER]** Paywall/entitlement logic is copy-pasted (~15 fns each) between
+      `backend/src/server/nibshare/service.js` and
+      `subblogs/backend/src/services/access.service.js`; the canonical `canAccess`
+      rule in `packages/nibgate/src/server/access-policy.js` is NEVER called.
+    - **[BLOCKER]** SDK divergence: hub uses `@nibgate/sdk: workspace:*`, subblog
+      pins published `^0.4.9` (vendored). Rule fixes don't reach the subblog until
+      published + lockfile bump.
+    - **[HIGH]** `POST /api/hub/reputation/ratings/sync` (hub-routes.js:303) has no
+      auth — anyone can trigger the on-chain indexer.
+    - **[HIGH]** Subblog tenant selection trusts `x-site-subdomain` header +
+      `?subdomain=` query over Host (`middlewares/tenant.js:19`) — cross-tenant
+      spoofing primitive.
+    - **[HIGH]** Subblog rating upsert (`rating.route.js:77`) accepts arbitrary
+      client `wallet` + `txHash` with no entitlement/proof check → ratings gaming.
+    - **[HIGH]** SSRF: `document-render.js` fetches author-supplied `documentUrl`
+      (no scheme/host allowlist).
+    - **[HIGH]** SIWE session not scoped to `siteId` (`siwe.service.js:94`) — a
+      session from site A can prove possession on site B.
+    - **[HIGH]** `/gateway/balance` unauthenticated proxy to Circle API key,
+      implemented 3× (`packages/internal/src/payments.js`, both backends).
+    - **[HIGH]** `x-admin-key` static header bypasses ALL rate limiters
+      (`rateLimiter.js:6`) with no brute-force protection.
+    - **[MED]** Hub stats/leaderboards/sitemap load full tables then filter/sort in
+      JS (`hub-routes.js:882`, `findMany` of all unlockReceipts; magic `v < 100`).
+    - **[MED]** God-object files: `hub-routes.js` 1049 lines, `nibgate.route.js`
+      811, `helpers.js` 993, `controller.js` 703, `service.js` 660.
+    - **[MED]** `serveAccess`/`accessShare` gate orchestration (~240 lines) written
+      twice against different SDKs/models — money-path drift risk.
+    - **[MED]** `isPaidValue` diverges: route-local treats `"0.00"` as paid
+      (`nibgate.route.js:17`), SDK `toNumber > 0` treats it free.
+    - **[MED]** Dead `packages/internal/src/hub.js` + `cli/src/core/hub.js`
+      (duplicate, target non-existent `/hub/sites/*` routes) — silent no-op.
+39. **NEW: batch16 run (`/tmp/opencode/new3.log`, 34 checks) — real findings.**
+    - **[UI] Mobile `/explore` overflows horizontally.** `mv-explore` FAILS:
+      `scrollW=1231 inner=390` — page content is ~3× viewport wide on a 390px
+      mobile viewport. All other mobile surfaces (`mv-*` set: free/paid gate,
+      subblog home, share form, ledger, leaderboards) pass no-horizontal-overflow.
+      Explore is the only overflow offender. No error boundary triggered, so it's
+      a pure layout bug, not a crash.
+      **STATUS: FIXED** — root cause: `.market-layout`/`.market-products`/
+      `.market-grid` are block-level with `min-width: auto`; the nowrap
+      `market-price`/`content-rating` flex children pushed the card min-content
+      to ~431px, forcing the whole chain wider than the 390px viewport. Added
+      `min-width: 0` to the market block chain + card `width/max-width: 100%`,
+      and `min-width: 0`/`flex-wrap: wrap` on `.market-info-header`/`.market-info-footer`.
+    - **[UX] Draft row has no publish control.** `dp-draft-then-publish` FAILS:
+      a freshly-saved draft appears in the list but the row exposes no publish
+      affordance the check can reach; the publish attempt 403/400s. Drafts are
+      also NOT force-listed while unpublished (`uc-cancel-upload` passes), which
+      is correct — but the missing publish path from the Mine/draft list is a
+      real rough edge (drafts can only be completed by re-opening the form).
+      **STATUS: FIXED** — added `POST /api/nibshare/:slug/publish` (owner-auth,
+      flips draft→active) + a "Publish" button on the draft `PostRow`; the check
+      now clicks the Drafts filter (default Mine view hides drafts, by design).
+    - **[HARNESS] Dashboard routes redirect anon to marketing — not a bug.** All
+      three `db-*` checks (analytics/earnings/sites) FAIL because they navigate
+      to `/dashboard/*` with `pk: h.SEL_PK` but never establish a SIWE session;
+      the dashboard correctly redirects logged-out visitors to the marketing page
+      (matches #29). Needs a real connected session in the harness to exercise the
+      authed view — flagged as a harness gap, not a product finding.
+    - **[HARNESS] `wa-connect-on-paid` fails on address-text assertion.** Connects
+      the seller wallet on a paid gate; "paywall still shown" passes but the
+      `0x7099` address isn't rendered as page text (connected UI likely shows a
+      truncated/ens label). Paywall-after-connect is the meaningful signal and
+      passes; the address assertion is too strict for the harness.
+    - **[LOW] Widespread 404/403 console noise.** Every subblog-access, newsletter,
+      and discovery check logs 404s (and the upload/draft flow logs 403s) for
+      sub-resources while assertions pass. `sd-explore-grid` also emits multiple
+      404s. Worth one pass to identify the missing assets (likely favicon/
+      og-images/legacy routes) — cosmetic, not blocking.
+    - **[MED]** Errors swallowed via `.catch(() => {})` in 20+ spots; 3 different
+      JSON error shapes across the two backends.
+    - **[MED]** Manifest sync N+1: per-resource awaited `upsert` loop
+      (`helpers.js:788`).
+    - **[LOW]** Upload allowlists + sharp pipeline duplicated across both backends.
+    - **[LOW]** `claimMetricDedupeKey` fails OPEN on non-P2002 DB errors
+      (`helpers.js:222`) — double-counts revenue on transient DB error.
+    - **[LOW]** Mixed ESM/CJS + pnpm/npm across backends; no shared lint.
+
+    **Recommended roadmap**: unify both backends onto `packages/nibgate`
+    (`workspace:*`) and a shared access/entitlement service; route all gates
+    through the single `canAccess`; close the 6 authz/tenant/possession holes;
+    standardize one error envelope; push stats/leaderboard aggregation into Prisma.
+40. **NEW: whitelist bulk-management gap (retention/convenience).** Creators with
+    hundreds of subscribers had no fast path to manage a whitelist:
+    - **No bulk import.** The only affordance was a paste box
+      (`WalletListEditor.tsx` split on spaces/commas, dedupes). No CSV/Excel file
+      upload, no per-row error report, no export, no bulk remove.
+    - **No per-address tier.** A single `whitelistPrice` applies to everyone
+      (acceptable, but `address,price` CSV rows were silently mishandled).
+    - **Banned wallet stays in `whitelist[]`.** Ban (`service.js:314`) created a
+      `banned` entitlement but never removed the wallet from the share's
+      `whitelist` array — the address showed as a whitelist chip AND in the
+      Banned section, and `updateAccessPolicy` re-asserted it on every save.
+      (Ban itself correctly blocked access first — the gap was cosmetic/data
+      hygiene, not a security hole.)
+    **STATUS: FIXED** —
+    - `WalletListEditor` now has **Import CSV / Export / Clear all**: import
+      accepts `.csv`/`.txt`, one address per line (optionally `address,price`
+      — price column reported as ignored since the model has one tier),
+      validates rows, dedupes, merges, and reports added/duplicates/invalid counts.
+    - **Ban now strips the wallet from `whitelist[]`** (`banEntitlement` in
+      `service.js`) so a banned wallet can't linger in the list or be
+      re-asserted by later access-policy saves.
+    - Export downloads the current whitelist as `whitelist.csv`.
 
 ## Payment reality-check (production, Arc Testnet)
 
@@ -317,5 +465,12 @@ error banner — no retry affordance anywhere (see #14).
   freshly UI-published post).
 - Buckets to expand: expired shares, drafts → publish, banned/revoked wallet,
   uploaded media (photo/video/music/document), agent purchases, hub route pricing.
+- Batch16 run (`/tmp/opencode/new3.log`): 34 checks → 14 pass / 6 fail / 14 warn.
+  Real product findings: mobile `/explore` horizontal overflow; draft row has no
+  publish control. Harness gaps (not product bugs): dashboard redirects anon
+  (no session in harness), wallet-address text assertion too strict. Remaining
+  work toward ~500: subblog content-type gates × viewer states, dashboard
+  analytics/earnings with a real session, more API endpoints, mobile-deep,
+  x402/agent matrix.
 
 See `logs/*.log` for the raw evidence behind each claim.

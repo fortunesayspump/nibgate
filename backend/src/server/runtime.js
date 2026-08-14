@@ -21,6 +21,13 @@ function environmentConfig() {
         facilitatorUrl: process.env.NIBGATE_FACILITATOR_URL || process.env.CIRCLE_GATEWAY_FACILITATOR_URL || 'https://gateway-api-testnet.circle.com',
         networks: [process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002']
       },
+      hub: {
+        apiBaseUrl: process.env.NIBGATE_HUB_URL || process.env.NIBGATE_SITE_ORIGIN || process.env.NIBGATE_HUB_PUBLIC_URL || 'https://nibgate.xyz',
+        publicSiteUrl: process.env.NIBGATE_SITE_ORIGIN || process.env.NIBGATE_HUB_PUBLIC_URL || 'https://nibgate.xyz',
+        siteId: '',
+        siteToken: '',
+        verifyToken: ''
+      },
       routes: []
     })
   };

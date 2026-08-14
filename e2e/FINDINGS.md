@@ -166,6 +166,16 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     "siteId":"","siteToken":""…}` — i.e. the public status endpoint leaks an
     internal hostname and confirms the default config path. The share-based
     gateway (`/api/nibshare/*`) is unaffected and fully functional.
+    **STATUS: FIXED (backend/src/server/lib/live-routes.js + server.js + 
+    hub-routes.js, deployed pending).** When the config ships no routes the
+    gateway now backfills its route table from live verified content, so
+    `/api/content/:id/price|access|manifest` resolve real content ids again.
+    A new `/api/nibgate/manifest` route (query `subdomain=` or
+    `x-site-subdomain`/`x-forwarded-host` headers) returns the site
+    `nibgate.json` shape the subblog deploy proxies — drop-in replacement for
+    the legacy Railway host. `/api/nibgate/status` no longer leaks
+    `http://localhost:3000` (hub.apiBaseUrl defaults to the public origin in
+    `environmentConfig()`).
 21. **Paid subblog media: viewer fetches before unlock → raw "SheetViewer
     failed: fetch 402".** On the premium document `catwalk.nibgate.xyz/docs/
     lookbook-materials-d14` (0.50 USDC), the paywall renders correctly
@@ -176,6 +186,11 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     viewer behind the gate), but it's a premature/unconditional media fetch on
     every paid-document view — wasted request + raw error path. Viewer should
     defer until an unlock cookie exists.
+    **STATUS: FIXED (subblogs/frontend DocumentContent.tsx, deployed pending).**
+    The Sheet/Text viewer, HTML render, and PDF frame are now gated behind
+    `!isPaid`; a gated document renders only the file card + unlock widget, and
+    the viewer appears after payment via NibgateUnlock's own proof-gated fetch.
+    Verified: no `GET /nibgate/media/:id/document` fires on paid-doc views.
 22. **(minor) Internal hostname used for media:** the subblog media base URL is
     `https://nibgate-production.up.railway.app/api/nibgate/media/…` — the
     Railway app host, not `api.nibgate.xyz`. Publicly resolvable, but the same

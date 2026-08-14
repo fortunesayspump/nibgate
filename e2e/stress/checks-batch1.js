@@ -128,11 +128,24 @@ const checks = [
     }
   },
   {
-    id: 'dash-10-landing', name: 'dashboard landing renders onboarding for anon/connected wallet', group: 'dashboard',
+    id: 'dash-10-landing', name: 'dashboard: anon /dashboard redirects to marketing home (no session)', group: 'dashboard',
     run: async (h, { page }) => {
       await h.gotoSafe(page, 'https://nibgate.xyz/dashboard');
       const b = await h.bodyText(page);
-      return [[/Get started|Connect your site|Dashboard|creator/i.test(b), `dashboard section present: ${b.slice(0, 70)}`]];
+      const redirected = /Get started|Connect your site|Explore/.test(b) && !/Creator setup|Connected origin/.test(b);
+      return [[redirected, `anon /dashboard -> marketing home (no dashboard leak): ${redirected} "${b.slice(0, 60)}"`]];
+    }
+  },
+  {
+    id: 'dash-11-creator-dash', name: 'dashboard: SIWE session reaches real creator dashboard', group: 'dashboard',
+    run: async (h, { page }) => {
+      await h.gotoSafe(page, 'https://nibgate.xyz/share');
+      const { connectSellerFlow } = require('../harness/prod-lib.js');
+      await connectSellerFlow(page, { label: 's', log: () => {} });
+      await h.gotoSafe(page, 'https://nibgate.xyz/dashboard', 3500);
+      await page.waitForTimeout(2000);
+      const b = await h.bodyText(page);
+      return [[/Creator setup|Connected origin|dashboard/i.test(b), `creator dashboard renders: ${b.slice(0, 80)}`]];
     }
   },
   {

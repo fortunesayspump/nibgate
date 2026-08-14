@@ -197,7 +197,7 @@ const checks = [
       const stream = await dl.createReadStream();
       let text = '';
       for await (const chunk of stream) text += chunk.toString();
-      const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+      const lines = text.split('\n').map((l) => l.trim().replace(/,$/, '')).filter(Boolean);
       return [
         [lines[0] === 'address', `header row: ${lines[0]}`],
         [lines.includes(W1.toLowerCase()) && lines.includes(W2.toLowerCase()), `exported wallets present: ${JSON.stringify(lines.slice(1))}`],
@@ -255,8 +255,13 @@ const checks = [
         await page.waitForTimeout(2500);
         await h.gotoSafe(page, `${B}/share/mine`);
         await page.waitForTimeout(2500);
+        // Drafts live under the Drafts filter; default "all" view only shows
+        // published. Click the Drafts tab to surface the row.
+        const draftsTab = page.getByRole('button', { name: /Drafts/i }).first();
+        if (await draftsTab.count()) await draftsTab.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(1200);
         const body = await h.bodyText(page);
-        expects.push([body.includes(title), `draft row visible: ${body.includes(title)}`]);
+        expects.push([body.includes(title), `draft row visible in Drafts tab: ${body.includes(title)}`]);
         const row = page.locator('div, li, tr, article').filter({ hasText: title }).first();
         const pub = row.locator('button:has-text("Publish")').first();
         expects.push([await pub.count() > 0, `publish control on draft row: ${await pub.count()}`]);

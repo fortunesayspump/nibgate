@@ -6,8 +6,14 @@ const h = require('./runner.js').h;
 async function sellerAuthed(page) {
   await h.gotoSafe(page, 'https://nibgate.xyz/share');
   const { connectSellerFlow } = require('../harness/prod-lib.js');
-  await connectSellerFlow(page, { label: 's', log: () => {} });
-  await page.waitForTimeout(800);
+  for (let i = 0; i < 3; i++) {
+    await connectSellerFlow(page, { label: 's', log: () => {} });
+    await page.waitForTimeout(1200);
+    if ((await page.locator('input[placeholder="Post title"]').count()) > 0) return true;
+    await page.reload({ waitUntil: 'commit' }).catch(() => {});
+    await page.waitForTimeout(1200);
+  }
+  return false;
 }
 
 async function uiPublish(page, title, { body = 'stress body', price = null, wl = null, chip = null } = {}) {

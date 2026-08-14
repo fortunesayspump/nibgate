@@ -49,6 +49,24 @@ export function getWalletErrorMessage(
 
 export function isWalletRejection(error: unknown): boolean;
 
+export const PAYMENT_ERRORS: {
+  insufficient_balance: string;
+  insufficient_allowance: string;
+  expired_challenge: string;
+  invalid_price: string;
+  invalid_recipient: string;
+  unauthorized: string;
+  already_used: string;
+  invalid_signature: string;
+  rate_limited: string;
+  default: string;
+};
+
+export function getPaymentErrorMessage(
+  error: unknown,
+  options?: { fallback?: string },
+): string;
+
 export type EnsureArcNetworkOptions = {
   currentChainId?: number;
   wait?: boolean;

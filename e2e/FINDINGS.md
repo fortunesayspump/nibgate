@@ -35,12 +35,21 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
    "Insufficient USDC / Payment failed. Check your balance or try again."
    Recommend mapping x402/Payment-verification reasons to human text
    (`insufficient_balance`, `expired_challenge`, `invalid_price`, etc.).
+   **STATUS: FIXED** (wallet 0.2.15) — `getPaymentErrorMessage()` in
+   `packages/wallet/src/errors.js` maps `unauthorized`, `insufficient_balance`,
+   `expired_challenge`, `invalid_price`, `invalid_recipient`, `already_used`,
+   `invalid_signature`, `rate_limited` to friendly copy; `unlock.jsx` now surfaces
+   it instead of the raw reason. (Verify in prod.)
 2. **Free-unlock 402s when SIWE hasn't completed.** Whitelist-free user who skips
    the SIWE modal (or where connect auto-approves without personal_sign) hits
    402 + stuck "Waiting for wallet approval..." instead of a friendly
    "Sign in to unlock" prompt. Unlock for free must not route through a payment
    challenge (server already free-grants when session is present — client should
    ensure session before gate).
+   **STATUS: FIXED** (wallet 0.2.15) — `unlock()` now always runs the SIWE
+   sign-in for an already-connected wallet before calling the access route, so
+   free/whitelist-free unlocks are session-granted instead of 402ing. (Verify in
+   prod.)
 3. **"Hold to pay" affordance** is non-standard and undiscovered (no hint that it
    requires a ~1.5s press; meta-cognitive UX). Consider a progress ring + label,
    or a plain button.

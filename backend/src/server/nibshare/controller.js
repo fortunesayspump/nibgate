@@ -676,6 +676,23 @@ export async function rotateShare(req, res) {
   }
 }
 
+export async function publishShare(req, res) {
+  try {
+    const share = await service.findShareBySlug(req.params.slug);
+    if (!share) return res.status(404).json({ error: 'Share not found' });
+    if (primaryWallet(req.user) !== share.ownerWallet) {
+      return res.status(403).json({ error: 'Only the owner can publish this share.' });
+    }
+    if (share.status !== 'draft') {
+      return res.status(400).json({ error: 'Only drafts can be published.' });
+    }
+    const { slug, url } = await service.publishShare(share);
+    res.json({ success: true, slug, url, status: 'active' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to publish share', details: error.message });
+  }
+}
+
 export async function listMine(req, res) {
   try {
     const { shares, activity } = await service.listMine(primaryWallet(req.user));

@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { FiSettings, FiEdit2, FiLock, FiStar } from "react-icons/fi";
+import { FiSettings, FiEdit2, FiLock, FiStar, FiSend } from "react-icons/fi";
 import { TypeBadge, StatusBadge, ActiveBadge } from "./StatusBadges";
 import { isEnded, endLabel } from "../../lib/shares";
 import type { ShareSummary } from "../../types";
 
-export function PostRow({ share, onSettings }: { share: ShareSummary; onSettings: () => void }) {
+export function PostRow({ share, onSettings, onPublish }: { share: ShareSummary; onSettings: () => void; onPublish?: (slug: string) => void }) {
   const inviteOnly = share.publicAccess === false;
   const hasTier = share.whitelistPrice != null && share.whitelistPrice !== "";
+  const isDraft = share.status === "draft";
   return (
     <div className="flex items-center justify-between gap-2 py-2.5 border-b" style={{ borderColor: "var(--border)" }}>
       <div className="min-w-0">
@@ -25,11 +26,21 @@ export function PostRow({ share, onSettings }: { share: ShareSummary; onSettings
               <FiStar size={10} /> Whitelist tier
             </span>
           )}
-          {share.status === "draft" ? <StatusBadge label="draft" /> : isEnded(share) ? <StatusBadge label={endLabel(share)} /> : <ActiveBadge share={share} />}
+          {isDraft ? <StatusBadge label="draft" /> : isEnded(share) ? <StatusBadge label={endLabel(share)} /> : <ActiveBadge share={share} />}
         </div>
         {share.summary && <p className="text-xs truncate mt-0.5 hidden sm:block" style={{ color: "var(--muted)" }}>{share.summary}</p>}
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {isDraft && onPublish && (
+          <button
+            onClick={() => onPublish(share.slug)}
+            className="inline-flex items-center justify-center gap-1 px-2.5 h-8 rounded-md border cursor-pointer text-xs font-semibold"
+            style={{ borderColor: "var(--accent)", background: "var(--accent)", color: "#fff" }}
+            title="Publish draft"
+          >
+            <FiSend size={13} /> Publish
+          </button>
+        )}
         <button onClick={onSettings} className="inline-flex items-center justify-center w-8 h-8 rounded-md border cursor-pointer" style={{ borderColor: "var(--border)" }} title="Settings">
           <FiSettings size={15} />
         </button>

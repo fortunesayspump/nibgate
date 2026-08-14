@@ -318,6 +318,17 @@ export async function banEntitlement({ share, wallet }) {
     update: { status: 'banned', revokedAt: new Date() }
   });
   await db.nibShareEvent.create({ data: { shareId: share.id, type: 'ban', wallet } });
+  // A hard ban must not keep the wallet whitelisted: an invite-only share would
+  // otherwise keep showing them in the whitelist and re-assert them on every
+  // access-policy save. Strip them from the whitelist array (ban still blocks
+  // via the entitlement check even if they are re-added later).
+  if (Array.isArray(share.whitelist) && share.whitelist.includes(wallet)) {
+    const nextWhitelist = share.whitelist.filter((w) => w !== wallet);
+    await db.nibShare.update({
+      where: { id: share.id },
+      data: { whitelist: nextWhitelist, updatedAt: new Date() }
+    });
+  }
 }
 
 // Restore just reactivates the wallet under its original source. No refund
@@ -435,6 +446,15 @@ export async function rotateShare(share) {
   const newSlug = await uniqueSlug();
   await db.nibShare.update({ where: { id: share.id }, data: { slug: newSlug, updatedAt: new Date() } });
   return { slug: newSlug, url: sharePublicUrl({ ...share, slug: newSlug }) };
+}
+
+export async function publishShare(share) {
+  if (share.status !== 'draft') {
+    throw new HttpError(400, 'Only drafts can be published.');
+  }
+  await db.nibShare.update({ where: { id: share.id }, data: { status: 'active', updatedAt: new Date() } });
+  await db.nibShareEvent.create({ data: { shareId: share.id, type: 'publish' } });
+  return { slug: share.slug, url: sharePublicUrl(share) };
 }
 
 export async function listMine(ownerWallet) {

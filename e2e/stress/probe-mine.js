@@ -1,0 +1,21 @@
+const { install, connectSellerFlow, bodyText, SEL_PK } = require('../harness/prod-lib.js');
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'chromium' });
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(35000);
+  await install({ page, pk: SEL_PK });
+  await page.goto('https://nibgate.xyz/share', { waitUntil: 'commit' });
+  await page.waitForTimeout(2000);
+  await connectSellerFlow(page, { label: 's', log: () => {} });
+  await page.goto('https://nibgate.xyz/share/mine', { waitUntil: 'commit' });
+  await page.waitForTimeout(3500);
+  const tabs = await page.locator('[role="tab"], [role="tablist"] *').allInnerTexts().catch(() => []);
+  console.log('tab-ish:', JSON.stringify(tabs));
+  const b = await bodyText(page);
+  console.log('BODY:', b.slice(0, 500).replace(/\n+/g, ' | '));
+  const btns = await page.locator('button').evaluateAll((els) => els.map((e) => e.innerText.trim().slice(0, 24)).filter(Boolean));
+  console.log('buttons:', JSON.stringify(btns));
+  await browser.close();
+})().catch((e) => { console.error('FAIL', e); process.exit(1); });

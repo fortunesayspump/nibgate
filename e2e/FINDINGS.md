@@ -131,13 +131,14 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     `{"ok":false,"error":"This share has expired."}`, and the post page renders
     "✎ Writing | <title> | This share has expired." — cleanly handled state
     (419/past-due rather than 410-Gone). No deep-link/backspin content reveal.
-18. **"Save as draft" works (persists) but gives zero feedback.** After
-    clicking with valid title+body, the share CREATES as `status:"draft"`
-    (found via `GET /api/nibshare/mine`: "E2E Matrix Draft4" `hscrh4WQ`, and a
-    default 7-day `expiresAt` is stamped on drafts) — yet the screen stays on
-    `/share` with the editor untouched: no POST confirmation, no toast, no nav to
-    the draft, and the draft's title doesn't even appear. A user cannot tell if
-    saving worked. Recommend navigate to a "drafts" view or show a toast.
+18. **"Save as draft" works but the post-save UX is confusing.** (updated after
+    stress battery) Clicking Save-as-Draft with valid title+body CREATES the post
+    (`status:"draft"`, auto 7-day `expiresAt`) and NAVIGATES to `/share/mine` —
+    but lands on the **Posts** tab, where the just-saved draft is NOT visible
+    (drafts live under the separate Drafts tab). No toast, no "draft saved"
+    confirmation, no link to the draft. A user cannot tell saving worked and must
+    realize they should switch to the Drafts tab. Recommend `router.push('/share/
+    mine?tab=draft')` (or a drafts view) + a success toast.
 19. **Whitelist discount is only shown AFTER connecting** — an unconnected reader
     on a whitelist-tier post sees the full public price ("12 USDC") with no hint
     a discount exists; the "You're on the whitelist" banner + discounted price

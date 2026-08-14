@@ -1,0 +1,30 @@
+{
+  "free": {
+    "slug": "AoMCenwZ",
+    "title": "E2E Free Alpha"
+  },
+  "paid": {
+    "slug": "Zdkz7DxH",
+    "title": "E2E Paid Playbook"
+  },
+  "wlfree": {
+    "slug": "PkKPjaZA",
+    "title": "E2E Whitelist Free"
+  },
+  "wldrop": {
+    "slug": "Bgje1dLe",
+    "title": "E2E Whitelist Drop"
+  },
+  "invite": {
+    "slug": "iAvEm3bF",
+    "title": "E2E Invite Only"
+  },
+  "custom": {
+    "slug": "VZ2Zgxx6",
+    "title": "E2E Matrix Custom Tier"
+  },
+  "draft": {
+    "slug": "4XUy3zyb",
+    "title": "E2E Matrix Draft4"
+  }
+}

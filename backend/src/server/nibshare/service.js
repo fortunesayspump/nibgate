@@ -18,6 +18,13 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
   if (!title || typeof title !== 'string') {
     throw new HttpError(400, 'title is required');
   }
+  if (title.length > 150) {
+    throw new HttpError(400, 'title cannot exceed 150 characters');
+  }
+  const VALID_CONTENT_TYPES = ['article', 'text', 'photo', 'video', 'music', 'document'];
+  if (contentType && !VALID_CONTENT_TYPES.includes(contentType)) {
+    throw new HttpError(400, `contentType must be one of: ${VALID_CONTENT_TYPES.join(', ')}`);
+  }
   const plaintext = typeof content === 'string' ? content : content ? JSON.stringify(content) : '';
   if (!plaintext) {
     throw new HttpError(400, 'content is required');

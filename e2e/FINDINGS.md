@@ -533,4 +533,25 @@ error banner — no retry affordance anywhere (see #14).
   non-draft status. All 7 checks green; WARN mark only for the known 403/400
   session-poll console noise (#39).
 
+- **Batch20 settings-tier toggles now verified live** (`checks-batch20.js`):
+  the Settings sheet's whitelist-tier buttons (Public price / Free / Custom) and
+  the invite-only toggle persist correctly against the backend — Free sets
+  `whitelistPrice=0` (with the "Whitelisted wallets get access free" note),
+  Custom sets the entered price (note renders as `formatUsd`, e.g. "2.00 USDC"),
+  Public price resets `whitelistPrice` to null, and the invite-only toggle flips
+  `publicAccess` both directions (reopening confirms a dialog). Also verifies a
+  whitelisted buyer's view lands in the settings "Seen by" list. All 5 green;
+  WARN only for known 403/400 noise (#39).
+
+- **Batch21 invite-only access semantics now verified live** (`checks-batch21.js`):
+  clarifies how `publicAccess=false` composes with the whitelist tier. An
+  invite-only share + whitelisted buyer with **no tier set** lets the buyer
+  *attempt* but still pay the public price (no lockout banner, paywall, no leak);
+  with a **Free tier** the buyer gets "Unlock for free" and tapping it mints the
+  entitlement and renders content; a **non-whitelisted** wallet sees the
+  invite-only lockout banner with no content leak. The free-tier tap uses a
+  pointerdown dispatch in the harness because a stuck w3m-modal (from repeated
+  mock-wallet installs in one process) can intercept normal clicks — the widget
+  listens on pointerdown. All 3 green; WARN only for known 403/400 noise (#39).
+
 See `logs/*.log` for the raw evidence behind each claim.

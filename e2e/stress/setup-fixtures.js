@@ -7,7 +7,7 @@ const { install, connectSellerFlow, SEL_PK, BUY_PK } = require('../harness/prod-
 const { chromium } = require('playwright');
 
 const BUY = '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
-const API = 'https://api.nibgate.xyz/api/nibshare';
+const API = 'https://api.nibgate.xyz/nibshare';
 
 const FIXTURES = {
   free: { title: 'E2E Free Alpha', content: 'Free post body used by the stress battery.', price: '0', publicAccess: true, contentType: 'article', status: 'active' },

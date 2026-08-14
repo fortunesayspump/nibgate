@@ -113,7 +113,7 @@ const checks = [
       const { connectSellerFlow } = require('../harness/prod-lib.js');
       await h.gotoSafe(page, 'https://nibgate.xyz/share');
       await connectSellerFlow(page, { label: 's', log: () => {} });
-      const r = await context.request.post('https://api.nibgate.xyz/api/nibshare', { data: { title: 'E2E Expiring Tmp', content: 'tmp', price: '3', publicAccess: true, contentType: 'article', status: 'active', expiresAt: new Date(Date.now() + 8000).toISOString() } });
+      const r = await context.request.post('https://api.nibgate.xyz/nibshare', { data: { title: 'E2E Expiring Tmp', content: 'tmp', price: '3', publicAccess: true, contentType: 'article', status: 'active', expiresAt: new Date(Date.now() + 8000).toISOString() } });
       const slug = (await r.json().catch(() => ({}))).slug;
       const expects = [[!!slug, `tmp expiring created: ${slug}`]];
       await page.waitForTimeout(12000);
@@ -121,7 +121,7 @@ const checks = [
         await h.gotoSafe(page, `https://nibgate.xyz/ns/${slug}`);
         const b = await h.bodyText(page);
         expects.push([/expired|no longer available|This share has expired/i.test(b), `expired message: ${/expired|no longer available/i.test(b)} "${b.slice(0, 70)}"`]);
-        await context.request.delete('https://api.nibgate.xyz/api/nibshare/' + slug).catch(() => {});
+        await context.request.delete('https://api.nibgate.xyz/nibshare/' + slug).catch(() => {});
       }
       return expects;
     } },

@@ -11,8 +11,8 @@ const ORPHANS = ['FVbtY4n5', 'FBNHG7JA', 'UntaiXSK', '5GxtmxgP', 'hftQYdWL', 'C8
   await page.waitForTimeout(2000);
   await connectSellerFlow(page, { label: 's', log: () => {} });
   for (const s of ORPHANS) {
-    const r = await ctx.request.get(`https://api.nibgate.xyz/api/nibshare/${s}/meta`).then((x) => x.status());
-    if (r === 200) { const d = await ctx.request.delete('https://api.nibgate.xyz/api/nibshare/' + s); console.log(s, 'meta', r, 'deleted', d.status()); }
+    const r = await ctx.request.get(`https://api.nibgate.xyz/nibshare/${s}/meta`).then((x) => x.status());
+    if (r === 200) { const d = await ctx.request.delete('https://api.nibgate.xyz/nibshare/' + s); console.log(s, 'meta', r, 'deleted', d.status()); }
     else console.log(s, 'meta', r, 'skip');
   }
   await browser.close();

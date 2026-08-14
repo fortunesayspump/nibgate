@@ -86,7 +86,7 @@ const checks = [
       return [[hasDrafts > 0 || /Drafts|draft/i.test(b), `drafts surfaced on mine: ${hasDrafts} | body-has-draft: ${/Drafts|draft/i.test(b)}`], [hasPosts > 0, `posts tab: ${hasPosts}`]];
     } },
   { id: 'sh-08-wl-buyer-gate', name: 'share: whitelisted buyer sees whitelist price + canUnlock on wl post', group: 'share', pk: 'anon', run: async (h, { page, context }) => {
-      const r = await context.request.get(`https://api.nibgate.xyz/api/nibshare/${require('./fixtures.json').wldrop.slug}/quote?wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`);
+      const r = await context.request.get(`https://api.nibgate.xyz/nibshare/${require('./fixtures.json').wldrop.slug}/quote?wallet=0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC`);
       const j = await r.json().catch(() => ({}));
       return [[r.status() === 200, `quote 200: ${r.status() === 200}`], [typeof j.banned === 'boolean' && typeof j.canUnlock === 'boolean', `decisions present: banned=${j.banned} canUnlock=${j.canUnlock} price=${j.price} wl=${j.whitelistPrice}`]];
     } },

@@ -81,7 +81,7 @@ const checks = [
         await domain.fill('!!!not_a_domain!!!');
         const add = page.getByRole('button', { name: /add site/i }).first();
         if (await add.count()) { await add.click({ force: true }); await page.waitForTimeout(2200); }
-        const r = await context.request.get('https://api.nibgate.xyz/api/hub/sites');
+        const r = await context.request.get('https://api.nibgate.xyz/hub/sites');
         const j = await r.json().catch(() => ({}));
         const junk = (j.websites || []).filter((w) => /not_a_domain/i.test((w.domain || '') + ' ' + (w.name || '')));
         expects.push([r.status() === 200 && junk.length === 0, `no junk site created: ${r.status()} count=${(j.websites || []).length}`]);
@@ -100,7 +100,7 @@ const checks = [
   { id: 'db-05-earnings-accuracy', name: 'dashboard earnings — summary present', group: 'dashboard', run: async (h, { page, context }) => {
       await sellerAuthed(page);
       const api = context.request;
-      const r = await api.get('https://api.nibgate.xyz/api/hub/dashboard/earnings?from=2026-01-01&to=2027-01-01');
+      const r = await api.get('https://api.nibgate.xyz/hub/dashboard/earnings?from=2026-01-01&to=2027-01-01');
       const j = await r.json().catch(() => ({}));
       return [[r.status() === 200, `earnings 200: ${r.status() === 200}`], [j.summary != null && typeof j.summary.revenue === 'number', `summary present: ${JSON.stringify(j.summary || {}).slice(0, 120)}`]];
     } },

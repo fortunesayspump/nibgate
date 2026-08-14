@@ -80,13 +80,13 @@ async function uploadFile(page, path) {
     if (await page.getByRole('button', { name: /sign with wallet/i }).count()) await page.getByRole('button', { name: /sign with wallet/i }).click().catch(() => {});
     await page.waitForTimeout(2500);
     const api = context.request;
-    let r = await api.post(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
+    let r = await api.post(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
     log(`[ban-paid] ban status=${r.status()} body=${(await r.text()).slice(0, 130)}`);
-    r = await api.get(`${API}/api/nibshare/dR21SdTL/access?wallet=${BUYER}`);
+    r = await api.get(`${API}/nibshare/dR21SdTL/access?wallet=${BUYER}`);
     log(`[ban-paid] buyer access status=${r.status()} body=${(await r.text()).slice(0, 160)}`);
-    r = await api.delete(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}`);
+    r = await api.delete(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}`);
     log(`[ban-paid] restore status=${r.status()} body=${(await r.text()).slice(0, 130)}`);
-    r = await api.get(`${API}/api/nibshare/dR21SdTL/access?wallet=${BUYER}`);
+    r = await api.get(`${API}/nibshare/dR21SdTL/access?wallet=${BUYER}`);
     log(`[ban-paid] after-restore access status=${r.status()} body=${(await r.text()).slice(0, 160)}`);
     await browser.close();
   }
@@ -99,7 +99,7 @@ async function uploadFile(page, path) {
     if (await page.getByRole('button', { name: /sign with wallet/i }).count()) await page.getByRole('button', { name: /sign with wallet/i }).click().catch(() => {});
     await page.waitForTimeout(2500);
     const api = context.request;
-    const res = await api.post(`${API}/api/nibshare`, { data: {
+    const res = await api.post(`${API}/nibshare`, { data: {
       title: 'E2E Matrix Expiring', summary: 'expires shortly', contentType: 'article',
       content: 'body', price: '3', status: 'active',
       expiresAt: new Date(Date.now() + 6000).toISOString(),
@@ -110,7 +110,7 @@ async function uploadFile(page, path) {
     log(`[expired] create status=${res.status()} slug=${slug} expiresAt ok=${!j.error}`);
     if (slug) {
       await page.waitForTimeout(10000);
-      const acc = await api.get(`${API}/api/nibshare/${slug}/access?wallet=${BUYER}`);
+      const acc = await api.get(`${API}/nibshare/${slug}/access?wallet=${BUYER}`);
       log(`[expired] access-after-wait status=${acc.status()} body=${(await acc.text()).slice(0, 180)}`);
       await goto(page, `https://nibgate.xyz/ns/${slug}?wallet=${BUYER}`);
       const b = await bodyText(page);
@@ -124,8 +124,8 @@ async function uploadFile(page, path) {
   {
     const { browser, page, context } = await launch(SEL_PK);
     page.on('console', (m) => { const t = m.text(); if (/error|fail|401|403/i.test(t) && t.length < 300) log(`[draft:console] ${m.type()} ${t.slice(0, 240)}`); });
-    page.on('request', (r) => { if (r.url().includes('/api/nibshare')) log(`[draft:req] ${r.method()} ${r.url().slice(0, 120)}`); });
-    page.on('response', (r) => { if (r.url().includes('/api/nibshare')) r.text().then((t) => log(`[draft:resp] ${r.status()} ${r.url().slice(0, 100)} ${t.slice(0, 140)}`)).catch(() => {}); });
+    page.on('request', (r) => { if (r.url().includes('/nibshare')) log(`[draft:req] ${r.method()} ${r.url().slice(0, 120)}`); });
+    page.on('response', (r) => { if (r.url().includes('/nibshare')) r.text().then((t) => log(`[draft:resp] ${r.status()} ${r.url().slice(0, 100)} ${t.slice(0, 140)}`)).catch(() => {}); });
     await goto(page, 'https://nibgate.xyz/share');
     if (await page.getByRole('button', { name: /sign with wallet/i }).count()) await page.getByRole('button', { name: /sign with wallet/i }).click().catch(() => {});
     await page.waitForTimeout(2500);

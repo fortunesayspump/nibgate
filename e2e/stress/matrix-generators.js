@@ -106,7 +106,7 @@ function gateBannedMatrix({ group = 'types-gate' } = {}) {
         const expects = [];
         // Ban via API (reader path has no ban UI); seller session from SEL_PK
         await connectWallet(page, /0x7099/i);
-        const banR = await context.request.post(`https://api.nibgate.xyz/api/nibshare/${slug}/entitlements/${bannedWallet}/ban`, { data: {} });
+        const banR = await context.request.post(`https://api.nibgate.xyz/nibshare/${slug}/entitlements/${bannedWallet}/ban`, { data: {} });
         const banOk = banR.ok || (await banR.json().catch(() => ({}))).ok;
         expects.push([banOk, `ban API accepted: ${banR.status()}`]);
         // Reader gate with banned wallet as query param (anon view picks it up)
@@ -116,7 +116,7 @@ function gateBannedMatrix({ group = 'types-gate' } = {}) {
         expects.push([/banned/i.test(b), `banned copy shown: ${/banned/i.test(b)}`]);
         expects.push([!/Enjoy/i.test(b), 'no content leak']);
         // unban to keep matrix reusable
-        await context.request.delete(`https://api.nibgate.xyz/api/nibshare/${slug}/entitlements/${bannedWallet}`).catch(() => {});
+        await context.request.delete(`https://api.nibgate.xyz/nibshare/${slug}/entitlements/${bannedWallet}`).catch(() => {});
         await page2.close().catch(() => {});
         return expects;
       }

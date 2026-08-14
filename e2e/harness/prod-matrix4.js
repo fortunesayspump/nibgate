@@ -76,13 +76,13 @@ async function sellerConnect(page) {
     const { browser, page, context } = await launch(SEL_PK);
     await sellerConnect(page);
     const api = context.request;
-    let r = await api.post(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
+    let r = await api.post(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
     log(`[ban-paid] ban=${r.status()} ${(await r.text()).slice(0, 140)}`);
-    r = await api.get(`${API}/api/nibshare/dR21SdTL/access?wallet=${BUYER}`);
+    r = await api.get(`${API}/nibshare/dR21SdTL/access?wallet=${BUYER}`);
     log(`[ban-paid] buyer access (banned) = ${r.status()} ${(await r.text()).slice(0, 180)}`);
-    r = await api.delete(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}`);
+    r = await api.delete(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}`);
     log(`[ban-paid] restore=${r.status()} ${(await r.text()).slice(0, 140)}`);
-    r = await api.get(`${API}/api/nibshare/dR21SdTL/access?wallet=${BUYER}`);
+    r = await api.get(`${API}/nibshare/dR21SdTL/access?wallet=${BUYER}`);
     log(`[ban-paid] buyer access (restored) = ${r.status()} ${(await r.text()).slice(0, 180)}`);
     await browser.close();
   }
@@ -94,7 +94,7 @@ async function sellerConnect(page) {
     const { browser, page, context } = await launch(SEL_PK);
     await sellerConnect(page);
     const api = context.request;
-    const res = await api.post(`${API}/api/nibshare`, { data: {
+    const res = await api.post(`${API}/nibshare`, { data: {
       title: 'E2E Matrix Expiring', summary: 'expires shortly', contentType: 'article',
       content: 'body for expiring test', price: '3', status: 'active',
       expiresAt: new Date(Date.now() + 6000).toISOString(),
@@ -105,7 +105,7 @@ async function sellerConnect(page) {
     log(`[expired] create=${res.status()} slug=${slug} err=${j.error || 'none'}`);
     if (slug) {
       await page.waitForTimeout(11000);
-      const acc = await api.get(`${API}/api/nibshare/${slug}/access?wallet=${BUYER}`);
+      const acc = await api.get(`${API}/nibshare/${slug}/access?wallet=${BUYER}`);
       log(`[expired] access-after-expiry=${acc.status()} ${(await acc.text()).slice(0, 220)}`);
       await goto(page, `https://nibgate.xyz/ns/${slug}?wallet=${BUYER}`);
       const b = await bodyText(page);
@@ -120,7 +120,7 @@ async function sellerConnect(page) {
   {
     const { browser, page, context } = await launch(SEL_PK);
     page.on('response', async (r) => {
-      if (r.url().includes('/api/nibshare') && r.request().method() === 'POST') {
+      if (r.url().includes('/nibshare') && r.request().method() === 'POST') {
         const t = await r.text().catch(() => '');
         log(`[draft] POST ${r.url().slice(0, 90)} -> ${r.status()} ${t.slice(0, 200)}`);
       }

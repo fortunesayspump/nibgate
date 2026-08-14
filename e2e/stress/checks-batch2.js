@@ -122,7 +122,7 @@ const checks = [
       const b = await h.bodyText(page);
       expects.push([true, `draft save landed on mine — default Posts tab (draft not listed): ${!/draft saved/i.test(b)}`]);
       // verify via API
-      const r = await context.request.get('https://api.nibgate.xyz/api/nibshare/mine');
+      const r = await context.request.get('https://api.nibgate.xyz/nibshare/mine');
       const j = await r.json().catch(() => ({}));
       const found = (j.shares || []).some((s) => s.title === TITLE + ' Draft');
       expects.push([found, `draft reachable via /mine: ${found}`]);

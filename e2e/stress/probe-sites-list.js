@@ -9,13 +9,13 @@ const { chromium } = require('playwright');
   await page.goto('https://nibgate.xyz/share', { waitUntil: 'commit' });
   await page.waitForTimeout(2000);
   await connectSellerFlow(page, { label: 's', log: () => {} });
-  const r = await ctx.request.get('https://api.nibgate.xyz/api/hub/sites');
+  const r = await ctx.request.get('https://api.nibgate.xyz/hub/sites');
   const j = await r.json().catch(() => ({}));
   console.log('sites:', JSON.stringify(j));
   const junk = (j.websites || []).filter((w) => /not_a_domain|E2E|stress|probe|Lifecycle|!!!/i.test((w.name || '') + ' ' + (w.domain || '')));
   console.log('junk sites:', JSON.stringify(junk));
   for (const w of junk) {
-    const d = await ctx.request.delete('https://api.nibgate.xyz/api/hub/sites/' + w.id);
+    const d = await ctx.request.delete('https://api.nibgate.xyz/hub/sites/' + w.id);
     console.log('deleted', w.id, d.status());
   }
   await browser.close();

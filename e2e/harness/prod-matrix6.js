@@ -42,7 +42,7 @@ async function sellerConnect(page) {
     const { browser, page, context } = await launch(SEL_PK);
     await sellerConnect(page);
     const api = context.request;
-    const r = await api.get(`${API}/api/nibshare/mine`);
+    const r = await api.get(`${API}/nibshare/mine`);
     const j = await r.json().catch(() => ({}));
     const shares = Array.isArray(j.shares) ? j.shares : [];
     const drafts = shares.filter((s) => /E2E Matrix Draft/.test(s.title || ''));
@@ -57,13 +57,13 @@ async function sellerConnect(page) {
     const { browser, page, context } = await launch(SEL_PK);
     const api = context.request;
     await sellerConnect(page);
-    const b = await api.post(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
+    const b = await api.post(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
     log(`[ban] ${b.status()} ${(await b.text()).slice(0, 120)}`);
-    const q = await api.get(`${API}/api/nibshare/dR21SdTL/quote?wallet=${BUYER}`);
+    const q = await api.get(`${API}/nibshare/dR21SdTL/quote?wallet=${BUYER}`);
     log(`quote=${q.status()} ${(await q.text()).slice(0, 220)}`);
-    const a = await api.get(`${API}/api/nibshare/dR21SdTL/access?wallet=${BUYER}`);
+    const a = await api.get(`${API}/nibshare/dR21SdTL/access?wallet=${BUYER}`);
     log(`access=${a.status()} ${(await a.text()).slice(0, 200)}`);
-    await api.delete(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}`);
+    await api.delete(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}`);
     log(`restored`);
     await browser.close();
   }

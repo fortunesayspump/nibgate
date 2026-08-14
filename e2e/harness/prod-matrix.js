@@ -153,7 +153,7 @@ async function uploadFile(page, path, pickerText) {
   // =====================================================================
   block('EXPIRED SHARE', ['API-create with past expiresAt → buyer page + access API']);
   await ctx(async () => {
-    const res = await h.context.request.post(`${API}/api/nibshare`, { data: {
+    const res = await h.context.request.post(`${API}/nibshare`, { data: {
       title: 'E2E Matrix Expired', summary: 'already expired', contentType: 'article',
       content: 'should never be seen', price: '5', status: 'active',
       expiresAt: new Date(Date.now() - 3600e3).toISOString(),
@@ -167,7 +167,7 @@ async function uploadFile(page, path, pickerText) {
     const b = await bodyText(h.page);
     log(`[expired] buyer page head=${b.slice(0, 220)}`);
     log(`[expired] 'expired' copy=${b.toLowerCase().includes('expired')}`);
-    const acc = await h.context.request.get(`${API}/api/nibshare/${slug}/access?wallet=${BUYER}`);
+    const acc = await h.context.request.get(`${API}/nibshare/${slug}/access?wallet=${BUYER}`);
     log(`[expired] access api status=${acc.status()} body=${(await acc.text()).slice(0, 160)}`);
   }, 'expired');
 
@@ -175,23 +175,23 @@ async function uploadFile(page, path, pickerText) {
   block('BAN / RESTORE (free post)', []);
   await ctx(async () => {
     const slug = '4xtUB8ZP';
-    const ban = await h.context.request.post(`${API}/api/nibshare/${slug}/entitlements/${BUYER}/ban`);
+    const ban = await h.context.request.post(`${API}/nibshare/${slug}/entitlements/${BUYER}/ban`);
     log(`[ban] ban status=${ban.status()} body=${(await ban.text()).slice(0, 140)}`);
     await goto(h.page, `https://nibgate.xyz/ns/${slug}?wallet=${BUYER}`);
     const bb = await bodyText(h.page);
     log(`[ban] buyer free-post body=${bb.slice(0, 200)}`);
-    const accb = await h.context.request.get(`${API}/api/nibshare/${slug}/access?wallet=${BUYER}`);
+    const accb = await h.context.request.get(`${API}/nibshare/${slug}/access?wallet=${BUYER}`);
     log(`[ban] access status=${accb.status()} body=${(await accb.text()).slice(0, 160)}`);
-    const rest = await h.context.request.delete(`${API}/api/nibshare/${slug}/entitlements/${BUYER}`);
+    const rest = await h.context.request.delete(`${API}/nibshare/${slug}/entitlements/${BUYER}`);
     log(`[ban] restore status=${rest.status()} body=${(await rest.text()).slice(0, 120)}`);
-    const accc = await h.context.request.get(`${API}/api/nibshare/${slug}/access?wallet=${BUYER}`);
+    const accc = await h.context.request.get(`${API}/nibshare/${slug}/access?wallet=${BUYER}`);
     log(`[ban] restored access status=${accc.status()} body=${(await accc.text()).slice(0, 140)}`);
   }, 'ban');
 
   // =====================================================================
   block('CUSTOM WHITELIST TIER (public 12 / whitelisted 2)', []);
   await ctx(async () => {
-    const res = await h.context.request.post(`${API}/api/nibshare`, { data: {
+    const res = await h.context.request.post(`${API}/nibshare`, { data: {
       title: 'E2E Matrix Custom Tier', summary: 'custom tier demo', contentType: 'article',
       content: 'custom tier body', price: '12', status: 'active', expiresAt: null,
       whitelist: [BUYER], whitelistPrice: '2', publicAccess: true,
@@ -200,9 +200,9 @@ async function uploadFile(page, path, pickerText) {
     const slug = j.slug || '';
     log(`[custom] create status=${res.status()} slug=${slug} raw=${JSON.stringify(j).slice(0, 180)}`);
     if (slug) savePost({ title: 'E2E Matrix Custom Tier', slug, access: 'whitelist', price: 12, whitelistPrice: 2, published: true });
-    const qWl = await h.context.request.get(`${API}/api/nibshare/${slug}/quote?wallet=${BUYER}`);
+    const qWl = await h.context.request.get(`${API}/nibshare/${slug}/quote?wallet=${BUYER}`);
     log(`[custom] whitelisted quote=${(await qWl.text()).slice(0, 240)}`);
-    const qPub = await h.context.request.get(`${API}/api/nibshare/${slug}/quote?wallet=0x0000000000000000000000000000000000000000`);
+    const qPub = await h.context.request.get(`${API}/nibshare/${slug}/quote?wallet=0x0000000000000000000000000000000000000000`);
     log(`[custom] stranger quote=${(await qPub.text()).slice(0, 240)}`);
     await goto(h.page, `https://nibgate.xyz/ns/${slug}?wallet=${BUYER}`);
     const pg = await bodyText(h.page);
@@ -214,17 +214,17 @@ async function uploadFile(page, path, pickerText) {
   block('CONNECTIVITY / FAILURE SIMULATION', ['abort quote | 500 access | abort gateway | abort publish']);
   await ctx(async () => {
     await goto(h.page, `https://nibgate.xyz/ns/dR21SdTL?wallet=${BUYER}`);
-    await h.page.route('**/api/nibshare/*/quote*', (r) => r.abort('connectionrefused'));
+    await h.page.route('**/nibshare/*/quote*', (r) => r.abort('connectionrefused'));
     await h.page.reload({ waitUntil: 'commit' });
     await h.page.waitForTimeout(3500);
     log(`[net] quote-aborted gate body=${(await bodyText(h.page)).slice(0, 260)}`);
-    await h.page.unroute('**/api/nibshare/*/quote*');
+    await h.page.unroute('**/nibshare/*/quote*');
 
-    await h.page.route('**/api/nibshare/*/access*', (r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{"ok":false,"error":"simulated outage"}' }));
+    await h.page.route('**/nibshare/*/access*', (r) => r.fulfill({ status: 500, contentType: 'application/json', body: '{"ok":false,"error":"simulated outage"}' }));
     await h.page.reload({ waitUntil: 'commit' });
     await h.page.waitForTimeout(3500);
     log(`[net] access-500 body=${(await bodyText(h.page)).slice(0, 260)}`);
-    await h.page.unroute('**/api/nibshare/*/access*');
+    await h.page.unroute('**/nibshare/*/access*');
 
     await h.page.route('**gateway-api-testnet.circle.com/**', (r) => r.abort('connectionrefused'));
     await h.page.reload({ waitUntil: 'commit' });
@@ -236,14 +236,14 @@ async function uploadFile(page, path, pickerText) {
   await ctx(async () => {
     await goto(h.page, 'https://nibgate.xyz/share');
     await install({ page: h.page, pk: SEL_PK });
-    await h.page.route('**/api/nibshare', (r) => r.abort('connectionrefused'));
+    await h.page.route('**/nibshare', (r) => r.abort('connectionrefused'));
     const ti = h.page.getByPlaceholder(/Post title/).first();
     if (await ti.count()) await ti.fill('E2E Net Fail');
     await h.page.getByRole('button', { name: /publish/i }).click().catch(() => {});
     await h.page.waitForTimeout(4000);
     const pf = await bodyText(h.page);
     log(`[net] publish-aborted errorBanner=${pf.includes('Failed') || /error|unable|retry/i.test(pf)} body=${pf.slice(0, 240)}`);
-    await h.page.unroute('**/api/nibshare');
+    await h.page.unroute('**/nibshare');
   }, 'net publish');
 
   log(`done. log=${LOG}`);

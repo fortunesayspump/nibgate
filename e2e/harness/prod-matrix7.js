@@ -32,7 +32,7 @@ async function sellerConnect(page) {
     const { browser, page, context } = await launch(SEL_PK);
     await sellerConnect(page);
     const api = context.request;
-    const r = await api.post(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
+    const r = await api.post(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}/ban`);
     log(`[ban] ${r.status()} ${(await r.text()).slice(0, 120)}`);
     await browser.close();
   })();
@@ -57,7 +57,7 @@ async function sellerConnect(page) {
   const rstr = await (async () => {
     const { browser, page, context } = await launch(SEL_PK);
     await sellerConnect(page);
-    const r = await context.request.delete(`${API}/api/nibshare/dR21SdTL/entitlements/${BUYER}`);
+    const r = await context.request.delete(`${API}/nibshare/dR21SdTL/entitlements/${BUYER}`);
     log(`[restore] ${r.status()} ${(await r.text()).slice(0, 120)}`);
     await browser.close();
   })();

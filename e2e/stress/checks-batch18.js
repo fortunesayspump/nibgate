@@ -157,18 +157,18 @@ const checks = [
       // Whitelist state: buyer present before revoke. (Do API calls with the
       // seller cookie active, before any buyer wallet connect.)
       const api = context.request;
-      const acBefore = await api.get(`https://api.nibgate.xyz/api/nibshare/${r.slug}/access-control`).then((x) => x.ok ? x.json() : null).catch(() => null);
+      const acBefore = await api.get(`https://api.nibgate.xyz/nibshare/${r.slug}/access-control`).then((x) => x.ok ? x.json() : null).catch(() => null);
       expects.push([Array.isArray(acBefore?.whitelist) && acBefore.whitelist.includes(BUY.toLowerCase()), `buyer whitelisted before revoke (${(acBefore?.whitelist || []).includes(BUY.toLowerCase())})`]);
       // Owner bans buyer — strips the wallet from whitelist[] and marks the
       // entitlement banned (the real "revoke access" path for whitelisted wallets).
-      const rev = await api.post(`https://api.nibgate.xyz/api/nibshare/${r.slug}/entitlements/${BUY}/ban`).then((x) => x.status()).catch(() => 0);
+      const rev = await api.post(`https://api.nibgate.xyz/nibshare/${r.slug}/entitlements/${BUY}/ban`).then((x) => x.status()).catch(() => 0);
       expects.push([rev === 200, `ban API accepted: ${rev}`]);
       // Buyer removed from whitelist after ban.
-      const acAfter = await api.get(`https://api.nibgate.xyz/api/nibshare/${r.slug}/access-control`).then((x) => x.ok ? x.json() : null).catch(() => null);
+      const acAfter = await api.get(`https://api.nibgate.xyz/nibshare/${r.slug}/access-control`).then((x) => x.ok ? x.json() : null).catch(() => null);
       expects.push([Array.isArray(acAfter?.whitelist) && !acAfter.whitelist.includes(BUY.toLowerCase()), `buyer removed after ban (${(acAfter?.whitelist || []).length} left)`]);
       // Unban + restore whitelist so the share stays accessible for manual checks.
-      await api.delete(`https://api.nibgate.xyz/api/nibshare/${r.slug}/entitlements/${BUY}`).catch(() => {});
-      const add = await api.put(`https://api.nibgate.xyz/api/nibshare/${r.slug}/access-control`, { data: { whitelist: [BUY], wlTier: 'free', publicAccess: true } }).then((x) => x.status()).catch(() => 0);
+      await api.delete(`https://api.nibgate.xyz/nibshare/${r.slug}/entitlements/${BUY}`).catch(() => {});
+      const add = await api.put(`https://api.nibgate.xyz/nibshare/${r.slug}/access-control`, { data: { whitelist: [BUY], wlTier: 'free', publicAccess: true } }).then((x) => x.status()).catch(() => 0);
       expects.push([add === 200, `restore buyer: ${add}`]);
       // Buyer gate last — connects the BUY wallet (may flip session cookie).
       const buyB = await buyerGate(h, ctx, r.slug);

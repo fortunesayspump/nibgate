@@ -1,13 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { FiX, FiPlus, FiUsers, FiDownload, FiUpload, FiTrash2, FiFileText } from "react-icons/fi";
+import { useMemo, useRef, useState } from "react";
+import { FiX, FiPlus, FiUsers, FiDownload, FiUpload, FiTrash2, FiFileText, FiSearch, FiCheck } from "react-icons/fi";
 import * as XLSX from "xlsx";
 import { shortAddress } from "../lib/shares";
 
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
 
 type StatusOfMap = Record<string, "active" | "revoked" | "banned">;
+
+type ParsedImport = {
+  wallets: string[];
+  invalid: string[];
+  skippedPrice: boolean;
+};
+
+// Number of chips rendered before the list collapses into a scroll area (and a
+// search box appears) so a multi-thousand wallet whitelist never blows the page
+// layout or the DOM.
+const CHIP_SCROLL_THRESHOLD = 60;
 
 function splitAddresses(input: string): string[] {
   return [...new Set(input.split(/[\s,;]+/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
@@ -60,7 +71,7 @@ function isPriceHeader(cells: string[]): boolean {
 // Header-aware CSV import: finds the `address`/`wallet` column by header name,
 // falls back to the first column when no header row is present. Reports any
 // price/tier column that the single-tier model ignores.
-function parseCsv(text: string): { wallets: string[]; invalid: string[]; skippedPrice: boolean } {
+function parseCsv(text: string): ParsedImport {
   const invalid: string[] = [];
   const seen = new Set<string>();
   const wallets: string[] = [];
@@ -101,7 +112,7 @@ function parseCsv(text: string): { wallets: string[]; invalid: string[]; skipped
 // path: finds the `address`/`wallet` column by header name and pulls addresses
 // only from that column — no blind whole-sheet scan that could grab a price
 // cell or a hex-ish string from an unrelated column.
-function parseExcel(data: Uint8Array): { wallets: string[]; invalid: string[]; skippedPrice: boolean } {
+function parseExcel(data: Uint8Array): ParsedImport {
   const invalid: string[] = [];
   const seen = new Set<string>();
   const wallets: string[] = [];
@@ -141,11 +152,17 @@ function parseExcel(data: Uint8Array): { wallets: string[]; invalid: string[]; s
   return { wallets, invalid, skippedPrice };
 }
 
-const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: "", color: "#7c9a6d", bg: "#7c9a6d" },
-  revoked: { label: "revoked", color: "#b45309", bg: "#7c9a6d" },
-  banned: { label: "banned", color: "#c44", bg: "#7c9a6d" },
-};
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export function WalletListEditor({ value, onChange, disabled = false, compact = false, statusOf }: {
   value: string[];
@@ -158,10 +175,14 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [importing, setImporting] = useState(false);
+  const [query, setQuery] = useState("");
+  // Staged import: parsed wallets are held here and only committed to `value`
+  // when the user confirms — an import preview before any server write.
+  const [pending, setPending] = useState<ParsedImport | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function commit(raw: string) {
+  const commit = (raw: string) => {
     const rawList = splitAddresses(raw);
     if (rawList.length === 0) {
       setError("Paste a 0x wallet address");
@@ -183,7 +204,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     setError("");
     setNotice("");
     return true;
-  }
+  };
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") {
@@ -197,6 +218,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     setImporting(true);
     setError("");
     setNotice("");
+    setPending(null);
     const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const reader = new FileReader();
     reader.onload = () => {
@@ -204,21 +226,12 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
         const parsed = isExcel
           ? parseExcel(new Uint8Array(reader.result as ArrayBuffer))
           : parseCsv(String(reader.result || ""));
-        const { wallets, invalid, skippedPrice } = parsed;
-        if (wallets.length === 0 && invalid.length === 0) {
+        if (parsed.wallets.length === 0 && parsed.invalid.length === 0) {
           setError("No wallet addresses found in that file.");
           return;
         }
-        const existing = new Set(value);
-        const fresh = wallets.filter((w) => !existing.has(w));
-        const duplicates = wallets.length - fresh.length;
-        if (fresh.length > 0) onChange([...value, ...fresh]);
-        const parts: string[] = [];
-        if (fresh.length > 0) parts.push(`Added ${fresh.length} wallet${fresh.length !== 1 ? "s" : ""}`);
-        if (duplicates > 0) parts.push(`${duplicates} already in the list`);
-        if (invalid.length > 0) parts.push(`skipped ${invalid.length} invalid row${invalid.length !== 1 ? "s" : ""} (${invalid.slice(0, 3).join(", ")}${invalid.length > 3 ? "…" : ""})`);
-        if (skippedPrice) parts.push("price column ignored — one whitelist tier applies to all");
-        setNotice(parts.join(" · "));
+        // Stage the parse for preview; nothing is written until Confirm.
+        setPending(parsed);
       } catch {
         setError("Could not read that file. Use a .csv, .txt, .xlsx, or .xls file.");
       } finally {
@@ -238,37 +251,42 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     }
   }
 
+  function confirmImport() {
+    if (!pending) return;
+    const { wallets, invalid, skippedPrice } = pending;
+    const existing = new Set(value);
+    const fresh = wallets.filter((w) => !existing.has(w));
+    const duplicates = wallets.length - fresh.length;
+    if (fresh.length === 0) {
+      setError("All of those wallets are already in the list.");
+      setPending(null);
+      return;
+    }
+    onChange([...value, ...fresh]);
+    const parts: string[] = [];
+    parts.push(`Added ${fresh.length} wallet${fresh.length !== 1 ? "s" : ""}`);
+    if (duplicates > 0) parts.push(`${duplicates} already in the list`);
+    if (invalid.length > 0) parts.push(`skipped ${invalid.length} invalid row${invalid.length !== 1 ? "s" : ""} (${invalid.slice(0, 3).join(", ")}${invalid.length > 3 ? "…" : ""})`);
+    if (skippedPrice) parts.push("price column ignored — one whitelist tier applies to all");
+    setNotice(parts.join(" · "));
+    setPending(null);
+    setError("");
+  }
+
   function handleExport() {
-    const csv = value.join("\n");
-    const blob = new Blob([csv + (csv ? "\n" : "")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "whitelist.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Include the `address` header so the export round-trips cleanly and reads
+    // as a spreadsheet column, matching the template format.
+    const rows = value.map((w) => `${w},`).join("\n");
+    downloadText("whitelist.csv", `address\n${rows}`);
   }
 
   // Download a sample file showing the expected import format. Uses the same
   // `address` header convention as allowlist tools so users can fill it in.
   function handleTemplate() {
-    const sample = [
-      "address",
-      "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-      "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-      "",
-    ].join("\n");
-    const blob = new Blob([sample], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "whitelist-template.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadText(
+      "whitelist-template.csv",
+      "address\n0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC\n0x90F79bf6EB2c4f870365E785982E1f101E93b906\n"
+    );
   }
 
   function handleClearAll() {
@@ -312,13 +330,101 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     );
   };
 
+  // Filtered chip list for search. When a query is active only matches render;
+  // the count line keeps the total visible.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return value;
+    return value.filter((w) => w.includes(q) || shortAddress(w).includes(q));
+  }, [value, query]);
+
+  const showSearch = value.length > CHIP_SCROLL_THRESHOLD || query.trim() !== "";
+
   return (
     <div className="space-y-1.5">
       {value.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {value.map(chip)}
+        <div className="space-y-1">
+          {showSearch && (
+            <div className="relative">
+              <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2" size={11} style={{ color: "var(--muted)" }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Search ${value.length} wallet${value.length !== 1 ? "s" : ""}…`}
+                spellCheck={false}
+                disabled={disabled}
+                className="w-full text-xs px-2.5 py-1.5 rounded-md border pl-8"
+                style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--fg)" }}
+              />
+            </div>
+          )}
+          <div
+            className="flex flex-wrap gap-1.5"
+            style={value.length > CHIP_SCROLL_THRESHOLD && !query.trim() ? { maxHeight: 150, overflowY: "auto" } : undefined}
+          >
+            {filtered.map(chip)}
+          </div>
+          {value.length > CHIP_SCROLL_THRESHOLD && (
+            <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+              {query.trim()
+                ? `${filtered.length} of ${value.length} match`
+                : `${value.length} wallets — use search to narrow`}
+            </p>
+          )}
         </div>
       )}
+
+      {pending && (
+        <div
+          className="rounded-md border p-2 space-y-1.5"
+          style={{ borderColor: "var(--accent)", background: "var(--accent-soft)" }}
+        >
+          <p className="text-[11px] font-semibold" style={{ color: "var(--accent)" }}>
+            Import preview — {pending.wallets.length} wallet{pending.wallets.length !== 1 ? "s" : ""} ready to add
+          </p>
+          <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+            {pending.wallets.slice(0, 12).map((w) => (
+              <span key={w} className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "#ffffff88" }}>
+                {shortAddress(w)}
+              </span>
+            ))}
+            {pending.wallets.length > 12 && (
+              <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                +{pending.wallets.length - 12} more
+              </span>
+            )}
+          </div>
+          {pending.skippedPrice && (
+            <p className="text-[10px]" style={{ color: "#b45309" }}>Price column ignored — one whitelist tier applies to all.</p>
+          )}
+          {pending.invalid.length > 0 && (
+            <p className="text-[10px]" style={{ color: "#c44" }}>
+              Skipping {pending.invalid.length} invalid row{pending.invalid.length !== 1 ? "s" : ""}: {pending.invalid.slice(0, 3).join(", ")}{pending.invalid.length > 3 ? "…" : ""}
+            </p>
+          )}
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={confirmImport}
+              disabled={disabled}
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-semibold cursor-pointer shrink-0"
+              style={{ border: "1px solid var(--accent)", background: "var(--accent)", color: "#fff" }}
+            >
+              <FiCheck size={11} /> Add to whitelist
+            </button>
+            <button
+              type="button"
+              onClick={() => setPending(null)}
+              disabled={disabled}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer shrink-0"
+              style={{ border: "1px solid var(--border)", background: "transparent", color: "var(--fg)" }}
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-1.5">
         <div className="relative flex-1 min-w-0">
           <FiUsers className="absolute left-2.5 top-1/2 -translate-y-1/2" size={12} style={{ color: "var(--muted)" }} />

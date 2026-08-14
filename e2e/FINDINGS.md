@@ -427,7 +427,18 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
       re-asserted by later access-policy saves. The UI mirrors the removal
       locally (`handleBan` in `SettingsSheet.tsx`) so the banned chip disappears
       from the whitelist list immediately, without a reload.
-    - Export downloads the current whitelist as `whitelist.csv`.
+    - Export downloads the current whitelist as `whitelist.csv` (with the
+      `address` header row so it round-trips back through the importer).
+    - **Import preview** — uploaded files stage into a preview panel
+      (first 12 short addresses + "+N more") with **Add to whitelist / Discard**
+      so nothing is committed until the creator confirms; invalid rows are
+      counted, not silently dropped.
+    - **Search/filter** within large lists (`FiSearch` box; chip list becomes
+      scrollable past 60 entries, with an "N of M match" count).
+    - **Batched saves** — whitelists over 200 rows are committed in cumulative
+      chunks (`CHUNK=200` in `SettingsSheet.patchAccess`) with a "Saving N%…"
+      indicator; chunking is skipped when the share has active paid entitlements
+      or is invite-only-with-charging, to avoid a mid-batch paid-cutoff revoke.
 
 ## Payment reality-check (production, Arc Testnet)
 
@@ -496,5 +507,15 @@ error banner — no retry affordance anywhere (see #14).
   work toward ~500: subblog content-type gates × viewer states, dashboard
   analytics/earnings with a real session, more API endpoints, mobile-deep,
   x402/agent matrix.
+
+- **Batch18 setting-combos now verified live** (`checks-batch18.js`): creates a
+  fresh share per setting combination through the real ShareForm (free, paid $5,
+  paid + whitelist-free, paid + whitelist-$2-discount, invite-only), prints each
+  share URL to the run log, and asserts the reader gate for BOTH anon and a
+  whitelisted buyer on separate wallet-installed pages. The lifecycle check
+  exercises whitelist → ban (`POST …/entitlements/:wallet/ban`) → buyer stripped
+  from `whitelist[]` → unban+restore. All 6 checks green; WARN mark only for the
+  known 403/400 console noise (#39). Also confirms `revoke` (entitlement-only)
+  does NOT remove whitelist membership — ban is the correct strip path.
 
 See `logs/*.log` for the raw evidence behind each claim.

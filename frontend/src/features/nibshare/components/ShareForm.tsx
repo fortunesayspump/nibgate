@@ -69,6 +69,10 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
   const [expiryQuick, setExpiryQuick] = useState<number | null>(168);
   const [customExpiry, setCustomExpiry] = useState("");
   const [previewAs, setPreviewAs] = useState<"public" | "whitelisted">("public");
+  // While the user is typing a price we must NOT reinterpret an empty value as
+  // "free" and yank the mode back — only revert to free when they blur an empty
+  // price input.
+  const [priceFocused, setPriceFocused] = useState(false);
 
   const invitationEnabled = form.inviteOnly || form.whitelist.length > 0 || form.whitelistPrice.trim() !== "";
 
@@ -109,6 +113,9 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
   }
 
   const isPaid = !!form.price && form.price !== "0";
+  // Pay mode stays "paid" while the price input is focused so clearing the
+  // field to type a new first digit doesn't snap back to Free mid-typing.
+  const showPaid = isPaid || priceFocused;
   function canPublish(): { ok: boolean; reason?: string } {
     if (!form.title) return { ok: false, reason: "Title is required" };
     if (form.type === "article") {
@@ -444,7 +451,7 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
         <div className="flex items-center gap-1.5">
           <FiDollarSign size={12} style={{ color: "var(--muted)" }} />
           <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: "var(--muted)" }}>
-            {isPaid ? (invitationEnabled ? "Price & access" : "Price") : invitationEnabled ? "Access" : "Price & access"}
+            {showPaid ? (invitationEnabled ? "Price & access" : "Price") : invitationEnabled ? "Access" : "Price & access"}
           </span>
         </div>
 
@@ -454,14 +461,14 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
               { key: "free" as const, title: "Free", desc: "Anyone with the link can read it. No payment." },
               { key: "paid" as const, title: "Pay to unlock", desc: "Visitors pay a one-time USDC price to see it." },
             ].map((opt) => {
-              const active = opt.key === "paid" ? isPaid : !isPaid;
+              const active = opt.key === "paid" ? showPaid : !showPaid;
               return (
                 <button
                   key={opt.key}
                   type="button"
                   onClick={() => {
-                    if (opt.key === "paid" && !isPaid) update("price", form.price || "1");
-                    if (opt.key === "free" && isPaid) update("price", "");
+                    if (opt.key === "paid" && !showPaid) update("price", form.price || "1");
+                    if (opt.key === "free" && showPaid) { update("price", ""); setPriceFocused(false); }
                   }}
                   className="rounded-lg border p-3 text-left cursor-pointer transition-colors"
                   style={active
@@ -479,11 +486,13 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
           </div>
         </div>
 
-        {isPaid && (
+        {showPaid && (
           <div className="space-y-2 rounded-lg border p-2.5" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <input
                 type="text" inputMode="decimal" value={form.price} onChange={(e) => update("price", e.target.value)}
+                onFocus={() => setPriceFocused(true)}
+                onBlur={() => { setPriceFocused(false); if (!form.price) update("price", ""); }}
                 className="input-field flex-1" placeholder="e.g. 1" aria-label="Price in USDC"
               />
               <span className="text-xs font-semibold shrink-0" style={{ color: "var(--muted)" }}>USDC</span>

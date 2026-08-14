@@ -82,7 +82,7 @@ export default function ActivityBell({ activity }: { activity: ShareActivity[] }
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border shadow-xl z-50 overflow-hidden nibshare-root" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+        <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border shadow-xl z-50 overflow-hidden nibshare-root" style={{ borderColor: "var(--border)", background: "var(--bg)", maxWidth: "min(20rem, calc(100vw - 16px))" }}>
           <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "var(--border)" }}>
             <span className="text-xs font-semibold">Recent activity</span>
             <button onClick={() => setOpen(false)} className="inline-flex items-center justify-center w-5 h-5 rounded" style={{ color: "var(--muted)" }} title="Close">

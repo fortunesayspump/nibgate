@@ -244,6 +244,19 @@ body:has(.nibshare-root) ::selection {
   resize: vertical;
 }
 
+/* iOS Safari zooms into inputs smaller than 16px on focus. Bump input font
+   sizes on touch screens so focusing a field doesn't pinch-zoom the page. */
+@media (pointer: coarse), (max-width: 767px) {
+  .nibshare-root .input-field,
+  .nibshare-root input[type="text"],
+  .nibshare-root input[type="email"],
+  .nibshare-root input[type="number"],
+  .nibshare-root textarea,
+  .nibshare-root select {
+    font-size: 16px;
+  }
+}
+
 .nibshare-root hr {
   width: 100%;
   border: 0;

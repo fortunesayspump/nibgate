@@ -49,6 +49,7 @@ export function createGateway(config, store) {
   }
 
   function createPaymentChallengeForRoute(route, mode = 'human') {
+    const recipient = route.recipientWallet || paymentProvider.sellerAddress || config.site.creatorWallet;
     const resource = {
       id: route.id,
       title: route.title,
@@ -57,7 +58,7 @@ export function createGateway(config, store) {
       currency: route.currency,
       path: route.path,
       url: `${config.site.origin}${route.path}`,
-      recipient: paymentProvider.sellerAddress || config.site.creatorWallet,
+      recipient,
     };
 
     const challenge = createPaymentChallenge(resource, {

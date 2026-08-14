@@ -34,6 +34,9 @@ export function createGateway(config, store) {
 
   function createPaymentChallenge(route, mode = 'human') {
     const amount = mode === 'agent' && route.agentPrice ? route.agentPrice : route.price;
+    // Recipient is per-content (route.recipientWallet, e.g. the creator's
+    // wallet set at publish) and only falls back to platform config.
+    const recipient = route.recipientWallet || paymentProvider.sellerAddress || config.site.creatorWallet;
     const challenge = {
       x402Version: paymentProvider.isLive ? 2 : 'draft-demo',
       status: 402,
@@ -44,11 +47,11 @@ export function createGateway(config, store) {
           asset: route.currency,
           network: paymentProvider.networks[0] || route.network,
           amount,
-          recipient: paymentProvider.sellerAddress || config.site.creatorWallet,
+          recipient,
           description: `Unlock ${route.title}`,
           resource: `${config.site.origin}${route.path}`,
           mimeType: route.type === 'article' ? 'text/html' : 'application/octet-stream',
-          payTo: paymentProvider.sellerAddress || config.site.creatorWallet,
+          payTo: recipient,
           maxTimeoutSeconds: 120
         }
       ],

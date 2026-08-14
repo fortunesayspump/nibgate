@@ -518,4 +518,19 @@ error banner — no retry affordance anywhere (see #14).
   known 403/400 console noise (#39). Also confirms `revoke` (entitlement-only)
   does NOT remove whitelist membership — ban is the correct strip path.
 
+- **Batch19 whitelist-UX now verified live** (`checks-batch19.js`): covers the
+  features added in the UX sweep — import preview staging (file parse shows
+  "Import preview — N wallets ready to add" + Add/Discard; Discard commits
+  nothing, Add shows "Added N" and renders chips), invalid-row reporting in the
+  preview, search/filter on a 210-wallet list (search box appears past 60 chips,
+  query narrows with "1 of 210 match"), chunked batched saves (210→211 via the
+  paste box persists 211 in the backend), export-with-`address`-header roundtrip,
+  mine-list search ("Search posts…" filters by title; garbage query hides rows),
+  and the draft→publish flow (draft row in the Drafts tab has a Publish control).
+  **Found + fixed a real bug:** the server rejected title-only drafts with 400
+  `content is required`, so "Save as Draft" on an empty body failed server-side
+  even though the button was enabled. `createShare` now only requires content for
+  non-draft status. All 7 checks green; WARN mark only for the known 403/400
+  session-poll console noise (#39).
+
 See `logs/*.log` for the raw evidence behind each claim.

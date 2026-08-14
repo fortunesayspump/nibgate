@@ -125,6 +125,7 @@ export default function UnlockGate({ resource }: { resource: AccessResource }) {
           title: resource.title,
           type: resource.type,
           price: effectivePrice,
+          originalPrice: tierDiscounted ? publicPrice : undefined,
           whitelistPrice: quote?.whitelistPrice ?? null,
           publicAccess: quote?.publicAccess ?? resource.publicAccess ?? true,
           currency: resource.currency,

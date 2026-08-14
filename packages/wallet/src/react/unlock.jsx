@@ -302,6 +302,12 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
     ? `${resource.price} ${resource.currency || 'USDC'}`
     : 'free'
   const isFree = !resource.price || String(resource.price).trim() === '0' || String(resource.price).trim() === ''
+  const priceNum = Number(resource.price)
+  const originalNum = Number(resource.originalPrice)
+  // A whitelist tier (or discount) in play: show the public price struck out
+  // next to the payer's actual price, mirroring the admin "what visitors will
+  // see" preview.
+  const showOriginal = Number.isFinite(originalNum) && originalNum > 0 && Number.isFinite(priceNum) && priceNum !== originalNum
 
   useEffect(() => {
     let cancelled = false
@@ -385,6 +391,12 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
       <div style={{ fontSize: 50, fontWeight: 700, letterSpacing: '-.03em', marginBottom: 12 }}>
         {price}
       </div>
+      {showOriginal && (
+        <div style={{ fontSize: 13, color: 'var(--muted, #6b6862)', marginBottom: 12 }}>
+          <span style={{ textDecoration: 'line-through' }}>{originalNum} {resource.currency || 'USDC'}</span>{' '}
+          <span style={{ color: '#7c9a6d', fontWeight: 600 }}>whitelisted price</span>
+        </div>
+      )}
       <div style={{ fontSize: 21, color: 'var(--muted, #6b6862)', marginBottom: 48 }}>
         Pay to unlock this content
       </div>

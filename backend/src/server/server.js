@@ -19,6 +19,7 @@ import { registerRpcRoute } from './routes/rpc-route.js';
 import { openApiSpec } from './openapi.js';
 import { registerMcpRoute } from './mcp.js';
 import { createConfigResolver } from './runtime.js';
+import { liveRoutesFromContent } from './lib/live-routes.js';
 import { registerProvider } from '@nibgate/sdk/server';
 import { createNibgateProvider } from './lib/nibgate-provider.js';
 
@@ -50,7 +51,21 @@ export async function createApp(config, options = {}) {
     next();
   });
   const store = createStateStore(options.statePath || path.join(rootDir, '.nibgate', 'state.json'));
-  const gateway = createGateway(config, store);
+
+  // Production boots without a static routes list (NIBGATE_CONFIG unset), which
+  // left the generic /api/content/:id/* gateway resolving nothing. Backfill the
+  // gateway route table from live verified content when the config ships none.
+  let gatewayConfig = config;
+  if (!Array.isArray(config.routes) || config.routes.length === 0) {
+    try {
+      const live = await liveRoutesFromContent();
+      if (live.length > 0) gatewayConfig = { ...config, routes: live };
+    } catch {
+      // DB unavailable at boot — keep the empty config; /api/content/* stays 404.
+    }
+  }
+
+  const gateway = createGateway(gatewayConfig, store);
   const circleGateway = await createCircleGatewayMiddleware(gateway.paymentProvider);
   const gatewayBuyer = await createGatewayBuyer(gateway.paymentProvider);
   const getConfig = createConfigResolver(config, options.loadLiveConfig);

@@ -101,10 +101,13 @@ export default function DocumentContent({ postId, title, name, size, contentType
   const hasRender = !!preview?.html;
   const isSheet = kind !== null && SHEET_VIEWER_KINDS.has(kind);
   const isText = kind !== null && TEXT_VIEWER_KINDS.has(kind);
-  const showApp = (isSheet || isText) && !appFailed;
-  const showHtml = hasRender && !showApp;
-  const showPdfFrame = isPdf && !showApp && !hasRender;
-  const showUnavailable = !showApp && !hasRender && !showPdfFrame && kind !== null && (kind.startsWith("legacy") || kind === "pptx");
+  // Paid/gated documents must not fetch media pre-unlock (the viewer would fire
+  // GET /nibgate/media/:id/document and 402). NibgateUnlock renders its own
+  // viewer once a payment proof exists, so hide ours entirely while gated.
+  const showApp = !isPaid && (isSheet || isText) && !appFailed;
+  const showHtml = !isPaid && hasRender && !showApp;
+  const showPdfFrame = !isPaid && isPdf && !showApp && !hasRender;
+  const showUnavailable = !isPaid && !showApp && !hasRender && !showPdfFrame && kind !== null && (kind.startsWith("legacy") || kind === "pptx");
   const mediaSrc = `${API}/nibgate/media/${postId}/document?subdomain=${subdomain}`;
   const downloadHref = isPaid ? null : `${API}/nibgate/media/${postId}/document?download=1&subdomain=${subdomain}`;
 
@@ -113,7 +116,7 @@ export default function DocumentContent({ postId, title, name, size, contentType
       <div style={{
         display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px",
         border: "1px solid var(--border)", borderRadius: "8px", background: "var(--surface)",
-        marginBottom: showApp || hasRender || showPdfFrame ? "1rem" : 0,
+        marginBottom: showApp || hasRender || showPdfFrame || isPaid ? "1rem" : 0,
       }}>
         <span className="file-type-badge" title={KIND_LABELS[kind || ""] || "File"} aria-label={KIND_LABELS[kind || ""] || "File"}>
           <FileTypeIcon kind={kind} />

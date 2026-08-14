@@ -4,7 +4,7 @@ import { relayX402Payment } from '@nibgate/internal/payments.js';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
   cleanDomain, isValidDomain, originFor, serializeWebsite,
-  hostnameMatchesSite, eventTypeFor, cleanEventName, clientIpFor, hashValue,
+  hostnameMatchesSite, eventTypeFor, cleanEventName, clientIpFor, hashValue, cleanTags,
   trackingVisitorHash, checkTrackingRateLimit,
   metricIdentity, claimMetricDedupeKey, dedupeBucketStart, dateRangeWhere,
   normalizeContentType, upsertTrackedContent, resourcesFromManifest,
@@ -718,6 +718,54 @@ export function registerHubRoutes(app) {
   });
 
   // ── Sitemap: List Active Sites ──────────────────────────────────────────
+
+  // Agent/site manifest (drop-in replacement for the legacy gateway): resolves
+  // a verified website by subdomain (query ?subdomain=, x-site-subdomain /
+  // x-forwarded-host / Host headers) and returns the nibgate.json shape the
+  // subblog deploy proxies in subblogs/frontend nibgate.json/route.ts. Agents
+  // discover content + pricing here before calling access/price endpoints.
+  app.get('/api/nibgate/manifest', async (req, res) => {
+    try {
+      const fromQuery = String(req.query.subdomain || '').trim().toLowerCase();
+      const host = String(req.headers['x-forwarded-host'] || req.headers['x-site-subdomain'] || req.headers.host || '').trim().toLowerCase();
+      const raw = cleanDomain(fromQuery || host);
+      if (!raw) return res.status(400).json({ error: 'Missing subdomain' });
+      const siteHost = raw.includes('.') ? raw : `${raw}.nibgate.xyz`;
+
+      const websites = await db.website.findMany({
+        where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' },
+        include: { content: { where: { deletedAt: null }, include: { website: true } } }
+      });
+      const website = websites.find((w) => hostnameMatchesSite(siteHost, w.domain));
+      if (!website) return res.status(404).json({ error: 'Site not found', subdomain: siteHost });
+
+      const origin = originFor(website.domain).replace(/\/+$/, '');
+      const pathFilter = String(req.query.path || '').trim();
+      const content = website.content
+        .filter((c) => !pathFilter || (c.path && c.path === pathFilter) || (c.url && c.url.endsWith(pathFilter)))
+        .map((c) => {
+          const access = Number(c.price) > 0 ? 'paid' : 'free';
+          return {
+            id: c.id,
+            title: c.title,
+            summary: c.description || '',
+            type: c.contentType,
+            price: String(c.price || '0'),
+            currency: c.currency || 'USDC',
+            path: c.path || '',
+            url: c.url || `${origin}${c.path || ''}`,
+            tags: cleanTags(c.tags),
+            imageUrl: c.imageUrl || '',
+            access: { humans: access, agents: access },
+            unlock: { mode: 'one_time' }
+          };
+        });
+
+      res.json({ name: website.name, origin, content });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load site manifest', details: error.message });
+    }
+  });
 
   app.get('/api/hub/sitemap-sites', async (req, res) => {
     try {

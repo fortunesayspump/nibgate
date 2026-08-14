@@ -7,7 +7,6 @@ import TextViewer from "@/components/TextViewer";
 import { NibgateUnlock as SharedNibgateUnlock, useAccount } from "@nibgate/wallet/react";
 import { UNIVERSAL_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromMeta } from "@/lib/documentKind";
 import type { UnlockMediaMeta } from "@/lib/api";
-import { formatUsd } from "@/lib/wallet";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -206,38 +205,13 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
         </div>
       )}
 
-      {whitelisted && (
-        <div
-          style={{
-            maxWidth: 580, margin: "0 auto 1rem", display: "flex", alignItems: "center", justifyContent: "center",
-            gap: 8, textAlign: "center", flexDirection: "row", flexWrap: "wrap", padding: "10px 14px",
-            borderRadius: 10, border: "1px solid #7c9a6d66", background: "#7c9a6d15",
-          }}
-        >
-          <span style={{ color: "#7c9a6d", fontWeight: 700, fontSize: 13 }}>You're on the whitelist</span>
-          {tierDiscounted || (hasTier && Number(effectivePrice) === 0) ? (
-            <span style={{ color: "#7c9a6d", fontSize: 13 }}>
-              — {Number(effectivePrice) === 0 ? "unlock free" : `your price ${formatUsd(Number(effectivePrice))} USDC`}
-              {tierDiscounted && (
-                <>
-                  {" "}
-                  <span style={{ textDecoration: "line-through", opacity: 0.7 }}>{formatUsd(Number(publicPrice))} USDC</span>{" "}
-                  public
-                </>
-              )}
-            </span>
-          ) : (
-            <span style={{ color: "var(--muted)", fontSize: 13 }}>— whitelisted wallets unlock here</span>
-          )}
-        </div>
-      )}
-
       <SharedNibgateUnlock
         resource={{
           id: resource.id,
           title: resource.title,
           type: resource.type,
           price: effectivePrice,
+          originalPrice: tierDiscounted ? publicPrice : undefined,
           whitelistPrice: quote?.whitelistPrice ?? null,
           publicAccess: quote?.publicAccess ?? true,
           currency: "USDC",

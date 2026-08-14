@@ -5,7 +5,6 @@ import { FiLock, FiShieldOff, FiRotateCcw } from "react-icons/fi";
 import ContentViewer from "./ContentViewer";
 import { NibgateUnlock, useAccount } from "@nibgate/wallet/react";
 import { ACCESS_PATH, GATEWAY_BALANCE_PATH, nibshareApi } from "../api";
-import { formatUsd } from "../lib/shares";
 import type { AccessResource, Quote } from "../types";
 
 const gateBanner: React.CSSProperties = {
@@ -89,33 +88,6 @@ export default function UnlockGate({ resource }: { resource: AccessResource }) {
           style={{ maxWidth: 580, margin: "0 auto 1rem", textAlign: "center", color: "#b45309", borderColor: "#b4530966" }}
         >
           <FiRotateCcw className="inline mr-1" size={12} /> Your previous access was revoked — pay again to re-unlock.
-        </div>
-      )}
-
-      {/* Whitelist / invite context banner rendered inside the gate card */}
-      {whitelisted && (
-        <div
-          style={{
-            maxWidth: 580, margin: "0 auto 1rem", display: "flex", alignItems: "center", justifyContent: "center",
-            gap: 8, textAlign: "center", flexDirection: "row", flexWrap: "wrap", padding: "10px 14px",
-            borderRadius: 10, border: "1px solid #7c9a6d66", background: "#7c9a6d15",
-          }}
-        >
-          <span style={{ color: "#7c9a6d", fontWeight: 700, fontSize: 13 }}>You're on the whitelist</span>
-          {tierDiscounted || (hasTier && Number(effectivePrice) === 0) ? (
-            <span style={{ color: "#7c9a6d", fontSize: 13 }}>
-              — {Number(effectivePrice) === 0 ? "unlock free" : `your price ${formatUsd(Number(effectivePrice))} USDC`}
-              {tierDiscounted && (
-                <>
-                  {" "}
-                  <span style={{ textDecoration: "line-through", opacity: 0.7 }}>{formatUsd(Number(publicPrice))} USDC</span>{" "}
-                  public
-                </>
-              )}
-            </span>
-          ) : (
-            <span style={{ color: "var(--muted, #6b6862)", fontSize: 13 }}>— whitelisted wallets unlock here</span>
-          )}
         </div>
       )}
 

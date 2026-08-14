@@ -17,6 +17,7 @@ export function registerNibshareRoutes(app) {
   app.get('/api/nibshare/:slug/quote', controller.quoteShare);
   app.delete('/api/nibshare/:slug', controller.requireAuth, controller.revokeShare);
   app.post('/api/nibshare/:slug/reslug', controller.requireAuth, controller.rotateShare);
+  app.post('/api/nibshare/:slug/publish', controller.requireAuth, controller.publishShare);
   app.get('/api/nibshare/mine', controller.requireAuth, controller.listMine);
   app.get('/api/nibshare/dashboard', controller.requireAuth, controller.dashboardStats);
   app.get('/api/nibshare/stats', controller.platformStats);

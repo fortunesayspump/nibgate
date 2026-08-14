@@ -19,6 +19,34 @@ const FIXTURES = {
   draft: { title: 'E2E Matrix Draft4', content: 'Draft body.', price: '0', publicAccess: true, contentType: 'article', status: 'draft' },
 };
 
+// Per-type × per-access matrix so gate + form checks can be parametrized across
+// all 5 content types (article/photo/video/music/document) × access modes.
+// Each combo gets a real, stable slug in fixtures.json.
+const TYPES = ['article', 'photo', 'video', 'music', 'document'];
+const ACCESS_MODES = ['free', 'paid', 'wlfree', 'wldrop', 'invite'];
+const ACCESS_CONF = {
+  free: { price: '0', publicAccess: true, whitelist: [], whitelistPrice: null },
+  paid: { price: '5', publicAccess: true, whitelist: [], whitelistPrice: null },
+  wlfree: { price: '9', publicAccess: true, whitelist: [BUY], whitelistPrice: '0' },
+  wldrop: { price: '9', publicAccess: true, whitelist: [BUY], whitelistPrice: '2' },
+  invite: { price: '12', publicAccess: false, whitelist: [], whitelistPrice: null },
+};
+for (const t of TYPES) {
+  for (const m of ACCESS_MODES) {
+    const conf = ACCESS_CONF[m];
+    FIXTURES[`${t}-${m}`] = {
+      title: `E2E T${t} ${m}`,
+      content: `Matrix body for ${t}/${m} — stress battery.`,
+      price: conf.price,
+      publicAccess: conf.publicAccess,
+      contentType: t,
+      status: 'active',
+      whitelist: conf.whitelist,
+      whitelistPrice: conf.whitelistPrice,
+    };
+  }
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true, channel: 'chromium' });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1100 } });

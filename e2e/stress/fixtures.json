@@ -1,30 +1,130 @@
 {
   "free": {
-    "slug": "AoMCenwZ",
+    "slug": "Uu9jX2r6",
     "title": "E2E Free Alpha"
   },
   "paid": {
-    "slug": "Zdkz7DxH",
+    "slug": "e5yso8Mv",
     "title": "E2E Paid Playbook"
   },
   "wlfree": {
-    "slug": "PkKPjaZA",
+    "slug": "BzuRvDyw",
     "title": "E2E Whitelist Free"
   },
   "wldrop": {
-    "slug": "Bgje1dLe",
+    "slug": "UCTYGPVz",
     "title": "E2E Whitelist Drop"
   },
   "invite": {
-    "slug": "iAvEm3bF",
+    "slug": "DYHBhLRt",
     "title": "E2E Invite Only"
   },
   "custom": {
-    "slug": "VZ2Zgxx6",
+    "slug": "CkWw1Ymh",
     "title": "E2E Matrix Custom Tier"
   },
   "draft": {
-    "slug": "4XUy3zyb",
+    "slug": "FhBwmZKU",
     "title": "E2E Matrix Draft4"
+  },
+  "article-free": {
+    "slug": "KK7aGNjn",
+    "title": "E2E Tarticle free"
+  },
+  "article-paid": {
+    "slug": "MjTwgvHN",
+    "title": "E2E Tarticle paid"
+  },
+  "article-wlfree": {
+    "slug": "6oaYrBk9",
+    "title": "E2E Tarticle wlfree"
+  },
+  "article-wldrop": {
+    "slug": "MfNYCFu8",
+    "title": "E2E Tarticle wldrop"
+  },
+  "article-invite": {
+    "slug": "cfBQEu46",
+    "title": "E2E Tarticle invite"
+  },
+  "photo-free": {
+    "slug": "GC8bdWza",
+    "title": "E2E Tphoto free"
+  },
+  "photo-paid": {
+    "slug": "6qNVwVFi",
+    "title": "E2E Tphoto paid"
+  },
+  "photo-wlfree": {
+    "slug": "c3izepej",
+    "title": "E2E Tphoto wlfree"
+  },
+  "photo-wldrop": {
+    "slug": "TSmvkhgj",
+    "title": "E2E Tphoto wldrop"
+  },
+  "photo-invite": {
+    "slug": "7Ld4aAkr",
+    "title": "E2E Tphoto invite"
+  },
+  "video-free": {
+    "slug": "5ZAhquYe",
+    "title": "E2E Tvideo free"
+  },
+  "video-paid": {
+    "slug": "7kR9zt5a",
+    "title": "E2E Tvideo paid"
+  },
+  "video-wlfree": {
+    "slug": "3LCVd84W",
+    "title": "E2E Tvideo wlfree"
+  },
+  "video-wldrop": {
+    "slug": "g2gaX5Kr",
+    "title": "E2E Tvideo wldrop"
+  },
+  "video-invite": {
+    "slug": "Wxq8hfSB",
+    "title": "E2E Tvideo invite"
+  },
+  "music-free": {
+    "slug": "DqLBkbFq",
+    "title": "E2E Tmusic free"
+  },
+  "music-paid": {
+    "slug": "LymT6mcq",
+    "title": "E2E Tmusic paid"
+  },
+  "music-wlfree": {
+    "slug": "ASpqejcx",
+    "title": "E2E Tmusic wlfree"
+  },
+  "music-wldrop": {
+    "slug": "Y7nrGw2U",
+    "title": "E2E Tmusic wldrop"
+  },
+  "music-invite": {
+    "slug": "DHU3JC6X",
+    "title": "E2E Tmusic invite"
+  },
+  "document-free": {
+    "slug": "W8gF54Wo",
+    "title": "E2E Tdocument free"
+  },
+  "document-paid": {
+    "slug": "Qh98fQ7C",
+    "title": "E2E Tdocument paid"
+  },
+  "document-wlfree": {
+    "slug": "6tU3cKaJ",
+    "title": "E2E Tdocument wlfree"
+  },
+  "document-wldrop": {
+    "slug": "NaFBPo1d",
+    "title": "E2E Tdocument wldrop"
+  },
+  "document-invite": {
+    "slug": "Q66kFo3Y",
+    "title": "E2E Tdocument invite"
   }
 }

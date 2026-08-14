@@ -1,0 +1,60 @@
+{
+  "posts": [
+    {
+      "title": "E2E Free Alpha",
+      "slug": "4xtUB8ZP",
+      "access": "free",
+      "published": true
+    },
+    {
+      "title": "E2E Paid Playbook",
+      "slug": "dR21SdTL",
+      "access": "paid",
+      "published": true
+    },
+    {
+      "title": "E2E Whitelist Drop",
+      "slug": "imDUxdsv",
+      "access": "whitelist",
+      "price": 9,
+      "published": true
+    },
+    {
+      "title": "E2E Invite Only",
+      "slug": "ZmUbhLiR",
+      "access": "invite-only",
+      "published": true
+    },
+    {
+      "title": "E2E Whitelist Free",
+      "slug": "JsLravCn",
+      "access": "whitelist-free",
+      "price": 9,
+      "published": true
+    },
+    {
+      "title": "E2E Matrix Custom Tier",
+      "slug": "ddLEPvxv",
+      "access": "whitelist",
+      "price": 12,
+      "whitelistPrice": 2,
+      "published": true
+    },
+    {
+      "title": "E2E Matrix Expiring",
+      "slug": "TfVK63oj",
+      "access": "paid",
+      "price": 3,
+      "status": "active",
+      "expired": true,
+      "note": "created now+6s; verified /access=419 + 'This share has expired.' UI"
+    },
+    {
+      "title": "E2E Matrix Draft4",
+      "slug": "hscrh4WQ",
+      "access": "draft",
+      "status": "draft",
+      "note": "created via Save-as-Draft (no feedback in UI); listed via /api/nibshare/mine"
+    }
+  ]
+}

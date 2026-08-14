@@ -409,13 +409,24 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
       (Ban itself correctly blocked access first — the gap was cosmetic/data
       hygiene, not a security hole.)
     **STATUS: FIXED** —
-    - `WalletListEditor` now has **Import CSV / Export / Clear all**: import
-      accepts `.csv`/`.txt`, one address per line (optionally `address,price`
-      — price column reported as ignored since the model has one tier),
-      validates rows, dedupes, merges, and reports added/duplicates/invalid counts.
+    - `WalletListEditor` now has **Import CSV / Excel / Export / Template / Clear all**:
+      import accepts `.csv`, `.txt`, `.xlsx`, `.xls`; **header-aware column
+      detection** finds the address column by its named header (`address`,
+      `wallet`, `wallet_address`, `0x-address`, `holder`, `member`, `to`, …) so
+      files with `name,wallet,price` layouts extract only the wallet column —
+      no blind whole-sheet scan that could pick up a price cell that looks like
+      hex. Falls back to scanning all columns when there's no header. Validates
+      every row (invalid rows skipped + reported), dedupes, merges, and reports
+      added/duplicates/invalid counts. Any `price`/`tier`/`mintFee` column is
+      reported as ignored since the model has a single whitelist tier.
+    - **Template download** (`whitelist-template.csv`) ships a sample file with
+      the expected `address` column header, matching the allowlist-tool
+      convention (AutoMinter/Bueno/HeyMint/nfts2me) so creators know the format.
     - **Ban now strips the wallet from `whitelist[]`** (`banEntitlement` in
       `service.js`) so a banned wallet can't linger in the list or be
-      re-asserted by later access-policy saves.
+      re-asserted by later access-policy saves. The UI mirrors the removal
+      locally (`handleBan` in `SettingsSheet.tsx`) so the banned chip disappears
+      from the whitelist list immediately, without a reload.
     - Export downloads the current whitelist as `whitelist.csv`.
 
 ## Payment reality-check (production, Arc Testnet)

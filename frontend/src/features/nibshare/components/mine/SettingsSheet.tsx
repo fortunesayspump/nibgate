@@ -176,7 +176,13 @@ export function SettingsSheet({ share, onClose, onRotate, onRevoke }: {
     setBusyWallets((prev) => new Set(prev).add(wallet));
     try {
       await nibshareApi.banWallet(current.slug, wallet);
-      setAc((prev) => prev ? { ...prev, entitlements: upsertEnt(prev.entitlements, wallet, "banned") } : prev);
+      setAc((prev) => prev ? {
+        ...prev,
+        entitlements: upsertEnt(prev.entitlements, wallet, "banned"),
+        // Backend strips banned wallets from whitelist[]; mirror it locally so
+        // the banned chip doesn't linger in the whitelist list until a reload.
+        whitelist: (prev.whitelist || []).filter((w) => w !== wallet)
+      } : prev);
     } catch (err: any) {
       alert(err.message || 'Failed to ban wallet');
     } finally {

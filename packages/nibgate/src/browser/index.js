@@ -1,9 +1,10 @@
-export { createGate } from './gate.js';
+export { createGate, createGate as gate } from './gate.js';
+export { clearPaymentProof } from './storage.js';
 export { checkResourceAccess, payWithPaymentSignature, payAndUnlockResource } from './access.js';
 export { createWalletCheckout } from './checkout.js';
 export { createNibgate, nibgate } from './client.js';
 export { createEvmGatewayUnlock, createHostedUnlock, createCircleGatewayBrowserAdapter } from './evm-gateway.js';
-export { rateResource, createOnchainRating, mountRatingUI } from './rating-ui.js';
+export { rateResource, createOnchainRating, mountRatingUI, ratingMessage } from './rating-ui.js';
 export { trackResourcePage, setupResourcePage } from './track.js';
 export { createTransferCheckout, payWithTransfer } from './transfer.js';
 export { contentRatingHash, NIBGATE_CONTENT_HASH_NAMESPACE, NIBGATE_REPUTATION_ABI, NIBGATE_REPUTATION_CHAIN_ID, NIBGATE_REPUTATION_CHAIN_NAME, NIBGATE_REPUTATION_CONTRACT, NIBGATE_REPUTATION_RPC_URL, rateContentOnchain, reviewTextHash } from './reputation.js';

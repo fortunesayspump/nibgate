@@ -53,6 +53,25 @@ function accessDecision(post, wallet) {
   return { ok: decision.ok, reason: decision.reason || null, message: decision.message || null };
 }
 
+// The single §4 rule, evaluated against this app's DB facts. Callers resolve
+// the (possessed) wallet first, then pass entitlement/receipt facts; this wraps
+// the SDK's pure `canAccess` so the gate lives in exactly one place.
+//   facts: { wallet, entitlement?, hasPaidReceipt?, proofValid? }
+// Returns the SDK decision: { allowed, reason, grant, message, challenge }.
+async function canAccessPost(post, facts = {}) {
+  const wallet = facts.wallet || null;
+  const entitlement = facts.entitlement === undefined && wallet
+    ? await findEntitlement({ postId: post.id, wallet })
+    : (facts.entitlement || null);
+  const hasPaidReceipt = facts.hasPaidReceipt === undefined && wallet
+    ? (async () => {
+        const r = await findLastReceipt({ postId: post.id, wallet });
+        return Boolean(r && Number(r.amount || 0) > 0);
+      })()
+    : Boolean(facts.hasPaidReceipt);
+  return sdk.canAccess(post, { wallet, entitlement, hasPaidReceipt: await hasPaidReceipt, proofValid: Boolean(facts.proofValid) });
+}
+
 async function findPostBySlugOrId(siteId, slugOrId) {
   const post = await prisma.blogPost.findFirst({
     where: { siteId, OR: [{ slug: slugOrId }, { id: slugOrId }] },
@@ -297,6 +316,7 @@ module.exports = {
   isPaidValue,
   paidCutoffWallets,
   accessDecision,
+  canAccessPost,
   findPostBySlugOrId,
   walletFor,
   sessionWalletFor,

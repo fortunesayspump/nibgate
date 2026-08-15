@@ -5,8 +5,9 @@ import { setDefaultClient } from './gate.js';
 import { createGate } from './gate.js';
 import { checkResourceAccess, payWithPaymentSignature, payAndUnlockResource } from './access.js';
 import { createWalletCheckout } from './checkout.js';
-import { createEvmGatewayUnlock, createCircleGatewayBrowserAdapter } from './evm-gateway.js';
+import { createEvmGatewayUnlock, createHostedUnlock, createCircleGatewayBrowserAdapter } from './evm-gateway.js';
 import { rateResource, createOnchainRating, mountRatingUI } from './rating-ui.js';
+import { rateContentOnchain } from './reputation.js';
 import { trackResourcePage, setupResourcePage } from './track.js';
 import { createTransferCheckout, payWithTransfer } from './transfer.js';
 
@@ -74,6 +75,12 @@ export function createNibgate(defaults = {}) {
     },
     createEvmGatewayUnlock(resource, options = {}) {
       return createEvmGatewayUnlock(resourceWithDefaults(resource), options);
+    },
+    createHostedUnlock(resource, options = {}) {
+      return createHostedUnlock(resourceWithDefaults(resource), options);
+    },
+    rateContentOnchain(resource, options = {}) {
+      return rateContentOnchain(resourceWithDefaults(resource), options);
     },
     createOnchainRating(resource, options = {}) {
       return createOnchainRating(resourceWithDefaults(resource), options);

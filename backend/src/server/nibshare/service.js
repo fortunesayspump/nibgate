@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { db } from '@nibgate/internal/db.js';
 export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
-import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets } from '@nibgate/sdk/server';
+import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets, canAccess as sdkCanAccess } from '@nibgate/sdk/server';
 import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
 
 export class HttpError extends Error {
@@ -269,6 +269,25 @@ export function effectivePrice(share, wallet) {
 export function accessDecision(share, wallet) {
   const decision = sdkAccessDecision(share, wallet);
   return { ok: decision.ok, reason: decision.reason || null, message: decision.message || null };
+}
+
+// The single §4 rule, evaluated against this app's DB facts. Callers resolve
+// the (possessed) wallet first, then pass entitlement/receipt facts; this wraps
+// the SDK's pure `canAccess` so the gate lives in exactly one place.
+//   facts: { wallet, entitlement?, hasPaidReceipt?, proofValid? }
+// Returns the SDK decision: { allowed, reason, grant, message, challenge }.
+export async function canAccessShare(share, facts = {}) {
+  const wallet = facts.wallet || null;
+  const entitlement = facts.entitlement === undefined && wallet
+    ? await findEntitlement({ shareId: share.id, wallet })
+    : (facts.entitlement || null);
+  const hasPaidReceipt = facts.hasPaidReceipt === undefined && wallet
+    ? (async () => {
+        const r = await findLastReceipt({ shareId: share.id, wallet });
+        return Boolean(r && Number(r.amount || 0) > 0);
+      })()
+    : Boolean(facts.hasPaidReceipt);
+  return sdkCanAccess(share, { wallet, entitlement, hasPaidReceipt: await hasPaidReceipt, proofValid: Boolean(facts.proofValid) });
 }
 
 export function findEntitlement({ shareId, wallet }) {

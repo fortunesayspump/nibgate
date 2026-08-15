@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   const items = posts
     .map(
       (post) => {
-        const typePath = ({ article: "writing", photo: "photos", music: "music", video: "video" })[post.type] || "posts";
+        const typePath = ({ article: "writing", photo: "photos", music: "music", video: "video", document: "docs" })[post.type] || "posts";
         const postUrl = `${siteUrl}/${typePath}/${post.slug}`;
         return `
     <item>

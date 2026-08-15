@@ -8,6 +8,7 @@ import NibgateUnlock from "@/components/NibgateUnlock";
 import ReputationRating from "@/components/ReputationRating";
 import DocumentContent from "@/components/DocumentContent";
 import { serverFetch } from "@/lib/server-fetch";
+import { detectEmbed as detectMediaEmbed } from "@/lib/media";
 import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
 
@@ -46,12 +47,6 @@ function jsonLd(post: BlogPost, origin: string) {
     url,
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
   };
-}
-
-function detectEmbed(url: string) {
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
-  if (yt) return { type: "youtube" as const, videoId: yt[1], embedUrl: `https://www.youtube.com/embed/${yt[1]}` };
-  return { type: "unknown" as const, embedUrl: null };
 }
 
 function cleanBody(md: string) {
@@ -176,11 +171,11 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
           {post.type === "video" && !gated && (() => {
             const src = post.videoStorageRef ? `/api/nibgate/media/${post.id}/video` : post.videoUrl;
             if (!src) return null;
-            const embed = detectEmbed(src);
-            if (embed.type === "youtube") {
+            const info = detectMediaEmbed(src, post.title);
+            if (info.type === "youtube" || info.type === "vimeo" || info.type === "soundcloud" || info.type === "spotify") {
               return (
-                <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: "6px", marginTop: "1.5rem", marginBottom: "1.5rem" }}>
-                  <iframe src={embed.embedUrl || src} title={post.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }} />
+                <div style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
+                  <MediaEmbed info={info} />
                 </div>
               );
             }

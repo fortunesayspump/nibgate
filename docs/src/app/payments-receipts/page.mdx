@@ -86,7 +86,7 @@ Use this when the payment can link to an Arc testnet transaction hash or Arcscan
 
 The hub backend exposes Circle Gateway helper status on both rails via the shared `packages/internal/src/payments.js`:
 
-- `GET /api/nibshare/gateway/balance` (hub) and `GET /api/gateway/balances` (subblogs) — return the depositor's testnet USDC balance (needs `CIRCLE_API_KEY` set on the backend; response shows `{ balance: "0.00 USDC" }`).
+- `POST /api/nibshare/gateway/balance` (hub) and `GET /api/nibgate/gateway/balances` (subblogs) — return the depositor's testnet USDC balance (needs `CIRCLE_API_KEY` set on the backend; response shows `{ balance: "0.00 USDC" }`).
 - Deposit/withdraw are handled through Circle's Gateway API with the configured depositor/source — no custody by Nibgate.
 
 ## Event payload

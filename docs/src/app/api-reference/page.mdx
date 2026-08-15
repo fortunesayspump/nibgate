@@ -35,7 +35,7 @@ The host is already `api.`, so routes live under their group name directly (`/hu
 Sign-In with Ethereum (SIWE) powers creator sessions on both the hub and Subblogs.
 
 ```http
-POST /auth/nonce        # request a nonce for a wallet
+GET  /auth/nonce        # request a nonce for a wallet
 POST /auth/verify       # verify the signed SIWE message, issues auth_session cookie
 GET  /auth/me           # current session (wallet, profile)
 POST /auth/logout       # clear the session
@@ -48,7 +48,7 @@ On Subblogs the same flow lives under `/api/auth/*` (`nonce`, `verify`, `me`, `l
 ## Status & stats
 
 ```http
-GET /nibgate/status         # service liveness
+GET /api/nibgate/status     # service liveness
 GET /hub/stats              # platform totals: creators, sites, content, views, unlocks, revenue
 GET /hub/sitemap-sites      # verified sites feed for sitemaps
 GET /hub/sitemap/content    # verified content feed for sitemaps
@@ -197,7 +197,7 @@ POST /hub/reputation/ratings/prepare     # sign a deterministic rating message (
 POST /hub/reputation/ratings/index       # index a delivered rating (onchain or signed)
 POST /hub/reputation/ratings/sync        # reconcile indexed rating proofs
 GET  /hub/reputation/leaderboards        # content / site / creator leaderboards
-GET  /hub/content/:contentId/rate        # rating surface for a resource
+POST /hub/content/:contentId/rate        # rating surface for a resource
 ```
 
 ## Nibshare
@@ -205,19 +205,21 @@ GET  /hub/content/:contentId/rate        # rating surface for a resource
 The hosted quick-share rail lives at `/ns/<slug>` on the hub and `/api/nibshare` on the API host. Every gated share enforces the shared access rule — a bare `?wallet=` is a claim only, never an identity:
 
 ```http
-GET  /api/nibshare/:slug/quote            # price + policy for the share
-GET  /api/nibshare/:slug/meta             # public metadata
-GET  /api/nibshare/:slug/manifest         # machine-readable contract for agents
-GET  /api/nibshare/:slug/access           # access decision; 200 grant / 402 challenge / 403 deny
-POST /api/nibshare/:slug/unlock           # x402 unlock; binds proof to (wallet, share)
-GET  /api/nibshare/:slug/media/:kind      # encrypted media (proof-gated for paid/invite-only)
-GET  /api/nibshare/:slug/entitlements/:wallet      # current entitlement for a wallet
-POST /api/nibshare/:slug/entitlements/:wallet/ban  # ban (hard deny, no re-purchase)
-POST /api/nibshare/:slug/entitlements/:wallet/revoke # revoke (may re-purchase)
-POST /api/nibshare/:slug/access-control   # edit price/whitelist/publicAccess (owner + SIWE)
-GET  /api/nibshare/:slug/view             # imply a view
-GET  /api/nibshare/stats                  # per-owner dashboard stats
-GET  /api/nibshare/gateway/balance        # depositor USDC balance
+GET    /api/nibshare/:slug/quote            # price + policy for the share
+GET    /api/nibshare/:slug/meta             # public metadata
+GET    /api/nibshare/:slug/manifest         # machine-readable contract for agents
+GET    /api/nibshare/:slug/access           # access decision; 200 grant / 402 challenge / 403 deny
+POST   /api/nibshare/:slug/unlock           # x402 unlock; binds proof to (wallet, share)
+GET    /api/nibshare/:slug/media/:kind      # encrypted media (proof-gated for paid/invite-only)
+DELETE /api/nibshare/:slug/entitlements/:wallet     # restore (un-ban / un-revoke) an entitlement
+POST   /api/nibshare/:slug/entitlements/:wallet/ban  # ban (hard deny, no re-purchase)
+POST   /api/nibshare/:slug/entitlements/:wallet/revoke # revoke (may re-purchase)
+PUT    /api/nibshare/:slug/access-control   # edit price/whitelist/publicAccess (owner + SIWE)
+GET    /api/nibshare/:slug/access-control   # read current whitelist/tier/invite policy
+POST   /api/nibshare/:slug/view             # imply a view
+GET    /api/nibshare/stats                  # public platform aggregates
+GET    /api/nibshare/dashboard              # per-owner dashboard stats (owner + SIWE)
+POST   /api/nibshare/gateway/balance        # depositor USDC balance
 ```
 
 Error semantics: `402` = payment challenge, `403` = denied (invite-only, banned, revoked, or payer ≠ possessed wallet), `404` = draft/unpublished, `410` = revoked, `419` = expired. Full detail: `backend/src/server/nibshare/API.md`.
@@ -232,9 +234,11 @@ GET  /api/nibgate/manifest?path=…                # per-post agent contract
 GET  /api/nibgate/media/:postId/:kind            # encrypted media proxy (proof-gated for paid)
 GET  /api/nibgate/posts/:key/quote               # price + access decision for a post
 GET  /api/<type>/<slug>                          # short mirror of the access route
-POST /api/nibgate/posts/:key/access-control      # edit whitelist/publicAccess (author/admin)
-POST /api/nibgate/posts/:key/entitlements/:wallet/{ban,revoke} # gating actions (author/admin)
+PUT  /api/nibgate/posts/:key/access-control      # edit whitelist/tier/publicAccess (admin only)
+GET  /api/nibgate/posts/:key/access-control      # read whitelist/tier/invite policy (admin only)
+POST /api/nibgate/posts/:key/entitlements/:wallet/{ban,revoke} # gating actions (admin only)
+DELETE /api/nibgate/posts/:key/entitlements/:wallet           # restore (admin only)
 GET  /api/nibgate/gateway/balances                       # depositor USDC balance (admin)
 ```
 
-Non-published posts return `404`; invite-only denies non-whitelisted wallets with `403` *before* any payment. Subblogs admin actions require the `sb_auth_session` cookie and the admin role.
+Non-published posts return `404`; invite-only denies non-whitelisted wallets with `403` *before* any payment. Subblogs admin actions require the `sb_auth_session` cookie and the admin role (`authorize('admin')`).

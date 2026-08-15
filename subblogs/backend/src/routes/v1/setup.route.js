@@ -26,7 +26,7 @@ const router = express.Router();
 
 const setupKey = process.env.SETUP_KEY || '';
 
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     if (setupKey && req.body.setupKey !== setupKey) {
       return res.status(403).json({ error: 'Invalid setup key.' });

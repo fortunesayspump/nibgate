@@ -1,5 +1,6 @@
 import { normalizeResource, normalizeContentType } from '../core/resource.js';
 import { normalizeRating, ratingMessage } from '../core/rating.js';
+export { ratingMessage } from '../core/rating.js';
 import { emit } from './events.js';
 import { browserWindow } from './env.js';
 import { rateContentOnchain } from './reputation.js';

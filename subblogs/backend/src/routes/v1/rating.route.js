@@ -10,7 +10,7 @@ if (!RPC) console.warn('[rating] No ARC_RPC_URL set — on-chain rating verifica
 const REPUTATION_CONTRACT = process.env.NIBGATE_REPUTATION_CONTRACT || '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
 const REPUTATION_CHAIN_ID = Number(process.env.NIBGATE_REPUTATION_CHAIN_ID || '5042002');
 const CONTENT_HASH_NAMESPACE = 'nibgate:content:v1';
-const TYPE_PATH = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
+const TYPE_PATH = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
 const statsCache = new Map();
 const STATS_TTL_MS = 60 * 1000;

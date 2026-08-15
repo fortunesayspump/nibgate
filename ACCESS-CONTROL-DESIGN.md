@@ -81,9 +81,10 @@ Three records per grant, with a strict join invariant:
   grantedAt }`. One per `(resourceId, wallet)`, updated (not recreated) on every
   transition. This is what the access decision reads.
 - **`Event`** — append-only audit log for admin actions & grant transitions
-  (`grant`, `revoke`, `restore`, `ban`, `price_change`, `whitelist_flip`,
-  `invite_only_flip`). Exists on hub (`NibShareEvent`) and subblogs
-  (`Event` in `subblogs/backend/prisma/schema.prisma`).
+  (`view`, `revoke`, `ban`, `unlock`, `invite_only_flip`, `publish`; hub
+  `NibShareEvent`, subblogs `BlogPostEvent`). Note: **only** those types are
+  actually written today — there is no `restore`, `grant`, `price_change`, or
+  `whitelist_flip` event in code on either rail (see §7).
 - **`Proof`** — *not stored*. A short-TTL signed token derived from the
   entitlement, used only as a cheap transport for media/`<img>` requests. Its
   expiry never changes the access decision (it is re-minted on every legit visit).
@@ -164,7 +165,11 @@ The x402 relay boundary is the highest-risk spot (Attack II). Requirements:
 
 Admin can edit anything at any time (edit stays enabled after publish). The
 transition table — **one row per reachable state** — is the contract tests must
-encode:
+encode. (Note: this table assumes a *non-expiring* share. If the share/post has an
+`expiresAt`, the reachability gate returns `419` for **everyone** — including
+existing paid entitlements — because it runs before any entitlement check. See
+`assertReachable` in `backend/src/server/nibshare/controller.js`; verified live in
+batch24.)
 
 | # | Starting state                                               | Admin action           | Resulting access for a *prior non-whitelisted acquirer*                    |
 |---|--------------------------------------------------------------|------------------------|----------------------------------------------------------------------------|
@@ -178,8 +183,8 @@ encode:
 | 8 | invite-only on → off                                         | `publicAccess:true`    | prior paid-but-denied regain gate access (entitlement intact)              |
 | 9 | active paid wallet                                          | admin `revoke`         | 403 "pay again"; can re-purchase                                           |
 | 10 | active wallet (free or paid)                                | admin `ban`            | 403 everywhere, cannot re-purchase (rule 4 is hard)                         |
-| 11 | revoked wallet                                              | admin `restore`        | back to active under original terms                                        |
-| 12 | paid then banned, admin restores                             | `restore` after `ban`  | active again per original terms                                             |
+| 11 | revoked wallet                                              | admin `restore`        | entitlement back to `active` under its original source — **but no audit `Event` is written, and whitelist membership stripped by a prior `ban` is NOT restored** (see §7) |
+| 12 | paid then banned, admin restores                             | `restore` after `ban`  | entitlement `active` again; on the hub the whitelist entry removed by `ban` is not re-added (invite-only access still denied), and no `Event` is written |
 | 13 | free grant exists, admin sets price AND removes whitelist    | price set + whitelist off | served free till expiry; then 402 — *but* still membership-eligible (not invite-only) | — |
 
 No cut-off state carries a refund: revoke/ban flip entitlements only, and money
@@ -202,32 +207,46 @@ already in the creator's wallet stays there (there is no refund primitive).
 - **`ban`** (`banEntitlement`): `entitlement.status='banned'`. Hard deny (rule 4) —
   **cannot re-purchase**, unlike revoke. Reverting a ban is `restore` from the
   admin panel only.
-- **`restore`**: entitlement back to `active` under original `source`.
+- **`restore`**: entitlement back to `active` under original `source`. It does
+  **not** re-add a whitelist entry that a prior `ban` stripped (hub behavior),
+  and it does **not** write an audit `Event` on either rail.
 - **No money moves in any of the above.** x402 payments are one-shot irreversible
   transfers to the creator's gateway wallet; there is no escrow and no chargeback.
   Revoking or banning a payer does not return their USDC — it only changes whether
   they may (re-)access the resource. If a creator wants to return funds, they send
   the transfer from their own wallet outside the platform.
-- **Audit:** every transition above writes an `Event` with actor + reason
-  (`revoke`, `ban`, `restore`).
+- **Ban also strips the whitelist — hub only.** On the hub,
+  `banEntitlement` removes the wallet from `share.whitelist[]`
+  (`backend/src/server/nibshare/service.js`), so an invite-only share doesn't keep
+  re-asserting the banned wallet on every policy save. The subblogs rail
+  (`subblogs/backend/src/services/access.service.js`) does **not** strip the
+  whitelist on ban — the entitlement check still blocks, but the wallet remains
+  listed. This is a cross-rail asymmetry to reconcile (see §8).
+- **Audit:** `revoke` and `ban` write an `Event` on both rails; `restore` writes
+  none. `grant`, `price_change`, and `whitelist_flip` event types do not exist.
 
 ## 8. Parity across apps / SDK
 
-Single rule §4 must be mirrored in four places (all patched for the two defects
-this session; the *structure* is what this doc pins):
+Single rule §4 is evaluated by `canAccess` in the SDK, wired into both apps.
+Each app keeps a thin fact-assembly wrapper — hub `canAccessShare`
+(`service.js`), subblogs `canAccessPost` (`access.service.js`) — that reads the
+entitlement + last receipt and calls the SDK rule. Controllers map the decision
+to HTTP; the rule itself lives in exactly one place:
 
 | Surface | Location | Rule implementation |
 |--------|----------|---------------------|
-| hub share page/API | `backend/src/server/nibshare/controller.js` (`accessShare`, `getShareMedia`) | rules 4–7 + `?wallet=` fallback (done) |
-| subblogs gate | `subblogs/backend/src/routes/v1/nibgate.route.js` (`serveAccess`, `mediaAccessResult`) | lifetime re-issue + `?wallet=` fallback (done) |
-| SDK server | `packages/nibgate/src/server/{access,gateway,proof}.js` | decision should live here/`access.service.js` — currently duplicated in each app |
+| hub share page/API | `backend/src/server/nibshare/controller.js` (`accessShare`, `getShareMedia`, `unlockShare`) | `service.canAccessShare` (fact-assembly wrapper over SDK `canAccess`) |
+| subblogs gate | `subblogs/backend/src/routes/v1/nibgate.route.js` (`serveAccess`, `mediaAccessResult`) | `accessService.canAccessPost` (fact-assembly wrapper over SDK `canAccess`) |
+| SDK server | `packages/nibgate/src/server/access-policy.js` | `canAccess`/`accessDecision`/`effectivePrice` — the single rule, unit-tested |
 | client | `packages/wallet/src/react/unlock.jsx` | proof persistence + `accessPathFor` (`?wallet=`) (done) |
 
-**Long-term:** hoist `canAccess` (§4) + the transition table (§6) into
-`packages/nibgate/src/server/access.js` (or `packages/internal`) so hub and subblogs
-*single-source* the rule. The PR that lands this doc's consensus should centralize
-it — until then the two copies must stay in lockstep (the bugs this session were
-exactly drift between them).
+Cross-rail divergences that remain on the *write side* (not the gate): ban strips
+`whitelist[]` on the hub but not subblogs (§7), and `restore` writes no event on
+either rail.
+
+The SDK's own `accessFor`/`accessResponse` (`packages/nibgate/src/server/access.js`)
+is a separate *stateless* embedded gate for SDK consumers without a database
+(proof/price only) — deliberately lighter than §4, not a duplicate of it.
 
 ## 9. Claimed properties (what "done" means)
 
@@ -253,11 +272,12 @@ exactly drift between them).
    TTL subblogs already uses, for a single uniform rule across apps. Hub proofs get
    `iat`/`exp` claims; expiry is harmless because §4 rules 4–7 (entitlements) run
    before any proof check, and the client re-mints on every visit.
-3. **Centralize §4 where?**: **the SDK** — new pure module
+3. **Centralize §4 where?**: **the SDK** — pure module
    `packages/nibgate/src/server/access-policy.js` (all §4 helpers + `canAccess` +
-   transition helpers), exported from `server/index.js` + `server.d.ts`.
-   Hub imports it live (workspace); subblogs backend gets it via a repacked
-   `@nibgate/sdk` tarball (same flow as the wallet).
+   transition helpers), exported from `server/index.js` + `server.d.ts`. **STATUS:
+   DONE** — the module is unit-tested and exported, and `canAccess` is wired into
+   both backends via thin fact-assembly wrappers (`canAccessShare` on the hub,
+   `canAccessPost` on subblogs).
 4. **When a revoked wallet re-purchases**: treat as a **brand-new grant** (current
    behavior, kept). A fresh purchase is clean and gets a brand-new receipt +
    entitlement.

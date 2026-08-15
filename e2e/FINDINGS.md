@@ -604,3 +604,53 @@ error banner — no retry affordance anywhere (see #14).
   TTL is the 12h unlock-proof replay window.
 
 See `logs/*.log` for the raw evidence behind each claim.
+- **Docs-vs-code audit (2026-08-15) — A/B/C buckets, all fixed + verified:**
+  - **A1** `subblogs/backend/src/routes/v1/setup.route.js` crashed on error
+    (`next` was undefined in the catch handler — `router.post('/', async (req,
+    res, next) => {` now declared).
+  - **A2** SDK runtime exports missing: `gate` (createGate alias), 
+    `clearPaymentProof`, `ratingMessage` were documented but not exported;
+    `NibgateClient` lacked `createHostedUnlock` + `rateContentOnchain`. All added
+    to `packages/nibgate/src/browser/*` and verified via import check; 
+    `npm test` 36/36 green.
+  - **A3** `packages/nibgate/src/server.d.ts` omitted 16 runtime exports
+    (`runCircleGatewayRequirement`, `prepareOnchainRating`, `verifyRatingTx`,
+    `submitOnchainRating`, `generateContentKey`, `encryptBytes`, `decryptBytes`,
+    `packCipherBlob`, `unpackCipherBlob`, `wrapKey`, `unwrapKey`,
+    `contentHashFor`, `registerProvider`, `putBlob`, `getBlob`, `deleteBlob`).
+    All declared.
+  - **A4** subblog post page imported but never used `MediaEmbed`; Vimeo/
+    SoundCloud/Spotify embeds rendered as raw `<video>`/fallback. Now routed
+    through `MediaEmbed`; unused local `detectEmbed` removed.
+  - **A5** subblog rating + RSS URLs omitted the `document` type → ratings/RSS
+    linked `/posts/<slug>` instead of `/docs/<slug>`. Fixed in
+    `rating.route.js` + `feed/route.ts`.
+  - **B1** `docs/src/app/api-reference/page.mdx` 11 errors: `/auth/nonce` GET
+    not POST; bare `GET /nibgate/status` doesn't exist (only
+    `/api/nibgate/status`); `/hub/content/:id/rate` POST not GET;
+    `GET entitlements/:wallet` doesn't exist (only DELETE restore);
+    access-control is PUT not POST; `/view` is POST; `gateway/balance` is POST;
+    `/stats` = public aggregates, per-owner is `/dashboard`; subblog
+    access-control PUT + admin-only scope.
+  - **B2** `payments-receipts/page.mdx`: `GET`→`POST gateway/balance`;
+    subblog path `/api/gateway/balances` → `/api/nibgate/gateway/balances`.
+  - **B3** `subblogs/README.md`: `/auth/nonce` POST→GET; `GET /api/setup`
+    doesn't exist (POST only); access-control/revoke/ban are admin-only not
+    "author/admin"; SIWE is a reader session, not the admin flow; `/docs`
+    listing + document posts now documented; dead `/encryption` link removed.
+  - **B4** SDK `SKILL.md` `accessResponse` example returned `{"getContent":null}`
+    (3rd arg is `allowedBody` function, not `{getContent}`) — fixed.
+  - **C1** ACCESS-CONTROL-DESIGN.md + access-control docs aligned with reality:
+    ban strips `whitelist[]` hub-only (service.js), restore does NOT re-add
+    whitelist and writes NO audit event, no `grant`/`price_change`/
+    `whitelist_flip` event types exist, 419 blocks ALL post-expiry access (incl.
+    existing payers — `API.md` "no new unlocks" wording corrected).
+  - **C2** `canAccess` was implemented + unit-tested in the SDK but NEVER wired
+    into either backend — both rails hand-rolled the gate. Now wired: hub
+    `service.canAccessShare` + subblogs `access.service.canAccessPost` assemble
+    DB facts and delegate to SDK `canAccess` at every gate (free/invite reads,
+    paid unlock, proof replay, lifetime re-issue, whitelist free tier, media).
+    Controllers only map the decision to HTTP; user-facing messages preserved.
+    `@nibgate/sdk/server` `canAccess` confirmed exported; both backends boot;
+    `npm test` 36/36. The SDK's stateless `accessFor`/`accessResponse` remains a
+    separate lighter embedded gate by design.

@@ -130,11 +130,11 @@ const nibgate = createCircleGatewayServer({
 })
 
 export function GET(request: Request) {
-  return nibgate.accessResponse(request, resource, {
-    getContent: async () => new Response(protectedHtml, {
+  return nibgate.accessResponse(request, resource, async ({ access, resource }) =>
+    new Response(protectedHtml, {
       headers: { 'content-type': 'text/html; charset=utf-8' }
     })
-  })
+  )
 }
 ```
 

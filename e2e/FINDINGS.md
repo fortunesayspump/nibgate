@@ -554,4 +554,16 @@ error banner — no retry affordance anywhere (see #14).
   mock-wallet installs in one process) can intercept normal clicks — the widget
   listens on pointerdown. All 3 green; WARN only for known 403/400 noise (#39).
 
+- **Batch22 viewer entitlement-state now verified live** (`checks-batch22.js`):
+  the quote-driven gate UI for each entitlement state. A whitelisted buyer who
+  unlocked free then gets revoked by the owner sees the "Your previous access was
+  revoked — pay again to re-unlock" banner on reload with no content leak; a
+  banned wallet sees the "Banned / No access" gate with no leak; and a restored
+  (DELETE entitlement) wallet is un-banned — but ban permanently strips
+  `whitelist[]` membership, so restore does NOT bring back the free tier and the
+  public paywall returns (consistent with the batch18 ban semantics). All 3
+  green twice in a row; WARN only for known 403/400 noise (#39). Harness note:
+  buyer/owner flows run in dedicated browser contexts because the shared
+  context's appkit/localStorage keeps reconnecting the most recent wallet.
+
 See `logs/*.log` for the raw evidence behind each claim.

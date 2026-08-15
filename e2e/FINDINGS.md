@@ -654,3 +654,13 @@ See `logs/*.log` for the raw evidence behind each claim.
     `@nibgate/sdk/server` `canAccess` confirmed exported; both backends boot;
     `npm test` 36/36. The SDK's stateless `accessFor`/`accessResponse` remains a
     separate lighter embedded gate by design.
+
+- **Post-audit canAccess wiring — live regression check (2026-08-15, commit
+  `97275ad`):** re-ran all 4 gate/expiry groups against production
+  (viewer-state, expiry, subblog, expiry2). 18/18 checks green, 66/66
+  assertions, 0 fail / 0 error; 12 WARN = the known console-noise signature
+  (403 resource / ERR_NAME_NOT_RESOLVED / Analytics SDK fetch) those
+  browser-based checks always emit. First pass right after deploy showed 2
+  page-stall timeouts (revoke-banner, restore-lifts-ban); both re-ran clean —
+  deploy-settling flakiness, not a canAccess regression. Rewired gates behave
+  identically to the pre-wiring hand-rolled logic at the live surface.

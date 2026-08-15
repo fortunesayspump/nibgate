@@ -2,6 +2,15 @@ import { db } from '@nibgate/internal/db.js';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
 
+export async function findContentByIdOrExternal(contentId = '') {
+  const trimmed = String(contentId || '').trim();
+  if (!trimmed) return null;
+  return db.content.findFirst({
+    where: { OR: [{ id: trimmed }, { externalId: trimmed }] },
+    include: { website: true },
+  });
+}
+
 export function cleanDomain(domain = '') {
   return String(domain).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
 }

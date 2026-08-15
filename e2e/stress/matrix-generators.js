@@ -226,10 +226,33 @@ function mobileMatrix({ group = 'types-mobile' } = {}) {
     run: async (h, { page }) => {
       await h.gotoSafe(page, p.url);
       await page.waitForTimeout(1200);
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
+      const overflow = await page.evaluate(() => {
+        const iw = window.innerWidth;
+        let bad = 0;
+        let check = 0;
+        document.querySelectorAll('body *').forEach((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.right <= iw + 1 && r.left >= -1) return;
+          // skip if ANY ancestor is an intentional scroll container (auto/scroll/clip);
+          // otherwise content clipped by overflow-x:hidden or raw overflow is a bug
+          let a = el.parentElement;
+          let intentional = false;
+          let clipped = false;
+          while (a && a !== document.body) {
+            const o = getComputedStyle(a).overflowX;
+            if (['auto', 'scroll', 'clip'].includes(o)) { intentional = true; break; }
+            if (o === 'hidden') clipped = true;
+            a = a.parentElement;
+          }
+          if (intentional) return;
+          check++;
+          if (r.right > iw + 1 || r.left < -1) bad++;
+        });
+        return { bad, check };
+      });
       const b = await h.bodyText(page);
       return [
-        [!overflow, `no horizontal overflow: scrollW=${await page.evaluate(() => document.documentElement.scrollWidth)} inner=${await page.evaluate(() => window.innerWidth)}`],
+        [overflow.bad === 0, `no unbounded horizontal overflow (bad=${overflow.bad})`],
         [!/Application error/i.test(b), 'no error boundary'],
       ];
     }
@@ -335,6 +358,7 @@ function subblogReaderMatrix({ group = 'subblog-reader' } = {}) {
     pk: 'anon',
     run: async (h, { page }) => {
       await h.gotoSafe(page, `https://catwalk.nibgate.xyz${p.path}`);
+      await h.waitBody(page, /Catwalk/i);
       const b = await h.bodyText(page);
       const expects = [
         [!/Application error|Internal Server/i.test(b), 'no error boundary'],
@@ -351,7 +375,7 @@ function subblogReaderMatrix({ group = 'subblog-reader' } = {}) {
 function ratingsMatrix({ group = 'subblog-ratings' } = {}) {
   const pages = [
     { id: 'subblog', path: `https://catwalk.nibgate.xyz${SUB_BLOG.article}`, hasStars: /☆|★|stars/i },
-    { id: 'share', path: `https://nibgate.xyz/ns/${slugFor('article', 'free')}`, hasStars: /☆|★|stars/i },
+    { id: 'subblog-paid', path: `https://catwalk.nibgate.xyz${SUB_BLOG.articlePaid}`, hasStars: /☆|★|stars/i },
   ];
   return pages.map((p) => ({
     id: `rt-${p.id}`, group,
@@ -359,6 +383,7 @@ function ratingsMatrix({ group = 'subblog-ratings' } = {}) {
     pk: 'anon',
     run: async (h, { page }) => {
       await h.gotoSafe(page, p.path);
+      await h.waitBody(page, p.hasStars);
       const b = await h.bodyText(page);
       return [[p.hasStars.test(b), `stars present on ${p.id}: ${p.hasStars.test(b)}`]];
     }
@@ -380,8 +405,11 @@ function formValidationMatrix({ group = 'types-form' } = {}) {
       name: `form validation: ${c.desc}`,
       pk: h.SEL_PK,
       run: async (h, { page }) => {
-        await connectWallet(page, /0x7099/i);
         await h.gotoSafe(page, 'https://nibgate.xyz/share');
+        const { connectSellerFlow } = require('../harness/prod-lib.js');
+        await connectSellerFlow(page, { label: 'v', log: () => {} }).catch(() => {});
+        await page.waitForTimeout(1500);
+        await page.locator('input[placeholder^="Post title"], input[placeholder*="title"]').first().waitFor({ state: 'visible', timeout: 25000 }).catch(() => {});
         await page.getByPlaceholder(/Post title|Photo title|Track title|Document title|Video title/).fill(c.title);
         if (c.access === 'paid') {
           await page.getByText(/pay to unlock/i).first().click().catch(() => {});
@@ -391,7 +419,9 @@ function formValidationMatrix({ group = 'types-form' } = {}) {
         }
         if (c.body) {
           const editor = page.locator('.tiptap, .ProseMirror [contenteditable], [contenteditable]').first();
-          if (await editor.count()) { await editor.click(); await page.keyboard.type(c.body, { delay: 1 }); }
+          await editor.waitFor({ state: 'visible', timeout: 25000 }).catch(() => {});
+          await editor.click({ force: true, timeout: 15000 }).catch(() => {});
+          await page.keyboard.type(c.body, { delay: 1 });
         }
         await page.getByRole('button', { name: /publish/i }).click().catch(() => {});
         await page.waitForTimeout(2500);
@@ -407,8 +437,8 @@ function formValidationMatrix({ group = 'types-form' } = {}) {
 function shareAdminFieldMatrix({ group = 'types-form' } = {}) {
   const checks = [];
   const cases = [
-    { id: 'tags', fill: async (page) => { const t = page.getByPlaceholder(/tools, craft, general/i); if (await t.count()) await t.fill('alpha,beta,gamma'); }, expect: /alpha,beta,gamma|alpha/i },
-    { id: 'excerpt', fill: async (page) => { const e = page.getByPlaceholder('Short description'); if (await e.count()) await e.fill('A short excerpt for the matrix.'); }, expect: /short excerpt/i },
+    { id: 'tags', fill: async (page) => { const t = page.getByPlaceholder(/tools, craft, general/i); if (await t.count()) await t.fill('alpha,beta,gamma'); }, read: async (page) => (await page.getByPlaceholder(/tools, craft, general/i).inputValue().catch(() => '')) || '', expect: /alpha,beta,gamma|alpha/i },
+    { id: 'excerpt', fill: async (page) => { const e = page.getByPlaceholder('Short description'); if (await e.count()) await e.fill('A short excerpt for the matrix.'); }, read: async (page) => (await page.getByPlaceholder('Short description').inputValue().catch(() => '')) || '', expect: /short excerpt/i },
   ];
   for (const c of cases) {
     checks.push({
@@ -416,13 +446,16 @@ function shareAdminFieldMatrix({ group = 'types-form' } = {}) {
       name: `form admin: ${c.id} accepted`,
       pk: h.SEL_PK,
       run: async (h, { page }) => {
-        await connectWallet(page, /0x7099/i);
         await h.gotoSafe(page, 'https://nibgate.xyz/share');
+        const { connectSellerFlow } = require('../harness/prod-lib.js');
+        await connectSellerFlow(page, { label: 'a', log: () => {} }).catch(() => {});
+        await page.waitForTimeout(1500);
+        await page.locator('input[placeholder^="Post title"], input[placeholder*="title"]').first().waitFor({ state: 'visible', timeout: 25000 }).catch(() => {});
         await page.getByPlaceholder(/Post title/).fill(`E2E field ${c.id}`);
         await c.fill(page);
         await page.waitForTimeout(400);
-        const b = await h.bodyText(page);
-        return [[c.expect.test(b), `${c.id} present in form state: ${c.expect.test(b)}`]];
+        const val = await c.read(page);
+        return [[c.expect.test(val), `${c.id} present in form state: ${c.expect.test(val)}`]];
       }
     });
   }
@@ -521,7 +554,7 @@ function apiSecurityMatrix({ group = 'types-security' } = {}) {
       run: async (h, { page, context }) => {
         const r = await context.request.fetch(p.url, { method: p.method, data: {} });
         const j = await r.json().catch(() => ({}));
-        if (p.id === 'status-ok') return [[r.ok && (j.ok || j.status), `status ok: ${r.status} ${JSON.stringify(j).slice(0,60)}`]];
+        if (p.id === 'status-ok') return [[r.ok && !!j.site && !!j.hub, `status ok: ${r.status} site=${!!j.site} hub=${!!j.hub}`]];
         // admin ops should reject anon (401/403/404), NOT 200-apply
         const rejected = [401, 403, 404].includes(r.status) || j.error || !j.ok;
         return [[rejected, `anon ${p.method} → ${r.status} rejected=${rejected}`]];
@@ -726,11 +759,11 @@ function draftPublishMatrix({ group = 'types-lifecycle' } = {}) {
       const ed = page.locator('.ProseMirror, [contenteditable]').first();
       await page.locator('input[placeholder^="Post title"]').fill(title).catch(() => {});
       if (await ed.count()) { await ed.click().catch(() => {}); await page.keyboard.type('draft body', { delay: 1 }); }
-      const db = page.getByRole('button', { name: /^draft$/i }).first();
+      const db = page.getByRole('button', { name: /^save as draft$/i }).first();
       if (await db.count()) await db.click({ force: true }).catch(() => {});
       await page.waitForTimeout(4000);
       const b1 = await h.bodyText(page);
-      const savedDraft = /draft|saved|mine/i.test(b1);
+      const savedDraft = /draft|saved/i.test(b1);
       // now open mine, switch to the Drafts filter, find the draft, publish it
       await h.gotoSafe(page, 'https://nibgate.xyz/share/mine');
       await page.waitForTimeout(2500);
@@ -843,7 +876,7 @@ function walletAuthMatrix({ group = 'types-wallet' } = {}) {
   checks.push({
     id: 'wa-connect-on-paid', group,
     name: 'wallet: connect on paid gate reveals balance row',
-    pk: 'anon',
+    pk: h.SEL_PK,
     run: async (h, { page }) => {
       await h.gotoSafe(page, `https://nibgate.xyz/ns/${gated}`);
       const { connectSellerFlow } = require('../harness/prod-lib.js');

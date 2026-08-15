@@ -1259,6 +1259,12 @@ html[data-theme="light"] .explore-art {
     columns: 1;
   }
 
+  .market-section,
+  .wishlist-section,
+  .explore-directory {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .content-card-music {
     grid-template-columns: 96px minmax(0, 1fr);
   }

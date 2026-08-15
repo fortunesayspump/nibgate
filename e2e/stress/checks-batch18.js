@@ -45,11 +45,13 @@ async function buyerGate(h, ctx, slug) {
 
 // Open a share URL and wait for the gate UI (title + paywall/hold-to-pay) to
 // render before reading the body — avoids reading a pre-hydration snapshot.
+// Waits on a specific gate marker (NOT bare "Connect wallet", which is present
+// in the pre-hydration shell) so the price/paywall has hydrated before read.
 async function readGate(h, ctx, slug) {
   const { page } = ctx;
   await h.gotoSafe(page, `${B}/ns/${slug}`);
-  await page.getByText(/Pay to unlock|Connect wallet|Hold to pay|Enjoy|Unlock/i).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
-  await page.waitForTimeout(800);
+  await page.getByText(/Pay to unlock|Hold to pay|Enjoy|USDC|Unlock for free/i).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(1200);
   return h.bodyText(page);
 }
 

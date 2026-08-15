@@ -168,14 +168,15 @@ export async function unlockShare(req, res) {
     const preWallet = walletForAccess(req);
     // Only a session-corroborated claim may unlock content or claim a tier.
     const possessed = await possessedWalletFor(req, preWallet);
+    const preDecision = possessed ? await service.canAccessShare(share, { wallet: possessed }) : null;
 
     // Whitelist-free tier: grant an active entitlement without an x402 challenge.
     if (share.price > 0 && possessed && service.effectivePrice(share, possessed) === 0) {
-      const decision = service.accessDecision(share, possessed);
-      if (!decision.ok) return res.status(403).json({ error: decision.message });
-      const freeEnt = await service.findEntitlement({ shareId: share.id, wallet: possessed });
-      if (freeEnt && freeEnt.status === 'banned') {
-        return res.status(403).json({ error: 'This wallet is banned from this share.' });
+      if (preDecision && !preDecision.allowed && preDecision.reason !== 'revoked') {
+        if (preDecision.reason === 'banned') {
+          return res.status(403).json({ error: 'This wallet is banned from this share.' });
+        }
+        return res.status(403).json({ error: preDecision.message || 'This share is invite-only — only whitelisted wallets can access it.' });
       }
       const ent = await service.grantEntitlement({ share, wallet: possessed });
       const freeBody = await decryptShareBody(share);
@@ -196,11 +197,11 @@ export async function unlockShare(req, res) {
       if (!possessed) {
         return res.status(403).json({ error: 'This share is invite-only. Connect and sign in with the wallet you were invited with.' });
       }
-      const inviteDecision = service.accessDecision(share, possessed);
-      if (!inviteDecision.ok) return res.status(403).json({ error: inviteDecision.message });
-      const tryEnt = await service.findEntitlement({ shareId: share.id, wallet: possessed });
-      if (tryEnt && tryEnt.status === 'banned') {
-        return res.status(403).json({ error: 'This wallet is banned from this share.' });
+      if (preDecision && !preDecision.allowed && preDecision.reason !== 'revoked') {
+        if (preDecision.reason === 'banned') {
+          return res.status(403).json({ error: 'This wallet is banned from this share.' });
+        }
+        return res.status(403).json({ error: preDecision.message || 'This share is invite-only — only whitelisted wallets can access it.' });
       }
     }
 
@@ -213,13 +214,12 @@ export async function unlockShare(req, res) {
     if (share.publicAccess === false && payer !== possessed) {
       return res.status(403).json({ error: 'This share is invite-only — the wallet that pays must be the wallet you signed in with.' });
     }
-    const decision = service.accessDecision(share, payer);
-    if (!decision.ok) {
-      return res.status(403).json({ error: decision.message });
-    }
-    const ent = await service.findEntitlement({ shareId: share.id, wallet: payer });
-    if (ent && ent.status === 'banned') {
-      return res.status(403).json({ error: 'This wallet is banned from this share.' });
+    const decision = await service.canAccessShare(share, { wallet: payer });
+    if (!decision.allowed && decision.reason !== 'revoked') {
+      if (decision.reason === 'banned') {
+        return res.status(403).json({ error: 'This wallet is banned from this share.' });
+      }
+      return res.status(403).json({ error: decision.message || 'This wallet is not allowed to unlock this share.' });
     }
     if (share.price > 0) {
       const payerPrice = service.effectivePrice(share, payer);
@@ -259,7 +259,7 @@ export async function accessShare(req, res) {
     const body = await decryptShareBody(share);
     const resource = service.resourceFor(share);
 
-    // Free shares render directly, matching how subblogs serves free posts.
+// Free shares render directly, matching how subblogs serves free posts.
     if (!(share.price > 0)) {
       // Invite-only (publicAccess=false) still requires a listed wallet;
       // banned / revoked wallets are refused. Only a session-corroborated
@@ -273,16 +273,15 @@ export async function accessShare(req, res) {
         if (!wallet) {
           return res.status(403).json({ ok: false, error: 'This share is invite-only. Sign in with the wallet you were invited with to view it.' });
         }
-        const decision = service.accessDecision(share, wallet);
-        if (!decision.ok) {
-          return res.status(403).json({ ok: false, error: decision.message });
-        }
-        const ent = await service.findEntitlement({ shareId: share.id, wallet });
-        if (ent && ent.status === 'banned') {
-          return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
-        }
-        if (ent && ent.status === 'revoked') {
-          return res.status(403).json({ ok: false, error: 'Access to this share has been revoked.' });
+        const decision = await service.canAccessShare(share, { wallet });
+        if (!decision.allowed) {
+          if (decision.reason === 'banned') {
+            return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+          }
+          if (decision.reason === 'revoked') {
+            return res.status(403).json({ ok: false, error: 'Access to this share has been revoked.' });
+          }
+          return res.status(403).json({ ok: false, error: 'This share is invite-only. Sign in with the wallet you were invited with to view it.' });
         }
       }
       return res.json({ ok: true, resource, content: body, media: null, payment: null, unlockProof: null, expiresInSeconds: expirySecondsFor(share) });
@@ -291,67 +290,64 @@ export async function accessShare(req, res) {
     // Replay an existing payment proof (x-nibgate-payment-proof header).
     const replayedWallet = walletFromPaymentProof(share, req.headers['x-nibgate-payment-proof']);
     if (replayedWallet) {
-      if (!share.publicAccess && !service.inWhitelist(share, replayedWallet)) {
+      const decision = await service.canAccessShare(share, { wallet: replayedWallet, proofValid: true });
+      if (!decision.allowed) {
+        if (decision.reason === 'banned') {
+          return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+        }
+        if (decision.reason === 'revoked') {
+          return res.status(403).json({ ok: false, error: 'Access to this share has been revoked. Pay again to re-unlock.' });
+        }
         return res.status(403).json({ ok: false, error: 'This share is invite-only — only whitelisted wallets can access it.' });
       }
-      const ent = await service.findEntitlement({ shareId: share.id, wallet: replayedWallet });
-      if (ent && ent.status === 'banned') {
-        return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
-      }
-      if (ent && ent.status === 'active') {
-        const lastReceipt = await service.findLastReceipt({ shareId: share.id, wallet: replayedWallet });
-        return res.json({
-          ok: true,
-          resource,
-          content: body,
-          media: null,
-          payment: { id: lastReceipt?.id || null, amount: String(share.price), currency: share.currency, txHash: lastReceipt?.txHash || null, payerWallet: replayedWallet },
-          unlockProof: req.headers['x-nibgate-payment-proof'],
-          expiresInSeconds: expirySecondsFor(share)
-        });
-      }
-      return res.status(403).json({ ok: false, error: 'Access to this share has been revoked. Pay again to re-unlock.' });
+      const lastReceipt = await service.findLastReceipt({ shareId: share.id, wallet: replayedWallet });
+      return res.json({
+        ok: true,
+        resource,
+        content: body,
+        media: null,
+        payment: { id: lastReceipt?.id || null, amount: String(share.price), currency: share.currency, txHash: lastReceipt?.txHash || null, payerWallet: replayedWallet },
+        unlockProof: req.headers['x-nibgate-payment-proof'],
+        expiresInSeconds: expirySecondsFor(share)
+      });
     }
 
     // Paid share: relay the x402 Gateway payment (challenge, or verification + unlock).
     const claimed = walletForAccess(req);
     // Only a session-corroborated wallet may claim a tier or unlock content.
     const possessed = await possessedWalletFor(req, claimed);
+    const preDecision = possessed ? await service.canAccessShare(share, { wallet: possessed }) : null;
 
     // Invite-only paid shares: only a possessed, whitelisted wallet may even
-    // attempt a payment — anonymous requests get 403, never a charge.
+    // attempt a payment — anonymous requests get 403, never a charge. A revoked
+    // wallet may still re-purchase, so only banned/invite-only hard-deny here.
     if (share.publicAccess === false) {
       if (!possessed) {
         return res.status(403).json({ ok: false, error: 'This share is invite-only. Connect and sign in with the wallet you were invited with.' });
       }
-      const inviteDecision = service.accessDecision(share, possessed);
-      if (!inviteDecision.ok) return res.status(403).json({ ok: false, error: inviteDecision.message });
-      const tryEnt = await service.findEntitlement({ shareId: share.id, wallet: possessed });
-      if (tryEnt && tryEnt.status === 'banned') {
-        return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+      if (preDecision && !preDecision.allowed && preDecision.reason !== 'revoked') {
+        if (preDecision.reason === 'banned') {
+          return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+        }
+        return res.status(403).json({ ok: false, error: preDecision.message || 'This share is invite-only — only whitelisted wallets can access it.' });
       }
     }
 
-    // Lifetime access: an active entitlement backed by a REAL paid receipt
-    // means the wallet already paid. Even with no stored proof (new browser /
+    // Lifetime access: an active entitlement backed by a REAL paid receipt means
+    // the wallet already paid. Even with no stored proof (new browser /
     // cleared localStorage), re-issue a fresh proof instead of charging again —
     // but only to the wallet that actually signed in.
-    if (possessed) {
-      const lifetime = await service.findEntitlement({ shareId: share.id, wallet: possessed });
-      if (lifetime && lifetime.status === 'active') {
-        const paidReceipt = await service.findLastReceipt({ shareId: share.id, wallet: possessed });
-        if (paidReceipt && Number(paidReceipt.amount || 0) > 0) {
-          return res.json({
-            ok: true,
-            resource,
-            content: body,
-            media: null,
-            payment: { id: paidReceipt.id, amount: String(paidReceipt.amount), currency: share.currency, txHash: paidReceipt.txHash || null, payerWallet: possessed },
-            unlockProof: paymentProofFor(share, possessed),
-            expiresInSeconds: expirySecondsFor(share)
-          });
-        }
-      }
+    if (possessed && preDecision && preDecision.allowed && preDecision.grant === 'paid') {
+      const paidReceipt = await service.findLastReceipt({ shareId: share.id, wallet: possessed });
+      return res.json({
+        ok: true,
+        resource,
+        content: body,
+        media: null,
+        payment: { id: paidReceipt.id, amount: String(paidReceipt.amount), currency: share.currency, txHash: paidReceipt.txHash || null, payerWallet: possessed },
+        unlockProof: paymentProofFor(share, possessed),
+        expiresInSeconds: expirySecondsFor(share)
+      });
     }
 
     const challengePrice = possessed ? service.effectivePrice(share, possessed) : share.price;
@@ -361,11 +357,11 @@ export async function accessShare(req, res) {
     // entitlement without a payment challenge instead. Only reachable for paid
     // shares whose whitelist price is zero, for a session-corroborated wallet.
     if (share.price > 0 && challengePrice === 0 && possessed) {
-      const decision = service.accessDecision(share, possessed);
-      if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
-      const freeEnt = await service.findEntitlement({ shareId: share.id, wallet: possessed });
-      if (freeEnt && freeEnt.status === 'banned') {
-        return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+      if (preDecision && !preDecision.allowed && preDecision.reason !== 'revoked') {
+        if (preDecision.reason === 'banned') {
+          return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+        }
+        return res.status(403).json({ ok: false, error: preDecision.message || 'This share is invite-only — only whitelisted wallets can access it.' });
       }
       await service.grantEntitlement({ share, wallet: possessed });
       return res.json({
@@ -391,13 +387,12 @@ export async function accessShare(req, res) {
     if (share.publicAccess === false && payer !== possessed) {
       return res.status(403).json({ ok: false, error: 'This share is invite-only — the wallet that pays must be the wallet you signed in with.' });
     }
-    const decision = service.accessDecision(share, payer);
-    if (!decision.ok) {
-      return res.status(403).json({ ok: false, error: decision.message });
-    }
-    const ent = await service.findEntitlement({ shareId: share.id, wallet: payer });
-    if (ent && ent.status === 'banned') {
-      return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+    const decision = await service.canAccessShare(share, { wallet: payer });
+    if (!decision.allowed && decision.reason !== 'revoked') {
+      if (decision.reason === 'banned') {
+        return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
+      }
+      return res.status(403).json({ ok: false, error: decision.message || 'This wallet is not allowed to unlock this share.' });
     }
     if (String(service.effectivePrice(share, payer)) !== String(challengePrice)) {
       return res.status(409).json({ ok: false, error: 'The price changed for your wallet. Please retry unlocking.' });
@@ -439,11 +434,12 @@ export async function getShareMedia(req, res) {
       if (!wallet) {
         return res.status(403).json({ error: 'This share is invite-only. Sign in with the wallet you were invited with to view its media.' });
       }
-      const decision = service.accessDecision(share, wallet);
-      if (!decision.ok) return res.status(403).json({ error: decision.message });
-      const ent = await service.findEntitlement({ shareId: share.id, wallet });
-      if (ent && ent.status === 'banned') return res.status(403).json({ error: 'This wallet is banned from this share.' });
-      if (ent && ent.status === 'revoked') return res.status(403).json({ error: 'Access to this share has been revoked.' });
+      const decision = await service.canAccessShare(share, { wallet });
+      if (!decision.allowed) {
+        if (decision.reason === 'banned') return res.status(403).json({ error: 'This wallet is banned from this share.' });
+        if (decision.reason === 'revoked') return res.status(403).json({ error: 'Access to this share has been revoked.' });
+        return res.status(403).json({ error: decision.message || 'This share is invite-only. Sign in with the wallet you were invited with to view its media.' });
+      }
     }
 
     if (share.price > 0) {
@@ -453,17 +449,17 @@ export async function getShareMedia(req, res) {
       // media — the wallet client signs in (SIWE) before loading media, so the
       // session wallet is the authoritative identity here.
       let wallet = walletFromPaymentProof(share, proof);
+      const proofValid = Boolean(wallet);
       if (!wallet) wallet = await possessedWalletFor(req, walletForAccess(req));
       if (wallet) {
-        if (!share.publicAccess && !service.inWhitelist(share, wallet)) {
-          return res.status(403).json({ error: 'This share is invite-only — only whitelisted wallets can access it.' });
-        }
-        const ent = await service.findEntitlement({ shareId: share.id, wallet });
-        const paidReceipt = ent && ent.status === 'active'
-          ? await service.findLastReceipt({ shareId: share.id, wallet })
-          : null;
-        const ok = ent && ent.status === 'active' && (paidReceipt ? Number(paidReceipt.amount || 0) > 0 : false);
-        if (!ok) {
+        // Paid media requires an ACTIVE PAID entitlement (a real receipt). A
+        // proof-only fast-path (no receipt) or a free-tier grant must not leak.
+        const decision = await service.canAccessShare(share, { wallet, proofValid });
+        const paidMediaOk = decision.allowed && decision.grant === 'paid';
+        if (!paidMediaOk) {
+          if (!decision.allowed && decision.reason === 'invite-only') {
+            return res.status(403).json({ error: 'This share is invite-only — only whitelisted wallets can access it.' });
+          }
           return res.status(403).json({ error: 'You must unlock this share to view its media.' });
         }
       } else {

@@ -268,7 +268,7 @@ Non-success responses:
 - `409 Conflict` when the minted challenge price no longer matches the payer's tier —
   retry the unlock.
 - `410 Gone` when `status == revoked`.
-- `419` when `expiresAt` passed — "no new unlocks after expiry".
+- `419` when `expiresAt` passed — **all** access is denied after expiry (including existing paid entitlements; the reachability gate runs before any entitlement check).
 
 ## Quote (public, per-wallet price)
 
@@ -477,6 +477,6 @@ All errors: `{ "error": "<message>", "details"?: "<string>" }` with a 4xx/5xx st
 | 403 | invite-only / not whitelisted / banned / entitlement revoked |
 | 409 | tier price changed for the payer — retry unlock |
 | 410 | share revoked |
-| 419 | expired (no new unlocks) |
+| 419 | expired — all access denied after `expiresAt` (incl. existing paid entitlements) |
 | 429 | rate limited |
 | 500 | storage/payment internal failure |

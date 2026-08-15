@@ -111,17 +111,18 @@ async function mediaAccessResult(req, post, resource) {
   }
   if (isPaidValue(post.price) && !nibgateServer.isUnlocked(new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, { headers: new Headers(req.headers) }), resource)) {
     // No valid proof: gate on a lifetime active paid entitlement.
-    const paidEnt = await accessService.findEntitlement({ postId: post.id, wallet });
-    const hasPaidReceipt = paidEnt && paidEnt.status === 'active'
-      ? await accessService.findLastReceipt({ postId: post.id, wallet })
-      : null;
-    if (!hasPaidReceipt) {
+    const decision = await accessService.canAccessPost(post, { wallet });
+    const paidMediaOk = decision.allowed && decision.grant === 'paid';
+    if (!paidMediaOk) {
+      if (!decision.allowed && decision.reason === 'invite-only') {
+        return { status: 403, body: { error: 'This post is invite-only — only whitelisted wallets can access it.' } };
+      }
       const challenge = nibgateServer.createPaymentChallenge(resource);
       return { status: 402, body: challenge };
     }
   }
-  const ent = await accessService.findEntitlement({ postId: post.id, wallet });
-  if (ent && (ent.status === 'banned' || ent.status === 'revoked')) {
+  const decision = await accessService.canAccessPost(post, { wallet });
+  if (!decision.allowed && (decision.reason === 'banned' || decision.reason === 'revoked')) {
     return { status: 403, body: { error: 'You must unlock this post to view its media.' } };
   }
   return null;
@@ -164,14 +165,15 @@ async function serveAccess(req, res, post, slug) {
       if (!possessed) {
         return res.status(403).json({ ok: false, error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view it.' });
       }
-      const decision = accessService.accessDecision(post, possessed);
-      if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
-      const ent = await accessService.findEntitlement({ postId: post.id, wallet: possessed });
-      if (ent && ent.status === 'banned') {
-        return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
-      }
-      if (ent && ent.status === 'revoked') {
-        return res.status(403).json({ ok: false, error: 'Access to this post has been revoked.' });
+      const decision = await accessService.canAccessPost(post, { wallet: possessed });
+      if (!decision.allowed) {
+        if (decision.reason === 'banned') {
+          return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+        }
+        if (decision.reason === 'revoked') {
+          return res.status(403).json({ ok: false, error: 'Access to this post has been revoked.' });
+        }
+        return res.status(403).json({ ok: false, error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view it.' });
       }
     }
     const payload = await accessPayloadFor(post);
@@ -189,17 +191,15 @@ async function serveAccess(req, res, post, slug) {
   // Replay an existing SDK unlock-proof (wallet already paid / was granted).
   const proofWallet = proofWalletFor(req, resource);
   if (proofWallet) {
-    // Invite-only: even a valid old proof does NOT unlock outside the whitelist.
-    // Nobody outside the whitelist can unlock OR pay for an invite-only post.
-    if (!post?.publicAccess && !accessService.inWhitelist(post, proofWallet)) {
+    const decision = await accessService.canAccessPost(post, { wallet: proofWallet, proofValid: true });
+    if (!decision.allowed) {
+      if (decision.reason === 'banned') {
+        return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+      }
+      if (decision.reason === 'revoked') {
+        return res.status(403).json({ ok: false, error: 'Access to this post has been revoked. Pay again to re-unlock.' });
+      }
       return res.status(403).json({ ok: false, error: 'This post is invite-only — only whitelisted wallets can access it.' });
-    }
-    const ent = await accessService.findEntitlement({ postId: post.id, wallet: proofWallet });
-    if (ent && ent.status === 'banned') {
-      return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
-    }
-    if (ent && ent.status === 'revoked') {
-      return res.status(403).json({ ok: false, error: 'Access to this post has been revoked. Pay again to re-unlock.' });
     }
     const payload = await accessPayloadFor(post);
     const lastReceipt = await accessService.findLastReceipt({ postId: post.id, wallet: proofWallet });
@@ -217,6 +217,7 @@ async function serveAccess(req, res, post, slug) {
   // charges the PUBLIC price and grants nothing.
   const claimed = accessService.walletFor(req);
   const wallet = await accessService.possessedWalletFor(req, claimed);
+  const preDecision = wallet ? await accessService.canAccessPost(post, { wallet }) : null;
 
   // Invite-only paid posts: only a possessed, whitelisted wallet may even
   // attempt a payment — anonymous requests get 403, never a charge.
@@ -224,28 +225,24 @@ async function serveAccess(req, res, post, slug) {
     if (!wallet) {
       return res.status(403).json({ ok: false, error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view it.' });
     }
-    const inviteDecision = accessService.accessDecision(post, wallet);
-    if (!inviteDecision.ok) return res.status(403).json({ ok: false, error: inviteDecision.message });
+    if (preDecision && !preDecision.allowed && preDecision.reason !== 'revoked') {
+      if (preDecision.reason === 'banned') {
+        return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+      }
+      return res.status(403).json({ ok: false, error: preDecision.message || 'This post is invite-only — only whitelisted wallets can access it.' });
+    }
   }
 
   const challengePrice = wallet ? accessService.effectivePrice(post, wallet) : post.price;
 
-  // Banned wallets must be refused before we spend a challenge on them.
-  if (wallet) {
-    const tryEnt = await accessService.findEntitlement({ postId: post.id, wallet });
-    if (tryEnt && tryEnt.status === 'banned') {
-      return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
-    }
-  }
-
   // Whitelist-free tier (whitelistPrice=0 member of a paid post): x402 rejects
   // $0, so grant an active entitlement without a challenge instead.
   if (isPaidValue(post.price) && String(challengePrice) === '0' && wallet) {
-    const decision = accessService.accessDecision(post, wallet);
-    if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
-    const freeEnt = await accessService.findEntitlement({ postId: post.id, wallet });
-    if (freeEnt && freeEnt.status === 'banned') {
-      return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+    if (preDecision && !preDecision.allowed && preDecision.reason !== 'revoked') {
+      if (preDecision.reason === 'banned') {
+        return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+      }
+      return res.status(403).json({ ok: false, error: preDecision.message || 'This post is invite-only — only whitelisted wallets can access it.' });
     }
     await accessService.grantEntitlement({ post, wallet });
     const freeResult = await nibgateServer.unlock({ ...resource, price: '0' }, { id: `${post.id}:free`, payer: wallet, amount: 0, txHash: null });
@@ -261,23 +258,20 @@ async function serveAccess(req, res, post, slug) {
   // Lifetime access: an active entitlement backed by a REAL paid receipt means
   // the wallet already paid. When their 12h unlock-proof lapses, re-issue a
   // fresh proof for free instead of charging them again.
-  if (wallet) {
-    const lifetime = await accessService.findEntitlement({ postId: post.id, wallet });
-    if (lifetime && lifetime.status === 'active') {
-      const paidReceipt = await accessService.findLastReceipt({ postId: post.id, wallet });
-      if (paidReceipt) {
-        const refreshedProof = await nibgateServer.unlock(
-          { ...resource, price: String(challengePrice || post.price) },
-          { id: `${post.id}:lifetime:${wallet}`, payer: wallet, amount: 0, txHash: null }
-        );
-        const payload = await accessPayloadFor(post);
-        return res.json({
-          ok: true, resource: { ...resource, price: String(challengePrice || post.price) }, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
-          payment: { id: paidReceipt.id, amount: String(post.price), currency: 'USDC', txHash: paidReceipt.txHash || null, payerWallet: wallet },
-          unlockProof: refreshedProof.unlockProof,
-          expiresInSeconds: refreshedProof.expiresInSeconds,
-        });
-      }
+  if (wallet && preDecision && preDecision.allowed && preDecision.grant === 'paid') {
+    const paidReceipt = await accessService.findLastReceipt({ postId: post.id, wallet });
+    if (paidReceipt) {
+      const refreshedProof = await nibgateServer.unlock(
+        { ...resource, price: String(challengePrice || post.price) },
+        { id: `${post.id}:lifetime:${wallet}`, payer: wallet, amount: 0, txHash: null }
+      );
+      const payload = await accessPayloadFor(post);
+      return res.json({
+        ok: true, resource: { ...resource, price: String(challengePrice || post.price) }, content: payload.content, videoUrl: post?.videoUrl || null, media: payload.media,
+        payment: { id: paidReceipt.id, amount: String(post.price), currency: 'USDC', txHash: paidReceipt.txHash || null, payerWallet: wallet },
+        unlockProof: refreshedProof.unlockProof,
+        expiresInSeconds: refreshedProof.expiresInSeconds,
+      });
     }
   }
 
@@ -330,11 +324,12 @@ async function serveAccess(req, res, post, slug) {
           if (!post?.publicAccess && payer !== wallet) {
             return res.status(403).json({ ok: false, error: 'This post is invite-only — the wallet that pays must be the wallet you signed in with.' });
           }
-          const decision = accessService.accessDecision(post, payer);
-          if (!decision.ok) return res.status(403).json({ ok: false, error: decision.message });
-          const configEnt = await accessService.findEntitlement({ postId: post.id, wallet: payer });
-          if (configEnt && configEnt.status === 'banned') {
-            return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+          const decision = await accessService.canAccessPost(post, { wallet: payer });
+          if (!decision.allowed && decision.reason !== 'revoked') {
+            if (decision.reason === 'banned') {
+              return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
+            }
+            return res.status(403).json({ ok: false, error: decision.message || 'This wallet is not allowed to unlock this post.' });
           }
           if (String(accessService.effectivePrice(post, payer)) !== String(challengePrice)) {
             return res.status(409).json({ ok: false, error: 'The price changed for your wallet. Please retry unlocking.' });

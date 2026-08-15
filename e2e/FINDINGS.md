@@ -74,6 +74,11 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
    `{"success":false,"errorReason":"unauthorized"}`). This is Circle-side
    (testnet issuer/project gate), not a Nibgate bug — nothing in our control
    changes it. Documented so we stop chasing it.
+   **Re-confirmed 2026-08-15:** a fresh EIP-3009 payload (recovered signer ==
+   buyer `0x3C44…`, Gateway `6.0` balance intact) still yields
+   `POST /v1/x402/verify → 200 {"isValid":false,"invalidReason":"unauthorized"}`
+   against `gateway-api-testnet.circle.com`. Still a Circle-side testnet
+   issuer/project gate; the paid unlock happy path remains untestable live.
 8. **`createGatewayMiddleware` cannot send auth headers.** The SDK's
    `createGatewayMiddleware()` builds a `BatchFacilitatorClient` WITHOUT
    `createAuthHeaders`, so a seller app has no official way to attach a Circle
@@ -581,5 +586,21 @@ error banner — no retry affordance anywhere (see #14).
   members leaves the other able to unlock free. Seen-by: a wallet that unlocked
   then got revoked shows the `· revoked` badge in the owner's Seen-by list. All
   6 green twice in a row; WARN only for known 403/400 noise (#39).
+
+- **Batch24 subblog + expiry combos verified live** (`checks-batch24.js`):
+  subblog combos against `catwalk.nibgate.xyz` (API-level, no mutation): the
+  quote endpoint returns a per-wallet pricing snapshot (paid doc 0.50 / free 0,
+  no entitlement yet, gate actionable — `canUnlock` means "can attempt to
+  unlock", NOT free access); a bare `?wallet=` claim on a paid post does NOT
+  unlock — the subblog backend requires SIWE session possession
+  (`sessionWalletFor`), confirming no spoof bypass; anon media fetch on a paid
+  post → 402 challenge with no leak; free post serves 200 content, paid post
+  402s anon. Hub expiry combos: invite-only + expired → the 419
+  `assertReachable` gate wins over invite, cutting off a whitelisted free
+  member with no leak; paid-public + expired → 419 + banner; free-public +
+  expired → 419 even though free; `expiresAt` surfaces on both `/meta` and
+  `/manifest`. All 9 green twice in a row; WARN only for known 403/400 noise.
+  Subblog note: posts have NO `expiresAt` (unlike NibShare) — the only subblog
+  TTL is the 12h unlock-proof replay window.
 
 See `logs/*.log` for the raw evidence behind each claim.

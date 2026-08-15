@@ -164,7 +164,7 @@ const checks = [
   {
     id: 'b26-hub-widget-js', group: 'hub-surface', name: 'hub: /widget.js serves JS', pk: 'anon',
     run: async (h, { context }) => {
-      const r = await context.request.get(`${B}/widget.js`);
+      const r = await context.request.get('https://nibgate.xyz/widget.js');
       const ct = r.headers()['content-type'] || '';
       return [
         [r.status() === 200, `widget.js → ${r.status()}`],

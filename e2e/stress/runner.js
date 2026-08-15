@@ -43,11 +43,24 @@ async function gotoSafe(page, url, wait = 2600) {
   return false;
 }
 
+// Poll bodyText until `re` matches (or timeout), smoothing hydration/SWR races.
+async function waitBody(page, re, ms = 15000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    try {
+      const b = await bodyText(page);
+      if (re.test(b)) return b;
+    } catch {}
+    await page.waitForTimeout(900);
+  }
+  return await bodyText(page).catch(() => '');
+}
+
 const h = {
   SEL_PK, BUY_PK,
   ts, esc, write,
   newBrowser, gotoSafe,
-  bodyText,
+  bodyText, waitBody,
   click: async (page, loc, label) => { const n = await loc.count(); if (!n) throw new Error(`missing ${label}`); await loc.first().click({ force: true, timeout: 15000 }); },
   has: async (page, re) => re.test(await bodyText(page)),
   // Capture console+http for a check; returns {consoleErrs:[], http:[], body}

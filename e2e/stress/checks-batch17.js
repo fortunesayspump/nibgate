@@ -54,11 +54,16 @@ const checks = [
           mimeType: 'text/csv',
           buffer: Buffer.from(CSV, 'utf-8'),
         });
+        // Batch19 introduced a two-step staged import: parsing shows a preview
+        // ("N wallets ready to add" + Add/Discard), and the "Added N" notice
+        // only fires after the Add-confirm button.
         await page.waitForTimeout(1800);
-        const body = await h.bodyText(page);
-        // All three should render as chips (short addresses) and the notice
-        // should report what was added / skipped.
-        expects.push([/Added 3/.test(body), `import notice 'Added 3': ${/Added 3/.test(body)}`]);
+        let body = await h.bodyText(page);
+        expects.push([/wallets ready to add|Import preview/i.test(body), `staged preview shown: ${/wallets ready to add|Import preview/i.test(body)}`]);
+        const addBtn = page.getByRole('button', { name: /add/i }).first();
+        if (await addBtn.count()) { await addBtn.click({ force: true }).catch(() => {}); await page.waitForTimeout(1200); }
+        body = await h.bodyText(page);
+        expects.push([/Added 3/i.test(body), `import notice 'Added 3': ${/Added 3/i.test(body)}`]);
         for (const w of [W1, W2, W3]) {
           const short = (w.toLowerCase().slice(0, 6)) + '…' + w.toLowerCase().slice(-4);
           expects.push([body.includes(short), `${short} chip visible: ${body.includes(short)}`]);
@@ -68,8 +73,9 @@ const checks = [
       } else {
         expects.push([false, 'import file input not found']);
       }
-      // Export + Template buttons should exist.
-      expects.push([/Export/.test(await h.bodyText(page)), 'Export button present']);
+      // Export renders once the whitelist is non-empty (staged-add committed it);
+      // Template always present.
+      expects.push([/Export/.test(await h.bodyText(page)), 'Export button present (post-add)']);
       expects.push([/Template/.test(await h.bodyText(page)), 'Template button present']);
       return expects;
     }
@@ -141,8 +147,12 @@ const checks = [
       const fileInput = page.locator('input[type="file"]').first();
       await fileInput.setInputFiles({ name: 'wl.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: xbuf });
       await page.waitForTimeout(1800);
-      const body = await h.bodyText(page);
-      expects.push([/Added 2/.test(body), `xlsx import notice 'Added 2': ${/Added 2/.test(body)}`]);
+      let body = await h.bodyText(page);
+      expects.push([/wallets ready to add|Import preview/i.test(body), `xlsx staged preview: ${/wallets ready to add|Import preview/i.test(body)}`]);
+      const addBtn = page.getByRole('button', { name: /add/i }).first();
+      if (await addBtn.count()) { await addBtn.click({ force: true }).catch(() => {}); await page.waitForTimeout(1200); }
+      body = await h.bodyText(page);
+      expects.push([/Added 2/i.test(body), `xlsx import notice 'Added 2': ${/Added 2/i.test(body)}`]);
       return expects;
     }
   },

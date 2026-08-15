@@ -15,7 +15,8 @@ import {
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   ratingAverage, acceptedRatingCount,
-  publisherPayloadFor, upsertPublisherIdentity, contentDataFor
+  publisherPayloadFor, upsertPublisherIdentity, contentDataFor,
+  findContentByIdOrExternal
 } from '../hub/helpers.js';
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
 
@@ -544,7 +545,7 @@ export function registerHubRoutes(app) {
 
   app.post('/api/hub/content/:contentId/rate', requireAuth, async (req, res) => {
     try {
-      const content = await db.content.findUnique({ where: { id: req.params.contentId } });
+      const content = await findContentByIdOrExternal(req.params.contentId);
       if (!content) return res.status(404).json({ error: 'Content not found.' });
       if (content.deletedAt) return res.status(410).json({ error: 'Content has been deleted.' });
 
@@ -588,7 +589,7 @@ export function registerHubRoutes(app) {
       if (!contentId || !walletAddress || !rawRating) return res.status(400).json({ error: 'Missing required fields: contentId, walletAddress, ratingValue.' });
 
       const ratingVal = Math.max(1, Math.min(50, Math.round(Number(rawRating))));
-      const content = await db.content.findUnique({ where: { id: contentId }, include: { website: true } });
+      const content = await findContentByIdOrExternal(contentId);
       if (!content) return res.status(404).json({ error: 'Content not found.' });
 
       const message = [
@@ -619,7 +620,7 @@ export function registerHubRoutes(app) {
   app.post('/api/hub/reputation/ratings/index', async (req, res) => {
     try {
       const { contentId, txHash, walletAddress, contentHash, ratingValue, pageOrigin } = req.body || {};
-      const content = await db.content.findUnique({ where: { id: contentId }, include: { website: true } });
+      const content = await findContentByIdOrExternal(contentId);
       if (!content) return res.status(404).json({ error: 'Content not found.' });
 
       const result = await upsertOnchainRatingForContent(content, {

@@ -88,7 +88,7 @@ const checks = [
       await page.getByRole('button', { name: /unlock for free|unlock free|unlock/i }).first().click({ force: true }).catch(() => {});
       await page.waitForTimeout(2600);
       const b2 = await h.bodyText(page);
-      return [[conn, 'buyer connected'], [ok || hasBtn, `whitelist free UI reached: ${ok}`], [ /Enjoy|Free post|unlock/i.test(b2) ? true : false, `after unlock click, content view: ${b2.slice(0, 60)}`]];
+      return [[conn, 'buyer connected'], [ok || hasBtn, `whitelist free UI reached: ${ok}`], [ b2 && !/Pay to unlock/i.test(b2) ? true : false, `after unlock click, content view: ${b2.slice(0, 60)}`]];
     } },
   { id: 'u-09-invite-anon', name: 'invite-only — anon sees invite-only block', group: 'share-unlock', pk: 'anon', run: async (h, { page }) => {
       await h.gotoSafe(page, `https://nibgate.xyz/ns/${POSTS.invite.slug}`);

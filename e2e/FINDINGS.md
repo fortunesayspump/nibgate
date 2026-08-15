@@ -664,3 +664,35 @@ See `logs/*.log` for the raw evidence behind each claim.
   page-stall timeouts (revoke-banner, restore-lifts-ban); both re-ran clean —
   deploy-settling flakiness, not a canAccess regression. Rewired gates behave
   identically to the pre-wiring hand-rolled logic at the live surface.
+
+- **Batch25 cross-surface subblog + authz sweep verified live (2026-08-15)**:
+  45 checks / 0 fail / 0 error (39 pass + 6 WARN console-noise). New coverage
+  across several places:
+  - **Agent/read surface**: `/api/nibgate/status` (hosted + hub payEndpoint),
+    `/api/health`, `/api/site` (identity + widget script), `nibgate.json`
+    catalog (paid/free access flags), `/manifest` collection + per-post (paid
+    doc reflected price/type + `/docs/` URL).
+  - **Blog listing API**: pagination (limit honored + totalPages), `?type=`
+    filter (document), `?tag=` filter, `posts-by-types` (all 5 groups).
+    **No-leak confirmed**: getBySlug on paid returns `isLocked:true` + empty
+    body; the LIST endpoint does not leak paid article bodies either (bodies
+    are encrypted to storage, `bodyMarkdown:''` — paid docs only expose their
+    public excerpt). Free posts serve full body.
+  - **Reader pages** for all 5 types on catwalk (docs/music/photo paid
+    paywall; video free open).
+  - **Ratings + RSS**: `/api/rating/:postId` public stats (db/onchain source);
+    document ratings resolve via `TYPE_PATH` (statically verified in
+    rating.route.js:13) and the stats endpoint accepts a doc id; `/api/feed`
+    emits RSS 2.0 with doc items linking via `/docs/`.
+  - **Gateway balance**: POST valid address → `"6.00 USDC"`; bad address → 400.
+  - **Authz sweep (anon rejected everywhere)**: `/api/blog/admin/posts`,
+    `/api/nibgate/posts/:key/access-control`, `/api/settings`,
+    `/api/nibgate/gateway/balances`, `/api/upload`, `/api/auth/me` all 401;
+    `/api/auth/nonce` GET public (nonce); `/api/setup` POST-only + key-guarded
+    (GET 404, POST no-key 403).
+  - **Hub cross-surface**: `/api/nibgate/status` public w/ site identity +
+    hub config; `/auth/nonce` GET (matches B1 doc); `/api/nibshare/stats`
+    public aggregates (398 shares, 919 views); `/api/nibshare/dashboard` anon
+    401; `/hub/content/:id/rate` POST-only + authed (anon 401, GET 404).
+  One check initially failed on a bad assertion regex (hub config); fixed to
+  check `json.hub.apiBaseUrl` directly — the live API was correct.

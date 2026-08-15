@@ -770,12 +770,25 @@ function draftPublishMatrix({ group = 'types-lifecycle' } = {}) {
       const draftsTab = page.getByRole('button', { name: /drafts/i }).first();
       if (await draftsTab.count()) await draftsTab.click({ force: true }).catch(() => {});
       await page.waitForTimeout(1500);
-      const row = page.locator('div, li, tr, article').filter({ hasText: title }).first();
-      const pubInRow = row.getByRole('button', { name: /publish|active|go live/i }).first();
-      const pubCount = await pubInRow.count();
-      let published = false;
-      if (pubCount) { await pubInRow.click({ force: true }).catch(() => {}); await page.waitForTimeout(4000); published = true; }
-      return [[savedDraft, `draft saved: ${savedDraft}`], [pubCount > 0, `draft row has publish control: ${pubCount > 0}`], [published, 'draft → publish attempted']];
+      // find the exact title element, then walk up to its row (nearest ancestor
+      // with exactly one Publish button) and click that button — avoids grabbing
+      // page-level containers or a different draft's Publish control
+      const pubClicked = await page.evaluate(async (t) => {
+        const exact = [...document.querySelectorAll('h1,h2,h3,h4,p,span,div')].find(
+          (el) => el.children.length === 0 && el.textContent.trim() === t
+        );
+        if (!exact) return false;
+        let el = exact;
+        while (el && el !== document.body) {
+          const btns = [...el.querySelectorAll('button')].filter((b) => /publish|go live|active/i.test(b.innerText || ''));
+          if (btns.length === 1) { btns[0].click(); return true; }
+          el = el.parentElement;
+        }
+        return false;
+      }, title);
+      await page.waitForTimeout(4000);
+      const published = pubClicked;
+      return [[savedDraft, `draft saved: ${savedDraft}`], [pubClicked, 'draft row has publish control'], [published, 'draft → publish attempted']];
     }
   });
   return checks;

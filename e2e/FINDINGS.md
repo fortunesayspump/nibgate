@@ -566,4 +566,20 @@ error banner — no retry affordance anywhere (see #14).
   buyer/owner flows run in dedicated browser contexts because the shared
   context's appkit/localStorage keeps reconnecting the most recent wallet.
 
+- **Batch23 expiry + persistence + multi-wallet now verified live**
+  (`checks-batch23.js`): 2-minute expiring shares are fully supported
+  (`expiresAt DateTime?`, max 168h via `MAX_EXPIRY_HOURS`; UI clamps min to
+  +5m so sub-5m shares are created through the API). Confirmed live: a
+  whitelisted buyer unlocks free while a 2-min share is live; once expired the
+  `assertReachable` 419 gate (`This share has expired.`) blocks a whitelisted
+  free member — whitelist is orthogonal to expiry and does NOT bypass it, and
+  the access API returns 419; a buyer who unlocked free before expiry is also
+  cut off after expiry (419 wins over the still-active entitlement row) with
+  no content leak. Settings persistence: the Free tier + invite-only toggle
+  survive a full `/share/mine` reload (backend `whitelistPrice=0` and
+  `publicAccess=false` persist). Multi-wallet: revoking one of two whitelisted
+  members leaves the other able to unlock free. Seen-by: a wallet that unlocked
+  then got revoked shows the `· revoked` badge in the owner's Seen-by list. All
+  6 green twice in a row; WARN only for known 403/400 noise (#39).
+
 See `logs/*.log` for the raw evidence behind each claim.

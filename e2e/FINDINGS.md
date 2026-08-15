@@ -356,12 +356,17 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
       subblog home, share form, ledger, leaderboards) pass no-horizontal-overflow.
       Explore is the only overflow offender. No error boundary triggered, so it's
       a pure layout bug, not a crash.
-      **STATUS: FIXED** — root cause: `.market-layout`/`.market-products`/
-      `.market-grid` are block-level with `min-width: auto`; the nowrap
-      `market-price`/`content-rating` flex children pushed the card min-content
-      to ~431px, forcing the whole chain wider than the 390px viewport. Added
-      `min-width: 0` to the market block chain + card `width/max-width: 100%`,
-      and `min-width: 0`/`flex-wrap: wrap` on `.market-info-header`/`.market-info-footer`.
+       **STATUS: FIXED & VERIFIED LIVE** (commit f350994) — root cause: at
+       ≤640px `.market-section`/`.wishlist-section`/`.explore-directory` are
+       `display: grid` with an **auto-sized column**, so the market card
+       max-content (~431px) inflated the section's grid track wider than the
+       358px content column, clipping every card. Fixed by constraining the
+       sections to `grid-template-columns: minmax(0, 1fr)` in the ≤640px block.
+       The mobile overflow check was also hardened: it now ignores elements
+       inside intentional scroll containers (`overflow-x: auto/scroll/clip`) so
+       carousels (featured-track, category chips) don't false-positive, but still
+       flags content clipped by `overflow-x: hidden` or raw overflow. Verified:
+       before fix bad=282, after fix bad=0.
     - **[UX] Draft row has no publish control.** `dp-draft-then-publish` FAILS:
       a freshly-saved draft appears in the list but the row exposes no publish
       affordance the check can reach; the publish attempt 403/400s. Drafts are
@@ -696,3 +701,46 @@ See `logs/*.log` for the raw evidence behind each claim.
     401; `/hub/content/:id/rate` POST-only + authed (anon 401, GET 404).
   One check initially failed on a bad assertion regex (hub config); fixed to
   check `json.hub.apiBaseUrl` directly — the live API was correct.
+
+- **Full battery (2026-08-15, commit `f350994`): 325 checks, 69 pass / 22 fail
+  / 12 error / 222 WARN (WARN = assertions pass + known console noise).**
+  Triage + fixes in this pass:
+  - **NEW REAL BUG — subblog ratings 500 via hub id mismatch (fixed).**
+    Subblog `POST /api/rating/:postId` prepare (no txHash) 500'd: subblog sends
+    `contentId: hubContentId || post.id` (the post **UUID**), but hub
+    `/hub/reputation/ratings/prepare` did `db.content.findUnique({id})` against
+    the **internal md5 id** — miss → "Content not found" → 500. Hub stores
+    subblog content with the UUID as `externalId`. Fix: `findContentByIdOrExternal()`
+    (`backend/src/server/hub/helpers.js`) does `findFirst({where:{OR:[{id},{externalId}]}})`.
+    Applied to `prepare`, `index`, and `/hub/content/:contentId/rate`. Verified
+    live (commit deploy): `b26-rating-prepare-externalId`, `b26-rating-prepare-wrongType`,
+    `b26-hub-prepare-externalId`, `b26-hub-prepare-bad`, `b26-rating-get-db` all OK.
+  - **Mobile explore overflow (see finding 39)** — real, root-caused, fixed,
+    verified live (bad=282 → 0).
+  - **Batch-order hydration flakes fixed**: `sb-*`/`rt-*` now poll via new
+    `waitBody()` helper instead of a fixed 2.6s sleep after `goto('commit')`
+    (Vercel cold-start → empty body read). `dp-draft-then-publish` publish click
+    is now scoped to the exact draft row (walk from the title element to the
+    nearest ancestor with exactly one Publish button) instead of page-first match.
+  - **Stale checks updated**: `fv-*`/`fa-*` (share form now SIWE-gated — connect
+    after navigating to `/share`); `fa-tags`/`fa-excerpt` assert `inputValue()`
+    not bodyText; draft button label `"Save as Draft"`; `rt-share` dropped (hub
+    `ns/` gates don't render the star widget — ratings matrix is subblog-only);
+    `wa-connect-on-paid` uses `SEL_PK` (had `pk:'anon'` = no mock wallet);
+    batch17 whitelist import is now two-step (staged preview + Add confirm);
+    batch18 gate marker excludes pre-hydration `"Connect wallet"` shell.
+  - **Transient (pass on isolated re-run)**: `tf-create-photo-free`,
+    `tf-create-music-wldrop/invite`, `combo-paid-wlfree`, `sb-article`,
+    `tg-anon-document-wldrop`. Known-untestable: `tg-banned-*` (#32), `tf-create-document-*` + `tl-*-publish-revoke` (#36), Circle paid-unlock (#7).
+  - **Harness gap (documented, not a bug)**: `db-analytics/earnings/sites` fail
+    because the harness has no real admin SIWE session; dashboard correctly
+    redirects logged-out visitors to marketing.
+- **Batch26 untested-surface sweep (commit `f350994` + `8be8a5c`): 16 checks
+  green live** — subblog rating GET stats (db/onchain source, numeric avg/count),
+  rating prepare with externalId (post-UUID → hub resolves, 200 with hash +
+  rating), wrong content type → clean 4xx, hub prepare externalId/bad-id,
+  authz completeness (catwalk PUT access-control, DELETE entitlement, revoke,
+  settings password PUT, link-hub POST, upload GET, nonce GET — all anon 401),
+  register/login validation (bad payloads → 400), hub `POST /api/nibshare/gateway/balance`
+  → `"6.00 USDC"`, and `/widget.js` (frontend host, `application/javascript`).
+  One check fix: widget.js is served by `nibgate.xyz` not `api.nibgate.xyz`.

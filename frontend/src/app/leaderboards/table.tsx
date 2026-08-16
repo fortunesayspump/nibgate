@@ -167,7 +167,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
               { label: "Revenue", value: aggregates.revenue.toFixed(2) },
             ].map((stat) => (
               <div key={stat.label} className="flex flex-col items-start rounded-2xl bg-gray px-3 py-2.5 sm:px-4 sm:py-3">
-                <span className="text-xs uppercase tracking-wide opacity-60">{stat.label}</span>
+                <span className="text-xs tracking-wide opacity-60">{stat.label}</span>
                 <strong className="mt-0.5 text-lg leading-tight">{stat.value}</strong>
               </div>
             ))}

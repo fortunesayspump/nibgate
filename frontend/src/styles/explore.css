@@ -558,6 +558,7 @@ html[data-theme="light"] .explore-art {
 
 .content-reputation-stars,
 .content-rating {
+  position: relative;
   display: inline-flex;
   width: fit-content;
   align-items: center;

@@ -2,26 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAccount, useSignMessage } from "@nibgate/wallet/react";
-import { ShareLayout, ShareTitle, ShareIntro, ShareError, ShareBtn } from '@/features/nibshare/components/ShareLayout';
+import { ShareLayout, ShareTitle, ShareIntro, ShareError } from '@/features/nibshare/components/ShareLayout';
 import ShareForm from '@/features/nibshare/components/ShareForm';
 import ShareWallet from '@/features/nibshare/components/ShareWallet';
 import { useNibgateConnect } from '@/lib/useNibgateConnect';
 import { HUB_SESSION_UPDATED_EVENT } from '@/lib/hubSession';
-import { signInWithSiwe } from '@/lib/siweAuth';
 import { nibshareApi } from '@/features/nibshare/api';
 import type { MeResponse } from '@/features/nibshare/types';
 import { FiList } from 'react-icons/fi';
 
-type AuthState = 'checking' | 'connect' | 'auth' | 'form';
-
 export default function ShareCreatePage() {
   const { connect, busy: connecting, error: connectError } = useNibgateConnect();
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
-  const [step, setStep] = useState<AuthState>('checking');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [signing, setSigning] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
   const [defaultRecipient, setDefaultRecipient] = useState('');
 
   useEffect(() => {
@@ -34,10 +27,11 @@ export default function ShareCreatePage() {
       if (cancelled) return;
       if (me && me.authenticated) {
         setDefaultRecipient(me.user?.wallets?.[0]?.address ?? '');
-        setStep('form');
+        setAuthenticated(true);
       } else {
-        setStep(isConnected ? 'auth' : 'connect');
+        setAuthenticated(false);
       }
+      setChecking(false);
     }
     void check();
     window.addEventListener(HUB_SESSION_UPDATED_EVENT, check);
@@ -45,38 +39,7 @@ export default function ShareCreatePage() {
       cancelled = true;
       window.removeEventListener(HUB_SESSION_UPDATED_EVENT, check);
     };
-  }, [isConnected]);
-
-  useEffect(() => {
-    if (isConnected && step === 'connect') setStep('auth');
-  }, [isConnected, step]);
-
-  async function handleAuth() {
-    if (!address) {
-      setAuthError('Wallet not connected — tap "Connect wallet" first.');
-      return;
-    }
-    setAuthError(null);
-    setSigning(true);
-    try {
-      await signInWithSiwe(address, (message) => signMessageAsync({ message }));
-      const me = await nibshareApi.me();
-      if (!me || !me.authenticated) throw new Error('Could not confirm your session');
-      setDefaultRecipient(me.user?.wallets?.[0]?.address ?? '');
-      setStep('form');
-      window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT));
-    } catch (err: any) {
-      const msg = err?.message || 'Signing failed';
-      const expired = msg.toLowerCase().includes('session expired') || msg.toLowerCase().includes('nonce');
-      setAuthError(
-        expired
-          ? 'Your sign-in request expired — sign again below.'
-          : `${msg}. If your wallet did not show a signature request, allow popups for nibgate.xyz and try again.`
-      );
-    } finally {
-      setSigning(false);
-    }
-  }
+  }, []);
 
   return (
     <ShareLayout
@@ -91,26 +54,18 @@ export default function ShareCreatePage() {
       }
     >
       <ShareTitle>New Post</ShareTitle>
-      {step === 'checking' ? (
+      {checking ? (
         <ShareIntro>Checking your session...</ShareIntro>
-      ) : step === 'connect' ? (
+      ) : (
         <>
           {connectError && <ShareError>{connectError}</ShareError>}
-          <ShareIntro>Connect your wallet to start creating.</ShareIntro>
-          <ShareBtn onClick={() => void connect()} style={{ marginTop: '2rem' }} disabled={connecting}>
-            {connecting ? 'Connecting...' : 'Connect wallet'}
-          </ShareBtn>
+          <ShareForm
+            defaultRecipientWallet={defaultRecipient}
+            authenticated={authenticated}
+            connecting={connecting}
+            onConnect={() => void connect()}
+          />
         </>
-      ) : step === 'auth' ? (
-        <>
-          {authError && <ShareError>{authError}</ShareError>}
-          <ShareIntro>Sign the message to authenticate your wallet.</ShareIntro>
-          <ShareBtn onClick={handleAuth} style={{ marginTop: '1rem' }} disabled={signing}>
-            {signing ? 'Waiting for signature...' : 'Sign with wallet'}
-          </ShareBtn>
-        </>
-      ) : (
-        <ShareForm defaultRecipientWallet={defaultRecipient} />
       )}
     </ShareLayout>
   );

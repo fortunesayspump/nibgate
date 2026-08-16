@@ -7,7 +7,7 @@ Nibshare is Nibgate's hosted **quick-share** rail: connect a wallet, write conte
 It runs on the same rails as the rest of Nibgate: x402 / USDC / Circle Gateway payments on Arc (`eip155:5042002`), AES-256-GCM encryption at rest, and a viewer/agent unlock flow. The difference: Nibgate hosts and serves everything, so there is no creator-owned domain behind it.
 
 <Callout type="important">
-Nibshare is a **separate, private rail** — it is never indexed in hub discovery, the public ledger, or on-chain reputation. Shares are ephemeral (expiry is optional but capped at 7 days) and have no creator-verified domain. Subblogs and creator sites are the indexed products; Nibshare is for quick gated sharing.
+Nibshare is a **separate, private rail** — it is never indexed in hub discovery, the public ledger, or on-chain reputation. Shares are ephemeral (every share expires, max 7 days) and have no creator-verified domain. Subblogs and creator sites are the indexed products; Nibshare is for quick gated sharing.
 </Callout>
 
 ## When to use Nibshare vs a Subblog
@@ -16,7 +16,7 @@ Nibshare is a **separate, private rail** — it is never indexed in hub discover
 |---|---|---|
 | Domain required | No — short link `nibgate.xyz/ns/<slug>` | Yes — `*.nibgate.xyz` or your own |
 | Indexed in discovery/ledger/reputation | No | Yes |
-| Content lifetime | Optional expiry, capped at 7 days | Persistent |
+| Content lifetime | Every share expires, max 7 days | Persistent |
 | Access rail | x402 / Circle Gateway on Arc | x402 / Circle Gateway on Arc |
 | Encryption at rest | All bodies + media | All bodies + media |
 | Ownership check | Wallet session cookie | Site verification + admin wallet |
@@ -301,7 +301,7 @@ erDiagram
         string contentType
         int bodyLength
         decimal price "USDC"
-        datetime expiresAt "null = never, capped 7 days"
+        datetime expiresAt "required; max 7 days out"
         string whitelist "wallet array"
         string storageProvider "always 'nibgate'"
         string storageRef "R2 body.bin key"

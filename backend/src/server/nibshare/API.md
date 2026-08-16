@@ -25,7 +25,7 @@ the share. Authentication is cookie-based; there is no bearer-token mode.
   "price": "1.00",                     // public USDC price; "0" = free
   "whitelistPrice": "0.00",            // optional USDC for whitelisted wallets; null/blank = same as price
   "publicAccess": true,                // false = invite-only (only whitelisted wallets may unlock)
-  "expiresAt": "2026-08-05T00:00:00Z", // optional, null = never (capped at 7 days)
+  "expiresAt": "2026-08-05T00:00:00Z", // required; every share expires (max 7 days out)
   "whitelist": [ "0xabc...", "0xdef..." ], // optional; empty = no tier members
   "storageProvider": "nibgate",        // only "nibgate" is supported today
   "contentType": "text"                // legacy: "text" for plain bodies
@@ -60,7 +60,7 @@ Success:
   "title": "My notes on x402",
   "coverUrl": "...",
   "price": "1.00",
-  "expiresAt": null,
+  "expiresAt": "2026-08-05T00:00:00Z",
   "storageProvider": "nibgate",
   "storageRef": "nibshare/<id>/body.bin",
   "ciphertextUrl": "https://pub-...r2.dev/nibshare/<id>/body.bin",
@@ -114,7 +114,7 @@ Anyone can fetch metadata — never the body.
   "publicAccess": true,
   "currency": "USDC",
   "contentType": "text",
-  "expiresAt": null,            // null = never expires (capped at 7 days)
+  "expiresAt": "2026-08-05T00:00:00Z", // required; always set (max 7 days out)
   "createdAt": "...",
   "whitelist": true,            // boolean: has a non-empty whitelist
   "status": "active",
@@ -146,7 +146,7 @@ share page as `nibgate:*` meta tags, JSON-LD, and `data-nibgate-resource` attrib
   "whitelistPrice": "0",          // null = no tier
   "publicAccess": true,
   "currency": "USDC",
-  "expiresAt": null,
+  "expiresAt": "2026-08-05T00:00:00Z",
   "status": "active",
   "createdAt": "...",
   "viewCount": 0,
@@ -439,7 +439,7 @@ the published content, not the link). `from`/`to` (ISO) bound the range used for
   "range": { "views": 41, "unlocks": 5, "revenue": 2.5 },
   "timeSeries": [ { "date": "2026-08-01", "views": 9, "unlocks": 1, "revenue": 0.5 } ],
   "shares": [ { "slug": "...", "url": "...", "title": "...", "contentType": "text", "price": "1.00",
-                "currency": "USDC", "status": "active", "createdAt": "...", "expiresAt": null,
+                "currency": "USDC", "status": "active", "createdAt": "...", "expiresAt": "2026-08-05T00:00:00Z",
                 "views": 812, "unlocks": 47, "revenue": 23.5 } ],
   "recentActivity": [ { "key": "unlock-...", "type": "unlock", "title": "...", "slug": "...",
                         "amount": 0.5, "wallet": "0x...", "createdAt": "..." } ]

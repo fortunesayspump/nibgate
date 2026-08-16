@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiDollarSign, FiUsers, FiEye } from 'react-icons/fi';
 import MarkdownEditor from './MarkdownEditor';
@@ -58,7 +58,12 @@ const defaults: ShareFormData = {
   whitelist: [], whitelistPrice: "", inviteOnly: false,
 };
 
-export default function ShareForm({ defaultRecipientWallet }: { defaultRecipientWallet?: string }) {
+export default function ShareForm({ defaultRecipientWallet, authenticated = false, connecting = false, onConnect }: {
+  defaultRecipientWallet?: string;
+  authenticated?: boolean;
+  connecting?: boolean;
+  onConnect?: () => void;
+}) {
   const router = useRouter();
   const [form, setForm] = useState<ShareFormData>({ ...defaults, recipientWallet: defaultRecipientWallet ?? "" });
   const [error, setError] = useState("");
@@ -75,6 +80,12 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
   const [priceFocused, setPriceFocused] = useState(false);
 
   const invitationEnabled = form.inviteOnly || form.whitelist.length > 0 || form.whitelistPrice.trim() !== "";
+
+  useEffect(() => {
+    if (defaultRecipientWallet && !form.recipientWallet) {
+      setForm((prev) => ({ ...prev, recipientWallet: defaultRecipientWallet ?? "" }));
+    }
+  }, [defaultRecipientWallet]);
 
   function toLocalInput(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -628,13 +639,30 @@ export default function ShareForm({ defaultRecipientWallet }: { defaultRecipient
       </Field>
 
       <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
-        <button type="button" onClick={() => createShare('active')} disabled={saving || !canPublish().ok} className="btn-primary" title={canPublish().ok ? "" : canPublish().reason}>
-          {saving ? "Publishing..." : "Publish"}
+        <button
+          type="button"
+          onClick={() => (authenticated ? createShare('active') : onConnect?.())}
+          disabled={connecting || saving || (authenticated && !canPublish().ok)}
+          className="btn-primary"
+          title={!authenticated ? "Connect your wallet to publish" : canPublish().ok ? "" : canPublish().reason}
+        >
+          {connecting ? "Connecting..." : authenticated ? (saving ? "Publishing..." : "Publish") : "Connect wallet to publish"}
         </button>
-        <button type="button" onClick={() => createShare('draft')} disabled={saving || !canDraft().ok} className="btn-secondary" title={canDraft().ok ? "Save an in-progress post to finish later" : canDraft().reason}>
-          Save as Draft
+        <button
+          type="button"
+          onClick={() => (authenticated ? createShare('draft') : onConnect?.())}
+          disabled={connecting || saving || (authenticated && !canDraft().ok)}
+          className="btn-secondary"
+          title={!authenticated ? "Connect your wallet to save a draft" : canDraft().ok ? "Save an in-progress post to finish later" : canDraft().reason}
+        >
+          {connecting ? "Connecting..." : authenticated ? "Save as Draft" : "Connect wallet"}
         </button>
       </div>
+      {!authenticated && (
+        <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
+          You can write your post first — connecting a wallet is only needed to publish.
+        </p>
+      )}
 
       {published && (
         <ShareSuccess

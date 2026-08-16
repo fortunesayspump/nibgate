@@ -1,33 +1,143 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
-export const runtime = "edge";
 export const dynamic = "force-static";
 
+const COLORS = {
+  bg: "#171813",
+  ink: "#f3efe7",
+  olive: "#a9c69a",
+  oliveDeep: "#7c9a6d",
+  muted: "#b9b2a6",
+  faint: "#8f8879",
+  footer: "#10110e",
+};
+
+async function readAsset(file: string): Promise<string> {
+  const buf = await readFile(path.join(process.cwd(), file));
+  return `data:image/png;base64,${buf.toString("base64")}`;
+}
+
+async function loadFont(file: string): Promise<ArrayBuffer> {
+  const buf = await readFile(path.join(process.cwd(), file));
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+}
+
 export async function GET() {
+  const [mark, flower, kumbhBold, kumbhMedium, favorit] = await Promise.all([
+    readAsset("public/brand/nibgate-mark.png"),
+    readAsset("public/illustrations/hero-flower-base.png"),
+    loadFont("public/fonts/kumbh/KumbhSans-Bold.ttf"),
+    loadFont("public/fonts/kumbh/KumbhSans-SemiBold.ttf"),
+    loadFont("public/fonts/ABCFavorit-Regular.ttf"),
+  ]);
+
   return new ImageResponse(
     (
       <div
         style={{
           width: 1200,
           height: 630,
-          background: "#f4f4f0",
+          background: COLORS.bg,
+          color: COLORS.ink,
           display: "flex",
           flexDirection: "column",
-          padding: "60px",
-          fontFamily: "system-ui, sans-serif",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ width: 1200, height: 4, background: "#7C9A6D" }} />
-        <div style={{ marginTop: 40, fontSize: 56, fontWeight: 700, color: "#0a0a0a" }}>Nibgate</div>
-        <div style={{ marginTop: 16, fontSize: 28, color: "#6b6862" }}>The open protocol for paid content.</div>
-        <div style={{ marginTop: 12, fontSize: 22, color: "#6b6862" }}>Publish, gate, and earn — your content, your rules.</div>
-        <div style={{ display: "flex", gap: 16, marginTop: 40 }}>
-          <div style={{ background: "#7C9A6D", borderRadius: 25, padding: "14px 32px", color: "#fff", fontSize: 18, fontWeight: 600 }}>nibgate.xyz</div>
-          <div style={{ background: "#7C9A6D", borderRadius: 25, padding: "14px 32px", color: "#fff", fontSize: 18, fontWeight: 600 }}>Explore</div>
+        {/* top bar */}
+        <div style={{ width: 1200, height: 4, background: COLORS.olive }} />
+
+        {/* content */}
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            padding: "0 64px",
+            position: "relative",
+          }}
+        >
+          {/* flower */}
+          <img
+            src={flower}
+            width={620}
+            height={443}
+            style={{ position: "absolute", right: -90, bottom: -40, opacity: 0.9 }}
+          />
+
+          {/* brand lockup */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+            <img src={mark} width={36} height={28} />
+            <span style={{ fontSize: 26, fontWeight: 500, color: COLORS.olive }}>nibgate</span>
+          </div>
+
+          <h1
+            style={{
+              fontSize: 88,
+              fontWeight: 700,
+              letterSpacing: "-0.055em",
+              lineHeight: 0.92,
+              margin: 0,
+              maxWidth: 800,
+            }}
+          >
+            Nibgate
+          </h1>
+
+          <p
+            style={{
+              marginTop: 24,
+              fontSize: 27,
+              lineHeight: 1.2,
+              color: COLORS.muted,
+              maxWidth: 700,
+            }}
+          >
+            The open protocol for paid content.
+          </p>
+          <p style={{ marginTop: 10, fontSize: 22, color: COLORS.faint, maxWidth: 700 }}>
+            Publish, gate, and earn — your content, your rules.
+          </p>
+
+          <div style={{ display: "flex", gap: 14, marginTop: 36 }}>
+            <div style={{ background: COLORS.olive, color: "#10110e", borderRadius: 999, padding: "10px 22px", fontSize: 17, fontWeight: 600 }}>
+              nibgate.xyz
+            </div>
+            <div style={{ border: "1px solid rgba(169,198,154,0.42)", color: COLORS.olive, borderRadius: 999, padding: "10px 22px", fontSize: 17, fontWeight: 600 }}>
+              Explore
+            </div>
+          </div>
         </div>
-        <div style={{ marginTop: "auto", fontSize: 16, color: "#6b6862" }}>@nibgate · github.com/fortunesayspump/nibgate · docs.nibgate.xyz</div>
+
+        {/* footer */}
+        <div
+          style={{
+            height: 56,
+            background: COLORS.footer,
+            borderTop: "1px solid rgba(243,239,231,0.06)",
+            display: "flex",
+            alignItems: "center",
+            padding: "0 64px",
+            fontSize: 16,
+            color: COLORS.faint,
+          }}
+        >
+          <span style={{ color: COLORS.olive }}>@nibgate</span>
+          <span style={{ margin: "0 8px" }}>·</span>
+          <span>nibgate.xyz</span>
+          <span style={{ margin: "0 8px" }}>·</span>
+          <span>docs.nibgate.xyz</span>
+        </div>
       </div>
     ),
-    { width: 1200, height: 630 }
+    { width: 1200, height: 630, fonts: [
+      { name: "Kumbh Sans", data: kumbhBold, weight: 700, style: "normal" },
+      { name: "Kumbh Sans", data: kumbhMedium, weight: 600, style: "normal" },
+      { name: "ABC Favorit", data: favorit, weight: 400, style: "normal" },
+    ] }
   );
 }

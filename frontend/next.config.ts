@@ -17,6 +17,15 @@ const nextConfig: NextConfig = {
     config.resolve.fallback["@metamask/connect-evm"] = false;
     return config;
   },
+  async redirects() {
+    return [
+      {
+        source: "/ns",
+        destination: "/share",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     const bare = ["hub", "nibshare", "auth", "newsletter", "uploads", "app"];
     return [

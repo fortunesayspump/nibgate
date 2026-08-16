@@ -83,7 +83,7 @@ export async function GET() {
                 marginBottom: 0,
               }}
             >
-              Gate it.
+              Create it, gate it.
             </h1>
 
             <p

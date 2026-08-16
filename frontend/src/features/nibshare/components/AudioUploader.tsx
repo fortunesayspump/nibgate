@@ -9,15 +9,23 @@ const UPLOAD_URL = "/uploads/content";
 interface AudioUploaderProps {
   onUpload: (result: ContentMedia) => void;
   existingUrl?: string;
+  authenticated?: boolean;
+  onConnect?: () => void;
 }
 
-export default function AudioUploader({ onUpload, existingUrl }: AudioUploaderProps) {
+export default function AudioUploader({ onUpload, existingUrl, authenticated = true, onConnect }: AudioUploaderProps) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState(existingUrl ? "Existing file" : "");
   const [fileSize, setFileSize] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function requireAuth(): boolean {
+    if (authenticated) return true;
+    onConnect?.();
+    return false;
+  }
 
   async function handleFile(file: File) {
     setError("");
@@ -55,8 +63,8 @@ export default function AudioUploader({ onUpload, existingUrl }: AudioUploaderPr
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-        onClick={() => inputRef.current?.click()}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
+        onClick={() => { if (requireAuth()) inputRef.current?.click(); }}
         style={{
           border: `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
           borderRadius: "8px", padding: "24px 16px", textAlign: "center",
@@ -64,7 +72,7 @@ export default function AudioUploader({ onUpload, existingUrl }: AudioUploaderPr
           transition: "all 0.15s", fontSize: "14px", color: "var(--muted)",
         }}
       >
-        {uploading ? "Uploading audio..." : "Drag & drop audio file here, or click to select"}
+        {uploading ? "Uploading audio..." : authenticated ? "Drag & drop audio file here, or click to select" : "Connect wallet to add audio"}
       </div>
       <input
         ref={inputRef} type="file" accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a,.wma"

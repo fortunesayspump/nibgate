@@ -15,6 +15,8 @@ interface ImageUploaderProps {
   allowCover?: boolean;
   coverKey?: string;
   onCoverChange?: (coverUrl: string, coverKey: string) => void;
+  authenticated?: boolean;
+  onConnect?: () => void;
 }
 
 export default function ImageUploader({
@@ -26,11 +28,19 @@ export default function ImageUploader({
   allowCover = false,
   coverKey = "",
   onCoverChange,
+  authenticated = true,
+  onConnect,
 }: ImageUploaderProps) {
   const [uploading, setUploading] = useState<Record<string, { loading: boolean; error?: string }>>({});
   const [dragOver, setDragOver] = useState(false);
   const [blockError, setBlockError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function requireAuth(): boolean {
+    if (authenticated) return true;
+    onConnect?.();
+    return false;
+  }
 
   async function addFiles(fileList: FileList | File[]) {
     const fileArray = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
@@ -104,8 +114,8 @@ export default function ImageUploader({
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
-        onClick={() => inputRef.current?.click()}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; addFiles(e.dataTransfer.files); }}
+        onClick={() => { if (requireAuth()) inputRef.current?.click(); }}
         style={{
           border: `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
           borderRadius: "8px", padding: "32px 16px", textAlign: "center",
@@ -113,7 +123,7 @@ export default function ImageUploader({
           transition: "all 0.15s", fontSize: "14px", color: "var(--muted)",
         }}
       >
-        {dragOver ? "Drop images here" : "Click or drag to add photos"}
+        {dragOver ? "Drop images here" : authenticated ? "Click or drag to add photos" : "Connect wallet to add photos"}
       </div>
       <input
         ref={inputRef} type="file" accept="image/*" multiple={multiple}

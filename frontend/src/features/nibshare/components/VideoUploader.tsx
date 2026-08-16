@@ -10,15 +10,23 @@ const VIDEO_RE = /\.(mp4|webm|mov|mkv)$/i;
 interface VideoUploaderProps {
   onUpload: (result: ContentMedia) => void;
   existingName?: string;
+  authenticated?: boolean;
+  onConnect?: () => void;
 }
 
-export default function VideoUploader({ onUpload, existingName }: VideoUploaderProps) {
+export default function VideoUploader({ onUpload, existingName, authenticated = true, onConnect }: VideoUploaderProps) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState(existingName ? existingName : "");
   const [fileSize, setFileSize] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function requireAuth(): boolean {
+    if (authenticated) return true;
+    onConnect?.();
+    return false;
+  }
 
   async function handleFile(file: File) {
     setError("");
@@ -56,8 +64,8 @@ export default function VideoUploader({ onUpload, existingName }: VideoUploaderP
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-        onClick={() => inputRef.current?.click()}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
+        onClick={() => { if (requireAuth()) inputRef.current?.click(); }}
         style={{
           border: `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
           borderRadius: "8px", padding: "24px 16px", textAlign: "center",
@@ -65,7 +73,7 @@ export default function VideoUploader({ onUpload, existingName }: VideoUploaderP
           transition: "all 0.15s", fontSize: "14px", color: "var(--muted)",
         }}
       >
-        {uploading ? "Uploading video..." : "Drag & drop a video here (max 30MB), or click to select"}
+        {uploading ? "Uploading video..." : authenticated ? "Drag & drop a video here (max 30MB), or click to select" : "Connect wallet to add video"}
       </div>
       <input
         ref={inputRef} type="file" accept="video/*,.mp4,.webm,.mov,.mkv"

@@ -30,9 +30,10 @@ const btn = "inline-flex items-center justify-center w-7 h-7 text-xs border roun
 
 type EmbeddedMedia = Omit<MediaItem, "url" | "previewUrl"> & { name?: string; size?: number };
 
-export default function MarkdownEditor({ value, onChange, label = "Body", required = false, embeddedMedia = [], onEmbeddedMediaChange }: {
+export default function MarkdownEditor({ value, onChange, label = "Body", required = false, embeddedMedia = [], onEmbeddedMediaChange, authenticated = true, onConnect }: {
   value: string; onChange: (v: string) => void; label?: string; required?: boolean;
   embeddedMedia?: EmbeddedMedia[]; onEmbeddedMediaChange?: (items: EmbeddedMedia[]) => void;
+  authenticated?: boolean; onConnect?: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const lastMd = useRef(value);
@@ -157,7 +158,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
     [
       { label: "Table", icon: Table2, action: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), active: false },
       { label: "Link", icon: Link2, action: () => { const url = prompt("URL:"); if (url) editor.chain().focus().setLink({ href: url }).run(); }, active: editor.isActive("link") },
-      { label: "Image", icon: Image, action: () => fileRef.current?.click(), active: false },
+      { label: "Image", icon: Image, action: () => { if (!authenticated) { onConnect?.(); return; } fileRef.current?.click(); }, active: false },
     ],
     [
       { label: "Code Block", icon: Code2, action: () => editor.chain().focus().toggleCodeBlock().run(), active: editor.isActive("codeBlock") },

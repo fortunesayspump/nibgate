@@ -326,6 +326,8 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
           required value={form.bodyMarkdown} onChange={(v) => update("bodyMarkdown", v)}
           embeddedMedia={embeddedMedia}
           onEmbeddedMediaChange={setEmbeddedMedia}
+          authenticated={authenticated}
+          onConnect={onConnect}
         />
       )}
       {form.type === "article" && (
@@ -342,6 +344,8 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
             maxFiles={1}
             value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
             onChange={(items) => update("coverUrl", items[0]?.url || "")}
+            authenticated={authenticated}
+            onConnect={onConnect}
           />
         </Field>
       )}
@@ -356,6 +360,8 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
               onCoverChange={handleCoverChange}
               value={form.media ? JSON.parse(form.media) : []}
               onChange={(items) => setForm(p => ({ ...p, media: JSON.stringify(items) }))}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
             {!form.coverUrl && !coverKey && (
               <div style={{ fontSize: "12px", color: "#d97706" }}>
@@ -378,6 +384,8 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
             <VideoUploader
               onUpload={handleVideoUpload}
               existingName={form.videoName || (form.videoStorageRef ? "Encrypted file" : "")}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
           </Field>
           <Field label="Or paste a YouTube URL">
@@ -391,6 +399,8 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
               maxFiles={1}
               value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
               onChange={(items) => update("coverUrl", items[0]?.url || "")}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
             <div style={{ fontSize: "12px", color: "var(--muted)" }}>
               Optional — defaults to the YouTube thumbnail if a link is provided.
@@ -421,12 +431,16 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
               maxFiles={1}
               value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
               onChange={(items) => update("coverUrl", items[0]?.url || "")}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
           </Field>
           <Field label="Audio File" required>
             <AudioUploader
               onUpload={handleAudioUpload}
               existingUrl={form.audioUrl || (form.audioStorageRef ? "Encrypted file" : "")}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
           </Field>
           <Field label="Description">
@@ -445,12 +459,16 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
               maxFiles={1}
               value={form.coverUrl ? [{ url: form.coverUrl, caption: "" }] : []}
               onChange={(items) => update("coverUrl", items[0]?.url || "")}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
           </Field>
           <Field label="Document File" required>
             <DocumentUploader
               onUpload={handleDocumentUpload}
               existingName={form.documentName || (form.documentStorageRef ? "Encrypted file" : "")}
+              authenticated={authenticated}
+              onConnect={onConnect}
             />
           </Field>
           <Field label="Description">

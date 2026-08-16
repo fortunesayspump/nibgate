@@ -26,7 +26,9 @@ async function loadFont(file: string): Promise<ArrayBuffer> {
 }
 
 const BAND_W = 74;
-const GAP = 4;
+const BAND_W2 = 84;
+const BAND_W3 = 156;
+const TOTAL_BANDS = BAND_W + BAND_W2 + BAND_W3;
 
 export async function GET() {
   const [wordmark, favorit] = await Promise.all([
@@ -35,9 +37,9 @@ export async function GET() {
   ]);
 
   const bands = [
-    { x: 1200 - 3 * BAND_W - 2 * GAP, color: COLORS.olive },
-    { x: 1200 - 2 * BAND_W - GAP, color: COLORS.bandDark },
-    { x: 1200 - BAND_W, color: COLORS.bandBlack },
+    { x: 1200 - TOTAL_BANDS, width: BAND_W, color: COLORS.olive },
+    { x: 1200 - TOTAL_BANDS + BAND_W, width: BAND_W2, color: COLORS.bandDark },
+    { x: 1200 - BAND_W3, width: BAND_W3, color: COLORS.bandBlack },
   ];
 
   return new ImageResponse(
@@ -56,7 +58,7 @@ export async function GET() {
       >
         {/* right bands */}
         {bands.map((b, i) => (
-          <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: b.x, width: BAND_W, background: b.color }} />
+          <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left: b.x, width: b.width, background: b.color }} />
         ))}
 
         {/* content, aligned to left gutter */}

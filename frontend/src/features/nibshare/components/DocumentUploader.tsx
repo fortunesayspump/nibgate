@@ -11,15 +11,23 @@ const DOC_EXTS = /\.(pdf|xlsx|xls|csv|ods|docx|doc|txt|md)$/i;
 interface DocumentUploaderProps {
   onUpload: (result: ContentMedia) => void;
   existingName?: string;
+  authenticated?: boolean;
+  onConnect?: () => void;
 }
 
-export default function DocumentUploader({ onUpload, existingName }: DocumentUploaderProps) {
+export default function DocumentUploader({ onUpload, existingName, authenticated = true, onConnect }: DocumentUploaderProps) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fileName, setFileName] = useState(existingName ? existingName : "");
   const [fileSize, setFileSize] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function requireAuth(): boolean {
+    if (authenticated) return true;
+    onConnect?.();
+    return false;
+  }
 
   async function handleFile(file: File) {
     setError("");
@@ -57,8 +65,8 @@ export default function DocumentUploader({ onUpload, existingName }: DocumentUpl
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
-        onClick={() => inputRef.current?.click()}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
+        onClick={() => { if (requireAuth()) inputRef.current?.click(); }}
         style={{
           border: `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
           borderRadius: "8px", padding: "24px 16px", textAlign: "center",
@@ -66,7 +74,7 @@ export default function DocumentUploader({ onUpload, existingName }: DocumentUpl
           transition: "all 0.15s", fontSize: "14px", color: "var(--muted)",
         }}
       >
-        {uploading ? "Uploading document..." : "Drag & drop a document here, or click to select"}
+        {uploading ? "Uploading document..." : authenticated ? "Drag & drop a document here, or click to select" : "Connect wallet to add document"}
       </div>
       <input
         ref={inputRef} type="file" accept=".pdf,.xlsx,.xls,.csv,.ods,.docx,.doc,.txt,.md"

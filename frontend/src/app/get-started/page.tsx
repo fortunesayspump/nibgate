@@ -27,15 +27,16 @@ export default function GetStartedPage() {
         <section className="relative flex flex-col items-center justify-center bg-gray px-8 pb-20 pt-16 text-center md:pb-24 md:pt-20 lg:px-[4vw] lg:pb-36 lg:pt-28">
           <div className="flex max-w-4xl flex-col items-center gap-8 lg:gap-10">
             <div className="text-xl md:text-2xl">Get started</div>
-            <h1 className="nibgate-display-title text-5xl font-medium md:text-6xl lg:text-8xl">
+            <h1 className="nibgate-display-title text-4xl font-medium md:text-5xl lg:text-7xl">
               Connect your site. Gate your work. Show up in verified discovery.
             </h1>
             <p className="max-w-3xl text-xl leading-8 md:text-2xl md:leading-9">
-              Nibgate starts on your own domain. Add the widget for verification, install the package for paid routes, and let your dashboard collect content, analytics, earnings, and reputation signals.
+              Nibgate starts on your own domain. Add the widget for verification, install the package for paid routes, and let your dashboard collect content, analytics, earnings, and reputation signals. No domain yet? Nibshare gets you a paid share link in minutes.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <button type="button" data-wallet-connect className="nibgate-soft-cta border-none cursor-pointer">Connect wallet</button>
               <Link href="/dashboard/sites" className="nibgate-soft-cta nibgate-soft-cta-secondary">Connect a site</Link>
+              <Link href="/share" className="nibgate-soft-cta nibgate-soft-cta-secondary">Open Nibshare</Link>
             </div>
           </div>
         </section>
@@ -50,6 +51,38 @@ export default function GetStartedPage() {
                   <p className="mt-5 text-lg leading-8">{copy}</p>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="flex flex-col overflow-hidden border-y lg:flex-row">
+          <div className="flex items-center justify-center bg-white p-8 py-16 sm:p-12 md:p-16 lg:w-1/2 xl:p-24">
+            <div className="max-w-2xl">
+              <div className="text-xl md:text-2xl">Two ways to get paid</div>
+              <h2 className="mt-5 text-4xl font-medium leading-tight md:text-5xl lg:text-6xl">Your domain, or Nibshare.</h2>
+              <p className="mt-6 text-lg leading-8 md:text-xl">
+                Own your site and want persistent, indexed content? Follow the steps above. Want a gated link without a domain? Publish through Nibshare instead.
+              </p>
+              <p className="mt-4 text-lg leading-8">
+                Nibshare is the hosted quick-share rail. Connect a wallet, write a post, set a USDC price, and get a short link at nibgate.xyz/ns/slug. No domain, widget, or site verification required.
+              </p>
+              <Link href="/share" className="nibgate-soft-cta mt-8 inline-flex">Open Nibshare</Link>
+            </div>
+          </div>
+          <div className="flex items-center justify-center bg-black p-8 py-16 text-white sm:p-12 md:p-16 lg:w-1/2 xl:p-24">
+            <div className="max-w-2xl space-y-12 md:space-y-16">
+              <div className="space-y-4">
+                <h2 className="text-3xl font-medium lg:text-4xl xl:text-5xl">Same payment rail, no domain</h2>
+                <p className="text-lg lg:text-xl xl:text-2xl">Nibshare uses the same x402, USDC, and Circle Gateway payments on Arc, with AES-256-GCM encryption at rest. The difference is who hosts the content.</p>
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-3xl font-medium lg:text-4xl xl:text-5xl">Ephemeral by design</h2>
+                <p className="text-lg lg:text-xl xl:text-2xl">Every share expires at a time you choose, up to 7 days. Nibshare is the fast way to gate a snippet now; a site is the persistent, indexed home for your work.</p>
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-3xl font-medium lg:text-4xl xl:text-5xl">Payments go straight to your wallet</h2>
+                <p className="text-lg lg:text-xl xl:text-2xl">Earnings land in the recipient wallet you set, and the link works for humans and agents the same way.</p>
+              </div>
             </div>
           </div>
         </section>

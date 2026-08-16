@@ -1136,7 +1136,16 @@ html[data-theme="light"] .explore-art {
     flex-basis: 100%;
   }
 
-  .market-grid,
+  .market-grid {
+    columns: 2;
+  }
+
+  .market-section,
+  .wishlist-section,
+  .explore-directory {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .wishlist-grid,
   .explore-directory-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

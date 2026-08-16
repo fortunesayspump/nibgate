@@ -38,13 +38,14 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
     throw new HttpError(400, `Content exceeds the ${FREE_TIER_MAX_BYTES} byte limit for Nibgate free tier. Use Arweave for larger content.`);
   }
 
-  if (expiresAt) {
-    const expiry = new Date(expiresAt);
-    const now = new Date();
-    const diffHours = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (diffHours < 0) throw new HttpError(400, 'expiresAt must be in the future.');
-    if (diffHours > MAX_EXPIRY_HOURS) throw new HttpError(400, `expiresAt cannot exceed ${MAX_EXPIRY_HOURS} hours (1 week) from now.`);
+  if (!expiresAt) {
+    throw new HttpError(400, 'expiresAt is required. Every Nibshare must expire within 7 days.');
   }
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const diffHours = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60);
+  if (diffHours < 0) throw new HttpError(400, 'expiresAt must be in the future.');
+  if (diffHours > MAX_EXPIRY_HOURS) throw new HttpError(400, `expiresAt cannot exceed ${MAX_EXPIRY_HOURS} hours (1 week) from now.`);
 
   if (!ownerWallet) {
     throw new HttpError(400, 'Sign-in wallet could not be determined.');

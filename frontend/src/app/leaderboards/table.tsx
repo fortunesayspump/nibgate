@@ -142,25 +142,35 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
     <section className="mt-12 overflow-hidden border border-dark-gray/50 bg-white">
       <div className="border-b border-dark-gray/50 p-4 md:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {tabs.map((tab) => {
               const count = tab.id === "creators" ? (totals?.creators ?? loaded.creators.length) : tab.id === "sites" ? (totals?.sites ?? loaded.sites.length) : (totals?.content ?? loaded.content.length);
+              const isActive = active === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActive(tab.id)}
-                  className={`rounded-full border px-5 py-3 text-sm font-medium transition ${active === tab.id ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}
+                  aria-pressed={isActive ? "true" : "false"}
+                  className={`flex flex-col items-center gap-0.5 rounded-full border px-2 py-2.5 text-sm font-medium transition sm:flex-row sm:gap-1.5 sm:px-5 sm:py-3 ${isActive ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}
                 >
-                  {tab.label} <span className="opacity-60">({count})</span>
+                  <span>{tab.label}</span>
+                  <span className={`opacity-60 ${isActive ? "text-white/70" : ""}`}>({count})</span>
                 </button>
               );
             })}
           </div>
-          <div className="grid gap-2 text-sm sm:grid-cols-3 lg:min-w-[420px]">
-            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Views</span><strong className="ml-2">{aggregates.views}</strong></div>
-            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Unlocks</span><strong className="ml-2">{aggregates.unlocks}</strong></div>
-            <div className="rounded-2xl bg-gray px-4 py-3"><span className="opacity-60">Revenue</span><strong className="ml-2">{aggregates.revenue.toFixed(2)}</strong></div>
+          <div className="grid w-full grid-cols-3 gap-2 text-sm lg:w-auto lg:min-w-[420px]">
+            {[
+              { label: "Views", value: aggregates.views.toLocaleString() },
+              { label: "Unlocks", value: aggregates.unlocks.toLocaleString() },
+              { label: "Revenue", value: aggregates.revenue.toFixed(2) },
+            ].map((stat) => (
+              <div key={stat.label} className="flex flex-col items-start rounded-2xl bg-gray px-3 py-2.5 sm:px-4 sm:py-3">
+                <span className="text-xs uppercase tracking-wide opacity-60">{stat.label}</span>
+                <strong className="mt-0.5 text-lg leading-tight">{stat.value}</strong>
+              </div>
+            ))}
           </div>
         </div>
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_minmax(280px,420px)] lg:items-center">

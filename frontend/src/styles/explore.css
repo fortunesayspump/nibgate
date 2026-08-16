@@ -745,8 +745,8 @@ html[data-theme="light"] .explore-art {
 
 .type-tabs button.active {
   border-color: var(--explore-border);
-  background: var(--explore-card-raised);
-  color: var(--explore-fg);
+  background: var(--explore-accent);
+  color: var(--explore-accent-fg, #ffffff);
 }
 
 .type-tabs button:hover {

@@ -1,6 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
-import { relayX402Payment } from '@nibgate/internal/payments.js';
+import { runHostedPayRequirement } from '@nibgate/sdk/server';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
   cleanDomain, isValidDomain, originFor, serializeWebsite,
@@ -315,21 +315,34 @@ export function registerHubRoutes(app) {
 
   app.post('/api/hub/pay', async (req, res) => {
     try {
-      const { price, recipient, title } = req.body || {};
+      const { price, recipient, title, paymentRail } = req.body || {};
       const resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
       if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet provided. Pass recipient in request body or set NIBGATE_SELLER_ADDRESS.' });
 
-      const payment = await relayX402Payment({
-        sellerAddress: resolvedRecipient,
-        description: `Unlock ${title || 'content'}`,
-        price: String(price),
-        defaultPrice: '0.01',
-        req,
-        res,
-      });
-      if (!payment) return;
+      const requestHeaders = {};
+      const sourceHeaders = req.headers || {};
+      for (const key of Object.keys(sourceHeaders)) {
+        requestHeaders[key.toLowerCase()] = sourceHeaders[key];
+      }
+      const gateway = await runHostedPayRequirement(
+        { method: req.method || 'GET', url: req.body?.path || '/', headers: requestHeaders },
+        {
+          id: req.body?.contentId || 'hub',
+          title: title || 'content',
+          price: String(price),
+          recipient: resolvedRecipient,
+          path: req.body?.path || '/',
+          paymentRail: paymentRail || req.body?.rail || undefined,
+        },
+        { hosted: true },
+      );
 
-      res.json({ success: true, payment: { paymentProvider: 'circle-gateway', verified: true, recipient: resolvedRecipient, network: payment.networks[0], amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: payment.payer, txHash: payment.txHash } });
+      if (gateway.handled) {
+        res.status(gateway.response.status).set(Object.fromEntries(gateway.response.headers.entries())).send(await gateway.response.text());
+        return;
+      }
+
+      res.json({ success: true, payment: { paymentProvider: gateway.payment.paymentProvider || 'circle-gateway', verified: true, paymentId: gateway.payment.paymentId || gateway.payment.txHash || null, recipient: gateway.payment.recipient, network: gateway.payment.network, amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: gateway.payment.payer || null, txHash: gateway.payment.txHash || null } });
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });
     }

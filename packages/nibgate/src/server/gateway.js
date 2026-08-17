@@ -189,6 +189,7 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
       paymentProvider: 'circle-gateway',
       paymentId: request.headers.get('payment-signature') || '',
       memo: request.headers.get('payment-memo') || '',
+      payer: req.payment?.payer || '',
       amount: Number(resource.price || 0),
       revenue: Number(resource.price || 0),
       currency: resource.currency || 'USDC',

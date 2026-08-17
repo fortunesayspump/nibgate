@@ -32,7 +32,7 @@ export function withConfigDefaults(config) {
   return {
     ...config,
     site: {
-      platformFeeBps: 600,
+      platformFeeBps: 100,
       ...config.site
     },
     hub: {

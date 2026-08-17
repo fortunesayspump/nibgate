@@ -111,6 +111,17 @@ export type NibgateServerOptions = {
   paymentMode?: string;
   network?: string;
   recipient?: string;
+  sellerAddress?: string;
+  hosted?: boolean;
+  feeBps?: number;
+  maxFeeBps?: number;
+  treasury?: string;
+  feeSetter?: string;
+  feeWalletFactory?: string;
+  feeWalletTemplateHash?: string;
+  rpcUrl?: string;
+  usdcAddress?: string;
+  price?: string | number;
   expiresInSeconds?: number;
   actor?: NibgateActor;
   defaultActor?: NibgateActor;
@@ -118,6 +129,28 @@ export type NibgateServerOptions = {
   verifyPayment?: (input: { resource: NibgateServerResource; payment: NibgatePaymentInput }) => boolean | Promise<boolean>;
   verifyTransfer?: (input: { resource: NibgateServerResource; txHash: string; payment: NibgatePaymentInput; request: Request }) => boolean | Promise<boolean>;
 };
+
+export type NibgateFeePolicy = {
+  feeBps: number;
+  maxFeeBps: number;
+  treasury: string;
+  feeSetter: string;
+  chain: string;
+};
+
+export declare function feePolicy(options?: NibgateServerOptions): NibgateFeePolicy;
+export declare function feeWalletAddressFor(creator: string, options?: NibgateServerOptions): string | null;
+export declare function resolvePayTo(recipient: string, options?: NibgateServerOptions): string;
+
+export type NibgateHostedPayResult =
+  | { handled: true; response: Response }
+  | { handled: false; payment: NibgatePaymentInput };
+
+export type NibgateTransferVerifier = (input: { resource: NibgateServerResource; txHash: string; payment: NibgatePaymentInput; request: Request }) => boolean | Promise<boolean>;
+
+export declare function createTransferVerifier(options?: NibgateServerOptions): NibgateTransferVerifier;
+export declare function runHostedTransferRequirement(request: Request, resource: NibgateServerResource | string, options?: NibgateServerOptions): Promise<NibgateHostedPayResult>;
+export declare function runHostedPayRequirement(request: Request, resource: NibgateServerResource | string, options?: NibgateServerOptions): Promise<NibgateHostedPayResult>;
 
 export type NibgateUnlockResult =
   | {
@@ -279,6 +312,10 @@ export declare function verifyPayment(options?: Record<string, unknown>): (req: 
 export declare function createWebhookManager(options?: { webhookUrl?: string; webhookSecret?: string }): { subscribe(event: string, url: string, secret?: string): () => void; emit(event: string, payload: Record<string, unknown>): Promise<Record<string, unknown>[]>; sign(payload: Record<string, unknown>): string };
 export declare function createWebhookApi(manager: ReturnType<typeof createWebhookManager>, options?: { authorize?: (req: Record<string, unknown>) => boolean; adminKey?: string }): { handleSubscribe(req: Record<string, unknown>, res: Record<string, unknown>): Promise<Response>; handleTest(req: Record<string, unknown>, res: Record<string, unknown>): Promise<Response>; router(expressModule: Record<string, unknown>): unknown; manager: ReturnType<typeof createWebhookManager> };
 export declare function runCircleGatewayRequirement(request: Request, resource: NibgateServerResource | string, options?: NibgateServerOptions): Promise<Response>;
+export declare function runHostedPayRequirement(request: Request, resource: NibgateServerResource | string, options?: NibgateServerOptions): Promise<Response>;
+export declare function feePolicy(options?: NibgateServerOptions): NibgateFeePolicy;
+export declare function feeWalletAddressFor(creator: string, options?: NibgateServerOptions): string | null;
+export declare function resolvePayTo(recipient: string, options?: NibgateServerOptions): string;
 export declare function prepareOnchainRating(args: { contentId: string; walletAddress: string; ratingValue: number; paymentId?: string; hubApiUrl?: string }): Promise<Record<string, unknown>>;
 export declare function verifyRatingTx(txHash: string, rpcUrl?: string): Promise<Record<string, unknown>>;
 export declare function submitOnchainRating(args: { siteId: string; token: string; hubContentId?: string; title?: string; postType?: string; price?: string; walletAddress: string; rating: number; ratingValue: number; txHash: string; url?: string; path?: string; hubApiUrl?: string }): Promise<Record<string, unknown>>;

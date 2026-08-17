@@ -4,7 +4,7 @@ export function defaultConfig() {
       name: 'My Nibgate Site',
       origin: 'http://localhost:3000',
       creatorWallet: 'arc_testnet:replace_me',
-      platformFeeBps: 600
+      platformFeeBps: 100
     },
     payments: {
       mode: 'demo',

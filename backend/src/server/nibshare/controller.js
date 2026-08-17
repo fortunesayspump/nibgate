@@ -238,7 +238,7 @@ export async function unlockShare(req, res) {
       return res.status(403).json({ error: 'This share is invite-only — the wallet that pays must be the wallet you signed in with.' });
     }
     const decision = await service.canAccessShare(share, { wallet: payer });
-    if (!decision.allowed && decision.reason !== 'revoked') {
+    if (!decision.allowed && decision.reason !== 'revoked' && decision.reason !== 'payment-required') {
       if (decision.reason === 'banned') {
         return res.status(403).json({ error: 'This wallet is banned from this share.' });
       }
@@ -411,7 +411,7 @@ export async function accessShare(req, res) {
       return res.status(403).json({ ok: false, error: 'This share is invite-only — the wallet that pays must be the wallet you signed in with.' });
     }
     const decision = await service.canAccessShare(share, { wallet: payer });
-    if (!decision.allowed && decision.reason !== 'revoked') {
+    if (!decision.allowed && decision.reason !== 'revoked' && decision.reason !== 'payment-required') {
       if (decision.reason === 'banned') {
         return res.status(403).json({ ok: false, error: 'This wallet is banned from this share.' });
       }

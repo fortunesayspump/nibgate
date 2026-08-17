@@ -23,6 +23,12 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
   verifyingContract `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` = Circle SCW) →
   facilitator verifies. A 0-USDC buyer is rejected with `402 / {"error":"Payment
   verification failed","reason":"unauthorized"}`.
+- **Direct rail (transfer) unlock**: the unlock UI switches to the Direct tab,
+  the wallet broadcasts a real USDC ERC-20 transfer to the share owner, and the
+  follow-up access call verifies the txHash (`x-nibgate-transfer-tx`) and returns
+  the paid body. Verified locally end-to-end (`e2e/harness/local-direct-rail.js`)
+  with a swarm wallet (CryptoAlice) as owner — the harness `SEL_PK` is
+  blocklisted as a wrapper **recipient** too.
 - **Quote endpoint** honors per-actor price and whitelist tier; invite-only
   `effectivePrice` still shows public price but `canUnlock:false`.
 - **Currency/expiry chips** on /mine, drafts vs active accuracy, auto-expire countdown.
@@ -78,7 +84,11 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
    buyer `0x3C44…`, Gateway `6.0` balance intact) still yields
    `POST /v1/x402/verify → 200 {"isValid":false,"invalidReason":"unauthorized"}`
    against `gateway-api-testnet.circle.com`. Still a Circle-side testnet
-   issuer/project gate; the paid unlock happy path remains untestable live.
+   issuer/project gate.
+   **RESOLVED 2026-08-18:** the **Direct rail** bypasses Circle entirely — the
+   buyer broadcasts a normal USDC ERC-20 transfer to the recipient and the server
+   verifies the txHash on-chain. Paid unlocks now work end-to-end; the gateway
+   rail remains the blocked upstream path.
 8. **`createGatewayMiddleware` cannot send auth headers.** The SDK's
    `createGatewayMiddleware()` builds a `BatchFacilitatorClient` WITHOUT
    `createAuthHeaders`, so a seller app has no official way to attach a Circle

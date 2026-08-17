@@ -87,6 +87,11 @@ function proofWalletFor(req, resource) {
   return /^0x[0-9a-f]{40}$/i.test(w) ? w.toLowerCase() : null;
 }
 
+function challengeFor(req, resource) {
+  const rail = req.query?.rail === 'transfer' ? 'transfer' : 'gateway';
+  return nibgateServer.createPaymentChallenge(resource, { paymentRail: rail });
+}
+
 // Confirm the request may stream this post's media:
 //   paid            -> valid proof OR active paid entitlement (lifetime);
 //                      never banned/revoked
@@ -103,7 +108,7 @@ async function mediaAccessResult(req, post, resource) {
     if (!isPaidValue(post?.price)) {
       return { status: 403, body: { error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view its media.' } };
     }
-    const challenge = nibgateServer.createPaymentChallenge(resource);
+    const challenge = challengeFor(req, resource);
     return { status: 402, body: challenge };
   }
   if (isInviteOnly && !accessService.inWhitelist(post, wallet)) {
@@ -117,7 +122,7 @@ async function mediaAccessResult(req, post, resource) {
       if (!decision.allowed && decision.reason === 'invite-only') {
         return { status: 403, body: { error: 'This post is invite-only — only whitelisted wallets can access it.' } };
       }
-      const challenge = nibgateServer.createPaymentChallenge(resource);
+      const challenge = challengeFor(req, resource);
       return { status: 402, body: challenge };
     }
   }
@@ -291,6 +296,7 @@ async function serveAccess(req, res, post, slug) {
       'Content-Type': 'application/json',
       ...(req.headers['payment-signature'] ? { 'payment-signature': req.headers['payment-signature'] } : {}),
       ...(req.headers['payment-memo'] ? { 'payment-memo': req.headers['payment-memo'] } : {}),
+      ...(req.headers['x-nibgate-transfer-tx'] ? { 'x-nibgate-transfer-tx': req.headers['x-nibgate-transfer-tx'] } : {}),
     },
     body: JSON.stringify({
       price: paidResource.price,
@@ -298,6 +304,7 @@ async function serveAccess(req, res, post, slug) {
       title: paidResource.title,
       contentId: paidResource.id,
       path: paidResource.path,
+      paymentRail: req.query.rail || req.body?.paymentRail || undefined,
     }),
   });
 

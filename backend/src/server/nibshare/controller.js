@@ -1,19 +1,42 @@
 import crypto from 'node:crypto';
 import { getUserBySession, requireAuth } from '@nibgate/internal/auth.js';
-import { relayX402Payment as relayX402 } from '@nibgate/internal/payments.js';
+import { runHostedPayRequirement } from '@nibgate/sdk/server';
 import { decryptMediaBlob, decryptShareBody, expirySecondsFor, mediaItemFor, paymentProofFor, primaryWallet, sharePublicUrl, walletFromPaymentProof } from './utils.js';
 import * as service from './service.js';
 
 export { requireAuth };
 
-async function relayX402Payment(req, res, share, price) {
-  return relayX402({
-    sellerAddress: share.ownerWallet,
-    description: `Unlock ${share.title || 'content'}`,
-    price: price != null ? String(price) : String(share.price || '0'),
-    req,
-    res,
-  });
+// Relay a share payment through the same hosted-pay seam the hub /hub/pay uses,
+// so the fee-wallet revenue logic lives in one place. Serves the x402 challenge
+// (gateway or direct rail) when the wallet has not paid yet, or verifies the
+// payment and returns it when it clears.
+async function relayX402Payment(req, res, share, price, paymentRail) {
+  const requestHeaders = {};
+  const sourceHeaders = req.headers || {};
+  for (const key of Object.keys(sourceHeaders)) {
+    requestHeaders[key.toLowerCase()] = sourceHeaders[key];
+  }
+  const result = await runHostedPayRequirement(
+    { method: req.method || 'GET', url: req.body?.path || req.originalUrl || '/', headers: requestHeaders },
+    {
+      id: share.id,
+      title: share.title || 'content',
+      price: String(price),
+      recipient: share.ownerWallet,
+      path: req.body?.path || req.originalUrl || '/',
+      paymentRail: paymentRail || req.query?.rail || undefined,
+    },
+    { hosted: true },
+  );
+  if (result.handled) {
+    res.status(result.response.status).set(Object.fromEntries(result.response.headers.entries())).send(await result.response.text());
+    return null;
+  }
+  return {
+    payer: String(result.payment.payer || '').toLowerCase(),
+    txHash: String(result.payment.txHash || result.payment.paymentId || ''),
+    paymentProvider: result.payment.paymentProvider || 'circle-gateway',
+  };
 }
 
 // The x402 challenge is minted server-side BEFORE the wallet pays, so the

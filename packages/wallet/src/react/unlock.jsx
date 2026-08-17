@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAccount, useDisconnect, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi'
+import { useAccount, useDisconnect, useSendTransaction, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi'
 import { useAppKit } from '@reown/appkit/react'
 import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
@@ -13,6 +13,21 @@ import { GatewayWalletUI } from './gateway-wallet.jsx'
 
 const NETWORK = 'eip155:5042002'
 const PROOF_PREFIX = 'nibgate:payment-proof:'
+const USDC = '0x3600000000000000000000000000000000000000'
+const ARC_RPC = 'https://rpc.testnet.arc.io'
+const BALANCE_OF = '0x70a08231'
+const USDC_TRANSFER_ABI = [
+  {
+    type: 'function',
+    name: 'transfer',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+]
 
 function storedProof(id) {
   try {
@@ -40,6 +55,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   const { switchChainAsync } = useSwitchChain()
   const { signTypedDataAsync } = useSignTypedData()
   const { signMessageAsync } = useSignMessage()
+  const { sendTransactionAsync } = useSendTransaction()
 
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -49,17 +65,21 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   const [payload, setPayload] = useState(null)
   const [proof, setProof] = useState('')
   const [gatewayBalance, setGatewayBalance] = useState('')
+  const [walletBalance, setWalletBalance] = useState('')
+  const [paymentRail, setPaymentRail] = useState(resource.paymentRail === 'transfer' ? 'transfer' : 'gateway')
 
   const runningRef = useRef(false)
   const isConnectedRef = useRef(isConnected)
   const addressRef = useRef(address)
   const chainRef = useRef(chain)
   const onUnlockRef = useRef(onUnlock)
+  const railRef = useRef(paymentRail)
 
   useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
   useEffect(() => { addressRef.current = address }, [address])
   useEffect(() => { chainRef.current = chain }, [chain])
   useEffect(() => { onUnlockRef.current = onUnlock }, [onUnlock])
+  useEffect(() => { railRef.current = paymentRail }, [paymentRail])
 
   const refreshGatewayBalance = useCallback(async () => {
     if (!gatewayBalanceUrl || !addressRef.current) return ''
@@ -85,6 +105,41 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     return () => clearInterval(t)
   }, [gatewayBalanceUrl, refreshGatewayBalance, address])
 
+  const refreshWalletBalance = useCallback(async () => {
+    const addr = addressRef.current
+    if (!addr) {
+      setWalletBalance('')
+      return ''
+    }
+    try {
+      const res = await fetch(ARC_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_call',
+          params: [{ to: USDC, data: BALANCE_OF + addr.slice(2).padStart(64, '0') }, 'latest'],
+          id: 1,
+        }),
+      })
+      const data = await res.json()
+      const bal = data?.result ? parseInt(data.result, 16) / 1e6 : 0
+      const label = bal.toFixed(2) + ' USDC'
+      setWalletBalance(label)
+      return label
+    } catch {
+      setWalletBalance('')
+      return ''
+    }
+  }, [])
+
+  useEffect(() => {
+    if (paymentRail !== 'transfer') return
+    refreshWalletBalance()
+    const t = setInterval(refreshWalletBalance, 15000)
+    return () => clearInterval(t)
+  }, [paymentRail, refreshWalletBalance, address])
+
   const checkout = useCallback(async (input) => {
     const account = addressRef.current
     if (!account) throw new Error('Connect your wallet to continue.')
@@ -95,6 +150,33 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     if (!isArcNetwork(chainRef.current?.id)) {
       await switchChainAsync({ chainId: ARC_TESTNET.id })
       await waitForChain(() => isArcNetwork(chainRef.current?.id))
+    }
+    const rail = input?.challenge?.paymentRail || railRef.current || resource.paymentRail || 'gateway'
+    if (rail === 'transfer') {
+      const payTo = String(input?.challenge?.accepts?.[0]?.payTo || input?.challenge?.accepts?.[0]?.recipient || resource.payTo || resource.recipient || '')
+      if (!payTo) throw new Error('No recipient address in the transfer challenge.')
+      const amount = Number(input?.challenge?.accepts?.[0]?.amount || resource.price || 0)
+      if (!(amount > 0)) throw new Error('Invalid payment amount.')
+      const amountUsdc = BigInt(Math.round(amount * 1e6))
+      const txHash = await sendTransactionAsync({
+        to: USDC,
+        abi: USDC_TRANSFER_ABI,
+        functionName: 'transfer',
+        args: [payTo, amountUsdc],
+        chainId: ARC_TESTNET.id,
+      })
+      return {
+        paymentSignature: txHash,
+        metadata: {
+          paymentProvider: 'direct-transfer',
+          paymentId: txHash,
+          txHash,
+          recipient: payTo,
+          amount,
+          currency: 'USDC',
+          network: NETWORK,
+        },
+      }
     }
     const { createCircleGatewayBrowserAdapter } = await import('@nibgate/sdk')
     await ensureWalletAuthorized(connector)
@@ -112,7 +194,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       },
     })
     return adapter.pay(input)
-  }, [resource, switchChainAsync, signTypedDataAsync, connector])
+  }, [resource, switchChainAsync, signTypedDataAsync, connector, sendTransactionAsync])
 
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()
@@ -131,9 +213,12 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   // simply ignore the extra query param.
   const accessPathFor = useCallback((path) => {
     const w = addressRef.current
-    if (!w || !path) return path
-    return `${path}${path.includes('?') ? '&' : '?'}wallet=${encodeURIComponent(w)}`
-  }, [])
+    const rail = railRef.current || resource.paymentRail || 'gateway'
+    if (!path) return path
+    const base = `${path}${path.includes('?') ? '&' : '?'}rail=${encodeURIComponent(rail)}`
+    if (!w) return base
+    return `${base}&wallet=${encodeURIComponent(w)}`
+  }, [resource.paymentRail])
 
   const signInIfEnabled = useCallback(async () => {
     if (!siweEnabledRef.current) return
@@ -194,10 +279,13 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         await signInRef.current()
       }
       const { checkResourceAccess } = await import('@nibgate/sdk')
+      const rail = railRef.current || resource.paymentRail || 'gateway'
       const result = await checkResourceAccess(resource, {
         accessPath: accessPathFor(accessPath),
-        paymentProvider: 'circle-gateway-browser',
-        challengeMessage: 'Payment required. Approve the Gateway payment in your wallet...',
+        paymentProvider: rail === 'transfer' ? 'direct-transfer-browser' : 'circle-gateway-browser',
+        challengeMessage: rail === 'transfer'
+          ? 'Payment required. Send USDC to the recipient in your wallet...'
+          : 'Payment required. Approve the Gateway payment in your wallet...',
         paymentMessage: 'Waiting for wallet approval...',
         successMessage: 'Unlocked.',
         checkout,
@@ -266,7 +354,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     return () => { cancelled = true }
   }, [resource.id, accessPath, accessPathFor])
 
-  return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance }
+  return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail }
 }
 
 const HOLD_MS = 1500
@@ -295,7 +383,7 @@ const labelButtonStyle = {
   margin: 0,
 }
 
-export function NibgateUnlockUI({ resource, busy, checking, status, error, address, disconnect, unlock, connect, gatewayBalance, gatewayBalanceUrl }) {
+export function NibgateUnlockUI({ resource, busy, checking, status, error, address, disconnect, unlock, connect, gatewayBalance, gatewayBalanceUrl, walletBalance, paymentRail, setPaymentRail }) {
   const lottieRef = useRef(null)
   const [holdPct, setHoldPct] = useState(0)
   const [holdTransition, setHoldTransition] = useState('none')
@@ -303,6 +391,7 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
   const holdRef = useRef({ timer: null, active: false, complete: false })
   const isBusy = busy || checking
   const isConnected = Boolean(address)
+  const isDirect = paymentRail === 'transfer'
   const price = resource.price && resource.price !== '0'
     ? `${resource.price} ${resource.currency || 'USDC'}`
     : 'free'
@@ -402,8 +491,66 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
           <span style={{ color: '#7c9a6d', fontWeight: 600 }}>whitelisted price</span>
         </div>
       )}
-      <div style={{ fontSize: 21, color: 'var(--muted, #6b6862)', marginBottom: 48 }}>
+      <div style={{ fontSize: 21, color: 'var(--muted, #6b6862)', marginBottom: 24 }}>
         Pay to unlock this content
+      </div>
+      <div
+        role="tablist"
+        aria-label="Payment rail"
+        style={{
+          display: 'flex',
+          gap: 6,
+          background: 'var(--border, #cecdc3)',
+          padding: 4,
+          borderRadius: 10,
+          marginBottom: 24,
+          width: '100%',
+          maxWidth: 340,
+          boxSizing: 'border-box',
+        }}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!isDirect}
+          onClick={() => setPaymentRail?.('gateway')}
+          style={{
+            flex: 1,
+            padding: '8px 0',
+            fontSize: 13,
+            fontWeight: 600,
+            border: 0,
+            borderRadius: 7,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            color: !isDirect ? 'var(--fg, #0a0a0a)' : 'var(--muted, #6b6862)',
+            background: !isDirect ? 'var(--bg, #f4f4f0)' : 'transparent',
+            boxShadow: !isDirect ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+          }}
+        >
+          Gateway
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isDirect}
+          onClick={() => setPaymentRail?.('transfer')}
+          style={{
+            flex: 1,
+            padding: '8px 0',
+            fontSize: 13,
+            fontWeight: 600,
+            border: 0,
+            borderRadius: 7,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            color: isDirect ? 'var(--fg, #0a0a0a)' : 'var(--muted, #6b6862)',
+            background: isDirect ? 'var(--bg, #f4f4f0)' : 'transparent',
+            boxShadow: isDirect ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+          }}
+        >
+          Direct
+        </button>
       </div>
       <div
         style={{
@@ -427,13 +574,19 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
             <button type="button" style={{ ...labelButtonStyle, cursor: 'pointer' }} onClick={() => disconnect?.()}>
               · Disconnect
             </button>
-            <button
-              type="button"
-              style={{ ...labelButtonStyle, cursor: 'pointer', color: 'var(--accent, #7c9a6d)', whiteSpace: 'nowrap' }}
-              onClick={() => setShowGateway(true)}
-            >
-              · {gatewayBalance} <DepositIcon />
-            </button>
+            {isDirect ? (
+              <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', whiteSpace: 'nowrap' }}>
+                · {walletBalance || '0.00 USDC'}
+              </span>
+            ) : (
+              <button
+                type="button"
+                style={{ ...labelButtonStyle, cursor: 'pointer', color: 'var(--accent, #7c9a6d)', whiteSpace: 'nowrap' }}
+                onClick={() => setShowGateway(true)}
+              >
+                · {gatewayBalance} <DepositIcon />
+              </button>
+            )}
           </>
         ) : (
           <button type="button" style={{ ...labelButtonStyle, cursor: isBusy ? 'default' : 'pointer' }} disabled={isBusy} onClick={() => connect()}>

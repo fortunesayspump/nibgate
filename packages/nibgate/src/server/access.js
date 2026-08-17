@@ -8,11 +8,24 @@ import { createManifest, manifestResponse } from './manifest.js';
 import { emitHubEvent } from './hub.js';
 import { depositToGateway, getGatewayBalances, payWithGateway, runCircleGatewayRequirement, withdrawFromGateway } from './gateway.js';
 import { serverEnv } from './env.js';
+import { createTransferVerifier } from './fee-wallet.js';
 
 export function createNibgateServer(options = {}) {
   const secret = options.secret || serverEnv('NIBGATE_SECRET') || serverEnv('NIBGATE_UNLOCK_SECRET') || 'nibgate-dev-secret';
   const verifyPayment = options.verifyPayment || null;
-  const verifyTransfer = options.verifyTransfer || null;
+  const verifyTransfer = options.verifyTransfer || createTransferVerifier(options);
+
+  function queryRail(request) {
+    try {
+      const url = typeof request?.url === 'string' ? request.url : '';
+      if (!url) return '';
+      const q = new URL(url, 'http://localhost').searchParams;
+      const rail = q.get('rail') || '';
+      return rail === 'transfer' ? 'transfer' : '';
+    } catch {
+      return '';
+    }
+  }
 
   async function unlock(resourceInput, payment = {}) {
     const resource = normalizeResource(resourceInput);
@@ -94,7 +107,7 @@ export function createNibgateServer(options = {}) {
         return jsonResponse({ ok: false, error: `${access.actor} access is blocked for this resource`, resource }, { status: 403 });
       }
 
-      const rail = normalizePaymentRail(resource.paymentRail || routeOptions.paymentRail || options.paymentRail || routeOptions.paymentMode || options.paymentMode);
+      const rail = normalizePaymentRail(queryRail(request) || resource.paymentRail || routeOptions.paymentRail || options.paymentRail || routeOptions.paymentMode || options.paymentMode);
       if (rail === 'gateway' && (routeOptions.paymentMode || options.paymentMode || serverEnv('NIBGATE_PAYMENT_MODE')) === 'circle-gateway') {
         const gateway = await runCircleGatewayRequirement(request, resource, { ...options, ...routeOptions });
         if (gateway.handled) return gateway.response;
@@ -108,11 +121,8 @@ export function createNibgateServer(options = {}) {
       }
 
       if (rail === 'transfer') {
-        const txHash = request.headers?.get?.('x-nibgate-transfer-tx') || request.headers?.get?.('x-transfer-tx') || '';
+        const txHash = request.headers?.get?.('x-nibgate-transfer-tx') || request.headers?.get?.('x-transfer-tx') || request.headers?.get?.('payment-signature') || '';
         if (txHash) {
-          if (!verifyTransfer) {
-            return jsonResponse({ ok: false, error: 'Transfer verification is not configured. Pass verifyTransfer to createNibgateServer before using paymentRail: transfer.' }, { status: 501 });
-          }
           const transferPayment = {
             paymentProvider: 'direct-transfer',
             paymentId: txHash,

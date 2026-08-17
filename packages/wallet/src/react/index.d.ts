@@ -89,6 +89,10 @@ export function useNibgateUnlock(options: {
   clear: () => void;
   gatewayBalance: string;
   refreshGatewayBalance: () => Promise<string>;
+  walletBalance: string;
+  refreshWalletBalance: () => Promise<string>;
+  paymentRail: string;
+  setPaymentRail: (rail: string) => void;
 };
 
 export function NibgateUnlockUI(props: {
@@ -104,6 +108,9 @@ export function NibgateUnlockUI(props: {
   connect: () => void;
   gatewayBalance?: string;
   gatewayBalanceUrl?: string;
+  walletBalance?: string;
+  paymentRail?: string;
+  setPaymentRail?: (rail: string) => void;
 }): ReactNode;
 
 export function NibgateUnlock(props: {

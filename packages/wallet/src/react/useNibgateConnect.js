@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
-import { useAppKit } from '@reown/appkit/react'
+import { useAppKit, useAppKitState } from '@reown/appkit/react'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
 import { signInWithSiwe } from './siwe.js'
@@ -12,6 +12,7 @@ export function useNibgateConnect(options = {}) {
   const { authBase = '', noncePath, verifyPath } = options
   const { isConnected, address, connector } = useAccount()
   const { open } = useAppKit()
+  const { open: modalOpen, connectingWallet } = useAppKitState()
   const { signMessageAsync } = useSignMessage()
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('idle')
@@ -20,12 +21,20 @@ export function useNibgateConnect(options = {}) {
   const isConnectedRef = useRef(isConnected)
   const addressRef = useRef(address)
   const runningRef = useRef(false)
+  const modalOpenRef = useRef(modalOpen)
+  const connectingWalletRef = useRef(connectingWallet)
   useEffect(() => {
     isConnectedRef.current = isConnected
   }, [isConnected])
   useEffect(() => {
     addressRef.current = address
   }, [address])
+  useEffect(() => {
+    modalOpenRef.current = modalOpen
+  }, [modalOpen])
+  useEffect(() => {
+    connectingWalletRef.current = connectingWallet
+  }, [connectingWallet])
 
   useEffect(() => {
     if (isConnected) setError(null)
@@ -33,9 +42,15 @@ export function useNibgateConnect(options = {}) {
 
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()
+    let sawModalOpen = false
     while (Date.now() - started < timeoutMs) {
       if (isConnectedRef.current && addressRef.current) {
         return addressRef.current
+      }
+      if (modalOpenRef.current) {
+        sawModalOpen = true
+      } else if (sawModalOpen && !connectingWalletRef.current) {
+        return undefined
       }
       await new Promise((resolve) => setTimeout(resolve, 200))
     }

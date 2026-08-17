@@ -7,7 +7,7 @@ export function createPaymentChallenge(resourceInput, options = {}) {
   const origin = options.origin || serverEnv('NIBGATE_SITE_ORIGIN') || '';
   const actor = options.actor || 'human';
   const recipient = resource.recipient || resource.payTo || options.recipient || serverEnv('NIBGATE_SELLER_ADDRESS') || '';
-  const paymentRail = normalizePaymentRail(resource.paymentRail || options.paymentRail || options.paymentMode);
+  const paymentRail = normalizePaymentRail(options.paymentRail || options.paymentMode || resource.paymentRail);
   return {
     x402Version: options.x402Version || 2,
     status: 402,

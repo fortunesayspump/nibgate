@@ -45,7 +45,16 @@ export function createTransferVerifier(options = {}) {
     const amountUsdc = Number(payment?.amount ?? resource?.price ?? options.price ?? 0);
     const amountWei = BigInt(Math.round(amountUsdc * 1e6));
     try {
-      const receipt = await client.getTransactionReceipt({ hash: txHash });
+      // The buyer sends the txHash as soon as the broadcast resolves, which can
+      // be before the block is mined. Wait for the receipt so a fresh payment
+      // verifies instead of failing a one-shot lookup.
+      const waitMs = Number(options.receiptWaitMs ?? 30000);
+      const receipt = await client.waitForTransactionReceipt({
+        hash: txHash,
+        timeout: waitMs,
+        pollingInterval: 1000,
+        confirmations: options.receiptConfirmations ?? 1,
+      });
       if (!receipt || receipt.status !== 'success') return false;
       let matched = false;
       for (const log of receipt.logs || []) {

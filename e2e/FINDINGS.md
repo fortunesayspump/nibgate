@@ -754,3 +754,14 @@ See `logs/*.log` for the raw evidence behind each claim.
   register/login validation (bad payloads → 400), hub `POST /api/nibshare/gateway/balance`
   → `"6.00 USDC"`, and `/widget.js` (frontend host, `application/javascript`).
   One check fix: widget.js is served by `nibgate.xyz` not `api.nibgate.xyz`.
+- **NEW REAL BUG — subblog SIWE verify 500 for a pre-existing wallet (fixed).**
+  `POST /api/auth/verify` returned 500 in production for the buyer wallet
+  `0x3C44…93BC` while fresh wallets verified 200. Root cause: a prior sign-in
+  left a `User` row with a **checksummed** `walletAddress`; `findOrCreateWalletUser`
+  looks up by `walletAddress.toLowerCase()` (misses the checksummed row), then
+  `create` collides on the derived `wallet-<addr>@wallets.nibgate.xyz` email
+  (global `@unique`) → Prisma P2002 → non-operational → 500 in production.
+  Fix (`subblogs/backend/src/services/siwe.service.js`): after the exact lookup,
+  adopt the existing row by derived email (`findUnique({ email })`) and update
+  `siteId` + lowercase `walletAddress` before creating. Reproduced locally
+  (checksummed-only record → 500) and verified fixed (→ 200, row adopted).

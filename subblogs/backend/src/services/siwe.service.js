@@ -38,10 +38,22 @@ function generateSessionToken(user) {
 
 async function findOrCreateWalletUser(siteId, walletAddress) {
   const address = walletAddress.toLowerCase();
+  const email = `wallet-${address.replace(/^0x/, '')}@wallets.nibgate.xyz`;
+
   const existing = await prisma.user.findFirst({ where: { siteId, walletAddress: address } });
   if (existing) return existing;
 
-  const email = `wallet-${address.replace(/^0x/, '')}@wallets.nibgate.xyz`;
+  const byEmail = await prisma.user.findUnique({ where: { email } });
+  if (byEmail) {
+    if (byEmail.walletAddress !== address) {
+      return prisma.user.update({
+        where: { id: byEmail.id },
+        data: { siteId, walletAddress: address },
+      });
+    }
+    return byEmail;
+  }
+
   const password = crypto.randomBytes(24).toString('hex');
   const name = `${address.slice(0, 6)}…${address.slice(-4)}`;
   const user = await prisma.user.create({

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { encodeFunctionData } from 'viem'
 import { useAccount, useDisconnect, useSendTransaction, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi'
 import { useAppKit } from '@reown/appkit/react'
 import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
@@ -158,11 +159,10 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       const amount = Number(input?.challenge?.accepts?.[0]?.amount || resource.price || 0)
       if (!(amount > 0)) throw new Error('Invalid payment amount.')
       const amountUsdc = BigInt(Math.round(amount * 1e6))
+      const data = encodeFunctionData({ abi: USDC_TRANSFER_ABI, functionName: 'transfer', args: [payTo, amountUsdc] })
       const txHash = await sendTransactionAsync({
         to: USDC,
-        abi: USDC_TRANSFER_ABI,
-        functionName: 'transfer',
-        args: [payTo, amountUsdc],
+        data,
         chainId: ARC_TESTNET.id,
       })
       return {

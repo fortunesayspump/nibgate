@@ -75,7 +75,7 @@ describe('createTransferVerifier', () => {
   })
 
   it('returns false when the RPC is unreachable', async () => {
-    const verifier = createTransferVerifier({ rpcUrl: 'https://rpc.invalid', recipient: creator })
+    const verifier = createTransferVerifier({ rpcUrl: 'https://rpc.invalid', recipient: creator, receiptWaitMs: 800 })
     expect(await verifier({ resource: { recipient: creator }, txHash: '0xabc', payment: { amount: 1 } })).toBe(false)
   })
 })

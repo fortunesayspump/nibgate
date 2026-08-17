@@ -137,7 +137,7 @@ describe('direct rail end-to-end (challenge → verify → unlock → replay)', 
 
   it('rejects when the tx has not confirmed yet (null receipt)', async () => {
     const { rpcUrl } = await startRpcStub({})
-    const server = createNibgateServer({ rpcUrl })
+    const server = createNibgateServer({ rpcUrl, receiptWaitMs: 500 })
 
     const paidRes = await server.accessResponse(request('/api/nibgate/access?rail=transfer', { 'x-nibgate-transfer-tx': '0x' + 'ff'.repeat(32) }), RESOURCE)
     expect(paidRes.status).toBe(402)

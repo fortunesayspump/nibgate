@@ -49,7 +49,16 @@ Limitations worked around:
 ```bash
 node harness/prod-f.js     # buyer matrix over scratch/prod-state.json posts
 node harness/prod-a.js     # seller: create the 4 base posts
+node harness/local-direct-rail.js   # real-browser direct-rail unlock (local stack by default)
 ```
 
 Set `PROD_BASE` to point at a local deployment if needed. Logs append under
 `logs/`. State lives in `scratch/prod-state.json`.
+
+### Direct-rail harness (`local-direct-rail.js`)
+
+Targets `http://localhost:3001` by default (`PROD_BASE` to override). The seller
+must be a wallet the USDC wrapper accepts as a transfer recipient — the harness
+`SEL_PK` (`0x7099…79c8`) is blocklisted as a recipient too, so the script uses a
+swarm wallet (CryptoAlice, id=1) as the share owner instead. Buyer `BUY_PK`
+broadcasts a real 1 USDC transfer and asserts the paid body is revealed.

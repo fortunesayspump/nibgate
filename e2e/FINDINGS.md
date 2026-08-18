@@ -85,10 +85,46 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
    `POST /v1/x402/verify → 200 {"isValid":false,"invalidReason":"unauthorized"}`
    against `gateway-api-testnet.circle.com`. Still a Circle-side testnet
    issuer/project gate.
-   **RESOLVED 2026-08-18:** the **Direct rail** bypasses Circle entirely — the
-   buyer broadcasts a normal USDC ERC-20 transfer to the recipient and the server
-   verifies the txHash on-chain. Paid unlocks now work end-to-end; the gateway
-   rail remains the blocked upstream path.
+**RESOLVED 2026-08-18:** the **Direct rail** bypasses Circle entirely — the
+    buyer broadcasts a normal USDC ERC-20 transfer to the recipient and the server
+    verifies the txHash on-chain. Paid unlocks now work end-to-end; the gateway
+    rail remains the blocked upstream path.
+    **ROOT CAUSE ISOLATED 2026-08-18:** live probes against
+    `gateway-api-testnet.circle.com` prove this is **NOT a config bug, NOT the
+    API key, and NOT a payload problem** — it is an unauthenticated-caller gate
+    on the x402 endpoints themselves:
+    - `eip155:5042002` IS listed in `/v1/x402/supported` with the exact
+      `verifyingContract` `0x0077…19B9` and USDC `0x3600…0000` we send, so
+      network/contract config is correct.
+    - Setting `payTo` = the buyer's own address returns `self_transfer` (a REAL,
+      documented validation code) — proving Circle parses our payload and
+      signature (EIP-3009 recovers to buyer) and passes scheme/network/amount/
+      temporal checks. Only a non-self recipient flips the result to
+      `unauthorized`.
+    - `unauthorized` appears **0 times** in Circle's official OpenAPI error enum
+      for `/v1/x402/verify` and `/v1/x402/settle` (settle's `errorReason` enum is
+      `unsupported_scheme | unsupported_network | unsupported_asset |
+      invalid_payload | address_mismatch | amount_mismatch |
+      invalid_signature | authorization_* | self_transfer |
+      insufficient_balance | nonce_already_used | unsupported_domain |
+      wallet_not_found`). It is an undocumented account/org-level response.
+    - A fully-supported SEPOLIA payload returns the identical `unauthorized`,
+      so it is not Arc-specific.
+    - A random never-used recipient, the real seller, and the Gateway Wallet
+      contract as `payTo` ALL return `unauthorized` — not recipient-specific.
+    - Garbage key, no key, and our real `CIRCLE_API_KEY` as Bearer ALL return
+      the identical `unauthorized` — the API does not even validate the key on
+      these endpoints (balance and `/v1/transfer` also behave identically with a
+      garbage key). So **we DO have the key and it is valid; the key is simply
+      not consulted** for x402 verify/settle.
+    - Conclusion: Circle's batched x402 path requires an authenticated
+      merchant/org session context (mrdn/x402 references show `authContext.
+      organizationId` from an authenticated `apiSession`, and Circle's own blog
+      example uses a **Circle-provisioned Programmable Wallet** via
+      `circle wallet create`). A bare `TEST_API_KEY` + raw EOA deposit is not an
+      authorized caller. Nothing in our code, config, or key can change this;
+      the fix is on Circle's account/onboarding side (create an org-scoped
+      buyer/seller via `circle wallet create`).
 8. **`createGatewayMiddleware` cannot send auth headers.** The SDK's
    `createGatewayMiddleware()` builds a `BatchFacilitatorClient` WITHOUT
    `createAuthHeaders`, so a seller app has no official way to attach a Circle
@@ -817,3 +853,27 @@ See `logs/*.log` for the raw evidence behind each claim.
   switches to Direct, hold-to-pay → 402 → wallet broadcasts a real USDC wrapper
   transfer (tx `0x9850572b…`) → 200 with the paid body revealed on
   `analog.nibgate.xyz`. The subblog reader UI now fully supports both rails.
+- **RESOLVED 2026-08-18: full discovery flow live GREEN (19/19).**
+  `e2e/harness/live-full-discovery-flow.js` proves the whole journey end-to-end
+  on production: explore finds the verified, priced product
+  (`/api/hub/explore/content?q="35mm vs medium format"` → price 0.50); gate
+  renders rail tabs with buyer connected; gateway rail reaches the wallet/circle
+  flow (upstream block per finding #7, expected); Direct rail unlocks the paid
+  body; 5★ rating confirms; and the hub ledger shows both the direct-transfer
+  payment row (payer= buyer, 0.5 USDC, txHash, recipient) and the onchain-proof
+  rating row (score 5, `proof: onchain:<tx>`).
+- **Rating ledger bug (commit `eb34613`): the wallet fired `onRated`/`indexUrl`
+  immediately after broadcasting the rating tx, so the subblog
+  `POST /rating/:id` raced ahead of mining → `verifyRatingTx` 500'd
+  ("On-chain proof not found or invalid") → the hub `content_rating` event never
+  fired → no ledger row even though the tx mined fine. Also the wallet's
+  `indexUrl` body didn't match the hub `/api/hub/reputation/ratings/index`
+  route (route expects `contentId/contentHash/ratingValue/walletAddress`).
+  Fixes: wallet now waits for the transaction receipt before `onRated` and
+  sends the correct index body; subblog route retries proof verification up to
+  6×3s for freshly-broadcast txs. Bumped `@nibgate/wallet` to 0.2.17.
+- **Rail-switch lock bug (commit `5f9c15e`): after the gateway attempt hangs
+  upstream, `runningRef` stayed `true`, so switching to the Direct rail and
+  holding to pay short-circuited at the `unlock()` guard and never paid.
+  Fix: `switchRail` now clears `runningRef` + `busy` so the working rail can
+  proceed. Bumped `@nibgate/wallet` to 0.2.18.

@@ -82,6 +82,15 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   useEffect(() => { onUnlockRef.current = onUnlock }, [onUnlock])
   useEffect(() => { railRef.current = paymentRail }, [paymentRail])
 
+  // Switching rails must clear any stuck unlock attempt (e.g. a hung gateway
+  // flow that never resolves), otherwise the next rail short-circuits on
+  // runningRef and can never pay.
+  const switchRail = useCallback((next) => {
+    runningRef.current = false
+    setBusy(false)
+    setPaymentRail(next)
+  }, [])
+
   const refreshGatewayBalance = useCallback(async () => {
     if (!gatewayBalanceUrl || !addressRef.current) return ''
     try {
@@ -354,7 +363,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     return () => { cancelled = true }
   }, [resource.id, accessPath, accessPathFor])
 
-  return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail }
+  return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail: switchRail }
 }
 
 const HOLD_MS = 1500

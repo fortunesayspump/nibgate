@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAccount, useSwitchChain, useSendTransaction } from 'wagmi'
+import { useAccount, useSwitchChain, useSendTransaction, usePublicClient } from 'wagmi'
 import { useAppKit } from '@reown/appkit/react'
-import { encodeFunctionData, keccak256, stringToBytes } from 'viem'
+import { encodeFunctionData, keccak256, stringToBytes, waitForTransactionReceipt } from 'viem'
 import { ARC_TESTNET, isArcNetwork } from '../chain.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 
@@ -100,6 +100,7 @@ export function NibgateRatingUI({
   const { open } = useAppKit()
   const { switchChainAsync } = useSwitchChain()
   const { sendTransactionAsync } = useSendTransaction()
+  const publicClient = usePublicClient()
 
   const [selected, setSelected] = useState(0)
   const [hover, setHover] = useState(0)
@@ -198,6 +199,16 @@ export function NibgateRatingUI({
         chainId: ARC_TESTNET.id,
       })
 
+      // Wait for the receipt so downstream indexers (subblog + hub) can verify
+      // the on-chain proof instead of racing ahead of mining.
+      try {
+        if (publicClient) {
+          await waitForTransactionReceipt(publicClient, { hash: txHash, chainId: ARC_TESTNET.id, timeout: 60_000 })
+        }
+      } catch {
+        // Fall through — the tx may still mine; downstream verifiers decide.
+      }
+
       const result = { txHash, walletAddress: addressRef.current, contentId: cid, ratingValue, reviewHash }
       if (indexUrl) {
         fetch(indexUrl, {
@@ -206,7 +217,12 @@ export function NibgateRatingUI({
           body: JSON.stringify({
             siteId,
             token,
+            contentId: resource?.id,
+            contentHash: cid,
             txHash,
+            walletAddress: addressRef.current,
+            ratingValue,
+            pageOrigin: typeof window !== 'undefined' ? window.location.origin : '',
             resource,
             url: resource?.url,
             path: resource?.path,

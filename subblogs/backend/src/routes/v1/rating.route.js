@@ -94,9 +94,22 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
       return res.json({ success: true, onchain });
     }
 
-    // Step 2: With txHash → verify on-chain proof (SDK)
+    // Step 2: With txHash → verify on-chain proof (SDK), retrying briefly so
+    // a freshly-broadcast tx has time to mine before we reject it.
     if (!RPC) return res.status(500).json({ error: 'ARC_RPC_URL not configured.' });
-    await sdk.verifyRatingTx(txHash, RPC);
+    let verified = false;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        await sdk.verifyRatingTx(txHash, RPC);
+        verified = true;
+        break;
+      } catch (error) {
+        const stillPending = /not found|invalid/i.test(error.message);
+        if (attempt === 5 || !stillPending) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
+    if (!verified) return res.status(400).json({ error: 'On-chain proof not found or invalid' });
 
     // Step 3: Store + fire hub event (SDK)
     const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();

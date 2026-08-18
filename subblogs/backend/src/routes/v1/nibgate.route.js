@@ -338,7 +338,7 @@ async function serveAccess(req, res, post, slug) {
             }
             return res.status(403).json({ ok: false, error: decision.message || 'This wallet is not allowed to unlock this post.' });
           }
-          if (String(accessService.effectivePrice(post, payer)) !== String(challengePrice)) {
+          if (Number(accessService.effectivePrice(post, payer)) !== Number(challengePrice)) {
             return res.status(409).json({ ok: false, error: 'The price changed for your wallet. Please retry unlocking.' });
           }
           await accessService.grantUnlock({ post, payer, txHash: hubData.payment?.txHash || null, amount: String(challengePrice) });

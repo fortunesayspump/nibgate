@@ -417,7 +417,7 @@ export async function accessShare(req, res) {
       }
       return res.status(403).json({ ok: false, error: decision.message || 'This wallet is not allowed to unlock this share.' });
     }
-    if (String(service.effectivePrice(share, payer)) !== String(challengePrice)) {
+    if (Number(service.effectivePrice(share, payer)) !== Number(challengePrice)) {
       return res.status(409).json({ ok: false, error: 'The price changed for your wallet. Please retry unlocking.' });
     }
 

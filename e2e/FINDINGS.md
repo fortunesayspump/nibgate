@@ -765,3 +765,37 @@ See `logs/*.log` for the raw evidence behind each claim.
   adopt the existing row by derived email (`findUnique({ email })`) and update
   `siteId` + lowercase `walletAddress` before creating. Reproduced locally
   (checksummed-only record → 500) and verified fixed (→ 200, row adopted).
+- **NEW REAL BUG — subblog direct-rail unlock 403'd after a verified payment
+  (fixed, commit `58383a8`).** In `subblogs/backend/src/routes/v1/nibgate.route.js`
+  `serveAccess`, the hub verifies the buyer's on-chain USDC transfer
+  (`POST /hub/pay` → 200 `verified:true`), but the follow-up gate
+  `canAccessPost(post, { wallet: payer })` returned `payment-required` for a
+  wallet with no entitlement yet (the entitlement is written a few lines later in
+  `grantUnlock`) → the route 403'd **after the money landed**. Fix: the post-
+  verification gate skips the transient `payment-required` reason but still
+  enforces banned/revoked/invite-only — same pattern the hub already used in
+  `unlockShare`/`accessShare` (`ec6d1bf`). Verified live: the 403 progressed to
+  the price-comparison check below.
+- **NEW REAL BUG — price-gate 409'd on "0.50" vs "0.5" (fixed, commit `6760083`).**
+  After the verified payment, the route compared `String(effectivePrice(post,
+  payer)) !== String(challengePrice)`. `effectivePrice` returns a normalized
+  number (`String(toNumber(price))` → `"0.5"`) while `challengePrice` was the raw
+  DB string `post.price` (`"0.50"`) → false mismatch → 409 "The price changed for
+  your wallet." The hub `nibshare/controller.js:420` had the same latent
+  `String(...) !== String(...)` comparison (unhit on nibshare because
+  `challengePrice` is `effectivePrice`'d there when a session exists). Both
+  changed to `Number(...)` comparisons. Verified live: after deploy,
+  `live-subblog-access-rail.js` completes the full direct-rail unlock on
+  `analog.nibgate.xyz` — 402 challenge → buyer broadcasts a real USDC wrapper
+  transfer → 200 with the paid body revealed. Also reproduced end-to-end locally
+  on the `stresslab` site (`p7-other`, price 1).
+- **Live direct-rail subblog unlock now GREEN.** `e2e/harness/live-subblog-access-rail.js`
+  runs the whole path against `analog.nibgate.xyz`: challenge (402, x402 v2,
+  `paymentRail:"transfer"`, amount 0.50, recipient `0xC234…`), real transfer tx
+  mined (`status=success`), follow-up access with `x-nibgate-transfer-tx` → 200
+  `ok:true` with `content` revealed. Same flow verified locally on stresslab.
+  NOTE: the live subblog **frontend** still bundles the OLD wallet (pre-0.2.16 —
+  no rail tabs: DOM probe `tabs: 0, tablist: 0, hold: 1`, deployed bundle
+  `9037-9cb0c2b741188855.js`), so the API-level direct rail works but the subblog
+  reader UI won't show the rail switcher until that frontend is rebuilt against
+  `@nibgate/wallet@0.2.16`.

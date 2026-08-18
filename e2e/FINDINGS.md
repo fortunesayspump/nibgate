@@ -70,6 +70,12 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
    Nibgate bug. It blocked a scripted fund-transfer attempt. The buyer `0x3C44…`
    is NOT blocked: its approve + deposit txs mined normally.
 7. **Gateway verify/settle hard-fail on Circle testnet (blocking funded purchase).**
+   **RESOLVED 2026-08-18 — see #7a for the real root cause.** The `unauthorized`
+   results below were produced with **unregistered** test addresses (buyer
+   `0x3C44…` was never a Gateway depositor). The real swarm bot wallets are
+   registered depositors and settle successfully; the live rail breakage was a
+   Nibgate code bug in `runCircleGatewayRequirement` (fixed in
+   `@nibgate/sdk@0.4.12`).
    Even a PERFECT payload fails: valid EIP-3009 `TransferWithAuthorization`
    (recovered signer == buyer), requirements exactly per the `402` challenge and
    schema, and a confirmed **6.0 USDC Gateway deposit** (tx
@@ -89,42 +95,37 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     buyer broadcasts a normal USDC ERC-20 transfer to the recipient and the server
     verifies the txHash on-chain. Paid unlocks now work end-to-end; the gateway
     rail remains the blocked upstream path.
-    **ROOT CAUSE ISOLATED 2026-08-18:** live probes against
-    `gateway-api-testnet.circle.com` prove this is **NOT a config bug, NOT the
-    API key, and NOT a payload problem** — it is an unauthenticated-caller gate
-    on the x402 endpoints themselves:
-    - `eip155:5042002` IS listed in `/v1/x402/supported` with the exact
-      `verifyingContract` `0x0077…19B9` and USDC `0x3600…0000` we send, so
-      network/contract config is correct.
-    - Setting `payTo` = the buyer's own address returns `self_transfer` (a REAL,
-      documented validation code) — proving Circle parses our payload and
-      signature (EIP-3009 recovers to buyer) and passes scheme/network/amount/
-      temporal checks. Only a non-self recipient flips the result to
-      `unauthorized`.
-    - `unauthorized` appears **0 times** in Circle's official OpenAPI error enum
-      for `/v1/x402/verify` and `/v1/x402/settle` (settle's `errorReason` enum is
-      `unsupported_scheme | unsupported_network | unsupported_asset |
-      invalid_payload | address_mismatch | amount_mismatch |
-      invalid_signature | authorization_* | self_transfer |
-      insufficient_balance | nonce_already_used | unsupported_domain |
-      wallet_not_found`). It is an undocumented account/org-level response.
-    - A fully-supported SEPOLIA payload returns the identical `unauthorized`,
-      so it is not Arc-specific.
-    - A random never-used recipient, the real seller, and the Gateway Wallet
-      contract as `payTo` ALL return `unauthorized` — not recipient-specific.
-    - Garbage key, no key, and our real `CIRCLE_API_KEY` as Bearer ALL return
-      the identical `unauthorized` — the API does not even validate the key on
-      these endpoints (balance and `/v1/transfer` also behave identically with a
-      garbage key). So **we DO have the key and it is valid; the key is simply
-      not consulted** for x402 verify/settle.
-    - Conclusion: Circle's batched x402 path requires an authenticated
-      merchant/org session context (mrdn/x402 references show `authContext.
-      organizationId` from an authenticated `apiSession`, and Circle's own blog
-      example uses a **Circle-provisioned Programmable Wallet** via
-      `circle wallet create`). A bare `TEST_API_KEY` + raw EOA deposit is not an
-      authorized caller. Nothing in our code, config, or key can change this;
-      the fix is on Circle's account/onboarding side (create an org-scoped
-      buyer/seller via `circle wallet create`).
+    **ROOT CAUSE SUPERSEDED 2026-08-18 (see #7a):** live probes against
+    `gateway-api-testnet.circle.com` returned `unauthorized` for verify+settle.
+    Follow-up investigation proved the probes used **unregistered** anvil/random
+    addresses (0x3C44…, random recipients, gateway-wallet `payTo`). The real
+    swarm bot wallets (`swarm/wallets/67-FlodFlip.json`, `20-PlasmaPat.json`,
+    `44-EveEvan.json`) are **registered Gateway depositors** and settle
+    successfully with the same `CIRCLE_API_KEY`. The 94 `circle-gateway` ledger
+    rows with UUID `txHash` are **real Circle x402 settlements** (verified via
+    Circle's transfer API: `9d7044b9-91a9-4b29-969f-1818ef5a1022` is a
+    `completed` transfer from `0xe9605ba1…` to `0xc234d827…`). Gateway rail
+    worked through `2026-08-17T03:38:46Z`. The actual breakage and fix are
+    documented in **#7a**.
+7a. **Gateway rail breakage was a code bug, not Circle.** The `e5ebc24`
+    refactor (2026-08-17, "feat(payments): dual-rail hosted pay") rewired the
+    hub's `/api/hub/pay` from `relayX402Payment` (`packages/internal`) to
+    `runHostedPayRequirement` → `runCircleGatewayRequirement`
+    (`packages/nibgate/src/server/gateway.js`). The gateway middleware settles
+    successfully, but lines 190-191 called `request.headers.get(...)` on a
+    **plain object** (`requestHeaders` built in `hub-routes.js`), so the hub
+    threw `TypeError: request.headers.get is not a function` AFTER a successful
+    settle and returned 500. The subblog (`subblogs/backend/src/routes/v1/
+    nibgate.route.js:356`) then fell back to its **own** SDK 0.4.9 middleware,
+    which re-settled the **same nonce** → Circle returned `402 nonce_already_used`
+    (and `insufficient_balance` once bot wallet balances were depleted). Every
+    failed live request therefore consumed a nonce and left a `received`
+    transfer in Circle. The fix (`@nibgate/sdk@0.4.12`): read
+    `requestHeaders['payment-signature']` / `['payment-memo']` from the
+    normalized plain object, and populate `txHash: req.payment.transaction` so
+    the hub relays Circle's settle UUID (the ledger's `txHash`). This is why the
+    rail "worked before": the old `relayX402Payment` path used
+    `mwReq.payment.transaction` and plain-object headers throughout.
 8. **`createGatewayMiddleware` cannot send auth headers.** The SDK's
    `createGatewayMiddleware()` builds a `BatchFacilitatorClient` WITHOUT
    `createAuthHeaders`, so a seller app has no official way to attach a Circle
@@ -508,7 +509,10 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
   possible.
 - Purchasing a truly paid share is BLOCKED upstream of us: buyer holds 25 USDC and
   has deposited 6 into the Gateway SCW, signatures verify/recover locally, but
-  Circle's testnet Gateway rejects verify+settle with `unauthorized` (see #7). So
+  Circle's testnet Gateway rejects verify+settle with `unauthorized` for
+  **unregistered** addresses (see #7/#7a). The registered swarm bot wallets
+  (FlodFlip `0xE9605bA1…`, PlasmaPat `0x18EAd9E6…`, EveEvan `0x1E39990b…`) DO
+  settle, and the live breakage was the `#7a` code bug (fixed 0.4.12). So
   the entire "buy → entitlement → serve" happy path on Arc testnet can't currently
   be completed end-to-end with real testnet USDC; only reachable to the 402-gate
   stage.
@@ -858,7 +862,8 @@ See `logs/*.log` for the raw evidence behind each claim.
   on production: explore finds the verified, priced product
   (`/api/hub/explore/content?q="35mm vs medium format"` → price 0.50); gate
   renders rail tabs with buyer connected; gateway rail reaches the wallet/circle
-  flow (upstream block per finding #7, expected); Direct rail unlocks the paid
+  flow (gateway rail, now functional after the `#7a` code fix; the pre-fix
+  `nonce_already_used` was the bug's double-settle symptom); Direct rail unlocks the paid
   body; 5★ rating confirms; and the hub ledger shows both the direct-transfer
   payment row (payer= buyer, 0.5 USDC, txHash, recipient) and the onchain-proof
   rating row (score 5, `proof: onchain:<tx>`).
@@ -872,8 +877,8 @@ See `logs/*.log` for the raw evidence behind each claim.
   Fixes: wallet now waits for the transaction receipt before `onRated` and
   sends the correct index body; subblog route retries proof verification up to
   6×3s for freshly-broadcast txs. Bumped `@nibgate/wallet` to 0.2.17.
-- **Rail-switch lock bug (commit `5f9c15e`): after the gateway attempt hangs
-  upstream, `runningRef` stayed `true`, so switching to the Direct rail and
+- **Rail-switch lock bug (commit `5f9c15e`): after the gateway attempt returns
+  the pre-fix 500/`nonce_already_used`, `runningRef` stayed `true`, so switching to the Direct rail and
   holding to pay short-circuited at the `unlock()` guard and never paid.
   Fix: `switchRail` now clears `runningRef` + `busy` so the working rail can
   proceed. Bumped `@nibgate/wallet` to 0.2.18.

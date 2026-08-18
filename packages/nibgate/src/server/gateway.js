@@ -187,14 +187,15 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
     handled: false,
     payment: {
       paymentProvider: 'circle-gateway',
-      paymentId: request.headers.get('payment-signature') || '',
-      memo: request.headers.get('payment-memo') || '',
+      paymentId: requestHeaders['payment-signature'] || '',
+      memo: requestHeaders['payment-memo'] || '',
       payer: req.payment?.payer || '',
       amount: Number(resource.price || 0),
       revenue: Number(resource.price || 0),
       currency: resource.currency || 'USDC',
       recipient,
       network: options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002',
+      txHash: req.payment?.transaction || '',
       verified: true
     }
   };

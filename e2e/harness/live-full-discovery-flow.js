@@ -132,10 +132,14 @@ function fireHold(page) {
     await fiveStars.click({ force: true }).catch(() => {});
     let confirmed = false;
     let rb = "";
-    for (let i = 0; i < 12; i++) {
-      await page.waitForTimeout(5000);
+    for (let i = 0; i < 24; i++) {
+      await page.waitForTimeout(1500);
       rb = await L.bodyText(page);
       if (/you rated 5|5 ★|5 stars saved|rating saved|thanks for rating|rating submitted/i.test(rb)) { confirmed = true; break; }
+      // Authoritative check: the onchain rating must land in the hub ledger.
+      const rLedger = await fetch(`${HUB}/api/hub/ledger?type=ratings&limit=100`).then((r) => r.json()).catch(() => null);
+      const rRow = (rLedger?.activities || []).find((a) => (a.contentTitle || "").includes("35mm vs Medium Format") && String(a.walletAddress || "").toLowerCase() === BUYER && String(a.proof || "").startsWith("onchain:"));
+      if (rRow) { confirmed = true; rb = `ledger rating row confirmed (score=${rRow.score})`; break; }
     }
     ok("rating star tap submits (5★ confirmed)", confirmed, rb.slice(0, 180));
     await page.waitForTimeout(3000);

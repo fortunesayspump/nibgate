@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAccount, useSwitchChain, useSendTransaction, usePublicClient } from 'wagmi'
 import { useAppKit } from '@reown/appkit/react'
-import { encodeFunctionData, keccak256, stringToBytes, waitForTransactionReceipt } from 'viem'
+import { encodeFunctionData, keccak256, stringToBytes } from 'viem'
+import { waitForTransactionReceipt } from 'viem/actions'
 import { ARC_TESTNET, isArcNetwork } from '../chain.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 

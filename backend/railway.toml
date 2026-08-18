@@ -3,6 +3,8 @@ builder = "nixpacks"
 watchPatterns = [
   "/backend/**",
   "/packages/cli/**",
+  "/packages/nibgate/**",
+  "/packages/internal/**",
   "/package.json",
   "/pnpm-lock.yaml",
   "/pnpm-workspace.yaml"

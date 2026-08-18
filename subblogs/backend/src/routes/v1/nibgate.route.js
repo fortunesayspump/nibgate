@@ -332,7 +332,7 @@ async function serveAccess(req, res, post, slug) {
             return res.status(403).json({ ok: false, error: 'This post is invite-only — the wallet that pays must be the wallet you signed in with.' });
           }
           const decision = await accessService.canAccessPost(post, { wallet: payer });
-          if (!decision.allowed && decision.reason !== 'revoked') {
+          if (!decision.allowed && decision.reason !== 'revoked' && decision.reason !== 'payment-required') {
             if (decision.reason === 'banned') {
               return res.status(403).json({ ok: false, error: 'This wallet is banned from this post.' });
             }

@@ -8,7 +8,7 @@ import { NibgateUnlock as SharedNibgateUnlock, useAccount } from "@nibgate/walle
 import { UNIVERSAL_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromMeta } from "@/lib/documentKind";
 import type { UnlockMediaMeta } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API_BASE = "/api";
 
 export type UnlockResource = {
   id: string;
@@ -60,7 +60,7 @@ function statusChip({ children, color }: { children: React.ReactNode; color: str
 }
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
-  const accessPath = `${API_BASE}${resource.path}`;
+  const accessPath = `${API_BASE}/nibgate/access?path=${encodeURIComponent(resource.path)}`;
   const { address } = useAccount();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [content, setContent] = useState<unknown>(null);

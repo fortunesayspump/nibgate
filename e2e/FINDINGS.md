@@ -799,3 +799,21 @@ See `logs/*.log` for the raw evidence behind each claim.
   `9037-9cb0c2b741188855.js`), so the API-level direct rail works but the subblog
   reader UI won't show the rail switcher until that frontend is rebuilt against
   `@nibgate/wallet@0.2.16`.
+- **RESOLVED 2026-08-18: subblog frontend rebuilt + UI-level direct rail GREEN.**
+  Root cause of the stale bundle: `package-lock.json` pinned `@nibgate/sdk@0.4.9` /
+  `@nibgate/wallet@0.2.15` and Vercel installs from the lockfile, so "redeploys"
+  never picked up 0.4.11/0.2.16. Fix (commit `afe60c8`): `npm install
+  @nibgate/sdk@0.4.11 @nibgate/wallet@0.2.16` → lockfile resolved to the new
+  versions, ranges bumped to `^0.4.11`/`^0.2.16`. Two more frontend bugs surfaced
+  by the UI run (commit `110a395`): (1) `NibgateUnlock.tsx` built
+  `accessPath = API_BASE + resource.path` = `/api/writing/<slug>` (a reader route)
+  — the access endpoint is `/api/nibgate/access?path=<reader-path>`, so the unlock
+  hit the wrong route; (2) `API_BASE` used `NEXT_PUBLIC_API_URL`
+  (`nibgate-production.up.railway.app/api`) directly, bypassing the Next `/api/*`
+  rewrite that carries the `analog` tenant context (`x-forwarded-host`), so the
+  backend rejected with "Site not found". Fixed to `API_BASE = "/api"` (relative,
+  tenant-preserving) + correct access path. Verified live via
+  `live-subblog-direct-rail.js`: gate renders `Gateway | Direct` tabs, buyer
+  switches to Direct, hold-to-pay → 402 → wallet broadcasts a real USDC wrapper
+  transfer (tx `0x9850572b…`) → 200 with the paid body revealed on
+  `analog.nibgate.xyz`. The subblog reader UI now fully supports both rails.

@@ -126,6 +126,13 @@ API `api.nibgate.xyz`, payments via Circle Gateway x402 on Arc Testnet
     the hub relays Circle's settle UUID (the ledger's `txHash`). This is why the
     rail "worked before": the old `relayX402Payment` path used
     `mwReq.payment.transaction` and plain-object headers throughout.
+    **VERIFIED LIVE 2026-08-18:** deployed hub (`api.nibgate.xyz/api/hub/pay`)
+    returns 200 with `success:true` + settle `txHash`; the subblog
+    `analog.nibgate.xyz/api/nibgate/access` returns 200 with the paid body for a
+    funded bot wallet (FlodFlip `0xE9605bA1…`) signed x402 payload. Railway
+    `watchPatterns` for the hub now include `/packages/nibgate/**` and
+    `/packages/internal/**` so SDK fixes trigger a hub rebuild (previously only
+    `/backend/**` did, so `railway redeploy` rebuilt the same commit).
 8. **`createGatewayMiddleware` cannot send auth headers.** The SDK's
    `createGatewayMiddleware()` builds a `BatchFacilitatorClient` WITHOUT
    `createAuthHeaders`, so a seller app has no official way to attach a Circle

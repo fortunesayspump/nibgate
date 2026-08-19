@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { encodeFunctionData } from 'viem'
-import { useAccount, useDisconnect, useSendTransaction, useSignMessage, useSignTypedData, useSwitchChain } from 'wagmi'
-import { useAppKit } from '@reown/appkit/react'
+import { encodeFunctionData, createWalletClient, custom } from 'viem'
+import { useAppKit, useAppKitProvider, useAppKitAccount, useAppKitNetwork, useDisconnect } from '@reown/appkit/react'
 import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
 import { ARC_TESTNET, isArcNetwork } from '../chain.js'
+import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe } from './siwe.js'
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
@@ -50,13 +50,23 @@ function waitForChain(check, timeoutMs = 8000) {
 }
 
 export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, authBase = '', noncePath = '', verifyPath = '' }) {
-  const { isConnected, address, chain, connector } = useAccount()
+  // Source the wallet session from AppKit (useAppKitAccount + the AppKit wallet
+  // provider) instead of wagmi's useAccount/useSignMessage/useSendTransaction.
+  // wagmi's connector reconciliation lags AppKit's, and calling its
+  // signMessageAsync/sendTransactionAsync/signTypedDataAsync while the wagmi
+  // `connector` is null throws "Connector not connected" — which is exactly
+  // what users hit connecting on a fresh cache. Signing/sending through the
+  // AppKit EIP-1193 provider (mirroring @nibgate/nibgate evm-gateway.js) removes
+  // the wagmi dependency entirely from this flow.
+  const appKitAccount = useAppKitAccount()
+  const { walletProvider } = useAppKitProvider('eip155')
   const { disconnect } = useDisconnect()
   const { open } = useAppKit()
-  const { switchChainAsync } = useSwitchChain()
-  const { signTypedDataAsync } = useSignTypedData()
-  const { signMessageAsync } = useSignMessage()
-  const { sendTransactionAsync } = useSendTransaction()
+  // useAppKitAccount has no chainId — the current network (CAIP chain id like
+  // `eip155:5042002`) comes from useAppKitNetwork.
+  const { chainId } = useAppKitNetwork()
+  const address = appKitAccount.address ? `0x${String(appKitAccount.address).replace(/^0x/, '')}` : null
+  const isConnected = Boolean(appKitAccount.isConnected) || Boolean(address)
 
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -70,17 +80,19 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   const [paymentRail, setPaymentRail] = useState(resource.paymentRail === 'transfer' ? 'transfer' : 'gateway')
 
   const runningRef = useRef(false)
-  const isConnectedRef = useRef(isConnected)
   const addressRef = useRef(address)
-  const chainRef = useRef(chain)
+  const chainIdRef = useRef(chainId)
+  const isConnectedRef = useRef(isConnected)
   const onUnlockRef = useRef(onUnlock)
   const railRef = useRef(paymentRail)
+  const walletProviderRef = useRef(walletProvider)
 
-  useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
   useEffect(() => { addressRef.current = address }, [address])
-  useEffect(() => { chainRef.current = chain }, [chain])
+  useEffect(() => { chainIdRef.current = chainId }, [chainId])
+  useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
   useEffect(() => { onUnlockRef.current = onUnlock }, [onUnlock])
   useEffect(() => { railRef.current = paymentRail }, [paymentRail])
+  useEffect(() => { walletProviderRef.current = walletProvider }, [walletProvider])
 
   // Switching rails must clear any stuck unlock attempt (e.g. a hung gateway
   // flow that never resolves), otherwise the next rail short-circuits on
@@ -157,11 +169,24 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     if (recipient && recipient === String(account).toLowerCase()) {
       return { self: true, address: account }
     }
-    if (!isArcNetwork(chainRef.current?.id)) {
-      await switchChainAsync({ chainId: ARC_TESTNET.id })
-      await waitForChain(() => isArcNetwork(chainRef.current?.id))
+    const provider = walletProviderRef.current
+    if (!provider || typeof provider.request !== 'function') {
+      throw new Error('Wallet provider is not available. Connect your wallet to continue.')
+    }
+    // Ensure Arc Testnet is active before signing/sending (MetaMask error 4100 /
+    // wrong-chain rejects otherwise). Uses the EIP-1193 provider directly.
+    const currentChainId = await (async () => {
+      try {
+        const hex = await provider.request({ method: 'eth_chainId' })
+        return typeof hex === 'string' ? Number(hex) : Number(hex)
+      } catch { return undefined }
+    })()
+    if (currentChainId === undefined || !isArcNetwork(currentChainId)) {
+      await ensureArcNetwork(provider, { currentChainId })
+      await waitForChain(() => isArcNetwork(chainIdRef.current))
     }
     const rail = input?.challenge?.paymentRail || railRef.current || resource.paymentRail || 'gateway'
+    const walletClient = createWalletClient({ chain: ARC_TESTNET, account: account, transport: custom(provider) })
     if (rail === 'transfer') {
       const payTo = String(input?.challenge?.accepts?.[0]?.payTo || input?.challenge?.accepts?.[0]?.recipient || resource.payTo || resource.recipient || '')
       if (!payTo) throw new Error('No recipient address in the transfer challenge.')
@@ -169,11 +194,8 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       if (!(amount > 0)) throw new Error('Invalid payment amount.')
       const amountUsdc = BigInt(Math.round(amount * 1e6))
       const data = encodeFunctionData({ abi: USDC_TRANSFER_ABI, functionName: 'transfer', args: [payTo, amountUsdc] })
-      const txHash = await sendTransactionAsync({
-        to: USDC,
-        data,
-        chainId: ARC_TESTNET.id,
-      })
+      const tx = await walletClient.sendTransaction({ to: USDC, data, chain: ARC_TESTNET, account: account })
+      const txHash = tx?.hash || tx || ''
       return {
         paymentSignature: txHash,
         metadata: {
@@ -188,30 +210,38 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       }
     }
     const { createCircleGatewayBrowserAdapter } = await import('@nibgate/sdk')
-    await ensureWalletAuthorized(connector)
+    await ensureWalletAuthorized(account, { walletProvider: provider })
     const adapter = await createCircleGatewayBrowserAdapter({
       network: NETWORK,
       signer: {
         address: account,
-        signTypedData: async (typedData) =>
-          signTypedDataAsync({
+        signTypedData: async (typedData) => {
+          // viem's signTypedData handles EIP-712 encoding across wallets. Using
+          // the AppKit provider (via a wallet client) avoids wagmi's
+          // signTypedDataAsync throwing "Connector not connected".
+          return walletClient.signTypedData({
+            account: account,
             domain: typedData.domain,
             types: typedData.types,
             primaryType: typedData.primaryType,
             message: typedData.message,
-          }),
+          })
+        },
       },
     })
     return adapter.pay(input)
-  }, [resource, switchChainAsync, signTypedDataAsync, connector, sendTransactionAsync])
+  }, [resource])
 
+  // Poll AppKit's account state (synced by the WagmiAdapter) until an address
+  // lands, giving a grace window after the modal closes for the reconcile.
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()
     while (Date.now() - started < timeoutMs) {
-      if (isConnectedRef.current && addressRef.current) return addressRef.current
+      const addr = addressRef.current
+      if (addr) return addr
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
-    return undefined
+    return null
   }
 
   const siweEnabledRef = useRef(Boolean(authBase || noncePath || verifyPath))
@@ -233,9 +263,14 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     if (!siweEnabledRef.current) return
     const addr = addressRef.current
     if (!addr) return
+    const provider = walletProviderRef.current
+    if (!provider || typeof provider.request !== 'function') return
     try {
-      await ensureWalletAuthorized(connector)
-      await signInWithSiwe(addr, (message) => signMessageAsync({ message }), { authBase, noncePath, verifyPath })
+      await ensureWalletAuthorized(addr, { walletProvider: provider })
+      // personal_sign via the AppKit EIP-1193 provider (same proven path as
+      // useNibgateConnect.js). wagmi's signMessageAsync throws
+      // "Connector not connected" when its connector hasn't reconciled.
+      await signInWithSiwe(addr, (message) => provider.request({ method: 'personal_sign', params: [message, addr] }), { authBase, noncePath, verifyPath })
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(HUB_SESSION_UPDATED_EVENT, { detail: { address: addr } }))
       }
@@ -243,7 +278,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       if (isWalletRejection(err)) return
       setError(err?.message || 'Sign-in failed.')
     }
-  }, [authBase, noncePath, verifyPath, signMessageAsync, connector])
+  }, [authBase, noncePath, verifyPath])
 
   useEffect(() => { signInRef.current = signInIfEnabled }, [signInIfEnabled])
 

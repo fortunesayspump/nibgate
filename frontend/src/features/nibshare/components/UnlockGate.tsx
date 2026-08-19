@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { FiLock, FiShieldOff, FiRotateCcw, FiAlertTriangle } from "react-icons/fi";
 import ContentViewer from "./ContentViewer";
-import { NibgateUnlock, useAccount } from "@nibgate/wallet/react";
+import { NibgateUnlock, useAppKitAccount } from "@nibgate/wallet/react";
 import { ACCESS_PATH, GATEWAY_BALANCE_PATH, nibshareApi } from "../api";
 import type { AccessResource, Quote } from "../types";
 
@@ -33,7 +33,7 @@ function statusChip({ children, color }: { children: React.ReactNode; color: str
 }
 
 export default function UnlockGate({ resource }: { resource: AccessResource }) {
-  const { address } = useAccount();
+  const { address } = useAppKitAccount();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState(false);
 

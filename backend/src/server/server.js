@@ -92,7 +92,7 @@ export async function createApp(config, options = {}) {
       return callback(null, {
         origin: true,
         credentials: true,
-        methods: ['POST', 'GET', 'OPTIONS'],
+        methods: ['POST', 'GET', 'PUT', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'payment-signature', 'payment-memo', 'x-nibgate-payment-proof']
       });
     }

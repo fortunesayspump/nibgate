@@ -5,11 +5,14 @@ import type {
   AuthNonceResponse,
   CreateSharePayload,
   CreateShareResponse,
+  EditSharePayload,
   MeResponse,
   MineResponse,
   Quote,
   ReslugResponse,
   ShareMeta,
+  UpdateSharePayload,
+  UpdateShareResponse,
 } from "./types";
 
 export const ACCESS_PATH = (slug: string) => `/nibshare/${slug}/access`;
@@ -47,6 +50,10 @@ export const nibshareApi = {
 
   create: (payload: CreateSharePayload) =>
     request<CreateShareResponse>("/nibshare", { method: "POST", credentials: "include", body: JSON.stringify(payload) }),
+  getEdit: (slug: string) =>
+    request<EditSharePayload>(`/nibshare/${slug}/edit`, { credentials: "include" }),
+  update: (slug: string, payload: UpdateSharePayload) =>
+    request<UpdateShareResponse>(`/nibshare/${slug}`, { method: "PUT", credentials: "include", body: JSON.stringify(payload) }),
   listMine: () => request<MineResponse>("/nibshare/mine", { credentials: "include" }),
   revoke: (slug: string) => request(`/nibshare/${slug}`, { method: "DELETE", credentials: "include" }),
   reslug: (slug: string) =>

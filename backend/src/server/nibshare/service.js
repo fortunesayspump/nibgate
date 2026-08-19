@@ -114,6 +114,155 @@ export function findShareBySlug(slug) {
   return db.nibShare.findUnique({ where: { slug } });
 }
 
+// Owner-only edit of an existing share. Mirrors the subblog updatePost seam:
+// every field is optional and only provided fields are touched, so the client
+// can send one field (e.g. just the title) without nuking the rest. Content
+// re-encrypts on change with a fresh key and replaces the old blob; coverUrl
+// can be cleared by sending null or an empty string.
+export async function updateShare(share, patch, ownerWallet) {
+  if (!ownerWallet || share.ownerWallet.toLowerCase() !== ownerWallet.toLowerCase()) {
+    throw new HttpError(403, 'Only the owner can edit this share.');
+  }
+
+  const data = { updatedAt: new Date() };
+
+  if (patch.title !== undefined) {
+    if (typeof patch.title !== 'string' || !patch.title.trim()) throw new HttpError(400, 'title is required');
+    if (patch.title.length > 150) throw new HttpError(400, 'title cannot exceed 150 characters');
+    data.title = patch.title.trim();
+  }
+
+  if (patch.summary !== undefined) {
+    data.summary = typeof patch.summary === 'string' && patch.summary.trim() ? patch.summary.trim() : null;
+  }
+
+  if (patch.coverUrl !== undefined) {
+    data.coverUrl = typeof patch.coverUrl === 'string' && patch.coverUrl.trim() ? patch.coverUrl.trim() : null;
+  }
+
+  if (patch.contentType !== undefined) {
+    if (!VALID_CONTENT_TYPES.includes(patch.contentType)) {
+      throw new HttpError(400, `contentType must be one of: ${VALID_CONTENT_TYPES.join(', ')}`);
+    }
+    data.contentType = patch.contentType;
+  }
+
+  // Content is the only field with a storage+encryption side effect: re-encrypt
+  // with a fresh content key, write the new blob, then drop the old one only
+  // after the new one is safely stored (mirrors subblog's delete-after-write).
+  if (patch.content !== undefined) {
+    const plaintext = typeof patch.content === 'string' ? patch.content : JSON.stringify(patch.content);
+    const plaintextBytes = Buffer.byteLength(plaintext, 'utf8');
+    if (plaintextBytes > FREE_TIER_MAX_BYTES) {
+      throw new HttpError(400, `Content exceeds the ${FREE_TIER_MAX_BYTES} byte limit for Nibgate free tier. Use Arweave for larger content.`);
+    }
+    const contentKey = generateContentKey();
+    const enc = encryptBytes(contentKey, Buffer.from(plaintext, 'utf8'));
+    const blob = packCipherBlob(enc);
+    const r2Key = `nibshare/${share.id}/body.bin`;
+    const { storageRef, url } = await putBlob({ key: r2Key, data: blob });
+    data.storageRef = storageRef;
+    data.ciphertextUrl = url;
+    data.encryptedKey = wrapKey(shareKeySecret(), contentKey);
+    data.contentHash = contentHashFor(share.ownerWallet, storageRef, plaintext);
+    data.bodyLength = plaintextBytes;
+    if (share.storageRef && share.storageRef !== storageRef) {
+      await deleteBlob({ storageRef: share.storageRef }).catch(() => {});
+    }
+  }
+
+  if (patch.price !== undefined) {
+    const n = parsePrice(patch.price);
+    if (Number(patch.price) < 0) throw new HttpError(400, 'price must be a non-negative number');
+    data.price = n;
+  }
+
+  if (patch.expiresAt !== undefined) {
+    if (!patch.expiresAt) throw new HttpError(400, 'expiresAt is required. Every Nibshare must expire within 7 days.');
+    const expiry = new Date(patch.expiresAt);
+    const diffHours = (expiry.getTime() - Date.now()) / (1000 * 60 * 60);
+    if (diffHours < 0) throw new HttpError(400, 'expiresAt must be in the future.');
+    if (diffHours > MAX_EXPIRY_HOURS) throw new HttpError(400, `expiresAt cannot exceed ${MAX_EXPIRY_HOURS} hours (1 week) from now.`);
+    data.expiresAt = expiry;
+  }
+
+  if (patch.whitelist !== undefined) {
+    if (!Array.isArray(patch.whitelist)) throw new HttpError(400, 'whitelist must be an array of wallet addresses');
+    const clean = normalizeWhitelist(patch.whitelist);
+    if (clean.length !== patch.whitelist.length) throw new HttpError(400, 'whitelist contains an invalid wallet address');
+    data.whitelist = clean;
+  }
+
+  if (patch.whitelistPrice !== undefined) {
+    if (patch.whitelistPrice === null || patch.whitelistPrice === '') {
+      data.whitelistPrice = null;
+    } else {
+      const n = Number(patch.whitelistPrice);
+      if (!Number.isFinite(n) || n < 0) throw new HttpError(400, 'whitelistPrice must be a non-negative number or null');
+      data.whitelistPrice = n;
+    }
+  }
+
+  if (patch.publicAccess !== undefined) {
+    if (typeof patch.publicAccess !== 'boolean') throw new HttpError(400, 'publicAccess must be a boolean');
+    data.publicAccess = patch.publicAccess;
+  }
+
+  if (patch.status !== undefined) {
+    data.status = patch.status === 'draft' ? 'draft' : 'active';
+  }
+
+  const updated = await db.nibShare.update({ where: { id: share.id }, data });
+
+  // Gap #11 (ACCESS-CONTROL-DESIGN §6 row 7): flipping to invite-only or
+  // removing wallets from an invite-only share cuts those paid wallets off.
+  // Mirrors the same rule the access-control endpoint enforces.
+  const whitelistChanged = data.whitelist !== undefined && JSON.stringify(data.whitelist) !== JSON.stringify(share.whitelist);
+  const flippingInviteOnly = data.publicAccess === false && share.publicAccess !== false;
+  const alreadyInviteOnly = share.publicAccess === false;
+  if (flippingInviteOnly || (alreadyInviteOnly && whitelistChanged)) {
+    const [activeEnts, receipts] = await Promise.all([
+      db.nibShareEntitlement.findMany({ where: { shareId: share.id, status: 'active' } }),
+      db.nibShareReceipt.findMany({ where: { shareId: share.id } })
+    ]);
+    const cutOff = paidCutoffWallets({
+      policy: { whitelist: updated.whitelist, publicAccess: updated.publicAccess },
+      entitlements: activeEnts,
+      receipts
+    });
+    for (const wallet of cutOff) {
+      await revokeEntitlement({ share: updated, wallet });
+      await db.nibShareEvent.create({ data: { shareId: share.id, type: 'invite_only_flip', wallet } });
+    }
+  }
+
+  return updated;
+}
+
+// Owner-only full read for the edit form: returns the decrypted body plus every
+// editable field so the frontend can prefill without hitting the paywall.
+export async function editSharePayload(share) {
+  const content = await decryptShareBody(share);
+  return {
+    id: share.id,
+    slug: share.slug,
+    url: sharePublicUrl(share),
+    title: share.title,
+    summary: share.summary,
+    coverUrl: share.coverUrl,
+    contentType: share.contentType,
+    content,
+    price: String(share.price),
+    whitelistPrice: share.whitelistPrice == null ? null : String(share.whitelistPrice),
+    publicAccess: share.publicAccess,
+    whitelist: share.whitelist,
+    expiresAt: share.expiresAt,
+    status: share.status,
+    storageProvider: share.storageProvider,
+    createdAt: share.createdAt
+  };
+}
+
 export async function recordView(share, viewer) {
   await db.nibShare.update({ where: { id: share.id }, data: { viewCount: { increment: 1 } } });
   await db.nibShareEvent.create({

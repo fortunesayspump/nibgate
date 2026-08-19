@@ -158,6 +158,43 @@ export interface CreateShareResponse {
   expiresAt: string | null;
 }
 
+export interface EditSharePayload {
+  id: string;
+  slug: string;
+  url: string;
+  title: string;
+  summary: string | null;
+  coverUrl: string | null;
+  contentType: string;
+  content: unknown;
+  price: string;
+  whitelistPrice: string | null;
+  publicAccess: boolean;
+  whitelist: string[];
+  expiresAt: string | null;
+  status: string;
+  storageProvider: string;
+  createdAt: string;
+}
+
+export type UpdateSharePayload = Partial<
+  Pick<CreateSharePayload, "title" | "summary" | "coverUrl" | "contentType" | "content" | "price" | "whitelist" | "whitelistPrice" | "publicAccess" | "status">
+> & { expiresAt?: string | null };
+
+export interface UpdateShareResponse {
+  id: string;
+  slug: string;
+  url: string;
+  title: string;
+  coverUrl: string | null;
+  price: string;
+  whitelistPrice: string | null;
+  publicAccess: boolean;
+  expiresAt: string | null;
+  status: string;
+  contentHash: string;
+}
+
 export interface AccessPolicyUpdate {
   success: boolean;
   whitelist: string[];

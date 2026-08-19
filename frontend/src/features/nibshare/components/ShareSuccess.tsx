@@ -6,13 +6,14 @@ import Link from "next/link";
 import { FiCheck, FiCopy, FiLink, FiX } from "react-icons/fi";
 import { timeLeft } from "../lib/shares";
 
-export function ShareSuccess({ slug, url, title, price, expiresAt, onDone }: {
+export function ShareSuccess({ slug, url, title, price, expiresAt, onDone, saved = false }: {
   slug: string;
   url: string;
   title: string;
   price: string;
   expiresAt: string | null;
   onDone: () => void;
+  saved?: boolean;
 }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -64,7 +65,7 @@ export function ShareSuccess({ slug, url, title, price, expiresAt, onDone }: {
               <FiCheck size={18} />
             </span>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold truncate">Published!</h2>
+              <h2 className="text-sm font-semibold truncate">{saved ? "Saved!" : "Published!"}</h2>
               <p className="text-xs mt-0.5 truncate" style={{ color: "var(--muted)" }}>{title}</p>
             </div>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FiSettings, FiEye, FiLock, FiStar, FiSend } from "react-icons/fi";
+import { FiSettings, FiEye, FiLock, FiStar, FiSend, FiEdit2 } from "react-icons/fi";
 import { TypeBadge, StatusBadge, ActiveBadge } from "./StatusBadges";
 import { isEnded, endLabel } from "../../lib/shares";
 import type { ShareSummary } from "../../types";
@@ -42,6 +42,9 @@ export function PostRow({ share, onSettings, onPublish, publishing = false }: { 
             <FiSend size={13} /> {publishing ? "Publishing…" : "Publish"}
           </button>
         )}
+        <Link href={`/share/edit/${share.slug}`} className="no-underline inline-flex items-center justify-center w-8 h-8 rounded-md border cursor-pointer" style={{ borderColor: "var(--border)" }} title="Edit">
+          <FiEdit2 size={14} />
+        </Link>
         <button onClick={onSettings} className="inline-flex items-center justify-center w-8 h-8 rounded-md border cursor-pointer" style={{ borderColor: "var(--border)" }} title="Settings">
           <FiSettings size={15} />
         </button>

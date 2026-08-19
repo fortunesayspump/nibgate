@@ -12,8 +12,9 @@ import { WalletListEditor } from './WalletListEditor';
 import { nibshareApi } from '../api';
 import { ShareSuccess } from './ShareSuccess';
 import { formatUsd } from '../lib/shares';
-import type { ContentMedia, CreateShareResponse } from '../types';
+import type { ContentMedia, CreateShareResponse, EditSharePayload } from '../types';
 import type { MediaItem } from '../lib/content';
+import { parseContent } from '../lib/content';
 
 interface ShareFormData {
   title: string;
@@ -58,21 +59,113 @@ const defaults: ShareFormData = {
   whitelist: [], whitelistPrice: "", inviteOnly: false,
 };
 
-export default function ShareForm({ defaultRecipientWallet, authenticated = false, connecting = false, onConnect }: {
+export default function ShareForm({ defaultRecipientWallet, authenticated = false, connecting = false, onConnect, editing }: {
   defaultRecipientWallet?: string;
   authenticated?: boolean;
   connecting?: boolean;
   onConnect?: () => void;
+  editing?: { slug: string; initial: EditSharePayload };
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<ShareFormData>({ ...defaults, recipientWallet: defaultRecipientWallet ?? "" });
+
+  function initForm(): ShareFormData {
+    if (!editing) return { ...defaults, recipientWallet: defaultRecipientWallet ?? "" };
+    const p = editing.initial;
+    const next: ShareFormData = { ...defaults, recipientWallet: defaultRecipientWallet ?? "" };
+    next.title = p.title;
+    next.slug = p.slug;
+    next.excerpt = p.summary ?? "";
+    next.coverUrl = p.coverUrl ?? "";
+    next.price = p.price !== "0" ? p.price : "";
+    next.whitelist = p.whitelist ?? [];
+    next.whitelistPrice = p.whitelistPrice ?? "";
+    next.inviteOnly = p.publicAccess === false;
+
+    const view = parseContent(p.content);
+    if (p.contentType === "photo") {
+      next.type = "photo";
+      if (view && view.kind === "photo") {
+        const items = view.media.map((m) => ({ _fileKey: m.storageRef || m.url || "", ...m }));
+        next.media = JSON.stringify(items);
+        next.coverUrl = view.coverUrl ?? "";
+        next.excerpt = view.caption ?? "";
+      }
+    } else if (p.contentType === "video") {
+      next.type = "video";
+      if (view && view.kind === "video") {
+        next.videoUrl = view.videoUrl ?? "";
+        next.excerpt = view.caption ?? "";
+        if (view.file) {
+          next.videoStorageRef = view.file.storageRef ?? "";
+          next.videoEncryptedKey = view.file.encryptedKey ?? "";
+          next.videoContentType = view.file.contentType ?? "";
+          next.videoName = view.file.name ?? "";
+          next.videoSize = view.file.size ?? null;
+        }
+      }
+    } else if (p.contentType === "music") {
+      next.type = "music";
+      if (view && view.kind === "music") {
+        next.coverUrl = view.coverUrl ?? "";
+        next.excerpt = view.caption ?? "";
+        if (view.audio) {
+          next.audioUrl = view.audio.url ?? "";
+          next.audioStorageRef = view.audio.storageRef ?? "";
+          next.audioEncryptedKey = view.audio.encryptedKey ?? "";
+          next.audioContentType = view.audio.contentType ?? "";
+        }
+      }
+    } else if (p.contentType === "document") {
+      next.type = "document";
+      if (view && view.kind === "document") {
+        next.coverUrl = view.coverUrl ?? "";
+        next.excerpt = view.caption ?? "";
+        if (view.doc) {
+          next.documentUrl = view.doc.url ?? "";
+          next.documentName = view.doc.name ?? "";
+          next.documentSize = view.doc.size ?? null;
+          next.documentStorageRef = view.doc.storageRef ?? "";
+          next.documentEncryptedKey = view.doc.encryptedKey ?? "";
+          next.documentContentType = view.doc.contentType ?? "";
+        }
+      }
+    } else {
+      next.type = "article";
+      if (view && view.kind === "markdown") next.bodyMarkdown = view.markdown;
+    }
+    return next;
+  }
+
+  function initMedia(): MediaItem[] {
+    if (!editing) return [];
+    const view = parseContent(editing.initial.content);
+    return view && view.kind === "markdown" ? view.media : [];
+  }
+
+  function initExpiryQuick(): number | null {
+    if (!editing || !editing.initial.expiresAt) return 168;
+    return null;
+  }
+
+  function initCustomExpiry(): string {
+    if (!editing || !editing.initial.expiresAt) return "";
+    return toLocalInput(new Date(editing.initial.expiresAt));
+  }
+
+  function initCoverKey(): string {
+    if (!editing || editing.initial.contentType !== "photo") return "";
+    const view = parseContent(editing.initial.content);
+    return view && view.kind === "photo" ? (view.coverUrl ?? "") : "";
+  }
+
+  const [form, setForm] = useState<ShareFormData>(initForm);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [published, setPublished] = useState<CreateShareResponse | null>(null);
-  const [coverKey, setCoverKey] = useState("");
-  const [embeddedMedia, setEmbeddedMedia] = useState<MediaItem[]>([]);
-  const [expiryQuick, setExpiryQuick] = useState<number | null>(168);
-  const [customExpiry, setCustomExpiry] = useState("");
+  const [coverKey, setCoverKey] = useState(initCoverKey);
+  const [embeddedMedia, setEmbeddedMedia] = useState<MediaItem[]>(initMedia);
+  const [expiryQuick, setExpiryQuick] = useState<number | null>(initExpiryQuick);
+  const [customExpiry, setCustomExpiry] = useState(initCustomExpiry);
   const [previewAs, setPreviewAs] = useState<"public" | "whitelisted">("public");
   // While the user is typing a price we must NOT reinterpret an empty value as
   // "free" and yank the mode back — only revert to free when they blur an empty
@@ -85,7 +178,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
     if (defaultRecipientWallet && !form.recipientWallet) {
       setForm((prev) => ({ ...prev, recipientWallet: defaultRecipientWallet ?? "" }));
     }
-  }, [defaultRecipientWallet]);
+  }, [defaultRecipientWallet, form.recipientWallet]);
 
   function toLocalInput(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -230,7 +323,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
     setError("");
     setSaving(true);
     const videoCover = form.type === "video" && vid ? `https://img.youtube.com/vi/${vid}/hqdefault.jpg` : "";
-    nibshareApi.create({
+    const payload = {
       title: form.title,
       summary: form.excerpt,
       coverUrl: form.coverUrl || videoCover || null,
@@ -242,7 +335,11 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
       whitelist: form.whitelist,
       whitelistPrice: form.whitelistPrice.trim() === "" ? null : form.whitelistPrice,
       publicAccess: !form.inviteOnly,
-    })
+    };
+    const save = editing
+      ? nibshareApi.update(editing.slug, payload)
+      : nibshareApi.create(payload);
+    save
       .then((res) => {
         if (status === 'active') {
           setPublished(res);
@@ -689,6 +786,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
           title={published.title}
           price={published.price}
           expiresAt={published.expiresAt}
+          saved={!!editing}
           onDone={() => router.push("/share/mine")}
         />
       )}

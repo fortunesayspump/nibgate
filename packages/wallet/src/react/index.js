@@ -40,7 +40,6 @@ export {
   useAccount,
   useBalance,
   useChainId,
-  useDisconnect,
   useSendTransaction,
   useSignMessage,
   useSignTypedData,
@@ -53,4 +52,8 @@ export {
   AppKitProvider,
   useAppKit,
   useAppKitAccount,
+  useAppKitNetwork,
+  useAppKitProvider,
+  useAppKitState,
+  useDisconnect,
 } from '@reown/appkit/react'

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAccount, useSignMessage } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
+import type { Eip1193Provider } from "@nibgate/wallet";
 import { FiPlus, FiEdit2, FiSearch } from 'react-icons/fi';
 import { ShareLayout, ShareBtn, ShareIntro, ShareError } from '@/features/nibshare/components/ShareLayout';
 import ActivityBell from '@/features/nibshare/components/ActivityBell';
@@ -22,8 +23,8 @@ type ViewFilter = 'all' | 'active' | 'ended' | 'drafts';
 export default function ShareMinePage() {
   const router = useRouter();
   const { connect, busy: connecting, error: connectError } = useNibgateConnect();
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { address, isConnected } = useAppKitAccount();
+  const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const [shares, setShares] = useState<ShareSummary[]>([]);
   const [activity, setActivity] = useState<ShareActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +82,10 @@ export default function ShareMinePage() {
     }
     try {
       setError(null);
-      await signInWithSiwe(address, (message) => signMessageAsync({ message }));
+      if (!walletProvider || typeof walletProvider.request !== "function") {
+        throw new Error("Wallet provider is not available. Reconnect your wallet and try again.");
+      }
+      await signInWithSiwe(address as `0x${string}`, async (message) => (await walletProvider.request({ method: "personal_sign", params: [message, address] })) as `0x${string}`);
       setSession('authed');
       window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT));
       await load();

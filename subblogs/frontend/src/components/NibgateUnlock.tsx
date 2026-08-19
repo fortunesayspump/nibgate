@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FiLock, FiShieldOff, FiRotateCcw } from "react-icons/fi";
 import SheetViewer from "@/components/SheetViewer";
 import TextViewer from "@/components/TextViewer";
-import { NibgateUnlock as SharedNibgateUnlock, useAccount } from "@nibgate/wallet/react";
+import { NibgateUnlock as SharedNibgateUnlock, useAppKitAccount } from "@nibgate/wallet/react";
 import { UNIVERSAL_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromMeta } from "@/lib/documentKind";
 import type { UnlockMediaMeta } from "@/lib/api";
 
@@ -61,7 +61,7 @@ function statusChip({ children, color }: { children: React.ReactNode; color: str
 
 export default function NibgateUnlock({ resource }: { resource: UnlockResource }) {
   const accessPath = `${API_BASE}/nibgate/access?path=${encodeURIComponent(resource.path)}`;
-  const { address } = useAccount();
+  const { address } = useAppKitAccount();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [content, setContent] = useState<unknown>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);

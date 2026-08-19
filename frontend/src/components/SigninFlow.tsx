@@ -1,9 +1,9 @@
 "use client";
 
-import { useAppKit } from "@nibgate/wallet/react";
+import { useAppKit, useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
+import type { Eip1193Provider } from "@nibgate/wallet";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useSignMessage } from "@nibgate/wallet/react";
 import { createSignInMessage } from "@nibgate/wallet";
 
 type AuthUser = {
@@ -33,8 +33,8 @@ export default function SigninFlow() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/dashboard/profile";
   const { open } = useAppKit();
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { address, isConnected } = useAppKitAccount();
+  const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const addressRef = useRef(address);
   useEffect(() => {
     addressRef.current = address;
@@ -114,13 +114,19 @@ export default function SigninFlow() {
       if (!nonceRes.ok) throw new Error(nonceData.error || "Could not request sign-in nonce.");
 
       const message = createSignInMessage({
-        address: walletAddress,
+        address: walletAddress as `0x${string}`,
         nonce: nonceData.nonce,
         domain: window.location.host,
         uri: window.location.origin,
         expirationTime: new Date(Date.now() + 10 * 60 * 1000),
       });
-      const signature = await signMessageAsync({ message });
+      if (!walletProvider || typeof walletProvider.request !== "function") {
+        throw new Error("Wallet provider is not available. Reconnect your wallet and try again.");
+      }
+      const signature = (await walletProvider.request({
+        method: "personal_sign",
+        params: [message, walletAddress],
+      })) as `0x${string}`;
       const verifyRes = await fetch("/auth/verify", {
         method: "POST",
         credentials: "include",

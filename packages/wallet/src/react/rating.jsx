@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAccount, useSwitchChain, useSendTransaction, usePublicClient } from 'wagmi'
-import { useAppKit } from '@reown/appkit/react'
-import { encodeFunctionData, keccak256, stringToBytes } from 'viem'
+import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
+import { createPublicClient, createWalletClient, custom, encodeFunctionData, http, keccak256, stringToBytes } from 'viem'
 import { waitForTransactionReceipt } from 'viem/actions'
-import { ARC_TESTNET, isArcNetwork } from '../chain.js'
+import { ARC_TESTNET, arcTestnet, isArcNetwork } from '../chain.js'
+import { ensureArcNetwork } from '../network.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 
 const RATE_CONTENT_SELECTOR = '0xc62fad09'
@@ -84,6 +84,8 @@ function shortAddress(a) {
   return `${a.slice(0, 6)}...${a.slice(-4)}`
 }
 
+const arcPublicClient = createPublicClient({ chain: arcTestnet, transport: http(ARC_TESTNET.appRpcUrl) })
+
 export function NibgateRatingUI({
   resource,
   contentId,
@@ -97,11 +99,9 @@ export function NibgateRatingUI({
   onRated,
   onError,
 }) {
-  const { isConnected, address, chain } = useAccount()
+  const { isConnected, address } = useAppKitAccount()
+  const { walletProvider } = useAppKitProvider('eip155')
   const { open } = useAppKit()
-  const { switchChainAsync } = useSwitchChain()
-  const { sendTransactionAsync } = useSendTransaction()
-  const publicClient = usePublicClient()
 
   const [selected, setSelected] = useState(0)
   const [hover, setHover] = useState(0)
@@ -111,11 +111,11 @@ export function NibgateRatingUI({
   const [stats, setStats] = useState(null)
 
   const addressRef = useRef(address)
-  const chainRef = useRef(chain)
+  const walletProviderRef = useRef(walletProvider)
   const statusTimerRef = useRef(null)
 
   useEffect(() => { addressRef.current = address }, [address])
-  useEffect(() => { chainRef.current = chain }, [chain])
+  useEffect(() => { walletProviderRef.current = walletProvider }, [walletProvider])
   useEffect(() => () => { if (statusTimerRef.current) clearTimeout(statusTimerRef.current) }, [])
 
   const statsUrlRef = useRef(statsUrl)
@@ -180,8 +180,17 @@ export function NibgateRatingUI({
           return
         }
       }
-      if (!isArcNetwork(chainRef.current?.id)) {
-        await switchChainAsync({ chainId: ARC_TESTNET.id })
+      const provider = walletProviderRef.current
+      if (!provider || typeof provider.request !== 'function') {
+        throw new Error('Wallet provider is not available. Connect your wallet to continue.')
+      }
+      let currentChainId
+      try {
+        const hex = await provider.request({ method: 'eth_chainId' })
+        currentChainId = typeof hex === 'string' ? Number(hex) : Number(hex)
+      } catch { currentChainId = undefined }
+      if (currentChainId === undefined || !isArcNetwork(currentChainId)) {
+        await ensureArcNetwork(provider, { currentChainId })
       }
 
       const cid = normalizeContentId(contentId, resource)
@@ -194,18 +203,17 @@ export function NibgateRatingUI({
         args: [cid, ratingValue, reviewHash, ref],
       })
 
-      const txHash = await sendTransactionAsync({
-        to: NIBGATE_REPUTATION_CONTRACT,
-        data,
-        chainId: ARC_TESTNET.id,
-      })
+      // Send through the AppKit EIP-1193 provider via a viem wallet client
+      // (mirrors unlock.jsx) instead of wagmi's sendTransactionAsync, which
+      // throws "Connector not connected" while wagmi's connector is null.
+      const walletClient = createWalletClient({ chain: ARC_TESTNET, account: addressRef.current, transport: custom(provider) })
+      const txResult = await walletClient.sendTransaction({ to: NIBGATE_REPUTATION_CONTRACT, data, chain: ARC_TESTNET, account: addressRef.current })
+      const txHash = txResult?.hash || txResult
 
       // Wait for the receipt so downstream indexers (subblog + hub) can verify
       // the on-chain proof instead of racing ahead of mining.
       try {
-        if (publicClient) {
-          await waitForTransactionReceipt(publicClient, { hash: txHash, chainId: ARC_TESTNET.id, timeout: 60_000 })
-        }
+        await waitForTransactionReceipt(arcPublicClient, { hash: txHash, chainId: ARC_TESTNET.id, timeout: 60_000 })
       } catch {
         // Fall through — the tx may still mine; downstream verifiers decide.
       }

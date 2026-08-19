@@ -29,7 +29,7 @@ export const ARC_TESTNET: ArcTestnetConfig;
 
 export const arcTestnet: Chain;
 
-export function isArcNetwork(chainId: number | undefined | null): boolean;
+export function isArcNetwork(chainId: number | string | undefined | null): boolean;
 
 export function getAddArcNetworkParams(): AddArcNetworkParams;
 

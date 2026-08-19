@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAccount, useSignMessage } from 'wagmi'
-import { useAppKit, useAppKitState } from '@reown/appkit/react'
+import { useAppKit, useAppKitState, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
 import { signInWithSiwe } from './siwe.js'
@@ -10,63 +9,55 @@ import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 
 export function useNibgateConnect(options = {}) {
   const { authBase = '', noncePath, verifyPath } = options
-  const { isConnected, address, connector } = useAccount()
   const { open } = useAppKit()
   const { open: modalOpen, connectingWallet } = useAppKitState()
-  const { signMessageAsync } = useSignMessage()
+  // Use AppKit's account hook (not wagmi's useAccount) so sign-in flows through
+  // AppKit's own connector reconciliation — this avoids wagmi throwing
+  // "Connector not connected" when its account state lags AppKit's.
+  const { address, isConnected } = useAppKitAccount()
+  const { walletProvider } = useAppKitProvider('eip155')
+
+  const addressRef = useRef(null)
+  const isConnectedRef = useRef(false)
+  const modalOpenRef = useRef(false)
+  const connectingWalletRef = useRef(false)
+  const runningRef = useRef(false)
+
+  useEffect(() => { addressRef.current = address ? `0x${String(address).replace(/^0x/, '')}` : null }, [address])
+  useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
+  useEffect(() => { modalOpenRef.current = modalOpen }, [modalOpen])
+  useEffect(() => { connectingWalletRef.current = connectingWallet }, [connectingWallet])
+
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState(null)
 
-  const isConnectedRef = useRef(isConnected)
-  const addressRef = useRef(address)
-  const runningRef = useRef(false)
-  const modalOpenRef = useRef(modalOpen)
-  const connectingWalletRef = useRef(connectingWallet)
-  useEffect(() => {
-    isConnectedRef.current = isConnected
-  }, [isConnected])
-  useEffect(() => {
-    addressRef.current = address
-  }, [address])
-  useEffect(() => {
-    modalOpenRef.current = modalOpen
-  }, [modalOpen])
-  useEffect(() => {
-    connectingWalletRef.current = connectingWallet
-  }, [connectingWallet])
-
-  useEffect(() => {
-    if (isConnected) setError(null)
-  }, [isConnected])
+  const clearError = useCallback(() => setError(null), [])
 
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()
     let sawModalOpen = false
     let modalClosedAt = 0
-    const GRACE_MS = 6000 // after AppKit modal closes, give wagmi's adapter a moment to reconcile isConnected/address before bailing
+    const GRACE_MS = 6000 // after AppKit's modal closes, give the WagmiAdapter a moment to reconcile
     while (Date.now() - started < timeoutMs) {
-      if (isConnectedRef.current && addressRef.current) {
-        return addressRef.current
-      }
+      const addr = addressRef.current
+      if (addr) return addr
       if (modalOpenRef.current) {
         sawModalOpen = true
         modalClosedAt = 0
       } else if (sawModalOpen && !connectingWalletRef.current) {
-        // AppKit reported a wallet choice and stopped spinning, but wagmi's
-        // useAccount (synced via the WagmiAdapter) may not have reconciled
-        // isConnected/address yet. Wait the grace window before giving up.
         if (modalClosedAt === 0) modalClosedAt = Date.now()
-        if (Date.now() - modalClosedAt >= GRACE_MS) return undefined
+        if (Date.now() - modalClosedAt >= GRACE_MS) return null
       }
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
-    return undefined
+    return null
   }
 
-  async function sign(address) {
-    await ensureWalletAuthorized(connector)
-    await signInWithSiwe(address, (message) => signMessageAsync({ message }), { authBase, noncePath, verifyPath })
+  async function sign(addr) {
+    await ensureWalletAuthorized(addr, { walletProvider, appKitAccount: { address: addr } })
+    setStatus('signing')
+    await signInWithSiwe(addr, (message) => signWithProvider(walletProvider, addr, message), { authBase, noncePath, verifyPath })
     setStatus('signed-in')
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT))
@@ -92,7 +83,7 @@ export function useNibgateConnect(options = {}) {
       if (isWalletRejection(err)) {
         setStatus('idle')
       } else {
-        setError(err instanceof Error ? err.message : getWalletErrorMessage(err))
+        setError(getWalletErrorMessage(err))
         setStatus('error')
       }
       return false
@@ -100,7 +91,7 @@ export function useNibgateConnect(options = {}) {
       setBusy(false)
       runningRef.current = false
     }
-  }, [signMessageAsync, authBase, noncePath, verifyPath, connector])
+  }, [address, walletProvider, authBase, noncePath, verifyPath])
 
   const connect = useCallback(async () => {
     if (runningRef.current) return false
@@ -111,26 +102,25 @@ export function useNibgateConnect(options = {}) {
     let addr
     let attempt = 0
     try {
-      // AppKit's `open()` resolves as soon as the modal shows, but the wallet
-      // selection + wagmi reconciliation (via the AppKit WagmiAdapter) is async.
-      // If the first pass doesn't reconcile an address (common after a full
-      // cache+permission clear on Chrome/MetaMask), retry once before failing
-      // so users aren't left watching "Processing…" revert to "Connect wallet"
-      // with no explanation.
+      // AppKit's open() shows the modal; selecting a wallet triggers AppKit to
+      // reconcile the account into useAppKitAccount (synced by the WagmiAdapter).
+      // Poll for the address; if the first pass doesn't resolve (e.g. after a
+      // full cache+permission clear), retry once before erroring.
       while (attempt < 2) {
         attempt += 1
         try {
           await open()
-        } catch (e) { /* modal open failures are retried below by waitForWallet */ }
+        } catch {
+          // modal open can race account sync; waitForWallet keeps polling.
+        }
         addr = await waitForWallet()
         if (addr) break
       }
       if (!addr) {
         setStatus('error')
-        setError('Wallet did not connect. Make sure you approved the MetaMask connection for this site (check the MetaMask popup), then try again.')
+        setError('Wallet did not connect. Approve the MetaMask connection for this site, then try again.')
         return false
       }
-      setStatus('signing')
       await sign(addr)
       return true
     } catch (err) {
@@ -145,7 +135,20 @@ export function useNibgateConnect(options = {}) {
       setBusy(false)
       runningRef.current = false
     }
-  }, [open, signMessageAsync, authBase, noncePath, verifyPath, connector])
+  }, [open, address, walletProvider, authBase, noncePath, verifyPath])
 
-  return { connect, signIn, busy, status, error }
+  return { connect, signIn, busy, status, error, address, clearError }
+}
+
+// Sign a SIWE message via the AppKit wallet provider (the source of truth for
+// the connected session), not wagmi's useSignMessage (which throws
+// "Connector not connected" when the wagmi connector isn't reconciled yet).
+function signWithProvider(walletProvider, address, message) {
+  if (!walletProvider || typeof walletProvider.request !== 'function') {
+    throw new Error('Wallet provider is not available. Make sure a wallet is connected.')
+  }
+  return walletProvider.request({
+    method: 'personal_sign',
+    params: [message, address],
+  })
 }

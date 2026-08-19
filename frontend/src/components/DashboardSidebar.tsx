@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAppKitAccount, useAccount } from "@nibgate/wallet/react";
+import { useAppKitAccount } from "@nibgate/wallet/react";
 import { BarChart3, CircleDollarSign, FileLock2, Globe2, Menu, Newspaper, UserRound, X } from "lucide-react";
 
 const BLOG_OWNER_WALLET = '0x558e7bfaf2cf1a494f44e50d92431afc060c9d12';
@@ -27,14 +27,13 @@ const navLinks = [
 
 export default function DashboardSidebar({ isMobileOpen, onMobileClose }: { isMobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
-  const wagmiAccount = useAccount();
-  const appKitAccount = useAppKitAccount({ namespace: "eip155" });
+  const appKitAccount = useAppKitAccount();
   const [canPublishBlog, setCanPublishBlog] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function checkBlogAccess() {
-      const liveWalletAddress = normalizeWallet(wagmiAccount.address || appKitAccount.address);
+      const liveWalletAddress = normalizeWallet(appKitAccount.address);
       if (liveWalletAddress === BLOG_OWNER_WALLET) { setCanPublishBlog(true); return; }
       try {
         const res = await fetch("/auth/me", { credentials: "include" });
@@ -46,7 +45,7 @@ export default function DashboardSidebar({ isMobileOpen, onMobileClose }: { isMo
     }
     void checkBlogAccess();
     return () => { cancelled = true; };
-  }, [wagmiAccount.address, appKitAccount.address]);
+  }, [appKitAccount.address]);
 
   const visibleLinks = navLinks.filter((link) => link.id !== "blog" || canPublishBlog);
 

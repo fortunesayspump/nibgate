@@ -33,7 +33,11 @@ export const arcTestnet = defineChain({
 });
 
 export function isArcNetwork(chainId) {
-  return chainId === ARC_TESTNET.id;
+  if (chainId === undefined || chainId === null) return false;
+  if (typeof chainId === 'string' && chainId.includes(':')) {
+    return chainId === `eip155:${ARC_TESTNET.id}`;
+  }
+  return Number(chainId) === ARC_TESTNET.id;
 }
 
 export function getAddArcNetworkParams() {

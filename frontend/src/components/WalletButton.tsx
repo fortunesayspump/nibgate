@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useAccount, useBalance, useChainId, useDisconnect } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitNetwork, useBalance, useDisconnect } from "@nibgate/wallet/react";
 import { arcTestnet } from '../lib/wagmi'
-import { getConnectedChainId, isArcTestnetChainId } from '../lib/chains'
+import { isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT, HUB_SESSION_UPDATED_EVENT } from '../lib/hubSession'
 import { useNibgateConnect } from '../lib/useNibgateConnect'
@@ -116,12 +116,12 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
 
 export function WalletButton() {
   const { connect, signIn, busy, status, error } = useNibgateConnect()
-  const { address, chainId, isConnected } = useAccount()
-  const activeChainId = useChainId()
+  const { address, isConnected } = useAppKitAccount()
+  const { chainId } = useAppKitNetwork()
   const { disconnect } = useDisconnect()
-  const displayAddress = isConnected ? address : undefined
+  const displayAddress = isConnected && isHexAddress(address) ? address : undefined
   const isWalletConnected = isConnected
-  const connectedChainId = getConnectedChainId(chainId, activeChainId)
+  const connectedChainId = chainId
   const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined
@@ -238,11 +238,11 @@ export function WalletButton() {
 
 export function WalletButtonMobile() {
   const { connect, signIn, busy, status, error } = useNibgateConnect()
-  const { address, chainId, isConnected } = useAccount()
-  const activeChainId = useChainId()
-  const displayAddress = isConnected ? address : undefined
+  const { address, isConnected } = useAppKitAccount()
+  const { chainId } = useAppKitNetwork()
+  const displayAddress = isConnected && isHexAddress(address) ? address : undefined
   const isWalletConnected = isConnected
-  const connectedChainId = getConnectedChainId(chainId, activeChainId)
+  const connectedChainId = chainId
   const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined

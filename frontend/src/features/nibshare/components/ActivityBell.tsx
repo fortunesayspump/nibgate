@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useAccount } from "@nibgate/wallet/react";
+import { useAppKitAccount } from "@nibgate/wallet/react";
 import { FiBell, FiUnlock, FiEye, FiLock, FiClock, FiX } from 'react-icons/fi';
 import type { ShareActivity } from '../types';
 
@@ -30,7 +30,7 @@ const TYPE_META = {
 };
 
 export default function ActivityBell({ activity }: { activity: ShareActivity[] }) {
-  const { address } = useAccount();
+  const { address } = useAppKitAccount();
   const [open, setOpen] = useState(false);
   const [lastSeen, setLastSeen] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);

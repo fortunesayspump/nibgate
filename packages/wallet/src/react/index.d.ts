@@ -174,11 +174,19 @@ export {
   useAccount,
   useBalance,
   useChainId,
-  useDisconnect,
   useSendTransaction,
   useSignMessage,
   useSignTypedData,
   useSwitchChain,
   createConfig,
 } from 'wagmi';
-export { createAppKit, AppKitProvider, useAppKit, useAppKitAccount } from '@reown/appkit/react';
+export {
+  createAppKit,
+  AppKitProvider,
+  useAppKit,
+  useAppKitAccount,
+  useAppKitNetwork,
+  useAppKitProvider,
+  useAppKitState,
+  useDisconnect,
+} from '@reown/appkit/react';

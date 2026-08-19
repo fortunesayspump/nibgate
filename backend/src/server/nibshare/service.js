@@ -3,7 +3,7 @@ import { db } from '@nibgate/internal/db.js';
 export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
 import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets, canAccess as sdkCanAccess } from '@nibgate/sdk/server';
-import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
+import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, decryptShareBody, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
 
 export class HttpError extends Error {
   constructor(status, message) {

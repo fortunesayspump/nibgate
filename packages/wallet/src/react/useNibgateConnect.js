@@ -108,11 +108,26 @@ export function useNibgateConnect(options = {}) {
     setBusy(true)
     setStatus('connecting')
     setError(null)
+    let addr
+    let attempt = 0
     try {
-      await open()
-      const addr = await waitForWallet()
+      // AppKit's `open()` resolves as soon as the modal shows, but the wallet
+      // selection + wagmi reconciliation (via the AppKit WagmiAdapter) is async.
+      // If the first pass doesn't reconcile an address (common after a full
+      // cache+permission clear on Chrome/MetaMask), retry once before failing
+      // so users aren't left watching "Processing…" revert to "Connect wallet"
+      // with no explanation.
+      while (attempt < 2) {
+        attempt += 1
+        try {
+          await open()
+        } catch (e) { /* modal open failures are retried below by waitForWallet */ }
+        addr = await waitForWallet()
+        if (addr) break
+      }
       if (!addr) {
-        setStatus('idle')
+        setStatus('error')
+        setError('Wallet did not connect. Make sure you approved the MetaMask connection for this site (check the MetaMask popup), then try again.')
         return false
       }
       setStatus('signing')

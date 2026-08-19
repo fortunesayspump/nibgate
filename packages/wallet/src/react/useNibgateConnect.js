@@ -43,14 +43,21 @@ export function useNibgateConnect(options = {}) {
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()
     let sawModalOpen = false
+    let modalClosedAt = 0
+    const GRACE_MS = 6000 // after AppKit modal closes, give wagmi's adapter a moment to reconcile isConnected/address before bailing
     while (Date.now() - started < timeoutMs) {
       if (isConnectedRef.current && addressRef.current) {
         return addressRef.current
       }
       if (modalOpenRef.current) {
         sawModalOpen = true
+        modalClosedAt = 0
       } else if (sawModalOpen && !connectingWalletRef.current) {
-        return undefined
+        // AppKit reported a wallet choice and stopped spinning, but wagmi's
+        // useAccount (synced via the WagmiAdapter) may not have reconciled
+        // isConnected/address yet. Wait the grace window before giving up.
+        if (modalClosedAt === 0) modalClosedAt = Date.now()
+        if (Date.now() - modalClosedAt >= GRACE_MS) return undefined
       }
       await new Promise((resolve) => setTimeout(resolve, 200))
     }

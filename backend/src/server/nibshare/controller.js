@@ -129,6 +129,44 @@ export async function createShare(req, res) {
   }
 }
 
+export async function getShareForEdit(req, res) {
+  try {
+    const share = await service.findShareBySlug(req.params.slug);
+    if (!share) return res.status(404).json({ error: 'Share not found' });
+    if (primaryWallet(req.user) !== share.ownerWallet) {
+      return res.status(403).json({ error: 'Only the owner can edit this share.' });
+    }
+    const payload = await service.editSharePayload(share);
+    res.json(payload);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load share for editing', details: error.message });
+  }
+}
+
+export async function updateShare(req, res) {
+  try {
+    const share = await service.findShareBySlug(req.params.slug);
+    if (!share) return res.status(404).json({ error: 'Share not found' });
+    const updated = await service.updateShare(share, req.body || {}, primaryWallet(req.user));
+    res.json({
+      id: updated.id,
+      slug: updated.slug,
+      url: sharePublicUrl(updated),
+      title: updated.title,
+      coverUrl: updated.coverUrl,
+      price: String(updated.price),
+      whitelistPrice: updated.whitelistPrice == null ? null : String(updated.whitelistPrice),
+      publicAccess: updated.publicAccess,
+      expiresAt: updated.expiresAt,
+      status: updated.status,
+      contentHash: updated.contentHash
+    });
+  } catch (error) {
+    if (error instanceof service.HttpError) return res.status(error.status).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update share', details: error.message });
+  }
+}
+
 export async function getShareMeta(req, res) {
   try {
     const share = await service.findShareBySlug(req.params.slug);

@@ -124,6 +124,7 @@ export function NibgateUnlock(props: {
   authBase?: string;
   noncePath?: string;
   verifyPath?: string;
+  walletBar?: boolean;
   onUnlock?: (result: { ok: boolean; payload?: unknown; resource?: UnlockResource }) => void;
   children?: ReactNode | ((state: ReturnType<typeof useNibgateUnlock>) => ReactNode);
 }): ReactNode;

@@ -1,9 +1,6 @@
 'use client'
 
 import { createAppKit } from '@reown/appkit/react'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { http } from 'wagmi'
-import { injected, walletConnect } from 'wagmi/connectors'
 import { arcTestnet } from '../chain.js'
 
 export const NIBGATE_APPKIT_PROJECT_ID = '09580756f3c5f13c5f1aeb2faa9b1696'
@@ -33,7 +30,7 @@ const DEFAULT_FEATURES = {
 }
 
 const STORAGE_VERSION_KEY = 'nibgate.wallet.state-version'
-const STORAGE_VERSION = '0.2.10'
+const STORAGE_VERSION = '0.4.0'
 
 const APP_KIT_KEYS = [
   '@appkit/wallet_id',
@@ -76,7 +73,6 @@ function clearStaleWalletState() {
       const key = localStorage.key(i)
       if (key && APP_KIT_PREFIXES.some((p) => key.startsWith(p))) localStorage.removeItem(key)
     }
-    localStorage.removeItem('wagmi.store')
     localStorage.removeItem('walletconnect')
   } catch {
     // ignore storage failures (private mode, disabled storage)
@@ -96,23 +92,21 @@ function clearStaleWalletStateIfVersionChanged() {
 
 let cached = null
 
+// Adapter-less AppKit: no wagmi / ethers adapter is registered. AppKit ships a
+// UniversalAdapter (WalletConnect) plus built-in EIP-6963 discovery for injected
+// wallets out of the box, so every wallet gets its own provider from the modal —
+// no window.ethereum race, no duplicated injected connectors. All signing,
+// chain switching, and sending go through the EIP-1193 provider surfaced by
+// useAppKitProvider('eip155') (see unlock.jsx / useNibgateConnect.js).
 export function createNibgateWallet(options = {}) {
   clearStaleWalletStateIfVersionChanged()
   if (cached) return cached
 
   const projectId = options.projectId || NIBGATE_APPKIT_PROJECT_ID
-  const rpcUrl = options.rpcUrl || NIBGATE_RPC_URL
-  const chains = options.chains && options.chains.length ? options.chains : [arcTestnet]
-  const appKitNetworks = chains
-
-  const connectors = options.connectors || [
-    injected(),
-    injected({ target: 'metaMask' }),
-    injected({ target: 'rabby' }),
-    walletConnect({ projectId }),
-  ]
-
-  const transports = Object.fromEntries(chains.map((chain) => [chain.id, http(rpcUrl)]))
+  const networks = options.chains && options.chains.length ? options.chains : [arcTestnet]
+  const customRpcUrls = options.rpcUrl
+    ? { [`eip155:${networks[0].id}`]: options.rpcUrl }
+    : undefined
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://nibgate.xyz'
   const metadata = options.metadata || {
@@ -122,19 +116,11 @@ export function createNibgateWallet(options = {}) {
     icons: [origin + '/favicon.ico'],
   }
 
-  const wagmiAdapter = new WagmiAdapter({
-    networks: appKitNetworks,
-    projectId,
-    ssr: true,
-    connectors,
-    transports,
-  })
-
   createAppKit({
-    adapters: [wagmiAdapter],
-    networks: appKitNetworks,
-    defaultNetwork: options.defaultNetwork || chains[0],
+    networks,
+    defaultNetwork: options.defaultNetwork || networks[0],
     allowUnsupportedChain: options.allowUnsupportedChain ?? true,
+    customRpcUrls,
     projectId,
     metadata,
     themeMode: options.themeMode || 'light',
@@ -143,8 +129,7 @@ export function createNibgateWallet(options = {}) {
   })
 
   cached = {
-    wagmiConfig: wagmiAdapter.wagmiConfig,
-    appKitNetworks,
+    appKitNetworks: networks,
     projectId,
   }
   return cached

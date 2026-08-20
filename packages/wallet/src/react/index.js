@@ -26,27 +26,10 @@ export {
   NibgateUnlockUI,
 } from './unlock.jsx'
 
-// Single source of the React wallet stack. Import wagmi / AppKit /
-// react-query primitives from `@nibgate/wallet/react` (not the underlying
-// packages directly) so every Nibgate consumer shares one instance —
-// AppKit modal state and the WagmiProvider context must not be duplicated.
-export {
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query'
-
-export {
-  WagmiProvider,
-  useAccount,
-  useBalance,
-  useChainId,
-  useSendTransaction,
-  useSignMessage,
-  useSignTypedData,
-  useSwitchChain,
-  createConfig,
-} from 'wagmi'
-
+// Single source of the React wallet stack. Everything here is AppKit-driven
+// (adapter-less — no wagmi / react-query), and consumers import from
+// `@nibgate/wallet/react` rather than the underlying packages directly so every
+// Nibgate consumer shares one AppKit instance.
 export {
   createAppKit,
   AppKitProvider,

@@ -1,4 +1,0 @@
-node_modules/
-.harness-cache/
-*.local.log
-.DS_Store

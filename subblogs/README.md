@@ -38,7 +38,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - **Frontend**: Next.js 15 + React 19 + Tailwind CSS 4 + Motion (port 3002)
 - **Auth**: SIWE wallet sign-in (HttpOnly `sb_auth_session` JWT) + email/password
 - **Content**: Markdown with react-markdown
-- **Premium gating**: `@nibgate/sdk` (`^0.4.14`) + `@nibgate/wallet` (`^0.4.3`) from npm — Reown AppKit (adapter-less, no wagmi) + viem. Paid posts unlock via the Gateway (EIP-3009) rail or the direct USDC transfer rail; access follows the wallet (reconnect + sign in to re-view, never re-pay; disconnect relocks).
+- **Premium gating**: `@nibgate/sdk` (`^0.4.14`) + `@nibgate/wallet` (`^0.4.4`) from npm — Reown AppKit (AppKit + wagmi) + viem. Paid posts unlock via the Gateway (EIP-3009) rail or the direct USDC transfer rail; access follows the wallet (reconnect + sign in to re-view, never re-pay; disconnect relocks).
 
 ## Quick Start
 

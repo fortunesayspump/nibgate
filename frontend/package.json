@@ -12,6 +12,8 @@
     "@nibgate/sdk": "workspace:*",
     "@nibgate/wallet": "workspace:*",
     "@reown/appkit": "1.8.21",
+    "@reown/appkit-adapter-wagmi": "1.8.21",
+    "@tanstack/react-query": "5.101.2",
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/core": "^3.29.2",
     "@tiptap/extension-image": "^3.29.2",
@@ -37,6 +39,7 @@
     "recharts": "^3.9.0",
     "tiptap-markdown": "^0.9.0",
     "viem": "2.54.1",
+    "wagmi": "3.6.21",
     "x-data-spreadsheet": "^1.1.9",
     "xlsx": "^0.18.5"
   },

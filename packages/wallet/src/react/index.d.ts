@@ -6,6 +6,7 @@ export interface NibgateWalletOptions {
   projectId?: string;
   rpcUrl?: string;
   chains?: Chain[];
+  connectors?: import('wagmi').Connector[];
   metadata?: { name: string; description: string; url: string; icons: string[] };
   defaultNetwork?: Chain;
   allowUnsupportedChain?: boolean;
@@ -15,6 +16,7 @@ export interface NibgateWalletOptions {
 }
 
 export function createNibgateWallet(options?: NibgateWalletOptions): {
+  wagmiConfig: import('wagmi').Config;
   appKitNetworks: Chain[];
   projectId: string;
 };
@@ -171,8 +173,20 @@ export function NibgateRatingUI(props: {
   onError?: (error: unknown) => void;
 }): ReactNode;
 
-// Re-exported AppKit primitives (single source so consumers share one AppKit
-// instance and never import wagmi / react-query directly).
+// Re-exported wallet stack primitives (single source so consumers share one
+// AppKit instance and never import wagmi / react-query directly).
+export { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+export {
+  WagmiProvider,
+  useAccount,
+  useBalance,
+  useChainId,
+  useSendTransaction,
+  useSignMessage,
+  useSignTypedData,
+  useSwitchChain,
+  createConfig,
+} from 'wagmi';
 export {
   createAppKit,
   AppKitProvider,

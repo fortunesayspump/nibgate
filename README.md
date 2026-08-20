@@ -9,7 +9,7 @@ Built on ARC testnet and the x402 protocol, with two payment rails: Circle Gatew
 **Key packages:**
 
 - **SDK (`packages/nibgate/`)** — `@nibgate/sdk` npm package for gating paid content on any creator site. Browser and server entrypoints, x402/Gateway unlocks, event streaming, onchain ratings. Includes the shared access-control rule (`canAccess`, `normalizeWhitelist`, `paidCutoffWallets`) used by both rails and the encryption primitives (`crypto.js`).
-- **Wallet (`packages/wallet/`)** — `@nibgate/wallet` npm package with a `./react` entry: shared Reown AppKit (adapter-less) wallet provider, SIWE sign-in, and the `<NibgateUnlock>`/`GatewayWallet` single-checkout used by the hub header, Nibshare, and Subblogs.
+- **Wallet (`packages/wallet/`)** — `@nibgate/wallet` npm package with a `./react` entry: shared Reown AppKit (AppKit + wagmi) wallet provider, SIWE sign-in, and the `<NibgateUnlock>`/`GatewayWallet` single-checkout used by the hub header, Nibshare, and Subblogs.
 - **Subblogs (`subblogs/`)** — Full blog platform for creators at `*.nibgate.xyz`. Articles, photos, music, video, documents, free and paid posts. Next.js frontend (port 3002), Express backend (port 4000), PostgreSQL. SIWE wallet auth, whitelists/invite-only tiers, AES-256-GCM encryption at rest.
 - **Hub (`frontend/` + `backend/`)** — The main `nibgate.xyz` app: public site, creator dashboard, Explore discovery, analytics, API, Nibshare quick-share rail, and widget hosting.
 - **CLI (`packages/cli/`)** — Internal tooling for local dev, site verification, and hub connection.

@@ -130,6 +130,7 @@ export default function UnlockGate({ resource }: { resource: AccessResource }) {
         gatewayBalanceUrl={GATEWAY_BALANCE_PATH}
         noncePath="/auth/nonce"
         verifyPath="/auth/verify"
+        walletBar={false}
       >
         {(state) => (
           <ContentViewer

@@ -232,8 +232,8 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     return adapter.pay(input)
   }, [resource])
 
-  // Poll AppKit's account state (synced by the WagmiAdapter) until an address
-  // lands, giving a grace window after the modal closes for the reconcile.
+  // Poll AppKit's account state (synced by its adapter-less connector) until an
+  // address lands, giving a grace window after the modal closes for the reconcile.
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()
     while (Date.now() - started < timeoutMs) {
@@ -373,7 +373,31 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   useEffect(() => {
     let cancelled = false
     const init = async () => {
-      const existingProof = storedProof(resource.id)
+      const addr = addressRef.current
+      // Access follows the WALLET, not the device. Prefer a wallet-tied check so
+      // the server re-issues access from the wallet's paid receipt (no re-pay);
+      // a stored proof is only honored as a session fallback while a wallet is
+      // actually connected — a bare proof must never grant content with no
+      // wallet, otherwise access would be device-bound instead of wallet-bound.
+      if (addr) {
+        try {
+          const res = await fetch(accessPathFor(accessPath), {
+            headers: { accept: 'application/json' },
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!cancelled && data?.ok) {
+            const nextProof = data?.unlockProof || storedProof(resource.id)
+            try { if (data?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, nextProof) } catch {}
+            setPayload(data)
+            setProof(nextProof)
+            setUnlocked(true)
+            onUnlockRef.current?.({ ok: true, payload: data, resource })
+            setChecking(false)
+            return
+          }
+        } catch {}
+      }
+      const existingProof = addr ? storedProof(resource.id) : null
       if (!existingProof) {
         if (!cancelled) setChecking(false)
         return
@@ -396,7 +420,21 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     }
     init()
     return () => { cancelled = true }
-  }, [resource.id, accessPath, accessPathFor])
+  }, [resource.id, accessPath, accessPathFor, address])
+
+  // A disconnect must release the body from this device: tear down the
+  // unlocked payload and drop any stored proof. Access is wallet-bound — on
+  // reconnect the backend re-verifies the wallet's paid receipt and ban status
+  // and serves the content again (no re-pay).
+  useEffect(() => {
+    if (isConnected) return
+    try { localStorage.removeItem(`${PROOF_PREFIX}${resource.id}`) } catch {}
+    setUnlocked(false)
+    setPayload(null)
+    setProof('')
+    setError(null)
+    setStatus('')
+  }, [isConnected, resource.id])
 
   return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail: switchRail }
 }

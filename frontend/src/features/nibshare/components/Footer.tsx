@@ -1,7 +1,7 @@
 "use client";
 
 import ThemeToggle from "@/components/ThemeToggle";
-import { useAppKit, useAppKitAccount, useDisconnect } from "@nibgate/wallet/react";
+import { useAppKitAccount, useDisconnect, useNibgateConnect } from "@nibgate/wallet/react";
 
 function shortAddress(a: string) {
   return `${a.slice(0, 6)}...${a.slice(-4)}`;
@@ -10,7 +10,7 @@ function shortAddress(a: string) {
 function FooterWalletBar() {
   const { address } = useAppKitAccount();
   const { disconnect } = useDisconnect();
-  const { open } = useAppKit();
+  const { connect } = useNibgateConnect({ authBase: "", noncePath: "/auth/nonce", verifyPath: "/auth/verify" });
   const monospace = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
   const linkStyle: React.CSSProperties = { cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" };
 
@@ -24,7 +24,7 @@ function FooterWalletBar() {
           </button>
         </>
       ) : (
-        <button type="button" className="muted plain" style={linkStyle} onClick={() => open()}>
+        <button type="button" className="muted plain" style={linkStyle} onClick={() => void connect()}>
           Connect wallet
         </button>
       )}

@@ -190,9 +190,11 @@ eligibility) but never grants content alone. Granting paths — free **invite-on
 2. a SIWE session (`auth_session`) whose wallet matches the claim.
 
 The unlock UI connects + SIWE-signs before unlocking, so the session is normally present.
-A wallet with a stored proof keeps working without a session. A paid unlock on an
-**invite-only** share also requires the paying wallet to equal the possessed wallet
-(`403` otherwise).
+A stored proof is wallet-bound: the unlock UI only replays it while a wallet is connected
+(never as a device-only pass), it is cleared on disconnect, and on reconnect the route
+re-verifies the wallet's receipt and ban status and re-issues access — no re-pay. A paid
+unlock on an **invite-only** share also requires the paying wallet to equal the possessed
+wallet (`403` otherwise).
 
 ```
 200

@@ -4,7 +4,7 @@
 
 Nibgate is a verified content discovery, unlock, and reputation layer for creator-owned work. Creators keep their content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content without moving it into a closed marketplace.
 
-Built on Circle Gateway, ARC testnet, and the x402 protocol.
+Built on ARC testnet and the x402 protocol, with two payment rails: Circle Gateway (EIP-3009 facilitator) and direct USDC transfer to the creator's receiver.
 
 **Key packages:**
 
@@ -523,6 +523,25 @@ NIBGATE_BUYER_PRIVATE_KEY=0xyourBuyerPrivateKey \
 NIBGATE_BUYER_CHAIN=arcTestnet \
 npx nibgate deposit 1.0
 ```
+
+### Direct rail (transfer)
+
+The second payment rail sends USDC straight from the buyer's wallet to the creator's `payTo` address — no Gateway facilitator. The browser checkout broadcasts the transfer and submits the tx hash as `x-nibgate-transfer-tx` on the access retry; the server verifies the mined receipt on-chain (USDC `Transfer` log to the seller for at least the price) before minting the unlock proof. Receipts are stored with `paymentProvider: 'direct-transfer'`. In the unlock UI, `NibgateUnlock`/`useNibgateUnlock` switch between the two rails via the `paymentRail` option (`'gateway'` or `'transfer'`).
+
+```js
+import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'
+
+await payWithTransfer(resource, {
+  accessPath: '/api/nibgate/access',
+  checkout: createTransferCheckout(resource, {
+    sendTransfer: async ({ recipient, amount }) => /* broadcast USDC transfer, return { txHash } */
+  })
+})
+```
+
+### Wallet-tied access
+
+Paid unlocks are wallet-bound, not device-bound. After paying, the wallet has a lifetime entitlement backed by its receipt; reconnect the wallet (and sign in via SIWE) on any device and the server re-verifies the receipt and ban status and re-serves the content — no re-pay. The unlock UI never grants from a device-stored proof unless a wallet is connected, and it relocks (tears down the payload + clears the proof) on disconnect.
 
 ## Local URLs
 

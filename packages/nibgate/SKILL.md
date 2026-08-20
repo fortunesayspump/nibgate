@@ -1,6 +1,6 @@
 ---
 name: nibgate-sdk
-description: Complete guide for integrating @nibgate/sdk into a creator-owned site. Covers widget installation, resource definition, server gating, payments (Circle Gateway/x402 on Arc Testnet), browser unlock UI, admin panel for managing gating settings, onchain reputation/ratings, manifest/discovery metadata, and common gotchas.
+description: Complete guide for integrating @nibgate/sdk into a creator-owned site. Covers widget installation, resource definition, server gating, payments (Circle Gateway and direct USDC transfer rails on Arc Testnet), browser unlock UI, admin panel for managing gating settings, onchain reputation/ratings, manifest/discovery metadata, and common gotchas.
 ---
 
 # Nibgate SDK
@@ -77,7 +77,8 @@ const resource = {
   id: post.id,
   title: post.title,       // auto-fallsback to og:title → document.title
   path: `/posts/${post.slug}`,
-  price: '0.01'            // sets access: { humans: 'paid', agents: 'paid' } automatically
+  price: '0.01',          // sets access: { humans: 'paid', agents: 'paid' } automatically
+  paymentRail: 'gateway'  // 'gateway' (Circle EIP-3009, default) or 'transfer' (direct USDC)
 }
 ```
 
@@ -142,8 +143,9 @@ export function GET(request: Request) {
 1. Checks for an existing unlock proof via `x-nibgate-payment-proof` header
 2. If valid → returns content (200)
 3. If not and `humans: 'blocked'` → returns 403
-4. If not and `humans: 'paid'` → returns a `402 Payment Required` challenge with the creator's wallet, price, and network
-5. If the request has a `payment-signature` header AND `NIBGATE_PAYMENT_MODE=circle-gateway` is set → verifies the payment and returns unlock proof + content
+4. If not and `humans: 'paid'` → returns a `402 Payment Required` challenge with the creator's wallet, price, network, and `paymentRail` (`gateway` or `transfer`)
+5. Gateway rail: if the request has a `payment-signature` header AND `NIBGATE_PAYMENT_MODE=circle-gateway` is set → verifies the payment and returns unlock proof + content
+6. Transfer rail: if the request has an `x-nibgate-transfer-tx` header → verifies the on-chain USDC transfer to the creator (mined success, `Transfer` log to the seller for at least the price) and returns unlock proof + content
 
 **The `accessPath` is queried exactly as-is.** The SDK does not auto-append `?id=` or route params. If your access route needs a content identifier, include it in the path (e.g., `/api/nibgate/access/my-content-id`) or pass it as a query param in the resource's `accessPath` field.
 
@@ -190,10 +192,12 @@ createEvmGatewayUnlock(resource, {
 
 The browser flow:
 1. `checkResourceAccess()` calls the access route
-2. If 402 → prompts wallet to sign the Gateway payment
-3. Sends signature back to access route
+2. If 402 → prompts wallet to sign the Gateway payment (or broadcast a direct USDC transfer)
+3. Sends signature (or transfer tx hash) back to access route
 4. Server verifies and returns unlock proof
-5. Proof stored in localStorage → subsequent requests include it as `x-nibgate-payment-proof`
+5. The unlock proof is wallet-bound: it is stored in localStorage but the unlock UI only replays it while a wallet is connected, and it is cleared on disconnect
+
+**Access follows the wallet, not the device.** Once a wallet pays, it has a lifetime entitlement backed by its receipt. Reconnect the wallet on any device and the server re-verifies the receipt and ban status and re-serves the content — no re-pay. Disconnecting relocks the content (payload torn down, proof cleared).
 
 For custom flows, use `checkResourceAccess(resource, options)` directly.
 
@@ -309,9 +313,9 @@ Visit `/admin/nibgate` in your browser. The page shows all configured resources 
 
 ---
 
-## 8. Payments (Circle Gateway / x402 on Arc Testnet)
+## 8. Payments (Gateway and direct transfer rails on Arc Testnet)
 
-For v1, treat `unlock.mode: 'one_time'` with Circle Gateway/x402 as the production path. All payments settle on Arc Testnet (chain ID 5042002) in USDC.
+For v1, treat `unlock.mode: 'one_time'` with the Gateway rail or the direct USDC transfer rail as the production path. All payments settle on Arc Testnet (chain ID 5042002) in USDC.
 
 ### How payment works
 
@@ -320,10 +324,34 @@ For v1, treat `unlock.mode: 'one_time'` with Circle Gateway/x402 as the producti
 3. Signed payload sent to server as `payment-signature` header
 4. Server verifies with `createGatewayMiddleware` from `@circle-fin/x402-batching/server`
 5. On success, server creates an HMAC-signed unlock token and returns it directly with the **premium content body**
-6. Browser stores the token as `x-nibgate-payment-proof` for subsequent requests
-7. On return visits, browser sends stored proof → server verifies → returns content without payment
+6. Browser stores the token as `x-nibgate-payment-proof` — a wallet-bound cache, never a device-only pass
+7. On return visits, the browser sends the stored proof (only while a wallet is connected) → server re-verifies the wallet's receipt and ban status → returns content without payment; reconnect on any device re-serves the same content, no re-pay
 
 > **⚠️ Important:** Use viem's `createWalletClient` + `custom(window.ethereum)` transport instead of raw `eth_signTypedData_v4`. This ensures consistent EIP-712 hashing across wallets (MetaMask, Rabby, etc.). Raw `eth_signTypedData_v4` can produce hashes that don't match what the server expects.
+
+### Direct rail (USDC transfer)
+
+The second rail sends USDC straight from the buyer's wallet to the creator's receiver — no Gateway facilitator. The 402 challenge carries `paymentRail: 'transfer'` and the seller's `payTo`. The browser broadcasts the transfer, then retries the access route with the tx hash as the `x-nibgate-transfer-tx` header; the server verifies the mined receipt on-chain (USDC `Transfer` log crediting the seller for at least the price) before minting the unlock proof.
+
+```ts
+import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'
+
+await payWithTransfer(resource, {
+  accessPath: '/api/nibgate/access',
+  checkout: createTransferCheckout(resource, {
+    // Broadcast the transfer from the connected wallet; return the txHash.
+    sendTransfer: async ({ recipient, amount }) =>
+      (await walletClient.sendTransaction({
+        account,
+        to: recipient,
+        value: 0n,
+        data: encodeFunctionData({ abi: usdcTransferAbi, args: [recipient, parseUnits(amount, 6)] })
+      }))
+  })
+})
+```
+
+The resulting receipt is stored with `paymentProvider: 'direct-transfer'` and keyed by the transfer `txHash`. Set the rail per resource with `paymentRail: 'transfer'`, per request with `?rail=transfer`, or via `NIBGATE_PAYMENT_MODE=transfer`.
 
 ### Before testing locally
 
@@ -674,18 +702,23 @@ GET /api/posts/:slug           GET /api/nibgate/access
 ```tsx
 function NibgateUnlock({ resource }) {
   const [content, setContent] = useState('');
+  const { address, isConnected } = useAppKitAccount(); // connected wallet
 
-  // On mount: check stored proof → get content or show unlock
+  // On mount (and when the wallet connects): check access BY WALLET, so the
+  // server re-issues content from the wallet's paid receipt (no re-pay).
   useEffect(() => {
-    fetch('/api/nibgate/access', {
-      headers: { 'x-nibgate-payment-proof': storedProof }
-    }).then(r => r.json()).then(data => {
-      if (data.content) setContent(data.content);
-    });
-  }, []);
+    if (!address) return setContent(''); // no wallet → nothing on this device
+    fetch(`/api/nibgate/access?wallet=${address}`, { headers: { accept: 'application/json' } })
+      .then(r => r.json()).then(data => {
+        if (data?.ok) setContent(data.content);
+      });
+  }, [address]);
 
-  if (content) return <div>{content}</div>;   // Already paid → show content
-  return <button onClick={handleUnlock}>Pay</button>;  // Need payment
+  // Disconnect tears down the body — the device holds nothing.
+  useEffect(() => { if (!isConnected) setContent(''); }, [isConnected]);
+
+  if (content) return <div>{content}</div>;   // Paid + wallet verified → show content
+  return <button onClick={handleConnectAndUnlock}>Connect & unlock</button>;  // Need wallet/payment
 }
 ```
 
@@ -718,6 +751,7 @@ app.get('/nibgate/access', async (req, res) => {
 - **Never** include paid content in the initial HTML, even with `hidden` or `display:none`
 - **Never** return the body from a public API endpoint for paid posts
 - **Always** serve content through the protected access endpoint after proof verification
+- **Access is wallet-bound** — a device-stored proof never grants content on its own; require the connected wallet and let the server re-verify the receipt (reconnect → no re-pay, disconnect → relock)
 - **Always** use viem's `walletClient.signTypedData()` with MetaMask, not raw `eth_signTypedData_v4`
 
 ## 17. Framework Notes

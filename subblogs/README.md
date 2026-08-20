@@ -10,7 +10,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - Photo, music, and video post support (music: encrypted audio + embedded player; video: upload or YouTube/Vimeo/SoundCloud/Spotify), plus document (PDF/DOCX) posts
 - Free and paid content gating via `@nibgate/sdk`
 - Whitelists, supporter price tiers, and invite-only posts (shared access-control rule)
-- All post bodies and media are encrypted at rest (free and paid); free posts are decrypted and served to anyone, paid posts stay behind x402 proof; photo covers stay plaintext
+- All post bodies and media are encrypted at rest (free and paid); free posts are decrypted and served to anyone, paid posts stay behind x402 proof (Gateway or direct USDC transfer rail); photo covers stay plaintext
 - SIWE wallet sign-in plus email/password admin (wallet is a possession signal for proof-bound access)
 - Admin dashboard with create, edit, publish, draft, delete, and per-post stats (unlocks, revenue, receipts)
 - Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`)
@@ -38,7 +38,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - **Frontend**: Next.js 15 + React 19 + Tailwind CSS 4 + Motion (port 3002)
 - **Auth**: SIWE wallet sign-in (HttpOnly `sb_auth_session` JWT) + email/password
 - **Content**: Markdown with react-markdown
-- **Premium gating**: `@nibgate/sdk` (`^0.4.8`) + `@nibgate/wallet` (`0.2.13`) from npm, exact-pinned wagmi/appkit/viem peers
+- **Premium gating**: `@nibgate/sdk` (`^0.4.14`) + `@nibgate/wallet` (`^0.4.3`) from npm — Reown AppKit (adapter-less, no wagmi) + viem. Paid posts unlock via the Gateway (EIP-3009) rail or the direct USDC transfer rail; access follows the wallet (reconnect + sign in to re-view, never re-pay; disconnect relocks).
 
 ## Quick Start
 

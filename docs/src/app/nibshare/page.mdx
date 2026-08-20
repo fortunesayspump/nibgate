@@ -169,7 +169,7 @@ A bare `?wallet=` / `walletAddress` parameter is a client **claim**, never an id
 1. a valid, bound `unlockProof` for that wallet, or
 2. a SIWE session (`auth_session` cookie) whose wallet matches the claim.
 
-The unlock flow connects + SIWE-signs in before unlocking, so the session is normally present. A wallet with a stored proof keeps working without a session. If neither exists, an anonymous view of a paid share is charged the **public** price and paid wallets are never granted to a bare claim.
+The unlock flow connects + SIWE-signs in before unlocking, so the session is normally present. A stored proof is wallet-bound: the unlock UI only replays it while a wallet is connected (never as a device-only pass) and clears it on disconnect; on reconnect the route re-verifies the wallet's receipt and ban status and re-issues access — no re-pay. If neither a session nor a connected wallet exists, an anonymous view of a paid share is charged the **public** price and paid wallets are never granted to a bare claim.
 
 ## Media streaming
 
@@ -280,7 +280,7 @@ Creating and managing shares uses a wallet session: a nonce-based SIWE (EIP-4361
 | Create / upload / manage | `auth_session` cookie (owner wallet) |
 | View, meta, free public read | none |
 | Free invite-only read / free-tier grant / lifetime re-issue | `auth_session` possessing the whitelisted wallet, or valid `unlockProof` |
-| Paid unlock | x402 payment (or stored proof) |
+| Paid unlock | x402 payment on the Gateway or direct-transfer rail (a stored proof replays only while its wallet is connected) |
 | Media replay | `x-nibgate-payment-proof` (or `?proof=`, or `?wallet=` + session) |
 
 ## Data model

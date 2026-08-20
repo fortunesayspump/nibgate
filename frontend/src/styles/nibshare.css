@@ -500,6 +500,49 @@ body:has(.nibshare-root) ::selection {
 .nibshare-root .share-wallet-item-theme:hover {
   background: transparent;
 }
+.theme-toggle {
+  align-items: center;
+  gap: 10px;
+  display: flex;
+}
+.theme-toggle__label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.theme-toggle__button {
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: transparent;
+  border-radius: 999px;
+  width: 46px;
+  height: 24px;
+  transition:
+    background 0.25s,
+    border-color 0.25s;
+  position: relative;
+}
+.theme-toggle__button:before {
+  content: "";
+  background: var(--fg);
+  border-radius: 999px;
+  width: 14px;
+  height: 14px;
+  transition:
+    transform 0.25s,
+    background 0.25s;
+  position: absolute;
+  top: 4px;
+  left: 4px;
+}
+.theme-toggle__button[aria-pressed="true"] {
+  background: var(--fg);
+}
+.theme-toggle__button[aria-pressed="true"]:before {
+  background: var(--bg);
+  transform: translate(24px);
+}
 .nibshare-root .share-wallet-item-theme .theme-toggle__label {
   color: var(--muted);
   font-size: 10px;

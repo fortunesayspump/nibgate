@@ -1,6 +1,6 @@
 {
   "name": "@nibgate/sdk",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "Framework-agnostic browser and server package for creator-owned gated content, unlock events, and receipts.",
   "type": "module",
   "sideEffects": [
@@ -65,7 +65,7 @@
   "license": "MIT",
   "dependencies": {
     "@circle-fin/x402-batching": "^3.0.4",
-    "@nibgate/wallet": "^0.1.0 || ^0.2.0",
+    "@nibgate/wallet": "^0.1.0 || ^0.2.0 || ^0.3.0",
     "@x402/core": "^2.17.0",
     "@x402/evm": "^2.17.0",
     "viem": "^2.54.1"

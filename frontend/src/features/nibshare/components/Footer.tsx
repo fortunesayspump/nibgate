@@ -1,27 +1,33 @@
 "use client";
 
 import ThemeToggle from "@/components/ThemeToggle";
-import { useAppKitAccount, useDisconnect } from "@nibgate/wallet/react";
+import { useAppKit, useAppKitAccount, useDisconnect } from "@nibgate/wallet/react";
 
 function shortAddress(a: string) {
   return `${a.slice(0, 6)}...${a.slice(-4)}`;
 }
 
 function FooterWalletBar() {
-  const { address, isConnected } = useAppKitAccount();
+  const { address } = useAppKitAccount();
   const { disconnect } = useDisconnect();
-  if (!isConnected || !address) return null;
+  const { open } = useAppKit();
+  const monospace = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
+  const linkStyle: React.CSSProperties = { cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" };
+
   return (
     <span className="muted font-ui" style={{ display: "inline-flex", alignItems: "center", gap: "0.5em", fontSize: 13 }}>
-      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}>{shortAddress(address)}</span>
-      <button
-        type="button"
-        className="muted plain"
-        onClick={() => disconnect()}
-        style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}
-      >
-        Disconnect
-      </button>
+      {address ? (
+        <>
+          <span style={monospace}>{shortAddress(address)}</span>
+          <button type="button" className="muted plain" style={linkStyle} onClick={() => disconnect()}>
+            Disconnect
+          </button>
+        </>
+      ) : (
+        <button type="button" className="muted plain" style={linkStyle} onClick={() => open()}>
+          Connect wallet
+        </button>
+      )}
     </span>
   );
 }

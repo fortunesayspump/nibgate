@@ -1,6 +1,11 @@
+import ThemeToggle from "@/components/ThemeToggle";
+
 export default function NibshareFooter() {
   return (
     <footer className="bt pn2" style={{ margin: "2em auto", maxWidth: "var(--wrap-wide)", width: "var(--wrap-normal)", textAlign: "center" }}>
+      <div className="theme-toggle" style={{ justifyContent: "center", marginBottom: "1.5em" }}>
+        <ThemeToggle />
+      </div>
       <p className="muted font-ui" style={{ textAlign: "center" }}>
         <a href="https://nibgate.xyz" target="_blank" rel="noopener noreferrer" className="muted plain" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3em" }}>
           <span>Powered by</span>

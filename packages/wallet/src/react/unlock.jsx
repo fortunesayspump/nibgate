@@ -712,11 +712,45 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
   )
 }
 
+// Persistent wallet status shown once content is unlocked, so visitors can
+// always disconnect — the gate footer (which carries the address + disconnect)
+// disappears once the paywall is replaced by the unlocked content.
+function NibgateWalletBar({ address, onDisconnect }) {
+  if (!address) return null
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+        rowGap: 8,
+        marginTop: 40,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        fontSize: 'clamp(13px, 3.4vw, 15px)',
+        color: 'var(--muted, #6b6862)',
+        textAlign: 'center',
+      }}
+    >
+      <span>{shortAddress(address)}</span>
+      <button type="button" style={{ ...labelButtonStyle, cursor: 'pointer' }} onClick={() => onDisconnect?.()}>
+        · Disconnect
+      </button>
+    </div>
+  )
+}
+
 export function NibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, children, authBase = '', noncePath = '', verifyPath = '' }) {
   const state = useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, authBase, noncePath, verifyPath })
   if (state.unlocked) {
-    if (typeof children === 'function') return children(state)
-    return children
+    const content = typeof children === 'function' ? children(state) : children
+    return (
+      <>
+        {content}
+        <NibgateWalletBar address={state.address} onDisconnect={state.disconnect} />
+      </>
+    )
   }
   return <NibgateUnlockUI {...state} resource={resource} gatewayBalanceUrl={gatewayBalanceUrl} />
 }

@@ -5,7 +5,9 @@ Hosted quick-share for gated content — no domain required.
 Nibshare lets anyone connect a wallet, write content, set a USDC price, an
 expiry (required, max 7 days out), and an optional wallet whitelist, then get a short link
 (`https://nibgate.xyz/ns/<slug>`) to share. Unlocking uses the same
-x402 / USDC / Circle Gateway rail as the rest of Nibgate.
+x402 / USDC rails as the rest of Nibgate — Circle Gateway (EIP-3009) or direct USDC
+transfer to the seller. Paid access follows the wallet: reconnect + sign in to re-view
+(re-verified from the wallet's receipt, no re-pay); disconnect relocks.
 
 It is the **on-ramp / demo tier** of Nibgate. The flagship thesis stays: creators keep
 content on their own domains, and Nibgate verifies + indexes. Nibshare is for the

@@ -39,6 +39,7 @@ x402 has no native payment id — the settlement `txHash` is the only stable ide
 
 <Cards>
   <Cards.Card title="x402 gateway receipt" href="/payments-receipts#x402-gateway-receipt" />
+  <Cards.Card title="Direct transfer receipt" href="/payments-receipts#direct-transfer-receipt" />
   <Cards.Card title="Arc testnet receipt" href="/payments-receipts#arc-testnet-receipt" />
 </Cards>
 
@@ -65,6 +66,30 @@ const result = await agent.pay(contentAccessUrl, {
 ```
 
 The `GatewayClient.pay()` method auto-handles the 402 challenge → EIP-3009 signing → retry → settlement flow.
+
+## Direct transfer receipt
+
+Use the direct rail when the buyer's wallet sends USDC straight to the creator's receiver (no Gateway facilitator). The browser checkout is `createTransferCheckout`/`payWithTransfer` from `@nibgate/sdk` — it broadcasts a USDC `transfer` to the seller's `payTo` address and submits the tx hash as the `x-nibgate-transfer-tx` header on the access retry.
+
+The server verifies on-chain (`createTransferVerifier`): the transaction mined successfully, a USDC `Transfer` log credits the seller's address, and the amount is at least the resource price. On success it mints the unlock proof and returns the content, storing a `paymentProvider: 'direct-transfer'` receipt keyed by `txHash`.
+
+```ts
+import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'
+
+const result = await payWithTransfer(resource, {
+  accessPath: '/api/nibgate/access',
+  checkout: createTransferCheckout(resource, {
+    // Broadcast the transfer from the connected wallet; return the txHash.
+    sendTransfer: async ({ recipient, amount, currency }) =>
+      (await walletClient.sendTransaction({
+        account,
+        to: recipient,
+        value: 0n,
+        data: encodeFunctionData({ abi: usdcTransferAbi, args: [recipient, parseUnits(amount, 6)] })
+      }))
+  })
+})
+```
 
 ### Enabling hub event reporting
 

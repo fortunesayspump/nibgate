@@ -741,14 +741,14 @@ function NibgateWalletBar({ address, onDisconnect }) {
   )
 }
 
-export function NibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, children, authBase = '', noncePath = '', verifyPath = '' }) {
+export function NibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, children, authBase = '', noncePath = '', verifyPath = '', walletBar = true }) {
   const state = useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, authBase, noncePath, verifyPath })
   if (state.unlocked) {
     const content = typeof children === 'function' ? children(state) : children
     return (
       <>
         {content}
-        <NibgateWalletBar address={state.address} onDisconnect={state.disconnect} />
+        {walletBar && <NibgateWalletBar address={state.address} onDisconnect={state.disconnect} />}
       </>
     )
   }

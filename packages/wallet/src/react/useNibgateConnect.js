@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppKit, useAppKitState, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
-import { signInWithSiwe } from './siwe.js'
+import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 
 export function useNibgateConnect(options = {}) {
@@ -57,7 +57,7 @@ export function useNibgateConnect(options = {}) {
   async function sign(addr) {
     await ensureWalletAuthorized(addr, { walletProvider, appKitAccount: { address: addr } })
     setStatus('signing')
-    await signInWithSiwe(addr, (message) => signWithProvider(walletProvider, addr, message), { authBase, noncePath, verifyPath })
+    await signInWithSiwe(addr, (message) => signMessageWithProvider(walletProvider, addr, message), { authBase, noncePath, verifyPath })
     setStatus('signed-in')
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT))
@@ -138,17 +138,4 @@ export function useNibgateConnect(options = {}) {
   }, [open, address, walletProvider, authBase, noncePath, verifyPath])
 
   return { connect, signIn, busy, status, error, address, clearError }
-}
-
-// Sign a SIWE message via the AppKit wallet provider (the source of truth for
-// the connected session), not wagmi's useSignMessage (which throws
-// "Connector not connected" when the wagmi connector isn't reconciled yet).
-function signWithProvider(walletProvider, address, message) {
-  if (!walletProvider || typeof walletProvider.request !== 'function') {
-    throw new Error('Wallet provider is not available. Make sure a wallet is connected.')
-  }
-  return walletProvider.request({
-    method: 'personal_sign',
-    params: [message, address],
-  })
 }

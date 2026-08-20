@@ -1,5 +1,6 @@
 import type { Chain } from 'viem';
 import type { ReactNode } from 'react';
+import type { Eip1193Provider } from '../index.js';
 
 export interface NibgateWalletOptions {
   projectId?: string;
@@ -30,6 +31,11 @@ export function signInWithSiwe(
   signMessage: SiweSigner,
   options?: { authBase?: string; noncePath?: string; verifyPath?: string; headers?: Record<string, string>; domain?: string; uri?: string }
 ): Promise<{ message: string; signature: `0x${string}`; user?: unknown }>;
+export function signMessageWithProvider(
+  walletProvider: Eip1193Provider | undefined | null,
+  address: string,
+  message: string,
+): Promise<unknown>;
 
 export const HUB_SESSION_UPDATED_EVENT: string;
 export const HUB_SESSION_CLEARED_EVENT: string;

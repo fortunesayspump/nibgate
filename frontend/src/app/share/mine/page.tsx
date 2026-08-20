@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitProvider, signMessageWithProvider } from "@nibgate/wallet/react";
 import type { Eip1193Provider } from "@nibgate/wallet";
 import { FiPlus, FiEdit2, FiSearch } from 'react-icons/fi';
 import { ShareLayout, ShareBtn, ShareIntro, ShareError } from '@/features/nibshare/components/ShareLayout';
@@ -85,7 +85,7 @@ export default function ShareMinePage() {
       if (!walletProvider || typeof walletProvider.request !== "function") {
         throw new Error("Wallet provider is not available. Reconnect your wallet and try again.");
       }
-      await signInWithSiwe(address as `0x${string}`, async (message) => (await walletProvider.request({ method: "personal_sign", params: [message, address] })) as `0x${string}`);
+      await signInWithSiwe(address as `0x${string}`, (message) => signMessageWithProvider(walletProvider, address, message) as Promise<`0x${string}`>);
       setSession('authed');
       window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT));
       await load();

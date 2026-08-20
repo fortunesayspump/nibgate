@@ -232,7 +232,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     return adapter.pay(input)
   }, [resource])
 
-  // Poll AppKit's account state (synced by its adapter-less connector) until an
+  // Poll AppKit's account state (synced by its AppKit connector) until an
   // address lands, giving a grace window after the modal closes for the reconcile.
   async function waitForWallet(timeoutMs = 30000) {
     const started = Date.now()

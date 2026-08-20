@@ -38,7 +38,7 @@ export function useNibgateConnect(options = {}) {
     const started = Date.now()
     let sawModalOpen = false
     let modalClosedAt = 0
-    const GRACE_MS = 6000 // after AppKit's modal closes, give the adapter-less connector a moment to reconcile
+    const GRACE_MS = 6000 // after AppKit's modal closes, give the connector a moment to reconcile
     while (Date.now() - started < timeoutMs) {
       const addr = addressRef.current
       if (addr) return addr
@@ -103,8 +103,7 @@ export function useNibgateConnect(options = {}) {
     let attempt = 0
     try {
       // AppKit's open() shows the modal; selecting a wallet triggers AppKit to
-      // reconcile the account into useAppKitAccount (synced by its adapter-less
-      // connector).
+      // reconcile the account into useAppKitAccount (synced by its connector).
       // Poll for the address; if the first pass doesn't resolve (e.g. after a
       // full cache+permission clear), retry once before erroring.
       while (attempt < 2) {

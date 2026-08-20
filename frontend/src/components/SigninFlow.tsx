@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppKit, useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
+import { useAppKit, useAppKitAccount, useAppKitProvider, signMessageWithProvider } from "@nibgate/wallet/react";
 import type { Eip1193Provider } from "@nibgate/wallet";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -123,10 +123,7 @@ export default function SigninFlow() {
       if (!walletProvider || typeof walletProvider.request !== "function") {
         throw new Error("Wallet provider is not available. Reconnect your wallet and try again.");
       }
-      const signature = (await walletProvider.request({
-        method: "personal_sign",
-        params: [message, walletAddress],
-      })) as `0x${string}`;
+      const signature = (await signMessageWithProvider(walletProvider, walletAddress, message)) as `0x${string}`;
       const verifyRes = await fetch("/auth/verify", {
         method: "POST",
         credentials: "include",

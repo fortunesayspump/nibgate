@@ -4,7 +4,7 @@ export {
   NIBGATE_RPC_URL,
 } from './appkit.js'
 export { NibgateWalletProvider } from './NibgateWalletProvider.jsx'
-export { signInWithSiwe } from './siwe.js'
+export { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 export {
   HUB_SESSION_UPDATED_EVENT,
   HUB_SESSION_CLEARED_EVENT,

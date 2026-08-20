@@ -7,7 +7,7 @@ import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from
 import { ensureWalletAuthorized } from './authorize.js'
 import { ARC_TESTNET, isArcNetwork } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
-import { signInWithSiwe } from './siwe.js'
+import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
 import { GatewayWalletUI } from './gateway-wallet.jsx'
@@ -270,7 +270,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       // personal_sign via the AppKit EIP-1193 provider (same proven path as
       // useNibgateConnect.js). wagmi's signMessageAsync throws
       // "Connector not connected" when its connector hasn't reconciled.
-      await signInWithSiwe(addr, (message) => provider.request({ method: 'personal_sign', params: [message, addr] }), { authBase, noncePath, verifyPath })
+      await signInWithSiwe(addr, (message) => signMessageWithProvider(provider, addr, message), { authBase, noncePath, verifyPath })
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(HUB_SESSION_UPDATED_EVENT, { detail: { address: addr } }))
       }

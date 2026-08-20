@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useAppKitAccount, useAppKitNetwork, useBalance, useDisconnect } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitNetwork, useDisconnect } from "@nibgate/wallet/react";
 import { arcTestnet } from '../lib/wagmi'
 import { isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
@@ -28,6 +28,29 @@ const gatewayClient = createPublicClient({
   chain: arcTestnet,
   transport: http(arcTestnet.rpcUrls.default.http[0]),
 })
+
+function useNativeBalance(address?: `0x${string}`) {
+  const [balance, setBalance] = useState<{ value: bigint; decimals: number } | undefined>(undefined)
+  useEffect(() => {
+    if (!address) {
+      setBalance(undefined)
+      return
+    }
+    let cancelled = false
+    gatewayClient
+      .getBalance({ address })
+      .then((value) => {
+        if (!cancelled) setBalance({ value, decimals: arcTestnet.nativeCurrency.decimals })
+      })
+      .catch(() => {
+        if (!cancelled) setBalance(undefined)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [address])
+  return balance
+}
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
@@ -134,10 +157,7 @@ export function WalletButton() {
   useEffect(() => { walletConnectedRef.current = isWalletConnected }, [isWalletConnected])
   useEffect(() => { sessionAddrRef.current = sessionAddr }, [sessionAddr])
 
-  const { data: nativeBalance } = useBalance({
-    address: displayAddress,
-    chainId: arcTestnet.id,
-  })
+  const nativeBalance = useNativeBalance(displayAddress)
 
   const [selectedToken, setSelectedToken] = useState<'native' | 'gateway'>('native')
   const [gatewayBalance, setGatewayBalance] = useState(0)
@@ -249,10 +269,7 @@ export function WalletButtonMobile() {
   const effectiveAddress = displayAddress ?? sessionAddr
   const isConnectedAny = isWalletConnected || Boolean(sessionAddr)
 
-  const { data: nativeBalance } = useBalance({
-    address: displayAddress,
-    chainId: arcTestnet.id,
-  })
+  const nativeBalance = useNativeBalance(displayAddress)
 
   const [selectedToken, setSelectedToken] = useState<'native' | 'gateway'>('native')
   const [gatewayBalance, setGatewayBalance] = useState(0)

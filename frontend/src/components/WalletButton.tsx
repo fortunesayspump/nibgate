@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAppKitAccount, useAppKitNetwork, useDisconnect } from "@nibgate/wallet/react";
-import { arcTestnet } from '../lib/wagmi'
+import { arcTestnet } from '@nibgate/wallet'
 import { isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT, HUB_SESSION_UPDATED_EVENT } from '../lib/hubSession'

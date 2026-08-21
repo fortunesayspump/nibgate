@@ -16,8 +16,8 @@ The payment flow connects the reader's wallet to the creator's fee wallet contra
 Reader wallet
   -> initiates payment on unlock UI (gateway or direct rail)
   -> USDC lands in the creator's GatewayFeeWallet contract (ARC testnet)
-  -> Package reports receipt to Nibgate hub (net = gross − 1%)
-  -> Keeper sweeps the wallet: distribute() pays out 99% to the creator EOA, 1% to treasury
+  -> Package reports receipt to Nibgate hub (amount + derived protocolFee)
+  -> Keeper sweeps the wallet: gatewayMint then distribute() pays 99% to the creator EOA, 1% to treasury
   -> Dashboard and leaderboards update
 ```
 
@@ -90,8 +90,7 @@ The admin dashboard provides detailed revenue tracking:
   "paymentProvider": "circle-gateway",
   "paymentId": "...",
   "amount": "0.01",
-  "revenue": "0.0099",
-  "protocolFee": "0.0001",
+  "revenue": "0.01",
   "currency": "USDC",
   "payer": "0xBuyerWallet",
   "recipient": "0xCreatorFeeWallet",
@@ -101,7 +100,7 @@ The admin dashboard provides detailed revenue tracking:
 }
 ```
 
-Note: `recipient` is the **creator's fee wallet contract** (the payment receiver), `payer` is the buyer's wallet, and `revenue` is the creator's net share after the 1% protocol fee (`amount − protocolFee`) — not the other way around.
+Note: `recipient` is the **creator's fee wallet contract** (the payment receiver) and `payer` is the buyer's wallet. The SDK reports `revenue` as the gross price (legacy field name). The hub derives `protocolFee` (1% under hosted pay) from `amount` and stores both — so the creator's net take is always `amount − protocolFee`, matching what the fee wallet contract later distributes on-chain (99% creator / 1% treasury of the wallet balance at sweep time; Circle's own settlement fee, if any, is separate and comes out before the split).
 
 ## Reputation scores
 

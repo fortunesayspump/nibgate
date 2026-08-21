@@ -511,7 +511,8 @@ On Nibgate-hosted surfaces (hub widget checkout, Subblogs), payments go to a per
 NIBGATE_HOSTED_PAY=true \
 NIBGATE_FEE_WALLET_FACTORY=0xYourFactoryAddress \
 NIBGATE_TREASURY=0xYourTreasuryAddress \
-NIBGATE_FEE_KEEPER=0xyourKeeperPrivateKey \
+NIBGATE_FEE_KEEPER=1 \
+NIBGATE_KEEPER_PRIVATE_KEY=0xyourKeeperPrivateKey \
 npm run dev
 ```
 

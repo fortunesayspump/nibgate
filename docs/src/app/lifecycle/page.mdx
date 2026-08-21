@@ -113,6 +113,8 @@ Unlock remains creator-site native. The site can use x402, Gateway, direct walle
 
 The creator site/package controls receiver address, price, payment verification, and unlock access. Nibgate does not custody funds.
 
+On Nibgate-hosted surfaces (the hub widget checkout and Subblogs), the receiver resolves to the creator's `GatewayFeeWallet` contract — an immutable per-creator contract that keeps 99% for the creator and routes a 1% protocol fee to the treasury. See [Revenue model](/revenue-model).
+
 For the MVP, the unlock mode is `one_time`: one verified payment unlocks the resource. Later versions can add metered streaming, metered reading, time passes, or agent quotas without moving the content away from the creator origin.
 
 ### Package reports unlock/payment receipt

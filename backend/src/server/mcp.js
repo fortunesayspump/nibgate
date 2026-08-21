@@ -97,7 +97,7 @@ async function getLedger(args = {}) {
     for (const p of payments) activities.push({
       type: 'payment', id: p.id, websiteId: p.websiteId, actor: p.payerWallet || p.actor || 'wallet',
       contentId: p.contentId, contentTitle: p.content?.title || '', contentUrl: p.content?.url || '',
-      domain: p.website?.domain || '', amount: p.amount || 0, currency: p.currency || 'USDC',
+      domain: p.website?.domain || '', amount: p.amount || 0, protocolFee: p.protocolFee, currency: p.currency || 'USDC',
       paymentId: p.paymentId, txHash: p.txHash || null, chainId: p.chainId || null,
       network: p.network || null, paymentProvider: p.paymentProvider || null, receiptUrl: p.receiptUrl || null,
       payerWallet: p.payerWallet || null, recipientWallet: p.recipientWallet || null,

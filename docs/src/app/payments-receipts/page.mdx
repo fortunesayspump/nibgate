@@ -9,7 +9,7 @@ Nibgate earnings are payment analytics, not withdrawals. Funds flow to the creat
 With hosted pay enabled, the hub resolves each creator's payment destination to their `GatewayFeeWallet` contract (deployed deterministically per creator). A creator can run multiple sites, and every site resolves to the same fee wallet for that creator.
 
 <Callout type="important">
-Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock. Receipts store the gross `amount`, the creator's net `revenue`, and the on-chain `protocolFee` so analytics match the contract split exactly.
+Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock. Receipts store the gross `amount` plus a derived `protocolFee` (1% under hosted pay), so analytics match the fee wallet contract's on-chain 99/1 split — see [Revenue model](/revenue-model).
 </Callout>
 
 ## Unlock model

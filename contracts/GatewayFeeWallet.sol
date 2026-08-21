@@ -3,8 +3,7 @@ pragma solidity ^0.8.20;
 
 // GatewayFeeWallet — ERC-1271 fee policy wallet for Nibgate-hosted content.
 //
-// Production copy of the contract proven live on Arc testnet
-// (revenue-model/poc/gateway/GatewayFeeWallet.sol, 2026-08-09). It serves as
+// Proven live on Arc testnet 2026-08-09. It serves as
 // the seller ("payTo") on BOTH payment rails:
 //
 //   - Circle Gateway rail: buyers settle gasless batched EIP-3009; the full

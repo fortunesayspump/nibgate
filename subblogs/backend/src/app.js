@@ -35,32 +35,29 @@ app.use(cookieParser());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || !origin.startsWith('http')) return callback(null, true);
-    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
-    if (allowed.some(a => {
-      if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
-      return a === origin;
-    })) return callback(null, true);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
-}));
-app.options('*', cors({
-  origin: (origin, callback) => {
-    if (!origin || !origin.startsWith('http')) return callback(null, true);
-    const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
-    if (allowed.some(a => {
-      if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
-      return a === origin;
-    })) return callback(null, true);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'],
-}));
+const corsOriginCheck = (req, origin, callback) => {
+  if (!origin || !origin.startsWith('http')) return callback(null, true);
+  const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+  if (allowed.some(a => {
+    if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
+    return a === origin;
+  })) return callback(null, true);
+  // Same-site via our own frontend proxy (e.g. http://sub.nibgate.xyz:3002 in dev,
+  // where the Next rewrite forwards the browser's Origin header): hostname must
+  // match the host the request was addressed to.
+  try {
+    const originHost = new URL(origin).hostname;
+    const target = String(req.headers['x-forwarded-host'] || req.headers.host || '');
+    if (target && originHost === target.split(':')[0]) return callback(null, true);
+  } catch {}
+  callback(new Error('Not allowed by CORS'));
+};
+const corsOpts = (req, callback) => {
+  const done = (err, ok) => callback(err, ok ? { origin: true, credentials: true, exposedHeaders: ['payment-required', 'x-nibgate-payment-proof'] } : false);
+  corsOriginCheck(req, req.headers.origin, done);
+};
+app.use(cors(corsOpts));
+app.options('*', cors(corsOpts));
 
 app.use(generalLimiter);
 

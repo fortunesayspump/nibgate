@@ -23,7 +23,7 @@ async function listCreators() {
   try {
     const users = await db.user.findMany({ select: { walletAddress: true, websites: { select: { id: true } } } });
     for (const u of users) {
-      if (u.websites?.length) creators.add(String(u.walletAddress).trim().toLowerCase());
+      if (u.walletAddress && u.websites?.length) creators.add(String(u.walletAddress).trim().toLowerCase());
     }
   } catch (error) {
     console.log('Revenue keeper: hub owner discovery failed:', error.message);

@@ -6,6 +6,7 @@ const prisma = require('../../lib/prisma');
 const { authenticate } = require('../../middlewares/auth');
 const { status } = require('http-status');
 const { invalidateSite } = require('../../lib/tenant-cache');
+const config = require('../../config/config');
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.get('/', authenticate, async (req, res, next) => {
         subdomain: site.subdomain,
         hubSiteId: settings.hubSiteId || null,
         hubToken: settings.hubToken || null,
-        widgetScript: `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken || ''}" data-nibgate-api="https://api.nibgate.xyz"></script>`,
+        widgetScript: `<script async src="${config.nibgate.webBase}/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken || ''}" data-nibgate-api="${config.nibgate.hubApi}"></script>`,
       },
     });
   } catch (error) {
@@ -100,7 +101,7 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     const { linkToken } = req.body;
     if (!linkToken) return res.status(400).json({ error: 'linkToken is required.' });
 
-    const hubApi = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
+    const hubApi = config.nibgate.hubApi;
     const domain = `${req.site.subdomain}.nibgate.xyz`;
 
     const hubRes = await fetch(`${hubApi}/hub/blog/link/verify`, {
@@ -135,7 +136,7 @@ router.post('/link-hub/disconnect', authenticate, async (req, res, next) => {
     let settings = {};
     try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
 
-    const hubApi = process.env.HUB_API_URL || 'https://api.nibgate.xyz';
+    const hubApi = config.nibgate.hubApi;
 
     if (settings.hubSiteId && settings.hubToken) {
       const hubRes = await fetch(`${hubApi}/hub/blog/link/disconnect`, {

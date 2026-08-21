@@ -35,3 +35,6 @@ local-ops/
 # revenue model research (kept local, not committed)
 revenue-model/
 e2e/
+
+# binary litter
+*.mp4

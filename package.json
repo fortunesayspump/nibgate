@@ -29,7 +29,7 @@
     "gsc:sitemaps": "node scripts/gsc-sitemap-submit.mjs",
     "gsc:index": "node scripts/gsc-index-status.mjs",
     "e2e:nibgate": "node scripts/e2e-nibgate-flow.mjs",
-    "test": "pnpm --filter @nibgate/sdk test",
+    "test": "pnpm --filter @nibgate/sdk test && pnpm --filter @nibgate/backend test",
     "test:watch": "pnpm --filter @nibgate/sdk test:watch"
   },
   "pnpm": {
@@ -38,5 +38,8 @@
       "prisma": "^5.22.0",
       "viem": "2.54.1"
     }
+  },
+  "devDependencies": {
+    "vitest": "^3.2.1"
   }
 }

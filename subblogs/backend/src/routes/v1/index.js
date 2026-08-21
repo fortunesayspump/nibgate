@@ -35,7 +35,7 @@ router.get('/site', async (req, res) => {
   // Auto-fill recipientWallet from hub if missing
   if (!settings.recipientWallet && hubSiteId && hubToken) {
     try {
-      const hubRes = await fetch('https://api.nibgate.xyz/hub/site/info', {
+      const hubRes = await fetch(`${config.nibgate.hubApi}/hub/site/info`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteId: hubSiteId, token: hubToken }),
       });
@@ -53,7 +53,7 @@ router.get('/site', async (req, res) => {
     aboutMarkdown: settings.aboutMarkdown || '',
     hub: { siteId: hubSiteId, token: hubToken },
     widgetScript: hubToken
-      ? `<script async src="https://www.nibgate.xyz/widget.js" data-nibgate-site="${hubSiteId}" data-nibgate-token="${hubToken}" data-nibgate-api="https://api.nibgate.xyz"></script>`
+      ? `<script async src="${config.nibgate.webBase}/widget.js" data-nibgate-site="${hubSiteId}" data-nibgate-token="${hubToken}" data-nibgate-api="${config.nibgate.hubApi}"></script>`
       : '',
   });
 });
@@ -70,7 +70,7 @@ router.post('/sync-hub', async (req, res) => {
     const token = settings.hubToken;
     if (!siteId || !token) return res.status(400).json({ error: 'Blog not linked to hub.' });
 
-    const hubRes = await fetch('https://api.nibgate.xyz/hub/sync', {
+    const hubRes = await fetch(`${config.nibgate.hubApi}/hub/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ siteId, token }),

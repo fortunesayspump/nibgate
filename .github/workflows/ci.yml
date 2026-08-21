@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: pnpm/action-setup@v4
         with:
@@ -33,3 +35,9 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Contract tests
+        run: forge test
+        working-directory: contracts

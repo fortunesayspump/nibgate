@@ -70,7 +70,7 @@ router.get('/status', (req, res) => {
   res.json({
     site: req.site.subdomain,
     hosted: true,
-    payEndpoint: `${config.nibgate.apiBase || 'https://api.nibgate.xyz'}/hub/pay`,
+    payEndpoint: `${config.nibgate.apiBase}/hub/pay`,
   });
 });
 
@@ -290,7 +290,7 @@ async function serveAccess(req, res, post, slug) {
     return res.status(403).json({ ok: false, error: 'Access blocked' });
   }
 
-  const hubPayUrl = `${config.nibgate.apiBase || 'https://api.nibgate.xyz'}/hub/pay`;
+  const hubPayUrl = `${config.nibgate.apiBase}/hub/pay`;
   const hubResponse = await fetch(hubPayUrl, {
     method: 'POST',
     headers: {

@@ -294,7 +294,7 @@ export async function unlockShare(req, res) {
 
     return res.json({
       success: true,
-      receipt: { id: receipt.id, amount: String(share.price > 0 ? challengePrice : 0), txHash, payerWallet: payer },
+      receipt: { id: receipt.id, amount: String(share.price > 0 ? challengePrice : 0), protocolFee: receipt.protocolFee, txHash, payerWallet: payer },
       access: {
         sessionId: crypto.randomUUID(),
         expiresAt: new Date(Date.now() + 3600e3).toISOString(),
@@ -466,7 +466,7 @@ export async function accessShare(req, res) {
       resource,
       content: body,
       media: null,
-      payment: { id: receipt.id, amount: String(challengePrice), currency: share.currency, txHash, payerWallet: payer },
+      payment: { id: receipt.id, amount: String(challengePrice), currency: share.currency, txHash, payerWallet: payer, protocolFee: receipt.protocolFee },
       unlockProof: paymentProofFor(share, payer),
       expiresInSeconds: expirySecondsFor(share)
     });

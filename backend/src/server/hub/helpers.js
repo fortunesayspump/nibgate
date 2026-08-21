@@ -1,4 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
+import { protocolFeeFor } from '@nibgate/sdk/server';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
 
@@ -418,16 +419,28 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
     select: { id: true, deletedAt: true }
   }).catch(() => null);
 
-  const content = await db.content.upsert({
-    where: { websiteId_url: { websiteId: website.id, url: data.url } },
-    update,
-    create: {
-      id: contentId,
-      websiteId: website.id,
-      ...data
-    },
-    include: { publisher: true }
-  });
+  let content;
+  try {
+    content = await db.content.upsert({
+      where: { websiteId_url: { websiteId: website.id, url: data.url } },
+      update,
+      create: {
+        id: contentId,
+        websiteId: website.id,
+        ...data
+      },
+      include: { publisher: true }
+    });
+  } catch (error) {
+    // A concurrent sync/tracking event can win the create race (Prisma upsert
+    // is find-then-write, not atomic): the row exists now, so update instead.
+    if (error?.code !== 'P2002') throw error;
+    content = await db.content.update({
+      where: { websiteId_url: { websiteId: website.id, url: data.url } },
+      update,
+      include: { publisher: true }
+    });
+  }
 
   if (content) {
     if (!existing) {
@@ -485,6 +498,8 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
   if (!content || !['payment_completed', 'payment_success', 'unlock_completed', 'resource_unlock', 'unlock'].includes(eventName)) return null;
   const input = paymentPayload(payload);
   const paymentId = paymentIdFromPayload(payload, content.id);
+  const amount = Number.parseFloat(input.amount || input.revenue || payload.revenue || input.price || payload.price || input.value || payload.value || '0') || null;
+  const protocolFee = amount == null ? null : protocolFeeFor(amount);
 
   return db.unlockReceipt.upsert({
     where: { contentId_paymentId: { contentId: content.id, paymentId } },
@@ -497,7 +512,8 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       receiptUrl: input.receiptUrl || null,
       chainId: input.chainId ? String(input.chainId) : null,
       network: input.network || null,
-      amount: Number.parseFloat(input.amount || input.revenue || payload.revenue || input.price || payload.price || input.value || payload.value || '0') || null,
+      amount,
+      protocolFee,
       currency: input.currency || payload.currency || content.currency || null,
       recipientWallet: input.recipient || input.payTo || content.recipientWallet || null,
       status: input.status || 'verified',
@@ -515,7 +531,8 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       receiptUrl: input.receiptUrl || null,
       chainId: input.chainId ? String(input.chainId) : null,
       network: input.network || null,
-      amount: Number.parseFloat(input.amount || input.revenue || payload.revenue || input.price || payload.price || input.value || payload.value || '0') || null,
+      amount,
+      protocolFee,
       currency: input.currency || payload.currency || content.currency || null,
       recipientWallet: input.recipient || input.payTo || content.recipientWallet || null,
       status: input.status || 'verified',

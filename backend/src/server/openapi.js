@@ -47,6 +47,7 @@ const activitySchema = {
     timestamp: { type: "string", format: "date-time" },
     revenue: { type: "number" },
     amount: { type: "number" },
+    protocolFee: { type: "number", description: "Protocol fee (feeBps share of amount) routed to the treasury via the fee wallet", nullable: true },
     currency: { type: "string" },
     txHash: { type: "string", nullable: true },
     paymentProvider: { type: "string", nullable: true },

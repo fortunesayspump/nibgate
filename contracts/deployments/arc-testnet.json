@@ -15,5 +15,18 @@
     "upgradeTx": "0x3b4d7e70302c8828ae12a079432a4cb5444946391a3059cceafddb3fd7c7a62b",
     "upgradedAt": "2026-08-01T10:59:42.497Z",
     "rpcUrl": "https://rpc.testnet.arc.network"
+  },
+  "revenue": {
+    "factoryAddress": "0x1afce8d4b7b6e2ac2b74eedb0fe719866b64f524",
+    "factoryTx": "0x787c21e4fc3a6e1d7f752e68ac187f991e53cacf634b589ad662e34e61154132",
+    "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "feeSetter": "0xbB0aA5ff6E1545577eC9A9AC54D0524CE4113CA2",
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "gatewayWallet": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+    "gatewayMinter": "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B",
+    "domain": 26,
+    "feeBps": 100,
+    "maxFeeBps": 500,
+    "deployedAt": "2026-08-20T21:51:14.475Z"
   }
 }

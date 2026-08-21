@@ -19,6 +19,7 @@ import {
   findContentByIdOrExternal
 } from '../hub/helpers.js';
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
+import { startFeeKeeper } from '../revenue/keeper.js';
 
 function blogLinkSecret() {
   const secret = process.env.JWT_SECRET;
@@ -36,6 +37,7 @@ export function registerHubRoutes(app) {
   startDataIntegrityMonitor();
   startGscSitemapMonitor();
   startGscIndexMonitor();
+  startFeeKeeper();
 
   // ── Site Registration ──────────────────────────────────────────────────
 
@@ -722,7 +724,7 @@ export function registerHubRoutes(app) {
         success: true,
         summary: { revenue: metrics.reduce((sum, m) => sum + (m.revenue || 0), 0), unlocks: metrics.length, byCurrency, receiptCount: receipts.length },
         receipts: receipts.map((r) => ({
-          id: r.id, contentId: r.contentId, contentTitle: r.content?.title || '', amount: r.amount, currency: r.currency || 'USDC',
+          id: r.id, contentId: r.contentId, contentTitle: r.content?.title || '', amount: r.amount, protocolFee: r.protocolFee, currency: r.currency || 'USDC',
           paymentProvider: r.paymentProvider, txHash: r.txHash, receiptUrl: r.receiptUrl, payerWallet: r.payerWallet, status: r.status, createdAt: r.createdAt
         }))
       });

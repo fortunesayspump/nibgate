@@ -70,29 +70,28 @@ sequenceDiagram
     Site-->>Buyer: 402 PAYMENT-REQUIRED (payTo = fee wallet)
     Buyer->>FW: USDC payment (gateway batch or direct transfer)
     Buyer->>Hub: access retry + payment evidence
-    Hub->>Hub: verify on-chain / gateway receipt<br/>credit ledger: net = gross − 1%
+    Hub->>Hub: verify payment<br/>index receipt: amount + protocolFee (1%)
     Hub-->>Buyer: unlock proof + content
     end
 
     rect rgb(255, 244, 230)
     Note over FW,T: SWEEP — keeper moves funds out (every ~60s)
-    K->>FW: sweep() (permissionless)
-    FW->>FW: mint wrapped value
+    K->>FW: withdraw gateway balance (gatewayMint, permissionless)
     K->>FW: distribute()
-    FW->>T: 1% protocol fee
+    FW->>T: 1% of wallet balance
     FW->>C: 99% to creator EOA
     end
 ```
 
 <Steps>
 ### Unlock
-The site's SDK returns a 402 with the creator's fee wallet as `payTo`. The buyer pays; funds sit in the fee wallet contract and the hub credits the creator's ledger with the net amount (gross minus the protocol fee).
+The site's SDK returns a 402 with the creator's fee wallet as `payTo`. The buyer pays; funds land in the fee wallet contract and the hub indexes a receipt with the gross `amount` and the derived `protocolFee`.
 
 ### Discovery
-The keeper periodically lists creators whose wallets hold unsettled balance (from the ledger, not chain scans).
+The keeper periodically lists creators whose wallets can earn revenue (from indexed data, not chain scans) and predicts each creator's fee wallet address.
 
 ### Sweep + distribute
-For each creator the keeper calls `sweep()` then `distribute()` on-chain. The contract splits atomically: creator EOA gets 99%, treasury gets 1%. Failures are isolated per creator and retried next cycle.
+For each creator the keeper withdraws any pending Circle Gateway balance into the wallet (`gatewayMint`, permissionless), then calls `distribute()`. The contract splits its full USDC balance atomically: creator EOA gets 99%, treasury gets 1%. Failures are isolated per creator and retried next cycle.
 </Steps>
 
 ## Configuration
@@ -104,7 +103,8 @@ For each creator the keeper calls `sweep()` then `distribute()` on-chain. The co
 | `NIBGATE_TREASURY` | `0x558e…D12` | Protocol fee recipient used when predicting/deploying wallets. |
 | `NIBGATE_FEE_BPS` | `100` | Protocol fee in basis points announced in challenges (capped by the contract). |
 | `NIBGATE_MAX_FEE_BPS` | `500` | Upper bound announced at deploy; the contract enforces this forever. |
-| `NIBGATE_FEE_KEEPER` | unset | Private key enabling the background keeper sweep loop. |
+| `NIBGATE_FEE_KEEPER` | unset | Any non-empty value enables the background keeper sweep loop. |
+| `NIBGATE_KEEPER_PRIVATE_KEY` | unset | Keeper's signing key (gas-only; holds no user funds, no special contract rights). |
 | `NIBGATE_FEE_KEEPER_INTERVAL_MS` | `60000` | Sweep cadence. |
 
 ## Trust model

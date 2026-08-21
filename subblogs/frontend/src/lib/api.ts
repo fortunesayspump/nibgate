@@ -3,6 +3,9 @@ import { subdomainFromHost } from "./utils";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 export function apiUrl(path: string) {
+  // Browser calls go same-origin through the Next rewrite (mirrors production,
+  // where the API lives behind the same domain) — avoids CORS entirely.
+  if (typeof window !== "undefined" && !process.env.NEXT_PUBLIC_API_URL) return `/api${path}`;
   return `${API_BASE}${path}`;
 }
 

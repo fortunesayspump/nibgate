@@ -37,16 +37,19 @@ It consists of four connected parts:
 ## Repo Layout
 
 ```txt
-backend/       Express hub API — payment verification, metrics, site/manifest sync
+backend/       Express hub API — payment verification, hosted-pay resolution,
+               metrics, site/manifest sync, revenue keeper (fee-wallet sweeps)
 frontend/      Next.js hub UI — public site, dashboard, Explore, leaderboards
 subblogs/      Subblogs — full blog platform for creators (Express+Prisma + Next.js)
-packages/      @nibgate/sdk npm package + CLI tooling
-demo/          Isolated creator-origin demo for package and gating integration
+packages/      @nibgate/sdk npm package + wallet package + CLI tooling
+contracts/     Solidity + Foundry: reputation contracts and the per-creator
+               GatewayFeeWallet / GatewayFeeWalletFactory (revenue model)
 docs/          Nextra docs site for docs.nibgate.xyz
-scripts/       E2E flows and reputation deployment tooling
-contracts/     NibgateReputation contracts (Solidity + Foundry)
+scripts/       E2E flows and deployment tooling (reputation, revenue factory)
 nibgate.config.json  Sample CLI config (routes to local demo content)
 ```
+
+Local-only, not tracked: `e2e/` (Playwright browser harness), `swarm/` (agent wallets), `video/`, `v2-labs/`, `revenue-model/` (research/poc). See `.gitignore`.
 
 ## Workspace Shape
 
@@ -499,6 +502,18 @@ The hub store is PostgreSQL through Prisma:
 
 
 For browser wallet checkout, the creator access route must return Circle Gateway's real `PAYMENT-REQUIRED` batching challenge. The simplest safe setup is `createCircleGatewayServer(...)`; the manual equivalent is `createNibgateServer({ paymentMode: 'circle-gateway', network: 'eip155:5042002' })`.
+
+### Revenue model (fee wallets + protocol fee)
+
+On Nibgate-hosted surfaces (hub widget checkout, Subblogs), payments go to a per-creator `GatewayFeeWallet` contract instead of the creator EOA. The contract is immutable (no proxy/admin), keeps 99% for the creator, and routes a 1% protocol fee to the treasury on `distribute()` — enforced on-chain with a hard 5% cap set at deploy. A background keeper sweeps settled balances to creator wallets. Full model, diagrams, and env reference: [docs/revenue-model](https://docs.nibgate.xyz/revenue-model) and `contracts/GatewayFeeWallet.sol`.
+
+```bash
+NIBGATE_HOSTED_PAY=true \
+NIBGATE_FEE_WALLET_FACTORY=0xYourFactoryAddress \
+NIBGATE_TREASURY=0xYourTreasuryAddress \
+NIBGATE_FEE_KEEPER=0xyourKeeperPrivateKey \
+npm run dev
+```
 
 Circle Gateway mode:
 

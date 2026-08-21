@@ -2,14 +2,14 @@ import { Callout, Cards } from 'nextra/components'
 
 # Payments and receipts
 
-Nibgate earnings are payment analytics, not withdrawals. Funds should flow through the creator site's configured receiver.
+Nibgate earnings are payment analytics, not withdrawals. Funds flow to the creator's on-chain fee wallet contract, which enforces a 99% creator / 1% treasury split — see [Revenue model](/revenue-model).
 
 ## Payment model
 
-The creator package controls the receiver address. A creator can run multiple sites, and each site can use a different payment destination.
+With hosted pay enabled, the hub resolves each creator's payment destination to their `GatewayFeeWallet` contract (deployed deterministically per creator). A creator can run multiple sites, and every site resolves to the same fee wallet for that creator.
 
 <Callout type="important">
-Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock.
+Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock. Receipts store the gross `amount`, the creator's net `revenue`, and the on-chain `protocolFee` so analytics match the contract split exactly.
 </Callout>
 
 ## Unlock model

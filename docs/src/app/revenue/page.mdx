@@ -5,19 +5,19 @@ import { Callout, Cards, Steps } from 'nextra/components'
 Nibgate provides payment processing, revenue tracking, and competitive leaderboards to help creators understand and grow their earnings.
 
 <Callout type="important">
-Nibgate does not custody creator funds. Payments flow directly from the reader to the creator through the Circle Gateway. Nibgate indexes receipts and displays analytics.
+Nibgate does not custody creator funds. Payments land in the creator's on-chain fee wallet contract, which keeps 99% for the creator and routes a 1% protocol fee to the treasury — enforced by immutable bytecode. Nibgate indexes receipts and displays analytics. See [Revenue model](/revenue-model).
 </Callout>
 
 ## Payment flow
 
-The payment flow connects the reader's wallet to the creator's wallet through the Circle Gateway:
+The payment flow connects the reader's wallet to the creator's fee wallet contract:
 
 ```txt
 Reader wallet
-  -> initiates payment on unlock UI
-  -> Circle Gateway processes USDC transfer (ARC testnet)
-  -> Creator wallet receives funds directly
-  -> Package reports receipt to Nibgate hub
+  -> initiates payment on unlock UI (gateway or direct rail)
+  -> USDC lands in the creator's GatewayFeeWallet contract (ARC testnet)
+  -> Package reports receipt to Nibgate hub (net = gross − 1%)
+  -> Keeper sweeps the wallet: distribute() pays out 99% to the creator EOA, 1% to treasury
   -> Dashboard and leaderboards update
 ```
 
@@ -32,9 +32,9 @@ The reader clicks the unlock button on a paid post. The unlock UI displays the p
 
 The reader's wallet signs and submits the USDC payment through the Circle Gateway on ARC testnet. The gateway handles settlement and returns a receipt.
 
-### Funds arrive at creator wallet
+### Funds arrive at the fee wallet
 
-The USDC is transferred directly to the creator's configured wallet address. Nibgate never touches the funds.
+The USDC is transferred to the creator's `GatewayFeeWallet` contract — the payment destination for all of that creator's paid content. The contract is immutable and the split (99% creator / 1% treasury) is enforced on-chain; a keeper sweep pays out to the creator's EOA shortly after. Nibgate never touches the funds.
 
 ### Receipt indexed
 
@@ -90,17 +90,18 @@ The admin dashboard provides detailed revenue tracking:
   "paymentProvider": "circle-gateway",
   "paymentId": "...",
   "amount": "0.01",
-  "revenue": "0.01",
+  "revenue": "0.0099",
+  "protocolFee": "0.0001",
   "currency": "USDC",
   "payer": "0xBuyerWallet",
-  "recipient": "0xCreatorWallet",
+  "recipient": "0xCreatorFeeWallet",
   "txHash": "0x...",
   "chainId": "5042002",
   "network": "eip155:5042002"
 }
 ```
 
-Note: `recipient` here is the **creator's** wallet (the payment receiver), and `payer` is the buyer's wallet — not the other way around.
+Note: `recipient` is the **creator's fee wallet contract** (the payment receiver), `payer` is the buyer's wallet, and `revenue` is the creator's net share after the 1% protocol fee (`amount − protocolFee`) — not the other way around.
 
 ## Reputation scores
 
@@ -121,6 +122,7 @@ Only verified unlocks (with indexed receipts) count toward reputation and leader
 ## Next reads
 
 <Cards>
+  <Cards.Card title="Revenue model (fee wallets & protocol fee)" href="/revenue-model" arrow />
   <Cards.Card title="Payments and receipts" href="/payments-receipts" arrow />
   <Cards.Card title="Create a Subblog" href="/create-subblog" arrow />
   <Cards.Card title="Reputation" href="/reputation" arrow />

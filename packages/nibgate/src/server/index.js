@@ -7,7 +7,7 @@ export { createManifest, manifestResponse } from './manifest.js';
 export { createUnlockToken, verifyUnlockToken } from './proof.js';
 export { emitHubEvent } from './hub.js';
 export { payWithGateway, createGatewayBuyer, getGatewayBalances, depositToGateway, withdrawFromGateway, runCircleGatewayRequirement } from './gateway.js';
-export { feePolicy, feeWalletAddressFor, resolvePayTo, runHostedPayRequirement, runHostedTransferRequirement, createTransferVerifier, DEFAULT_TREASURY, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, ARC_TESTNET_CHAIN, ARC_TESTNET_RPC, ARC_USDC } from './fee-wallet.js';
+export { feePolicy, protocolFeeFor, feeWalletAddressFor, createPredictedWalletReader, ensureFeeWalletDeployed, resolvePayTo, runHostedPayRequirement, runHostedTransferRequirement, createTransferVerifier, FEE_WALLET_FACTORY_ABI, DEFAULT_TREASURY, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, ARC_TESTNET_CHAIN, ARC_TESTNET_RPC, ARC_USDC, ARC_GATEWAY_WALLET, ARC_GATEWAY_MINTER, ARC_DOMAIN, GATEWAY_API_TESTNET, buildSelfBurnIntent, submitGatewayWithdrawal, gatewayBalanceFor, feeWalletUsdcBalance, withdrawGatewayBalanceFor, distributeFeeWallet, sweepFeeWallet } from './fee-wallet.js';
 export { createNibgateServer, protect, verifyPayment } from './access.js';
 export { circleGatewayOptions, createCircleGatewayServer } from './presets.js';
 export { normalizeServerResource as normalizeResource, normalizeAccessPolicy, normalizeUnlockPolicy, validateResourceMetadata, UNLOCK_MODES } from '../core/resource.js';

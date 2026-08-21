@@ -3,6 +3,7 @@ import { db } from '@nibgate/internal/db.js';
 export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
 import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets, canAccess as sdkCanAccess } from '@nibgate/sdk/server';
+import { protocolFeeFor } from '@nibgate/sdk/server';
 import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, decryptShareBody, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
 
 export class HttpError extends Error {
@@ -285,6 +286,7 @@ async function atomicIdempotentGrant({ share, payer, txHash, amount }) {
   }
 
   const paid = amount == null ? share.price : amount;
+  const protocolFee = Number(paid) > 0 ? protocolFeeFor(paid) : 0;
   let receipt;
   try {
     receipt = await db.nibShareReceipt.create({
@@ -293,6 +295,7 @@ async function atomicIdempotentGrant({ share, payer, txHash, amount }) {
         payerWallet: payer,
         paymentNonce: paymentNonce || `free-${crypto.randomUUID()}`,
         amount: paid,
+        protocolFee,
         currency: share.currency,
         txHash
       }
@@ -673,6 +676,7 @@ function activityFor(shares) {
         title: s.title,
         slug: s.slug,
         amount: r.amount,
+        protocolFee: r.protocolFee,
         wallet: r.payerWallet,
         createdAt: r.unlockedAt
       });

@@ -161,6 +161,7 @@ model UnlockReceipt {
   chainId         String?
   network         String?
   amount          Float?
+  protocolFee     Float? // feeBps share of amount routed to the treasury via the fee wallet
   currency        String?
   recipientWallet String?
   status          String             @default("verified")
@@ -426,6 +427,7 @@ model NibShareReceipt {
   // this row and yield the SAME receipt response, never a second grant.
   paymentNonce String? // stable id of one payment+grant (x402 has no paymentId; txHash is it)
   amount      Float
+  protocolFee Float? // feeBps share of amount routed to the treasury via the fee wallet
   currency    String    @default("USDC")
   unlockedAt  DateTime  @default(now())
   keyGrantedAt DateTime? // when the decryption key was vended (null = not yet)

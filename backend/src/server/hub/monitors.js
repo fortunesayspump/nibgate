@@ -1,5 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
-import { createPublicClient, decodeEventLog, http } from 'viem';
+import { createPublicClient, decodeEventLog, http, fallback } from 'viem';
 import { submitAllSiteSitemaps } from './gsc-sitemap.js';
 import { runIndexSweep } from './gsc-index.js';
 import {
@@ -145,19 +145,29 @@ export function startManifestSyncMonitor() {
 
 // ── Reputation Indexer ─────────────────────────────────────────────────────
 
+let indexerClientCache = null;
 function publicClientForIndexer() {
+  if (indexerClientCache) return indexerClientCache;
   const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.ARC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_ARC_RPC_URL;
   const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
   if (!rpcUrl) return null;
-  return createPublicClient({
+  // Failover across Arc mirrors: the primary endpoint rate-limits and can
+  // degrade under sustained polling, which would silently stall the indexer.
+  // The client is cached — one instance per process keeps socket pooling
+  // intact (a fresh client per call opens a new TLS connection per request).
+  const mirrors = (process.env.ARC_RPC_FALLBACK_URLS || 'https://arc-testnet.drpc.org,https://rpc.drpc.testnet.arc.io,https://rpc.quicknode.testnet.arc.io')
+    .split(',').map((u) => u.trim()).filter((u) => u && u !== rpcUrl);
+  const urls = [rpcUrl, ...mirrors];
+  indexerClientCache = createPublicClient({
     chain: {
       id: chainId,
       name: process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet',
       nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-      rpcUrls: { default: { http: [rpcUrl] } }
+      rpcUrls: { default: { http: urls } }
     },
-    transport: http(rpcUrl)
+    transport: fallback(urls.map((u) => http(u, { retryCount: 1, timeout: 15_000 })), { rank: false })
   });
+  return indexerClientCache;
 }
 
 async function indexReputationLog(log, contractAddress) {

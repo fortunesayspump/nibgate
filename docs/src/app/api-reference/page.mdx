@@ -109,17 +109,23 @@ Request:
 {
   "price": "0.01",
   "recipient": "0xCreatorWallet",
-  "title": "Premium Post"
+  "title": "Premium Post",
+  "paymentRail": "gateway",
+  "contentId": "content-uuid-or-external-id",
+  "path": "/posts/my-post"
 }
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `price` | No | Defaults to `0.01` |
-| `recipient` | No | Wallet to receive payment. Falls back to `NIBGATE_SELLER_ADDRESS` env var |
+| `price` | No | Defaults to `0.01`. Overridden server-side when `contentId` maps to a tracked content record |
+| `recipient` | No | Wallet to receive payment. Falls back to `NIBGATE_SELLER_ADDRESS` env var; tracked records' `recipientWallet` wins. Hosted mode routes through the creator's fee wallet (99% creator / 1% platform) |
 | `title` | No | Content title for the payment challenge |
+| `paymentRail` | No | `'gateway'` (Circle Gateway, default) or `'transfer'` (direct USDC transfer to the resolved `payTo`) |
+| `contentId` | No | Content record id — pins price/recipient server-side and scopes the direct-rail txHash claim |
+| `path` | No | Resource path used in the payment challenge and ownership-proof message |
 
-Returns a `402 Payment Required` challenge on first call. The browser signs it with the visitor's wallet and retries with the signature. On success, returns `200` with `{ success: true, payment: { paymentProvider, verified, recipient, network, amount, revenue, currency, payer, txHash } }`.
+Returns a `402 Payment Required` challenge on first call. For the gateway rail the browser settles Circle's batching challenge and retries with a `Payment-Signature`; for the transfer rail the browser broadcasts the USDC transfer and retries with `x-nibgate-transfer-tx` plus an `x-nibgate-tx-owner` EIP-191 signature binding the txHash to this resource (`transferOwnershipMessage`). Direct-rail txHashes are claimed single-use per `contentId` — replays against other content fail with `txhash-claimed-elsewhere`. On success, returns `200` with `{ success: true, payment: { paymentProvider, verified, recipient, network, amount, revenue, currency, payer, txHash } }`.
 
 The widget handles this automatically when using `data-nibgate-premium` attributes — no manual API calls needed.
 

@@ -46,7 +46,7 @@ a creator site; they expose the same `/nibgate.json` manifest and
 | Contract | Address | Purpose |
 |---|---|---|
 | USDC | `0x360000...0000` | Payment token (ERC-20, 6 decimals) |
-| Gateway | `0xEBc7Ce5E11F7d8cB0e33Af63b53B964B8a47BB67` | USDC deposits + burn intents |
+| Gateway | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` | USDC deposits + burn intents |
 | Reputation | `0x9f27fd62e75f86a3c7addfdba443aab1f930e281` | On-chain content ratings |
 | Explorer | `https://testnet.arcscan.app` | Block explorer for Arc Testnet |
 

@@ -333,6 +333,16 @@ For v1, treat `unlock.mode: 'one_time'` with the Gateway rail or the direct USDC
 
 The second rail sends USDC straight from the buyer's wallet to the creator's receiver — no Gateway facilitator. The 402 challenge carries `paymentRail: 'transfer'` and the seller's `payTo`. The browser broadcasts the transfer, then retries the access route with the tx hash as the `x-nibgate-transfer-tx` header; the server verifies the mined receipt on-chain (USDC `Transfer` log crediting the seller for at least the price) before minting the unlock proof.
 
+**Ownership proof (required by default).** A broadcast transfer is public chain data, so the server also requires proof that *the paying wallet* owns the txHash and meant it for *this* resource: an EIP-191 signature over
+
+```
+Nibgate transfer ownership
+tx:<txHash lowercased>
+resource:<resource path or url>
+```
+
+sent on the retry as the `x-nibgate-tx-owner` header. A mismatched signer returns `transfer-owner-mismatch`; a missing header returns `transfer-ownership-proof-required`. Self-hosters can opt out with `NIBGATE_TX_OWNER_PROOF_OPTIONAL=true` (or `txOwnerProofOptional: true`). On Nibgate-hosted surfaces each txHash is additionally claimed single-use per content id — replaying it against another post or site is rejected (`txhash-claimed-elsewhere`).
+
 ```ts
 import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'
 
@@ -507,26 +517,7 @@ const resource = {
 
 ### Stress Test Script
 
-The repo includes a stress test script at `demo/stress-test-agents.mjs` that simulates N agents discovering content from the Hub and purchasing via x402:
-
-```bash
-node demo/stress-test-agents.mjs \
-  --mnemonic "twelve word seed phrase here" \
-  --agents 50 --concurrency 10 \
-  --hub-url "https://nibgate.xyz" \
-  --access-template "https://{origin}/api/nibgate/access?path={path}" \
-  --fund --fund-amount 5 \
-  --loop --interval 300
-```
-
-The script:
-- Derives deterministic wallets from the mnemonic (wallet[0] = master, wallet[1..N-1] = agents)
-- Discovers content from the Hub explore API or from manifests
-- Filters for agent-purchasable content (paid, not blocked, valid recipient)
-- Funds agents from master via native USDC transfer + Gateway deposit (`--fund`)
-- Purchases content via `GatewayClient.pay()` (full x402 auto flow)
-- Reports per-agent results with aggregate stats
-- Continues on loop with configurable interval
+An internal stress test script (not shipped with the npm package) simulates N agents discovering content from the Hub and purchasing via x402. Deriving deterministic wallets from a mnemonic, funding agents from a master wallet, and driving `GatewayClient.pay()` per agent is all public API shown above — the script only orchestrates those calls in a loop.
 
 ---
 

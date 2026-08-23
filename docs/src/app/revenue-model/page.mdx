@@ -172,7 +172,7 @@ The SDK still ships chain-aware defaults (`CONFIRMATIONS_BY_CHAIN`) so the same 
 
 The ownership signature binds a txHash to payer + content, but two independent self-hosted sites of the same creator could each accept the same txHash. Hosted surfaces get this protection from hub indexing; self-hosters can opt in by pointing `claimRegistryUrl` / `NIBGATE_CLAIM_REGISTRY_URL` at any endpoint implementing the hub protocol (`POST {txHash, contentId}`).
 
-It fails **closed**: if the registry rejects the hash for different content → `402 txhash-claimed-elsewhere`; if the registry is unreachable → `503 claim-registry-unavailable`, never a silent unlock. Off by default because single-site integrators don't need the dependency.
+It fails **closed**: if the registry rejects the hash for different content → `402 txhash-claimed-elsewhere`; if the registry is unreachable → `claim-registry-unreachable`, never a silent unlock. Off by default because single-site integrators don't need the dependency.
 
 ## Trust model
 

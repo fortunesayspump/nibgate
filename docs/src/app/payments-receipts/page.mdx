@@ -71,6 +71,8 @@ The `GatewayClient.pay()` method auto-handles the 402 challenge → EIP-3009 sig
 
 Use the direct rail when the buyer's wallet sends USDC straight to the creator's receiver (no Gateway facilitator). The browser checkout is `createTransferCheckout`/`payWithTransfer` from `@nibgate/sdk` — it broadcasts a USDC `transfer` to the seller's `payTo` address and submits the tx hash as the `x-nibgate-transfer-tx` header on the access retry.
 
+The retry must also carry an **ownership proof**: an EIP-191 signature (made by the paying wallet) over `transferOwnershipMessage(txHash, resource)` — i.e. `Nibgate transfer ownership\ntx:<txHash lowercased>\nresource:<resource path or url>` — sent as the `x-nibgate-tx-owner` header. This binds the public txHash to the payer and this specific resource. Missing proofs fail with `transfer-ownership-proof-required`, mismatched signers with `transfer-owner-mismatch`. Self-hosters can opt out with `NIBGATE_TX_OWNER_PROOF_OPTIONAL=true`; Nibgate-hosted surfaces additionally claim each txHash single-use per content id.
+
 The server verifies on-chain (`createTransferVerifier`): the transaction mined successfully, a USDC `Transfer` log credits the seller's address, and the amount is at least the resource price. On success it mints the unlock proof and returns the content, storing a `paymentProvider: 'direct-transfer'` receipt keyed by `txHash`.
 
 ```ts

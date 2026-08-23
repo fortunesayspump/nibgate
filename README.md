@@ -122,11 +122,7 @@ The public `@nibgate/sdk` package owns route protection, payment challenge metad
 
 ### `demo/`
 
-This is an origin app that behaves like a creator-owned site. It exists to validate the install flow, DB-backed content mapping, package events, and protected content flow without polluting hub code.
-
-The demo includes compact routes for database/custom CMS blogs, MDX/frontmatter posts, headless CMS entries, static teaser pages with protected APIs, media/file routes, and agent-readable API routes.
-
-Real-template examples belong under `demo/examples/*`, where each example should start from a recognizable starter repo and add the Nibgate package integration.
+Local-only and not tracked in this repo. An origin app that behaves like a creator-owned site, used to validate the install flow, DB-backed content mapping, package events, and protected content flow without polluting hub code. Real-template examples belong under `demo/examples/*`, where each example starts from a recognizable starter repo and adds the Nibgate package integration. If your checkout has no `demo/` directory, skip the demo commands below — everything else runs without it.
 
 ## Run
 
@@ -148,7 +144,7 @@ Start the frontend:
 npm run dev:frontend
 ```
 
-Start the example creator origin:
+Start the example creator origin (requires the local-only `demo/` directory — skip if your checkout doesn't have it):
 
 ```bash
 cd demo/examples/next-mdx-blog
@@ -516,7 +512,7 @@ NIBGATE_KEEPER_PRIVATE_KEY=0xyourKeeperPrivateKey \
 npm run dev
 ```
 
-Circle Gateway mode:
+Circle Gateway mode (requires the local-only `demo/` directory):
 
 ```bash
 NIBGATE_PAYMENT_MODE=circle-gateway \
@@ -543,6 +539,16 @@ npx nibgate deposit 1.0
 ### Direct rail (transfer)
 
 The second payment rail sends USDC straight from the buyer's wallet to the creator's `payTo` address — no Gateway facilitator. The browser checkout broadcasts the transfer and submits the tx hash as `x-nibgate-transfer-tx` on the access retry; the server verifies the mined receipt on-chain (USDC `Transfer` log to the seller for at least the price) before minting the unlock proof. Receipts are stored with `paymentProvider: 'direct-transfer'`. In the unlock UI, `NibgateUnlock`/`useNibgateUnlock` switch between the two rails via the `paymentRail` option (`'gateway'` or `'transfer'`).
+
+Because a broadcast transfer is public chain data, the retry must also carry an **ownership proof**: an EIP-191 signature (made by the paying wallet) over
+
+```
+Nibgate transfer ownership
+tx:<txHash lowercased>
+resource:<resource path or url>
+```
+
+sent as the `x-nibgate-tx-owner` header (`transferOwnershipMessage()` builds this string). Missing/mismatched proofs fail with `transfer-ownership-proof-required` / `transfer-owner-mismatch`. Self-hosters can opt out with `NIBGATE_TX_OWNER_PROOF_OPTIONAL=true`; hosted surfaces additionally claim each txHash single-use per content id.
 
 ```js
 import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'

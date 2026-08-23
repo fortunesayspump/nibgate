@@ -11,6 +11,7 @@ Nibgate is heavily agent-facing. Machines discover, read, and pay Nibgate throug
 | Agent skills index | `frontend/public/.well-known/agent-skills/index.json` | https://nibgate.xyz/.well-known/agent-skills/index.json |
 | llms.txt index | `frontend/src/app/llms.txt/route.ts` | https://nibgate.xyz/llms.txt |
 | llms-full.txt (flattened docs) | `frontend/src/app/llms-full.txt/route.ts` | https://nibgate.xyz/llms-full.txt |
+| Docs llms.txt | `docs/src/app/llms.txt/route.ts` | https://docs.nibgate.xyz/llms.txt |
 | OpenAPI spec | `backend/src/server/openapi.js` | https://api.nibgate.xyz/openapi.json |
 | MCP server (tools + instructions) | `backend/src/server/mcp.js` | https://api.nibgate.xyz/mcp |
 | MCP server card | same file, bottom | https://api.nibgate.xyz/.well-known/mcp.json |

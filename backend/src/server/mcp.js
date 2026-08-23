@@ -1,5 +1,4 @@
 import { db } from '@nibgate/internal/db.js';
-import { protocolFeeFor } from '@nibgate/sdk/server';
 import {
   normalizeContentType, serializeContent,
   siteReputationScore, creatorReputationScore, primaryWalletAddress
@@ -136,10 +135,11 @@ async function getPlatformStats() {
   ]);
 
   const revenue = (revenueAgg || []).reduce((t, r) => (Number(r?.amount || 0) < 100 ? t + Number(r?.amount || 0) : t), 0);
-  const protocolFees = +((revenueAgg || []).reduce((t, r) => {
-    const v = Number(r?.amount || 0);
-    return v < 100 && v > 0 ? t + Number(protocolFeeFor(v) || 0) : t;
-  }, 0)).toFixed(6);
+  // Sum fees recorded at ingest — pre-fee-model payments carry null/0.
+  const feeAgg = await db.unlockReceipt
+    .aggregate({ _sum: { protocolFee: true }, where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] }, content: { website: VERIFIED_SITE_WHERE } } })
+    .catch(() => ({ _sum: { protocolFee: 0 } }));
+  const protocolFees = Number(feeAgg._sum.protocolFee || 0);
   return { success: true, stats: { creators, sites, content, views: Number(views || 0), unlocks: Number(unlockCount || 0), revenue, protocolFees } };
 }
 

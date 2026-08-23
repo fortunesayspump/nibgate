@@ -1,6 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
-import { runHostedPayRequirement, protocolFeeFor } from '@nibgate/sdk/server';
+import { runHostedPayRequirement } from '@nibgate/sdk/server';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
@@ -778,7 +778,12 @@ export function registerHubRoutes(app) {
       }
 
       const grossRevenue = metrics.reduce((sum, m) => sum + (m.revenue || 0), 0);
-      const protocolFees = metrics.reduce((sum, m) => sum + (m.revenue ? Number(protocolFeeFor(m.revenue)) || 0 : 0), 0);
+      // Fees recorded at ingest — pre-fee-model payments carry null/0, so never
+      // recompute from amount (that would retroactively charge old flows).
+      const rangeFeeAgg = await db.unlockReceipt
+        .aggregate({ _sum: { protocolFee: true }, where: { websiteId: { in: websiteIds }, ...timeFilter } })
+        .catch(() => ({ _sum: { protocolFee: 0 } }));
+      const protocolFees = Number(rangeFeeAgg._sum.protocolFee || 0);
       const netRevenue = Math.max(0, +(grossRevenue - protocolFees).toFixed(6));
 
       res.json({
@@ -997,10 +1002,12 @@ export function registerHubRoutes(app) {
         const v = Number(receipt?.amount || 0);
         return v < 100 ? total + v : total;
       }, 0);
-      const protocolFees = +(revenueAgg || []).reduce((total, receipt) => {
-        const v = Number(receipt?.amount || 0);
-        return v < 100 && v > 0 ? total + Number(protocolFeeFor(v) || 0) : total;
-      }, 0).toFixed(6);
+      // Sum the fee recorded at ingest time — do NOT recompute from amount,
+      // since payments predating the fee wallet model carried no fee.
+      const feeAgg = await db.unlockReceipt
+        .aggregate({ _sum: { protocolFee: true }, where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] }, content: { website: verifiedSiteWhere } } })
+        .catch(() => ({ _sum: { protocolFee: 0 } }));
+      const protocolFees = Number(feeAgg._sum.protocolFee || 0);
 
       res.json({
         success: true,

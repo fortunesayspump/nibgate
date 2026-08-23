@@ -1,4 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
+import { protocolFeeFor } from '@nibgate/sdk/server';
 import {
   normalizeContentType, serializeContent,
   siteReputationScore, creatorReputationScore, primaryWalletAddress
@@ -135,7 +136,11 @@ async function getPlatformStats() {
   ]);
 
   const revenue = (revenueAgg || []).reduce((t, r) => (Number(r?.amount || 0) < 100 ? t + Number(r?.amount || 0) : t), 0);
-  return { success: true, stats: { creators, sites, content, views: Number(views || 0), unlocks: Number(unlockCount || 0), revenue } };
+  const protocolFees = +((revenueAgg || []).reduce((t, r) => {
+    const v = Number(r?.amount || 0);
+    return v < 100 && v > 0 ? t + Number(protocolFeeFor(v) || 0) : t;
+  }, 0)).toFixed(6);
+  return { success: true, stats: { creators, sites, content, views: Number(views || 0), unlocks: Number(unlockCount || 0), revenue, protocolFees } };
 }
 
 async function getLeaderboards(args = {}) {

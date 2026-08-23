@@ -1,6 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
-import { runHostedPayRequirement } from '@nibgate/sdk/server';
+import { runHostedPayRequirement, protocolFeeFor } from '@nibgate/sdk/server';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
@@ -765,7 +765,10 @@ export function registerHubRoutes(app) {
         where: { websiteId: { in: websiteIds }, ...timeFilter },
         orderBy: { createdAt: 'desc' },
         take: 200,
-        include: { content: { select: { id: true, title: true, externalId: true } } }
+        include: {
+          content: { select: { id: true, title: true, externalId: true } },
+          website: { select: { domain: true } }
+        }
       });
 
       const byCurrency = {};
@@ -774,13 +777,40 @@ export function registerHubRoutes(app) {
         byCurrency[curr] = (byCurrency[curr] || 0) + (metric.revenue || 0);
       }
 
+      const grossRevenue = metrics.reduce((sum, m) => sum + (m.revenue || 0), 0);
+      const protocolFees = metrics.reduce((sum, m) => sum + (m.revenue ? Number(protocolFeeFor(m.revenue)) || 0 : 0), 0);
+      const netRevenue = Math.max(0, +(grossRevenue - protocolFees).toFixed(6));
+
       res.json({
         success: true,
-        summary: { revenue: metrics.reduce((sum, m) => sum + (m.revenue || 0), 0), unlocks: metrics.length, byCurrency, receiptCount: receipts.length },
+        summary: { revenue: grossRevenue, protocolFees, netRevenue, unlocks: metrics.length, byCurrency, receiptCount: receipts.length },
         receipts: receipts.map((r) => ({
           id: r.id, contentId: r.contentId, contentTitle: r.content?.title || '', amount: r.amount, protocolFee: r.protocolFee, currency: r.currency || 'USDC',
           paymentProvider: r.paymentProvider, txHash: r.txHash, receiptUrl: r.receiptUrl, payerWallet: r.payerWallet, status: r.status, createdAt: r.createdAt
-        }))
+        })),
+        earnings: {
+          availableBalance: netRevenue,
+          totalRevenue: grossRevenue,
+          protocolFees,
+          netRevenue,
+          transactions: receipts.map((r) => ({
+            id: r.id,
+            amount: r.amount || 0,
+            protocolFee: r.protocolFee ?? null,
+            netAmount: r.amount == null ? null : Math.max(0, +((r.amount) - Number(r.protocolFee || 0)).toFixed(6)),
+            contentTitle: r.content?.title || '',
+            websiteName: r.website?.domain || '',
+            createdAt: r.createdAt,
+            txHash: r.txHash || undefined,
+            paymentId: r.paymentId || undefined,
+            paymentProvider: r.paymentProvider || undefined,
+            receiptUrl: r.receiptUrl || undefined,
+            payer: r.payerWallet || undefined,
+            recipient: r.recipientWallet || undefined,
+            network: r.network || undefined,
+            status: r.status || undefined
+          }))
+        }
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch earnings', details: error.message });
@@ -967,10 +997,14 @@ export function registerHubRoutes(app) {
         const v = Number(receipt?.amount || 0);
         return v < 100 ? total + v : total;
       }, 0);
+      const protocolFees = +(revenueAgg || []).reduce((total, receipt) => {
+        const v = Number(receipt?.amount || 0);
+        return v < 100 && v > 0 ? total + Number(protocolFeeFor(v) || 0) : total;
+      }, 0).toFixed(6);
 
       res.json({
         success: true,
-        stats: { creators: creatorCount, sites: siteCount, content: contentCount, views, unlocks, revenue }
+        stats: { creators: creatorCount, sites: siteCount, content: contentCount, views, unlocks, revenue, protocolFees }
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch platform stats', details: error.message });

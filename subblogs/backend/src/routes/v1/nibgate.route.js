@@ -358,6 +358,31 @@ async function serveAccess(req, res, post, slug) {
             return res.status(409).json({ ok: false, error: 'The price changed for your wallet. Please retry unlocking.' });
           }
           await accessService.grantUnlock({ post, payer, txHash: hubData.payment?.txHash || null, amount: String(challengePrice) });
+          // Server-authoritative recording: the paying party may be a machine
+          // (x402 agent) whose client never posts tracking events. Report the
+          // unlock to the hub from here; duplicate widget events dedupe on
+          // paymentId, so this stays safe when a browser also reports.
+          try {
+            const evtSettings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
+            const hubSiteId = evtSettings.hubSiteId || req.siteId;
+            const hubToken = evtSettings.hubToken || req.site.verifyToken || '';
+            if (hubSiteId && hubToken && hubData.payment) {
+              await fetch(`${config.nibgate.hubApi}/hub/evt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  siteId: hubSiteId, token: hubToken, event: 'unlock_completed',
+                  resource: { id: paidResource.id, title: paidResource.title, type: paidResource.type, price: String(paidResource.price) },
+                  url: `${req.protocol}://${req.get('host')}${paidResource.path}`, path: paidResource.path,
+                  paymentProvider: 'circle-gateway', verified: true,
+                  amount: Number(hubData.payment.amount || paidResource.price),
+                  revenue: Number(hubData.payment.revenue ?? hubData.payment.amount ?? paidResource.price),
+                  currency: 'USDC', payer, txHash: hubData.payment.txHash || '',
+                  paymentId: hubData.payment.paymentId || '',
+                }),
+              }).catch(() => {});
+            }
+          } catch { /* recording is best-effort; never block the unlock */ }
         }
         const payload = await accessPayloadFor(post);
         return res.json({

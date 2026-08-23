@@ -285,7 +285,8 @@ async function atomicIdempotentGrant({ share, payer, txHash, amount }) {
     if (existing) return { receipt: existing, replay: true };
   }
 
-  const paid = amount == null ? share.price : amount;
+  // x402 amounts arrive as strings ("maxAmountRequired"); Prisma Float rejects them
+  const paid = Number(amount == null ? share.price : amount);
   const protocolFee = Number(paid) > 0 ? protocolFeeFor(paid) : 0;
   let receipt;
   try {

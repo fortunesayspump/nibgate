@@ -93,7 +93,7 @@ export async function createApp(config, options = {}) {
         origin: true,
         credentials: true,
         methods: ['POST', 'GET', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'payment-signature', 'payment-memo', 'x-nibgate-payment-proof']
+        allowedHeaders: ['Content-Type', 'payment-signature', 'payment-memo', 'x-nibgate-payment-proof', 'x-nibgate-tx-owner']
       });
     }
 

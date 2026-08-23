@@ -237,7 +237,7 @@ export default function NibgateUnlock({ resource }: { resource: UnlockResource }
         const isText = kind !== null && TEXT_VIEWER_KINDS.has(kind) && !!documentUrl && !viewFailed;
         const showPdfFrame = kind === "pdf" && !!documentUrl && !isSheet && !isText && !docHtml;
         const showHtml = !!docHtml && !isSheet && !isText;
-        const contentHtml = String(content || "").replace(/!\[([^\]]*)\]\(nibgate-embed:\/\/(\d+)\)/g, (m, alt, idx) => photoUrls[parseInt(idx, 10)] ? `<img src="${photoUrls[parseInt(idx, 10)]}" alt="${alt}" style="max-width:100%;border-radius:6px" />` : m).replace(/\[([^\]]*)\]\(nibgate-embed:\/\/(\d+)\)/g, (m, label, idx) => photoUrls[parseInt(idx, 10)] ? `<a href="${photoUrls[parseInt(idx, 10)]}" target="_blank" rel="noopener noreferrer">${label}</a>` : m);
+        const contentHtml = String(content || "").replace(/!\[([^\]]*)\]\(nibgate-embed:\/\/(\d+)\)/g, (m, alt, idx) => photoUrls[parseInt(idx, 10)] ? `<img src="${photoUrls[parseInt(idx, 10)]}" alt="${alt}" loading="lazy" decoding="async" style="max-width:100%;border-radius:6px" />` : m).replace(/\[([^\]]*)\]\(nibgate-embed:\/\/(\d+)\)/g, (m, label, idx) => photoUrls[parseInt(idx, 10)] ? `<a href="${photoUrls[parseInt(idx, 10)]}" target="_blank" rel="noopener noreferrer">${label}</a>` : m);
         return (
           <>
             {audioUrl && (

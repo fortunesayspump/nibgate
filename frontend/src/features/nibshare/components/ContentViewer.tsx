@@ -70,7 +70,7 @@ export default function ContentViewer({ body, title, slug }: { body: unknown; ti
           components={{
             img: ({ src, alt }) => {
               const resolved = resolveEmbed(typeof src === "string" ? src : undefined, mediaUrls);
-              return resolved ? <img src={resolved} alt={alt || ""} style={{ maxWidth: "100%", borderRadius: "6px" }} /> : null;
+              return resolved ? <img src={resolved} alt={alt || ""} loading="lazy" decoding="async" style={{ maxWidth: "100%", borderRadius: "6px" }} /> : null;
             },
             a: ({ href, children }) => {
               const resolved = resolveEmbed(typeof href === "string" ? href : undefined, mediaUrls);

@@ -28,5 +28,34 @@
     "feeBps": 100,
     "maxFeeBps": 500,
     "deployedAt": "2026-08-20T21:51:14.475Z"
+  },
+  "revenueV2Timelocked": {
+    "status": "testnet dry-run",
+    "timelockAddress": "0xf6cd7E2D015B29DB38CB42d1b346D2F0917f3F67",
+    "factoryAddress": "0x901387441B1531622f6A703B852d8745e6a8D012",
+    "aliceV2Wallet": "0x35bbdDc3cB8E64D3A386153D1B847033ede4147C",
+    "params": {
+      "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+      "usdc": "0x3600000000000000000000000000000000000000",
+      "gatewayWallet": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+      "gatewayMinter": "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B",
+      "domain": 26,
+      "maxFeeBps": 500,
+      "initialFeeBps": 100
+    },
+    "exercise": {
+      "delaySeconds": 60,
+      "governance": "keeper EOA (PLACEHOLDER)",
+      "directSetReverted": true,
+      "executeBeforeDelayReverted": true,
+      "permissionlessExecuteAfterDelay": true,
+      "finalFeeBps": 200,
+      "note": "fee left at 200bps from the exercise; reset via timelock before real use"
+    },
+    "caveats": [
+      "governance must be a multisig/safe on mainnet",
+      "delay should be 24-48h on mainnet, 60s here to exercise quickly"
+    ],
+    "deployedAt": "2026-08-22"
   }
 }

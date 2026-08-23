@@ -1,4 +1,4 @@
-import pkg from '@prisma/client';
+import pkg from '../../cli/generated/client/index.js';
 const { PrismaClient } = pkg;
 
 // PrismaClient is attached to the `global` object in development to prevent 

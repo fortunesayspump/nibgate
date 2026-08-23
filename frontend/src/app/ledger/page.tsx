@@ -46,6 +46,9 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
   rating: { label: "Rating", icon: <FiStar size={18} /> },
 };
 
+const MAX_FEED_ITEMS = 300;
+const MAX_NEW_BADGES = 100;
+
 function ta(d: string) {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
   if (s < 60) return `${s}s ago`;
@@ -94,6 +97,7 @@ export default function LedgerPage() {
   }, [filter]);
 
   const pollNew = useCallback(async () => {
+    if (typeof document !== "undefined" && document.hidden) return;
     try {
       const url = `/hub/ledger?limit=50${filter ? `&type=${filter}` : ""}`;
       const res = await fetch(url);
@@ -104,8 +108,12 @@ export default function LedgerPage() {
       const unseen = items.filter((a) => !existingIds.has(a.id));
       if (unseen.length > 0) {
         const newIds = new Set(unseen.map((a) => a.id));
-        setActivities((prev) => [...unseen, ...prev]);
-        setNewItemIds((prev) => { const n = new Set(prev); newIds.forEach((id) => n.add(id)); return n; });
+        setActivities((prev) => [...unseen, ...prev].slice(0, MAX_FEED_ITEMS));
+        setNewItemIds((prev) => {
+          const n = new Set(prev);
+          newIds.forEach((id) => n.add(id));
+          return n.size > MAX_NEW_BADGES ? new Set([...n].slice(-MAX_NEW_BADGES)) : n;
+        });
       }
       items.forEach((a) => existingIds.add(a.id));
       if (data.totals) setServerTotals(data.totals);
@@ -117,7 +125,12 @@ export default function LedgerPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLedger(false);
     const int = setInterval(() => pollNew(), 30000);
-    return () => clearInterval(int);
+    const onVisibility = () => { if (!document.hidden) pollNew(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(int);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [filter, pollNew, fetchLedger]);
 
   const filtered = activities.filter((a) => {
@@ -196,8 +209,8 @@ export default function LedgerPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((a, i) => {
-                      const k = `${a.id}-${i}`;
+                    {filtered.map((a) => {
+                      const k = a.id;
                       const open = expanded.has(k);
                       const meta = TYPE_META[a.type];
                       return (
@@ -209,7 +222,7 @@ export default function LedgerPage() {
                             <td className="px-5 py-5 min-w-[180px]">
                               <div className="flex items-center gap-3">
                                 {a.imageUrl ? (
-                                  <img src={a.imageUrl} alt="" className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" />
+                                  <img src={a.imageUrl} alt="" width={40} height={40} loading="lazy" decoding="async" className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" />
                                 ) : null}
                                 <div className="min-w-0">
                                   <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}

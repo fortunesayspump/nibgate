@@ -236,6 +236,10 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
                       <img
                         src={imageFor(item, active)}
                         alt=""
+                        width={56}
+                        height={56}
+                        loading="lazy"
+                        decoding="async"
                         className={`${active === "creators" ? "rounded-full" : "rounded-2xl"} h-14 w-14 shrink-0 border border-dark-gray/40 object-cover bg-gray`}
                       />
                       <div className="min-w-0">

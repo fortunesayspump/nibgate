@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output    = "../generated/client"
 }
 
 datasource db {
@@ -435,4 +436,15 @@ model NibShareReceipt {
   @@index([shareId])
   @@index([payerWallet])
   @@unique([paymentNonce, shareId])
+}
+
+// Direct-rail single-use claim: one broadcast USDC tx may pay for exactly one
+// content id across ALL surfaces. Written by /api/hub/pay right after on-chain
+// verification; a second resource presenting the same txHash gets a 402.
+// (Per-resource idempotency stays in the per-surface receipt tables — this is
+// the cross-resource/cross-site guard.)
+model PaymentTxClaim {
+  txHash    String   @id
+  contentId String
+  createdAt DateTime @default(now())
 }

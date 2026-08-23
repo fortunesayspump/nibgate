@@ -1,6 +1,7 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
 import { runHostedPayRequirement } from '@nibgate/sdk/server';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
   cleanDomain, isValidDomain, originFor, serializeWebsite,
@@ -37,7 +38,12 @@ export function registerHubRoutes(app) {
   startDataIntegrityMonitor();
   startGscSitemapMonitor();
   startGscIndexMonitor();
-  startFeeKeeper();
+  // The keeper sweeps matured gateway balances on a timer. Payment-flow
+  // stress/e2e runs set NIBGATE_DISABLE_KEEPER=true so sweeps can't drain a
+  // buyer's (or wallet's) ledger between maturation and spend.
+  if (process.env.NIBGATE_DISABLE_KEEPER !== 'true') {
+    startFeeKeeper();
+  }
 
   // ── Site Registration ──────────────────────────────────────────────────
 
@@ -315,11 +321,30 @@ export function registerHubRoutes(app) {
 
   // ── Hosted Pay ──────────────────────────────────────────────────────────
 
-  app.post('/api/hub/pay', async (req, res) => {
+  const hubPayLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 30,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => ipKeyGenerator(req.ip),
+    message: { ok: false, error: 'Too many payment requests, slow down.' },
+  });
+
+  app.post('/api/hub/pay', hubPayLimiter, async (req, res) => {
     try {
       const { price, recipient, title, paymentRail } = req.body || {};
-      const resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
+      let resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
       if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet provided. Pass recipient in request body or set NIBGATE_SELLER_ADDRESS.' });
+
+      // This endpoint is CORS-open so any site's widget can pay. That means
+      // body-supplied price/recipient are UNTRUSTED: when the contentId maps
+      // to a tracked content record, server-side values win.
+      let effectivePrice = price;
+      const contentRecord = await findContentByIdOrExternal(req.body?.contentId);
+      if (contentRecord) {
+        if (contentRecord.price && Number(contentRecord.price) > 0) effectivePrice = contentRecord.price;
+        if (contentRecord.recipientWallet) resolvedRecipient = contentRecord.recipientWallet;
+      }
 
       const requestHeaders = {};
       const sourceHeaders = req.headers || {};
@@ -331,7 +356,7 @@ export function registerHubRoutes(app) {
         {
           id: req.body?.contentId || 'hub',
           title: title || 'content',
-          price: String(price),
+          price: String(effectivePrice),
           recipient: resolvedRecipient,
           path: req.body?.path || '/',
           paymentRail: paymentRail || req.body?.rail || undefined,
@@ -344,7 +369,35 @@ export function registerHubRoutes(app) {
         return;
       }
 
-      res.json({ success: true, payment: { paymentProvider: gateway.payment.paymentProvider || 'circle-gateway', verified: true, paymentId: gateway.payment.paymentId || gateway.payment.txHash || null, recipient: gateway.payment.recipient, network: gateway.payment.network, amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: gateway.payment.payer || null, txHash: gateway.payment.txHash || null } });
+      // Direct-rail payments are PUBLIC chain data: without this claim, anyone
+      // could replay an observed txHash against a different resource (or site)
+      // and read paid content for free. One broadcast tx pays for exactly one
+      // content id, ever. Per-resource idempotency stays downstream.
+      if (gateway.payment?.txHash) {
+        const claimedTx = String(gateway.payment.txHash).toLowerCase();
+        const claimContentId = String(req.body?.contentId || 'hub');
+        try {
+          await db.paymentTxClaim.create({ data: { txHash: claimedTx, contentId: claimContentId } });
+        } catch (claimError) {
+          if (claimError?.code === 'P2002') {
+            const existing = await db.paymentTxClaim.findUnique({ where: { txHash: claimedTx } });
+            if (existing && existing.contentId !== claimContentId) {
+              return res.status(402).json({ ok: false, error: 'Payment already used for different content', reason: 'txhash-claimed-elsewhere' });
+            }
+          } else {
+            throw claimError; // fail closed — the DB is already a hard dependency of this route
+          }
+        }
+      }
+
+      // Surface direct-rail overpay metadata: verifyTransfer stamps
+      // amountReceived/overpay onto the payment when the buyer sent more than
+      // the price, so downstream surfaces can flag (or refund) overpays
+      // instead of silently pocketing the difference.
+      const overpayFields = Number.isFinite(gateway.payment.overpay)
+        ? { amountReceived: gateway.payment.amountReceived, overpay: gateway.payment.overpay }
+        : {};
+      res.json({ success: true, payment: { paymentProvider: gateway.payment.paymentProvider || 'circle-gateway', verified: true, paymentId: gateway.payment.paymentId || gateway.payment.txHash || null, recipient: gateway.payment.recipient, network: gateway.payment.network, amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: gateway.payment.payer || null, txHash: gateway.payment.txHash || null, ...overpayFields } });
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });
     }

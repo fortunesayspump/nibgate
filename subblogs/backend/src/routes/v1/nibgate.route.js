@@ -3,7 +3,7 @@ const validate = require('../../middlewares/validate');
 const nibgateValidation = require('../../validations/nibgate.validation');
 const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
-const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
+const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob, resolvePayTo } = require('@nibgate/sdk/server');
 const { storedToKey } = require('../../lib/keywrap');
 const { registerR2Provider } = require('../../lib/storage');
 const { renderDocument } = require('../../services/document-render');
@@ -87,9 +87,20 @@ function proofWalletFor(req, resource) {
   return /^0x[0-9a-f]{40}$/i.test(w) ? w.toLowerCase() : null;
 }
 
-function challengeFor(req, resource) {
+async function challengeFor(req, resource) {
   const rail = req.query?.rail === 'transfer' ? 'transfer' : 'gateway';
-  return nibgateServer.createPaymentChallenge(resource, { paymentRail: rail });
+  // Route direct payments through the platform fee wallet when hosted-pay is
+  // configured: the raw creator address would bypass the keeper sweep and the
+  // protocol fee entirely. Falls back to the raw recipient on any failure so
+  // gating never breaks because of RPC hiccups.
+  let payTo = resource.recipient;
+  if (payTo) {
+    try {
+      const wrapped = await resolvePayTo(payTo, { hosted: true });
+      if (wrapped) payTo = wrapped;
+    } catch { /* keep raw recipient */ }
+  }
+  return nibgateServer.createPaymentChallenge({ ...resource, recipient: payTo, ...(resource.recipient ? { payTo } : {}) }, { paymentRail: rail });
 }
 
 // Confirm the request may stream this post's media:
@@ -138,11 +149,19 @@ async function serveAccess(req, res, post, slug) {
   // cached by a shared proxy, or a non-payer could read a cached 200.
   res.setHeader('Cache-Control', 'private, no-store');
   const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
-  const recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
+  let recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
 
   if (!recipient) {
     return res.status(400).json({ ok: false, error: 'Gateway recipient wallet not configured. Set recipientWallet in site settings or NIBGATE_SELLER_ADDRESS env.' });
   }
+
+  // Hosted-pay: collect through the creator's platform fee wallet so the
+  // keeper can sweep and split the protocol fee. Falls back to the raw
+  // address when hosted-pay is off or the factory lookup fails.
+  try {
+    const wrapped = await resolvePayTo(recipient, { hosted: true });
+    if (wrapped) recipient = wrapped;
+  } catch { /* keep raw recipient */ }
 
   const resource = {
     id: post?.id || slug || 'unknown',
@@ -303,6 +322,7 @@ async function serveAccess(req, res, post, slug) {
     body: JSON.stringify({
       price: paidResource.price,
       recipient: paidResource.recipient,
+      payTo: paidResource.recipient,
       title: paidResource.title,
       contentId: paidResource.id,
       path: paidResource.path,

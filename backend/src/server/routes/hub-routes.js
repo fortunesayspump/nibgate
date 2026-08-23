@@ -245,6 +245,7 @@ export function registerHubRoutes(app) {
             imageUrl: p.content?.imageUrl || null,
             domain: p.website?.domain || '',
             amount: p.amount || 0,
+            protocolFee: p.protocolFee ?? null,
             currency: p.currency || 'USDC',
             timestamp: p.createdAt,
             // Verifiable payment fields

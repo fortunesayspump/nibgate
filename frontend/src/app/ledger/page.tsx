@@ -24,6 +24,7 @@ type Activity = {
   durationMs?: number;
   revenue?: number;
   amount?: number;
+  protocolFee?: number | null;
   txHash?: string;
   paymentId?: string;
   paymentProvider?: string;
@@ -272,6 +273,7 @@ export default function LedgerPage() {
                                   {a.type === "view" && a.durationMs ? <Det label="Duration" value={`${(a.durationMs / 1000).toFixed(1)}s`} /> : null}
                                   {a.type === "unlock" && <Det label="Revenue" value={`${a.revenue || 0} ${a.currency || "USDC"}`} />}
                                   {a.type === "payment" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
+                                  {a.type === "payment" && a.protocolFee != null && <Det label="Protocol Fee" value={`${a.protocolFee} ${a.currency || "USDC"}`} />}
                                   {a.paymentId && <Det label="Payment ID" value={a.paymentId} />}
                                   {a.txHash && <Det label={a.paymentProvider === "circle-gateway" ? "Gateway Ref" : "Tx Hash"} value={a.txHash} />}
                                   {a.chainId && <Det label="Chain ID" value={a.chainId} />}

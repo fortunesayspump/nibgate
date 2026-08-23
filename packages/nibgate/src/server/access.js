@@ -8,7 +8,7 @@ import { createManifest, manifestResponse } from './manifest.js';
 import { emitHubEvent } from './hub.js';
 import { depositToGateway, getGatewayBalances, payWithGateway, runCircleGatewayRequirement, withdrawFromGateway } from './gateway.js';
 import { serverEnv } from './env.js';
-import { createTransferVerifier } from './fee-wallet.js';
+import { createTransferVerifier, requireTransferOwnership, runTransferClaim } from './fee-wallet.js';
 
 export function createNibgateServer(options = {}) {
   const secret = options.secret || serverEnv('NIBGATE_SECRET') || serverEnv('NIBGATE_UNLOCK_SECRET') || 'nibgate-dev-secret';
@@ -135,6 +135,22 @@ export function createNibgateServer(options = {}) {
           };
           const verified = await verifyTransfer({ resource, txHash, payment: transferPayment, request });
           if (!verified) return jsonResponse({ ok: false, error: 'Transfer verification failed' }, { status: 402 });
+          const ownership = await requireTransferOwnership({
+            headers: request.headers,
+            txHash,
+            payer: transferPayment.payer,
+            resource,
+            optional: routeOptions.txOwnerProofOptional === true || options.txOwnerProofOptional === true || serverEnv('NIBGATE_TX_OWNER_PROOF_OPTIONAL') === 'true',
+          });
+          if (!ownership.ok) return jsonResponse({ ok: false, error: 'Transfer ownership check failed', reason: ownership.error, hint: ownership.hint }, { status: 402 });
+          let claim
+          try {
+            claim = await runTransferClaim({ txHash, resource, options: { ...options, ...routeOptions } });
+          } catch {
+            // Registry configured but unreachable -> fail closed, loudly.
+            return jsonResponse({ ok: false, error: 'Claim registry unavailable', reason: 'claim-registry-unavailable' }, { status: 503 });
+          }
+          if (!claim.ok) return jsonResponse({ ok: false, error: 'Payment already used for different content', reason: claim.error }, { status: 402 });
           const result = await unlock(resource, { ...transferPayment, verified: true });
           if (result.ok) return jsonResponse({ ok: true, resource, payment: { ...transferPayment, verified: true }, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
         }

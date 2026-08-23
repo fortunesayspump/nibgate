@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, getAddress, encodeAbiParameters, fallback } from 'viem';
+import { createPublicClient, createWalletClient, http, getAddress, encodeAbiParameters, fallback, recoverMessageAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { randomBytes } from 'node:crypto';
 import { normalizePaymentRail } from '../core/payment.js';
@@ -72,6 +72,33 @@ function headerValue(headers, name) {
 // On-chain verifier for the direct rail. Reads the transaction receipt for the
 // given txHash and confirms a USDC Transfer to the seller for at least the
 // resource price. Uses the SDK default RPC / USDC unless overridden.
+// Reorg-safety defaults per chain class. Direct-rail settlement credits
+// content off a receipt, so the receipt must be deep enough that a reorg can't
+// unmine it after unlock. Override with options.receiptConfirmations or env
+// NIBGATE_TX_CONFIRMATIONS.
+const CONFIRMATIONS_BY_CHAIN = {
+  1: 12, // Ethereum mainnet — exchange-grade depth for value settlement
+  8453: 4, // Base (OP-stack L2; pre-"safe" reorgs are shallow but real)
+  84532: 2, // Base Sepolia
+  5042002: 1, // Arc testnet — instant-finality testnet
+  31337: 1, // anvil/local
+};
+export const DEFAULT_CONFIRMATION_DEPTH = 3;
+
+const chainIdCache = new Map();
+async function chainConfirmations(client, rpcKey) {
+  const envConf = serverEnv('NIBGATE_TX_CONFIRMATIONS');
+  if (envConf) return Math.max(1, Number(envConf) || DEFAULT_CONFIRMATION_DEPTH);
+  try {
+    if (!chainIdCache.has(rpcKey)) {
+      chainIdCache.set(rpcKey, await client.getChainId());
+    }
+    return CONFIRMATIONS_BY_CHAIN[chainIdCache.get(rpcKey)] ?? DEFAULT_CONFIRMATION_DEPTH;
+  } catch {
+    return DEFAULT_CONFIRMATION_DEPTH;
+  }
+}
+
 export function createTransferVerifier(options = {}) {
   const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
   const usdc = getAddress(options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC);
@@ -89,12 +116,16 @@ export function createTransferVerifier(options = {}) {
       // The buyer sends the txHash as soon as the broadcast resolves, which can
       // be before the block is mined. Wait for the receipt so a fresh payment
       // verifies instead of failing a one-shot lookup.
-      const waitMs = Number(options.receiptWaitMs ?? 30000);
+      const confirmations =
+        options.receiptConfirmations ?? (await chainConfirmations(client, rpcUrl));
+      // Scale the wait with the depth actually required (mainnet 12-conf ≈ 3 min).
+      const waitMs =
+        Number(options.receiptWaitMs ?? Math.max(30000, confirmations * 15000));
       const receipt = await client.waitForTransactionReceipt({
         hash: txHash,
         timeout: waitMs,
         pollingInterval: 1000,
-        confirmations: options.receiptConfirmations ?? 1,
+        confirmations,
       });
       if (!receipt || receipt.status !== 'success') return false;
       let matched = false;
@@ -106,6 +137,12 @@ export function createTransferVerifier(options = {}) {
         const value = BigInt(log.data || '0x0');
         if (value >= amountWei) {
           matched = true;
+          // Surface what actually landed so surfaces can flag overpays
+          // (buyer sent more than price — e.g. a double-pay) on the receipt.
+          if (payment && value > amountWei) {
+            payment.amountReceived = Number(value) / 1e6;
+            payment.overpay = Number(value - amountWei) / 1e6;
+          }
           break;
         }
       }
@@ -202,14 +239,91 @@ export function protocolFeeFor(amount, options = {}) {
   return Math.round((value * policy.feeBps) / 10_000 * 1_000_000) / 1_000_000;
 }
 
+// ── Direct-rail payment-identity rules ──────────────────────────────────────
+// A broadcast USDC transfer is PUBLIC chain data: without an extra binding, any
+// observer could replay someone else's txHash to read paid content, and one
+// txHash would unlock every same-seller resource. The buyer therefore signs an
+// ownership proof binding the txHash to THIS resource; the verifier requires it
+// and the hub additionally claims each txHash for a single content id.
+export function transferOwnershipMessage(txHash, resource) {
+  return `Nibgate transfer ownership\ntx:${String(txHash || '').toLowerCase()}\nresource:${resource?.path || resource?.url || ''}`;
+}
+
+const TX_OWNER_HEADER = 'x-nibgate-tx-owner';
+
+export async function requireTransferOwnership({ headers, txHash, payer, resource, optional }) {
+  if (optional) return { ok: true };
+  // Accept both fetch Headers and lowercased Express-style plain objects.
+  const proofHeader = typeof headers?.get === 'function'
+    ? (headers.get(TX_OWNER_HEADER) || '')
+    : String(headers?.[TX_OWNER_HEADER] || headers?.[TX_OWNER_HEADER.toLowerCase()] || '');
+  const proof = Array.isArray(proofHeader) ? (proofHeader[0] || '') : proofHeader;
+  if (!proof) return { ok: false, error: 'transfer-ownership-proof-required', hint: `Sign ${JSON.stringify(transferOwnershipMessage(txHash, resource))} with the paying wallet and send it as ${TX_OWNER_HEADER}.` };
+  try {
+    const signer = await recoverMessageAddress({ message: transferOwnershipMessage(txHash, resource), signature: proof });
+    if (signer.toLowerCase() !== String(payer || '').toLowerCase()) {
+      return { ok: false, error: 'transfer-owner-mismatch' };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'transfer-owner-invalid' };
+  }
+}
+
+// Single-use txHash claim against an optional shared registry. Self-hosted
+// surfaces are isolated: the ownership proof binds payer+resource, but two
+// independent sites of the same creator would each accept the same txHash.
+// Point NIBGATE_CLAIM_REGISTRY_URL (or options.claimRegistryUrl) at a hub (or
+// any service implementing POST {txHash, contentId}) to make claims global:
+//   200            → claimed by this content id (idempotent on retry)
+//   402/409 + body → already claimed by a different content id → reject
+// Integrators wanting custom semantics can pass options.claimTx(txHash, contentId).
+export async function claimTransferTx({ txHash, contentId, registryUrl, fetchImpl }) {
+  const doFetch = fetchImpl || globalThis.fetch;
+  if (!registryUrl || typeof doFetch !== 'function') {
+    throw new Error('claim-registry-unreachable: no registry URL or fetch available');
+  }
+  const res = await doFetch(registryUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ txHash: String(txHash).toLowerCase(), contentId: String(contentId) }),
+  }).catch((error) => {
+    throw new Error(`claim-registry-unreachable: ${error?.message || error}`);
+  });
+  if (res.ok) {
+    const body = await res.json().catch(() => ({}));
+    return { ok: true, firstClaim: body?.firstClaim !== false };
+  }
+  return {
+    ok: false,
+    error: 'txhash-claimed-elsewhere',
+    status: res.status,
+  };
+}
+
+export async function runTransferClaim({ txHash, resource, options = {}, fetchImpl }) {
+  if (typeof options.claimTx === 'function') {
+    return options.claimTx(txHash, resource.id ?? resource.path ?? '');
+  }
+  const registryUrl = options.claimRegistryUrl || serverEnv('NIBGATE_CLAIM_REGISTRY_URL');
+  if (!registryUrl) return { ok: true, skipped: true }; // no registry configured
+  return claimTransferTx({ txHash, contentId: resource.id ?? resource.path ?? '', registryUrl, fetchImpl });
+}
+
 // Hosted-pay requirement for the hub's transfer (client-broadcast direct) rail.
 // Serves the 402 challenge with the seller (fee wallet) as payTo when no tx is
 // presented, or verifies the buyer's broadcast USDC transfer on-chain and
 // returns the payment when it clears.
 export async function runHostedTransferRequirement(request, resourceInput, options = {}) {
   const resource = normalizeResource(resourceInput);
-  const recipient = resource.recipient || resource.payTo || options.recipient || options.sellerAddress || serverEnv('NIBGATE_SELLER_ADDRESS') || '';
-  const seller = await resolvePayTo(recipient, options);
+  // runHostedPayRequirement resolves the seller (creator -> fee wallet) and
+  // pins BOTH fields to it before delegating here. Re-running resolvePayTo on
+  // an already-resolved fee wallet would compute the "fee wallet of the fee
+  // wallet" — a deterministic but undeployed address that can never receive.
+  // Treat matching recipient/payTo as the pinned signal and skip resolution.
+  const pinned = resource.payTo && resource.payTo === resource.recipient;
+  const recipient = pinned ? resource.payTo : (resource.recipient || resource.payTo || options.recipient || options.sellerAddress || serverEnv('NIBGATE_SELLER_ADDRESS') || '');
+  const seller = pinned ? resource.payTo : await resolvePayTo(recipient, options);
   const txHash = headerValue(request.headers, 'x-nibgate-transfer-tx') || headerValue(request.headers, 'x-transfer-tx') || headerValue(request.headers, 'payment-signature') || '';
 
   if (!txHash) {
@@ -235,6 +349,26 @@ export async function runHostedTransferRequirement(request, resourceInput, optio
     return {
       handled: true,
       response: jsonResponse({ ok: false, error: 'Transfer verification failed' }, { status: 402 }),
+    };
+  }
+  const ownership = await requireTransferOwnership({
+    headers: request.headers,
+    txHash,
+    payer: transferPayment.payer,
+    resource,
+    optional: options.txOwnerProofOptional === true || serverEnv('NIBGATE_TX_OWNER_PROOF_OPTIONAL') === 'true',
+  });
+  if (!ownership.ok) {
+    return {
+      handled: true,
+      response: jsonResponse({ ok: false, error: 'Transfer ownership check failed', reason: ownership.error, hint: ownership.hint }, { status: 402 }),
+    };
+  }
+  const claim = await runTransferClaim({ txHash, resource, options });
+  if (!claim.ok) {
+    return {
+      handled: true,
+      response: jsonResponse({ ok: false, error: 'Payment already used for different content', reason: claim.error }, { status: 402 }),
     };
   }
   return { handled: false, payment: { ...transferPayment, verified: true } };

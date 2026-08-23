@@ -421,20 +421,36 @@ Some smart contract wallets (Gnosis Safe, Argent, etc.) may not support `eth_sig
 
 ## 9. AI Agent Content Discovery & Purchase (x402)
 
-AI agents can discover and purchase content on Nibgate through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed.
+AI agents can discover and purchase content on Nibgate through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed. Full payer guide: `https://nibgate.xyz/discovery.md`.
+
+All settled payments are recorded server-side at the payment layer — receipts, metrics, and the public ledger treat machine payers exactly like browser users, with no client-side event reporting required.
 
 ### Agent Flow
 
 1. **Discover** — agent hits the Hub's explore API or polls creator `/nibgate.json` manifests:
 
    ```bash
-   GET https://nibgate.xyz/hub/explore/content?type=article&limit=100
+   GET https://api.nibgate.xyz/hub/explore/content?type=article&limit=100
    Accept: application/json
    ```
 
    Response includes content with `price`, `currency`, `access` policy, `websiteDomain`, and the creator's `recipientWallet`.
 
-2. **Access** — agent hits the content's access URL identifying as an agent:
+   Standalone share links work without any manifest: `GET https://api.nibgate.xyz/ns/{slug}` — free shares return the body directly; paid shares return a 402 challenge.
+
+2. **Pay** — easiest with the Circle Agent Stack CLI (wallet, policies, Gateway deposits handled for you):
+
+   ```bash
+   circle services inspect "https://creator.example/api/nibgate/access?path=my-article" --output json
+   circle services pay   "https://creator.example/api/nibgate/access?path=my-article" \
+     --address <agent-wallet> --chain ARC-TESTNET --output json
+   ```
+
+   Nanopayments spend the **Gateway balance** (not the on-chain balance); if you hit
+   `Insufficient Gateway balance`, deposit first:
+   `circle gateway deposit --address <addr> --chain ARC-TESTNET --amount 1 --method direct`.
+
+3. **Access** — or hit the content's access URL identifying as an agent:
 
    ```bash
    GET https://creator.example/api/nibgate/access?path=my-article
@@ -442,9 +458,9 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
    Accept: application/json
    ```
 
-3. **402 Challenge** — if payment is required, server returns HTTP 402 with a `PAYMENT-REQUIRED` header containing a base64-encoded x402 v2 challenge with the `extra.verifyingContract` field (Gateway Wallet address).
+4. **402 Challenge** — if payment is required, server returns HTTP 402 with a `PAYMENT-REQUIRED` header containing a base64-encoded x402 v2 challenge with the `extra.verifyingContract` field (Gateway Wallet address).
 
-4. **Sign Payment** — agent signs an EIP-3009 `TransferWithAuthorization` using an EVM wallet with USDC in Circle Gateway:
+5. **Sign Payment** — agent signs an EIP-3009 `TransferWithAuthorization` using an EVM wallet with USDC in Circle Gateway:
 
    ```ts
    import { BatchEvmScheme } from '@circle-fin/x402-batching/client'
@@ -455,7 +471,7 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
    const payload = await scheme.createPaymentPayload(2, gatewayOption)
    ```
 
-5. **Retry** — agent retries the request with the signed payment:
+6. **Retry** — agent retries the request with the signed payment:
 
    ```bash
    GET https://creator.example/api/nibgate/access?path=my-article
@@ -463,7 +479,7 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
    Accept: application/json
    ```
 
-6. **Unlocked** — server returns `200` with `{ ok: true, unlockProof, payment, resource }`.
+7. **Unlocked** — server returns `200` with `{ ok: true, unlockProof, payment, resource }`. Re-requesting a paid resource returns it again without a new charge.
 
 ### Headless GatewayClient (Full Auto Flow)
 

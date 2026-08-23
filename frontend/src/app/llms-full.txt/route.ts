@@ -58,6 +58,7 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 - https://nibgate.xyz/explore — Content discovery feed.
 - https://nibgate.xyz/ledger — Public activity ledger.
 - https://nibgate.xyz/leaderboards — Reputation leaderboards.
+- https://nibgate.xyz/.well-known/agent-skills/index.json — Machine-readable index of Nibgate agent skills.
 - https://docs.nibgate.xyz/api-reference — API reference.
 - https://docs.nibgate.xyz/agent-discovery — Agent discovery docs.
 
@@ -65,9 +66,11 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 
 - https://api.nibgate.xyz/hub/explore/content?limit=100 — Explore feed of verified content.
 - https://api.nibgate.xyz/hub/ledger?limit=100 — Public ledger.
-- https://api.nibgate.xyz/hub/stats — Platform totals.
+- https://api.nibgate.xyz/hub/stats — Platform totals (revenue, protocol fees).
+- https://api.nibgate.xyz/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
+- https://api.nibgate.xyz/nibshare/{slug}/manifest — Public manifest for a nibshare.
 - https://api.nibgate.xyz/hub/reputation/leaderboards — Ranked reputation leaderboards.
-- https://api.nibgate.xyz/openapi.json — OpenAPI specification.
+- https://api.nibgate.xyz/openapi.json — OpenAPI specification (includes unlock endpoints).
 - https://api.nibgate.xyz/mcp — MCP server for AI agents.
 
 ## Top content on Nibgate

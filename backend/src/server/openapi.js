@@ -70,19 +70,149 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.1.0",
+    version: "0.2.0",
     description:
-      "Public API for the Nibgate hub: verified content discovery, unlock/payment ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains.",
+      "Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on Arc testnet), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md",
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
   },
   servers: [{ url: hubApi, description: "Production hub API" }],
   tags: [
     { name: "Discovery", description: "Verified content discovery for humans and AI agents" },
+    { name: "Unlocks", description: "x402 paid unlocks: pay USDC, receive content" },
     { name: "Ledger", description: "Public activity feed of views, unlocks, payments, and ratings" },
     { name: "Reputation", description: "Onchain reputation and leaderboards" },
     { name: "Platform", description: "Platform-wide stats and site indexes" },
   ],
   paths: {
+    "/ns/{slug}": {
+      get: {
+        tags: ["Unlocks"],
+        summary: "Unlock a nibshare link",
+        description:
+          "Standalone share links. Free shares return the body directly; paid shares return 402 with a PAYMENT-REQUIRED header containing a standard x402 envelope (Circle Gateway scheme on eip155:5042002). Pay and retry the same request to receive JSON with content, media metadata, payment receipt, and a reusable unlockProof.",
+        parameters: [
+          { name: "slug", in: "path", required: true, schema: { type: "string" }, description: "Share slug from a nibshare link." },
+        ],
+        responses: {
+          "200": {
+            description: "Content body (free share, or paid share after settlement)",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    resource: { type: "object", properties: { id: { type: "string" }, title: { type: "string" }, price: { type: "string" } } },
+                    content: { type: "string", description: "Decrypted plaintext body" },
+                    payment: {
+                      type: "object",
+                      properties: {
+                        amount: { type: "number" },
+                        currency: { type: "string" },
+                        payerWallet: { type: "string" },
+                        txHash: { type: "string", description: "Gateway settlement reference; idempotency key for retries" },
+                        protocolFee: { type: "number", nullable: true },
+                      },
+                    },
+                    unlockProof: { type: "string", description: "Signed entitlement proof; present it on later requests to re-read without paying" },
+                  },
+                },
+              },
+            },
+          },
+          "402": {
+            description: "Payment required — PAYMENT-REQUIRED header carries the base64 x402 challenge",
+          },
+          "404": { description: "Unknown or revoked slug", content: { "application/json": { schema: errorSchema } } },
+        },
+      },
+    },
+    "/nibshare/{slug}/manifest": {
+      get: {
+        tags: ["Unlocks"],
+        summary: "Public manifest for a share",
+        description: "Machine-readable metadata for a nibshare: title, type, price, currency, access policy. No authentication.",
+        parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Manifest metadata", content: { "application/json": { schema: { type: "object" } } } },
+          "404": { description: "Unknown slug", content: { "application/json": { schema: errorSchema } } },
+        },
+      },
+    },
+    "/nibshare/{slug}/meta": {
+      get: {
+        tags: ["Unlocks"],
+        summary: "Public metadata for a share",
+        description: "Public fields for a nibshare including view/unlock counters. No authentication.",
+        parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }],
+        responses: {
+          "200": { description: "Metadata", content: { "application/json": { schema: { type: "object" } } } },
+          "404": { description: "Unknown slug", content: { "application/json": { schema: errorSchema } } },
+        },
+      },
+    },
+    "/hub/pay": {
+      post: {
+        tags: ["Unlocks"],
+        summary: "x402 payment gate for tracked creator-site content",
+        description:
+          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side (receipts, metrics, public ledger) whether the payer is a browser or a machine. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["price", "recipient"],
+                properties: {
+                  contentId: { type: "string", description: "Tracked hub content id or externalId; server-side values win over body price/recipient when it maps." },
+                  title: { type: "string" },
+                  path: { type: "string" },
+                  url: { type: "string" },
+                  price: { type: "string", description: "Fallback price when contentId is not tracked." },
+                  recipient: { type: "string", description: "Fee wallet address receiving the payment." },
+                  paymentRail: { type: "string", enum: ["gateway", "transfer"] },
+                  siteId: { type: "string", description: "Site UUID for attribution when contentId is not tracked." },
+                  siteToken: { type: "string", description: "Site verification token." },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Payment verified",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    payment: {
+                      type: "object",
+                      properties: {
+                        paymentProvider: { type: "string" },
+                        verified: { type: "boolean" },
+                        paymentId: { type: "string", nullable: true },
+                        recipient: { type: "string" },
+                        network: { type: "string" },
+                        amount: { type: "number" },
+                        revenue: { type: "number" },
+                        currency: { type: "string" },
+                        payer: { type: "string", nullable: true },
+                        txHash: { type: "string", nullable: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "402": { description: "Payment required — x402 challenge" },
+          "400": { description: "Missing recipient/invalid body", content: { "application/json": { schema: errorSchema } } },
+        },
+      },
+    },
     "/api/nibgate/status": {
       get: {
         tags: ["Platform"],
@@ -206,6 +336,7 @@ export const openApiSpec = {
                         views: { type: "integer" },
                         unlocks: { type: "integer" },
                         revenue: { type: "number" },
+                        protocolFees: { type: "number", description: "Cumulative 1% protocol fees collected on hosted payments" },
                       },
                     },
                   },

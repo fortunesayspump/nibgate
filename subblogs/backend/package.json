@@ -6,6 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon src/index.js",
+    "postinstall": "npx prisma generate",
     "start": "npx prisma generate && (npx prisma migrate deploy 2>/dev/null || npx prisma db push --skip-generate --accept-data-loss) && cross-env NODE_ENV=production node src/index.js",
     "seed": "NODE_ENV=development node prisma/seed.js",
     "lint": "eslint .",
@@ -13,7 +14,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1095.0",
-    "@nibgate/sdk": "^0.4.12",
+    "@nibgate/sdk": "file:../../packages/nibgate",
     "@prisma/client": "^6.3.1",
     "@sentry/node": "^8.0.0",
     "bcryptjs": "^2.4.3",

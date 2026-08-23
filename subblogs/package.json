@@ -15,6 +15,6 @@
     "concurrently": "^9.1.2"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.4.9"
+    "@nibgate/sdk": "file:../packages/nibgate"
   }
 }

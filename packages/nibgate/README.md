@@ -449,6 +449,56 @@ createNibgateServer({
 });
 ```
 
+### Payment identity rules (direct rail)
+
+A broadcast transfer is **public chain data**: a raw `txHash` proves a payment
+*happened*, not who made it or what it was for. Since v0.4.15 the SDK enforces
+two rules on every direct-rail unlock; both fail closed.
+
+1. **Ownership proof** — the request must carry header
+   `x-nibgate-tx-owner`: an EIP-191 signature by the *paying wallet* over
+
+   ```
+   Nibgate transfer ownership
+   tx:<lowercased txHash>
+   resource:<resource path or url>
+   ```
+
+   Build it with `transferOwnershipMessage(txHash, { path })` from
+   `@nibgate/sdk/server` and sign with the buyer's key. Missing →
+   `402 { reason: 'transfer-ownership-proof-required' }`; signed by any other
+   key → `402 { reason: 'transfer-owner-mismatch' }`.
+2. **Single-use claims (hub surfaces)** — the hub records each txHash against
+   exactly one content id (`PaymentTxClaim`). Replaying a hash for different
+   content → `402 { reason: 'txhash-claimed-elsewhere' }`. Same content stays
+   idempotent and never charges twice.
+
+Escape hatch for custom verification flows:
+`txOwnerProofOptional: true` in server config or env
+`NIBGATE_TX_OWNER_PROOF_OPTIONAL=true`. Only do this when your own
+`verifyTransfer` performs equivalent checks.
+
+### Returning-owner probe (no session, no proof — never re-charge)
+
+Since v0.4.16 a returning owner who arrives with **neither** a SIWE session
+**nor** a cached unlock proof (new device / signed out) is identified through a
+signed possession check instead of being charged again:
+
+1. Your access route sees the client's `?wallet=` claim and, if paid receipts
+   exist for it, adds `ownedForClaim: true` to the 402 challenge body.
+2. The browser SDK (`checkResourceAccess`) accepts an optional
+   `proveOwnership({ resource }) => { address, message, signature }` callback.
+   When the flag is present it signs
+   `ownershipMessage(resource, address)` (exported from both entry points) and
+   retries with header `x-nibgate-ownership-signature`.
+3. Servers verify with
+   `verifyOwnershipSignature({ signature, address, resource })`
+   (`@nibgate/sdk/server`). Success ⇒ the lifetime path re-issues the unlock
+   free of charge; anything else fails closed to the normal challenge.
+
+The wallet package wires this automatically in `useNibgateUnlock()` — hosts
+using the React components get the behavior without extra code.
+
 ## Access policies
 
 For CMS/database-driven sites, keep the gating fields in your own content table, then map each record into a Nibgate resource. Nibgate does not replace your CMS or DB.

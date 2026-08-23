@@ -1,14 +1,13 @@
 {
   "name": "@nibgate/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Nibgate CLI and gateway runtime for x402 nanopayments on creator sites.",
-  "private": true,
   "type": "module",
   "bin": {
     "nibgate": "./bin/nibgate.js"
   },
   "scripts": {
-    "postinstall": "node scripts/prisma-generate-if-configured.mjs",
+    "postinstall": "node scripts/prisma-generate.mjs",
     "dev": "node bin/nibgate.js dev",
     "routes": "node bin/nibgate.js routes"
   },
@@ -20,5 +19,6 @@
     "nanoid": "^5.1.5",
     "prisma": "^5.22.0",
     "viem": "^2.52.2"
-  }
+  },
+  "license": "MIT"
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { feePolicy, protocolFeeFor, feeWalletAddressFor, ensureFeeWalletDeployed, createPredictedWalletReader, resolvePayTo, createTransferVerifier, runHostedTransferRequirement, runHostedPayRequirement, ARC_USDC, ARC_TESTNET_CHAIN, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, DEFAULT_TREASURY, FEE_WALLET_FACTORY_ABI, sweepFeeWallet, withdrawGatewayBalanceFor, distributeFeeWallet } from '../src/server/fee-wallet.js'
+import { feePolicy, protocolFeeFor, feeWalletAddressFor, ensureFeeWalletDeployed, createPredictedWalletReader, resolvePayTo, createTransferVerifier, runHostedTransferRequirement, runHostedPayRequirement, transferOwnershipMessage, ARC_USDC, ARC_TESTNET_CHAIN, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, DEFAULT_TREASURY, FEE_WALLET_FACTORY_ABI, sweepFeeWallet, withdrawGatewayBalanceFor, distributeFeeWallet } from '../src/server/fee-wallet.js'
 
 describe('feePolicy', () => {
   it('uses the 1% default on Arc testnet', () => {
@@ -275,10 +275,16 @@ describe('runHostedTransferRequirement', () => {
     expect(body.accepts[0].amount).toBe('1.5')
   })
 
-  it('verifies an accepted transfer via the injected verifier', async () => {
-    const verifyTransfer = async () => true
+  it('verifies an accepted transfer via the injected verifier (with valid ownership proof)', async () => {
+    const { privateKeyToAccount } = await import('viem/accounts')
+    const buyer = privateKeyToAccount('0x' + '33'.repeat(32))
+    const verifyTransfer = async ({ payment }) => {
+      payment.payer = buyer.address
+      return true
+    }
+    const sig = await buyer.signMessage({ message: transferOwnershipMessage('0xdeadbeef', { id: 'post-1', title: 'Post', price: '1.5', recipient: creator, path: '/' }) })
     const result = await runHostedTransferRequirement(
-      { headers: { 'x-nibgate-transfer-tx': '0xdeadbeef' } },
+      { headers: { 'x-nibgate-transfer-tx': '0xdeadbeef', 'x-nibgate-tx-owner': sig } },
       { id: 'post-1', title: 'Post', price: '1.5', recipient: creator },
       { hosted: true, verifyTransfer },
     )
@@ -286,6 +292,7 @@ describe('runHostedTransferRequirement', () => {
     expect(result.payment.paymentProvider).toBe('direct-transfer')
     expect(result.payment.txHash).toBe('0xdeadbeef')
     expect(result.payment.recipient).toBe(creator)
+    expect(result.payment.payer.toLowerCase()).toBe(buyer.address.toLowerCase())
     expect(result.payment.verified).toBe(true)
   })
 
@@ -327,5 +334,34 @@ describe('runHostedPayRequirement rail branching', () => {
     expect(result.handled).toBe(true)
     const body = await result.response.json()
     expect(body.paymentRail).toBe('transfer')
+  })
+})
+describe('hosted transfer rail pinning (regression: no double resolution)', () => {
+  const creator = '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12'
+  const feeWallet = '0x7C6B2e668016738e1be2463d589085b46C0Efd83'
+  // what the pre-fix code produced: resolvePayTo applied to the ALREADY-resolved
+  // fee wallet -> a deterministic but undeployed "fee wallet of the fee wallet"
+  const doubleResolved = '0x00000000000000000000000000000000d3e28950'
+  const opts = {
+    hosted: true,
+    feeWalletFactory: '0x1111111111111111111111111111111111111111',
+    predictedWallet: async (addr) => (addr.toLowerCase() === creator.toLowerCase() ? feeWallet : doubleResolved),
+  }
+  const resource = { id: 'p', price: '0.25', recipient: creator, title: 'p', path: '/p', url: 'https://x.test/p', paymentRail: 'transfer' }
+
+  it('challenge payTo resolves exactly once through runHostedPayRequirement', async () => {
+    const res = await runHostedPayRequirement({ method: 'GET', url: '/p', headers: {} }, resource, opts)
+    expect(res.handled).toBe(true)
+    expect(res.response.status).toBe(402)
+    const body = await res.response.json()
+    expect(body.accepts[0].payTo.toLowerCase()).toBe(feeWallet.toLowerCase())
+    expect(body.accepts[0].recipient.toLowerCase()).toBe(feeWallet.toLowerCase())
+  })
+
+  it('runHostedTransferRequirement honors pinned recipient === payTo without re-resolving', async () => {
+    const res = await runHostedTransferRequirement({ method: 'GET', url: '/p', headers: {} }, { ...resource, recipient: feeWallet, payTo: feeWallet }, opts)
+    expect(res.response.status).toBe(402)
+    const body = await res.response.json()
+    expect(body.accepts[0].payTo.toLowerCase()).toBe(feeWallet.toLowerCase())
   })
 })

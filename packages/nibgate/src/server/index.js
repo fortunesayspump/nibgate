@@ -5,6 +5,8 @@ export { actorFromRequest, accessModeFor } from './actor.js';
 export { createPaymentChallenge } from './challenge.js';
 export { createManifest, manifestResponse } from './manifest.js';
 export { createUnlockToken, verifyUnlockToken } from './proof.js';
+export { ownershipMessage } from '../core/ownership.js';
+export { OWNERSHIP_SIGNATURE_HEADER, verifyOwnershipSignature } from './ownership.js';
 export { emitHubEvent } from './hub.js';
 export { payWithGateway, createGatewayBuyer, getGatewayBalances, depositToGateway, withdrawFromGateway, runCircleGatewayRequirement } from './gateway.js';
 export { feePolicy, protocolFeeFor, feeWalletAddressFor, createPredictedWalletReader, ensureFeeWalletDeployed, resolvePayTo, runHostedPayRequirement, runHostedTransferRequirement, createTransferVerifier, FEE_WALLET_FACTORY_ABI, DEFAULT_TREASURY, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, ARC_TESTNET_CHAIN, ARC_TESTNET_RPC, ARC_USDC, ARC_GATEWAY_WALLET, ARC_GATEWAY_MINTER, ARC_DOMAIN, GATEWAY_API_TESTNET, buildSelfBurnIntent, submitGatewayWithdrawal, gatewayBalanceFor, feeWalletUsdcBalance, withdrawGatewayBalanceFor, distributeFeeWallet, sweepFeeWallet } from './fee-wallet.js';

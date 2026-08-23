@@ -77,7 +77,25 @@ flowchart TD
 
 ### Wallet resolution priority
 
-The rule needs to know who is asking. Resolution order: explicit `?wallet=` → SIWE session → payment-proof payer → `undefined` (anonymous charge path). Media proxies send `?wallet=` automatically via the wallet SDK's `accessPathFor()` helper, so an `<img>` or `<audio>` tag can authenticate even though it cannot carry headers.
+The rule needs to know who is asking. Resolution order: explicit `?wallet=` → SIWE session **or** ownership-signature possession proof → payment-proof payer → `undefined` (anonymous charge path). Media proxies send `?wallet=` automatically via the wallet SDK's `accessPathFor()` helper, so an `<img>` or `<audio>` tag can authenticate even though it cannot carry headers.
+
+### Returning owners without a session (the ownership probe)
+
+A returning owner can arrive with **no SIWE session and no cached proof** — a new device, a signed-out browser, an explicit disconnect. Entitlements remain the source of truth, so the flow must never charge them twice:
+
+1. The client's access fetch already carries its *unverified* `?wallet=` claim. If receipts exist for that address, the 402 challenge body gains `ownedForClaim: true`. This is a cheap, untrusted hint — the claim alone grants nothing.
+2. On seeing the flag, the SDK asks the wallet for **one** EIP-191 `personal_sign` over `ownershipMessage(resource, address)`:
+
+   ```text
+   Nibgate ownership confirmation
+   resource:/writing/p2-paid
+   wallet:0xabc…8c0d
+   ```
+
+   and retries the access check with header `x-nibgate-ownership-signature`.
+3. The server recovers the signer (`verifyOwnershipSignature`). A match proves possession of the claimed key and the lifetime path re-issues a fresh proof **for free**. A wrong signer, tampered resource binding, or garbage signature fails closed to the ordinary payment challenge.
+
+New buyers never see the extra prompt — the flag only appears when receipts already exist. Verified end-to-end: the probe returns 200 + fresh proof, creates no receipt, and moves nothing from gateway balance.
 
 ## Entitlements are the source of truth
 

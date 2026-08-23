@@ -103,7 +103,7 @@ async function mediaAccessResult(req, post, resource) {
   // The wallet is trusted from a valid proof, OR from a session-corroborated
   // claim. A bare ?wallet= claim alone cannot unlock media.
   let wallet = proofWalletFor(req, resource);
-  if (!wallet) wallet = await accessService.possessedWalletFor(req, accessService.walletFor(req));
+  if (!wallet) wallet = await accessService.possessedWalletFor(req, accessService.walletFor(req), resource);
   if (!wallet) {
     if (!isPaidValue(post?.price)) {
       return { status: 403, body: { error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view its media.' } };
@@ -166,7 +166,7 @@ async function serveAccess(req, res, post, slug) {
     // wallet — and only a session-corroborated claim is trusted. A bare
     // ?wallet= cannot unlock free content.
     if (!post?.publicAccess) {
-      const possessed = await accessService.possessedWalletFor(req, accessService.walletFor(req));
+      const possessed = await accessService.possessedWalletFor(req, accessService.walletFor(req), resource);
       if (!possessed) {
         return res.status(403).json({ ok: false, error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view it.' });
       }
@@ -221,7 +221,7 @@ async function serveAccess(req, res, post, slug) {
   // Only a session-corroborated claim may influence the tier — a bare claim
   // charges the PUBLIC price and grants nothing.
   const claimed = accessService.walletFor(req);
-  const wallet = await accessService.possessedWalletFor(req, claimed);
+  const wallet = await accessService.possessedWalletFor(req, claimed, resource);
   const preDecision = wallet ? await accessService.canAccessPost(post, { wallet }) : null;
 
   // Invite-only paid posts: only a possessed, whitelisted wallet may even
@@ -298,6 +298,7 @@ async function serveAccess(req, res, post, slug) {
       ...(req.headers['payment-signature'] ? { 'payment-signature': req.headers['payment-signature'] } : {}),
       ...(req.headers['payment-memo'] ? { 'payment-memo': req.headers['payment-memo'] } : {}),
       ...(req.headers['x-nibgate-transfer-tx'] ? { 'x-nibgate-transfer-tx': req.headers['x-nibgate-transfer-tx'] } : {}),
+      ...(req.headers['x-nibgate-tx-owner'] ? { 'x-nibgate-tx-owner': req.headers['x-nibgate-tx-owner'] } : {}),
     },
     body: JSON.stringify({
       price: paidResource.price,
@@ -310,7 +311,21 @@ async function serveAccess(req, res, post, slug) {
   });
 
   if (hubResponse.status === 402) {
-    const body = await hubResponse.text();
+    let body = await hubResponse.text();
+    // Cheap, untrusted ownership hint: if the request CLAIMS a wallet that has
+    // a paid receipt for this post, tell the client it's worth asking the user
+    // for one ownership signature instead of charging them again. The claim
+    // alone grants nothing — the signature does (possessedWalletFor).
+    const claimedAddr = String(claimed || '').toLowerCase();
+    if (claimedAddr && !wallet && /^0x[0-9a-f]{40}$/.test(claimedAddr)) {
+      try {
+        const j = JSON.parse(body);
+        if (j && typeof j === 'object') {
+          j.ownedForClaim = Boolean(await accessService.findLastReceipt({ postId: post.id, wallet: claimedAddr }));
+          if (j.ownedForClaim) body = JSON.stringify(j);
+        }
+      } catch { /* non-JSON challenge body: forward untouched */ }
+    }
     const hasSig = !!req.headers['payment-signature'];
     logger.warn(`nibgate/access 402 subdomain=${req.subdomain} slug=${slug} hasSig=${hasSig} body=${body}`);
     return res

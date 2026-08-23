@@ -36,6 +36,9 @@ writeskill.md
 /revenue-model/
 /e2e/
 
+# circle agent stack sandbox (local only)
+/agent-lab/
+
 # binary litter
 *.mp4
 

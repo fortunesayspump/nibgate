@@ -10,6 +10,8 @@ import { copyToClipboard } from "@/lib/clipboard";
 type Transaction = {
   id: string;
   amount: number;
+  protocolFee?: number | null;
+  netAmount?: number | null;
   contentTitle: string;
   websiteName: string;
   createdAt: string;
@@ -27,6 +29,8 @@ type Transaction = {
 type Earnings = {
   availableBalance: number;
   totalRevenue: number;
+  protocolFees?: number;
+  netRevenue?: number;
   flow?: PaymentFlowMetric[];
   failureReasons?: Array<{ label: string; value: number }>;
   transactions: Transaction[];
@@ -186,9 +190,10 @@ export default function EarningsPage() {
                   <ShieldCheck className="h-4 w-4" /> Non-custodial payments
                 </div>
               </div>
-              <div className="grid border-t md:grid-cols-3" style={{ borderColor: "var(--nib-border-soft)" }}>
+              <div className="grid border-t md:grid-cols-4" style={{ borderColor: "var(--nib-border-soft)" }}>
                 <MoneyStrip label="Paid unlock revenue" value={`${activeEarnings.totalRevenue.toFixed(2)} USDC`} />
-                <MoneyStrip label="Verified payments" value={`${verifiedAmount.toFixed(2)} USDC`} />
+                <MoneyStrip label="Protocol fees" value={`${(activeEarnings.protocolFees ?? 0).toFixed(2)} USDC`} />
+                <MoneyStrip label="Net to you" value={`${(activeEarnings.netRevenue ?? activeEarnings.totalRevenue).toFixed(2)} USDC`} />
                 <MoneyStrip label="Reported events" value={`${reportedAmount.toFixed(2)} USDC`} />
               </div>
             </div>
@@ -612,6 +617,8 @@ function ReceiptModal({ transaction, onClose }: { transaction: Transaction; onCl
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <InfoStat label="Amount" value={`${transaction.amount.toFixed(3)} USDC`} />
+          {transaction.protocolFee != null && <InfoStat label="Protocol fee" value={`${transaction.protocolFee} USDC`} />}
+          {transaction.netAmount != null && <InfoStat label="Net to creator" value={`${transaction.netAmount.toFixed(3)} USDC`} />}
           <InfoStat label="Status" value={transaction.status || "settled"} />
           <InfoStat label="Payment route" value={displayPaymentRoute(transaction)} />
           <InfoStat label="Payer" value={transaction.payer || "Not reported"} />

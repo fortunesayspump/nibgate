@@ -116,6 +116,8 @@ For each creator the keeper withdraws any pending Circle Gateway balance into th
 | `NIBGATE_FEE_KEEPER` | unset | Any non-empty value enables the background keeper sweep loop. |
 | `NIBGATE_KEEPER_PRIVATE_KEY` | unset | Keeper's signing key (gas-only; holds no user funds, no special contract rights). |
 | `NIBGATE_FEE_KEEPER_INTERVAL_MS` | `60000` | Sweep cadence. |
+| `NIBGATE_FEE_KEEPER_STAGGER_MS` | `400` | Pause between per-creator sweeps (RPC rate-limit protection). |
+| `NIBGATE_FEE_KEEPER_MIN_GHOST_USDC` | `0.05` | Minimum balance for the keeper to auto-recover a second-generation ("ghost") fee wallet by deploying it and distributing to the first-generation wallet. |
 | `NIBGATE_DISABLE_KEEPER` | unset | Set to `true` to stop the sweep loop (payment-flow e2e uses this so sweeps can't drain ledgers mid-run). |
 | `NIBGATE_TX_CONFIRMATIONS` | chain-aware | Override direct-rail confirmation depth (Arc needs none — see finality section). |
 | `NIBGATE_CLAIM_REGISTRY_URL` | unset | Opt-in global txHash registry for self-hosted cross-site reuse prevention. |

@@ -107,7 +107,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/explore/content": {
+    "/hub/explore/content": {
       get: {
         tags: ["Discovery"],
         summary: "Explore content feed",
@@ -141,7 +141,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/ledger": {
+    "/hub/ledger": {
       get: {
         tags: ["Ledger"],
         summary: "Public activity ledger",
@@ -183,7 +183,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/stats": {
+    "/hub/stats": {
       get: {
         tags: ["Platform"],
         summary: "Platform stats",
@@ -216,7 +216,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/reputation/leaderboards": {
+    "/hub/reputation/leaderboards": {
       get: {
         tags: ["Reputation"],
         summary: "Reputation leaderboards",
@@ -248,7 +248,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/sitemap/content": {
+    "/hub/sitemap/content": {
       get: {
         tags: ["Platform"],
         summary: "All content URLs",
@@ -281,7 +281,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/sitemap-sites": {
+    "/hub/sitemap-sites": {
       get: {
         tags: ["Platform"],
         summary: "Active subblog domains",
@@ -304,7 +304,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/evt": {
+    "/hub/evt": {
       post: {
         tags: ["Ledger"],
         summary: "Track a hub event",
@@ -335,7 +335,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/track": {
+    "/hub/track": {
       post: {
         tags: ["Ledger"],
         summary: "Track a hub event (legacy)",
@@ -345,7 +345,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/reputation/ratings/prepare": {
+    "/hub/reputation/ratings/prepare": {
       post: {
         tags: ["Reputation"],
         summary: "Prepare an onchain rating",
@@ -392,7 +392,7 @@ export const openApiSpec = {
         },
       },
     },
-    "/api/hub/reputation/ratings/index": {
+    "/hub/reputation/ratings/index": {
       post: {
         tags: ["Reputation"],
         summary: "Index an onchain rating",

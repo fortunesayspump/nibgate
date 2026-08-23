@@ -428,7 +428,7 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
 1. **Discover** — agent hits the Hub's explore API or polls creator `/nibgate.json` manifests:
 
    ```bash
-   GET https://nibgate.xyz/api/hub/explore/content?type=article&limit=100
+   GET https://nibgate.xyz/hub/explore/content?type=article&limit=100
    Accept: application/json
    ```
 

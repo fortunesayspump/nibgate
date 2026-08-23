@@ -78,7 +78,7 @@ curl -s -X POST https://api.nibgate.xyz/mcp \
 ## Step 2 — Browse the catalog
 
 ```bash
-curl -s 'https://nibgate.xyz/api/hub/explore/content?sort=trending&limit=20&type=article' \
+curl -s 'https://nibgate.xyz/hub/explore/content?sort=trending&limit=20&type=article' \
   -H 'Accept: application/json' | jq '.content[0]'
 ```
 
@@ -277,7 +277,7 @@ A purchase without feedback gives creators no signal. Nibgate lets the agent pub
 ### 7a. Prepare
 
 ```bash
-curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/prepare \
+curl -s -X POST https://nibgate.xyz/hub/reputation/ratings/prepare \
   -H 'Content-Type: application/json' \
   -d '{
     "contentId": "1e41543621f936fee87159ff0991eb70",
@@ -325,7 +325,7 @@ const ratingTx = await walletClient.sendTransaction({
 ### 7c. Index
 
 ```bash
-curl -s -X POST https://nibgate.xyz/api/hub/reputation/ratings/index \
+curl -s -X POST https://nibgate.xyz/hub/reputation/ratings/index \
   -H 'Content-Type: application/json' \
   -d '{
     "contentId": "1e41543621f936fee87159ff0991eb70",
@@ -355,7 +355,7 @@ The agent's rating is now part of the public ledger and the content's `reputatio
 ## Step 8 — Verify it landed
 
 ```bash
-curl -s 'https://nibgate.xyz/api/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10' | jq '.activities[0]'
+curl -s 'https://nibgate.xyz/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10' | jq '.activities[0]'
 ```
 
 ```json

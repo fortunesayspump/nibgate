@@ -398,6 +398,46 @@ export function registerHubRoutes(app) {
       const overpayFields = Number.isFinite(gateway.payment.overpay)
         ? { amountReceived: gateway.payment.amountReceived, overpay: gateway.payment.overpay }
         : {};
+
+      // Machine parity: record every settled payment HERE so raw x402 payers
+      // (AI agents, scripts — any client with no browser widget) produce the
+      // same receipts/metrics/ledger entries as human widget flows. Widget
+      // events dedupe on paymentId via metricIdentity/upsertUnlockReceipt,
+      // so double reporting stays safe. Attribution falls back to siteId +
+      // siteToken when contentId does not map to tracked hub content.
+      try {
+        let payWebsite = contentRecord?.website || null;
+        if (!payWebsite) {
+          const sid = String(req.body?.siteId || '');
+          const stok = String(req.body?.siteToken || '');
+          if (sid && stok) {
+            const candidate = await db.website.findUnique({ where: { id: sid } }).catch(() => null);
+            if (candidate && !candidate.deletedAt && candidate.verifyToken === stok) payWebsite = candidate;
+          }
+        }
+        if (payWebsite && Number(effectivePrice) > 0) {
+          const payOrigin = `${req.protocol}://${req.get('host')}`;
+          const payPath = String(req.body?.path || '/');
+          const payUrl = String(req.body?.url || '') || payOrigin + payPath;
+          const evtPayload = {
+            resource: { id: req.body?.contentId || 'hub', title: title || 'content', type: req.body?.type || 'article', price: String(effectivePrice) },
+            event: 'unlock_completed', url: payUrl, path: payPath,
+            paymentProvider: 'circle-gateway', verified: true,
+            amount: Number(effectivePrice), revenue: Number(effectivePrice), currency: 'USDC',
+            payer: gateway.payment.payer || '', txHash: gateway.payment.txHash || '',
+            paymentId: gateway.payment.paymentId || gateway.payment.txHash || '',
+          };
+          const tracked = await upsertTrackedContent(payWebsite, evtPayload).catch(() => null)
+            || await db.content.findFirst({ where: { websiteId: payWebsite.id, url: payUrl } }).catch(() => null);
+          if (tracked) {
+            await createMetric(payWebsite, tracked, { ...evtPayload }, 'unlock_completed', 'unlock');
+            await upsertUnlockReceipt(payWebsite, tracked, { ...evtPayload }, 'unlock_completed');
+          }
+        }
+      } catch (recordError) {
+        console.error('[hub/pay] post-settlement recording failed:', recordError?.message || recordError);
+      }
+
       res.json({ success: true, payment: { paymentProvider: gateway.payment.paymentProvider || 'circle-gateway', verified: true, paymentId: gateway.payment.paymentId || gateway.payment.txHash || null, recipient: gateway.payment.recipient, network: gateway.payment.network, amount: Number(price || 0), revenue: Number(price || 0), currency: 'USDC', payer: gateway.payment.payer || null, txHash: gateway.payment.txHash || null, ...overpayFields } });
     } catch (error) {
       res.status(500).json({ error: 'Payment processing failed', details: error.message });

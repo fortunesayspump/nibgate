@@ -28,6 +28,41 @@ export async function checkResourceAccess(resource, options = {}) {
   if (response.status === 402) {
     item.track('payment_challenge_returned', { source: options.source, challenge: payload, resource: item.resource });
     status(options.challengeMessage || 'Payment challenge returned. Continue with checkout.');
+    // Pre-checkout ownership probe: the server hinted (ownedForClaim) that the
+    // claimed wallet already has a paid receipt for this resource. Ask the
+    // user for ONE ownership signature and retry — if possession verifies,
+    // the lifetime path re-issues access for free instead of charging again.
+    if (payload?.ownedForClaim && typeof options.proveOwnership === 'function') {
+      try {
+        status(options.ownershipMessage || 'Confirming you already own this...');
+        const proof = await options.proveOwnership({ resource: item.resource, challenge: payload });
+        if (proof && proof.signature) {
+          const probeResponse = await fetch(accessPath, {
+            method: options.method || 'GET',
+            headers: {
+              accept: 'application/json',
+              [options.ownershipSignatureHeader || 'x-nibgate-ownership-signature']: proof.signature,
+              ...(options.headers || {})
+            },
+            body: options.body
+          });
+          const probePayload = await probeResponse.json().catch(() => ({}));
+          if (probeResponse.ok && probePayload?.ok) {
+            try { storePaymentProof(item.resource, probePayload.unlockProof); } catch (_error) {}
+            const probePayment = options.payment || probePayload.payment || null;
+            if (probePayment) {
+              item.unlockCompleted(probePayment);
+              item.paymentCompleted(probePayment);
+            }
+            emit('unlock', { resource: item.resource, payment: probePayment, via: 'ownership-proof' });
+            status(options.successMessage || 'Access allowed and Nibgate events emitted.');
+            return { ok: true, status: probeResponse.status, payload: probePayload, payment: probePayment, resource: item.resource, response: probeResponse };
+          }
+        }
+      } catch (_probeError) {
+        // Signature rejected / user cancelled — fall through to normal payment.
+      }
+    }
     if (typeof options.createPaymentSignature === 'function' || typeof options.checkout === 'function') {
       return payWithPaymentSignature(resource, {
         ...options, challenge: payload,

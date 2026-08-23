@@ -98,13 +98,23 @@ function sessionWalletFor(req) {
   return address && /^0x[0-9a-f]{40}$/i.test(address) ? address.toLowerCase() : null;
 }
 
-// A bare ?wallet= / walletAddress claim must be corroborated by the SIWE
-// session wallet before it can grant anything. null => anonymous (safe to
-// charge PUBLIC price, unsafe to grant tiers / invite-only content).
-async function possessedWalletFor(req, claimed) {
+// A bare ?wallet= / walletAddress claim must be corroborated before it can
+// grant anything. Two accepted proofs of possession, in order:
+//   1. SIWE `sb_auth_session` cookie matching the claim (signed-in device);
+//   2. an EIP-191 personal_sign over ownershipMessage(resource, claimed) sent
+//      as x-nibgate-ownership-signature — the pre-checkout ownership probe
+//      that lets a returning owner (new device, no session, no stored proof)
+//      identify themselves instead of silently re-paying.
+// null => anonymous (safe to charge PUBLIC price, unsafe to grant tiers /
+// invite-only content / lifetime unlocks).
+async function possessedWalletFor(req, claimed, resource) {
   if (!claimed) return null;
   const sessionWallet = await sessionWalletFor(req);
-  return sessionWallet && sessionWallet === claimed.toLowerCase() ? sessionWallet : null;
+  if (sessionWallet && sessionWallet === claimed.toLowerCase()) return sessionWallet;
+  const sig = String(req.headers?.[sdk.OWNERSHIP_SIGNATURE_HEADER] || req.headers?.['x-nibgate-ownership-signature'] || '');
+  if (!sig) return null;
+  const verdict = await sdk.verifyOwnershipSignature({ signature: sig, address: claimed, resource });
+  return verdict.ok ? claimed.toLowerCase() : null;
 }
 
 async function findEntitlement({ postId, wallet }) {

@@ -8,6 +8,7 @@ import { ensureWalletAuthorized } from './authorize.js'
 import { ARC_TESTNET, isArcNetwork } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
+import { ownershipMessage } from '@nibgate/sdk'
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
 import { GatewayWalletUI } from './gateway-wallet.jsx'
@@ -81,6 +82,12 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
 
   const runningRef = useRef(false)
   const addressRef = useRef(address)
+  // Tracks whether THIS session ever saw a connected wallet, so the
+  // disconnect cleanup below only fires on a real connected->disconnected
+  // transition — not on the initial mount of a page load, where isConnected
+  // starts false and wiping would destroy a returning user's stored proof
+  // before the wallet has had a chance to reconnect.
+  const everConnectedRef = useRef(false)
   const chainIdRef = useRef(chainId)
   const isConnectedRef = useRef(isConnected)
   const onUnlockRef = useRef(onUnlock)
@@ -333,6 +340,16 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         paymentMessage: 'Waiting for wallet approval...',
         successMessage: 'Unlocked.',
         checkout,
+        // Pre-checkout ownership probe: when the server says this wallet
+        // already owns the resource, ask for one personal_sign to prove
+        // possession — a verified signer unlocks free (no re-charge).
+        proveOwnership: !addressRef.current ? undefined : async ({ resource: ownershipResource }) => {
+          const provider = walletProviderRef.current
+          if (!provider || typeof provider.request !== 'function') return null
+          const message = ownershipMessage(ownershipResource, addressRef.current)
+          const signature = await signMessageWithProvider(provider, addressRef.current, message)
+          return { address: addressRef.current, message, signature }
+        },
         onStatus: setStatus,
       })
       if (result.ok) {
@@ -427,7 +444,15 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   // reconnect the backend re-verifies the wallet's paid receipt and ban status
   // and serves the content again (no re-pay).
   useEffect(() => {
-    if (isConnected) return
+    if (isConnected) {
+      everConnectedRef.current = true
+      return
+    }
+    // Initial page load (never connected in this session): the stored proof
+    // belongs to a returning wallet — keep it so the reconnect path can
+    // present it. Only an explicit disconnect within this session releases it.
+    if (!everConnectedRef.current) return
+    everConnectedRef.current = false
     try { localStorage.removeItem(`${PROOF_PREFIX}${resource.id}`) } catch {}
     setUnlocked(false)
     setPayload(null)

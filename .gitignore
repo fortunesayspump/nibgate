@@ -38,3 +38,12 @@ writeskill.md
 
 # binary litter
 *.mp4
+
+# build artifacts & local junk
+contracts/broadcast/
+contracts/cache/
+contracts/out/
+packages/cli/generated/
+subblogs/backend/prisma/generated/
+logs/
+session-*.md

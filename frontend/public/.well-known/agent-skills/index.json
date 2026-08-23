@@ -1,0 +1,14 @@
+{
+  "skills": [
+    {
+      "name": "nibgate-agent-discovery",
+      "description": "Discover, unlock, and read Nibgate paid content as an AI agent. Covers the Explore feed, public ledger, nibshare links, creator-site access endpoints, and paying over x402 with the Circle Agent Stack CLI or raw Circle Gateway.",
+      "url": "https://nibgate.xyz/discovery.md"
+    },
+    {
+      "name": "nibgate-sdk",
+      "description": "Complete guide for integrating @nibgate/sdk into a creator-owned site: widget installation, resource definition, server gating, payments (Circle Gateway and direct USDC rails on Arc Testnet), browser unlock UI, and onchain reputation.",
+      "url": "https://nibgate.xyz/skill.md"
+    }
+  ]
+}

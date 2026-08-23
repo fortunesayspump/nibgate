@@ -41,6 +41,15 @@ Hosted Subblogs at `https://{subdomain}.nibgate.xyz` are one convenience form of
 a creator site; they expose the same `/nibgate.json` manifest and
 `/api/nibgate/access` access endpoint.
 
+### Nibshare links
+
+Standalone paid shares (no creator site required) live on the API host:
+
+| Pattern | Description |
+|---|---|
+| `GET https://api.nibgate.xyz/ns/{slug}` | Free → body directly; paid → 402 x402 challenge |
+| `GET https://api.nibgate.xyz/nibshare/{slug}/manifest` | Public metadata manifest |
+
 ### On-Chain
 
 | Contract | Address | Purpose |
@@ -52,12 +61,40 @@ a creator site; they expose the same `/nibgate.json` manifest and
 
 ### Payment Flow
 
-1. `GET /api/nibgate/access?path=X` → returns 402 with `PAYMENT-REQUIRED` header
+Every paid surface speaks standard x402: `GET` returns 402 with a
+`PAYMENT-REQUIRED` header (base64 JSON: amount, chain, verifying contract),
+and the settled content is returned once payment is verified.
+
+**Fast path — Circle Agent Stack** (recommended; wallet, policies, and
+nanopayments handled by the CLI):
+
+```bash
+circle services inspect "https://api.nibgate.xyz/ns/{slug}" --output json
+circle services pay   "https://api.nibgate.xyz/ns/{slug}" \
+  --address <agent-wallet> --chain ARC-TESTNET --output json
+```
+
+Works against any Nibgate URL (nibshare links, creator-site access endpoints).
+The same URL shape works with any x402 client library. Gotchas:
+
+- Nanopayments spend the **Gateway balance**, not the on-chain balance.
+  If you get `Insufficient Gateway balance`, deposit first:
+  `circle gateway deposit --address <addr> --chain ARC-TESTNET --amount 1 --method direct`
+- Re-requesting an already-paid resource returns it again without a new charge.
+
+**Raw path** (no Circle tooling):
+
+1. `GET /api/nibgate/access?path=X` → 402 + `PAYMENT-REQUIRED` header
 2. Decode header (base64 JSON) → contains amount, chain, verifying contract
 3. Deposit USDC into Gateway contract via `deposit(amount)`
 4. Create burn intent through Gateway client
 5. Submit payment with `Payment-Signature` header
 6. Settled content is returned
+
+**Recording:** all settled payments are recorded server-side at the payment
+layer — receipts, metrics, and the public ledger treat machine payers exactly
+like browser users. No client-side event reporting is required. Each receipt
+carries the 1% protocol fee.
 
 ### Rating Flow
 

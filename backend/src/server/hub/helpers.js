@@ -420,6 +420,7 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
   }).catch(() => null);
 
   let content;
+  let adoptedStaleRow = false;
   try {
     content = await db.content.upsert({
       where: { websiteId_url: { websiteId: website.id, url: data.url } },
@@ -435,17 +436,35 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
     // A concurrent sync/tracking event can win the create race (Prisma upsert
     // is find-then-write, not atomic): the row exists now, so update instead.
     if (error?.code !== 'P2002') throw error;
-    content = await db.content.update({
-      where: { websiteId_url: { websiteId: website.id, url: data.url } },
-      update,
-      include: { publisher: true }
-    });
+    try {
+      content = await db.content.update({
+        where: { websiteId_url: { websiteId: website.id, url: data.url } },
+        data: update,
+        include: { publisher: true }
+      });
+    } catch (fallbackError) {
+      // The id hash covers websiteId+externalId but NOT the url, so a changed
+      // publish path leaves the old row holding the pkey under a stale url:
+      // create collides on the pkey while update-by-new-url finds nothing.
+      // Re-home that row onto the current url instead of failing forever.
+      const holder = await db.content.findUnique({
+        where: { id: contentId },
+        select: { id: true, websiteId: true }
+      }).catch(() => null);
+      if (!holder || holder.websiteId !== website.id) throw fallbackError;
+      content = await db.content.update({
+        where: { id: contentId },
+        data: { ...update, url: data.url },
+        include: { publisher: true }
+      });
+      adoptedStaleRow = true;
+    }
   }
 
   if (content) {
-    if (!existing) {
+    if (!existing && !adoptedStaleRow) {
       await recordContentEvent(website.id, content, 'created');
-    } else if (existing.deletedAt && options.allowRevive) {
+    } else if (existing?.deletedAt && options.allowRevive) {
       await recordContentEvent(website.id, content, 'revived');
     }
   }

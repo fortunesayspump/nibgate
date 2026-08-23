@@ -198,18 +198,32 @@ export function createPredictedWalletReader(factory, options = {}) {
   const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
   const client = sharedPublicClient(rpcUrl);
   const cache = new Map();
+  // A dropped eth_call here silently downgrades the surface to paying the
+  // creator directly — the keeper never sees those funds. Retry before
+  // giving up; a deterministic view call is always safe to repeat.
+  const attempts = Math.max(1, Number(options.predictedWalletRetries ?? 3));
+  const backoffMs = (i) => 250 * 2 ** i;
   return async function predictedWallet(creator) {
     const key = `${factory}:${creator.toLowerCase()}`;
     if (cache.has(key)) return cache.get(key);
-    const address = await client.readContract({
-      address: getAddress(factory),
-      abi: FEE_WALLET_FACTORY_ABI,
-      functionName: 'predictedWallet',
-      args: [getAddress(creator)],
-    });
-    const resolved = getAddress(address);
-    cache.set(key, resolved);
-    return resolved;
+    let lastError;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const address = await client.readContract({
+          address: getAddress(factory),
+          abi: FEE_WALLET_FACTORY_ABI,
+          functionName: 'predictedWallet',
+          args: [getAddress(creator)],
+        });
+        const resolved = getAddress(address);
+        cache.set(key, resolved);
+        return resolved;
+      } catch (error) {
+        lastError = error;
+        if (i < attempts - 1) await new Promise((r) => setTimeout(r, backoffMs(i)));
+      }
+    }
+    throw lastError;
   };
 }
 

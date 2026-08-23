@@ -16,8 +16,10 @@ Every creator gets one **`GatewayFeeWallet`** contract, deployed deterministical
 creator EOA 0x9c37...  ──deploy──▶  GatewayFeeWallet 0xd03e...
                                     ├─ receives 100% of payments
                                     ├─ keeps 99% for the creator
-                                    └─ routes 1% to the treasury
+                                    └── routes 1% to the treasury
 ```
+
+> Deep dive: how addresses exist before deployment, why wallets are keyed per content recipient, keeper discovery, and ghost recovery → [Fee wallets & the keeper](/revenue-model/fee-wallets).
 
 Key properties (all enforced on-chain, see `contracts/GatewayFeeWallet.sol`):
 
@@ -98,7 +100,7 @@ sequenceDiagram
 The site's SDK returns a 402 with the creator's fee wallet as `payTo`. The buyer pays; funds land in the fee wallet contract and the hub indexes a receipt with the gross `amount` and the derived `protocolFee`.
 
 ### Discovery
-The keeper periodically lists creators whose wallets can earn revenue (from indexed data, not chain scans) and predicts each creator's fee wallet address.
+The keeper lists payout addresses from four redundant sources — nibshare owners, website owners with linked wallets, per-post `recipientWallet` on priced content, and every address that ever received a verified payment — then predicts each one's fee wallet address. Any address that can earn (or ever earned) is covered.
 
 ### Sweep + distribute
 For each creator the keeper withdraws any pending Circle Gateway balance into the wallet (`gatewayMint`, permissionless), then calls `distribute()`. The contract splits its full USDC balance atomically: creator EOA gets 99%, treasury gets 1%. Failures are isolated per creator and retried next cycle.

@@ -1,0 +1,121 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Fee wallets & the keeper
+
+The under-the-hood reference for how creator payout addresses work: where a fee
+wallet's address comes from before any contract exists, when it actually gets
+deployed, why it is keyed to each content's recipient, and how the keeper finds
+every wallet that can hold creator money. For the economics (the 1% split,
+timelock, trust model) see [Revenue model](/revenue-model).
+
+## The address exists before the contract does
+
+A fee wallet address is **computed, not chosen**. The factory exposes a view
+that returns where CREATE2 would deploy for a given recipient:
+
+```txt
+predicted(recipient) = CREATE2(factory, salt = f(recipient), initCode)
+```
+
+`feeWalletAddressFor()` in `@nibgate/sdk/server` is just an `eth_call` to that
+view (with retries + a per-process cache). Three consequences:
+
+1. **No deployment needed to get paid.** A buyer can send USDC to the predicted
+   address while it is still an empty account — an ERC-20 transfer only credits
+   the address, it doesn't need code there.
+2. **Deployment is lazy and idempotent.** `deployIfNeeded(recipient)` puts the
+   contract at that exact address; because CREATE2 lands on the same slot, the
+   contract inherits whatever balance was already sitting there.
+3. **Nobody holds its key.** The address is hash-derived, so no EOA key exists
+   for it — nothing can ever spend from it as an account or bump its nonce.
+
+<Callout type="important">
+"Every creator has a fee wallet" therefore means: every recipient has a
+**stable, unique, computable address** from the moment their content is priced.
+Contract existence is only required to move money *out* — and that is exactly
+when deployment happens.
+</Callout>
+
+## Why pre-existence isn't an attack
+
+Common worry: "if anyone can deploy the wallet, can't an attacker deploy
+something malicious at that address first?" No — three independent reasons:
+
+| Concern | Why it fails |
+| --- | --- |
+| Deploy a *different* contract at the predicted address | Impossible. CREATE2 addresses are `hash(deployer, salt, initCode)`; only calls through this factory with this derivation land there. |
+| Deploy early via the factory itself | Permissionless but harmless: the derivation pins `creator`, so they create the *identical legitimate wallet*. The caller gains nothing (`msg.sender` appears nowhere in the wallet logic). |
+| Front-run / reorder sweeps | `distribute()` splits `balanceOf(this)` at call time between two immutable addresses. Ordering changes nothing; a griefer can only force an *early* payout at their own gas expense. |
+
+## Keyed per recipient, not per "creator"
+
+Nibgate resolves a payment destination per piece of content, in priority order:
+
+```txt
+post.recipientWallet → site settings.recipientWallet → NIBGATE_SELLER_ADDRESS
+```
+
+When a tracked content record exists on the hub, its stored `recipientWallet`
+**overrides** anything the request claims — clients cannot redirect payouts.
+
+Each distinct recipient address gets its own deterministic fee wallet:
+
+- One creator using different payout wallets on different posts → separate
+  wallets, swept independently, same 99/1 split.
+- A creator with no hub account at all still gets a stable address per payout
+  wallet — being connected changes discovery, never destination math.
+
+## Keeper discovery: "to earn is to be discovered"
+
+The keeper runs on the hub backend (~60s cycle) and sweeps every wallet it can
+attribute to a payout address. Discovery is deliberately redundant — four
+independent sources, any one of which is sufficient:
+
+1. **nibShare owners** — hosted nibshare creators' owner wallets.
+2. **Website owners** — hub users with ≥1 site and a linked `walletAddress`.
+3. **Per-post recipients** — `recipientWallet` on every priced content row.
+   Covers subblog-only creators who registered by email and never linked a
+   wallet.
+4. **Observed payees** — every address that ever received a verified payment
+   (unlock receipts).
+
+Source 4 is the safety net that makes the invariant structural: the moment
+money moves anywhere in the system, its destination enters the sweep set
+forever. A payout address cannot receive funds and remain invisible.
+
+## Ghost-generation recovery
+
+If a routing bug ever pays a *second-generation* wallet — `fw2 =
+predicted(fw1.address)` — recovery needs no intervention, because both facts
+that make it possible are permissionless:
+
+<Steps>
+### Predict
+For each known fw1, the keeper predicts `fw2 = predicted(fw1)`. This costs one
+view call.
+
+### Detect
+Reads fw2's USDC balance. Below `NIBGATE_FEE_KEEPER_MIN_GHOST_USDC`
+(default $0.05) it skips — recovery spends ~3 transactions of gas, so dust
+waits until it accumulates past the threshold.
+
+### Recover
+`deployIfNeeded(fw1)` materializes the contract at fw2's address (creator = fw1
+— pinned by derivation), then `distribute()` moves the full balance to fw1.
+The next normal sweep pays the real creator 99% + treasury 1%.
+</Steps>
+
+This ran live on Arc testnet: two ghost wallets holding 1.5 USDC combined were
+detected, deployed, distributed and swept automatically within one keeper cycle
+of the feature deploying.
+
+## Exploitability checklist
+
+| Vector | Protection |
+| --- | --- |
+| Replay someone else's direct-rail txHash | Ownership signature binds payer + resource (`x-nibgate-tx-owner`); hosted surfaces additionally claim each txHash single-use per content id |
+| Client lies about who should be paid | Hub-side recipient pinning: tracked content records override request-supplied recipients |
+| Fee raised retroactively | `feeBps` mutable only by immutable `feeSetter`, hard-capped by `maxFeeBps` frozen at deploy; timelock for governance changes |
+| Keeper key stolen | Holds no funds and no rights — sweep/distribute are permissionless anyway; worst case is gas spam |
+| Contract at payTo replaced by attacker | Impossible — address is factory-derived; early deployment through the factory creates the identical legitimate wallet |
+| Funds stranded if Nibgate disappears | `distribute()` is permissionless and the split is immutable bytecode; liveness never depends on the operator |

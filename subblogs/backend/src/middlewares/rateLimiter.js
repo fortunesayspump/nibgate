@@ -12,29 +12,29 @@ function adminBypass(req) {
 
 const baseOptions = {
   skip: adminBypass,
-  message: { code: 429, message: 'Too many requests, please try again later' },
+  message: { code: 429, error: 'Too many requests, please try again later' },
 };
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_AUTH_MAX) || 20,
   skipSuccessfulRequests: true,
   skip: adminBypass,
   message: baseOptions.message,
 });
 
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_GENERAL_MAX) || 200,
   skip: adminBypass,
   message: baseOptions.message,
 });
 
 const tenantLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 500,
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_TENANT_MAX) || 500,
   keyGenerator: (req) => req.siteId || req.ip || 'unknown',
-  message: { code: 429, message: 'Too many requests for this site, please try again later' },
+  message: { code: 429, error: 'Too many requests for this site, please try again later' },
   skip: (req) => !req.siteId || adminBypass(req),
 });
 

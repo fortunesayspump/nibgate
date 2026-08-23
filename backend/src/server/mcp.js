@@ -7,7 +7,7 @@ import { shareManifest } from './nibshare/service.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.1.0';
+const SERVER_VERSION = '0.2.0';
 
 const VERIFIED_SITE_WHERE = { deletedAt: null, isVerified: true, verificationStatus: 'verified' };
 const CONTENT_INCLUDE = { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } };
@@ -260,7 +260,7 @@ const TOOLS = [
   },
   {
     name: 'get_platform_stats',
-    description: 'Get platform-wide Nibgate totals: creators, verified sites, content count, views, unlocks, and revenue.',
+    description: 'Get platform-wide Nibgate totals: creators, verified sites, content count, views, unlocks, revenue, and cumulative protocol fees.',
     inputSchema: { type: 'object', properties: {} },
     handler: getPlatformStats,
   },
@@ -297,7 +297,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      'Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only.',
+      'Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. To unlock paid content after discovery, pay over x402: GET https://api.nibgate.xyz/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (`circle services pay <url> --address <wallet> --chain ARC-TESTNET`) or any x402 client, then retry the same request to receive the content. Full guide: https://nibgate.xyz/discovery.md',
   };
 }
 

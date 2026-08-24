@@ -16,40 +16,57 @@ function meta(m) {
   try { return typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata || {}; } catch { return {}; }
 }
 
-// ── 1. Drop unlock/payment echoes with no matching verified receipt ────────
-const echoes = await db.metric.findMany({
-  where: { eventName: 'unlock_completed', contentId: { not: null } },
-});
-let droppedEchoes = 0, kept = 0;
-for (const m of echoes) {
-  const md = meta(m);
-  const payer = String(md.payer || md._wallet || '').toLowerCase() || null;
-  const amount = Number(md.amount ?? md.revenue ?? NaN);
-  const t = new Date(m.createdAt).getTime();
-  let match = null;
-  if (md.txHash) {
-    match = await db.unlockReceipt.findFirst({ where: { contentId: m.contentId, status: 'verified', OR: [{ paymentId: String(md.txHash) }, { txHash: String(md.txHash) }] } });
-  }
-  if (!match && payer && Number.isFinite(amount)) {
-    match = await db.unlockReceipt.findFirst({
-      where: {
-        contentId: m.contentId, status: 'verified', payerWallet: payer, amount,
-        createdAt: { gte: new Date(t - 5 * 60 * 1000), lte: new Date(t + 5 * 60 * 1000) },
-      },
-    });
-  }
-  if (!match && !payer && !md.txHash) {
-    // No identity at all — keep it; cannot prove it is an echo.
-    kept++;
-    continue;
-  }
-  if (!match) {
-    console.log(`${tag} drop echo unlock metric ${m.id.slice(0, 8)} (${payer || 'no-payer'} ${Number.isFinite(amount) ? amount : '?'} USDC @ ${m.createdAt.toISOString().slice(0, 16)})`);
-    if (EXECUTE) await db.metric.delete({ where: { id: m.id } });
-    droppedEchoes++;
-  } else kept++;
+// ── 1. One-to-one metric↔receipt assignment; surplus metrics are echoes ────
+const SITE_OK = { deletedAt: null, isVerified: true, verificationStatus: 'verified' };
+const [metrics, receipts] = await Promise.all([
+  db.metric.findMany({ where: { eventName: 'unlock_completed', contentId: { not: null } } }),
+  db.unlockReceipt.findMany({ where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] }, content: { website: SITE_OK } } }),
+]);
+
+function ident(md) {
+  return {
+    tx: String(md.txHash || '').trim(),
+    pid: String(md.paymentId || '').trim(),
+    payer: String(md.payer || md._wallet || '').toLowerCase() || null,
+    amount: Number.isFinite(Number(md.amount ?? md.revenue)) ? Number(md.amount ?? md.revenue) : null,
+  };
 }
-console.log(`${tag} unlock metrics: ${echoes.length} checked, ${droppedEchoes} echoes dropped, ${kept} matched receipts`);
+
+const assignedMetricIds = new Set();
+const unmatchedReceipts = [];
+for (const r of receipts) {
+  const t = new Date(r.createdAt).getTime();
+  const candidates = metrics.filter((m) => {
+    if (assignedMetricIds.has(m.id) || m.contentId !== r.contentId) return false;
+    const k = ident(meta(m));
+    const exact = (r.txHash && k.tx === r.txHash) || (r.paymentId && k.pid === String(r.paymentId));
+    if (exact) return true;
+    if (!k.payer || k.amount == null) return false;
+    const mt = new Date(m.createdAt).getTime();
+    return k.payer === String(r.payerWallet || '').toLowerCase()
+      && Number(r.amount) === k.amount
+      && Math.abs(mt - t) <= 5 * 60 * 1000;
+  });
+  // Prefer exact-id matches over fuzzy ones.
+  candidates.sort((a, b) => {
+    const ka = ident(meta(a)), kb = ident(meta(b));
+    const ea = (r.txHash && ka.tx === r.txHash) || (r.paymentId && ka.pid === String(r.paymentId)) ? 0 : 1;
+    const eb = (r.txHash && kb.tx === r.txHash) || (r.paymentId && kb.pid === String(r.paymentId)) ? 0 : 1;
+    return ea - eb || new Date(a.createdAt) - new Date(b.createdAt);
+  });
+  if (candidates[0]) assignedMetricIds.add(candidates[0].id);
+  else unmatchedReceipts.push(r);
+}
+
+let droppedEchoes = 0;
+for (const m of metrics) {
+  if (assignedMetricIds.has(m.id)) continue;
+  const k = ident(meta(m));
+  console.log(`${tag} drop echo/unmatched unlock metric ${m.id.slice(0, 8)} (${k.payer || 'no-payer'} ${k.amount ?? '?'} USDC @ ${m.createdAt.toISOString().slice(0, 16)})`);
+  if (EXECUTE) await db.metric.delete({ where: { id: m.id } });
+  droppedEchoes++;
+}
+console.log(`${tag} unlock metrics: ${metrics.length} checked against ${receipts.length} receipts, ${droppedEchoes} dropped, ${unmatchedReceipts.length} receipts had no metric`);
 
 // ── 2. Rebuild ContentRating rows from rating metrics ──────────────────────
 const ratingMetrics = await db.metric.findMany({
@@ -87,10 +104,10 @@ for (const m of ratingMetrics) {
 console.log(`${tag} ratings: ${rebuilt} rebuilt, ${existed} already present, ${skippedNoProof} unusable`);
 
 // ── 3. Final counters ───────────────────────────────────────────────────────
-const [unlockMetrics, receipts, ratings] = await Promise.all([
+const [unlockMetrics, receiptCount, ratingCount] = await Promise.all([
   db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null }, website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } } }),
   db.unlockReceipt.count({ where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] }, content: { website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } } } }),
   db.contentRating.count({ where: { status: 'accepted', proof: { startsWith: 'onchain:' }, website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } } }),
 ]);
-console.log(`${tag} counters now — Unlocks(metrics): ${unlockMetrics} | Payments(receipts): ${receipts} | Ratings: ${ratings}`);
+console.log(`${tag} counters now — Unlocks(metrics): ${unlockMetrics} | Payments(receipts): ${receiptCount} | Ratings: ${ratingCount}`);
 process.exit(0);

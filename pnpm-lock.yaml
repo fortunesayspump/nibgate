@@ -247,12 +247,9 @@ importers:
 
   packages/cli:
     dependencies:
-      '@nibgate/internal':
-        specifier: workspace:*
-        version: link:../internal
       '@nibgate/sdk':
-        specifier: workspace:*
-        version: link:../nibgate
+        specifier: ^0.4.20
+        version: 0.4.20(typescript@5.9.3)(zod@4.4.3)
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
@@ -315,8 +312,8 @@ importers:
   packages/wallet:
     dependencies:
       '@nibgate/sdk':
-        specifier: workspace:*
-        version: link:../nibgate
+        specifier: ^0.4.20
+        version: 0.4.20(typescript@5.9.3)(zod@4.4.3)
       '@reown/appkit':
         specifier: 1.8.21
         version: 1.8.21(@types/react@19.2.17)(encoding@0.1.13)(immer@11.1.8)(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.4))(zod@4.4.3)
@@ -1505,6 +1502,9 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
+
+  '@nibgate/sdk@0.4.20':
+    resolution: {integrity: sha512-1e4Ezbs/BSquPpLVCeLbyPhczAT770jCj+z99YrveYWqqChPE3gTVRkQ2o1IbH2K1OhaSPPByUXDHj+NDM+osA==}
 
   '@nibgate/wallet@0.1.0':
     resolution: {integrity: sha512-WWMRowD/rk7P1PzIj4FD4T6XMDdrMb4dKU83K0PmH3fxDxLWUUFmAgCuFp1HLTRKnGOOXVmcE1/TCdMFVF5CRQ==}
@@ -8043,6 +8043,19 @@ snapshots:
   '@next/swc-win32-x64-msvc@16.2.9':
     optional: true
 
+  '@nibgate/sdk@0.4.20(typescript@5.9.3)(zod@4.4.3)':
+    dependencies:
+      '@circle-fin/x402-batching': 3.2.0(@x402/core@2.19.0)(@x402/evm@2.19.0(typescript@5.9.3))(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
+      '@nibgate/wallet': 0.1.0(typescript@5.9.3)(zod@4.4.3)
+      '@x402/core': 2.19.0
+      '@x402/evm': 2.19.0(typescript@5.9.3)
+      viem: 2.54.1(typescript@5.9.3)(zod@4.4.3)
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
+
   '@nibgate/wallet@0.1.0(typescript@5.9.3)(zod@4.4.3)':
     dependencies:
       viem: 2.54.1(typescript@5.9.3)(zod@4.4.3)
@@ -10878,7 +10891,6 @@ snapshots:
       - bufferutil
       - typescript
       - utf-8-validate
-    optional: true
 
   '@xmldom/xmldom@0.9.10': {}
 

@@ -91,6 +91,22 @@ The same URL shape works with any x402 client library. Gotchas:
 5. Submit payment with `Payment-Signature` header
 6. Settled content is returned
 
+**Direct-transfer alternative** (on-chain USDC transfer, no Gateway deposit):
+
+1. `GET /api/nibgate/access?path=X&rail=transfer&wallet=<payer>` → 402
+   challenge JSON with the seller `recipient` and `amount`
+2. Broadcast a plain ERC-20 `transfer(recipient, amount)` of USDC (6 decimals)
+   on Arc Testnet and wait for the receipt
+3. Sign the EIP-191 message
+   ``Nibgate transfer ownership\ntx:<txHash lowercase>\nresource:<path>`` with
+   the **paying** wallet
+4. Retry the same GET with `x-nibgate-transfer-tx: <txHash>` plus
+   `x-nibgate-tx-owner: <signature>` → settled content is returned
+
+The signature binds the public txHash to your wallet and this exact resource;
+missing or mismatched proofs are rejected (`transfer-ownership-proof-required`,
+`transfer-owner-mismatch`) and each txHash unlocks only one resource.
+
 **Recording:** all settled payments are recorded server-side at the payment
 layer — receipts, metrics, and the public ledger treat machine payers exactly
 like browser users. No client-side event reporting is required. Each receipt

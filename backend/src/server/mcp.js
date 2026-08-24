@@ -381,4 +381,43 @@ export function registerMcpRoute(app) {
       tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
     });
   });
+
+  // x402 discovery fan-out (x402scan compatibility). Resources are resolved at
+  // request time so the listed URLs are always live paid surfaces.
+  app.get('/.well-known/x402', async (_req, res) => {
+    const apiOrigin = (process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+    try {
+      const now = new Date();
+      const [share, post] = await Promise.all([
+        db.nibShare.findFirst({
+          where: { status: 'active', price: { gt: 0 }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          orderBy: { createdAt: 'desc' },
+          select: { slug: true },
+        }),
+        db.content.findFirst({
+          where: { deletedAt: null, price: { gt: 0 }, website: VERIFIED_SITE_WHERE },
+          orderBy: { updatedAt: 'desc' },
+          select: { path: true, url: true, slug: true, website: { select: { domain: true } } },
+        }),
+      ]);
+      const resources = [];
+      if (share) resources.push(`${apiOrigin}/ns/${share.slug}`);
+      if (post) {
+        let origin = '';
+        try { origin = post.url ? new URL(post.url).origin : ''; } catch { origin = ''; }
+        if (!origin && post.website?.domain) origin = `https://${post.website.domain}`;
+        const p = post.path || `/posts/${post.slug || ''}`;
+        if (origin) resources.push(`${origin.replace(/\/+$/, '')}${p.startsWith('/') ? p : `/${p}`}`);
+      }
+      return res.type('application/json').json({
+        version: 1,
+        resources,
+        instructions:
+          'Every Nibgate surface speaks x402. GET a resource without payment to receive its 402 challenge, settle via Circle Gateway micropayments or a direct USDC transfer on Arc Testnet, then retry with the payment proof. Discover all paid content via MCP tools at /mcp or GET /hub/explore/content.',
+      });
+    } catch {
+      // Discovery metadata must never hard-fail.
+      return res.type('application/json').json({ version: 1, resources: [], instructions: `Discover paid content via MCP tools at ${apiOrigin}/mcp.` });
+    }
+  });
 }

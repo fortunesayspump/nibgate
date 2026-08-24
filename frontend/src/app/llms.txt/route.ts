@@ -33,6 +33,7 @@ const API_ENDPOINTS: Array<[string, string]> = [
   ["https://api.nibgate.xyz/hub/sitemap/content", "All content URLs across verified sites."],
   ["https://api.nibgate.xyz/openapi.json", "Machine-readable OpenAPI specification for the public hub API, including unlock endpoints."],
   ["https://api.nibgate.xyz/mcp", "Model Context Protocol server exposing Nibgate discovery tools to AI agents."],
+  ["https://api.nibgate.xyz/.well-known/x402", "x402 discovery fan-out: live paid resource URLs and payment instructions."],
 ];
 
 async function topContent(): Promise<ExploreContent[]> {

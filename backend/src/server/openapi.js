@@ -84,6 +84,20 @@ export const openApiSpec = {
     { name: "Platform", description: "Platform-wide stats and site indexes" },
   ],
   paths: {
+    "/.well-known/x402": {
+      get: {
+        tags: ["Discovery"],
+        summary: "x402 discovery fan-out",
+        description:
+          "Machine-readable discovery document listing currently-live paid resource URLs (a recent paid nibshare and a paid post on a verified creator site) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
+        responses: {
+          "200": {
+            description: "Discovery document with resources array and instructions.",
+            content: { "application/json": { schema: { type: "object", properties: { version: { type: "integer" }, resources: { type: "array", items: { type: "string", format: "uri" } }, instructions: { type: "string" } } } } },
+          },
+        },
+      },
+    },
     "/ns/{slug}": {
       get: {
         tags: ["Unlocks"],

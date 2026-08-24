@@ -306,6 +306,10 @@ async function serveAccess(req, res, post, slug) {
       title: paidResource.title,
       contentId: paidResource.id,
       path: paidResource.path,
+      // Canonical public URL — without it the hub would file the payment under
+      // an api-origin content row and every later report with the real page
+      // URL would double-count as a second content/payment pair.
+      url: req.site?.subdomain ? `https://${req.site.subdomain}.nibgate.xyz${paidResource.path || '/'}` : undefined,
       paymentRail: req.query.rail || req.body?.paymentRail || undefined,
       // Lets the hub record the settlement server-side (machine parity):
       // raw x402 payers never post widget events, so /hub/pay needs site

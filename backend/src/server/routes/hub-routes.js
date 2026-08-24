@@ -418,7 +418,20 @@ export function registerHubRoutes(app) {
         if (payWebsite && Number(effectivePrice) > 0) {
           const payOrigin = `${req.protocol}://${req.get('host')}`;
           const payPath = String(req.body?.path || '/');
-          const payUrl = String(req.body?.url || '') || payOrigin + payPath;
+          let payUrl = String(req.body?.url || '') || payOrigin + payPath;
+          // Canonicalize self-referential URLs: a caller reporting the API's
+          // own host as the content origin (e.g. proxies that omit `url`)
+          // would create a second content row for the same post, and every
+          // dedupe key includes contentId — so the same payment would then be
+          // recorded twice on the ledger. Rewrite api-origin URLs onto the
+          // site's real domain before any tracking happens.
+          try {
+            const u = new URL(payUrl);
+            if (u.host === req.get('host') && payWebsite.domain) {
+              u.host = payWebsite.domain;
+              payUrl = u.toString();
+            }
+          } catch { /* non-URL: keep as-is */ }
           const evtPayload = {
             resource: { id: req.body?.contentId || 'hub', title: title || 'content', type: req.body?.type || 'article', price: String(effectivePrice) },
             event: 'unlock_completed', url: payUrl, path: payPath,

@@ -15,6 +15,7 @@ Nibgate is heavily agent-facing. Machines discover, read, and pay Nibgate throug
 | OpenAPI spec | `backend/src/server/openapi.js` | https://api.nibgate.xyz/openapi.json |
 | MCP server (tools + instructions) | `backend/src/server/mcp.js` | https://api.nibgate.xyz/mcp |
 | MCP server card | same file, bottom | https://api.nibgate.xyz/.well-known/mcp.json |
+| MCP Registry record | `mcp-registry/server.json` | registry.modelcontextprotocol.io → `io.github.fortunesayspump/nibgate` |
 | Site manifests (`/nibgate.json`) | `packages/nibgate` (manifest route) | `https://{creator-domain}/nibgate.json` |
 | Nibshare meta/manifest | `backend/src/server/nibshare/service.js` | `https://api.nibgate.xyz/nibshare/{slug}/manifest` |
 | Hub URL standard | `frontend/AGENTS.md` | canonical host is `api.nibgate.xyz`, bare `/hub/*` paths |
@@ -24,7 +25,7 @@ Nibgate is heavily agent-facing. Machines discover, read, and pay Nibgate throug
 1. **New endpoint → document it everywhere it belongs.** Public hub route? openapi.js + discovery.md (if agents use it) + llms.txt endpoint lists. New tool-shaped capability? Consider an MCP tool too.
 2. **Changed flow → re-read the docs, don't patch from memory.** Grep `discovery.md`, `skill.md`, `mcp.js` instructions, and openapi descriptions for the touched concept before pushing.
 3. **Tool/resource descriptions are prompts.** MCP tool descriptions, serverInfo instructions, and openapi summaries are what agents actually read — keep them precise, current, and action-oriented (include how to pay/unlock when relevant).
-4. **Versions bump together.** `openApiSpec.info.version` and MCP `SERVER_VERSION` move in lockstep when either surface changes meaningfully.
+4. **Versions bump together.** `openApiSpec.info.version` and MCP `SERVER_VERSION` move in lockstep when either surface changes meaningfully — and when they do, update `mcp-registry/server.json` to match and republish: `mcp-publisher publish` from `mcp-registry/` (auth via `mcp-publisher login github`, device flow).
 5. **Verify live after deploy.** Curl the live URLs (not localhost) and confirm the new content is actually being served before calling the task done:
    ```bash
    curl -s https://api.nibgate.xyz/openapi.json | python3 -m json.tool | grep <new-thing>

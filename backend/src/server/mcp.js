@@ -415,7 +415,8 @@ export function registerMcpRoute(app) {
         instructions:
           'Every Nibgate surface speaks x402. GET a resource without payment to receive its 402 challenge, settle via Circle Gateway micropayments or a direct USDC transfer on Arc Testnet, then retry with the payment proof. Discover all paid content via MCP tools at /mcp or GET /hub/explore/content.',
       });
-    } catch {
+    } catch (err) {
+      console.error('[x402-wellknown] discovery query failed:', err?.message || err);
       // Discovery metadata must never hard-fail.
       return res.type('application/json').json({ version: 1, resources: [], instructions: `Discover paid content via MCP tools at ${apiOrigin}/mcp.` });
     }

@@ -27,5 +27,14 @@
     "@prisma/client": "^5.22.0",
     "nanoid": "^5.1.5",
     "viem": "^2.52.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fortunesayspump/nibgate.git",
+    "directory": "packages/internal"
+  },
+  "homepage": "https://nibgate.xyz",
+  "bugs": {
+    "url": "https://github.com/fortunesayspump/nibgate/issues"
   }
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from 'node:fs';
 import { depositToGateway, emitEvent, initConfig, printManifest, printRoutes, printStatus, showBalance, syncSite, verifySite, connectSite } from '../src/core/commands.js';
 import { printHelp } from '../src/core/output.js';
 
@@ -13,6 +14,11 @@ const handlers = {
     const cliDir = path.dirname(fileURLToPath(import.meta.url));
     const repoRoot = path.resolve(cliDir, '../../..');
     const backendEntry = path.resolve(repoRoot, 'backend/src/server/start.js');
+    if (!existsSync(backendEntry)) {
+      console.error('nibgate dev runs the Nibgate backend from a monorepo checkout and is not available in npm installs.');
+      console.error('Clone https://github.com/fortunesayspump/nibgate and run the CLI from packages/cli, or deploy the backend separately.');
+      process.exit(1);
+    }
     const child = spawn(process.execPath, [backendEntry], {
       cwd: path.dirname(backendEntry),
       stdio: 'inherit',

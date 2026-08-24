@@ -1,6 +1,6 @@
 {
   "name": "@nibgate/cli",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Nibgate CLI and gateway runtime for x402 nanopayments on creator sites.",
   "type": "module",
   "bin": {
@@ -12,13 +12,31 @@
     "routes": "node bin/nibgate.js routes"
   },
   "dependencies": {
-    "@nibgate/internal": "workspace:*",
-    "@nibgate/sdk": "workspace:*",
+    "@nibgate/sdk": "^0.4.20",
     "@prisma/client": "^5.22.0",
     "cookie": "^1.1.1",
     "nanoid": "^5.1.5",
     "prisma": "^5.22.0",
     "viem": "^2.52.2"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fortunesayspump/nibgate.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://nibgate.xyz",
+  "bugs": {
+    "url": "https://github.com/fortunesayspump/nibgate/issues"
+  },
+  "keywords": [
+    "nibgate",
+    "cli",
+    "x402",
+    "micropayments",
+    "usdc",
+    "gateway",
+    "paywall",
+    "creator"
+  ]
 }

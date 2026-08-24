@@ -421,3 +421,5 @@ export function registerMcpRoute(app) {
     }
   });
 }
+
+// registry discovery surfaces live at the bottom of this file

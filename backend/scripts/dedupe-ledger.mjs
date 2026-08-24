@@ -47,12 +47,28 @@ for (const b of bogus) {
       const twin = await db.unlockReceipt.findUnique({
         where: { contentId_paymentId: { contentId: canon.id, paymentId: r.paymentId } },
       }).catch(() => null);
-      if (twin) {
-        console.log(`${tag} drop dup receipt ${r.paymentId.slice(0, 12)} (${r.payerWallet || '?'})`);
+      // Semantic twin: pre-fix rows keyed the same settlement differently
+      // (header blob vs settled txHash). Same payer + amount within ±5 min on
+      // the canonical row means it is the same money — drop instead of move.
+      let semanticTwin = null;
+      if (!twin && r.payerWallet && r.amount != null) {
+        const t = new Date(r.createdAt).getTime();
+        semanticTwin = await db.unlockReceipt.findFirst({
+          where: {
+            contentId: canon.id,
+            payerWallet: r.payerWallet,
+            amount: Number(r.amount),
+            createdAt: { gte: new Date(t - 5 * 60 * 1000), lte: new Date(t + 5 * 60 * 1000) },
+          },
+        }).catch(() => null);
+        if (semanticTwin && String(semanticTwin.paymentId) === String(r.paymentId)) semanticTwin = null;
+      }
+      if (twin || semanticTwin) {
+        console.log(`${tag} drop dup receipt ${String(r.paymentId).slice(0, 12)} (${r.payerWallet || '?'})${semanticTwin ? ' [same money]' : ''}`);
         if (EXECUTE) await db.unlockReceipt.delete({ where: { id: r.id } });
         droppedReceipts++;
       } else {
-        console.log(`${tag} move receipt ${r.paymentId.slice(0, 12)} -> ${canon.id.slice(0, 8)}`);
+        console.log(`${tag} move receipt ${String(r.paymentId).slice(0, 12)} -> ${canon.id.slice(0, 8)}`);
         if (EXECUTE) await db.unlockReceipt.update({ where: { id: r.id }, data: { contentId: canon.id } });
         movedReceipts++;
       }
@@ -61,16 +77,33 @@ for (const b of bogus) {
     const metrics = await db.metric.findMany({ where: { contentId: b.id, type: { in: ['unlock', 'payment'] } } });
     for (const m of metrics) {
       const key = settledKey(m.metadata);
+      let clash = null;
       if (key) {
-        const clash = await db.metric.findFirst({
+        clash = await db.metric.findFirst({
           where: { contentId: canon.id, type: { in: ['unlock', 'payment'] }, metadata: { contains: key } },
         });
-        if (clash) {
-          console.log(`${tag} drop dup metric ${m.id.slice(0, 8)} (${key.slice(0, 10)})`);
-          if (EXECUTE) await db.metric.delete({ where: { id: m.id } });
-          droppedMetrics++;
-          continue;
+      }
+      // Semantic twin: same payer + revenue within ±5 min already recorded on
+      // the canonical row under a different id scheme.
+      if (!clash) {
+        let meta = {};
+        try { meta = JSON.parse(m.metadata || '{}'); } catch {}
+        const payer = String(meta.payer || meta._wallet || '').toLowerCase();
+        if (payer && m.revenue != null) {
+          const t = new Date(m.createdAt).getTime();
+          const candidates = await db.metric.findMany({
+            where: { contentId: canon.id, type: { in: ['unlock', 'payment'] }, revenue: Number(m.revenue), createdAt: { gte: new Date(t - 5 * 60 * 1000), lte: new Date(t + 5 * 60 * 1000) } },
+          });
+          clash = candidates.find((c) => {
+            try { const cm = JSON.parse(c.metadata || '{}'); return String(cm.payer || cm._wallet || '').toLowerCase() === payer; } catch { return false; }
+          }) || null;
         }
+      }
+      if (clash) {
+        console.log(`${tag} drop dup metric ${m.id.slice(0, 8)} (${(key || 'semantic').slice(0, 10)})`);
+        if (EXECUTE) await db.metric.delete({ where: { id: m.id } });
+        droppedMetrics++;
+        continue;
       }
       console.log(`${tag} move metric ${m.id.slice(0, 8)} -> ${canon.id.slice(0, 8)}`);
       if (EXECUTE) await db.metric.update({ where: { id: m.id }, data: { contentId: canon.id } });

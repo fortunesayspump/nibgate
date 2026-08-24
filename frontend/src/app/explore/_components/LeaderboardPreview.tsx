@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { apiUrl } from "@/lib/api";
 
 type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore?: number | null; unlocks: number; contentCount: number };
@@ -31,7 +32,7 @@ export default async function LeaderboardPreview() {
           <article key={creator.id} className="leaderboard-preview-card">
             <div className="leaderboard-preview-card-top">
               <span className="leaderboard-preview-rank">#{creator.rank}</span>
-              <img src={creatorAvatar(creator)} alt="" loading="lazy" />
+              <Image src={creatorAvatar(creator)} alt="" width={40} height={40} />
             </div>
             <div>
               <h3>{creator.name}</h3>

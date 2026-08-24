@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState, useCallback, useRef } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
+import Image from "next/image";
 import { FiEye, FiUnlock, FiDollarSign, FiStar } from "react-icons/fi";
 
 import styles from "./page.module.css";
@@ -223,7 +224,7 @@ export default function LedgerPage() {
                             <td className="px-5 py-5 min-w-[180px]">
                               <div className="flex items-center gap-3">
                                 {a.imageUrl ? (
-                                  <img src={a.imageUrl} alt="" width={40} height={40} loading="lazy" decoding="async" className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" />
+                                  <Image src={a.imageUrl} alt="" width={40} height={40} className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" />
                                 ) : null}
                                 <div className="min-w-0">
                                   <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}

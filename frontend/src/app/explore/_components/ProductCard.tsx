@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import type { KeyboardEvent, MouseEvent } from "react";
 import type { ExploreProduct } from "../_data/catalog";
 
@@ -132,7 +133,7 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
   return (
     <article className={`explore-feature-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <figure className="explore-art">
-        <img src={productImage(product)} alt="" loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} />
+        <Image src={productImage(product)} alt="" width={800} height={600} priority={priority} sizes="(max-width: 900px) 100vw, 560px" />
         {product.type === 'Video' && playIcon}
         {product.type === 'Music' && waveform}
         {product.type === 'Document' && docIcon}
@@ -147,7 +148,7 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
           <small>{product.summary}</small>
           <TagPills tags={product.tags} />
           <Link className="explore-creator" href="/leaderboards?type=creators">
-            {product.avatar && <img src={product.avatar} alt="" loading="lazy" />}
+            {product.avatar && <Image src={product.avatar} alt="" width={24} height={24} />}
             {product.creator}
           </Link>
         </header>
@@ -169,14 +170,14 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
   return (
     <article className="article-card" role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="article-header">
-        <img className="article-avatar" src={avatar} alt={product.creator} loading="lazy" />
+        <Image className="article-avatar" src={avatar} alt={product.creator || "Creator"} width={36} height={36} />
         <div className="article-author-info">
           <span className="article-author-name">{product.creator || 'Creator'}</span>
           <span className="article-meta-time">{reputationLabel}</span>
         </div>
       </div>
       <div className="article-body">
-        <img className="article-media" src={productImage(product)} alt="Article cover" loading="lazy" />
+        <Image className="article-media" src={productImage(product)} alt="Article cover" width={800} height={450} />
         <div className="article-content">
           <h3 className="article-title">{product.title}</h3>
           <p className="article-summary">{product.summary || 'No description available for this content.'}</p>
@@ -203,7 +204,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
   return (
     <article className={`market-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="market-media" style={{ aspectRatio: randomRatio }}>
-        <img className="market-thumbnail" src={productImage(product)} alt={product.title} loading="lazy" />
+        <Image className="market-thumbnail" src={productImage(product)} alt={product.title} width={800} height={600} sizes="(max-width: 900px) 100vw, 400px" />
         
         {product.type === 'Video' && (
           <div className="market-play-icon">
@@ -248,7 +249,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
         
         <div className="market-info-footer">
           <Link className="market-creator" href="/leaderboards?type=creators">
-            <img className="market-avatar" src={avatar} alt="Creator" />
+            <Image className="market-avatar" src={avatar} alt="Creator" width={24} height={24} />
             <span className="market-creator-name">{product.creator || 'Creator'}</span>
           </Link>
           <ReputationStars stars={product.reputationStars} ratings={product.ratings} />

@@ -6,6 +6,12 @@ if (!/^https?:\/\//.test(apiUrl)) apiUrl = 'https://' + apiUrl;
 const nextConfig: NextConfig = {
   transpilePackages: ["@nibgate/wallet"],
   turbopack: {},
+  images: {
+    remotePatterns: [new URL("https://**/**")],
+    dangerouslyAllowSVG: true,
+    contentDispositionType: "attachment",
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
   webpack(config, _ctx) {
     config.resolve = config.resolve || {};
     config.resolve.fallback = config.resolve.fallback || {};

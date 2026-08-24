@@ -40,13 +40,23 @@ export default function ContentViewer({ body, title, slug }: { body: unknown; ti
   useEffect(() => {
     if (requests.length === 0) return;
     let cancelled = false;
+    // Every blob URL this effect creates is tracked here so the cleanup can
+    // revoke it no matter WHEN it was created — including fetches that resolve
+    // after cleanup already ran. Without this, cancelled in-flight downloads
+    // leak their blobs for the lifetime of the tab.
+    const created: string[] = [];
     const urls: Record<string, string> = {};
     (async () => {
       await Promise.all(
         requests.map(async (r) => {
           try {
             const u = await fetchMediaObjectUrl(slug, r.kind, r.index);
-            if (!cancelled) urls[r.key] = u;
+            if (cancelled) {
+              URL.revokeObjectURL(u);
+              return;
+            }
+            created.push(u);
+            urls[r.key] = u;
           } catch (err) {
             console.error("Media load failed:", err);
           }
@@ -56,7 +66,7 @@ export default function ContentViewer({ body, title, slug }: { body: unknown; ti
     })();
     return () => {
       cancelled = true;
-      Object.values(urls).forEach((u) => URL.revokeObjectURL(u));
+      created.forEach((u) => URL.revokeObjectURL(u));
       setMediaUrls({});
     };
   }, [slug, requests]);

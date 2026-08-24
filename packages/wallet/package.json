@@ -1,6 +1,6 @@
 {
   "name": "@nibgate/wallet",
-  "version": "0.4.5",
+  "version": "0.4.7",
   "description": "Single Nibgate wallet standard: chain guard, error mapping, SIWE sign-in, and a shared Reown AppKit (AppKit + wagmi) React provider, connect, and unlock.",
   "type": "module",
   "publishConfig": {
@@ -29,7 +29,7 @@
     }
   },
   "dependencies": {
-    "@nibgate/sdk": "workspace:*",
+    "@nibgate/sdk": "^0.4.20",
     "lottie-web": "^5.12.2",
     "viem": "^2.52.2"
   },
@@ -52,5 +52,26 @@
   "devDependencies": {
     "@types/react": "^19.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fortunesayspump/nibgate.git",
+    "directory": "packages/wallet"
+  },
+  "homepage": "https://nibgate.xyz",
+  "bugs": {
+    "url": "https://github.com/fortunesayspump/nibgate/issues"
+  },
+  "keywords": [
+    "nibgate",
+    "wallet",
+    "react",
+    "wagmi",
+    "appkit",
+    "siwe",
+    "usdc",
+    "arc",
+    "x402",
+    "paywall"
+  ]
 }

@@ -9,7 +9,7 @@ import {
   trackingVisitorHash, checkTrackingRateLimit,
   metricIdentity, claimMetricDedupeKey, dedupeBucketStart, dateRangeWhere,
   normalizeContentType, upsertTrackedContent, resourcesFromManifest,
-  paymentPayload, walletFromPayload, paymentIdFromPayload, upsertUnlockReceipt,
+  paymentPayload, walletFromPayload, paymentIdFromPayload, upsertUnlockReceipt, paymentLikeId,
   upsertContentRating, contentHashFor, verifySignedRating,
   upsertOnchainRatingForContent, createMetric,
   syncWebsiteManifest, checkWebsiteVerification,
@@ -438,7 +438,11 @@ export function registerHubRoutes(app) {
             paymentProvider: 'circle-gateway', verified: true,
             amount: Number(effectivePrice), revenue: Number(effectivePrice), currency: 'USDC',
             payer: gateway.payment.payer || '', txHash: gateway.payment.txHash || '',
-            paymentId: gateway.payment.paymentId || gateway.payment.txHash || '',
+            // Key on the SETTLED tx first: downstream reporters (agents posting
+            // unlock_completed after paying) echo the txHash they received, so
+            // metric/receipt dedupe keys line up. The payment-signature header
+            // is only a fallback for batched settles with no tx yet.
+            paymentId: gateway.payment.txHash || gateway.payment.paymentId || '',
           };
           const tracked = await upsertTrackedContent(payWebsite, evtPayload).catch(() => null)
             || await db.content.findFirst({ where: { websiteId: payWebsite.id, url: payUrl } }).catch(() => null);
@@ -495,7 +499,25 @@ export function registerHubRoutes(app) {
         await upsertPublisherIdentity(website, { resource, ...extras, ...payload });
       }
       if (['unlock', 'payment'].includes(metricType) && content) {
-        await createMetric(website, content, { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) }, eventName, metricType);
+        const evtPayload = { resource, event: eventName, ...extras, ...payload, url, path, headers: req.headers, ip: clientIpFor(req) };
+        // Idempotency backstop: verified paid events with NO usable payment id
+        // can't dedupe via metricIdentity. If this wallet already has a
+        // verified receipt for this content recently, the settlement was
+        // already recorded server-side (/hub/pay) — drop the echo instead of
+        // double-counting revenue.
+        if (!paymentLikeId(payload)) {
+          const payer = walletFromPayload(payload);
+          const recent = payer ? await db.unlockReceipt.findFirst({
+            where: {
+              contentId: content.id,
+              payerWallet: payer,
+              status: 'verified',
+              createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+            },
+          }).catch(() => null) : null;
+          if (recent) return res.json({ success: true, deduped: 'recent-receipt' });
+        }
+        await createMetric(website, content, evtPayload, eventName, metricType);
         await upsertUnlockReceipt(website, content, { resource, event: eventName, ...extras, ...payload }, eventName);
       }
       if (metricType === 'rating' && content) {

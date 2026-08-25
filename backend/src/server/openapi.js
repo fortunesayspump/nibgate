@@ -70,7 +70,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.0",
+    version: "0.2.1",
     description:
       "Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on Arc testnet), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md",
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -90,6 +90,11 @@ export const openApiSpec = {
         summary: "x402 discovery fan-out",
         description:
           "Machine-readable discovery document listing currently-live paid resource URLs (a recent paid nibshare and a paid post on a verified creator site) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
+        security: [{ x402: [] }],
+        "x-payment-info": {
+          protocols: ["x402"],
+          price: { mode: "dynamic", currency: "USDC", min: "0.01", max: "1.00" },
+        },
         responses: {
           "200": {
             description: "Discovery document with resources array and instructions.",
@@ -104,6 +109,11 @@ export const openApiSpec = {
         summary: "Unlock a nibshare link",
         description:
           "Standalone share links. Free shares return the body directly; paid shares return 402 with a PAYMENT-REQUIRED header containing a standard x402 envelope (Circle Gateway scheme on eip155:5042002). Pay and retry the same request to receive JSON with content, media metadata, payment receipt, and a reusable unlockProof.",
+        security: [{ x402: [] }],
+        "x-payment-info": {
+          protocols: ["x402"],
+          price: { mode: "dynamic", currency: "USDC", min: "0.01", max: "1.00" },
+        },
         parameters: [
           { name: "slug", in: "path", required: true, schema: { type: "string" }, description: "Share slug from a nibshare link." },
         ],
@@ -171,6 +181,11 @@ export const openApiSpec = {
         summary: "x402 payment gate for tracked creator-site content",
         description:
           "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side (receipts, metrics, public ledger) whether the payer is a browser or a machine. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
+        security: [{ x402: [] }],
+        "x-payment-info": {
+          protocols: ["x402"],
+          price: { mode: "dynamic", currency: "USDC", min: "0.01", max: "1.00" },
+        },
         requestBody: {
           required: true,
           content: {
@@ -566,7 +581,18 @@ export const openApiSpec = {
       },
     },
   },
+  "x-discovery": {
+    ownershipProofs: ["0x7514Ff68BE453931ce1a8e752140E209Dd125A"],
+  },
   components: {
+    securitySchemes: {
+      x402: {
+        type: "apiKey",
+        in: "header",
+        name: "Payment",
+        description: "x402 payment challenge-response header. Include the header on retry after settlement to unlock paid content.",
+      },
+    },
     schemas: {
       Content: contentSchema,
       Activity: activitySchema,

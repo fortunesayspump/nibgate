@@ -7,7 +7,7 @@ import { shareManifest } from './nibshare/service.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.0';
+const SERVER_VERSION = '0.2.1';
 
 const VERIFIED_SITE_WHERE = { deletedAt: null, isVerified: true, verificationStatus: 'verified' };
 const CONTENT_INCLUDE = { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } };

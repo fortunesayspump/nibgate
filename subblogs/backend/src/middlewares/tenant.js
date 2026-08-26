@@ -13,7 +13,8 @@ function subdomainFromHost(host = '') {
 }
 
 async function resolveTenant(req, res, next) {
-  const isPublic = PUBLIC_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'));
+  const originalUrl = req.originalUrl || req.url;
+  const isPublic = PUBLIC_PATHS.some((p) => originalUrl.startsWith(p) || req.path === p || req.path.startsWith(p + '/'));
   if (isPublic) return next();
 
   let subdomain = req.headers['x-site-subdomain'] || (req.query.subdomain ? String(req.query.subdomain).trim() : '') || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');

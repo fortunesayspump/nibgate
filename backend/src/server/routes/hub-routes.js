@@ -69,8 +69,9 @@ export function registerHubRoutes(app) {
       }
 
       const token = hashValue(`${clean}:${req.user.id}:${Date.now()}:${Math.random()}`).slice(0, 32);
+      const siteToken = crypto.randomBytes(24).toString('hex');
       const created = await db.website.create({
-        data: { domain: clean, name: name?.trim() || clean, description: description?.trim() || null, ownerId: req.user.id, verifyToken: token },
+        data: { domain: clean, name: name?.trim() || clean, description: description?.trim() || null, ownerId: req.user.id, verifyToken: token, siteToken },
         include: { _count: { select: { content: true, metrics: true } } }
       });
 

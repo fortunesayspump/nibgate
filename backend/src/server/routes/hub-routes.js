@@ -1,5 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
+import { randomBytes } from 'node:crypto';
 import { runHostedPayRequirement } from '@nibgate/sdk/server';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { deleteManagedProfileImage } from './upload-routes.js';
@@ -69,7 +70,7 @@ export function registerHubRoutes(app) {
       }
 
       const token = hashValue(`${clean}:${req.user.id}:${Date.now()}:${Math.random()}`).slice(0, 32);
-      const siteToken = crypto.randomBytes(24).toString('hex');
+      const siteToken = randomBytes(24).toString('hex');
       const created = await db.website.create({
         data: { domain: clean, name: name?.trim() || clean, description: description?.trim() || null, ownerId: req.user.id, verifyToken: token, siteToken },
         include: { _count: { select: { content: true, metrics: true } } }
@@ -1200,7 +1201,7 @@ export function registerHubRoutes(app) {
             data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, deletedAt: null, ownerId: user.id }
           })
         : await db.website.create({
-            data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', siteToken: crypto.randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
+            data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', siteToken: randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
           });
 
       await syncWebsiteManifest(website).catch(() => {});

@@ -450,7 +450,7 @@ export function registerHubRoutes(app) {
             || await db.content.findFirst({ where: { websiteId: payWebsite.id, url: payUrl } }).catch(() => null);
           if (tracked) {
             await createMetric(payWebsite, tracked, { ...evtPayload }, 'unlock_completed', 'unlock');
-            await upsertUnlockReceipt(payWebsite, tracked, { ...evtPayload }, 'unlock_completed');
+            await upsertUnlockReceipt(payWebsite, tracked, { ...evtPayload }, 'unlock_completed', { serverVerified: true });
           }
         }
       } catch (recordError) {

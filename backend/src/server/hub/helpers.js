@@ -1,7 +1,28 @@
 import { db } from '@nibgate/internal/db.js';
-import { protocolFeeFor } from '@nibgate/sdk/server';
+import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
+
+// On-chain verification for direct-transfer (client-broadcast USDC) receipts.
+// A fake txHash (or one that doesn't transfer USDC to this content's seller
+// for at least the price) must NOT appear as a trustworthy "verified" payment.
+// Uses the exact same verifier as the pay-time access path, so the RPC + USDC
+// resolution is identical to what accepted the transfer when it was spent.
+let _writeVerifier = null;
+export function verifyDirecttransferOnchain(payment) {
+  if (!payment) return false;
+  const txHash = String(payment.txHash || payment.paymentId || '').trim().toLowerCase();
+  if (!/^0x[a-f0-9]{40,}$/.test(txHash)) return false;
+  const recipient = String(payment.recipient || payment.payTo || payment.recipientWallet || '').trim().toLowerCase();
+  const amount = Number.parseFloat(payment.amount ?? payment.revenue ?? payment.value ?? 0);
+  if (!recipient || !Number.isFinite(amount) || amount <= 0) return false;
+  if (!_writeVerifier) _writeVerifier = createTransferVerifier({}); // honors NIBGATE_PAYMENT_RPC_URL + NIBGATE_USDC_ADDRESS
+  return _writeVerifier({
+    resource: { recipient, payTo: recipient, price: String(amount) },
+    txHash,
+    payment: { recipient, amount, revenue: amount, currency: 'USDC' },
+  });
+}
 
 export async function findContentByIdOrExternal(contentId = '') {
   const trimmed = String(contentId || '').trim();
@@ -513,12 +534,55 @@ export function paymentIdFromPayload(payload = {}, contentId = '') {
   })).digest('hex');
 }
 
-export async function upsertUnlockReceipt(website, content, payload = {}, eventName = '') {
+export async function upsertUnlockReceipt(website, content, payload = {}, eventName = '', opts = {}) {
   if (!content || !['payment_completed', 'payment_success', 'unlock_completed', 'resource_unlock', 'unlock'].includes(eventName)) return null;
   const input = paymentPayload(payload);
   const paymentId = paymentIdFromPayload(payload, content.id);
   const amount = Number.parseFloat(input.amount || input.revenue || payload.revenue || input.price || payload.price || input.value || payload.value || '0') || null;
   const protocolFee = amount == null ? null : protocolFeeFor(amount);
+
+  // ── Verification state ────────────────────────────────────────────────────
+  // Only the server's own /hub/pay settlement path (opts.serverVerified) may
+  // record a receipt as authoritative "verified": it has already settled via
+  // Circle (gateway) or on-chain-verified the broadcast transfer (direct).
+  // Everything reported through /track (client-supplied unlock_completed
+  // events) is UNTRUSTED input — a caller can fabricate a txHash. Those are
+  // verified on-chain here when they claim a direct-transfer payment, and
+  // otherwise recorded as 'unverified' so they never surface as real revenue.
+  let status;
+  if (opts.serverVerified) {
+    status = 'verified';
+  } else {
+    const provider = String(input.paymentProvider || input.provider || '').toLowerCase();
+    if (provider === 'direct-transfer' || /^direct[-_]/.test(provider) || input.rail === 'transfer') {
+      const ok = await verifyDirecttransferOnchain({
+        txHash: input.txHash || input.transactionHash || input.transaction || paymentId,
+        recipient: input.recipient || input.payTo || content.recipientWallet || null,
+        amount: input.amount ?? input.revenue ?? amount,
+        revenue: numberLike(input.revenue, amount),
+        value: input.value,
+      }).catch(() => false);
+      status = ok ? 'verified' : 'unverified';
+    } else {
+      // Gateway/unknown echoes can't be independently on-chain verified from a
+      // client claim — they are not authoritative here.
+      status = 'unverified';
+    }
+  }
+
+  // Never downgrade a receipt the server already verified. An unverified /
+  // client echo of a payment that the /pay path legitimately settled shares
+  // the same paymentId dedupe key here; overwriting its status with
+  // 'unverified' would hide real revenue. Preserve the existing status.
+  if (!opts.serverVerified && status === 'unverified') {
+    const existing = await db.unlockReceipt.findUnique({
+      where: { contentId_paymentId: { contentId: content.id, paymentId } },
+      select: { status: true },
+    }).catch(() => null);
+    if (existing && existing.status === 'verified') {
+      status = existing.status;
+    }
+  }
 
   return db.unlockReceipt.upsert({
     where: { contentId_paymentId: { contentId: content.id, paymentId } },
@@ -535,7 +599,7 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       protocolFee,
       currency: input.currency || payload.currency || content.currency || null,
       recipientWallet: input.recipient || input.payTo || content.recipientWallet || null,
-      status: input.status || 'verified',
+      status,
       metadata: JSON.stringify(payload).slice(0, 12000)
     },
     create: {
@@ -554,10 +618,15 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       protocolFee,
       currency: input.currency || payload.currency || content.currency || null,
       recipientWallet: input.recipient || input.payTo || content.recipientWallet || null,
-      status: input.status || 'verified',
+      status,
       metadata: JSON.stringify(payload).slice(0, 12000)
     }
   });
+}
+
+function numberLike(v, fallback = null) {
+  const n = Number.parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 // ── Rating helpers ─────────────────────────────────────────────────────────

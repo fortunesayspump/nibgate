@@ -167,11 +167,17 @@ export function registerHubRoutes(app) {
       const domain = String(req.query.domain || '').trim().toLowerCase() || undefined;
       const siteWhere = domain ? { website: { domain } } : { website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } };
 
-      // Total counts (optionally filtered by domain)
+      // Total counts (optionally filtered by domain). Unlocks and Payments both
+      // count the SAME authoritative set — verified, deduplicated UnlockReceipts
+      // (one verified paid unlock = one settled payment). Counting raw lock
+      // events here over/under-counts: unlock_completed once fired per visitor
+      // session and even for contents whose only receipt is invalid, so the
+      // totals drifted from the ledger (e.g. 796 events vs 780 verified). Both
+      // surfaces stay in lockstep on the verified ledger.
       const verifiedUnlockWhere = { ...siteWhere, status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] } };
       const [totalViews, totalUnlocks, totalPayments, totalRatings] = await Promise.all([
         db.metric.count({ where: { type: 'view', contentId: { not: null }, ...siteWhere } }),
-        db.metric.count({ where: { eventName: 'unlock_completed', contentId: { not: null }, ...siteWhere } }),
+        db.unlockReceipt.count({ where: verifiedUnlockWhere }),
         db.unlockReceipt.count({ where: verifiedUnlockWhere }),
         db.contentRating.count({ where: { status: 'accepted', proof: { startsWith: 'onchain:' }, ...siteWhere } }),
       ]);
@@ -301,7 +307,7 @@ export function registerHubRoutes(app) {
         success: true,
         activities: result,
         total: result.length,
-        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, total: totalViews + totalUnlocks + totalPayments + totalRatings },
+        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, total: totalViews + totalPayments + totalRatings },
         hasMore: activities.length > limit,
         limit, skip: offset
       });
@@ -863,9 +869,10 @@ export function registerHubRoutes(app) {
       const protocolFees = Number(rangeFeeAgg._sum.protocolFee || 0);
       const netRevenue = Math.max(0, +(grossRevenue - protocolFees).toFixed(6));
 
+      const verifiedReceiptCount = receipts.filter((r) => r.status === 'verified' && ['circle-gateway', 'direct-transfer'].includes(r.paymentProvider)).length;
       res.json({
         success: true,
-        summary: { revenue: grossRevenue, protocolFees, netRevenue, unlocks: metrics.length, byCurrency, receiptCount: receipts.length },
+        summary: { revenue: grossRevenue, protocolFees, netRevenue, unlocks: verifiedReceiptCount, byCurrency, receiptCount: receipts.length },
         receipts: receipts.map((r) => ({
           id: r.id, contentId: r.contentId, contentTitle: r.content?.title || '', amount: r.amount, protocolFee: r.protocolFee, currency: r.currency || 'USDC',
           paymentProvider: r.paymentProvider, txHash: r.txHash, receiptUrl: r.receiptUrl, payerWallet: r.payerWallet, status: r.status, createdAt: r.createdAt

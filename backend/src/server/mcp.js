@@ -4,10 +4,23 @@ import {
   siteReputationScore, creatorReputationScore, primaryWalletAddress
 } from './hub/helpers.js';
 import { shareManifest } from './nibshare/service.js';
+import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.1';
+const SERVER_VERSION = '0.2.2';
+
+// Per-stack settlement facts for tool instructions (Circle CLI chain flag,
+// API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
+function settlementFacts() {
+  const net = activeNetwork();
+  const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || hostsFor(net.name).apiBase).replace(/\/+$/, '');
+  return {
+    apiBase,
+    circleChain: net.isTestnet ? 'ARC-TESTNET' : 'ARC',
+    networkBlurb: net.isTestnet ? 'Arc testnet (chain ID 5042002)' : 'Arc (chain ID 5042)',
+  };
+}
 
 const VERIFIED_SITE_WHERE = { deletedAt: null, isVerified: true, verificationStatus: 'verified' };
 const CONTENT_INCLUDE = { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } };
@@ -297,7 +310,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      'Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. To unlock paid content after discovery, pay over x402: GET https://api.nibgate.xyz/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (`circle services pay <url> --address <wallet> --chain ARC-TESTNET`) or any x402 client, then retry the same request to receive the content. Full guide: https://nibgate.xyz/discovery.md',
+      `Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. Settlements on this server are ${settlementFacts().networkBlurb}. Full guide: https://nibgate.xyz/discovery.md`,
   };
 }
 
@@ -413,7 +426,7 @@ export function registerMcpRoute(app) {
         version: 1,
         resources,
         instructions:
-          'Every Nibgate surface speaks x402. GET a resource without payment to receive its 402 challenge, settle via Circle Gateway micropayments or a direct USDC transfer on Arc Testnet, then retry with the payment proof. Discover all paid content via MCP tools at /mcp or GET /hub/explore/content.',
+          'Every Nibgate surface speaks x402. GET a resource without payment to receive its 402 challenge, settle via Circle Gateway micropayments or a direct USDC transfer on ' + settlementFacts().networkBlurb + ', then retry with the payment proof. Discover all paid content via MCP tools at /mcp or GET /hub/explore/content.',
       });
     } catch (err) {
       console.error('[x402-wellknown] discovery query failed:', err?.message || err);

@@ -1,6 +1,6 @@
 ---
 name: nibgate-sdk
-description: Complete guide for integrating @nibgate/sdk into a creator-owned site. Covers widget installation, resource definition, server gating, payments (Circle Gateway and direct USDC transfer rails on Arc Testnet), browser unlock UI, admin panel for managing gating settings, onchain reputation/ratings, manifest/discovery metadata, and common gotchas.
+description: Complete guide for integrating @nibgate/sdk into a creator-owned site. Covers widget installation, resource definition, server gating, payments (Circle Gateway and direct USDC transfer rails on Arc mainnet and testnet), browser unlock UI, admin panel for managing gating settings, onchain reputation/ratings, manifest/discovery metadata, and common gotchas.
 ---
 
 # Nibgate SDK
@@ -21,6 +21,22 @@ When an AI agent is helping install Nibgate, give it this file first:
 - public copy: `https://nibgate.xyz/skill.md`
 
 Read this entire file before editing any routes or checkout code. The guide follows the full integration order.
+
+---
+
+## 0. Networks (mainnet vs testnet)
+
+Nibgate runs on two Arc networks. Unless you are staging, integrate against **mainnet**:
+
+| | Mainnet (default) | Testnet (staging) |
+|---|---|---|
+| Hub API | `https://api.nibgate.xyz` | `https://testnet-api.nibgate.xyz` |
+| Payment network | `eip155:5042` | `eip155:5042002` |
+| Chain ID | 5042 | 5042002 |
+| Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
+| Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |
+
+The examples below show testnet values (`eip155:5042002`, `rpc.testnet.arc.io`) because testnet USDC is free from the faucet. For production, swap in the mainnet column. USDC is `0x360000...0000` and the Gateway domain is 26 on both networks. Balances and unlocks do NOT cross networks.
 
 ---
 

@@ -14,9 +14,9 @@ const RESERVED_SUBDOMAINS = new Set([
   'ssl', 'dns', 'ns1', 'ns2', 'mx',
 ]);
 
-// `testnet-<name>` aliases are minted by the system (setup route) for every
-// site — creators cannot claim them directly, or an alias could shadow or
-// impersonate another site's testnet host.
+// `testnet-<name>` is a reserved legacy alias form (exact domains provisioned
+// before the *.testnet wildcard existed). Creators cannot claim it directly,
+// or an alias could shadow or impersonate another site's testnet host.
 const TESTNET_ALIAS_PREFIX = 'testnet-';
 
 function isValidSubdomain(subdomain) {

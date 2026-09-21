@@ -1,4 +1,9 @@
-const hubApi = "https://api.nibgate.xyz";
+import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
+
+// Served per-stack: the spec describes the network this deployment settles on.
+const NET = activeNetwork();
+const hubApi = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || hostsFor(NET.name).apiBase).replace(/\/+$/, '');
+const networkLabel = NET.isTestnet ? 'Arc testnet (chain ID 5042002)' : 'Arc (chain ID 5042)';
 
 const contentSchema = {
   type: "object",
@@ -70,9 +75,9 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.1",
+    version: "0.2.2",
     description:
-      "Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on Arc testnet), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md",
+      `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
   },
   servers: [{ url: hubApi, description: "Production hub API" }],

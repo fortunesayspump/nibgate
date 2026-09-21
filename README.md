@@ -124,6 +124,29 @@ The public `@nibgate/sdk` package owns route protection, payment challenge metad
 
 Local-only and not tracked in this repo. An origin app that behaves like a creator-owned site, used to validate the install flow, DB-backed content mapping, package events, and protected content flow without polluting hub code. Real-template examples belong under `demo/examples/*`, where each example starts from a recognizable starter repo and adds the Nibgate package integration. If your checkout has no `demo/` directory, skip the demo commands below — everything else runs without it.
 
+## Networks & deployments
+
+Nibgate runs two parallel stacks. Mainnet is the production surface; testnet mirrors it for staging. Balances, unlocks, reputation, and databases do NOT cross networks.
+
+| | Mainnet | Testnet |
+|---|---|---|
+| Hub site | `https://nibgate.xyz` | `https://testnet.nibgate.xyz` |
+| Hub API | `https://api.nibgate.xyz` | `https://testnet-api.nibgate.xyz` |
+| Subblogs | `https://{sub}.nibgate.xyz` | `https://{sub}.testnet.nibgate.xyz` |
+| Subblogs API | `https://api-subblogs.nibgate.xyz` | `https://testnet-api-subblogs.nibgate.xyz` |
+| Shares | `https://nibgate.xyz/ns/{slug}` | `https://testnet.nibgate.xyz/ns/{slug}` |
+| Arc chain | 5042 (`eip155:5042`) | 5042002 (`eip155:5042002`) |
+| Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
+| Railway | `nibgate-mainnet` project | `nibgate-testnet` + `nibgate-subblogs-testnet` projects |
+| Vercel | `nibgate-frontend`, `nibgate-subblogs-mainnet` | `nibgate-frontend-testnet`, `nibgate-subblogs-testnet` |
+
+Selection is env-driven, testnet by default:
+- Backends: `NIBGATE_NETWORK=mainnet|testnet` (default `testnet` — a missing var can never move real money)
+- Frontends: `NEXT_PUBLIC_NIBGATE_NETWORK=mainnet|testnet`
+- Explicit per-value env vars (RPC URLs, contract addresses, origins) always override the network default.
+
+Chain parameters live in several places by necessity (the published `@nibgate/wallet` cannot import the private `@nibgate/internal`, subblogs ships registry builds, ops scripts run standalone). The canonical registry is `packages/internal/src/networks.js`; mirrors live in `packages/wallet/src/chain.js`, `subblogs/backend/src/lib/network.js`, `subblogs/frontend/src/lib/network.ts`, `scripts/network.mjs`, and `contracts/deployments/arc-mainnet.json`. `pnpm networks:check` (also part of `pnpm test`) fails the build if they drift. Full reference: [Networks](https://docs.nibgate.xyz/networks).
+
 ## Run
 
 Install once:

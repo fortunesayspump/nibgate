@@ -1,4 +1,7 @@
-const RPC_URL = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.NEXT_PUBLIC_ARC_RPC_URL || 'https://rpc.testnet.arc.io'
+import { activeNetwork } from '@nibgate/internal/networks.js';
+
+const NET = activeNetwork();
+const RPC_URL = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.NEXT_PUBLIC_ARC_RPC_URL || NET.reputationRpcUrl;
 
 const ALLOWED_METHODS = new Set([
   'eth_chainId',

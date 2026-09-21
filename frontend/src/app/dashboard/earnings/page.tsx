@@ -6,6 +6,7 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import { format, subDays, subMonths } from "date-fns";
 import { Area, CartesianGrid, Line, LineChart as ReLineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { copyToClipboard } from "@/lib/clipboard";
+import { explorerTxLink } from "@/lib/chains";
 
 type Transaction = {
   id: string;
@@ -643,7 +644,7 @@ function getReceiptTarget(transaction: Transaction) {
   if (transaction.receiptUrl) return { url: transaction.receiptUrl, label: "Open Circle receipt" };
   if (transaction.chainExplorerUrl) return { url: transaction.chainExplorerUrl, label: "Open Arcscan receipt" };
   if ((transaction.network || "").toLowerCase().includes("arc") && transaction.txHash?.startsWith("0x")) {
-    return { url: `https://testnet.arcscan.app/tx/${transaction.txHash}`, label: "Open Arcscan receipt" };
+    return { url: explorerTxLink(transaction.txHash), label: "Open Arc receipt" };
   }
   return null;
 }

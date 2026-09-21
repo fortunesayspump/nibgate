@@ -1,6 +1,6 @@
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from 'viem/siwe';
 import { hashMessage, recoverAddress } from 'viem';
-import { ARC_TESTNET } from './chain.js';
+import { activeChain } from './chain.js';
 
 export const SIGN_IN_STATEMENT = 'Sign in to Nibgate to verify your wallet.';
 
@@ -8,7 +8,7 @@ export function createSignInNonce() {
   return generateSiweNonce();
 }
 
-export function createSignInMessage({ address, chainId = ARC_TESTNET.id, nonce, domain, uri, issuedAt = new Date(), expirationTime }) {
+export function createSignInMessage({ address, chainId = activeChain().id, nonce, domain, uri, issuedAt = new Date(), expirationTime }) {
   return createSiweMessage({
     address,
     chainId,

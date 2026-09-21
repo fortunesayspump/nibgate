@@ -3,13 +3,16 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../../lib/prisma');
 const { status } = require('http-status');
 const { isValidSubdomain } = require('../../lib/validate');
+const { activeCaip2 } = require('../../lib/network');
 
-async function addVercelDomain(subdomain) {
+// Every site gets two hosts: <name>.nibgate.xyz (mainnet stack) and
+// testnet-<name>.nibgate.xyz (testnet stack). Both are provisioned here so a
+// site is reachable on both networks from the moment it is created. The
+// testnet project id is optional — without it only the mainnet domain is added.
+async function addVercelDomain(domain, projectId) {
   const token = process.env.VERCEL_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
-  if (!token || !projectId) return { skipped: true, reason: 'VERCEL_TOKEN or VERCEL_PROJECT_ID not set' };
+  if (!token || !projectId) return { skipped: true, reason: 'VERCEL_TOKEN or project id not set' };
 
-  const domain = `${subdomain}.nibgate.xyz`;
   const res = await fetch(`https://api.vercel.com/v10/projects/${projectId}/domains`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -51,7 +54,7 @@ router.post('/', async (req, res, next) => {
         subdomain: String(subdomain).trim().toLowerCase(),
         name: name || subdomain,
         verifyToken: require('crypto').randomBytes(16).toString('hex'),
-        settings: JSON.stringify({ recipientWallet: '', defaultPrice: '0.01', defaultCurrency: 'USDC', paymentNetwork: 'eip155:5042002' }),
+        settings: JSON.stringify({ recipientWallet: '', defaultPrice: '0.01', defaultCurrency: 'USDC', paymentNetwork: activeCaip2() }),
       },
     });
 
@@ -67,13 +70,18 @@ router.post('/', async (req, res, next) => {
       },
     });
 
-    const vercelDomain = await addVercelDomain(subdomain);
+    const canonical = String(site.subdomain).trim().toLowerCase();
+    const mainnetDomain = await addVercelDomain(`${canonical}.nibgate.xyz`, process.env.VERCEL_PROJECT_ID);
+    const testnetDomain = await addVercelDomain(`testnet-${canonical}.nibgate.xyz`, process.env.VERCEL_TESTNET_PROJECT_ID);
 
     res.status(201).json({
       success: true,
       site: { id: site.id, subdomain: site.subdomain, name: site.name },
       user: { id: user.id, email: user.email, username: user.username },
-      vercelDomain: vercelDomain.success ? { domain: vercelDomain.domain, status: 'added' } : { skipped: true, reason: vercelDomain.reason },
+      domains: {
+        mainnet: mainnetDomain.success ? { domain: mainnetDomain.domain, status: 'added' } : { skipped: true, reason: mainnetDomain.reason },
+        testnet: testnetDomain.success ? { domain: testnetDomain.domain, status: 'added' } : { skipped: true, reason: testnetDomain.reason },
+      },
     });
   } catch (error) {
     if (error?.code === 'P2002') {

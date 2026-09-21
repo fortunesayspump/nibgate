@@ -5,7 +5,7 @@ import { encodeFunctionData, createWalletClient, custom } from 'viem'
 import { useAppKit, useAppKitProvider, useAppKitAccount, useAppKitNetwork, useDisconnect } from '@reown/appkit/react'
 import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
-import { ARC_TESTNET, isArcNetwork } from '../chain.js'
+import { activeArcChain, activeChain, isArcNetwork } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 import { ownershipMessage } from '@nibgate/sdk'
@@ -13,10 +13,10 @@ import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
 import { GatewayWalletUI } from './gateway-wallet.jsx'
 
-const NETWORK = 'eip155:5042002'
+const NETWORK = activeChain().caip2
 const PROOF_PREFIX = 'nibgate:payment-proof:'
 const USDC = '0x3600000000000000000000000000000000000000'
-const ARC_RPC = 'https://rpc.testnet.arc.io'
+const ARC_RPC = activeChain().rpcUrl
 const BALANCE_OF = '0x70a08231'
 const USDC_TRANSFER_ABI = [
   {
@@ -193,7 +193,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       await waitForChain(() => isArcNetwork(chainIdRef.current))
     }
     const rail = input?.challenge?.paymentRail || railRef.current || resource.paymentRail || 'gateway'
-    const walletClient = createWalletClient({ chain: ARC_TESTNET, account: account, transport: custom(provider) })
+    const walletClient = createWalletClient({ chain: activeArcChain(), account: account, transport: custom(provider) })
     if (rail === 'transfer') {
       const payTo = String(input?.challenge?.accepts?.[0]?.payTo || input?.challenge?.accepts?.[0]?.recipient || resource.payTo || resource.recipient || '')
       if (!payTo) throw new Error('No recipient address in the transfer challenge.')
@@ -201,7 +201,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       if (!(amount > 0)) throw new Error('Invalid payment amount.')
       const amountUsdc = BigInt(Math.round(amount * 1e6))
       const data = encodeFunctionData({ abi: USDC_TRANSFER_ABI, functionName: 'transfer', args: [payTo, amountUsdc] })
-      const tx = await walletClient.sendTransaction({ to: USDC, data, chain: ARC_TESTNET, account: account })
+      const tx = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account: account })
       const txHash = tx?.hash || tx || ''
       return {
         paymentSignature: txHash,

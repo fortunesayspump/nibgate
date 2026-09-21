@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import Link from "next/link";
 import Image from "next/image";
 import { FiEye, FiUnlock, FiDollarSign, FiStar } from "react-icons/fi";
+import { explorerTxLink } from "@/lib/chains";
 
 import styles from "./page.module.css";
 
@@ -59,7 +60,7 @@ function ta(d: string) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function bx(t: string) { return `https://testnet.arcscan.app/tx/${t}`; }
+function bx(t: string) { return explorerTxLink(t); }
 function sn(s: string, l = 8) { return s.length > l + 4 ? `${s.slice(0, l)}...${s.slice(-4)}` : s; }
 
 export default function LedgerPage() {

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * Deploy GatewayFeeWalletFactory to Arc testnet.
+ * Deploy GatewayFeeWalletFactory. Network follows NIBGATE_NETWORK
+ * (testnet default; set NIBGATE_NETWORK=mainnet for the mainnet deploy).
+ * Gas on Arc is paid in USDC — the deployer needs a funded mainnet balance.
  *
  * Records the deployment in contracts/deployments/arc-testnet.json alongside
  * the reputation contracts. Requires the deployer key in env (same convention
  * as deploy-reputation.mjs):
  *
- *   NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-revenue-factory.mjs
+ *   NIBGATE_NETWORK=mainnet NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-revenue-factory.mjs
  *
  * Optional overrides: NIBGATE_FEE_SETTER, NIBGATE_TREASURY,
  * NIBGATE_FEE_BPS (default 100 = 1%), NIBGATE_MAX_FEE_BPS (default 500 = 5%).
@@ -22,20 +24,26 @@ const viemAccountsEntry = path.join(rootDir, 'backend/node_modules/viem/_esm/acc
 const { createPublicClient, createWalletClient, http, getAddress } = await import(viemEntry);
 const { privateKeyToAccount } = await import(viemAccountsEntry);
 
-const rpcUrl = process.env.NIBGATE_REVENUE_RPC_URL
-  || process.env.ARC_TESTNET_RPC_URL
-  || process.env.RPC_URL
-  || 'https://rpc.testnet.arc.io';
-const chainId = Number.parseInt(process.env.NIBGATE_REVENUE_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
-const chainName = process.env.NIBGATE_REVENUE_CHAIN_NAME || 'Arc Testnet';
+const { networkDefaults } = await import('./network.mjs');
+const { network, rpcUrl, chainId, chainName } = networkDefaults({
+  rpcEnv: ['NIBGATE_REVENUE_RPC_URL', 'ARC_TESTNET_RPC_URL', 'RPC_URL'],
+  chainIdEnv: ['NIBGATE_REVENUE_CHAIN_ID', 'CHAIN_ID'],
+  chainNameEnv: ['NIBGATE_REVENUE_CHAIN_NAME'],
+});
+const isMainnet = network === 'mainnet';
 const privateKey = process.env.NIBGATE_DEPLOYER_PRIVATE_KEY
   || process.env.DEPLOYER_PRIVATE_KEY
   || '';
 
 const TREASURY = getAddress(process.env.NIBGATE_TREASURY || '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12');
 const USDC = '0x3600000000000000000000000000000000000000';
-const GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
-const GATEWAY_MINTER = '0x0022222ABE238Cc2C7Bb1f21003F0a260052475B';
+// Circle Gateway contracts follow the deploy network (domain 26 on both).
+const GATEWAY_WALLET = isMainnet
+  ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
+  : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+const GATEWAY_MINTER = isMainnet
+  ? '0x2222222d7164433c4C09B0b0D809a9b52C04C205'
+  : '0x0022222ABE238Cc2C7Bb1f21003F0a260052475B';
 const DOMAIN = 26;
 const MAX_FEE_BPS = Number.parseInt(process.env.NIBGATE_MAX_FEE_BPS || '500', 10);
 const INITIAL_FEE_BPS = Number.parseInt(process.env.NIBGATE_FEE_BPS || '100', 10);
@@ -75,7 +83,7 @@ console.log(`Fee bps: ${INITIAL_FEE_BPS} (cap ${MAX_FEE_BPS})`);
 
 const balance = await publicClient.getBalance({ address: account.address });
 console.log(`Deployer balance: ${balance.toString()} wei`);
-if (balance <= 0n) throw new Error('Deployer has no gas — fund it with Arc testnet ETH first.');
+if (balance <= 0n) throw new Error(`Deployer has no gas — fund it with Arc ${isMainnet ? 'mainnet USDC' : 'testnet USDC (faucet.circle.com)'} first.`);
 
 const hash = await walletClient.deployContract({
   abi: factoryArtifact.abi,
@@ -87,7 +95,7 @@ const receipt = await publicClient.waitForTransactionReceipt({ hash });
 const factoryAddress = receipt.contractAddress;
 console.log(`GatewayFeeWalletFactory: ${factoryAddress}`);
 
-const deploymentsPath = path.join(rootDir, 'contracts/deployments/arc-testnet.json');
+const deploymentsPath = path.join(rootDir, isMainnet ? 'contracts/deployments/arc-mainnet.json' : 'contracts/deployments/arc-testnet.json');
 const deployments = fs.existsSync(deploymentsPath) ? JSON.parse(fs.readFileSync(deploymentsPath, 'utf8')) : {};
 deployments.revenue = {
   factoryAddress,

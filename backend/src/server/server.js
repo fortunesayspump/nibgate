@@ -103,6 +103,9 @@ export async function createApp(config, options = {}) {
         ? process.env.CORS_ORIGIN.split(',')
         : [
             'https://nibgate.xyz',
+            'https://testnet.nibgate.xyz',
+            // Any *.nibgate.xyz subdomain (creator subblogs, testnet-* aliases).
+            /^https:\/\/([a-z0-9-]+\.)*nibgate\.xyz$/,
             /^http:\/\/localhost:\d+$/,
             /^http:\/\/127\.0\.0\.1:\d+$/,
             /\.vercel\.app$/

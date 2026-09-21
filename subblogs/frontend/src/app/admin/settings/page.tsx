@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiAuthFetch } from "@/lib/api";
+import { activePaymentNetwork } from "@/lib/network";
 import MarkdownEditor from "@/components/MarkdownEditor";
 
 type SiteSettings = {
@@ -25,7 +26,7 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [form, setForm] = useState({
     name: "", description: "", aboutMarkdown: "", recipientWallet: "",
-    defaultPrice: "0.01", defaultCurrency: "USDC", paymentNetwork: "eip155:5042002",
+    defaultPrice: "0.01", defaultCurrency: "USDC", paymentNetwork: activePaymentNetwork(),
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,7 +56,7 @@ export default function AdminSettingsPage() {
           recipientWallet: data.settings.recipientWallet || "",
           defaultPrice: data.settings.defaultPrice || "0.01",
           defaultCurrency: data.settings.defaultCurrency || "USDC",
-          paymentNetwork: data.settings.paymentNetwork || "eip155:5042002",
+          paymentNetwork: data.settings.paymentNetwork || activePaymentNetwork(),
         });
         if (data.settings && (data.settings as any).hubSiteId) {
           setHubStatus({ hubSiteId: (data.settings as any).hubSiteId });

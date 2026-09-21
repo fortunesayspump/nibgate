@@ -10,3 +10,4 @@ via_ir = true
 
 [rpc_endpoints]
 testnet = "https://rpc.testnet.arc.io"
+mainnet = "https://rpc.mainnet.arc.io"

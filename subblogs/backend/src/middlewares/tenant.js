@@ -4,6 +4,19 @@ const { isValidSubdomain } = require('../lib/validate');
 
 const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/register', '/api/setup', '/api/health', '/api/nibgate/gateway/balance'];
 
+// `testnet-<name>.nibgate.xyz` is the testnet-stack alias of site `<name>`.
+// The testnet deployment serves it against the same site row; the canonical
+// subdomain (used for hub linking, hashes, and emails) stays `<name>`.
+const TESTNET_PREFIX = 'testnet-';
+
+function canonicalSubdomain(subdomain = '') {
+  const clean = String(subdomain || '').trim().toLowerCase();
+  if (clean.startsWith(TESTNET_PREFIX) && clean.length > TESTNET_PREFIX.length) {
+    return clean.slice(TESTNET_PREFIX.length);
+  }
+  return clean;
+}
+
 function subdomainFromHost(host = '') {
   const h = host.split(':')[0].toLowerCase();
   if (h === 'localhost' || h === '127.0.0.1') return 'demo';
@@ -18,7 +31,7 @@ async function resolveTenant(req, res, next) {
   if (isPublic) return next();
 
   let subdomain = req.headers['x-site-subdomain'] || (req.query.subdomain ? String(req.query.subdomain).trim() : '') || subdomainFromHost(req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
-  subdomain = subdomain.trim().toLowerCase();
+  subdomain = canonicalSubdomain(subdomain);
   if (!isValidSubdomain(subdomain)) {
     return res.status(400).json({ error: 'Invalid subdomain.', subdomain });
   }
@@ -41,4 +54,4 @@ async function resolveTenant(req, res, next) {
   }
 }
 
-module.exports = { resolveTenant, subdomainFromHost };
+module.exports = { resolveTenant, subdomainFromHost, canonicalSubdomain, TESTNET_PREFIX };

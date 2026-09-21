@@ -6,7 +6,7 @@ Nibgate is a verification, discovery, and unlock layer for creator-owned paid
 content. Creators keep content on their own sites and integrate the `@nibgate/sdk`
 package for gating, payments, and events. The hub verifies sources, indexes
 public metadata, and serves Explore, the ledger, and reputation. Payments and
-ratings settle on-chain via x402 on Arc Testnet.
+ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Network).
 
 ## Endpoints
 
@@ -54,10 +54,10 @@ Standalone paid shares (no creator site required) live on the API host:
 
 | Contract | Address | Purpose |
 |---|---|---|
-| USDC | `0x360000...0000` | Payment token (ERC-20, 6 decimals) |
-| Gateway | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` | USDC deposits + burn intents |
-| Reputation | `0x9f27fd62e75f86a3c7addfdba443aab1f930e281` | On-chain content ratings |
-| Explorer | `https://testnet.arcscan.app` | Block explorer for Arc Testnet |
+| USDC | `0x360000...0000` | Payment token (ERC-20, 6 decimals, both networks) |
+| Gateway | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` | USDC deposits + burn intents (testnet; mainnet `0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE`) |
+| Reputation | `0x9f27fd62e75f86a3c7addfdba443aab1f930e281` | On-chain content ratings (testnet; mainnet deploys separately) |
+| Explorer | `https://testnet.arcscan.app` | Block explorer (testnet; mainnet `https://explorer.arc.io`) |
 
 ### Payment Flow
 
@@ -121,6 +121,24 @@ carries the 1% protocol fee.
 
 ### Network
 
-- Chain ID: 5042002
-- RPC: `https://rpc.testnet.arc.io`
-- Native: USDC (18 decimals for gas, 6 decimals for ERC-20)
+Nibgate runs on two Arc networks. **Mainnet is the default surface**
+(`nibgate.xyz`, chain ID 5042); testnet mirrors it for staging
+(`testnet.nibgate.xyz`, chain ID 5042002). Balances, unlocks, and reputation
+do NOT cross networks.
+
+| | Mainnet | Testnet |
+|---|---|---|
+| Site | `https://nibgate.xyz` | `https://testnet.nibgate.xyz` |
+| API | `https://api.nibgate.xyz` | `https://testnet-api.nibgate.xyz` |
+| Nibshare links | `https://nibgate.xyz/ns/{slug}` | `https://testnet.nibgate.xyz/ns/{slug}` |
+| Subblogs | `https://{sub}.nibgate.xyz` | `https://testnet-{sub}.nibgate.xyz` |
+| Chain ID | 5042 (`eip155:5042`) | 5042002 (`eip155:5042002`) |
+| RPC | `https://rpc.mainnet.arc.io` | `https://rpc.testnet.arc.io` |
+| Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |
+| Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
+| Gateway wallet | `0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE` | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` |
+| Gateway minter | `0x2222222d7164433c4C09B0b0D809a9b52C04C205` | `0x0022222ABE238Cc2C7Bb1f21003F0a260052475B` |
+
+- USDC is `0x360000...0000` on both networks; Arc domain is 26 on both.
+- Native gas: USDC (18 decimals for gas, 6 decimals for ERC-20).
+- Reputation contract: testnet `0x9f27fd62e75f86a3c7addfdba443aab1f930e281`; mainnet deploys separately.

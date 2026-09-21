@@ -19,7 +19,9 @@
     "./state": "./src/state.js",
     "./state.js": "./src/state.js",
     "./content": "./src/content.js",
-    "./content.js": "./src/content.js"
+    "./content.js": "./src/content.js",
+    "./networks": "./src/networks.js",
+    "./networks.js": "./src/networks.js"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.0.4",

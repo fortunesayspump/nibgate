@@ -1,6 +1,18 @@
 import type { Chain } from 'viem';
 import type { Address, Hex } from 'viem';
 
+export type ArcChainConfig = {
+  id: number;
+  name: string;
+  chainIdHex: string;
+  caip2: string;
+  nativeCurrency: { decimals: 18; name: 'USDC'; symbol: 'USDC' };
+  rpcUrl: string;
+  appRpcUrl: string;
+  explorerUrl: string;
+  testnet: boolean;
+};
+
 export type ArcTestnetConfig = {
   id: 5042002;
   name: 'Arc Testnet';
@@ -27,11 +39,31 @@ export type Eip1193Provider = {
 
 export const ARC_TESTNET: ArcTestnetConfig;
 
+export const ARC_MAINNET: ArcChainConfig;
+
 export const arcTestnet: Chain;
+
+export const arcMainnet: Chain;
+
+export function activeNetworkName(): 'mainnet' | 'testnet';
+
+export function activeChain(): ArcChainConfig;
+
+export function activeChainId(): number;
+
+export function activeArcChain(): Chain;
+
+export function apiBaseUrl(): string;
+
+export function appRpcUrlFor(chain?: ArcChainConfig): string;
 
 export function isArcNetwork(chainId: number | string | undefined | null): boolean;
 
-export function getAddArcNetworkParams(): AddArcNetworkParams;
+export function isArcTestnet(chainId: number | string | undefined | null): boolean;
+
+export function explorerTxUrl(txHash: string, chain?: ArcChainConfig): string;
+
+export function getAddArcNetworkParams(chain?: ArcChainConfig): AddArcNetworkParams;
 
 export const WALLET_ERRORS: {
   rejected: string;

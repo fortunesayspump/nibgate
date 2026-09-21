@@ -1,4 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
+import { activeNetwork } from '@nibgate/internal/networks.js';
 import { createPublicClient, decodeEventLog, http, fallback } from 'viem';
 import { submitAllSiteSitemaps } from './gsc-sitemap.js';
 import { runIndexSweep } from './gsc-index.js';
@@ -15,8 +16,9 @@ let reputationIndexerStarted = false;
 let dataIntegrityMonitorStarted = false;
 let reputationIndexerLastBlock = null;
 
-const DEFAULT_NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-const DEFAULT_ARC_RPC_URL = 'https://rpc.testnet.arc.io';
+const NET = activeNetwork();
+const DEFAULT_NIBGATE_REPUTATION_CONTRACT = process.env.NIBGATE_REPUTATION_CONTRACT || (NET.isTestnet ? '0x9f27fd62e75f86a3c7addfdba443aab1f930e281' : '');
+const DEFAULT_ARC_RPC_URL = NET.reputationRpcUrl;
 const VERIFICATION_FAILURE_THRESHOLD = Number.parseInt(process.env.VERIFICATION_FAILURE_THRESHOLD || '3', 10);
 
 // ── Verification Monitor ───────────────────────────────────────────────────
@@ -149,19 +151,21 @@ let indexerClientCache = null;
 function publicClientForIndexer() {
   if (indexerClientCache) return indexerClientCache;
   const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.ARC_TESTNET_RPC_URL || process.env.RPC_URL || DEFAULT_ARC_RPC_URL;
-  const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
+  const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || String(NET.chainId), 10);
   if (!rpcUrl) return null;
   // Failover across Arc mirrors: the primary endpoint rate-limits and can
   // degrade under sustained polling, which would silently stall the indexer.
   // The client is cached — one instance per process keeps socket pooling
   // intact (a fresh client per call opens a new TLS connection per request).
-  const mirrors = (process.env.ARC_RPC_FALLBACK_URLS || 'https://arc-testnet.drpc.org,https://rpc.drpc.testnet.arc.io,https://rpc.quicknode.testnet.arc.io')
+  const mirrors = (process.env.ARC_RPC_FALLBACK_URLS || (NET.isTestnet
+    ? 'https://arc-testnet.drpc.org,https://rpc.drpc.testnet.arc.io,https://rpc.quicknode.testnet.arc.io'
+    : ''))
     .split(',').map((u) => u.trim()).filter((u) => u && u !== rpcUrl);
   const urls = [rpcUrl, ...mirrors];
   indexerClientCache = createPublicClient({
     chain: {
       id: chainId,
-      name: process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet',
+      name: process.env.NIBGATE_REPUTATION_CHAIN_NAME || NET.label,
       nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
       rpcUrls: { default: { http: urls } }
     },

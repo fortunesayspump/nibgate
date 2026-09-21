@@ -4,7 +4,7 @@ const config = require('../config/config');
 const prisma = require('../lib/prisma');
 const ApiError = require('../utils/ApiError');
 const { status } = require('http-status');
-const { ARC_TESTNET } = require('@nibgate/wallet');
+const { activeChainId } = require('../lib/network');
 const {
   createSignInNonce,
   parseSignInMessage,
@@ -90,7 +90,7 @@ async function verifySignInAndLogin(siteId, { message, signature, expectedNonce,
   }
   const isValid = validateSignInMessage({
     message: parsed,
-    expected: { chainId: ARC_TESTNET.id, domain: expectedDomain, time: new Date() },
+    expected: { chainId: activeChainId(), domain: expectedDomain, time: new Date() },
   });
   if (!isValid) throw new ApiError(status.BAD_REQUEST, 'Sign-in message is invalid or expired.');
 

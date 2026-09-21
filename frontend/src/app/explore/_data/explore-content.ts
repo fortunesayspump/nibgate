@@ -25,7 +25,12 @@ type ExploreContent = {
 };
 
 function apiOrigin() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === "production" ? "https://api.nibgate.xyz" : "http://localhost:3000");
+  const raw = process.env.NEXT_PUBLIC_API_URL
+    || (process.env.NODE_ENV === "production"
+      ? ((process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase() === "mainnet"
+        ? "https://api.nibgate.xyz"
+        : "https://testnet-api.nibgate.xyz")
+      : "http://localhost:3000");
   const withProtocol = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;
   return withProtocol.replace(/\/+$/, "");
 }

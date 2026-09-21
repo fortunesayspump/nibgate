@@ -26,7 +26,7 @@ export async function payWithGateway(resourceInput, options = {}) {
       txHash: returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction || '',
       receiptUrl: returnedPayment.receiptUrl || data.receiptUrl || '',
       chainExplorerUrl: returnedPayment.chainExplorerUrl || ((returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction)
-        ? `https://testnet.arcscan.app/tx/${returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction}`
+        ? `${/^eip155:5042$/.test(returnedPayment.network || options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || '') ? 'https://explorer.arc.io' : 'https://testnet.arcscan.app'}/tx/${returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction}`
         : ''),
       amount: Number(returnedPayment.amount || resource.price || 0),
       revenue: Number(returnedPayment.revenue || returnedPayment.amount || resource.price || 0),

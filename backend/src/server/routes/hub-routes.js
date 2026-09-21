@@ -1,5 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
+import { activeNetwork } from '@nibgate/internal/networks.js';
 import { randomBytes } from 'node:crypto';
 import { runHostedPayRequirement } from '@nibgate/sdk/server';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -757,10 +758,10 @@ export function registerHubRoutes(app) {
 
       res.json({
         success: true, message, ratingValue: ratingVal, contentHash,
-        contractAddress: process.env.NIBGATE_REPUTATION_CONTRACT || '',
-        chainId: process.env.NIBGATE_REPUTATION_CHAIN_ID || '5042002',
-        chainName: process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet',
-        rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.io'
+        contractAddress: process.env.NIBGATE_REPUTATION_CONTRACT || (activeNetwork().isTestnet ? '0x9f27fd62e75f86a3c7addfdba443aab1f930e281' : ''),
+        chainId: process.env.NIBGATE_REPUTATION_CHAIN_ID || String(activeNetwork().chainId),
+        chainName: process.env.NIBGATE_REPUTATION_CHAIN_NAME || activeNetwork().label,
+        rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || activeNetwork().reputationRpcUrl
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to prepare rating', details: error.message });

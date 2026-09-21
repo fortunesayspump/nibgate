@@ -1,0 +1,52 @@
+import { Callout, Cards } from 'nextra/components'
+
+# Networks
+
+Nibgate runs two parallel stacks on Arc. **Mainnet is the production surface** — real USDC, real creators. **Testnet mirrors it** for staging, development, and trying things with free faucet USDC. Balances, unlocks, reputation, shares, and databases do **not** cross networks.
+
+## Hosts
+
+| | Mainnet | Testnet |
+|---|---|---|
+| Hub site | `https://nibgate.xyz` | `https://testnet.nibgate.xyz` |
+| Hub API | `https://api.nibgate.xyz` | `https://testnet-api.nibgate.xyz` |
+| Subblogs | `https://{sub}.nibgate.xyz` | `https://{sub}.testnet.nibgate.xyz` |
+| Subblogs API | `https://api-subblogs.nibgate.xyz` | `https://testnet-api-subblogs.nibgate.xyz` |
+| Nibshare links | `https://nibgate.xyz/ns/{slug}` | `https://testnet.nibgate.xyz/ns/{slug}` |
+| Docs (this site) | `https://docs.nibgate.xyz` | same (docs are network-agnostic) |
+
+Every new Subblog is reachable on both networks from creation: `<name>.nibgate.xyz` and `<name>.testnet.nibgate.xyz` serve the same site row on their respective stacks.
+
+## Chains
+
+| | Mainnet | Testnet |
+|---|---|---|
+| Name | Arc | Arc Testnet |
+| Chain ID | 5042 (`eip155:5042`, hex `0x13B2`) | 5042002 (`eip155:5042002`, hex `0x4CEF52`) |
+| RPC | `https://rpc.mainnet.arc.io` | `https://rpc.testnet.arc.io` |
+| Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |
+| Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
+| USDC | `0x3600000000000000000000000000000000000000` (both networks) | same |
+| Gateway domain | 26 (both networks) | 26 |
+| Gateway wallet | `0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE` | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` |
+| Gateway minter | `0x2222222d7164433c4C09B0b0D809a9b52C04C205` | `0x0022222ABE238Cc2C7Bb1f21003F0a260052475B` |
+
+<Callout type="warning">
+Testnet USDC comes from [Circle's faucet](https://faucet.circle.com) and has no value. Mainnet gas is paid in **real USDC** — funding gas wallets and watching balances is a real treasury operation, not a faucet claim.
+</Callout>
+
+## Selecting a network
+
+**As an integrator** (creator site): set `NIBGATE_PAYMENT_NETWORK` to `eip155:5042` for production, `eip155:5042002` for staging. Point `NIBGATE_API_BASE` at the matching hub API. The [integration skill](/install-package) shows testnet values because testnet USDC is free — swap in the mainnet column above for production.
+
+**As an operator** (Nibgate stacks): `NIBGATE_NETWORK=mainnet|testnet` on backends (default `testnet` — a missing var can never move real money), `NEXT_PUBLIC_NIBGATE_NETWORK` on frontends. Explicit per-value env vars (RPC URLs, contract addresses, origins) always override the network default. See the repo [README](https://github.com/fortunesayspump/nibgate#networks--deployments) for the deployment topology.
+
+## For agents
+
+The machine surfaces are per-stack: [discovery.md](https://nibgate.xyz/discovery.md) documents mainnet, `https://testnet.nibgate.xyz/discovery.md` documents testnet (endpoints, chain IDs, and Gateway hosts all follow the stack). The MCP server instructions likewise describe the network they run on.
+
+<Cards>
+  <Cards.Card title="API reference" href="/api-reference" />
+  <Cards.Card title="Agent discovery" href="/agent-discovery" />
+  <Cards.Card title="Architecture" href="/architecture" />
+</Cards>

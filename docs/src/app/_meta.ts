@@ -6,6 +6,7 @@ export default {
   },
   overview: "What is Nibgate?",
   architecture: "Architecture",
+  networks: "Networks",
   "revenue-model": "Revenue model",
   lifecycle: "End-to-end lifecycle",
   "agent-discovery": "Agent discovery",

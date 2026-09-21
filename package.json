@@ -27,10 +27,11 @@
     "build:docs": "pnpm --filter @nibgate/docs build",
     "build:frontend": "pnpm --filter @nibgate/frontend build",
     "routes": "pnpm --filter @nibgate/cli routes",
+    "networks:check": "node scripts/check-network-sync.mjs",
     "gsc:sitemaps": "node scripts/gsc-sitemap-submit.mjs",
     "gsc:index": "node scripts/gsc-index-status.mjs",
     "e2e:nibgate": "node scripts/e2e-nibgate-flow.mjs",
-    "test": "pnpm --filter @nibgate/sdk test && pnpm --filter @nibgate/backend test",
+    "test": "pnpm --filter @nibgate/sdk test && pnpm --filter @nibgate/backend test && node scripts/check-network-sync.mjs",
     "test:watch": "pnpm --filter @nibgate/sdk test:watch"
   },
   "pnpm": {

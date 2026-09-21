@@ -1,4 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
+import { hostsFor } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
@@ -48,7 +49,7 @@ export function originFor(domain) {
 
 export function manifestCandidateUrls(website) {
   const origin = originFor(website.domain).replace(/\/+$/, '');
-  const backendUrl = process.env.NIBGATE_BACKEND_URL || 'https://nibgate-production.up.railway.app';
+  const backendUrl = process.env.NIBGATE_BACKEND_URL || hostsFor().apiBase;
   const subdomain = website.domain?.endsWith('.testnet.nibgate.xyz')
     ? website.domain.slice(0, -'.testnet.nibgate.xyz'.length)
     : website.domain?.replace(/\.nibgate\.xyz$/, '') || '';

@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "echo 'no root build needed'",
+    "start": "npm run start --workspace=@nibgate/backend",
     "dev": "pnpm --filter @nibgate/frontend build && pnpm --filter @nibgate/backend dev",
     "dev:demo": "cd demo && pnpm install && node server.js",
     "dev:cli": "pnpm --filter @nibgate/cli dev",

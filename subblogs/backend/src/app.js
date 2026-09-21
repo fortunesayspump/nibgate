@@ -37,7 +37,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 const corsOriginCheck = (req, origin, callback) => {
   if (!origin || !origin.startsWith('http')) return callback(null, true);
-  const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://nibgate.xyz'];
+  const allowed = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3001', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3010', 'https://*.nibgate.xyz', 'https://*.testnet.nibgate.xyz', 'https://nibgate.xyz', 'https://testnet.nibgate.xyz'];
   if (allowed.some(a => {
     if (a.includes('*')) return new RegExp('^' + a.replace(/\./g, '\\.').replace(/\*/g, '[^.]+')).test(origin);
     return a === origin;

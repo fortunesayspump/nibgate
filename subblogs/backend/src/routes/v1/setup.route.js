@@ -5,10 +5,14 @@ const { status } = require('http-status');
 const { isValidSubdomain } = require('../../lib/validate');
 const { activeCaip2 } = require('../../lib/network');
 
-// Every site gets two hosts: <name>.nibgate.xyz (mainnet stack) and
-// testnet-<name>.nibgate.xyz (testnet stack). Both are provisioned here so a
-// site is reachable on both networks from the moment it is created. The
-// testnet project id is optional — without it only the mainnet domain is added.
+// Every site gets two hosts:
+//   <name>.nibgate.xyz           — served by the mainnet stack
+//   <name>.testnet.nibgate.xyz   — served by the testnet stack via the
+//                                  *.testnet.nibgate.xyz wildcard (no per-site
+//                                  DNS work needed).
+// Only the mainnet host is provisioned here (explicit Vercel domain). The
+// legacy testnet-<name>.nibgate.xyz exact domains (pre-wildcard backfill) keep
+// resolving through the tenant alias strip and need no action.
 async function addVercelDomain(domain, projectId) {
   const token = process.env.VERCEL_TOKEN;
   if (!token || !projectId) return { skipped: true, reason: 'VERCEL_TOKEN or project id not set' };
@@ -72,7 +76,6 @@ router.post('/', async (req, res, next) => {
 
     const canonical = String(site.subdomain).trim().toLowerCase();
     const mainnetDomain = await addVercelDomain(`${canonical}.nibgate.xyz`, process.env.VERCEL_PROJECT_ID);
-    const testnetDomain = await addVercelDomain(`testnet-${canonical}.nibgate.xyz`, process.env.VERCEL_TESTNET_PROJECT_ID);
 
     res.status(201).json({
       success: true,
@@ -80,7 +83,7 @@ router.post('/', async (req, res, next) => {
       user: { id: user.id, email: user.email, username: user.username },
       domains: {
         mainnet: mainnetDomain.success ? { domain: mainnetDomain.domain, status: 'added' } : { skipped: true, reason: mainnetDomain.reason },
-        testnet: testnetDomain.success ? { domain: testnetDomain.domain, status: 'added' } : { skipped: true, reason: testnetDomain.reason },
+        testnet: { domain: `${canonical}.testnet.nibgate.xyz`, status: 'wildcard' },
       },
     });
   } catch (error) {

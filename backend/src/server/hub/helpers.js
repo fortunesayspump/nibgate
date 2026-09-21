@@ -49,7 +49,9 @@ export function originFor(domain) {
 export function manifestCandidateUrls(website) {
   const origin = originFor(website.domain).replace(/\/+$/, '');
   const backendUrl = process.env.NIBGATE_BACKEND_URL || 'https://nibgate-production.up.railway.app';
-  const subdomain = website.domain?.replace(/\.nibgate\.xyz$/, '') || '';
+  const subdomain = website.domain?.endsWith('.testnet.nibgate.xyz')
+    ? website.domain.slice(0, -'.testnet.nibgate.xyz'.length)
+    : website.domain?.replace(/\.nibgate\.xyz$/, '') || '';
   return [
     `${origin}/nibgate.json`,
     `${backendUrl}/api/nibgate/manifest?subdomain=${subdomain}`,

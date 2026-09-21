@@ -18,6 +18,27 @@ function canonicalSubdomain(subdomain = '') {
   return clean;
 }
 
+// Raw request host (no port). Trusts x-forwarded-host behind the frontend proxy.
+function requestHost(req) {
+  return String(req.get?.('x-forwarded-host') || req.get?.('host') || req.headers?.['x-forwarded-host'] || req.headers?.host || '').split(':')[0].toLowerCase();
+}
+
+function requestOrigin(req) {
+  const host = requestHost(req);
+  return host ? `https://${host}` : '';
+}
+
+// The site's domain for THIS stack: the actual nibgate host in use when the
+// request came through one, else the canonical subdomain host. Hub rows,
+// hashes, ledger lookups, and link registrations must all use this form so
+// testnet (<name>.testnet.nibgate.xyz) and mainnet (<name>.nibgate.xyz) never mix.
+function requestSiteDomain(req, subdomain) {
+  const host = requestHost(req);
+  if (host && host.endsWith('.nibgate.xyz')) return host;
+  const sub = canonicalSubdomain(subdomain || req.subdomain || req.site?.subdomain || '');
+  return sub ? `${sub}.nibgate.xyz` : '';
+}
+
 function subdomainFromHost(host = '') {
   const h = host.split(':')[0].toLowerCase();
   if (h === 'localhost' || h === '127.0.0.1') return 'demo';
@@ -55,4 +76,4 @@ async function resolveTenant(req, res, next) {
   }
 }
 
-module.exports = { resolveTenant, subdomainFromHost, canonicalSubdomain, TESTNET_PREFIX };
+module.exports = { resolveTenant, subdomainFromHost, canonicalSubdomain, TESTNET_PREFIX, requestHost, requestOrigin, requestSiteDomain };

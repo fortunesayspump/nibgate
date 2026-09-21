@@ -24,10 +24,10 @@ function contentHashFor(domain, externalId, url) {
   return keccak256(stringToBytes([CONTENT_HASH_NAMESPACE, cleanDomain(domain), externalId, url].join('|')));
 }
 
-function contentUrlFor(site, post) {
+function contentUrlFor(site, post, origin) {
   const path = `${TYPE_PATH[post.type] || 'posts'}/${post.slug}`;
-  const origin = site && site.subdomain ? `https://${site.subdomain}.nibgate.xyz` : '';
-  return origin ? `${origin}/${path}` : path;
+  const base = origin || (site && site.subdomain ? `https://${site.subdomain}.nibgate.xyz` : '');
+  return base ? `${base}/${path}` : path;
 }
 
 async function readOnchainStats(contentId) {
@@ -55,8 +55,13 @@ router.get('/:postId', async (req, res, next) => {
     const post = await prisma.blogPost.findUnique({ where: { id: req.params.postId }, select: { id: true, type: true, slug: true } });
 
     if (post && req.site) {
-      const domain = `${req.site.subdomain}.nibgate.xyz`;
-      const url = contentUrlFor(req.site, post);
+      // Hash with the host in use so the hub row (per-stack domain) verifies.
+      const { requestOrigin, requestHost } = require('../../middlewares/tenant');
+      const origin = requestOrigin(req);
+      const domain = requestHost(req).endsWith('.nibgate.xyz')
+        ? requestHost(req)
+        : `${req.site.subdomain}.nibgate.xyz`;
+      const url = contentUrlFor(req.site, post, origin);
       const contentId = contentHashFor(domain, post.id, url);
       const onchain = await readOnchainStats(contentId);
       if (onchain && onchain.count > 0) {

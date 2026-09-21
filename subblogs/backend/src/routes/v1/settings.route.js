@@ -102,7 +102,10 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     if (!linkToken) return res.status(400).json({ error: 'linkToken is required.' });
 
     const hubApi = config.nibgate.hubApi;
-    const domain = `${req.site.subdomain}.nibgate.xyz`;
+    // Register the host in use: testnet aliases link testnet hub rows,
+    // mainnet hosts link mainnet rows. Never cross the stacks.
+    const { requestSiteDomain } = require('../../middlewares/tenant');
+    const domain = requestSiteDomain(req) || `${req.site.subdomain}.nibgate.xyz`;
 
     const hubRes = await fetch(`${hubApi}/hub/blog/link/verify`, {
       method: 'POST',

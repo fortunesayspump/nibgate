@@ -163,7 +163,7 @@ Backend variables:
 
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway
-CORS_ORIGIN=https://nibgate.xyz,http://localhost:3001
+CORS_ORIGIN=https://nibgate.xyz,https://testnet.nibgate.xyz,http://localhost:3001
 BLOG_OWNER_WALLET=0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12
 RESEND_API_KEY=your_resend_api_key
 RESEND_NEWSLETTER_SEGMENT_ID=seg_your_newsletter_segment_id
@@ -190,7 +190,8 @@ Manifest sync keeps Explore and dashboard metadata fresh when creators change ti
 Frontend variables:
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.nibgate.xyz
+NEXT_PUBLIC_API_URL=https://api.nibgate.xyz       # mainnet; testnet builds use https://testnet-api.nibgate.xyz
+NEXT_PUBLIC_NIBGATE_NETWORK=mainnet               # or testnet (default testnet — a missing var never moves real money)
 ```
 
 When running locally, point `NEXT_PUBLIC_API_URL` at the local backend so `/api/*` rewrites and public server-rendered blog pages read from the same API.

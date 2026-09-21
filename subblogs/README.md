@@ -105,10 +105,16 @@ The admin uses JWT-based authentication. Set a strong `JWT_SECRET` in production
 
 ### Frontend (Vercel)
 
-1. Create a Vercel project from `subblogs/frontend/`
-2. Set `NEXT_PUBLIC_API_URL=https://your-railway-url.up.railway.app/api`
-3. Add domain (e.g., `*.nibgate.xyz`) in Vercel project → Settings → Domains
-4. DNS: `*.nibgate.xyz` CNAME → `cname.vercel-dns.com`
+Two deployments share this code, one per network:
+
+| | Mainnet | Testnet |
+|---|---|---|
+| Domains | `*.nibgate.xyz` wildcard | `*.testnet.nibgate.xyz` wildcard |
+| `NEXT_PUBLIC_API_URL` | mainnet backend `/api` | testnet backend `/api` |
+| `NEXT_PUBLIC_NIBGATE_NETWORK` | `mainnet` | `testnet` |
+| `NEXT_PUBLIC_HUB_API_URL` | `https://api.nibgate.xyz` | hub API of the matching stack |
+
+DNS is on Vercel nameservers, so adding the wildcard in each project provisions DNS automatically. No per-site domain work: every site is reachable as `<name>.nibgate.xyz` (mainnet) and `<name>.testnet.nibgate.xyz` (testnet) from creation.
 
 ### Creating a new site
 
@@ -124,7 +130,8 @@ curl -X POST https://your-backend.com/api/setup \
   }'
 ```
 
-Then add `creator-name.nibgate.xyz` in Vercel domains.
+Then add `creator-name.nibgate.xyz` in Vercel domains (mainnet project).
+The testnet alias `creator-name.testnet.nibgate.xyz` works immediately via the wildcard — no extra step.
 
 ## Monitoring
 

@@ -95,9 +95,11 @@ export function hostsFor(networkName = activeNetworkName()) {
   return NETWORK_HOSTS[networkName] || NETWORK_HOSTS.testnet;
 }
 
-// `testnet-<name>.nibgate.xyz` is the testnet alias of site `<name>`.
-// Mainnet never serves the testnet- prefix and vice versa is resolved by
-// stripping it; both stacks share this helper.
+// Testnet alias forms for site `<name>` (both resolve to the same site row;
+// the canonical subdomain used for hub linking, hashes, and emails stays `<name>`):
+//   <name>.testnet.nibgate.xyz   (canonical — covered by the *.testnet wildcard)
+//   testnet-<name>.nibgate.xyz    (legacy exact domains, pre-wildcard backfill)
+// Mainnet serves <name>.nibgate.xyz only.
 export const TESTNET_SUBDOMAIN_PREFIX = 'testnet-';
 
 export function canonicalSubdomain(subdomain = '') {

@@ -4,9 +4,10 @@ const { isValidSubdomain } = require('../lib/validate');
 
 const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/register', '/api/setup', '/api/health', '/api/nibgate/gateway/balance'];
 
-// `testnet-<name>.nibgate.xyz` is the testnet-stack alias of site `<name>`.
-// The testnet deployment serves it against the same site row; the canonical
-// subdomain (used for hub linking, hashes, and emails) stays `<name>`.
+// Testnet aliases resolve to the same site row as the canonical subdomain:
+//   <name>.testnet.nibgate.xyz   (canonical — covered by the *.testnet wildcard)
+//   testnet-<name>.nibgate.xyz    (legacy exact domains, pre-wildcard backfill)
+// The canonical subdomain (used for hub linking, hashes, and emails) stays `<name>`.
 const TESTNET_PREFIX = 'testnet-';
 
 function canonicalSubdomain(subdomain = '') {

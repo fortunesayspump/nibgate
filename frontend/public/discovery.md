@@ -131,7 +131,7 @@ do NOT cross networks.
 | Site | `https://nibgate.xyz` | `https://testnet.nibgate.xyz` |
 | API | `https://api.nibgate.xyz` | `https://testnet-api.nibgate.xyz` |
 | Nibshare links | `https://nibgate.xyz/ns/{slug}` | `https://testnet.nibgate.xyz/ns/{slug}` |
-| Subblogs | `https://{sub}.nibgate.xyz` | `https://testnet-{sub}.nibgate.xyz` |
+| Subblogs | `https://{sub}.nibgate.xyz` | `https://{sub}.testnet.nibgate.xyz` |
 | Chain ID | 5042 (`eip155:5042`) | 5042002 (`eip155:5042002`) |
 | RPC | `https://rpc.mainnet.arc.io` | `https://rpc.testnet.arc.io` |
 | Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |

@@ -15,7 +15,7 @@ export function registerAppRoutes(app, context) {
         origin: config.site.origin
       },
       hub: config.hub,
-      widgetUrl: `${config.hub?.appUrl || 'https://www.nibgate.xyz'}/widget.js`
+      widgetUrl: `${config.hub?.appUrl || config.hub?.publicSiteUrl || 'https://www.nibgate.xyz'}/widget.js`
     });
   });
 }

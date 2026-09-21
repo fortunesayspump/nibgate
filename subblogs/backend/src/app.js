@@ -25,6 +25,15 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+// Custom API domains serve routes bare (GET /site, POST /auth/login, ...).
+// The legacy /api/* forms keep working for old clients — rewrite onto them.
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/') && /^\/(auth|blog|nibgate|rating|settings|setup|upload|site|health)(\/|$)/.test(req.path)) {
+    req.url = `/api${req.url}`;
+  }
+  next();
+});
+
 if (config.env !== 'test') {
   app.use(morgan.successHandler);
   app.use(morgan.errorHandler);
@@ -73,10 +82,10 @@ app.get('/', (req, res) => {
     site: req.subdomain,
     name: req.site?.name || '',
     endpoints: {
-      posts: `/api/blog/posts`,
-      admin: `/api/blog/admin/posts`,
-      auth: `/api/auth/login`,
-      manifest: `/api/nibgate/manifest`,
+      posts: `/blog/posts`,
+      admin: `/blog/admin/posts`,
+      auth: `/auth/login`,
+      manifest: `/nibgate/manifest`,
     },
   });
 });

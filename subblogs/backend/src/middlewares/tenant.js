@@ -2,7 +2,10 @@ const { status } = require('http-status');
 const { resolveSite } = require('../lib/tenant-cache');
 const { isValidSubdomain } = require('../lib/validate');
 
-const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/register', '/api/setup', '/api/health', '/api/nibgate/gateway/balance'];
+const PUBLIC_PATHS = [
+  '/api/auth/login', '/api/auth/register', '/api/setup', '/api/health', '/api/nibgate/gateway/balance',
+  '/auth/login', '/auth/register', '/setup', '/health', '/nibgate/gateway/balance',
+];
 
 // Testnet aliases resolve to the same site row as the canonical subdomain:
 //   <name>.testnet.nibgate.xyz   (canonical — covered by the *.testnet wildcard)

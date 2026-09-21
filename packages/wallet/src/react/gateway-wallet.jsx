@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { switchToArcNetwork } from '../network.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
-import { ARC_TESTNET } from '../chain.js'
+import { activeChain } from '../chain.js'
 
-const ARC_RPC = ARC_TESTNET.rpcUrl
+const ARC_RPC = activeChain().rpcUrl
 const USDC = '0x3600000000000000000000000000000000000000'
-const GATEWAY = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'
+// Circle Gateway wallet contract follows the active network (testnet vs main).
+const GATEWAY = activeChain().id === 5042
+  ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
+  : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'
 const SEL_APPROVE = '0x095ea7b3'
 const SEL_DEPOSIT = '0x47e7ef24'
 const BALANCE_OF = '0x70a08231'

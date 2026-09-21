@@ -18,6 +18,16 @@ function isPaidValue(price) {
   return !!price && price !== '0';
 }
 
+// Public page URL for hub attribution. Prefers the host the reader actually
+// used (so the testnet stack reports testnet-<name>.nibgate.xyz URLs) and
+// falls back to the canonical subdomain host.
+function requestPageUrl(req, subdomain, resourcePath) {
+  if (!subdomain) return undefined;
+  const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
+  const origin = host ? `https://${host}` : `https://${subdomain}.nibgate.xyz`;
+  return `${origin}${resourcePath || '/'}`;
+}
+
 function parseMedia(value) {
   if (!value) return [];
   try {
@@ -308,8 +318,9 @@ async function serveAccess(req, res, post, slug) {
       path: paidResource.path,
       // Canonical public URL — without it the hub would file the payment under
       // an api-origin content row and every later report with the real page
-      // URL would double-count as a second content/payment pair.
-      url: req.site?.subdomain ? `https://${req.site.subdomain}.nibgate.xyz${paidResource.path || '/'}` : undefined,
+      // URL would double-count as a second content/payment pair. Built from
+      // the request host so the testnet stack reports testnet- alias URLs.
+      url: requestPageUrl(req, req.site?.subdomain, paidResource.path),
       paymentRail: req.query.rail || req.body?.paymentRail || undefined,
       // Lets the hub record the settlement server-side (machine parity):
       // raw x402 payers never post widget events, so /hub/pay needs site
@@ -826,10 +837,11 @@ router.post('/gateway/balance', async (req, res) => {
     if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) return res.status(400).json({ error: 'Invalid address' });
     const apiKey = process.env.CIRCLE_API_KEY || '';
     if (!apiKey) return res.json({ balance: '' });
-    const r = await fetch('https://gateway-api-testnet.circle.com/v1/balances', {
+    const { activeGatewayApiV1, activeNetwork } = require('../../lib/network');
+    const r = await fetch(`${activeGatewayApiV1()}/balances`, {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'USDC', sources: [{ depositor: address, domain: 26 }] }),
+      body: JSON.stringify({ token: 'USDC', sources: [{ depositor: address, domain: activeNetwork().gatewayDomain }] }),
     });
     const data = await r.json();
     const bal = data?.balances?.[0]?.balance || '';

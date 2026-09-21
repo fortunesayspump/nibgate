@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { createPublicClient, createWalletClient, custom, encodeFunctionData, http, keccak256, stringToBytes } from 'viem'
 import { waitForTransactionReceipt } from 'viem/actions'
-import { ARC_TESTNET, arcTestnet, isArcNetwork } from '../chain.js'
+import { activeArcChain, activeChain, appRpcUrlFor, isArcNetwork } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 
@@ -12,9 +12,18 @@ const RATE_CONTENT_SELECTOR = '0xc62fad09'
 const ZERO_HASH = `0x${'0'.repeat(64)}`
 const NIBGATE_CONTENT_HASH_NAMESPACE = 'nibgate:content:v1'
 
-export const NIBGATE_REPUTATION_CHAIN_ID = 5042002
-export const NIBGATE_REPUTATION_CHAIN_NAME = 'Arc Testnet'
-export const NIBGATE_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281'
+// Reputation rail follows the active network. The contract is only deployed on
+// Arc testnet today — mainnet builds MUST set NEXT_PUBLIC_NIBGATE_REPUTATION_CONTRACT
+// (or NIBGATE_REPUTATION_CONTRACT) after the mainnet deploy, otherwise rating is disabled.
+const REPUTATION_CHAIN = activeChain()
+const TESTNET_REPUTATION_CONTRACT = '0x9f27fd62e75f86a3c7addfdba443aab1f930e281'
+function envReputationContract() {
+  if (typeof process === 'undefined') return ''
+  return process.env.NEXT_PUBLIC_NIBGATE_REPUTATION_CONTRACT || process.env.NIBGATE_REPUTATION_CONTRACT || ''
+}
+export const NIBGATE_REPUTATION_CHAIN_ID = REPUTATION_CHAIN.id
+export const NIBGATE_REPUTATION_CHAIN_NAME = REPUTATION_CHAIN.name
+export const NIBGATE_REPUTATION_CONTRACT = envReputationContract() || (REPUTATION_CHAIN.testnet ? TESTNET_REPUTATION_CONTRACT : '')
 
 export const NIBGATE_REPUTATION_ABI = [
   {
@@ -84,7 +93,7 @@ function shortAddress(a) {
   return `${a.slice(0, 6)}...${a.slice(-4)}`
 }
 
-const arcPublicClient = createPublicClient({ chain: arcTestnet, transport: http(ARC_TESTNET.appRpcUrl) })
+const arcPublicClient = createPublicClient({ chain: activeArcChain(), transport: http(appRpcUrlFor()) })
 
 export function NibgateRatingUI({
   resource,
@@ -206,14 +215,14 @@ export function NibgateRatingUI({
       // Send through the AppKit EIP-1193 provider via a viem wallet client
       // (mirrors unlock.jsx) instead of wagmi's sendTransactionAsync, which
       // throws "Connector not connected" while wagmi's connector is null.
-      const walletClient = createWalletClient({ chain: ARC_TESTNET, account: addressRef.current, transport: custom(provider) })
-      const txResult = await walletClient.sendTransaction({ to: NIBGATE_REPUTATION_CONTRACT, data, chain: ARC_TESTNET, account: addressRef.current })
+      const walletClient = createWalletClient({ chain: activeArcChain(), account: addressRef.current, transport: custom(provider) })
+      const txResult = await walletClient.sendTransaction({ to: NIBGATE_REPUTATION_CONTRACT, data, chain: activeArcChain(), account: addressRef.current })
       const txHash = txResult?.hash || txResult
 
       // Wait for the receipt so downstream indexers (subblog + hub) can verify
       // the on-chain proof instead of racing ahead of mining.
       try {
-        await waitForTransactionReceipt(arcPublicClient, { hash: txHash, chainId: ARC_TESTNET.id, timeout: 60_000 })
+        await waitForTransactionReceipt(arcPublicClient, { hash: txHash, chainId: REPUTATION_CHAIN.id, timeout: 60_000 })
       } catch {
         // Fall through — the tx may still mine; downstream verifiers decide.
       }

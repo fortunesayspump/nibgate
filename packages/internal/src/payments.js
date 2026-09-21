@@ -1,6 +1,16 @@
-const ARC_TESTNET_CAIP2 = 'eip155:5042002';
-const CIRCLE_GATEWAY_TESTNET_URL = 'https://gateway-api-testnet.circle.com';
+import { NETWORKS, activeNetwork } from './networks.js';
+
 const DEFAULT_BUYER_CHAIN = 'arcTestnet';
+
+function networkDefaults() {
+  const net = activeNetwork();
+  return {
+    caip2: net.caip2,
+    facilitatorUrl: net.facilitatorUrl,
+    gatewayApiV1: net.gatewayApiV1,
+    buyerChain: net.isTestnet ? DEFAULT_BUYER_CHAIN : 'arc',
+  };
+}
 
 function normalizeUsdPrice(value) {
   const raw = String(value);
@@ -14,15 +24,16 @@ function publicMode(config) {
 export function createPaymentProvider(config) {
   const mode = publicMode(config);
   const buyerPrivateKey = process.env.NIBGATE_BUYER_PRIVATE_KEY || '';
+  const net = networkDefaults();
 
   return {
     mode,
     displayName: mode === 'circle-gateway' ? 'Circle Gateway x402' : 'Demo payments',
-    facilitatorUrl: config.payments?.facilitatorUrl || process.env.CIRCLE_GATEWAY_FACILITATOR_URL || CIRCLE_GATEWAY_TESTNET_URL,
+    facilitatorUrl: config.payments?.facilitatorUrl || process.env.NIBGATE_FACILITATOR_URL || process.env.CIRCLE_GATEWAY_FACILITATOR_URL || net.facilitatorUrl,
     sellerAddress: process.env.NIBGATE_SELLER_ADDRESS || config.payments?.sellerAddress || '',
-    networks: config.payments?.networks || [ARC_TESTNET_CAIP2],
+    networks: config.payments?.networks || [process.env.NIBGATE_PAYMENT_NETWORK || net.caip2],
     isLive: mode === 'circle-gateway',
-    buyerChain: process.env.NIBGATE_BUYER_CHAIN || DEFAULT_BUYER_CHAIN,
+    buyerChain: process.env.NIBGATE_BUYER_CHAIN || net.buyerChain,
     buyerConfigured: Boolean(buyerPrivateKey),
     buyerPrivateKey,
     buyerRpcUrl: process.env.NIBGATE_BUYER_RPC_URL || '',
@@ -103,14 +114,18 @@ export async function relayX402Payment({ sellerAddress, description, req, res, p
 export async function gatewayBalance(address) {
   const apiKey = process.env.CIRCLE_API_KEY || '';
   if (!apiKey) return '';
-  const r = await fetch('https://gateway-api-testnet.circle.com/v1/balances', {
+  const net = activeNetwork();
+  const r = await fetch(`${net.gatewayApiV1}/balances`, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: 'USDC', sources: [{ depositor: address, domain: 26 }] }),
+    body: JSON.stringify({ token: 'USDC', sources: [{ depositor: address, domain: net.gatewayDomain }] }),
   });
   const data = await r.json();
   const bal = data?.balances?.[0]?.balance || '';
   return bal ? Number(bal).toFixed(2) + ' USDC' : '';
 }
 
-export { ARC_TESTNET_CAIP2, CIRCLE_GATEWAY_TESTNET_URL };
+// Back-compat: prefer activeNetwork() — these testnet constants remain for
+// callers that haven't migrated yet.
+export const ARC_TESTNET_CAIP2 = NETWORKS.testnet.caip2;
+export const CIRCLE_GATEWAY_TESTNET_URL = NETWORKS.testnet.gatewayApi;

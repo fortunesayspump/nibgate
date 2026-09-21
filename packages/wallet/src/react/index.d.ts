@@ -139,7 +139,7 @@ export function GatewayWalletUI(props: {
 
 export const NIBGATE_REPUTATION_CHAIN_ID: number;
 export const NIBGATE_REPUTATION_CHAIN_NAME: string;
-export const NIBGATE_REPUTATION_CONTRACT: `0x${string}`;
+export const NIBGATE_REPUTATION_CONTRACT: string;
 export const NIBGATE_REPUTATION_ABI: readonly unknown[];
 
 export interface RatingResource {

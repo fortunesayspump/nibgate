@@ -4,10 +4,10 @@ import { createAppKit } from '@reown/appkit/react'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { http } from 'wagmi'
 import { injected, walletConnect } from 'wagmi/connectors'
-import { arcTestnet } from '../chain.js'
+import { activeArcChain, appRpcUrlFor } from '../chain.js'
 
 export const NIBGATE_APPKIT_PROJECT_ID = '09580756f3c5f13c5f1aeb2faa9b1696'
-export const NIBGATE_RPC_URL = 'https://api.nibgate.xyz/rpc'
+export const NIBGATE_RPC_URL = appRpcUrlFor()
 
 const DEFAULT_THEME_VARIABLES = {
   '--apkt-accent': '#7C9A6D',
@@ -102,7 +102,7 @@ export function createNibgateWallet(options = {}) {
 
   const projectId = options.projectId || NIBGATE_APPKIT_PROJECT_ID
   const rpcUrl = options.rpcUrl || NIBGATE_RPC_URL
-  const chains = options.chains && options.chains.length ? options.chains : [arcTestnet]
+  const chains = options.chains && options.chains.length ? options.chains : [activeArcChain()]
   const appKitNetworks = chains
 
   const connectors = options.connectors || [

@@ -24,6 +24,22 @@ Read this entire file before editing any routes or checkout code. The guide foll
 
 ---
 
+## 0. Networks (mainnet vs testnet)
+
+Nibgate runs on two Arc networks. Unless you are staging, integrate against **mainnet**:
+
+| | Mainnet (default) | Testnet (staging) |
+|---|---|---|
+| Hub API | `https://api.nibgate.xyz` | `https://testnet-api.nibgate.xyz` |
+| Payment network | `eip155:5042` | `eip155:5042002` |
+| Chain ID | 5042 | 5042002 |
+| Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
+| Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |
+
+The examples below show testnet values (`eip155:5042002`, `rpc.testnet.arc.io`) because testnet USDC is free from the faucet. For production, swap in the mainnet column. USDC is `0x360000...0000` and the Gateway domain is 26 on both networks. Balances and unlocks do NOT cross networks.
+
+---
+
 ## 1. Site Widget (Analytics & Ownership Proof)
 
 Paste the dashboard widget into the verified site layout:
@@ -127,7 +143,7 @@ import { createCircleGatewayServer } from '@nibgate/sdk/server'
 const nibgate = createCircleGatewayServer({
   origin: process.env.NIBGATE_SITE_ORIGIN,
   secret: process.env.NIBGATE_SECRET,
-  network: process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002'
+  network: process.env.NIBGATE_PAYMENT_NETWORK || 'eip155:5042002' // mainnet: 'eip155:5042'
 })
 
 export function GET(request: Request) {

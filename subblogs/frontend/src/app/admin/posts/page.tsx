@@ -143,7 +143,13 @@ export default function AdminPostsPage() {
       .catch(() => router.push("/admin/login"))
       .finally(() => setLoading(false));
     apiFetch<{ success: boolean; site: { subdomain: string } }>("/site")
-      .then((data) => setDomain(`${data.site.subdomain}.nibgate.xyz`))
+      .then((data) => setDomain(
+        // Show the host actually in use (testnet- alias on the testnet stack),
+        // falling back to the canonical subdomain host.
+        typeof window !== "undefined" && window.location.hostname.includes(".nibgate.xyz")
+          ? window.location.hostname
+          : `${data.site.subdomain}.nibgate.xyz`,
+      ))
       .catch(() => {});
     apiAuthFetch<{ success: boolean; stats: Record<string, PostStats> }>("/blog/admin/posts/stats")
       .then((data) => setStatsByUrl(data.stats || {}))

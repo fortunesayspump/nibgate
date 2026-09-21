@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { NibgateRatingUI } from "@nibgate/wallet/react";
 import { apiFetch, apiUrl } from "@/lib/api";
+import { hubApiBase } from "@/lib/network";
 
 function siteSubdomain() {
   const parts = window.location.hostname.split(".");
@@ -39,7 +40,7 @@ export default function ReputationRating({ resource }: { resource: RatingResourc
       statsUrl={`${apiUrl(`/rating/${resource.id}`)}?subdomain=${subdomain}`}
       apiBase={apiUrl("")}
       contentId={"0x" + resource.id.replace(/-/g, "")}
-      indexUrl={hub.siteId ? `https://api.nibgate.xyz/hub/reputation/ratings/index` : undefined}
+      indexUrl={hub.siteId ? `${hubApiBase()}/hub/reputation/ratings/index` : undefined}
       siteId={hub.siteId || undefined}
       token={hub.token || undefined}
       onRated={(result: any) => {

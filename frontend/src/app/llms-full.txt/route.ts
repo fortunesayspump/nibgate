@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { apiUrl } from "@/lib/api";
+import { apiBaseUrl, apiUrl, siteOrigin } from "@/lib/api";
 
 export const revalidate = 3600;
 
@@ -47,31 +47,33 @@ export async function GET() {
         .join("\n")
     : "- No verified content indexed yet.";
 
+  const site = siteOrigin();
+  const api = apiBaseUrl();
   const text = `# Nibgate — Full Content
 
-> Verified content discovery, unlock, and reputation layer for creator-owned work. Built on Circle Gateway, ARC testnet, and the x402 protocol.
+> Verified content discovery, unlock, and reputation layer for creator-owned work. Built on Circle Gateway, Arc, and the x402 protocol.
 
 Nibgate is an open protocol for paid content. Creators keep content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content.
 
 ## Key pages
 
-- https://nibgate.xyz/explore — Content discovery feed.
-- https://nibgate.xyz/ledger — Public activity ledger.
-- https://nibgate.xyz/leaderboards — Reputation leaderboards.
-- https://nibgate.xyz/.well-known/agent-skills/index.json — Machine-readable index of Nibgate agent skills.
+- ${site}/explore — Content discovery feed.
+- ${site}/ledger — Public activity ledger.
+- ${site}/leaderboards — Reputation leaderboards.
+- ${site}/.well-known/agent-skills/index.json — Machine-readable index of Nibgate agent skills.
 - https://docs.nibgate.xyz/api-reference — API reference.
 - https://docs.nibgate.xyz/agent-discovery — Agent discovery docs.
 
 ## API endpoints
 
-- https://api.nibgate.xyz/hub/explore/content?limit=100 — Explore feed of verified content.
-- https://api.nibgate.xyz/hub/ledger?limit=100 — Public ledger.
-- https://api.nibgate.xyz/hub/stats — Platform totals (revenue, protocol fees).
-- https://api.nibgate.xyz/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
-- https://api.nibgate.xyz/nibshare/{slug}/manifest — Public manifest for a nibshare.
-- https://api.nibgate.xyz/hub/reputation/leaderboards — Ranked reputation leaderboards.
-- https://api.nibgate.xyz/openapi.json — OpenAPI specification (includes unlock endpoints).
-- https://api.nibgate.xyz/mcp — MCP server for AI agents.
+- ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
+- ${api}/hub/ledger?limit=100 — Public ledger.
+- ${api}/hub/stats — Platform totals (revenue, protocol fees).
+- ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
+- ${api}/nibshare/{slug}/manifest — Public manifest for a nibshare.
+- ${api}/hub/reputation/leaderboards — Ranked reputation leaderboards.
+- ${api}/openapi.json — OpenAPI specification (includes unlock endpoints).
+- ${api}/mcp — MCP server for AI agents.
 
 ## Top content on Nibgate
 

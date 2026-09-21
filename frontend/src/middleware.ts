@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.nibgate.xyz' : 'http://localhost:3000');
+// Edge-safe: no wallet/internal imports here. NEXT_PUBLIC_API_URL wins;
+// otherwise the production default follows the build network.
+function defaultApiBase() {
+  if (process.env.NODE_ENV !== 'production') return 'http://localhost:3000';
+  return (process.env.NEXT_PUBLIC_NIBGATE_NETWORK || 'testnet').toLowerCase() === 'mainnet'
+    ? 'https://api.nibgate.xyz'
+    : 'https://testnet-api.nibgate.xyz';
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || defaultApiBase();
 
 export function middleware(request: NextRequest) {
   const match = request.nextUrl.pathname.match(/^\/ns\/([A-Za-z0-9_-]{1,64})\/?$/);

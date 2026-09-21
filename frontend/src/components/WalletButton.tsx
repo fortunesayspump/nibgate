@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAppKitAccount, useAppKitNetwork, useDisconnect } from "@nibgate/wallet/react";
-import { arcTestnet } from '@nibgate/wallet'
+import { activeArcChain, activeChain } from '@nibgate/wallet'
 import { isArcTestnetChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT, HUB_SESSION_UPDATED_EVENT } from '../lib/hubSession'
@@ -17,7 +17,10 @@ function isHexAddress(address?: string | null): address is `0x${string}` {
   return /^0x[a-fA-F0-9]{40}$/.test(address ?? '')
 }
 
-const GATEWAY_WALLET_ADDRESS = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9' as const
+// Circle Gateway wallet contract follows the active network (testnet vs mainnet).
+const GATEWAY_WALLET_ADDRESS: `0x${string}` = activeChain().id === 5042
+  ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
+  : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const
 const GATEWAY_ABI = [{ name: 'availableBalance', type: 'function', inputs: [{ name: 'token', type: 'address' }, { name: 'depositor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' }] as const
 const SEL_APPROVE = '0x095ea7b3'
@@ -25,8 +28,8 @@ const SEL_DEPOSIT = '0x47e7ef24'
 const SEL_WITHDRAW = '0xf3fef3a3'
 
 const gatewayClient = createPublicClient({
-  chain: arcTestnet,
-  transport: http(arcTestnet.rpcUrls.default.http[0]),
+  chain: activeArcChain(),
+  transport: http(activeArcChain().rpcUrls.default.http[0]),
 })
 
 function useNativeBalance(address?: `0x${string}`) {
@@ -40,7 +43,7 @@ function useNativeBalance(address?: `0x${string}`) {
     gatewayClient
       .getBalance({ address })
       .then((value) => {
-        if (!cancelled) setBalance({ value, decimals: arcTestnet.nativeCurrency.decimals })
+        if (!cancelled) setBalance({ value, decimals: activeChain().nativeCurrency.decimals })
       })
       .catch(() => {
         if (!cancelled) setBalance(undefined)
@@ -230,7 +233,7 @@ export function WalletButton() {
           {displayBalance}
         </button>
         <div className="nibgate-wallet-dropdown" data-balance-dropdown style={{ display: 'none' }}>
-          <button type="button" className="dropdown-item" data-token-select="native" style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{arcTestnet.nativeCurrency.symbol}</button>
+          <button type="button" className="dropdown-item" data-token-select="native" style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{activeChain().nativeCurrency.symbol}</button>
           <button type="button" className="dropdown-item" data-token-select="gateway" style={{ fontWeight: 500, color: selectedToken === 'gateway' ? 'var(--nib-teal)' : '' }}>Gateway</button>
           <button type="button" className="dropdown-item" data-bridge-open style={{ fontWeight: 500 }}>Bridge</button>
         </div>
@@ -327,7 +330,7 @@ export function WalletButtonMobile() {
           {isWalletConnected ? chevron : null}
         </button>
         <div className="nibgate-wallet-dropdown mobile-dropdown" data-balance-dropdown style={{ display: openDropdown === 'balance' ? 'flex' : 'none' }}>
-          <button type="button" className="dropdown-item" data-token-select="native" onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{arcTestnet.nativeCurrency.symbol}</button>
+          <button type="button" className="dropdown-item" data-token-select="native" onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500, color: selectedToken === 'native' ? 'var(--nib-teal)' : '' }}>{activeChain().nativeCurrency.symbol}</button>
           <button type="button" className="dropdown-item" data-token-select="gateway" onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500, color: selectedToken === 'gateway' ? 'var(--nib-teal)' : '' }}>Gateway</button>
           <button type="button" className="dropdown-item" data-bridge-open onClick={() => setOpenDropdown(null)} style={{ fontWeight: 500 }}>Bridge</button>
         </div>

@@ -1,4 +1,4 @@
-import { ARC_TESTNET, getAddArcNetworkParams, isArcNetwork } from './chain.js';
+import { activeChain, getAddArcNetworkParams, isArcNetwork } from './chain.js';
 
 export async function ensureArcNetwork(provider, { currentChainId, wait = true, timeoutMs = 10000, onSwitch } = {}) {
   if (!provider?.request) {
@@ -9,17 +9,18 @@ export async function ensureArcNetwork(provider, { currentChainId, wait = true, 
   }
   await switchToArcNetwork(provider);
   if (wait) {
-    await waitForChainChange(provider, { chainId: ARC_TESTNET.id, timeoutMs });
+    await waitForChainChange(provider, { chainId: activeChain().id, timeoutMs });
   }
   onSwitch?.();
-  return { switched: true, chainId: ARC_TESTNET.id };
+  return { switched: true, chainId: activeChain().id };
 }
 
 export async function switchToArcNetwork(provider) {
+  const chain = activeChain();
   try {
     const result = await provider.request({
       method: 'wallet_switchEthereumChain',
-      params: [{ chainId: ARC_TESTNET.chainIdHex }],
+      params: [{ chainId: chain.chainIdHex }],
     });
     if (result?.code === 4902) {
       await addArcNetwork(provider);
@@ -34,17 +35,18 @@ export async function switchToArcNetwork(provider) {
 }
 
 async function addArcNetwork(provider) {
+  const chain = activeChain();
   await provider.request({
     method: 'wallet_addEthereumChain',
     params: [getAddArcNetworkParams()],
   });
   await provider.request({
     method: 'wallet_switchEthereumChain',
-    params: [{ chainId: ARC_TESTNET.chainIdHex }],
+    params: [{ chainId: chain.chainIdHex }],
   });
 }
 
-export function waitForChainChange(provider, { chainId = ARC_TESTNET.id, timeoutMs = 10000 } = {}) {
+export function waitForChainChange(provider, { chainId = activeChain().id, timeoutMs = 10000 } = {}) {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       clearTimeout(timeout);

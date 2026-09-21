@@ -9,12 +9,13 @@ const viemAccountsEntry = path.join(rootDir, 'backend/node_modules/viem/_esm/acc
 const { createPublicClient, createWalletClient, encodeFunctionData, http } = await import(viemEntry);
 const { privateKeyToAccount } = await import(viemAccountsEntry);
 
-const rpcUrl = process.env.NIBGATE_REPUTATION_RPC_URL
-  || process.env.ARC_TESTNET_RPC_URL
-  || process.env.RPC_URL
-  || 'https://rpc.testnet.arc.io';
-const chainId = Number.parseInt(process.env.NIBGATE_REPUTATION_CHAIN_ID || process.env.CHAIN_ID || '5042002', 10);
-const chainName = process.env.NIBGATE_REPUTATION_CHAIN_NAME || 'Arc Testnet';
+const { networkDefaults } = await import('./network.mjs');
+const { network, rpcUrl, chainId, chainName } = networkDefaults({
+  rpcEnv: ['NIBGATE_REPUTATION_RPC_URL', 'ARC_TESTNET_RPC_URL', 'RPC_URL'],
+  chainIdEnv: ['NIBGATE_REPUTATION_CHAIN_ID', 'CHAIN_ID'],
+  chainNameEnv: ['NIBGATE_REPUTATION_CHAIN_NAME'],
+});
+const isMainnet = network === 'mainnet';
 const configuredPrivateKey = process.env.NIBGATE_DEPLOYER_PRIVATE_KEY
   || process.env.DEPLOYER_PRIVATE_KEY
   || process.env.E2E_BUYER_PRIVATE_KEY
@@ -86,7 +87,13 @@ const proxyReceipt = await publicClient.waitForTransactionReceipt({ hash: proxyH
 const proxyAddress = proxyReceipt.contractAddress;
 console.log(`Proxy: ${proxyAddress}`);
 
+const outputPath = path.join(rootDir, isMainnet ? 'contracts/deployments/arc-mainnet.json' : 'contracts/deployments/arc-testnet.json');
+fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+// Merge with any existing file (arc-mainnet.json ships official Circle
+// addresses + pending slots — never clobber them with a reputation-only write).
+const existing = fs.existsSync(outputPath) ? JSON.parse(fs.readFileSync(outputPath, 'utf8')) : {};
 const output = {
+  ...existing,
   chainId,
   chainName,
   rpcUrl,
@@ -96,11 +103,18 @@ const output = {
   implementationTx: implementationHash,
   proxyAddress,
   proxyTx: proxyHash,
-  deployedAt: new Date().toISOString()
+  deployedAt: new Date().toISOString(),
+  reputation: {
+    ...(existing.reputation || {}),
+    status: 'DEPLOYED',
+    owner,
+    implementationAddress,
+    implementationTx: implementationHash,
+    proxyAddress,
+    proxyTx: proxyHash,
+    deployedAt: new Date().toISOString(),
+  },
 };
-
-const outputPath = path.join(rootDir, 'contracts/deployments/arc-testnet.json');
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`);
 
 console.log('');

@@ -52,7 +52,9 @@ function cleanDomain(domain = "") {
 }
 
 function widgetScript(site: DashboardSite) {
-  const hubOrigin = typeof window === "undefined" ? "https://www.nibgate.xyz" : window.location.origin;
+  const hubOrigin = typeof window === "undefined"
+    ? (process.env.NEXT_PUBLIC_SITE_URL || ((process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase() === "mainnet" ? "https://www.nibgate.xyz" : "https://testnet.nibgate.xyz"))
+    : window.location.origin;
   return `<script async src="${hubOrigin}/widget.js" data-nibgate-site="${site.id}" data-nibgate-token="${site.verifyToken}" data-nibgate-api="${apiBaseUrl()}"></script>`;
 }
 

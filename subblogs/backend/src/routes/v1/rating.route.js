@@ -7,8 +7,8 @@ const router = express.Router();
 const RPC = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || '';
 if (!RPC) console.warn('[rating] No ARC_RPC_URL set — on-chain rating verification will fail');
 
-const REPUTATION_CONTRACT = process.env.NIBGATE_REPUTATION_CONTRACT || '0x9f27fd62e75f86a3c7addfdba443aab1f930e281';
-const REPUTATION_CHAIN_ID = Number(process.env.NIBGATE_REPUTATION_CHAIN_ID || '5042002');
+const REPUTATION_CONTRACT = require('../../lib/network').activeReputationContract();
+const REPUTATION_CHAIN_ID = require('../../lib/network').activeReputationChainId();
 const CONTENT_HASH_NAMESPACE = 'nibgate:content:v1';
 const TYPE_PATH = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
@@ -121,7 +121,11 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
 
     if (settings.hubSiteId && settings.hubToken) {
       const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
-      const pubUrl = `https://${req.site.subdomain}.nibgate.xyz/${typePath[post.type] || 'posts'}/${post.slug}`;
+      // Report the URL the reader actually used (testnet- alias on the testnet
+      // stack), not the canonical mainnet host.
+      const reqHost = String(req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
+      const pubOrigin = reqHost ? `https://${reqHost}` : `https://${req.site.subdomain}.nibgate.xyz`;
+      const pubUrl = `${pubOrigin}/${typePath[post.type] || 'posts'}/${post.slug}`;
       sdk.submitOnchainRating({
         siteId: settings.hubSiteId, token: settings.hubToken,
         hubContentId: hubContentId || post.id, title: post.title, postType: post.type, price: post.price,

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { db } from './db.js';
-import { ARC_TESTNET } from '@nibgate/wallet/chain.js';
+import { activeChainId } from '@nibgate/wallet/chain.js';
 import { createSignInNonce, parseSignInMessage, validateSignInMessage, verifySignature } from '@nibgate/wallet/siwe.js';
 
 export function createNonce() {
@@ -20,7 +20,7 @@ export async function verifySignInAndLogin({ message, signature, expectedNonce, 
   const isValidMessage = validateSignInMessage({
     message: parsed,
     expected: {
-      chainId: ARC_TESTNET.id,
+      chainId: activeChainId(),
       domain: expectedDomain,
       time: new Date(),
     },

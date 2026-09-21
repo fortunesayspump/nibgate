@@ -3,6 +3,7 @@ import "./globals.css";
 import { headers } from "next/headers";
 import { serverFetch } from "@/lib/server-fetch";
 import Footer from "@/components/Footer";
+import TestnetBanner from "@/components/TestnetBanner";
 import WalletProviders from "@/components/WalletProviders";
 
 async function getSite(): Promise<Record<string, any> | null> {
@@ -28,7 +29,11 @@ export async function generateMetadata(): Promise<Metadata> {
     description: data?.site?.description || `${name} — a blog on nibgate.xyz. Write, publish, and earn USDC from your content.`,
     metadataBase: new URL(siteUrl),
     alternates: { canonical: "/" },
-    robots: { index: true, follow: true },
+    // Testnet builds must never be indexed (staging mirror of creator blogs).
+    robots:
+      (process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase() === "mainnet"
+        ? { index: true, follow: true }
+        : { index: false, follow: false },
     openGraph: {
       title: name,
       description: data?.site?.description || `${name} — a blog on nibgate.xyz.`,
@@ -63,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
         }} />
       </head>
-      <body>{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}<WalletProviders>{children}</WalletProviders><Footer /></body>
+      <body><TestnetBanner />{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}<WalletProviders>{children}</WalletProviders><Footer /></body>
     </html>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
 import NavigationProgress from "@/components/NavigationProgress";
+import TestnetBanner from "@/components/TestnetBanner";
 import ThemeBootstrap from "@/components/ThemeBootstrap";
 import { Providers } from "./providers";
 import "../styles/styles.css";
@@ -12,7 +13,11 @@ export const metadata: Metadata = {
     "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
   metadataBase: new URL("https://nibgate.xyz"),
   alternates: { canonical: "/" },
-  robots: { index: true, follow: true },
+  // Testnet builds must never be indexed (staging mirror of the main site).
+  robots:
+    (process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase() === "mainnet"
+      ? { index: true, follow: true }
+      : { index: false, follow: false },
   openGraph: {
     title: "Nibgate - verified content discovery",
     description:
@@ -46,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="light" suppressHydrationWarning>
       <body className="group/body" data-default-theme="light">
+        <TestnetBanner />
         <ThemeBootstrap />
         <Suspense fallback={null}>
           <NavigationProgress />

@@ -1,5 +1,6 @@
 const catchAsync = require('../utils/catchAsync');
 const blogService = require('../services/blog.service');
+const { requestSiteDomain } = require('../middlewares/tenant');
 const { status } = require('http-status');
 
 function transformTags(post) {
@@ -42,12 +43,12 @@ const adminList = catchAsync(async (req, res) => {
 });
 
 const adminStats = catchAsync(async (req, res) => {
-  const stats = await blogService.adminPostStats(req.siteId);
+  const stats = await blogService.adminPostStats(req.siteId, requestSiteDomain(req));
   res.json({ success: true, stats });
 });
 
 const adminActivity = catchAsync(async (req, res) => {
-  const { activities, totals } = await blogService.adminActivity(req.siteId);
+  const { activities, totals } = await blogService.adminActivity(req.siteId, requestSiteDomain(req));
   res.json({ success: true, activities, totals });
 });
 

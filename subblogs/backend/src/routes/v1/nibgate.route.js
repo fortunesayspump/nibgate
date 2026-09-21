@@ -673,7 +673,10 @@ router.get('/manifest', async (req, res, next) => {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
-    const origin = subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`;
+    // Media/manifest URLs must use the host in use (testnet alias on testnet),
+    // not the canonical subdomain host.
+    const { requestOrigin } = require('../../middlewares/tenant');
+    const origin = requestOrigin(req) || (subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`);
 
     const requestedPath = req.query.path;
     if (requestedPath) {
@@ -767,7 +770,8 @@ router.get('/nibgate.json', async (req, res, next) => {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
-    const origin = subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`;
+    const { requestOrigin } = require('../../middlewares/tenant');
+    const origin = requestOrigin(req) || (subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`);
 
     const manifest = {
       name: req.site.name,

@@ -358,11 +358,13 @@ async function remove(siteId, id, actor) {
   return existing;
 }
 
-async function adminPostStats(siteId) {
+async function adminPostStats(siteId, hostDomain) {
   const site = await prisma.site.findUnique({ where: { id: siteId } });
   if (!site) throw new ApiError(status.NOT_FOUND, 'Site not found');
 
-  const domain = `${site.subdomain}.nibgate.xyz`;
+  // Hub rows are per-stack (testnet rows live under <name>.testnet.nibgate.xyz),
+  // so look up by the host in use, falling back to the canonical domain.
+  const domain = hostDomain || `${site.subdomain}.nibgate.xyz`;
   const hub = config.nibgate.apiBase || 'http://localhost:3000';
   const res = await fetch(`${hub}/hub/ledger?domain=${encodeURIComponent(domain)}&limit=100`).catch(() => null);
   if (!res || !res.ok) return {};
@@ -400,11 +402,11 @@ async function adminPostStats(siteId) {
   return stats;
 }
 
-async function adminActivity(siteId) {
+async function adminActivity(siteId, hostDomain) {
   const site = await prisma.site.findUnique({ where: { id: siteId } });
   if (!site) throw new ApiError(status.NOT_FOUND, 'Site not found');
 
-  const domain = `${site.subdomain}.nibgate.xyz`;
+  const domain = hostDomain || `${site.subdomain}.nibgate.xyz`;
   const hub = config.nibgate.apiBase || 'http://localhost:3000';
   const res = await fetch(`${hub}/hub/ledger?domain=${encodeURIComponent(domain)}&limit=50`).catch(() => null);
   if (!res || !res.ok) return { activities: [], totals: { views: 0, unlocks: 0, payments: 0, ratings: 0 } };

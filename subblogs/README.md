@@ -1,6 +1,6 @@
 # Subblogs
 
-Full blog platform for creators, deployed on `*.nibgate.xyz`. Articles, photos, music, video, free and paid posts — all with Nibgate premium content gating.
+Full blog platform for creators, deployed on `*.nibgate.xyz` (mainnet) and `*.testnet.nibgate.xyz` (testnet). Articles, photos, music, video, free and paid posts — all with Nibgate premium content gating.
 
 Built for creators who want to write, publish, and optionally gate premium content behind payments.
 
@@ -13,7 +13,7 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - All post bodies and media are encrypted at rest (free and paid); free posts are decrypted and served to anyone, paid posts stay behind x402 proof (Gateway or direct USDC transfer rail); photo covers stay plaintext
 - SIWE wallet sign-in plus email/password admin (wallet is a possession signal for proof-bound access)
 - Admin dashboard with create, edit, publish, draft, delete, and per-post stats (unlocks, revenue, receipts)
-- Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`)
+- Multi-tenant subdomain deployment (`creator-name.nibgate.xyz`, testnet mirror `creator-name.testnet.nibgate.xyz`)
 - RSS feed
 - Prev/next post navigation
 - About page with bio and social links

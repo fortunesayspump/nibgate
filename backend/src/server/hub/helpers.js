@@ -117,9 +117,25 @@ export function serializePublisherIdentity(publisher) {
 }
 
 export function hostnameMatchesSite(hostname = '', domain = '') {
-  const cleanHost = cleanDomain(hostname);
-  const cleanSite = cleanDomain(domain);
-  return cleanHost === cleanSite || cleanHost === `www.${cleanSite}` || cleanHost.replace(/^www\./, '') === cleanSite;
+  const cleanHost = canonicalHost(cleanDomain(hostname));
+  const cleanSite = canonicalHost(cleanDomain(domain));
+  return cleanHost === cleanSite || cleanHost === `www.${cleanSite}` ||
+    cleanHost.replace(/^www\./, '') === cleanSite;
+}
+
+// Canonical host form for cross-stack matching: testnet aliases
+// (<name>.testnet.nibgate.xyz, legacy testnet-<name>.nibgate.xyz) compare
+// equal to the canonical <name>.nibgate.xyz site.
+export function canonicalHost(host = '') {
+  const h = String(host || '').trim().toLowerCase();
+  if (h.endsWith('.testnet.nibgate.xyz')) {
+    return `${h.slice(0, -'.testnet.nibgate.xyz'.length)}.nibgate.xyz`;
+  }
+  const parts = h.split('.');
+  if (h.endsWith('.nibgate.xyz') && parts.length >= 3 && parts[0].startsWith('testnet-')) {
+    return `${parts[0].slice('testnet-'.length)}.${parts.slice(1).join('.')}`;
+  }
+  return h;
 }
 
 export function eventTypeFor(input = '') {

@@ -193,14 +193,16 @@
 
     function setStatus(msg) { if (statusEl) statusEl.textContent = msg || ""; }
 
-    var ARC_CHAIN_ID = "0x4CEF52";
+    var ARC_CHAIN_ID = /:\/\/api\.nibgate\.xyz(\/|$)/.test(apiBase || "") ? "0x13B2" : "0x4CEF52";
+    var ARC_CHAIN_NAME = ARC_CHAIN_ID === "0x13B2" ? "Arc" : "Arc Testnet";
+    var ARC_RPC_URL = ARC_CHAIN_ID === "0x13B2" ? "https://rpc.mainnet.arc.io" : "https://rpc.testnet.arc.io";
 
     function switchToArc() {
       if (!window.ethereum) return Promise.resolve();
       return window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ARC_CHAIN_ID }] })
         .catch(function (e) {
           if (e && (e.code === 4902 || String(e.code) === "4902")) {
-            return window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: ARC_CHAIN_ID, chainName: "Arc Testnet", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: ["https://rpc.testnet.arc.io"] }] })
+            return window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: ARC_CHAIN_ID, chainName: ARC_CHAIN_NAME, nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: [ARC_RPC_URL] }] })
               .then(function () { return window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ARC_CHAIN_ID }] }); });
           }
           throw e;
@@ -250,7 +252,7 @@
           }
           if (!paymentRequired) { setStatus("Failed to get payment challenge."); return; }
 
-          setStatus("Switching to Arc Testnet...");
+          setStatus("Switching to " + ARC_CHAIN_NAME + "...");
           await switchToArc();
 
           setStatus("Sign payment in your wallet...");

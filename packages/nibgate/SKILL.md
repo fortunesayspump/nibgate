@@ -35,6 +35,7 @@ Nibgate runs on two Arc networks. Unless you are staging, integrate against **ma
 | Chain ID | 5042 | 5042002 |
 | Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
 | Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |
+| Browser wallet chain | `NEXT_PUBLIC_NIBGATE_NETWORK=mainnet` | (default testnet) |
 
 The examples below show testnet values (`eip155:5042002`, `rpc.testnet.arc.io`) because testnet USDC is free from the faucet. For production, swap in the mainnet column. USDC is `0x360000...0000` and the Gateway domain is 26 on both networks. Balances and unlocks do NOT cross networks.
 

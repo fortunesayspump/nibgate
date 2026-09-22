@@ -113,7 +113,7 @@ export const openApiSpec = {
         tags: ["Unlocks"],
         summary: "Unlock a nibshare link",
         description:
-          "Standalone share links. Free shares return the body directly; paid shares return 402 with a PAYMENT-REQUIRED header containing a standard x402 envelope (Circle Gateway scheme on eip155:5042002). Pay and retry the same request to receive JSON with content, media metadata, payment receipt, and a reusable unlockProof.",
+          `Standalone share links. Free shares return the body directly; paid shares return 402 with a PAYMENT-REQUIRED header containing a standard x402 envelope (Circle Gateway scheme on ${NET.caip2}). Pay and retry the same request to receive JSON with content, media metadata, payment receipt, and a reusable unlockProof.`,
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],

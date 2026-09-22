@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { getUserBySession, requireAuth } from '@nibgate/internal/auth.js';
+import { getUserBySession, requireAuth, sessionCookieName } from '@nibgate/internal/auth.js';
 import { runHostedPayRequirement } from '@nibgate/sdk/server';
 import { decryptMediaBlob, decryptShareBody, expirySecondsFor, mediaItemFor, paymentProofFor, primaryWallet, sharePublicUrl, walletFromPaymentProof } from './utils.js';
 import * as service from './service.js';
@@ -52,7 +52,7 @@ function walletForAccess(req) {
 // that claim would unlock content or mint a discounted challenge.
 async function sessionWalletFor(req) {
   try {
-    const user = await getUserBySession(req.cookies?.auth_session);
+    const user = await getUserBySession(req.cookies?.[sessionCookieName()]);
     return primaryWallet(user) || null;
   } catch {
     return null;

@@ -458,7 +458,8 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
   const walletBalEl = wrap.querySelector('[data-gw-wallet-balance]');
   const gwBalEl = wrap.querySelector('[data-gw-balance]');
 
-  const ARC_RPC = ARC_TESTNET.rpcUrl;
+  const isMainnet = /eip155:5042\b/.test(options.network || '');
+  const ARC_RPC = options.rpcUrl || (isMainnet ? 'https://rpc.mainnet.arc.io' : ARC_TESTNET.rpcUrl);
   const USDC = '0x3600000000000000000000000000000000000000';
   const BALANCE_OF = '0x70a08231';
 
@@ -470,7 +471,7 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     });
   }
 
-  const GATEWAY = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
+  const GATEWAY = options.gatewayAddress || (isMainnet ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE' : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9');
   const SEL_APPROVE = '0x095ea7b3';
   const SEL_DEPOSIT = '0x47e7ef24';
 

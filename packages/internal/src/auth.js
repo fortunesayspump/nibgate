@@ -1,7 +1,22 @@
 import { nanoid } from 'nanoid';
 import { db } from './db.js';
+import { activeNetwork } from './networks.js';
 import { activeChainId } from '@nibgate/wallet/chain.js';
 import { createSignInNonce, parseSignInMessage, validateSignInMessage, verifySignature } from '@nibgate/wallet/siwe.js';
+
+// Session cookie names are per-network: mainnet and testnet share the
+// .nibgate.xyz cookie domain, so a shared name would let logins on one stack
+// clobber the other (same name + domain + path = one cookie slot).
+// Override with NIBGATE_SESSION_COOKIE / NIBGATE_NONCE_COOKIE if needed.
+export function sessionCookieName() {
+  if (process.env.NIBGATE_SESSION_COOKIE) return process.env.NIBGATE_SESSION_COOKIE;
+  return activeNetwork().isTestnet ? 'auth_session_testnet' : 'auth_session';
+}
+
+export function nonceCookieName() {
+  if (process.env.NIBGATE_NONCE_COOKIE) return process.env.NIBGATE_NONCE_COOKIE;
+  return activeNetwork().isTestnet ? 'auth_nonce_testnet' : 'auth_nonce';
+}
 
 export function createNonce() {
   return createSignInNonce();
@@ -129,7 +144,7 @@ export async function getUserBySession(sessionToken) {
 }
 
 export async function requireAuth(req, res, next) {
-  const sessionToken = req.cookies?.auth_session;
+  const sessionToken = req.cookies?.[sessionCookieName()];
   const user = await getUserBySession(sessionToken);
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized. Please sign in.' });

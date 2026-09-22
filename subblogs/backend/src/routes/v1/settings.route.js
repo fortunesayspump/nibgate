@@ -6,6 +6,7 @@ const prisma = require('../../lib/prisma');
 const { authenticate } = require('../../middlewares/auth');
 const { status } = require('http-status');
 const { invalidateSite } = require('../../lib/tenant-cache');
+const { activeCaip2 } = require('../../lib/network');
 const config = require('../../config/config');
 
 const router = express.Router();
@@ -28,7 +29,7 @@ router.get('/', authenticate, async (req, res, next) => {
         recipientWallet: settings.recipientWallet || '',
         defaultPrice: settings.defaultPrice || '0.01',
         defaultCurrency: settings.defaultCurrency || 'USDC',
-        paymentNetwork: settings.paymentNetwork || 'eip155:5042002',
+        paymentNetwork: settings.paymentNetwork || activeCaip2(),
         siteId: site.id,
         subdomain: site.subdomain,
         hubSiteId: settings.hubSiteId || null,

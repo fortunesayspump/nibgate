@@ -607,10 +607,10 @@ function isTransientRpcError(error) {
   );
 }
 
-// Build a viem transport that fails over across Arc mirrors when the primary
+// Build a viem transport that fails over across same-chain mirrors when the primary
 // endpoint rate-limits eth_sendRawTransaction during a keeper sweep. Mirrors
-// are the same chain (5042002), so any of them can sign + broadcast safely.
-// The transport is cached per primary URL: creating one per call would open a
+// MUST be the same chain as the primary (see defaultMirrors) — cross-chain
+// failover would silently broadcast to the wrong network. The transport is cached per primary URL: creating one per call would open a
 // fresh TLS connection per request (no socket pooling), which under a degraded
 // network piles up thousands of half-open connects and exhausts FDs. rank is
 // disabled — probing every mirror per client is exactly the storm we avoid.

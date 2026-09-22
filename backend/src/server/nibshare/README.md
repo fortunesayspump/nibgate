@@ -38,7 +38,7 @@ Current build (`backend/src/server/nibshare/routes.js`, `controller.js`, `servic
 - **Integrity:** `contentHash = keccak256("nibshare:v1|{ownerWallet}|{storageRef}|{plaintext}")`
   (`contentHashFor` in `packages/nibgate/src/server/crypto.js`) is stored on the share.
 - **Auth:** wallet login via a nonce-based SIWE (EIP-4361) signature
-  (`packages/internal/src/auth.js`), establishing an `auth_session` cookie. Owner-only
+   (`packages/internal/src/auth.js`), establishing an `auth_session` cookie (per-network name: `auth_session_testnet` on testnet). Owner-only
   routes (delete / revoke / mine) check that the session wallet owns the share.
 - **Viewer flow:** a public viewer page lives at `https://nibgate.xyz/ns/<slug>`
   (`frontend/src/app/ns/[slug]/page.tsx`). Free shares render directly; paid shares
@@ -99,7 +99,7 @@ Creator: connect wallet -> write -> set price/expiry/whitelist
    -> ciphertext to R2 (nibshare/{id}/body.bin), metadata row created
    -> short link  nibgate.xyz/ns/<slug>
 Viewer (human or agent): open /ns/<slug> (or POST /nibshare/:slug/meta -> 402 terms)
-   -> pays USDC via x402 (Circle Gateway, eip155:5042002)
+   -> pays USDC via x402 (Circle Gateway, testnet `eip155:5042002` / mainnet `eip155:5042` per `NIBGATE_NETWORK`)
    -> POST /nibshare/:slug/unlock (or GET /nibshare/:slug/access with proof)
    -> rules checked (active, not expired, whitelisted, paid)
    -> server decrypts and returns body; embedded media streams via
@@ -186,8 +186,8 @@ Unlock response:
 ## Config
 
 ```
-NIBGATE_SHARE_BASE_URL   # base for short links (default https://nibgate.xyz/ns)
-NIBGATE_PAYMENT_NETWORK  # eip155:5042002 (Arc Testnet) by default
+NIBGATE_SHARE_BASE_URL   # base for short links (testnet https://testnet.nibgate.xyz/ns, mainnet https://nibgate.xyz/ns — follows NIBGATE_NETWORK)
+NIBGATE_PAYMENT_NETWORK  # eip155:5042002 testnet default; eip155:5042 on mainnet (follows NIBGATE_NETWORK)
 NIBGATE_FACILITATOR_URL  # Circle Gateway facilitator override
 ```
 

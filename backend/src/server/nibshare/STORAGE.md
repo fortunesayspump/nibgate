@@ -19,7 +19,7 @@ There is **no** plaintext body or media object. `ciphertextUrl` (`https://pub-â€
 
 | Layer | What it does | Where it lives |
 |---|---|---|
-| Money | x402 payment, USDC settlement | **Arc** (eip155:5042002) via Circle Gateway |
+| Money | x402 payment, USDC settlement | **Arc** testnet (`eip155:5042002`) / mainnet (`eip155:5042`) via Circle Gateway |
 | Keys/access | content key K, entitlements, decryptMode | **Nibgate backend** (server-mode only) |
 | Integrity | `contentHash` keccak256 commitment | Arc on-chain + DB |
 | Bytes | ciphertext | **Cloudflare R2** (`storageProvider: 'nibgate'`) |

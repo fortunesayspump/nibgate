@@ -91,3 +91,5 @@ The browser can display unlock UI and page activity. The server should own anyth
 
 
 > Browser Gateway checkout must be paired with a server route running Circle Gateway mode. Use `createCircleGatewayServer(...)`, or manually set `paymentMode: 'circle-gateway'` and `network: 'eip155:5042002'`, so the route returns Circle's real `PAYMENT-REQUIRED` batching challenge.
+
+Testnet values above use free faucet USDC. For production, swap in the mainnet column (`eip155:5042`, `https://gateway-api.circle.com`) — see [Networks](/networks).

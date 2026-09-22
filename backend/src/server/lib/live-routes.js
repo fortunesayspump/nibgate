@@ -34,7 +34,7 @@ export async function liveRoutesFromContent({ max = 500 } = {}) {
     price: String(c.price || '0'),
     agentPrice: String(c.price || '0'),
     currency: c.currency || 'USDC',
-    network: 'eip155:5042002',
+    network: c.network || process.env.NIBGATE_PAYMENT_NETWORK || (String(process.env.NIBGATE_NETWORK || '').toLowerCase() === 'mainnet' ? 'eip155:5042' : 'eip155:5042002'),
     license: '',
     splits: [],
     // Per-content recipient (set at publish / admin): the creator's wallet, not

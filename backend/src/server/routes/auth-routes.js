@@ -1,4 +1,4 @@
-import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession } from '@nibgate/internal/auth.js';
+import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession, sessionCookieName, nonceCookieName } from '@nibgate/internal/auth.js';
 
 // In-memory SIWE brute-force guard: the verify endpoint gets a tight cap (20
 // attempts per IP per 15 min); the nonce endpoint is fetched on every
@@ -31,7 +31,7 @@ export function registerAuthRoutes(app) {
     const rate = checkAuthRateLimit(req, 'nonce');
     if (!rate.ok) return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rate.retryAfter });
     const nonce = createNonce();
-    res.cookie('auth_nonce', nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
+    res.cookie(nonceCookieName(), nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
     
     res.json({ nonce });
   });
@@ -42,7 +42,7 @@ export function registerAuthRoutes(app) {
     if (!rate.ok) return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rate.retryAfter });
     try {
       const { message, signature } = req.body;
-      const expectedNonce = req.cookies.auth_nonce;
+      const expectedNonce = req.cookies[nonceCookieName()];
       const expectedDomain = req.body?.domain || req.headers['x-forwarded-host'] || req.headers.host;
 
       if (!expectedNonce) {
@@ -51,8 +51,8 @@ export function registerAuthRoutes(app) {
 
       const { user, sessionToken } = await verifySignInAndLogin({ message, signature, expectedNonce, expectedDomain });
 
-      res.clearCookie('auth_nonce', { ...cookieOpts });
-      res.cookie('auth_session', sessionToken, { ...cookieOpts, maxAge: 1000 * 60 * 60 * 24 * 30 });
+      res.clearCookie(nonceCookieName(), { ...cookieOpts });
+      res.cookie(sessionCookieName(), sessionToken, { ...cookieOpts, maxAge: 1000 * 60 * 60 * 24 * 30 });
 
       res.json({ success: true, user });
     } catch (error) {
@@ -63,7 +63,7 @@ export function registerAuthRoutes(app) {
   // 3. Get Current User
   app.get('/api/auth/me', async (req, res) => {
     try {
-      const sessionToken = req.cookies.auth_session;
+      const sessionToken = req.cookies[sessionCookieName()];
       const user = await getUserBySession(sessionToken);
       
       if (!user) {
@@ -78,10 +78,10 @@ export function registerAuthRoutes(app) {
 
   // 4. Logout
   app.post('/api/auth/logout', async (req, res) => {
-    const sessionToken = req.cookies.auth_session;
+    const sessionToken = req.cookies[sessionCookieName()];
     await logoutSession(sessionToken);
     
-    res.clearCookie('auth_session');
+    res.clearCookie(sessionCookieName());
     res.json({ success: true });
   });
 }

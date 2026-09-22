@@ -7,7 +7,7 @@ public page. The DB keeps `slug @unique` and `id` (uuid) as the internal key.
 
 ## Auth
 
-Requests that create or manage shares use a Nibgate **session cookie** (`auth_session`)
+Requests that create or manage shares use a Nibgate **session cookie** (`auth_session` on mainnet, `auth_session_testnet` on testnet)
 issued by the nonce-based SIWE (EIP-4361) wallet login
 (`packages/internal/src/auth.js`). Owner-only routes check that the session wallet owns
 the share. Authentication is cookie-based; there is no bearer-token mode.
@@ -187,7 +187,7 @@ eligibility) but never grants content alone. Granting paths — free **invite-on
 **lifetime** re-issue, whitelist **free-tier** grants, and **media** — require one of:
 
 1. a valid, bound `unlockProof` for that wallet, or
-2. a SIWE session (`auth_session`) whose wallet matches the claim.
+  2. a SIWE session (session cookie, wallet matches the claim).
 
 The unlock UI connects + SIWE-signs before unlocking, so the session is normally present.
 A stored proof is wallet-bound: the unlock UI only replays it while a wallet is connected
@@ -213,7 +213,7 @@ wallet (`403` otherwise).
 
 1. The viewer hits the share page or `GET /nibshare/:slug/access`; without payment
    the route returns a `402` challenge via the Circle Gateway x402 middleware.
-2. After USDC settles on Arc (network `eip155:5042002`), the client retries with the
+2. After USDC settles on Arc (network `eip155:5042002` testnet, `eip155:5042` mainnet — follows `NIBGATE_NETWORK`), the client retries with the
    signed payment (or a stored proof).
 
 Rules (evaluated server-side, wallet known via the x402 pending payer or session):

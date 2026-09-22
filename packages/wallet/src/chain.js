@@ -113,6 +113,20 @@ export function isArcTestnet(chainId) {
   return Number(chainId) === ARC_TESTNET.id;
 }
 
+// Strict per-build check: is the wallet on THIS deployment's network?
+// Payment flows must use this (not isArcNetwork) so a mainnet build never
+// accepts a testnet wallet and vice versa — paying on the wrong chain burns gas
+// and produces receipts the backend will reject.
+export function isActiveChainId(chainId) {
+  if (chainId === undefined || chainId === null) return false;
+  const active = activeChain().id;
+  if (typeof chainId === 'string') {
+    if (chainId.includes(':')) return chainId === activeChain().caip2;
+    if (/^0x/i.test(chainId)) return Number(chainId) === active;
+  }
+  return Number(chainId) === active;
+}
+
 export function explorerTxUrl(txHash, chain = activeChain()) {
   return `${chain.explorerUrl}/tx/${txHash}`;
 }

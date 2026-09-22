@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { createPublicClient, createWalletClient, custom, encodeFunctionData, http, keccak256, stringToBytes } from 'viem'
 import { waitForTransactionReceipt } from 'viem/actions'
-import { activeArcChain, activeChain, appRpcUrlFor, isArcNetwork } from '../chain.js'
+import { activeArcChain, activeChain, appRpcUrlFor, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 
@@ -198,7 +198,7 @@ export function NibgateRatingUI({
         const hex = await provider.request({ method: 'eth_chainId' })
         currentChainId = typeof hex === 'string' ? Number(hex) : Number(hex)
       } catch { currentChainId = undefined }
-      if (currentChainId === undefined || !isArcNetwork(currentChainId)) {
+      if (currentChainId === undefined || !isActiveChainId(currentChainId)) {
         await ensureArcNetwork(provider, { currentChainId })
       }
 

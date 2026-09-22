@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const viemEntry = path.join(rootDir, 'backend/node_modules/viem/_esm/index.js');
 const viemAccountsEntry = path.join(rootDir, 'backend/node_modules/viem/_esm/accounts/index.js');
-const { createPublicClient, createWalletClient, encodeFunctionData, http } = await import(viemEntry);
-const { privateKeyToAccount } = await import(viemAccountsEntry);
+const { createPublicClient, createWalletClient, encodeFunctionData, http } = await import(pathToFileURL(viemEntry).href);
+const { privateKeyToAccount } = await import(pathToFileURL(viemAccountsEntry).href);
 
 const { networkDefaults } = await import('./network.mjs');
 const { network, rpcUrl, chainId, chainName } = networkDefaults({

@@ -15,19 +15,35 @@
     "messageTransmitterV2": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
     "tokenMinterV2": "0xfd78EE919681417d192449715b2594ab58f5D002"
   },
-  "status": "NOT_DEPLOYED",
+  "status": "DEPLOYED",
   "revenue": {
-    "factoryAddress": null,
-    "treasury": null,
-    "feeSetter": null,
+    "factoryAddress": "0xdc798dc3ea2af400e9b0c127b957f7e4bd48636c",
+    "factoryTx": "0x9e18be06515fb30cfef9039a58849d3affb3ba99d4fe058114973a4584ae874e",
+    "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "feeSetter": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "gatewayWallet": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE",
+    "gatewayMinter": "0x2222222d7164433c4C09B0b0D809a9b52C04C205",
+    "domain": 26,
     "feeBps": 100,
     "maxFeeBps": 500,
-    "deployedAt": null,
-    "note": "Deploy with: NIBGATE_NETWORK=mainnet NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-revenue-factory.mjs (governance MUST be a multisig, timelock delay 24-48h — see contracts/README.md)"
+    "deployedAt": "2026-09-22T23:17:14.449Z"
   },
   "reputation": {
-    "proxyAddress": null,
-    "deployedAt": null,
-    "note": "Deploy with: NIBGATE_NETWORK=mainnet NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-reputation.mjs"
-  }
+    "proxyAddress": "0xbe8e49f6b60024c95124e723c4c487874873d7f1",
+    "deployedAt": "2026-09-22T23:16:35.880Z",
+    "note": "Deploy with: NIBGATE_NETWORK=mainnet NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-reputation.mjs",
+    "status": "DEPLOYED",
+    "owner": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "implementationAddress": "0x84545d2ca80c0e96afa0ef3d8d5a36cf959cafb6",
+    "implementationTx": "0xf3ec04a77108f7842a8f7c214dc831dfbf759b66ea688f455ec7a20417d3973d",
+    "proxyTx": "0xdbf8ccf8037615c7ff3136ce68c3d9163f21b117c82cd84933b7a8822d035361"
+  },
+  "deployer": "0xcFb002E077d76F89148C5416e3CFAdaBfa12E69c",
+  "owner": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+  "implementationAddress": "0x84545d2ca80c0e96afa0ef3d8d5a36cf959cafb6",
+  "implementationTx": "0xf3ec04a77108f7842a8f7c214dc831dfbf759b66ea688f455ec7a20417d3973d",
+  "proxyAddress": "0xbe8e49f6b60024c95124e723c4c487874873d7f1",
+  "proxyTx": "0xdbf8ccf8037615c7ff3136ce68c3d9163f21b117c82cd84933b7a8822d035361",
+  "deployedAt": "2026-09-22T23:16:35.879Z"
 }

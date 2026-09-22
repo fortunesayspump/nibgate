@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAppKitAccount, useAppKitNetwork, useDisconnect } from "@nibgate/wallet/react";
 import { activeArcChain, activeChain } from '@nibgate/wallet'
-import { isArcTestnetChainId } from '../lib/chains'
+import { isActiveChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT, HUB_SESSION_UPDATED_EVENT } from '../lib/hubSession'
 import { useNibgateConnect } from '../lib/useNibgateConnect'
@@ -148,7 +148,7 @@ export function WalletButton() {
   const displayAddress = isConnected && isHexAddress(address) ? address : undefined
   const isWalletConnected = isConnected
   const connectedChainId = chainId
-  const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
+  const isWrongChain = isWalletConnected && !isActiveChainId(connectedChainId)
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined
   const effectiveAddress = displayAddress ?? sessionAddr
@@ -266,7 +266,7 @@ export function WalletButtonMobile() {
   const displayAddress = isConnected && isHexAddress(address) ? address : undefined
   const isWalletConnected = isConnected
   const connectedChainId = chainId
-  const isWrongChain = isWalletConnected && !isArcTestnetChainId(connectedChainId)
+  const isWrongChain = isWalletConnected && !isActiveChainId(connectedChainId)
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined
   const effectiveAddress = displayAddress ?? sessionAddr

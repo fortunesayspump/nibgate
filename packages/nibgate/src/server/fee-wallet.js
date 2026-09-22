@@ -26,6 +26,13 @@ export const ARC_TESTNET_RPC_FALLBACKS = [
   'https://rpc.drpc.testnet.arc.io',
   'https://rpc.quicknode.testnet.arc.io',
 ];
+
+// Arc mainnet equivalents. No public write-capable mirrors are baked in —
+// extend per deployment with NIBGATE_RPC_MIRRORS (comma-separated) or pass
+// mirrors explicitly. Never mix testnet mirrors into mainnet failover:
+// broadcasting a mainnet transaction to a testnet RPC is a silent failure.
+export const ARC_MAINNET_RPC = 'https://rpc.mainnet.arc.io';
+export const ARC_MAINNET_RPC_FALLBACKS = [];
 export const ARC_USDC = '0x3600000000000000000000000000000000000000';
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 
@@ -81,6 +88,7 @@ const CONFIRMATIONS_BY_CHAIN = {
   8453: 4, // Base (OP-stack L2; pre-"safe" reorgs are shallow but real)
   84532: 2, // Base Sepolia
   5042002: 1, // Arc testnet — instant-finality testnet
+  5042: 1, // Arc mainnet — instant finality (reorgs impossible, CCTP treats 1 block as final)
   31337: 1, // anvil/local
 };
 export const DEFAULT_CONFIRMATION_DEPTH = 3;
@@ -607,12 +615,19 @@ function isTransientRpcError(error) {
 // network piles up thousands of half-open connects and exhausts FDs. rank is
 // disabled — probing every mirror per client is exactly the storm we avoid.
 const transportCache = new Map();
-function rpcTransport(rpcUrl = '') {
+function defaultMirrors(primary = '') {
+  // NIBGATE_RPC_MIRRORS (comma-separated) overrides per deployment.
+  const raw = serverEnv('NIBGATE_RPC_MIRRORS');
+  if (raw) return String(raw).split(',').map((u) => u.trim()).filter(Boolean);
+  if (/mainnet\.arc\.io/i.test(primary || '')) return ARC_MAINNET_RPC_FALLBACKS;
+  return ARC_TESTNET_RPC_FALLBACKS;
+}
+function rpcTransport(rpcUrl = '', mirrors = null) {
   const primary = rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
   const cacheKey = `transport:${primary}`;
   if (!transportCache.has(cacheKey)) {
-    const mirrors = ARC_TESTNET_RPC_FALLBACKS.filter((u) => u !== primary);
-    const urls = [primary, ...mirrors];
+    const list = (mirrors ?? defaultMirrors(primary)).filter((u) => u !== primary);
+    const urls = [primary, ...list];
     transportCache.set(
       cacheKey,
       fallback(urls.map((u) => http(u, { retryCount: 1, timeout: 15_000 })), { rank: false }),

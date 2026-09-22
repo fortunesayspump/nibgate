@@ -61,6 +61,8 @@ export function isArcNetwork(chainId: number | string | undefined | null): boole
 
 export function isArcTestnet(chainId: number | string | undefined | null): boolean;
 
+export function isActiveChainId(chainId: number | string | undefined | null): boolean;
+
 export function explorerTxUrl(txHash: string, chain?: ArcChainConfig): string;
 
 export function getAddArcNetworkParams(chain?: ArcChainConfig): AddArcNetworkParams;

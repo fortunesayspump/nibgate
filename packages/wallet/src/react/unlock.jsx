@@ -5,7 +5,7 @@ import { encodeFunctionData, createWalletClient, custom } from 'viem'
 import { useAppKit, useAppKitProvider, useAppKitAccount, useAppKitNetwork, useDisconnect } from '@reown/appkit/react'
 import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
-import { activeArcChain, activeChain, isArcNetwork } from '../chain.js'
+import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 import { ownershipMessage } from '@nibgate/sdk'
@@ -180,17 +180,18 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     if (!provider || typeof provider.request !== 'function') {
       throw new Error('Wallet provider is not available. Connect your wallet to continue.')
     }
-    // Ensure Arc Testnet is active before signing/sending (MetaMask error 4100 /
-    // wrong-chain rejects otherwise). Uses the EIP-1193 provider directly.
+    // Ensure the wallet is on THIS deployment's network (mainnet vs testnet)
+    // before signing/sending. Accepting the other Arc chain would burn gas
+    // and produce receipts the backend rejects.
     const currentChainId = await (async () => {
       try {
         const hex = await provider.request({ method: 'eth_chainId' })
         return typeof hex === 'string' ? Number(hex) : Number(hex)
       } catch { return undefined }
     })()
-    if (currentChainId === undefined || !isArcNetwork(currentChainId)) {
+    if (currentChainId === undefined || !isActiveChainId(currentChainId)) {
       await ensureArcNetwork(provider, { currentChainId })
-      await waitForChain(() => isArcNetwork(chainIdRef.current))
+      await waitForChain(() => isActiveChainId(chainIdRef.current))
     }
     const rail = input?.challenge?.paymentRail || railRef.current || resource.paymentRail || 'gateway'
     const walletClient = createWalletClient({ chain: activeArcChain(), account: account, transport: custom(provider) })

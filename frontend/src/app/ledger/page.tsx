@@ -312,7 +312,7 @@ export default function LedgerPage() {
           {loadingMore && <p className="mt-6 text-sm opacity-60 text-center">Loading more...</p>}
 
           <p className="mt-6 text-sm opacity-60 text-center max-w-lg mx-auto leading-relaxed">
-            Click <strong>+</strong> to expand row details. On-chain tx hashes link to Arc Testnet. Gateway payments show reference IDs (not on-chain). Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
+            Click <strong>+</strong> to expand row details. On-chain tx hashes link to the Arc explorer. Gateway payments show reference IDs (not on-chain). Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
           </p>
         </section>
       </main>

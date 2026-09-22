@@ -157,7 +157,7 @@ export default function AdminSettingsPage() {
         <div className="space-y-6">
           <div className="border rounded-lg p-4 space-y-1" style={{ borderColor: "var(--border)" }}>
             <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>Your site</span>
-            {settings && <p className="text-sm font-medium">{settings.subdomain}.nibgate.xyz</p>}
+            {settings && <p className="text-sm font-medium">{typeof window !== "undefined" && window.location.hostname.includes(".nibgate.xyz") ? window.location.hostname : `${settings.subdomain}.nibgate.xyz`}</p>}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 border-t pt-6" style={{ borderColor: "var(--border)" }}>

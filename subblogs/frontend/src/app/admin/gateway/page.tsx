@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiAuthFetch } from "@/lib/api";
+import { activeNetworkName } from "@/lib/network";
 
 const s = `
 .gw-admin-card {
@@ -119,7 +120,7 @@ export default function GatewayAdminPage() {
       <div className="small muted font-ui" style={{ marginBottom: "0.5em" }}>Admin</div>
       <h1 style={{ marginTop: 0, marginBottom: "0.15em" }}>Gateway Wallet</h1>
       <p className="small muted" style={{ marginTop: "0.5em", marginBottom: "2rem" }}>
-        Manage your Circle Gateway wallet on Arc testnet.
+        Manage your Circle Gateway wallet on {activeNetworkName() === "mainnet" ? "Arc" : "Arc testnet"}.
       </p>
 
       <div className="gw-admin-card" style={{ marginBottom: "1.5rem" }}>

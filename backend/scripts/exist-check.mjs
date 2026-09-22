@@ -1,6 +1,7 @@
 import { db } from '@nibgate/internal/db.js';
 import { createPublicClient, http, fallback } from 'viem';
-const rpc='https://rpc.testnet.arc-node.thecanteenapp.com/v1/swrm_d012626f61f1e237f9ffa371cd76029976e22bfdd177738b35626b3aaee6608f';
+// Never hardcode RPC tokens (rotated regularly) — pass ARC_RPC_URL in env.
+const rpc = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || 'https://rpc.testnet.arc.io';
 const client=createPublicClient({chain:{id:5042002,name:'Arc Testnet',nativeCurrency:{name:'ETH',symbol:'ETH',decimals:18},rpcUrls:{default:{http:[rpc]}}},transport:http(rpc)});
 const direct = await db.unlockReceipt.findMany({
   where: { status: 'verified', paymentProvider: 'direct-transfer', content: { website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } } },

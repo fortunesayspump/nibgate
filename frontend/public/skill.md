@@ -563,8 +563,10 @@ After a verified unlock, users can rate content onchain via the `NibgateReputati
 1. User unlocks content (has a valid unlock proof)
 2. rating UI calls `rateContentOnchain(resource, { rating, paymentId })`
 3. User signs an onchain transaction with their rating
-4. Transaction indexed by Nibgate's reputation indexer (polls every 30s)
+4. Rating is submitted to the hub with its on-chain proof and indexed
 5. Rating contributes to content/creator reputation scores on Explore and leaderboards
+
+Read ratings back via `GET /hub/reputation/ratings/stats?contentId=` (hub-authoritative average 1–5 + count). Never recompute the content hash locally — stored url/domain forms drift across stacks and renames, which silently orphans the lookup.
 
 ### Browser rating UI
 

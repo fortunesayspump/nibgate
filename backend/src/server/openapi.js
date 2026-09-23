@@ -75,7 +75,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.2",
+    version: "0.2.3",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -549,6 +549,36 @@ export const openApiSpec = {
                     chainId: { type: "string" },
                     chainName: { type: "string" },
                     rpcUrl: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/hub/reputation/ratings/stats": {
+      get: {
+        tags: ["Reputation"],
+        summary: "Read a content's onchain rating stats",
+        description: "Hub-authoritative rating read: resolves the content (id or externalId) and returns its indexed on-chain-proved ratings (live contract read is the fallback for not-yet-indexed ratings). Satellite stacks must use this instead of recomputing the content hash locally. Returns average on the 1-5 scale.",
+        parameters: [
+          { name: "contentId", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Onchain rating stats",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    contentId: { type: "string" },
+                    externalId: { type: "string", nullable: true },
+                    contentHash: { type: "string" },
+                    average: { type: "number" },
+                    count: { type: "integer" },
                   },
                 },
               },

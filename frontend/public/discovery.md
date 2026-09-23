@@ -26,6 +26,7 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 | `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, ratings |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
+| `GET /hub/reputation/ratings/stats?contentId=` | Read a content's on-chain rating stats (average 1-5, count) |
 | `POST /hub/site/info` | Get site info by siteId + token |
 
 ### Creator sites
@@ -118,6 +119,7 @@ carries the 1% protocol fee.
 2. Returns `contentHash`, `contractAddress`
 3. Call `rateContent(contentHash, rating, reviewHash, unlockRef)` on the reputation contract
 4. Track via `POST /hub/evt` with event `content_rating`
+5. Read back via `GET /hub/reputation/ratings/stats?contentId=` (hub-authoritative; never recompute the content hash locally)
 
 ### Network
 

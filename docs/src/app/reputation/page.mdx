@@ -100,7 +100,7 @@ The wallet submits a rating transaction using its unlock proof.
 
 ### Index rating event
 
-Nibgate indexes the rating event (via the reputation indexer) and updates content stars.
+Nibgate records the rating with its on-chain proof and updates content stars. Read them back via `GET /hub/reputation/ratings/stats?contentId=` — the hub-authoritative source (average 1–5, count).
 
 ### Roll up reputation
 

@@ -7,71 +7,41 @@ const router = express.Router();
 const RPC = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || '';
 if (!RPC) console.warn('[rating] No ARC_RPC_URL set — on-chain rating verification will fail');
 
-const REPUTATION_CONTRACT = require('../../lib/network').activeReputationContract();
-const REPUTATION_CHAIN_ID = require('../../lib/network').activeReputationChainId();
-const CONTENT_HASH_NAMESPACE = 'nibgate:content:v1';
-const TYPE_PATH = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
-
 const statsCache = new Map();
 const STATS_TTL_MS = 60 * 1000;
 
-function cleanDomain(domain = '') {
-  return String(domain).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
-}
-
-function contentHashFor(domain, externalId, url) {
-  const { keccak256, stringToBytes } = require('viem');
-  return keccak256(stringToBytes([CONTENT_HASH_NAMESPACE, cleanDomain(domain), externalId, url].join('|')));
-}
-
-function contentUrlFor(site, post, origin) {
-  const path = `${TYPE_PATH[post.type] || 'posts'}/${post.slug}`;
-  const base = origin || (site && site.subdomain ? `https://${site.subdomain}.nibgate.xyz` : '');
-  return base ? `${base}/${path}` : path;
-}
-
-async function readOnchainStats(contentId) {
-  if (!RPC) return null;
-  const cached = statsCache.get(contentId);
-  if (cached && Date.now() - cached.at < STATS_TTL_MS) return cached.value;
-  try {
-    const { createPublicClient, http } = require('viem');
-    const publicClient = createPublicClient({
-      chain: { id: REPUTATION_CHAIN_ID, name: 'Arc Testnet', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [RPC] } } },
-      transport: http(RPC, { retryCount: 2, timeout: 12000 }),
-    });
-    const abi = [{ type: 'function', name: 'contentStats', stateMutability: 'view', inputs: [{ name: 'contentId', type: 'bytes32' }], outputs: [{ name: 'count', type: 'uint256' }, { name: 'total', type: 'uint256' }] }];
-    const [count, total] = await publicClient.readContract({ address: REPUTATION_CONTRACT, abi, functionName: 'contentStats', args: [contentId] });
-    const value = { count: Number(count), total: Number(total) };
-    statsCache.set(contentId, { at: Date.now(), value });
-    return value;
-  } catch {
-    return null;
-  }
-}
-
 router.get('/:postId', async (req, res, next) => {
   try {
-    const post = await prisma.blogPost.findUnique({ where: { id: req.params.postId }, select: { id: true, type: true, slug: true } });
-
-    if (post && req.site) {
-      // Hash with the host in use so the hub row (per-stack domain) verifies.
-      const { requestOrigin, requestHost } = require('../../middlewares/tenant');
-      const origin = requestOrigin(req);
-      const domain = requestHost(req).endsWith('.nibgate.xyz')
-        ? requestHost(req)
-        : `${req.site.subdomain}.nibgate.xyz`;
-      const url = contentUrlFor(req.site, post, origin);
-      const contentId = contentHashFor(domain, post.id, url);
-      const onchain = await readOnchainStats(contentId);
-      if (onchain && onchain.count > 0) {
-        const average = onchain.total / onchain.count;
-        return res.json({ success: true, source: 'onchain', average: Math.round(average * 10) / 10, count: onchain.count });
+    const postId = req.params.postId;
+    // Hub-authoritative on-chain stats: the hub resolves the post id against
+    // its content rows (id or externalId), hashes with its own stored row, and
+    // reads the reputation contract directly. Never recompute the content hash
+    // locally — stored url/domain forms drift across stacks and renames, which
+    // silently orphans the lookup ("No ratings yet" with ratings on-chain).
+    const hubKey = `hub:${postId}`;
+    const hubCached = statsCache.get(hubKey);
+    if (hubCached && Date.now() - hubCached.at < STATS_TTL_MS) {
+      if (hubCached.value && hubCached.value.count > 0) {
+        return res.json({ success: true, source: 'onchain', average: hubCached.value.average, count: hubCached.value.count });
+      }
+    } else {
+      try {
+        const hubApi = require('../../config/config').nibgate.hubApi;
+        const r = await fetch(`${hubApi}/hub/reputation/ratings/stats?contentId=${encodeURIComponent(postId)}`, { signal: AbortSignal.timeout(10000) });
+        const data = await r.json().catch(() => null);
+        if (data && data.success && Number(data.count) > 0) {
+          const value = { average: data.average, count: Number(data.count) };
+          statsCache.set(hubKey, { at: Date.now(), value });
+          return res.json({ success: true, source: 'onchain', average: value.average, count: value.count });
+        }
+        statsCache.set(hubKey, { at: Date.now(), value: { average: 0, count: 0 } });
+      } catch {
+        // Hub unreachable — fall through to the local aggregate.
       }
     }
 
     const stats = await prisma.rating.aggregate({
-      where: { postId: req.params.postId },
+      where: { postId },
       _avg: { rating: true },
       _count: { rating: true },
     });

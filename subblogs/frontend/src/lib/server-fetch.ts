@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { subdomainFromHost } from "./utils";
 
 const _rawBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/+$/, "");
-const API_BASE = _rawBase.endsWith("/api") ? _rawBase : `${_rawBase}/api`;
+const API_BASE = _rawBase.endsWith("/api") ? _rawBase.slice(0, -"/api".length) : _rawBase;
 
 function apiUrl(path: string) {
   return `${API_BASE}${path}`;

@@ -3,7 +3,6 @@ import { createNibgateServer } from './access.js';
 export { normalizeWalletAddress, normalizeWhitelist, isPaidValue, isWhitelisted, inWhitelist, effectivePrice, accessDecision, canAccess, hasPaidReceipt, paidCutoffWallets } from './access-policy.js';
 export { actorFromRequest, accessModeFor } from './actor.js';
 export { createPaymentChallenge } from './challenge.js';
-export { createTipChallenge, tipReceipt, createTipVerifier, resolveTipRecipient } from './tip.js';
 export { createManifest, manifestResponse } from './manifest.js';
 export { createUnlockToken, verifyUnlockToken } from './proof.js';
 export { ownershipMessage } from '../core/ownership.js';

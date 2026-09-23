@@ -319,6 +319,8 @@ export declare function resolvePayTo(recipient: string, options?: NibgateServerO
 export declare function prepareOnchainRating(args: { contentId: string; walletAddress: string; ratingValue: number; paymentId?: string; hubApiUrl?: string }): Promise<Record<string, unknown>>;
 export declare function verifyRatingTx(txHash: string, rpcUrl?: string): Promise<Record<string, unknown>>;
 export declare function submitOnchainRating(args: { siteId: string; token: string; hubContentId?: string; title?: string; postType?: string; price?: string; walletAddress: string; rating: number; ratingValue: number; txHash: string; url?: string; path?: string; hubApiUrl?: string }): Promise<Record<string, unknown>>;
+export declare function getRatingStats(args: { contentId: string; hubApiUrl?: string; timeoutMs?: number }): Promise<{ contentId: string; externalId: string | null; contentHash: string; average: number; count: number }>;
+export declare function readReputationStats(args: { contentHash: string; contractAddress: string; rpcUrl: string; chainId: number | string; chainName?: string; timeoutMs?: number }): Promise<{ count: number; total: number }>;
 export declare function generateContentKey(): Uint8Array;
 export declare function encryptBytes(key: Uint8Array | Buffer, plaintext: Uint8Array | Buffer): { iv: Buffer; tag: Buffer; ciphertext: Buffer };
 export declare function decryptBytes(key: Uint8Array | Buffer, iv: Uint8Array | Buffer, tag: Uint8Array | Buffer, ciphertext: Uint8Array | Buffer): Buffer;

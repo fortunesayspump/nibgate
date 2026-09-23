@@ -811,15 +811,10 @@ export function registerHubRoutes(app) {
         const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || activeNetwork().reputationRpcUrl;
         if (contractAddress && rpcUrl) {
           try {
-            const { createPublicClient, http } = await import('viem');
-            const client = createPublicClient({
-              chain: { id: activeNetwork().chainId, name: activeNetwork().label, nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } },
-              transport: http(rpcUrl, { retryCount: 2, timeout: 12000 }),
-            });
-            const abi = [{ type: 'function', name: 'contentStats', stateMutability: 'view', inputs: [{ name: 'contentId', type: 'bytes32' }], outputs: [{ name: 'count', type: 'uint256' }, { name: 'total', type: 'uint256' }] }];
-            const [liveCount, liveTotal] = await client.readContract({ address: contractAddress, abi, functionName: 'contentStats', args: [contentHash] });
-            const c = Number(liveCount);
-            if (c > 0) { count = c; average = Math.round((Number(liveTotal) / c / 10) * 10) / 10; }
+            // SDK-owned contract read — the hub harnesses it, never reimplements it.
+            const { readReputationStats } = await import('@nibgate/sdk/server');
+            const live = await readReputationStats({ contentHash, contractAddress, rpcUrl, chainId: activeNetwork().chainId, chainName: activeNetwork().label });
+            if (live.count > 0) { count = live.count; average = Math.round((live.total / live.count / 10) * 10) / 10; }
           } catch { /* live read is best-effort; indexed aggregate stands */ }
         }
       }

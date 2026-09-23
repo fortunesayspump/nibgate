@@ -26,8 +26,13 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Custom API domains serve routes bare (GET /site, POST /auth/login, ...).
-// The legacy /api/* forms keep working for old clients — rewrite onto them.
+// The legacy /api/* forms keep working for old clients — flagged
+// machine-readably via the Deprecation header. Never use them in new code.
 app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Deprecation', 'true');
+    return next();
+  }
   if (!req.path.startsWith('/api/') && /^\/(auth|blog|nibgate|rating|settings|setup|upload|site|health)(\/|$)/.test(req.path)) {
     req.url = `/api${req.url}`;
   }

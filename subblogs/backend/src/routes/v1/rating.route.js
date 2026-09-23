@@ -13,11 +13,14 @@ const STATS_TTL_MS = 60 * 1000;
 router.get('/:postId', async (req, res, next) => {
   try {
     const postId = req.params.postId;
-    // Hub-authoritative on-chain stats: the hub resolves the post id against
-    // its content rows (id or externalId), hashes with its own stored row, and
-    // reads the reputation contract directly. Never recompute the content hash
-    // locally — stored url/domain forms drift across stacks and renames, which
-    // silently orphans the lookup ("No ratings yet" with ratings on-chain).
+    // Ratings change on every vote — never allow heuristic caching of this
+    // response, or readers keep seeing stale counts long after new ratings.
+    res.set('Cache-Control', 'no-store');
+    // Hub-authoritative stats: the hub resolves the post id against its
+    // content rows (id or externalId) and serves indexed on-chain-proved
+    // ratings. Never recompute the content hash locally — stored url/domain
+    // forms drift across stacks and renames, which silently orphans the
+    // lookup ("No ratings yet" with ratings on-chain).
     const hubKey = `hub:${postId}`;
     const hubCached = statsCache.get(hubKey);
     if (hubCached && Date.now() - hubCached.at < STATS_TTL_MS) {

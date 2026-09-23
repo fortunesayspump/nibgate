@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
-let apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/+$/, '').replace(/\/api$/, '');
+const _rawApi = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/+$/, "");
+// Mirror lib/api.ts: exactly one /api suffix, so the rewrite destination
+// always keeps the prefix the backend serves (a stripped destination 404s
+// every proxied call).
+const apiUrl = _rawApi.endsWith("/api") ? _rawApi : `${_rawApi}/api`;
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@nibgate/wallet"],

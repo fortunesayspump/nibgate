@@ -15,6 +15,7 @@ const envVarsSchema = Joi.object()
     NIBGATE_API_BASE: Joi.string().optional().description('Nibgate hub API base URL'),
     HUB_API_URL: Joi.string().optional().description('Nibgate hub API origin (site info/sync/widget)'),
     NIBGATE_WEB_BASE: Joi.string().optional().description('Nibgate web origin (widget.js host)'),
+    NIBGATE_NETWORK: Joi.string().valid('mainnet', 'testnet').optional().description('Arc network (default testnet)'),
     NIBGATE_SITE_ID: Joi.string().optional().description('Nibgate site ID'),
     NIBGATE_SITE_TOKEN: Joi.string().optional().description('Nibgate site token'),
     NIBGATE_SELLER_ADDRESS: Joi.string().optional().allow('').description('Wallet address for Nibgate payments (set in DB settings instead)'),
@@ -46,8 +47,10 @@ const config = {
   },
   nibgate: {
     apiBase: envVars.NIBGATE_API_BASE || 'http://localhost:3000',
-    hubApi: envVars.HUB_API_URL || 'https://api.nibgate.xyz',
-    webBase: envVars.NIBGATE_WEB_BASE || 'https://www.nibgate.xyz',
+    // Hub hosts follow the stack network when unset (mainnet hosts are NOT
+    // a safe default for testnet/local builds).
+    hubApi: envVars.HUB_API_URL || (String(envVars.NIBGATE_NETWORK || 'testnet').toLowerCase() === 'mainnet' ? 'https://api.nibgate.xyz' : 'https://testnet-api.nibgate.xyz'),
+    webBase: envVars.NIBGATE_WEB_BASE || (String(envVars.NIBGATE_NETWORK || 'testnet').toLowerCase() === 'mainnet' ? 'https://www.nibgate.xyz' : 'https://testnet.nibgate.xyz'),
     siteId: envVars.NIBGATE_SITE_ID || 'nibgate-blog',
     siteToken: envVars.NIBGATE_SITE_TOKEN || '',
     sellerAddress: envVars.NIBGATE_SELLER_ADDRESS || '',

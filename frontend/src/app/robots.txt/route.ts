@@ -1,9 +1,12 @@
+import { siteOrigin } from "@/lib/api";
+
 export const dynamic = "force-dynamic";
 export async function GET() {
+  const site = siteOrigin();
   const text = `User-agent: *
 Allow: /
-Sitemap: https://nibgate.xyz/sitemap.xml
-Sitemap: https://nibgate.xyz/all-content-sitemap.xml
+Sitemap: ${site}/sitemap.xml
+Sitemap: ${site}/all-content-sitemap.xml
 `;
   return new Response(text, { headers: { "Content-Type": "text/plain" } });
 }

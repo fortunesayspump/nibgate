@@ -17,23 +17,30 @@
   },
   "status": "DEPLOYED",
   "revenue": {
-    "factoryAddress": "0xdc798dc3ea2af400e9b0c127b957f7e4bd48636c",
-    "factoryTx": "0x9e18be06515fb30cfef9039a58849d3affb3ba99d4fe058114973a4584ae874e",
+    "factoryAddress": "0x216e92af9530a0d45fb0056c2ff62e782c1caa03",
+    "factoryTx": "0x3548ca3e35ecfc104158a45a6acedabc878447c2a1cd5acf838d6e6c84c7f871",
     "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
-    "feeSetter": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "feeSetter": "0x09209bc76fCb56eBfBAA29B96D0F7324B9CA4eea",
     "usdc": "0x3600000000000000000000000000000000000000",
     "gatewayWallet": "0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE",
     "gatewayMinter": "0x2222222d7164433c4C09B0b0D809a9b52C04C205",
     "domain": 26,
     "feeBps": 100,
     "maxFeeBps": 500,
-    "deployedAt": "2026-09-22T23:17:14.449Z"
+    "deployedAt": "2026-09-23T00:42:36.605Z"
   },
   "reputation": {
     "proxyAddress": "0xbe8e49f6b60024c95124e723c4c487874873d7f1",
     "deployedAt": "2026-09-22T23:16:35.880Z",
     "note": "Deploy with: NIBGATE_NETWORK=mainnet NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-reputation.mjs",
-    "status": "DEPLOYED",
+  "status": "DEPLOYED",
+  "governance": {
+    "timelock": "0x09209bc76fcb56ebfbaa29b96d0f7324b9ca4eea",
+    "timelockDelaySeconds": 86400,
+    "timelockGovernance": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "note": "Fee changes route timelock (24h) -> factory. Migrate to multisig when signers are ready."
+  },
     "owner": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
     "implementationAddress": "0x84545d2ca80c0e96afa0ef3d8d5a36cf959cafb6",
     "implementationTx": "0xf3ec04a77108f7842a8f7c214dc831dfbf759b66ea688f455ec7a20417d3973d",

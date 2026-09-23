@@ -67,6 +67,13 @@ async function resolveTenant(req, res, next) {
       if (req.headers.authorization?.startsWith('Bearer ')) {
         return next();
       }
+      // Public rating reads don't need a site: the handler resolves the post
+      // through the hub. Never 404 them on tenant technicalities — an empty
+      // ?subdomain= falls back to the API host, which is not a site, and the
+      // rating widget fetches once on mount before the subdomain state fills.
+      if (req.method === 'GET' && /\/rating(\/|$)/.test(req.path || '')) {
+        return next();
+      }
       return res.status(status.NOT_FOUND).json({ error: 'Site not found', subdomain });
     }
 

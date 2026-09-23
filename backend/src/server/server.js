@@ -44,7 +44,12 @@ export async function createApp(config, options = {}) {
   // route group under its bare name too (/hub/..., /nibshare/..., /rpc, ...) by
   // rewriting onto the canonical /api/... routes. Both forms stay live.
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
+    if (req.path.startsWith('/api/')) {
+      // Legacy form: the dedicated API hosts serve these routes bare
+      // (/hub/..., /nibshare/..., ...). Flagged machine-readably; kept working.
+      res.setHeader('Deprecation', 'true');
+      return next();
+    }
     if (/^\/(hub|nibshare|newsletter|blog|uploads|app|auth|content|rpc|openapi)(\.json|\/|$)/.test(req.path)) {
       req.url = `/api${req.url}`;
     }

@@ -160,6 +160,21 @@ export function registerHubRoutes(app) {
   // Payments → paymentId, txHash, chainId, network, payerWallet, recipientWallet, receiptUrl
   // Ratings → walletAddress, ratingValue, proof, txHash
 
+  // Display-only: content rows may store the API-origin URL
+  // (…-api-subblogs.nibgate.xyz) while readers expect the public blog host.
+  // Rewrite the host at read time using the row's own website domain — stored
+  // identity strings stay untouched so on-chain content hashes never drift.
+  const publicContentUrl = (storedUrl = '', websiteDomain = '') => {
+    try {
+      const u = new URL(String(storedUrl || ''));
+      if (/api-subblogs\.nibgate\.xyz$/i.test(u.hostname) && websiteDomain) {
+        u.hostname = String(websiteDomain).toLowerCase();
+        return u.toString();
+      }
+      return String(storedUrl || '');
+    } catch { return String(storedUrl || ''); }
+  };
+
   app.get('/api/hub/ledger', async (req, res) => {
     try {
       const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '50', 10) || 50, 1), 100);
@@ -200,7 +215,7 @@ export function registerHubRoutes(app) {
             actor: v.visitorId || 'anonymous',
             contentId: v.contentId,
             contentTitle: v.content?.title || 'Unknown content',
-            contentUrl: v.content?.url || v.url || '',
+            contentUrl: publicContentUrl(v.content?.url || v.url || '', v.website?.domain || ''),
             imageUrl: v.content?.imageUrl || null,
             domain: v.website?.domain || '',
             referrer: v.referrer || null,
@@ -225,7 +240,7 @@ export function registerHubRoutes(app) {
             actor: u.visitorId || u.sessionId || 'user',
             contentId: u.contentId,
             contentTitle: u.content?.title || 'Unknown content',
-            contentUrl: u.content?.url || u.url || '',
+            contentUrl: publicContentUrl(u.content?.url || u.url || '', u.website?.domain || ''),
             imageUrl: u.content?.imageUrl || null,
             domain: u.website?.domain || '',
             revenue: u.revenue || 0,
@@ -250,7 +265,7 @@ export function registerHubRoutes(app) {
             actor: p.payerWallet || p.actor || 'wallet',
             contentId: p.contentId,
             contentTitle: p.content?.title || 'Unknown content',
-            contentUrl: p.content?.url || '',
+            contentUrl: publicContentUrl(p.content?.url || '', p.website?.domain || ''),
             imageUrl: p.content?.imageUrl || null,
             domain: p.website?.domain || '',
             amount: p.amount || 0,
@@ -286,7 +301,7 @@ export function registerHubRoutes(app) {
             actor: r.walletAddress || r.actor || 'user',
             contentId: r.contentId,
             contentTitle: r.content?.title || 'Unknown content',
-            contentUrl: r.content?.url || '',
+            contentUrl: publicContentUrl(r.content?.url || '', r.website?.domain || ''),
             imageUrl: r.content?.imageUrl || null,
             domain: r.website?.domain || '',
             score: Math.round((r.ratingValue || 0) / 10),
@@ -765,6 +780,53 @@ export function registerHubRoutes(app) {
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to prepare rating', details: error.message });
+    }
+  });
+
+  // ── Reputation: Rating Stats (hub-authoritative read) ───────────────────
+  // Single source of truth for a content's rating. Primary source is the
+  // hub's indexed ratings (every accepted on-chain-proved rating is recorded
+  // here) — immune to content-hash drift across domain renames, which
+  // previously orphaned on-chain lookups (subblogs showed "No ratings yet"
+  // while the hub held dozens). A live contract read is only the fallback
+  // for ratings mined but not yet indexed. Satellite stacks (subblogs) must
+  // use this instead of recomputing the content hash locally.
+  app.get('/api/hub/reputation/ratings/stats', async (req, res) => {
+    try {
+      const content = await findContentByIdOrExternal(req.query?.contentId);
+      if (!content) return res.status(404).json({ error: 'Content not found.' });
+
+      const contentHash = contentHashFor(content.website, content);
+      const agg = await db.contentRating.aggregate({
+        where: { contentId: content.id, status: 'accepted', proof: { startsWith: 'onchain:' } },
+        _count: { _all: true },
+        _avg: { ratingValue: true },
+      });
+      let count = agg?._count?._all || 0;
+      // ratingValue is stored in on-chain units (1–50); API scale is 1–5.
+      let average = agg?._avg?.ratingValue ? Math.round((agg._avg.ratingValue / 10) * 10) / 10 : 0;
+
+      if (count === 0) {
+        const contractAddress = process.env.NIBGATE_REPUTATION_CONTRACT || (activeNetwork().isTestnet ? '0x9f27fd62e75f86a3c7addfdba443aab1f930e281' : '');
+        const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || activeNetwork().reputationRpcUrl;
+        if (contractAddress && rpcUrl) {
+          try {
+            const { createPublicClient, http } = await import('viem');
+            const client = createPublicClient({
+              chain: { id: activeNetwork().chainId, name: activeNetwork().label, nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl] } } },
+              transport: http(rpcUrl, { retryCount: 2, timeout: 12000 }),
+            });
+            const abi = [{ type: 'function', name: 'contentStats', stateMutability: 'view', inputs: [{ name: 'contentId', type: 'bytes32' }], outputs: [{ name: 'count', type: 'uint256' }, { name: 'total', type: 'uint256' }] }];
+            const [liveCount, liveTotal] = await client.readContract({ address: contractAddress, abi, functionName: 'contentStats', args: [contentHash] });
+            const c = Number(liveCount);
+            if (c > 0) { count = c; average = Math.round((Number(liveTotal) / c / 10) * 10) / 10; }
+          } catch { /* live read is best-effort; indexed aggregate stands */ }
+        }
+      }
+
+      res.json({ success: true, contentId: content.id, externalId: content.externalId || null, contentHash, average, count });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to read rating stats', details: error.message });
     }
   });
 

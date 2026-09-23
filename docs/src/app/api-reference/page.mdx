@@ -204,6 +204,7 @@ Ratings are built from verified unlock eligibility, not raw votes:
 POST /hub/reputation/ratings/prepare     # sign a deterministic rating message (eligibility checked first)
 POST /hub/reputation/ratings/index       # index a delivered rating (onchain or signed)
 POST /hub/reputation/ratings/sync        # reconcile indexed rating proofs
+GET  /hub/reputation/ratings/stats?contentId=  # hub-authoritative rating read (average 1-5, count); never recompute the content hash locally
 GET  /hub/reputation/leaderboards        # content / site / creator leaderboards
 POST /hub/content/:contentId/rate        # rating surface for a resource
 ```

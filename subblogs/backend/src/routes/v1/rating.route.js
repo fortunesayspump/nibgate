@@ -30,8 +30,8 @@ router.get('/:postId', async (req, res, next) => {
     } else {
       try {
         const hubApi = require('../../config/config').nibgate.hubApi;
-        const r = await fetch(`${hubApi}/hub/reputation/ratings/stats?contentId=${encodeURIComponent(postId)}`, { signal: AbortSignal.timeout(10000) });
-        const data = await r.json().catch(() => null);
+        const sdk = await import('@nibgate/sdk/server');
+        const data = await sdk.getRatingStats({ contentId: postId, hubApiUrl: hubApi });
         if (data && data.success && Number(data.count) > 0) {
           const value = { average: data.average, count: Number(data.count) };
           statsCache.set(hubKey, { at: Date.now(), value });

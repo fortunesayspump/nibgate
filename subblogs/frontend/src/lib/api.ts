@@ -1,6 +1,11 @@
 import { subdomainFromHost } from "./utils";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const _rawBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/+$/, "");
+// The subblog API lives under /api on the backend host. Normalise exactly one
+// /api suffix so a bare-host env (no suffix) and a suffixed env behave
+// identically — a missing suffix 404s every client call (ratings stuck at
+// "No ratings yet"), an extra one double-prefixes.
+const API_BASE = _rawBase.endsWith("/api") ? _rawBase : `${_rawBase}/api`;
 
 export function apiUrl(path: string) {
   // Browser calls go same-origin through the Next rewrite (mirrors production,

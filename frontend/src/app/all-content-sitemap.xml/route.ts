@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/api";
+import { apiUrl, siteOrigin } from "@/lib/api";
 
 type SitemapContent = { urls?: Array<{ url?: string; updatedAt?: string }> };
 
@@ -24,7 +24,7 @@ export async function GET() {
   const hubUrls = HUB_ALWAYS.map(
     ({ path, priority, changefreq }) => `
   <url>
-    <loc>https://nibgate.xyz${path}</loc>
+    <loc>${siteOrigin()}${path}</loc>
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
   </url>`

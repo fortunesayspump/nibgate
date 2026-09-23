@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/api";
+import { apiUrl, siteOrigin } from "@/lib/api";
 
 type BlogPost = { slug: string; updatedAt: string; publishedAt: string };
 
@@ -14,7 +14,7 @@ async function getPosts(): Promise<BlogPost[]> {
 
 export async function GET() {
   const posts = await getPosts();
-  const siteUrl = "https://nibgate.xyz";
+  const siteUrl = siteOrigin();
 
   const urls = posts.map((post) => `
   <url>

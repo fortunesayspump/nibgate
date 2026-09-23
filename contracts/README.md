@@ -21,7 +21,7 @@ The `nibgate:content:v1` namespace is part of the identity. Future versions can 
 
 The backend indexes `ContentRated` events, then only counts a rating when the rater wallet also has an unlock receipt for the same content.
 
-## Backend env
+## Backend env (testnet shown; mainnet in `contracts/deployments/arc-mainnet.json`)
 
 ```bash
 NIBGATE_REPUTATION_CONTRACT=0x9f27fd62e75f86a3c7addfdba443aab1f930e281
@@ -30,9 +30,11 @@ NIBGATE_REPUTATION_CHAIN_ID=5042002
 NIBGATE_REPUTATION_CHAIN_NAME="Arc Testnet"
 ```
 
+Mainnet: `NIBGATE_REPUTATION_CONTRACT=0xbe8e49f6b60024c95124e723c4c487874873d7f1`, chain `5042`, RPC `https://rpc.mainnet.arc.io` — or just set `NIBGATE_NETWORK=mainnet` and let the defaults follow (explicit env always wins).
+
 `NIBGATE_REPUTATION_CONTRACT` is optional for the hosted backend if you want the default Arc Testnet deployment above. Set it explicitly when deploying a new proxy or using another network.
 
-## Deploy
+## Deploy (testnet shown; prefix `NIBGATE_NETWORK=mainnet` for mainnet)
 
 ```bash
 forge build --contracts contracts --out contracts/out --cache-path contracts/cache

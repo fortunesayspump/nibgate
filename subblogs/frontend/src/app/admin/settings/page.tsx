@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiAuthFetch } from "@/lib/api";
-import { activePaymentNetwork } from "@/lib/network";
+import { activeNetworkName, activePaymentNetwork } from "@/lib/network";
 import MarkdownEditor from "@/components/MarkdownEditor";
 
 type SiteSettings = {
@@ -23,6 +23,8 @@ type SiteSettings = {
 
 export default function AdminSettingsPage() {
   const router = useRouter();
+  const hubSiteUrl = activeNetworkName() === "mainnet" ? "https://nibgate.xyz" : "https://testnet.nibgate.xyz";
+  const hubSiteHost = activeNetworkName() === "mainnet" ? "nibgate.xyz" : "testnet.nibgate.xyz";
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [form, setForm] = useState({
     name: "", description: "", aboutMarkdown: "", recipientWallet: "",
@@ -206,7 +208,7 @@ export default function AdminSettingsPage() {
                 <div className="rounded-md p-3 space-y-2" style={{ background: "var(--card-hover)" }}>
                   <p className="text-xs font-medium">How to connect:</p>
                   <ol className="text-xs space-y-1 list-decimal pl-4" style={{ color: "var(--muted)" }}>
-                    <li>Sign in at <a href="https://nibgate.xyz" target="_blank" className="underline">nibgate.xyz</a> with your wallet</li>
+                    <li>Sign in at <a href={hubSiteUrl} target="_blank" className="underline">{hubSiteHost}</a> with your wallet</li>
                     <li>Go to <strong>Dashboard → Sites</strong></li>
                     <li>Click <strong>Link a blog</strong> → <strong>Generate linking code</strong></li>
                     <li>Copy the code and paste it below</li>

@@ -2,6 +2,10 @@ import { Callout, Cards } from 'nextra/components'
 
 # Nibshare
 
+<Callout type="info">
+Examples use Arc testnet values (free faucet USDC). For production, swap in the mainnet column — see [Networks](/networks).
+</Callout>
+
 Nibshare is Nibgate's hosted **quick-share** rail: connect a wallet, write content, set a USDC price, and get a short link at `https://nibgate.xyz/ns/<slug>`. No domain, widget, or site verification required — it is the on-ramp for "gate this snippet fast."
 
 It runs on the same rails as the rest of Nibgate: x402 / USDC / Circle Gateway payments on Arc (`eip155:5042002`), AES-256-GCM encryption at rest, and a viewer/agent unlock flow. The difference: Nibgate hosts and serves everything, so there is no creator-owned domain behind it.

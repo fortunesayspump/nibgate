@@ -1131,6 +1131,37 @@ export async function mirrorPeerSite(identity = {}) {
   return website;
 }
 
+// Mirror a peer-published editorial post (product updates, guides — free,
+// network-agnostic, never priced or unlocked). Author resolved by wallet, so
+// the byline follows the same identity on both stacks. Drafts never mirror.
+// Newer-local-wins: a locally newer updatedAt is never stomped by the peer.
+export async function mirrorPeerBlogPost(post = {}) {
+  if (post.status !== 'published') return null;
+  const slug = String(post.slug || '').trim();
+  if (!slug || !post.title || !post.bodyMarkdown) return null;
+  const author = await resolveUserByWallet(post.author?.walletAddress).catch(() => null);
+  if (!author) return null;
+  const existing = await db.blogPost.findUnique({ where: { slug } }).catch(() => null);
+  if (existing && existing.updatedAt && post.updatedAt && new Date(existing.updatedAt) >= new Date(post.updatedAt)) {
+    return existing;
+  }
+  const tags = Array.isArray(post.tags) ? post.tags.join(',') : (post.tags || null);
+  const data = {
+    title: post.title,
+    excerpt: post.excerpt || null,
+    bodyMarkdown: post.bodyMarkdown,
+    tag: post.tag || null,
+    tags,
+    coverUrl: post.coverUrl || null,
+    status: 'published',
+    publishedAt: post.publishedAt ? new Date(post.publishedAt) : (existing?.publishedAt || new Date()),
+    authorId: author.id,
+  };
+  return existing
+    ? db.blogPost.update({ where: { slug }, data })
+    : db.blogPost.create({ data: { slug, ...data } });
+}
+
 // Mirror this wallet's peer-verified sites onto this hub (identity only).
 // Called best-effort after wallet sign-in so an admin's sites follow them
 // across stacks with the same owner. No-op without a shared peer secret.

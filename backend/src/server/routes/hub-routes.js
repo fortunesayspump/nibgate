@@ -18,6 +18,7 @@ import {
   maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification, peerHubApiBase,
   localCanonicalDomain, normalizeWalletAddress, mintBlogLinkToken, verifyBlogLinkToken,
   resolveUserByWallet, checkPeerSecret, mirrorPeerSite, fetchPeerIdentity, siteIdentityFor,
+  mirrorPeerBlogPost,
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   ratingAverage, acceptedRatingCount,
@@ -155,9 +156,9 @@ export function registerHubRoutes(app) {
     try {
       if (!checkPeerSecret(req)) return res.status(403).json({ error: 'Forbidden.' });
       const { domains, all } = req.body || {};
+      const base = peerHubApiBase();
       let identities = [];
       if (all) {
-        const base = peerHubApiBase();
         const secret = (process.env.BLOG_LINK_SECRET || '').trim();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 15000);
@@ -187,7 +188,38 @@ export function registerHubRoutes(app) {
           skipped.push({ domain: identity.domain, reason: error.message });
         }
       }
-      res.json({ success: true, synced, skipped });
+      // Editorial blog posts (free, network-agnostic announcements) mirror
+      // too — published only, author by wallet, newer-local-wins.
+      const blogSynced = [];
+      const blogSkipped = [];
+      if (all) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
+        try {
+          const listResp = await fetch(`${base}/api/blog/posts`, { signal: controller.signal, headers: { accept: 'application/json' } });
+          if (listResp?.ok) {
+            const list = (await listResp.json()).posts || [];
+            for (const item of list) {
+              if (item.status !== 'published' || !item.slug) continue;
+              try {
+                const fullResp = await fetch(`${base}/api/blog/posts/${encodeURIComponent(item.slug)}`, { signal: controller.signal, headers: { accept: 'application/json' } });
+                if (!fullResp?.ok) throw new Error(`HTTP ${fullResp?.status}`);
+                const full = (await fullResp.json()).post;
+                const row = await mirrorPeerBlogPost(full);
+                if (row) blogSynced.push({ slug: item.slug });
+                else blogSkipped.push({ slug: item.slug, reason: 'no author wallet or up to date' });
+              } catch (error) {
+                blogSkipped.push({ slug: item.slug, reason: error.message });
+              }
+            }
+          }
+        } catch (error) {
+          blogSkipped.push({ slug: '*', reason: `blog index unreachable: ${error.message}` });
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      res.json({ success: true, synced, skipped, blogPosts: { synced: blogSynced, skipped: blogSkipped } });
     } catch (error) {
       res.status(500).json({ success: false, error: 'Identity sync failed', details: error.message });
     }

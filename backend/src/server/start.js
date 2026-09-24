@@ -24,12 +24,21 @@ try {
 } catch {} // .env is optional
 
 function runPrismaCommand() {
+  const repoRoot = path.resolve(__dirname, '../../..');
+  const prismaCli = path.resolve(repoRoot, 'packages/cli/node_modules/.bin/prisma');
+  const schemaPath = path.resolve(repoRoot, 'packages/cli/prisma/schema.prisma');
+  // NOTE: shell:true is required on Windows (the prisma entry is a .cmd shim
+  // that cannot exec directly); harmless on Linux. generate and push are
+  // independent steps — a generate failure (e.g. a locked query-engine DLL
+  // while another instance runs) must never block the schema push.
+  const opts = { stdio: 'pipe', timeout: 30000, cwd: repoRoot, shell: true };
   try {
-    const repoRoot = path.resolve(__dirname, '../../..');
-    const prismaCli = path.resolve(repoRoot, 'packages/cli/node_modules/.bin/prisma');
-    const schemaPath = path.resolve(repoRoot, 'packages/cli/prisma/schema.prisma');
-    execSync(`"${prismaCli}" generate --schema=${schemaPath} 2>&1`, { stdio: 'pipe', timeout: 30000, cwd: repoRoot });
-    execSync(`"${prismaCli}" db push --schema=${schemaPath} --skip-generate --accept-data-loss 2>&1`, { stdio: 'pipe', timeout: 30000, cwd: repoRoot });
+    execSync(`"${prismaCli}" generate --schema="${schemaPath}" 2>&1`, opts);
+  } catch (error) {
+    console.warn('[nibgate] Prisma generate skipped:', error.message?.split('\n')[0] || '');
+  }
+  try {
+    execSync(`"${prismaCli}" db push --schema="${schemaPath}" --skip-generate --accept-data-loss 2>&1`, opts);
     console.log('[nibgate] Prisma client generated and schema synced');
   } catch (error) {
     console.warn('[nibgate] Prisma setup skipped:', error.message?.split('\n')[0] || '');

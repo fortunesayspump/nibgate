@@ -38,6 +38,14 @@ function runPrismaCommand() {
 
 export async function startAppServer() {
   runPrismaCommand();
+  // Idempotent: stamp pre-tagging content/ledger rows with this hub's network.
+  try {
+    const { backfillNetworkColumns } = await import('./hub/helpers.js');
+    const counts = await backfillNetworkColumns();
+    console.log('[nibgate] Network backfill:', JSON.stringify(counts));
+  } catch (error) {
+    console.warn('[nibgate] Network backfill skipped:', error.message?.split('\n')[0] || '');
+  }
   const { createApp } = await import('./server.js');
   const { config, statePath } = loadServerConfig();
   const port = Number(process.env.PORT || 3000);

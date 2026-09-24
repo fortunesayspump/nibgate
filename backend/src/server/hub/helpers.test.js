@@ -4,8 +4,13 @@ import crypto from 'node:crypto';
 const dbMock = vi.hoisted(() => ({
   website: { update: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
   wallet: { findUnique: vi.fn() },
-  user: { findUnique: vi.fn(), create: vi.fn() },
-  publisherIdentity: { upsert: vi.fn() },
+  user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+  publisherIdentity: { upsert: vi.fn(), findUnique: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
+  session: { count: vi.fn() },
+  content: { updateMany: vi.fn() },
+  unlockReceipt: { updateMany: vi.fn(), upsert: vi.fn() },
+  contentRating: { updateMany: vi.fn() },
+  metric: { updateMany: vi.fn() },
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({ db: dbMock }));
@@ -26,6 +31,13 @@ import {
   mirrorPeerSite,
   fetchPeerIdentity,
   claimPeerSitesForWallet,
+  siteIdentityFor,
+  normalizeNetworkName,
+  networkForReceiptLike,
+  backfillNetworkColumns,
+  contentDataFor,
+  upsertUnlockReceipt,
+  createMetric,
 } from './helpers.js';
 
 describe('cross-stack verification sync', () => {
@@ -186,7 +198,8 @@ describe('cross-stack verification sync', () => {
     dbMock.user.findUnique.mockResolvedValue(null);
     dbMock.user.create.mockResolvedValue({ id: 'owner1' });
     dbMock.website.create.mockResolvedValue({ id: 'w9', domain: 'smalltalk.nibgate.xyz' });
-    dbMock.publisherIdentity.upsert.mockResolvedValue({});
+    dbMock.publisherIdentity.findUnique.mockResolvedValue(null);
+    dbMock.publisherIdentity.create.mockResolvedValue({});
 
     const row = await mirrorPeerSite({
       domain: 'smalltalk.testnet.nibgate.xyz', name: 'Smalltalk', verificationStatus: 'verified',
@@ -217,13 +230,12 @@ describe('cross-stack verification sync', () => {
 
   it('fetchPeerIdentity returns full identity only when verified', async () => {
     const ok = vi.fn(async () => ({ ok: true, json: async () => ({ verified: true, verificationStatus: 'verified', domain: 'd.com', name: 'D', ownerWallets: ['0x1'], publisher: { handle: 'd' } }) }));
-    expect(await fetchPeerIdentity('d.com', { fetchFn: ok })).toEqual({ domain: 'd.com', name: 'D', verificationStatus: 'verified', lastVerifiedAt: null, ownerWallets: ['0x1'], publisher: { handle: 'd' } });
+    expect(await fetchPeerIdentity('d.com', { fetchFn: ok })).toEqual({ domain: 'd.com', name: 'D', verificationStatus: 'verified', lastVerifiedAt: null, ownerWallets: ['0x1'], publisher: { handle: 'd' }, siteMeta: null, ownerProfile: null });
     const no = vi.fn(async () => ({ ok: true, json: async () => ({ verified: false }) }));
     expect(await fetchPeerIdentity('d.com', { fetchFn: no })).toBeNull();
   });
 
-  it('claimPeerSitesForWallet mirrors only the signer wallet sites', async () => {
-    process.env.NIBGATE_NETWORK = 'mainnet';
+  it('claimPeerSitesForWallet mirrors only the signer wallet sites', async () => {    process.env.NIBGATE_NETWORK = 'mainnet';
     process.env.BLOG_LINK_SECRET = 's';
     const mine = '0x00000000000000000000000000000000000000aa';
     const fetcher = vi.fn(async () => ({
@@ -265,5 +277,82 @@ describe('cross-stack verification sync', () => {
     const customSite = { id: 'w3', domain: 'custom.com', deletedAt: null, isVerified: false, verificationStatus: 'pending', lastPeerCheckAt: null };
     await adoptCrossStackIfStale(customSite, { fetchFn: fetcher });
     expect(dbMock.website.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('stamps the hub network on content, receipts, ratings, and metrics', async () => {
+    process.env.NIBGATE_NETWORK = 'testnet';
+    const website = { id: 'w1', domain: 'custom.com' };
+    const data = contentDataFor(website, { resource: { id: 'r1', title: 'T' } });
+    expect(data.network).toBe('testnet');
+
+    dbMock.unlockReceipt.upsert.mockResolvedValue({ id: 'r1' });
+    const content = { id: 'c1', recipientWallet: null, currency: 'USDC' };
+    await upsertUnlockReceipt(website, content, { amount: '1', chainId: 5042002 }, 'payment_completed', { serverVerified: true });
+    expect(dbMock.unlockReceipt.upsert.mock.calls[0][0].create.network).toBe('testnet');
+
+    dbMock.metric.create = vi.fn().mockResolvedValue({ id: 'm1' });
+    await createMetric(website, content, {}, 'page_view', 'view');
+    expect(dbMock.metric.create.mock.calls[0][0].data.network).toBe('testnet');
+  });
+
+  it('rejects receipts whose chain attests the other stack', async () => {
+    process.env.NIBGATE_NETWORK = 'testnet';
+    dbMock.unlockReceipt.upsert.mockClear();
+    const website = { id: 'w1', domain: 'custom.com' };
+    const content = { id: 'c1', recipientWallet: null, currency: 'USDC' };
+    const skipped = await upsertUnlockReceipt(website, content, { amount: '1', chainId: 5042 }, 'payment_completed', { serverVerified: true });
+    expect(skipped).toBeNull();
+    expect(dbMock.unlockReceipt.upsert).not.toHaveBeenCalled();
+    expect(networkForReceiptLike({ chainId: 5042002 })).toBe('testnet');
+    expect(normalizeNetworkName('eip155:5042')).toBe('mainnet');
+  });
+
+  it('backfills null networks idempotently per model', async () => {
+    process.env.NIBGATE_NETWORK = 'mainnet';
+    dbMock.content.updateMany.mockResolvedValue({ count: 3 });
+    dbMock.unlockReceipt.updateMany.mockResolvedValue({ count: 0 });
+    dbMock.contentRating.updateMany.mockResolvedValue({ count: 1 });
+    dbMock.metric.updateMany.mockResolvedValue({ count: 9 });
+    const counts = await backfillNetworkColumns();
+    expect(counts).toEqual({ content: 3, unlockReceipt: 0, contentRating: 1, metric: 9 });
+    expect(dbMock.content.updateMany.mock.calls[0][0]).toEqual({ where: { network: null }, data: { network: 'mainnet' } });
+  });
+
+  it('siteIdentityFor carries site meta and owner profile', async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      id: 'u1', walletAddress: '0x0000000000000000000000000000000000000001',
+      username: 'creator', bio: 'writes things', avatarUrl: 'https://img/x.png',
+      wallets: [{ address: '0x0000000000000000000000000000000000000001' }],
+    });
+    dbMock.publisherIdentity.findFirst.mockResolvedValue({ externalId: 'e1', handle: 'h', name: 'N', walletAddress: null });
+    const identity = await siteIdentityFor({ id: 'w1', ownerId: 'u1', name: 'S', description: 'D', faviconUrl: 'F', ogImageUrl: null });
+    expect(identity.ownerWallets).toEqual(['0x0000000000000000000000000000000000000001']);
+    expect(identity.ownerProfile.username).toBe('creator');
+    expect(identity.ownerProfile.avatarUrl).toBe('https://img/x.png');
+    expect(identity.siteMeta).toEqual({ name: 'S', description: 'D', faviconUrl: 'F', ogImageUrl: null });
+    expect(identity.publisher.handle).toBe('h');
+  });
+
+  it('mirror refreshes metadata fill-forward without stomping local edits', async () => {
+    process.env.NIBGATE_NETWORK = 'mainnet';
+    const identity = {
+      domain: 'smalltalk.testnet.nibgate.xyz', name: 'Smalltalk', verificationStatus: 'verified',
+      ownerWallets: ['0x0000000000000000000000000000000000000007'],
+      publisher: { externalId: 'ext1', handle: 'smalltalk' },
+      siteMeta: { name: 'Smalltalk', description: 'Peer desc', faviconUrl: 'https://peer/f.png', ogImageUrl: null },
+      ownerProfile: { walletAddress: '0x0000000000000000000000000000000000000007', username: 'peername', bio: 'Peer bio' },
+    };
+    dbMock.website.findFirst.mockResolvedValue({ id: 'w9', domain: 'smalltalk.nibgate.xyz', ownerId: 'owner1', description: 'Local desc', faviconUrl: null });
+    dbMock.website.update.mockResolvedValue({ id: 'w9' });
+    dbMock.session.count.mockResolvedValue(2);
+    dbMock.publisherIdentity.findUnique.mockResolvedValue(null);
+    dbMock.publisherIdentity.create.mockResolvedValue({});
+
+    const row = await mirrorPeerSite(identity);
+    expect(row.id).toBe('w9');
+    const updateData = dbMock.website.update.mock.calls[0][0].data;
+    expect(updateData.description).toBeUndefined();
+    expect(updateData.faviconUrl).toBe('https://peer/f.png');
+    expect(dbMock.user.update).not.toHaveBeenCalled();
   });
 });

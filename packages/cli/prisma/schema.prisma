@@ -131,6 +131,7 @@ model Content {
   recipientWallet       String?
   accessPolicy          String?
   unlockPolicy          String?
+  network               String? // originating stack: testnet | mainnet (hub-stamped, see contentDataFor)
   lastSeenAt            DateTime?
   deletedAt             DateTime?
   createdAt             DateTime           @default(now())
@@ -208,6 +209,7 @@ model ContentRating {
   proofType     String?
   proof         String?
   status        String             @default("accepted")
+  network       String? // originating stack: testnet | mainnet (hub-stamped)
   metadata      String?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -242,6 +244,7 @@ model Metric {
   durationMs  Int?
   scrollDepth Float?
   metadata    String?
+  network     String? // originating stack: testnet | mainnet (hub-stamped)
   createdAt   DateTime           @default(now())
 
   @@index([websiteId, type, createdAt])

@@ -4,7 +4,7 @@ const dbMock = vi.hoisted(() => ({
   website: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
   user: { findUnique: vi.fn(), create: vi.fn() },
   wallet: { findUnique: vi.fn() },
-  publisherIdentity: { findFirst: vi.fn(), upsert: vi.fn() },
+  publisherIdentity: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({ db: dbMock }));
@@ -114,7 +114,8 @@ describe('hub routes: cross-stack identity surface', () => {
     dbMock.user.findUnique.mockResolvedValue(null);
     dbMock.user.create.mockResolvedValue({ id: 'owner1' });
     dbMock.website.create.mockResolvedValue({ id: 'w9', domain: 'smalltalk.nibgate.xyz' });
-    dbMock.publisherIdentity.upsert.mockResolvedValue({});
+    dbMock.publisherIdentity.findUnique.mockResolvedValue(null);
+    dbMock.publisherIdentity.create.mockResolvedValue({});
 
     const res = mockRes();
     await handlers['POST /api/hub/site/sync-from-peer'](

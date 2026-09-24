@@ -1324,8 +1324,13 @@ export async function fetchPeerVerification(domain, overrides = {}) {
 export async function maybeAdoptPeerVerification(result, website, overrides = {}) {
   if (!result || (result.ok && result.status === 'verified')) return result;
   if (isHostedNibgateDomain(website.domain)) return result;
+  // TTL-gated like the read path: a recent consult (hit or miss) is reused so
+  // repeated verify clicks can't amplify peer traffic.
+  if (website.lastPeerCheckAt && Date.now() - new Date(website.lastPeerCheckAt).getTime() < CROSS_STACK_ADOPT_TTL_MS) {
+    return result;
+  }
   const peer = await fetchPeerVerification(website.domain, overrides);
-  if (!peer) return result;
+  if (!peer) return { ...result, data: { ...(result.data || {}), lastPeerCheckAt: new Date() } };
   return {
     ok: true,
     status: 'verified',

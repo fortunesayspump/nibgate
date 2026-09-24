@@ -93,7 +93,12 @@ describe('cross-stack verification sync', () => {
     expect(adopted.data.verificationSource).toBe('cross-stack');
 
     const noPeer = await maybeAdoptPeerVerification(local, { domain: 'example.com' }, { fetchFn: async () => ({ ok: true, json: async () => ({ verified: false }) }) });
-    expect(noPeer).toEqual(local);
+    expect(noPeer.ok).toBe(false);
+    expect(noPeer.data.lastPeerCheckAt).toBeInstanceOf(Date);
+
+    const fresh = await maybeAdoptPeerVerification(local, { domain: 'example.com', lastPeerCheckAt: new Date() }, { fetchFn: fetcher });
+    expect(fresh).toEqual(local);
+    expect(fetcher).toHaveBeenCalledTimes(1);
 
     const alreadyOk = { ok: true, status: 'verified', reason: '', data: { isVerified: true } };
     const untouched = await maybeAdoptPeerVerification(alreadyOk, { domain: 'example.com' }, { fetchFn: fetcher });

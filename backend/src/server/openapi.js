@@ -75,7 +75,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.4",
+    version: "0.2.5",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -474,13 +474,13 @@ export const openApiSpec = {
         tags: ["Platform"],
         summary: "Cross-stack site verification status",
         description:
-          "Public verification status for a canonical site domain. Widget/account verification is network-agnostic: a domain verified on one hub (testnet or mainnet) is verified on both; only txs and ratings differ per stack. Nibgate-apex hosted sites (*.nibgate.xyz subblogs) are network-pinned and never adopted cross-stack.",
+          "Public verification status for a canonical site domain, including owner wallets and publisher profile for verified sites. Widget/account verification is network-agnostic: a domain verified on one hub (testnet or mainnet) is verified on both; only txs and ratings differ per stack. Nibgate-apex hosted sites (*.nibgate.xyz subblogs) are network-pinned and never adopted cross-stack.",
         parameters: [
           { name: "domain", in: "query", required: true, schema: { type: "string" }, description: "Canonical site domain, e.g. example.com." },
         ],
         responses: {
           "200": {
-            description: "Verification status; verified payload includes verificationSource (widget | cross-stack).",
+            description: "Verification status; verified payload includes verificationSource (widget | owner-link | cross-stack), ownerWallets, and publisher.",
             content: {
               "application/json": {
                 schema: {
@@ -490,13 +490,40 @@ export const openApiSpec = {
                     verified: { type: "boolean" },
                     verificationStatus: { type: "string" },
                     domain: { type: "string" },
+                    name: { type: "string" },
                     lastVerifiedAt: { type: "string", format: "date-time", nullable: true },
                     verificationSource: { type: "string" },
+                    ownerWallets: { type: "array", items: { type: "string" } },
+                    publisher: { type: "object", nullable: true },
                   },
                 },
               },
             },
           },
+        },
+      },
+    },
+    "/hub/site/verified-identities": {
+      get: {
+        tags: ["Platform"],
+        summary: "Peer identity index (ops, secret-gated)",
+        description:
+          "Lists verified sites with owner wallets and publisher profile for hub-to-hub identity sync. Requires x-peer-secret equal to the shared BLOG_LINK_SECRET. No content, receipts, ratings, or metrics are ever included.",
+        responses: {
+          "200": { description: "Verified site identities." },
+          "403": { description: "Forbidden." },
+        },
+      },
+    },
+    "/hub/site/sync-from-peer": {
+      post: {
+        tags: ["Platform"],
+        summary: "Mirror peer site identities (ops, secret-gated)",
+        description:
+          "Provisions identity-only mirror rows for peer-verified sites (translated to local canonical domains, owner resolved by wallet). Copies site identity, verification, and publisher profile only — never content, receipts, ratings, or metrics. Requires x-peer-secret equal to the shared BLOG_LINK_SECRET. Body: { domains: string[] } or { all: true }.",
+        responses: {
+          "200": { description: "Sync result with synced[] and skipped[]." },
+          "403": { description: "Forbidden." },
         },
       },
     },

@@ -64,6 +64,12 @@ describe('normalizePaymentRail', () => {
     expect(normalizePaymentRail('unknown')).toBe('gateway')
     expect(normalizePaymentRail('')).toBe('gateway')
   })
+
+  it('takes the first of duplicate query params instead of misrouting', () => {
+    expect(normalizePaymentRail(['transfer', 'transfer'])).toBe('transfer')
+    expect(normalizePaymentRail(['gateway', 'transfer'])).toBe('gateway')
+    expect(normalizePaymentRail([])).toBe('gateway')
+  })
 })
 
 describe('normalizeUnlockPolicy', () => {

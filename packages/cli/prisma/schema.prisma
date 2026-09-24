@@ -60,6 +60,8 @@ model Website {
   owner                     User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   isVerified                Boolean             @default(false)
   verificationStatus        String              @default("pending")
+  verificationSource        String?             @default("widget") // widget | cross-stack (adopted from the counterpart network's hub)
+  lastPeerCheckAt           DateTime?           // last cross-stack adoption consult, TTL-gated
   lastVerifiedAt            DateTime?
   lastVerificationCheckAt   DateTime?
   verificationFailureReason String?

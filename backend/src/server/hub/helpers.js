@@ -1,5 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
-import { hostsFor } from '@nibgate/internal/networks.js';
+import { hostsFor, activeNetworkName } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
@@ -76,6 +76,7 @@ export function serializeWebsite(website) {
     description: website.description || '',
     isVerified: website.isVerified,
     verificationStatus: website.verificationStatus || (website.isVerified ? 'verified' : 'pending'),
+    verificationSource: website.verificationSource || (website.isVerified && website.verificationStatus === 'verified' ? 'widget' : ''),
     lastVerifiedAt: website.lastVerifiedAt || null,
     lastVerificationCheckAt: website.lastVerificationCheckAt || null,
     verificationFailureReason: website.verificationFailureReason || '',
@@ -887,6 +888,103 @@ export async function checkWebsiteVerification(website) {
       data: { ...data, isVerified: false, verificationStatus: 'failed', verificationFailureReason: 'Could not fetch the site homepage to verify the Nibgate widget.' }
     };
   }
+}
+
+// ── Cross-stack verification sync ─────────────────────────────────────────
+// Widget/account surfaces are NOT crypto-specific: only txs and ratings differ
+// between hubs. So a canonical `domain` verified on ONE stack is authoritative
+// for both — the other hub adopts it instead of demanding its own widget tag
+// (which embeds a per-stack site id and can only exist on one hub at a time).
+
+export const CROSS_STACK_ADOPT_TTL_MS = 60 * 60 * 1000;
+
+// Hosted Nibgate-apex sites (subblogs, <name>.nibgate.xyz) are network-pinned:
+// the testnet stack owns testnet subblogs, mainnet owns mainnet subblogs, and
+// a verification must never bleed a testnet subblog into the mainnet hub.
+// Cross-stack adoption therefore applies ONLY to external custom domains.
+export function isHostedNibgateDomain(domain = '') {
+  return String(domain || '').toLowerCase().endsWith('.nibgate.xyz');
+}
+
+export function peerHubApiBase() {
+  const override = (process.env.NIBGATE_PEER_HUB_URL || '').trim().replace(/\/+$/, '');
+  if (override) return override;
+  const other = activeNetworkName() === 'mainnet' ? 'testnet' : 'mainnet';
+  return hostsFor(other).apiBase;
+}
+
+export function crossStackAdoptData(localData = {}, peer) {
+  return {
+    ...localData,
+    isVerified: true,
+    verificationStatus: 'verified',
+    verificationFailureReason: null,
+    lastVerifiedAt: peer?.lastVerifiedAt ? new Date(peer.lastVerifiedAt) : new Date(),
+    verificationSource: 'cross-stack',
+    lastPeerCheckAt: new Date(),
+  };
+}
+
+// Ask the counterpart hub whether a canonical domain is verified. Returns null
+// on any failure, non-verified status, or absence on the peer.
+export async function fetchPeerVerification(domain, { timeoutMs = 8000, fetchFn = globalThis.fetch } = {}) {
+  const cleaned = cleanDomain(domain);
+  if (!cleaned) return null;
+  const base = peerHubApiBase();
+  if (!base) return null;
+  const url = `${base}/api/hub/site/verify-status?domain=${encodeURIComponent(cleaned)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetchFn(url, { signal: controller.signal, headers: { accept: 'application/json' } });
+    if (!resp?.ok) return null;
+    const body = await resp.json();
+    if (!body?.verified || body?.verificationStatus !== 'verified') return null;
+    return { verified: true, verificationStatus: 'verified', lastVerifiedAt: body.lastVerifiedAt || null, source: 'cross-stack' };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Used by verify/register flows: local widget check failed but the peer accepts
+// the domain → adopt. Does NOT persist; the caller persists the returned data.
+export async function maybeAdoptPeerVerification(result, website, overrides = {}) {
+  if (!result || (result.ok && result.status === 'verified')) return result;
+  if (isHostedNibgateDomain(website.domain)) return result;
+  const peer = await fetchPeerVerification(website.domain, overrides);
+  if (!peer) return result;
+  return {
+    ok: true,
+    status: 'verified',
+    reason: 'Accepted cross-stack verification from the counterpart hub.',
+    data: crossStackAdoptData(result.data || {}, peer),
+  };
+}
+
+// Used by read paths (sites list, verify-status): if a site is not locally
+// verified and we haven't consulted the peer recently, adopt a verified peer
+// status and persist it so the badge reflects network-wide without a re-click.
+// Returns the updated website row, or the original if nothing changed.
+export async function adoptCrossStackIfStale(website, overrides = {}) {
+  if (!website) return website;
+  if (website.deletedAt) return website;
+  if (isHostedNibgateDomain(website.domain)) return website;
+  if (website.isVerified && website.verificationStatus === 'verified') return website;
+  if (website.lastPeerCheckAt && Date.now() - new Date(website.lastPeerCheckAt).getTime() < CROSS_STACK_ADOPT_TTL_MS) {
+    return website;
+  }
+  const peer = await fetchPeerVerification(website.domain, overrides);
+  if (!peer) {
+    await db.website.update({ where: { id: website.id }, data: { lastPeerCheckAt: new Date() } }).catch(() => {});
+    return website;
+  }
+  const updated = await db.website.update({
+    where: { id: website.id },
+    data: crossStackAdoptData({ lastVerificationCheckAt: new Date() }, peer),
+  }).catch(() => null);
+  return updated || website;
 }
 
 // ── Manifest sync ──────────────────────────────────────────────────────────

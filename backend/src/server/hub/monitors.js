@@ -7,7 +7,7 @@ import {
   checkWebsiteVerification, syncWebsiteManifest, serializeContent,
   CONTENT_RATED_EVENT, siteReputationScore, creatorReputationScore,
   primaryWalletAddress, contentHashFor, findContentByHash,
-  upsertOnchainRatingForContent
+  upsertOnchainRatingForContent, fetchPeerVerification
 } from './helpers.js';
 
 let verificationMonitorStarted = false;
@@ -46,6 +46,21 @@ async function runVerificationSweep() {
           data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, lastVerificationCheckAt: new Date() }
         }).catch(() => {});
       }
+      continue;
+    }
+
+    // Cross-stack mirrors are peer-owned: the widget on the homepage carries
+    // the OTHER hub's site id, so a local widget check would wrongly demote
+    // them. Refresh against the peer instead — keep while peer-verified,
+    // demote if the peer revoked.
+    if (website.verificationSource === 'cross-stack') {
+      const peer = await fetchPeerVerification(website.domain).catch(() => null);
+      await db.website.update({
+        where: { id: website.id },
+        data: peer
+          ? { lastVerificationCheckAt: new Date(), lastPeerCheckAt: new Date(), verificationFailures: 0 }
+          : { isVerified: false, verificationStatus: 'revoked', verificationFailureReason: 'Peer hub no longer reports this domain as verified.', lastVerificationCheckAt: new Date() },
+      }).catch(() => {});
       continue;
     }
 

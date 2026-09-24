@@ -1,4 +1,5 @@
 import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession, sessionCookieName, nonceCookieName } from '@nibgate/internal/auth.js';
+import { claimPeerSitesForWallet } from '../hub/helpers.js';
 
 // In-memory SIWE brute-force guard: the verify endpoint gets a tight cap (20
 // attempts per IP per 15 min); the nonce endpoint is fetched on every
@@ -53,6 +54,11 @@ export function registerAuthRoutes(app) {
 
       res.clearCookie(nonceCookieName(), { ...cookieOpts });
       res.cookie(sessionCookieName(), sessionToken, { ...cookieOpts, maxAge: 1000 * 60 * 60 * 24 * 30 });
+
+      // Best-effort, non-blocking: mirror this wallet's peer-verified sites so
+      // identity follows the admin across stacks (same login, same sites).
+      // Never delays or fails the login itself.
+      claimPeerSitesForWallet(user.walletAddress).catch(() => {});
 
       res.json({ success: true, user });
     } catch (error) {

@@ -25,6 +25,7 @@ import {
   checkPeerSecret,
   mirrorPeerSite,
   fetchPeerIdentity,
+  claimPeerSitesForWallet,
 } from './helpers.js';
 
 describe('cross-stack verification sync', () => {
@@ -219,6 +220,33 @@ describe('cross-stack verification sync', () => {
     expect(await fetchPeerIdentity('d.com', { fetchFn: ok })).toEqual({ domain: 'd.com', name: 'D', verificationStatus: 'verified', lastVerifiedAt: null, ownerWallets: ['0x1'], publisher: { handle: 'd' } });
     const no = vi.fn(async () => ({ ok: true, json: async () => ({ verified: false }) }));
     expect(await fetchPeerIdentity('d.com', { fetchFn: no })).toBeNull();
+  });
+
+  it('claimPeerSitesForWallet mirrors only the signer wallet sites', async () => {
+    process.env.NIBGATE_NETWORK = 'mainnet';
+    process.env.BLOG_LINK_SECRET = 's';
+    const mine = '0x00000000000000000000000000000000000000aa';
+    const fetcher = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ sites: [
+        { domain: 'mine.testnet.nibgate.xyz', name: 'Mine', verificationStatus: 'verified', ownerWallets: [mine], publisher: null },
+        { domain: 'theirs.testnet.nibgate.xyz', name: 'Theirs', verificationStatus: 'verified', ownerWallets: ['0x00000000000000000000000000000000000000bb'], publisher: null },
+      ] }),
+    }));
+    dbMock.website.findFirst.mockResolvedValue(null);
+    dbMock.wallet.findUnique.mockResolvedValue(null);
+    dbMock.user.findUnique.mockResolvedValue(null);
+    dbMock.user.create.mockResolvedValue({ id: 'owner1' });
+    dbMock.website.create.mockImplementation(async ({ data }) => ({ id: 'w', domain: data.domain }));
+    dbMock.publisherIdentity.upsert.mockResolvedValue({});
+
+    const claimed = await claimPeerSitesForWallet(mine, { fetchFn: fetcher });
+    expect(claimed).toEqual(['mine.nibgate.xyz']);
+    expect(dbMock.website.create.mock.calls[0][0].data.domain).toBe('mine.nibgate.xyz');
+
+    process.env.BLOG_LINK_SECRET = '';
+    expect(await claimPeerSitesForWallet(mine, { fetchFn: fetcher })).toEqual([]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it('never adopts cross-stack status for hosted nibgate-apex (subblog) domains', async () => {

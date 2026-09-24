@@ -1028,6 +1028,45 @@ export async function mirrorPeerSite(identity = {}) {
   return website;
 }
 
+// Mirror this wallet's peer-verified sites onto this hub (identity only).
+// Called best-effort after wallet sign-in so an admin's sites follow them
+// across stacks with the same owner. No-op without a shared peer secret.
+export async function claimPeerSitesForWallet(wallet, overrides = {}) {
+  const address = normalizeWalletAddress(wallet);
+  if (!address) return [];
+  const secret = (process.env.BLOG_LINK_SECRET || '').trim();
+  if (!secret) return [];
+  const base = peerHubApiBase();
+  if (!base) return [];
+  const fetchFn = overrides.fetchFn || globalThis.fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetchFn(`${base}/api/hub/site/verified-identities`, {
+      signal: controller.signal,
+      headers: { accept: 'application/json', 'x-peer-secret': secret },
+    });
+    if (!resp?.ok) return [];
+    const sites = (await resp.json()).sites || [];
+    const claimed = [];
+    for (const identity of sites) {
+      const owners = (identity.ownerWallets || []).map(normalizeWalletAddress);
+      if (!owners.includes(address)) continue;
+      try {
+        const row = await mirrorPeerSite(identity);
+        if (row) claimed.push(row.domain);
+      } catch {
+        // Per-site failures never block the rest.
+      }
+    }
+    return claimed;
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Cross-stack verification sync ─────────────────────────────────────────
 // Widget/account surfaces are NOT crypto-specific: only txs and ratings differ
 // between hubs. So a canonical `domain` verified on ONE stack is authoritative

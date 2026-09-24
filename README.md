@@ -126,7 +126,7 @@ Local-only and not tracked in this repo. An origin app that behaves like a creat
 
 ## Networks & deployments
 
-Nibgate runs two parallel stacks. Mainnet is the production surface; testnet mirrors it for staging. Balances, unlocks, reputation, and databases do NOT cross networks.
+Nibgate runs two parallel stacks. Mainnet is the production surface; testnet mirrors it for staging. Identity syncs across stacks; money and content do not: sites (domain, verification, owner wallet, publisher profile), user accounts (same wallet = same admin everywhere), and published editorial blog posts mirror testnet<->mainnet. Content catalogs, unlocks, payments, ratings, metrics, and sessions stay per-stack — every content/ledger row carries its hub-stamped `network` tag, and receipts whose chain attests the other stack are rejected.
 
 | | Mainnet | Testnet |
 |---|---|---|

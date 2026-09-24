@@ -522,7 +522,7 @@ export const openApiSpec = {
         tags: ["Platform"],
         summary: "Mirror peer site identities (ops, secret-gated)",
         description:
-          "Provisions identity-only mirror rows for peer-verified sites (translated to local canonical domains, owner resolved by wallet). Copies site identity, verification, and publisher profile only — never content, receipts, ratings, or metrics. Requires x-peer-secret equal to the shared BLOG_LINK_SECRET. Body: { domains: string[] } or { all: true }.",
+          "Provisions identity-only mirror rows for peer-verified sites (translated to local canonical domains, owner resolved by wallet) plus published editorial blog posts (author by wallet, newer-local-wins). Copies site identity, verification, publisher profile, and blog posts only — never content, receipts, ratings, or metrics. Requires x-peer-secret equal to the shared BLOG_LINK_SECRET. Body: { domains: string[] } or { all: true }.",
         responses: {
           "200": { description: "Sync result with synced[] and skipped[]." },
           "403": { description: "Forbidden." },

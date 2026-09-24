@@ -69,6 +69,20 @@ DELETE /hub/sites/:websiteId
 
 Note: the path param is `websiteId` (the site UUID), and registration is `/sites/register` — not `POST /hub/sites`.
 
+## Cross-stack identity sync
+
+Site identity (domain, verification, owner wallet, publisher profile) syncs testnet<->mainnet while content and money stay per-stack. Blog link tokens bind the minter wallet, so one token links a blog on both hubs (requires the same `BLOG_LINK_SECRET` on both).
+
+```http
+GET  /hub/site/verify-status?domain=example.com   # public verification + identity for a domain
+POST /hub/blog/link/generate                      # mint a wallet-bound link token (auth)
+POST /hub/blog/link/verify                        # link a blog; resolves owner by wallet across stacks
+GET  /hub/site/verified-identities                # peer identity index (x-peer-secret gated)
+POST /hub/site/sync-from-peer                     # mirror peer identities + published blog posts (x-peer-secret gated)
+```
+
+Every content, receipt, rating, metric, and content-event row carries its hub-stamped `network` (`testnet` | `mainnet`); receipts whose `chainId` attests the other stack are rejected.
+
 ## Event ingestion
 
 Widget and package event routes should reject unknown origins, removed sites, stale verification, and malformed content ids.

@@ -2,7 +2,7 @@ import { Callout, Cards } from 'nextra/components'
 
 # Networks
 
-Nibgate runs two parallel stacks on Arc. **Mainnet is the production surface** — real USDC, real creators. **Testnet mirrors it** for staging, development, and trying things with free faucet USDC. Balances, unlocks, reputation, shares, and databases do **not** cross networks.
+Nibgate runs two parallel stacks on Arc. **Mainnet is the production surface** — real USDC, real creators. **Testnet mirrors it** for staging, development, and trying things with free faucet USDC. Identity syncs across stacks; money and content do not (details below).
 
 ## Hosts
 
@@ -16,6 +16,12 @@ Nibgate runs two parallel stacks on Arc. **Mainnet is the production surface** �
 | Docs (this site) | `https://docs.nibgate.xyz` | same (docs are network-agnostic) |
 
 Every new Subblog is reachable on both networks from creation: `<name>.nibgate.xyz` and `<name>.testnet.nibgate.xyz` serve the same site row on their respective stacks.
+
+## What syncs across stacks
+
+**Shared identity:** sites (domain, verification state, owner wallet, publisher profile, display metadata), user accounts (same wallet = same admin on both stacks — sign-in is find-or-create by wallet), and published editorial blog posts. Verify a custom domain once and both hubs agree; hosted `*.nibgate.xyz` subblogs stay network-pinned.
+
+**Per-stack, never synced:** content catalogs, unlocks, payments, ratings, metrics, sessions. Every content/ledger row carries its hub-stamped `network` tag (`testnet` | `mainnet`), and receipts whose on-chain `chainId` attests the other stack are rejected at write time — testnet (valueless) money can never open mainnet (real-money) content.
 
 ## Chains
 

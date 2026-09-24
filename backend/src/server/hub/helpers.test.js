@@ -11,6 +11,7 @@ const dbMock = vi.hoisted(() => ({
   unlockReceipt: { updateMany: vi.fn(), upsert: vi.fn() },
   contentRating: { updateMany: vi.fn() },
   metric: { updateMany: vi.fn() },
+  contentEvent: { updateMany: vi.fn() },
   blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
 
@@ -315,8 +316,9 @@ describe('cross-stack verification sync', () => {
     dbMock.unlockReceipt.updateMany.mockResolvedValue({ count: 0 });
     dbMock.contentRating.updateMany.mockResolvedValue({ count: 1 });
     dbMock.metric.updateMany.mockResolvedValue({ count: 9 });
+    dbMock.contentEvent.updateMany.mockResolvedValue({ count: 2 });
     const counts = await backfillNetworkColumns();
-    expect(counts).toEqual({ content: 3, unlockReceipt: 0, contentRating: 1, metric: 9 });
+    expect(counts).toEqual({ content: 3, unlockReceipt: 0, contentRating: 1, metric: 9, contentEvent: 2 });
     expect(dbMock.content.updateMany.mock.calls[0][0]).toEqual({ where: { network: null }, data: { network: 'mainnet' } });
   });
 

@@ -517,7 +517,7 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
 async function recordContentEvent(websiteId, content, eventType) {
   try {
     await db.contentEvent.create({
-      data: { contentId: content.id, websiteId, eventType, url: content.url || null }
+      data: { contentId: content.id, websiteId, eventType, url: content.url || null, network: activeNetworkName() }
     });
   } catch (error) {
     console.warn(`Failed to record content event ${eventType}:`, error.message);
@@ -931,7 +931,7 @@ export function networkForReceiptLike(input = {}) {
 export async function backfillNetworkColumns() {
   const network = activeNetworkName();
   const counts = {};
-  for (const [model, label] of [[db.content, 'content'], [db.unlockReceipt, 'unlockReceipt'], [db.contentRating, 'contentRating'], [db.metric, 'metric']]) {
+  for (const [model, label] of [[db.content, 'content'], [db.unlockReceipt, 'unlockReceipt'], [db.contentRating, 'contentRating'], [db.metric, 'metric'], [db.contentEvent, 'contentEvent']]) {
     try {
       const r = await model.updateMany({ where: { network: null }, data: { network } });
       counts[label] = r.count;

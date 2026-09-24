@@ -37,7 +37,7 @@ Nibgate runs on two Arc networks. Unless you are staging, integrate against **ma
 | Explorer | `https://explorer.arc.io` | `https://testnet.arcscan.app` |
 | Browser wallet chain | `NEXT_PUBLIC_NIBGATE_NETWORK=mainnet` | (default testnet) |
 
-The examples below show testnet values (`eip155:5042002`, `rpc.testnet.arc.io`) because testnet USDC is free from the faucet. For production, swap in the mainnet column. USDC is `0x360000...0000` and the Gateway domain is 26 on both networks. Balances and unlocks do NOT cross networks.
+The examples below show testnet values (`eip155:5042002`, `rpc.testnet.arc.io`) because testnet USDC is free from the faucet. For production, swap in the mainnet column. USDC is `0x360000...0000` and the Gateway domain is 26 on both networks. Balances and unlocks do NOT cross networks. Identity does: verify a custom domain once and both hubs agree, and the same wallet owns the same account on both stacks (sign-in is find-or-create by wallet).
 
 ---
 

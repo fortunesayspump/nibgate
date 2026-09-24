@@ -15,7 +15,7 @@ import {
   upsertContentRating, contentHashFor, verifySignedRating,
   upsertOnchainRatingForContent, createMetric,
   syncWebsiteManifest, checkWebsiteVerification,
-  maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification,
+  maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification, peerHubApiBase,
   localCanonicalDomain, normalizeWalletAddress, mintBlogLinkToken, verifyBlogLinkToken,
   resolveUserByWallet, checkPeerSecret, mirrorPeerSite, fetchPeerIdentity,
   serializeContent, serializePublisherIdentity,

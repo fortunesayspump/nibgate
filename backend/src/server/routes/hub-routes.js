@@ -15,6 +15,7 @@ import {
   upsertContentRating, contentHashFor, verifySignedRating,
   upsertOnchainRatingForContent, createMetric,
   syncWebsiteManifest, checkWebsiteVerification,
+  maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification,
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   ratingAverage, acceptedRatingCount,
@@ -64,7 +65,8 @@ export function registerHubRoutes(app) {
       if (existingWebsite) {
         if (existingWebsite.owner?.id !== req.user.id) return res.status(409).json({ error: 'Domain is already registered by another user.' });
         const result = await checkWebsiteVerification(existingWebsite);
-        const updated = await db.website.update({ where: { id: existingWebsite.id }, data: { ...result.data, name: name || existingWebsite.name, description: description || existingWebsite.description } });
+        const adopted = await maybeAdoptPeerVerification(result, existingWebsite);
+        const updated = await db.website.update({ where: { id: existingWebsite.id }, data: { ...adopted.data, name: name || existingWebsite.name, description: description || existingWebsite.description } });
         await syncWebsiteManifest(updated).catch(() => {});
         const website = await db.website.findUnique({ where: { id: updated.id }, include: { _count: { select: { content: true, metrics: true } } } });
         return res.json({ success: true, website: serializeWebsite(website) });
@@ -78,7 +80,8 @@ export function registerHubRoutes(app) {
       });
 
       const result = await checkWebsiteVerification(created);
-      const updated = await db.website.update({ where: { id: created.id }, data: result.data });
+      const adopted = await maybeAdoptPeerVerification(result, created);
+      const updated = await db.website.update({ where: { id: created.id }, data: adopted.data });
       await syncWebsiteManifest(updated).catch(() => {});
       const website = await db.website.findUnique({ where: { id: updated.id }, include: { _count: { select: { content: true, metrics: true } } } });
       res.json({ success: true, website: serializeWebsite(website) });
@@ -91,6 +94,36 @@ export function registerHubRoutes(app) {
   app.post('/api/hub/sites/register', requireAuth, registerWebsite);
 
   // ── Site Verification ──────────────────────────────────────────────────
+
+  // Public cross-stack verification status for a canonical domain. Serves two
+  // jobs: the peer-facing proof endpoint the other hub consults, and a badge
+  // endpoint that keeps sites verified network-wide without a manual re-click.
+  app.get('/api/hub/site/verify-status', async (req, res) => {
+    try {
+      const domain = cleanDomain(String(req.query?.domain || ''));
+      if (!domain) return res.status(400).json({ error: 'domain is required.' });
+      const website = await db.website.findFirst({ where: { domain, deletedAt: null } });
+      if (website && website.isVerified && website.verificationStatus === 'verified') {
+        return res.json({
+          success: true, verified: true, verificationStatus: 'verified',
+          domain, lastVerifiedAt: website.lastVerifiedAt || null,
+          verificationSource: website.verificationSource || 'widget',
+        });
+      }
+      if (website) {
+        const adopted = await adoptCrossStackIfStale(website);
+        if (adopted.isVerified && adopted.verificationStatus === 'verified') {
+          return res.json({
+            success: true, verified: true, verificationStatus: 'verified',
+            domain, lastVerifiedAt: adopted.lastVerifiedAt || null, verificationSource: 'cross-stack',
+          });
+        }
+      }
+      return res.json({ success: true, verified: false, verificationStatus: website?.verificationStatus || 'unknown', domain });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Failed to check verification status', details: error.message });
+    }
+  });
 
   app.post('/api/hub/site/verify', requireAuth, verifyWebsite);
   app.post('/api/hub/sites/:websiteId/verify', requireAuth, verifyWebsite);
@@ -105,8 +138,9 @@ export function registerHubRoutes(app) {
       if (!website) return res.status(404).json({ error: 'Website not found.' });
 
       const result = await checkWebsiteVerification(website);
-      const updated = await db.website.update({ where: { id: website.id }, data: result.data });
-      res.json({ success: true, verification: result, website: serializeWebsite(updated) });
+      const adopted = await maybeAdoptPeerVerification(result, website);
+      const updated = await db.website.update({ where: { id: website.id }, data: adopted.data });
+      res.json({ success: true, verification: adopted, website: serializeWebsite(updated) });
     } catch (error) {
       res.status(500).json({ error: 'Verification failed', details: error.message });
     }
@@ -579,7 +613,14 @@ export function registerHubRoutes(app) {
         include: { _count: { select: { content: true, metrics: true } } },
         orderBy: { createdAt: 'desc' }
       });
-      res.json({ success: true, websites: websites.map(serializeWebsite) });
+      // Cross-stack: adopt a timestamp-verified peer status so a site verified
+      // on the other hub shows as verified here without a manual re-verify.
+      const hydrated = [];
+      for (const website of websites) {
+        const withAdopt = await adoptCrossStackIfStale(website).catch(() => website);
+        hydrated.push(serializeWebsite(withAdopt));
+      }
+      res.json({ success: true, websites: hydrated });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch sites' });
     }

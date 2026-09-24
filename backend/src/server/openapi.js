@@ -75,7 +75,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.3",
+    version: "0.2.4",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -461,6 +461,37 @@ export const openApiSpec = {
                   properties: {
                     success: { type: "boolean" },
                     sites: { type: "array", items: { type: "string" } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/hub/site/verify-status": {
+      get: {
+        tags: ["Platform"],
+        summary: "Cross-stack site verification status",
+        description:
+          "Public verification status for a canonical site domain. Widget/account verification is network-agnostic: a domain verified on one hub (testnet or mainnet) is verified on both; only txs and ratings differ per stack. Nibgate-apex hosted sites (*.nibgate.xyz subblogs) are network-pinned and never adopted cross-stack.",
+        parameters: [
+          { name: "domain", in: "query", required: true, schema: { type: "string" }, description: "Canonical site domain, e.g. example.com." },
+        ],
+        responses: {
+          "200": {
+            description: "Verification status; verified payload includes verificationSource (widget | cross-stack).",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    verified: { type: "boolean" },
+                    verificationStatus: { type: "string" },
+                    domain: { type: "string" },
+                    lastVerifiedAt: { type: "string", format: "date-time", nullable: true },
+                    verificationSource: { type: "string" },
                   },
                 },
               },

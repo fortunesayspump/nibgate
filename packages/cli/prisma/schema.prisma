@@ -186,6 +186,7 @@ model ContentEvent {
   websiteId String
   eventType String
   url       String?
+  network   String? // originating stack: testnet | mainnet (hub-stamped)
   createdAt DateTime @default(now())
 
   @@index([websiteId, createdAt])

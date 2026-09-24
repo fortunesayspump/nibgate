@@ -495,6 +495,8 @@ export const openApiSpec = {
                     verificationSource: { type: "string" },
                     ownerWallets: { type: "array", items: { type: "string" } },
                     publisher: { type: "object", nullable: true },
+                    siteMeta: { type: "object", description: "Site display metadata (name, description, faviconUrl, ogImageUrl)." },
+                    ownerProfile: { type: "object", nullable: true, description: "Creator profile (username, bio, avatarUrl, socials)." },
                   },
                 },
               },

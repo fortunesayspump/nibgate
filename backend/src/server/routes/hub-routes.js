@@ -17,7 +17,7 @@ import {
   syncWebsiteManifest, checkWebsiteVerification,
   maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification, peerHubApiBase,
   localCanonicalDomain, normalizeWalletAddress, mintBlogLinkToken, verifyBlogLinkToken,
-  resolveUserByWallet, checkPeerSecret, mirrorPeerSite, fetchPeerIdentity,
+  resolveUserByWallet, checkPeerSecret, mirrorPeerSite, fetchPeerIdentity, siteIdentityFor,
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   ratingAverage, acceptedRatingCount,
@@ -96,21 +96,12 @@ export function registerHubRoutes(app) {
       const domain = cleanDomain(String(req.query?.domain || ''));
       if (!domain) return res.status(400).json({ error: 'domain is required.' });
       const website = await db.website.findFirst({ where: { domain, deletedAt: null } });
-      const identityFor = async (row) => {
-        const owner = row.ownerId ? await db.user.findUnique({ where: { id: row.ownerId }, include: { wallets: true } }).catch(() => null) : null;
-        const ownerWallets = [...new Set([owner?.walletAddress, ...(owner?.wallets || []).map((w) => w.address)].map(normalizeWalletAddress).filter(Boolean))];
-        const publisher = await db.publisherIdentity.findFirst({ where: { websiteId: row.id }, orderBy: { createdAt: 'asc' } }).catch(() => null);
-        return {
-          ownerWallets,
-          publisher: publisher ? { externalId: publisher.externalId, handle: publisher.handle || null, name: publisher.name || null, walletAddress: publisher.walletAddress || null } : null,
-        };
-      };
       if (website && website.isVerified && website.verificationStatus === 'verified') {
         return res.json({
           success: true, verified: true, verificationStatus: 'verified',
           domain, name: website.name, lastVerifiedAt: website.lastVerifiedAt || null,
           verificationSource: website.verificationSource || 'widget',
-          ...(await identityFor(website)),
+          ...(await siteIdentityFor(website)),
         });
       }
       if (website) {
@@ -119,7 +110,7 @@ export function registerHubRoutes(app) {
           return res.json({
             success: true, verified: true, verificationStatus: 'verified',
             domain, name: adopted.name, lastVerifiedAt: adopted.lastVerifiedAt || null, verificationSource: 'cross-stack',
-            ...(await identityFor(adopted)),
+            ...(await siteIdentityFor(adopted)),
           });
         }
       }
@@ -143,15 +134,13 @@ export function registerHubRoutes(app) {
       });
       res.json({
         success: true,
-        sites: websites.map((w) => ({
+        sites: await Promise.all(websites.map(async (w) => ({
           domain: w.domain,
-          name: w.name,
           verificationStatus: 'verified',
           lastVerifiedAt: w.lastVerifiedAt || null,
           verificationSource: w.verificationSource || 'widget',
-          ownerWallets: [...new Set([w.owner?.walletAddress, ...(w.owner?.wallets || []).map((x) => x.address)].map(normalizeWalletAddress).filter(Boolean))],
-          publisher: w.publishers?.[0] ? { externalId: w.publishers[0].externalId, handle: w.publishers[0].handle || null, name: w.publishers[0].name || null, walletAddress: w.publishers[0].walletAddress || null } : null,
-        })),
+          ...(await siteIdentityFor(w)),
+        }))),
       });
     } catch (error) {
       res.status(500).json({ success: false, error: 'Failed to list verified identities', details: error.message });

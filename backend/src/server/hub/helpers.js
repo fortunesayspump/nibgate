@@ -1,5 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
-import { hostsFor, activeNetworkName } from '@nibgate/internal/networks.js';
+import { hostsFor, activeNetworkName, networkByChainId } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
@@ -436,6 +436,7 @@ export function contentDataFor(website, payload = {}, publisher = null) {
     accessPolicy: accessPolicy ? JSON.stringify(accessPolicy).slice(0, 2000) : (metadataOnlyPolicy ? JSON.stringify(metadataOnlyPolicy).slice(0, 2000) : null),
     unlockPolicy: unlockPolicy ? JSON.stringify(unlockPolicy).slice(0, 2000) : null,
     ...publisherContentFields(publisher),
+    network: activeNetworkName(),
     lastSeenAt: new Date()
   };
 }
@@ -604,6 +605,15 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
     }
   }
 
+  // Hub-stamped network with on-chain attestation guard: a receipt whose
+  // chainId belongs to the OTHER stack is a mispointed widget or forged
+  // payload — skip it rather than planting a foreign-network row here.
+  const receiptNetwork = networkForReceiptLike(input);
+  if (!receiptNetwork) {
+    console.warn(`[nibgate] Skipping receipt with foreign chainId ${input.chainId} on ${activeNetworkName()} hub.`);
+    return null;
+  }
+
   return db.unlockReceipt.upsert({
     where: { contentId_paymentId: { contentId: content.id, paymentId } },
     update: {
@@ -614,7 +624,7 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       txHash: input.txHash || input.transactionHash || input.transaction || null,
       receiptUrl: input.receiptUrl || null,
       chainId: input.chainId ? String(input.chainId) : null,
-      network: input.network || null,
+      network: receiptNetwork,
       amount,
       protocolFee,
       currency: input.currency || payload.currency || content.currency || null,
@@ -633,7 +643,7 @@ export async function upsertUnlockReceipt(website, content, payload = {}, eventN
       txHash: input.txHash || input.transactionHash || input.transaction || null,
       receiptUrl: input.receiptUrl || null,
       chainId: input.chainId ? String(input.chainId) : null,
-      network: input.network || null,
+      network: receiptNetwork,
       amount,
       protocolFee,
       currency: input.currency || payload.currency || content.currency || null,
@@ -745,8 +755,8 @@ export async function upsertContentRating(website, content, payload = {}, eventN
 
   return db.contentRating.upsert({
     where: { contentId_walletAddress: { contentId: content.id, walletAddress } },
-    update: { ratingValue, proof: ratingProof, updatedAt: new Date() },
-    create: { contentId: content.id, websiteId: website.id, walletAddress, ratingValue, proof: ratingProof }
+    update: { ratingValue, proof: ratingProof, network: activeNetworkName(), updatedAt: new Date() },
+    create: { contentId: content.id, websiteId: website.id, walletAddress, ratingValue, proof: ratingProof, network: activeNetworkName() }
   });
 }
 
@@ -787,8 +797,8 @@ export async function upsertOnchainRatingForContent(content, args, txHash) {
 
   await db.contentRating.upsert({
     where: { contentId_walletAddress: { contentId: indexedContent.id, walletAddress } },
-    update: { ratingValue, proof: txHash ? `onchain:${txHash}` : null, updatedAt: new Date() },
-    create: { contentId: indexedContent.id, websiteId: indexedContent.websiteId, walletAddress, ratingValue, proof: txHash ? `onchain:${txHash}` : null }
+    update: { ratingValue, proof: txHash ? `onchain:${txHash}` : null, network: activeNetworkName(), updatedAt: new Date() },
+    create: { contentId: indexedContent.id, websiteId: indexedContent.websiteId, walletAddress, ratingValue, proof: txHash ? `onchain:${txHash}` : null, network: activeNetworkName() }
   });
 
   return { ok: true, contentId: indexedContent.id, walletAddress, ratingValue };
@@ -822,6 +832,7 @@ export async function createMetric(website, content, payload = {}, eventName = '
       revenue,
       durationMs: intOrNull(payload.durationMs || payload.duration),
       metadata,
+      network: activeNetworkName(),
       dedupeKey: dedupeKey || null
     }
   });
@@ -890,7 +901,51 @@ export async function checkWebsiteVerification(website) {
   }
 }
 
-// ── Cross-stack identity (sites mirror; contents never sync) ─────────────
+// ── Network classification ───────────────────────────────────────────────
+// Every content/ledger row is stamped with its originating stack
+// (testnet | mainnet) at write time. Identity syncs across stacks; money and
+// content never do. Rows whose on-chain evidence (chainId) contradicts this
+// hub's network are rejected — a mispointed widget or forged payload must not
+// plant foreign-network rows here.
+
+export function normalizeNetworkName(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'mainnet' || raw === 'eip155:5042' || raw === '5042' || raw === '0x13b2') return 'mainnet';
+  if (raw === 'testnet' || raw === 'eip155:5042002' || raw === '5042002' || raw === '0x4cef52') return 'testnet';
+  return '';
+}
+
+// Resolve the authoritative network for a receipt-like payload: on-chain
+// chainId attestation wins, then an explicit network tag, then this hub.
+// Returns null when the attested chain contradicts this hub (caller skips).
+export function networkForReceiptLike(input = {}) {
+  const hubNetwork = activeNetworkName();
+  const attested = networkByChainId(input.chainId)?.name || '';
+  if (attested && attested !== hubNetwork) return null;
+  return attested || normalizeNetworkName(input.network) || hubNetwork;
+}
+
+// Idempotent boot backfill: stamp rows written before network tagging with
+// this hub's network. Each stack stamps only its own rows (stacks are
+// network-pure by construction), so this is safe to run on every boot.
+export async function backfillNetworkColumns() {
+  const network = activeNetworkName();
+  const counts = {};
+  for (const [model, label] of [[db.content, 'content'], [db.unlockReceipt, 'unlockReceipt'], [db.contentRating, 'contentRating'], [db.metric, 'metric']]) {
+    try {
+      const r = await model.updateMany({ where: { network: null }, data: { network } });
+      counts[label] = r.count;
+    } catch (error) {
+      counts[label] = `skipped: ${error.message?.split('\n')[0] || error.message}`;
+    }
+  }
+  return counts;
+}
+
+// -- Cross-stack identity (sites mirror; contents never sync) --
+// Site identity (domain, verification, owner, publisher, profile metadata)
+// syncs across hubs. Contents, receipts, ratings, and metrics NEVER sync;
+// every one of those rows carries its originating stack (see above).
 // Sites (domain, verification, owner, publisher profile) are network-agnostic
 // and mirror across hubs. Contents, receipts, ratings, and metrics NEVER sync
 // — those stay per-stack by design. Only txs/onchain data differs.
@@ -982,16 +1037,24 @@ export function checkPeerSecret(req) {
 
 // Provision (or refresh) an identity-only mirror of a peer-verified site.
 // Copies: translated domain, verification state, owner (by wallet — never
-// reassigns an existing row's owner), publisher profile. NEVER copies
-// content, receipts, ratings, or metrics. Returns the website row or null.
+// reassigns an existing row's owner), publisher profile, and display metadata
+// (site description/icons, creator name/avatar/bio). NEVER copies content,
+// receipts, ratings, or metrics. Metadata rules are fill-forward, never
+// destructive: new rows copy everything; existing rows only fill EMPTY fields
+// (and owner profiles refresh only for mirror-provisioned accounts that have
+// never signed in on this hub — a locally active account's edits always win).
+// Returns the website row or null.
 export async function mirrorPeerSite(identity = {}) {
   const domain = localCanonicalDomain(identity.domain || '');
   if (!domain || !isValidDomain(domain)) return null;
   if (identity.verificationStatus !== 'verified') return null;
   const wallets = [...new Set((identity.ownerWallets || []).map(normalizeWalletAddress).filter(Boolean))];
   const publisher = identity.publisher || {};
+  const siteMeta = identity.siteMeta || {};
+  const ownerProfile = identity.ownerProfile || {};
   const existing = await db.website.findFirst({ where: { domain, deletedAt: null } }).catch(() => null);
   let owner = null;
+  let ownerIsStub = false;
   if (!existing) {
     for (const address of wallets) {
       owner = await resolveUserByWallet(address).catch(() => null);
@@ -1007,23 +1070,63 @@ export async function mirrorPeerSite(identity = {}) {
     verificationFailureReason: null,
     lastPeerCheckAt: new Date(),
   };
-  const website = existing
-    ? await db.website.update({ where: { id: existing.id }, data: base })
-    : await db.website.create({
-        data: {
-          domain, name: identity.name || domain, ownerId: owner.id,
-          verifyToken: crypto.randomBytes(16).toString('hex'),
-          siteToken: crypto.randomBytes(24).toString('hex'),
-          ...base,
-        },
-      });
+  const fillEmpty = (local, remote) => {
+    const out = {};
+    for (const [key, value] of Object.entries(remote || {})) {
+      if ((local?.[key] === null || local?.[key] === undefined || local?.[key] === '') && value) out[key] = value;
+    }
+    return out;
+  };
+  let website;
+  if (existing) {
+    website = await db.website.update({
+      where: { id: existing.id },
+      data: { ...base, ...fillEmpty(existing, { description: siteMeta.description, faviconUrl: siteMeta.faviconUrl, ogImageUrl: siteMeta.ogImageUrl }) },
+    });
+  } else {
+    website = await db.website.create({
+      data: {
+        domain, name: identity.name || siteMeta.name || domain, ownerId: owner.id,
+        description: siteMeta.description || null,
+        faviconUrl: siteMeta.faviconUrl || null,
+        ogImageUrl: siteMeta.ogImageUrl || null,
+        verifyToken: crypto.randomBytes(16).toString('hex'),
+        siteToken: crypto.randomBytes(24).toString('hex'),
+        ...base,
+      },
+    });
+    ownerIsStub = true;
+    const profileData = fillEmpty({}, ownerProfile);
+    delete profileData.walletAddress;
+    if (Object.keys(profileData).length) {
+      await db.user.update({ where: { id: owner.id }, data: profileData }).catch(() => {});
+    }
+  }
+  if (!ownerIsStub && ownerProfile.walletAddress) {
+    const signins = await db.session.count({ where: { userId: (existing ? existing.ownerId : owner?.id) } }).catch(() => 1);
+    if (signins === 0) {
+      const targetId = existing ? existing.ownerId : owner?.id;
+      const current = targetId ? await db.user.findUnique({ where: { id: targetId } }).catch(() => null) : null;
+      const profileData = fillEmpty(current, ownerProfile);
+      delete profileData.walletAddress;
+      if (targetId && Object.keys(profileData).length) {
+        await db.user.update({ where: { id: targetId }, data: profileData }).catch(() => {});
+      }
+    }
+  }
   const externalId = String(publisher.externalId || publisher.handle || publisher.walletAddress || 'primary');
   if (publisher.externalId || publisher.handle || publisher.walletAddress) {
-    await db.publisherIdentity.upsert({
-      where: { websiteId_externalId: { websiteId: website.id, externalId } },
-      update: { handle: publisher.handle || undefined, name: publisher.name || undefined, walletAddress: normalizeWalletAddress(publisher.walletAddress) || undefined },
-      create: { websiteId: website.id, externalId, handle: publisher.handle || null, name: publisher.name || null, walletAddress: normalizeWalletAddress(publisher.walletAddress) || null },
-    }).catch(() => {});
+    const currentPub = await db.publisherIdentity.findUnique({ where: { websiteId_externalId: { websiteId: website.id, externalId } } }).catch(() => null);
+    if (currentPub) {
+      const pubData = fillEmpty(currentPub, { handle: publisher.handle, name: publisher.name, walletAddress: normalizeWalletAddress(publisher.walletAddress) || null });
+      if (Object.keys(pubData).length) {
+        await db.publisherIdentity.update({ where: { id: currentPub.id }, data: pubData }).catch(() => {});
+      }
+    } else {
+      await db.publisherIdentity.create({
+        data: { websiteId: website.id, externalId, handle: publisher.handle || null, name: publisher.name || null, walletAddress: normalizeWalletAddress(publisher.walletAddress) || null },
+      }).catch(() => {});
+    }
   }
   return website;
 }
@@ -1102,27 +1205,47 @@ export function crossStackAdoptData(localData = {}, peer) {
   };
 }
 
-// Ask the counterpart hub whether a canonical domain is verified. Returns null
-// on any failure, non-verified status, or absence on the peer.
-export async function fetchPeerVerification(domain, { timeoutMs = 8000, fetchFn = globalThis.fetch } = {}) {
-  const cleaned = cleanDomain(domain);
-  if (!cleaned) return null;
-  const base = peerHubApiBase();
-  if (!base) return null;
-  const url = `${base}/api/hub/site/verify-status?domain=${encodeURIComponent(cleaned)}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const resp = await fetchFn(url, { signal: controller.signal, headers: { accept: 'application/json' } });
-    if (!resp?.ok) return null;
-    const body = await resp.json();
-    if (!body?.verified || body?.verificationStatus !== 'verified') return null;
-    return { verified: true, verificationStatus: 'verified', lastVerifiedAt: body.lastVerifiedAt || null, source: 'cross-stack' };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+// Owner wallets + publisher profile + display metadata for a site row.
+// Prefers already-loaded relations (owner, publishers) and lazy-loads
+// otherwise. Shared by the public verify-status read and the peer identity
+// index. Metadata (names, avatars, descriptions) rides the identity sync so
+// creator profiles look the same on both stacks.
+export async function siteIdentityFor(website = {}) {
+  const owner = website.owner ?? (website.ownerId
+    ? await db.user.findUnique({ where: { id: website.ownerId }, include: { wallets: true } }).catch(() => null)
+    : null);
+  const ownerWallets = [...new Set(
+    [owner?.walletAddress, ...(owner?.wallets || []).map((w) => w.address)]
+      .map(normalizeWalletAddress)
+      .filter(Boolean),
+  )];
+  const publisherRow = website.publishers?.[0] ?? (website.id
+    ? await db.publisherIdentity.findFirst({ where: { websiteId: website.id }, orderBy: { createdAt: 'asc' } }).catch(() => null)
+    : null);
+  return {
+    ownerWallets,
+    publisher: publisherRow
+      ? { externalId: publisherRow.externalId, handle: publisherRow.handle || null, name: publisherRow.name || null, walletAddress: publisherRow.walletAddress || null }
+      : null,
+    siteMeta: {
+      name: website.name || null,
+      description: website.description || null,
+      faviconUrl: website.faviconUrl || null,
+      ogImageUrl: website.ogImageUrl || null,
+    },
+    ownerProfile: owner ? {
+      walletAddress: normalizeWalletAddress(owner.walletAddress) || null,
+      username: owner.username || null,
+      bio: owner.bio || null,
+      avatarUrl: owner.avatarUrl || null,
+      coverUrl: owner.coverUrl || null,
+      websiteUrl: owner.websiteUrl || null,
+      twitterUrl: owner.twitterUrl || null,
+      instagramUrl: owner.instagramUrl || null,
+      tiktokUrl: owner.tiktokUrl || null,
+      youtubeUrl: owner.youtubeUrl || null,
+    } : null,
+  };
 }
 
 // Full peer identity for a domain (verification + owner wallets + publisher),
@@ -1147,12 +1270,22 @@ export async function fetchPeerIdentity(domain, { timeoutMs = 8000, fetchFn = gl
       lastVerifiedAt: body.lastVerifiedAt || null,
       ownerWallets: Array.isArray(body.ownerWallets) ? body.ownerWallets : [],
       publisher: body.publisher || null,
+      siteMeta: body.siteMeta || null,
+      ownerProfile: body.ownerProfile || null,
     };
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Ask the counterpart hub whether a canonical domain is verified. Returns null
+// on any failure, non-verified status, or absence on the peer.
+export async function fetchPeerVerification(domain, overrides = {}) {
+  const identity = await fetchPeerIdentity(domain, overrides);
+  if (!identity) return null;
+  return { verified: true, verificationStatus: 'verified', lastVerifiedAt: identity.lastVerifiedAt, source: 'cross-stack' };
 }
 
 // Used by verify/register flows: local widget check failed but the peer accepts
@@ -1356,6 +1489,7 @@ export function serializeContent(content) {
   return {
     id: content.id,
     websiteId: content.websiteId,
+    network: content.network || null,
     websiteName: content.website?.name || '',
     websiteDomain: content.website?.domain || '',
     websiteVerified: content.website?.isVerified || false,

@@ -890,6 +890,144 @@ export async function checkWebsiteVerification(website) {
   }
 }
 
+// ── Cross-stack identity (sites mirror; contents never sync) ─────────────
+// Sites (domain, verification, owner, publisher profile) are network-agnostic
+// and mirror across hubs. Contents, receipts, ratings, and metrics NEVER sync
+// — those stay per-stack by design. Only txs/onchain data differs.
+
+// Local canonical domain for an incoming cross-stack domain. Mainnet hub:
+// testnet aliases collapse to mainnet canonical (canonicalHost). Testnet hub:
+// single-label mainnet-apex sites map to their testnet alias. Custom external
+// domains, reserved infra labels, and the bare apex are always identity.
+const TESTNET_RESERVED_SUBDOMAINS = new Set(['www', 'api', 'app', 'docs', 'status', 'testnet', 'staging', 'dev', 'admin', 'hub', 'blog', 'mail', 'help', 'support']);
+export function localCanonicalDomain(domain = '') {
+  const clean = cleanDomain(domain);
+  if (!clean) return clean;
+  if (activeNetworkName() === 'mainnet') return canonicalHost(clean);
+  const m = clean.match(/^([a-z0-9-]+)\.nibgate\.xyz$/);
+  if (m && !TESTNET_RESERVED_SUBDOMAINS.has(m[1])) return `${m[1]}.testnet.nibgate.xyz`;
+  return clean;
+}
+
+// Blog-link token secrets. Mint uses the shared cross-hub secret first so one
+// token links a blog on both stacks (ops sets the same BLOG_LINK_SECRET on
+// both hubs); verify accepts the shared or the legacy per-hub JWT secret, so
+// tokens minted before the switch keep working through their 15-minute TTL.
+export function blogLinkSecrets() {
+  const shared = (process.env.BLOG_LINK_SECRET || '').trim();
+  const legacy = (process.env.JWT_SECRET || '').trim();
+  const secrets = [];
+  if (shared) secrets.push(shared);
+  if (legacy && legacy !== shared) secrets.push(legacy);
+  if (!secrets.length) secrets.push('nibgate-link-secret-dev');
+  return secrets;
+}
+
+export function mintBlogLinkToken({ userId, wallet }) {
+  const code = crypto.randomBytes(16).toString('hex');
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+  const payload = JSON.stringify({ userId, wallet: normalizeWalletAddress(wallet) || null, code, expiresAt });
+  const signature = crypto.createHmac('sha256', blogLinkSecrets()[0]).update(payload).digest('hex');
+  return `${code}.${Buffer.from(payload).toString('base64url')}.${signature}`;
+}
+
+export function verifyBlogLinkToken(linkToken) {
+  const parts = String(linkToken || '').split('.');
+  if (parts.length !== 3) return null;
+  const [code, encodedPayload, signature] = parts;
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString());
+  } catch {
+    return null;
+  }
+  if (!payload || payload.code !== code || !payload.expiresAt || Date.now() > payload.expiresAt) return null;
+  const raw = Buffer.from(encodedPayload, 'base64url').toString();
+  const ok = blogLinkSecrets().some((secret) => {
+    const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+    return expected.length === signature.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  });
+  return ok ? payload : null;
+}
+
+export function normalizeWalletAddress(address = '') {
+  const clean = String(address || '').trim().toLowerCase();
+  return /^0x[0-9a-f]{40}$/.test(clean) ? clean : '';
+}
+
+// Resolve a site owner by wallet across stacks: same wallet = same admin.
+// Finds the local user via the linked Wallet row or User.walletAddress,
+// creating a stub identity when the human has never signed in on this hub.
+// Their first wallet sign-in lands on this same account (sign-in is
+// find-or-create by wallet), so admin credentials stay identical everywhere.
+export async function resolveUserByWallet(wallet) {
+  const address = normalizeWalletAddress(wallet);
+  if (!address) return null;
+  const linked = await db.wallet.findUnique({ where: { address }, include: { user: true } }).catch(() => null);
+  if (linked?.user) return linked.user;
+  const byField = await db.user.findUnique({ where: { walletAddress: address } }).catch(() => null);
+  if (byField) return byField;
+  return db.user.create({ data: { walletAddress: address, wallets: { create: { address, isPrimary: true } } } });
+}
+
+// Gate for hub-to-hub trusted calls (identity sync). Uses the shared
+// BLOG_LINK_SECRET presented as x-peer-secret; never the per-hub JWT secret.
+export function checkPeerSecret(req) {
+  const secret = (process.env.BLOG_LINK_SECRET || '').trim();
+  if (!secret) return false;
+  const presented = String(req.headers?.['x-peer-secret'] || req.body?.peerSecret || req.query?.peerSecret || '');
+  if (!presented || presented.length !== secret.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(presented), Buffer.from(secret));
+}
+
+// Provision (or refresh) an identity-only mirror of a peer-verified site.
+// Copies: translated domain, verification state, owner (by wallet — never
+// reassigns an existing row's owner), publisher profile. NEVER copies
+// content, receipts, ratings, or metrics. Returns the website row or null.
+export async function mirrorPeerSite(identity = {}) {
+  const domain = localCanonicalDomain(identity.domain || '');
+  if (!domain || !isValidDomain(domain)) return null;
+  if (identity.verificationStatus !== 'verified') return null;
+  const wallets = [...new Set((identity.ownerWallets || []).map(normalizeWalletAddress).filter(Boolean))];
+  const publisher = identity.publisher || {};
+  const existing = await db.website.findFirst({ where: { domain, deletedAt: null } }).catch(() => null);
+  let owner = null;
+  if (!existing) {
+    for (const address of wallets) {
+      owner = await resolveUserByWallet(address).catch(() => null);
+      if (owner) break;
+    }
+    if (!owner) return null;
+  }
+  const base = {
+    isVerified: true,
+    verificationStatus: 'verified',
+    verificationSource: 'cross-stack',
+    lastVerifiedAt: identity.lastVerifiedAt ? new Date(identity.lastVerifiedAt) : new Date(),
+    verificationFailureReason: null,
+    lastPeerCheckAt: new Date(),
+  };
+  const website = existing
+    ? await db.website.update({ where: { id: existing.id }, data: base })
+    : await db.website.create({
+        data: {
+          domain, name: identity.name || domain, ownerId: owner.id,
+          verifyToken: crypto.randomBytes(16).toString('hex'),
+          siteToken: crypto.randomBytes(24).toString('hex'),
+          ...base,
+        },
+      });
+  const externalId = String(publisher.externalId || publisher.handle || publisher.walletAddress || 'primary');
+  if (publisher.externalId || publisher.handle || publisher.walletAddress) {
+    await db.publisherIdentity.upsert({
+      where: { websiteId_externalId: { websiteId: website.id, externalId } },
+      update: { handle: publisher.handle || undefined, name: publisher.name || undefined, walletAddress: normalizeWalletAddress(publisher.walletAddress) || undefined },
+      create: { websiteId: website.id, externalId, handle: publisher.handle || null, name: publisher.name || null, walletAddress: normalizeWalletAddress(publisher.walletAddress) || null },
+    }).catch(() => {});
+  }
+  return website;
+}
+
 // ── Cross-stack verification sync ─────────────────────────────────────────
 // Widget/account surfaces are NOT crypto-specific: only txs and ratings differ
 // between hubs. So a canonical `domain` verified on ONE stack is authoritative
@@ -941,6 +1079,36 @@ export async function fetchPeerVerification(domain, { timeoutMs = 8000, fetchFn 
     const body = await resp.json();
     if (!body?.verified || body?.verificationStatus !== 'verified') return null;
     return { verified: true, verificationStatus: 'verified', lastVerifiedAt: body.lastVerifiedAt || null, source: 'cross-stack' };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Full peer identity for a domain (verification + owner wallets + publisher),
+// for explicit secret-gated syncs. Null unless the peer reports verified.
+export async function fetchPeerIdentity(domain, { timeoutMs = 8000, fetchFn = globalThis.fetch } = {}) {
+  const cleaned = cleanDomain(domain);
+  if (!cleaned) return null;
+  const base = peerHubApiBase();
+  if (!base) return null;
+  const url = `${base}/api/hub/site/verify-status?domain=${encodeURIComponent(cleaned)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetchFn(url, { signal: controller.signal, headers: { accept: 'application/json' } });
+    if (!resp?.ok) return null;
+    const body = await resp.json();
+    if (!body?.verified || body?.verificationStatus !== 'verified') return null;
+    return {
+      domain: body.domain || cleaned,
+      name: body.name || null,
+      verificationStatus: 'verified',
+      lastVerifiedAt: body.lastVerifiedAt || null,
+      ownerWallets: Array.isArray(body.ownerWallets) ? body.ownerWallets : [],
+      publisher: body.publisher || null,
+    };
   } catch {
     return null;
   } finally {

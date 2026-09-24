@@ -117,6 +117,26 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     const hubData = await hubRes.json();
     if (!hubRes.ok) return res.status(hubRes.status).json({ error: hubData.error || 'Hub verification failed.' });
 
+    // Best-effort mirror on the peer hub (same token, same domain — the hub
+    // translates to its local canonical form and resolves the owner by the
+    // wallet bound in the token). Site identity mirrors; contents never sync.
+    // Requires the same BLOG_LINK_SECRET on both hubs; skipped silently otherwise.
+    let peer = null;
+    try {
+      const peerApi = process.env.HUB_PEER_API_URL || (/testnet-api/i.test(hubApi) ? 'https://api.nibgate.xyz' : 'https://testnet-api.nibgate.xyz');
+      if (peerApi && peerApi !== hubApi) {
+        const peerRes = await fetch(`${peerApi}/hub/blog/link/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ linkToken, domain, name: req.site.name }),
+        });
+        const peerData = await peerRes.json().catch(() => ({}));
+        peer = peerRes.ok ? { ok: true, domain: peerData.domain } : { ok: false, error: peerData.error || `HTTP ${peerRes.status}` };
+      }
+    } catch (error) {
+      peer = { ok: false, error: error.message };
+    }
+
     let settings = {};
     try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
     settings.hubSiteId = hubData.siteId;
@@ -129,7 +149,7 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
     await prisma.site.update({ where: { id: req.siteId }, data: { settings: JSON.stringify(settings) } });
     invalidateSite(req.subdomain);
 
-    res.json({ success: true, siteId: hubData.siteId, domain: hubData.domain });
+    res.json({ success: true, siteId: hubData.siteId, domain: hubData.domain, peer });
   } catch (error) {
     next(error);
   }

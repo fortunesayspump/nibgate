@@ -16,6 +16,8 @@ import {
   upsertOnchainRatingForContent, createMetric,
   syncWebsiteManifest, checkWebsiteVerification,
   maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification,
+  localCanonicalDomain, normalizeWalletAddress, mintBlogLinkToken, verifyBlogLinkToken,
+  resolveUserByWallet, checkPeerSecret, mirrorPeerSite, fetchPeerIdentity,
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   ratingAverage, acceptedRatingCount,
@@ -24,15 +26,6 @@ import {
 } from '../hub/helpers.js';
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
 import { startFeeKeeper } from '../revenue/keeper.js';
-
-function blogLinkSecret() {
-  const secret = process.env.JWT_SECRET || process.env.BLOG_LINK_SECRET;
-  if (secret) return secret;
-  if (process.env.NODE_ENV === 'production') {
-    console.warn('WARNING: JWT_SECRET not set — using fallback for blog link tokens');
-  }
-  return process.env.BLOG_LINK_SECRET || 'nibgate-link-secret-dev';
-}
 
 export function registerHubRoutes(app) {
   startVerificationMonitor();
@@ -103,11 +96,21 @@ export function registerHubRoutes(app) {
       const domain = cleanDomain(String(req.query?.domain || ''));
       if (!domain) return res.status(400).json({ error: 'domain is required.' });
       const website = await db.website.findFirst({ where: { domain, deletedAt: null } });
+      const identityFor = async (row) => {
+        const owner = row.ownerId ? await db.user.findUnique({ where: { id: row.ownerId }, include: { wallets: true } }).catch(() => null) : null;
+        const ownerWallets = [...new Set([owner?.walletAddress, ...(owner?.wallets || []).map((w) => w.address)].map(normalizeWalletAddress).filter(Boolean))];
+        const publisher = await db.publisherIdentity.findFirst({ where: { websiteId: row.id }, orderBy: { createdAt: 'asc' } }).catch(() => null);
+        return {
+          ownerWallets,
+          publisher: publisher ? { externalId: publisher.externalId, handle: publisher.handle || null, name: publisher.name || null, walletAddress: publisher.walletAddress || null } : null,
+        };
+      };
       if (website && website.isVerified && website.verificationStatus === 'verified') {
         return res.json({
           success: true, verified: true, verificationStatus: 'verified',
-          domain, lastVerifiedAt: website.lastVerifiedAt || null,
+          domain, name: website.name, lastVerifiedAt: website.lastVerifiedAt || null,
           verificationSource: website.verificationSource || 'widget',
+          ...(await identityFor(website)),
         });
       }
       if (website) {
@@ -115,13 +118,89 @@ export function registerHubRoutes(app) {
         if (adopted.isVerified && adopted.verificationStatus === 'verified') {
           return res.json({
             success: true, verified: true, verificationStatus: 'verified',
-            domain, lastVerifiedAt: adopted.lastVerifiedAt || null, verificationSource: 'cross-stack',
+            domain, name: adopted.name, lastVerifiedAt: adopted.lastVerifiedAt || null, verificationSource: 'cross-stack',
+            ...(await identityFor(adopted)),
           });
         }
       }
       return res.json({ success: true, verified: false, verificationStatus: website?.verificationStatus || 'unknown', domain });
     } catch (error) {
       res.status(500).json({ success: false, error: 'Failed to check verification status', details: error.message });
+    }
+  });
+
+  // Secret-gated peer identity index: verified sites with owner wallets and
+  // publisher profile, for hub-to-hub identity sync (x-peer-secret must equal
+  // the shared BLOG_LINK_SECRET). No content, receipts, ratings, or metrics.
+  app.get('/api/hub/site/verified-identities', async (req, res) => {
+    try {
+      if (!checkPeerSecret(req)) return res.status(403).json({ error: 'Forbidden.' });
+      const websites = await db.website.findMany({
+        where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' },
+        include: { owner: { include: { wallets: true } }, publishers: { orderBy: { createdAt: 'asc' }, take: 1 } },
+        orderBy: { domain: 'asc' },
+        take: 500,
+      });
+      res.json({
+        success: true,
+        sites: websites.map((w) => ({
+          domain: w.domain,
+          name: w.name,
+          verificationStatus: 'verified',
+          lastVerifiedAt: w.lastVerifiedAt || null,
+          verificationSource: w.verificationSource || 'widget',
+          ownerWallets: [...new Set([w.owner?.walletAddress, ...(w.owner?.wallets || []).map((x) => x.address)].map(normalizeWalletAddress).filter(Boolean))],
+          publisher: w.publishers?.[0] ? { externalId: w.publishers[0].externalId, handle: w.publishers[0].handle || null, name: w.publishers[0].name || null, walletAddress: w.publishers[0].walletAddress || null } : null,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Failed to list verified identities', details: error.message });
+    }
+  });
+
+  // Secret-gated identity mirror: provision identity-only rows for
+  // peer-verified sites (translated to local canonical domains). Copies site
+  // identity + verification + owner (by wallet) + publisher profile. NEVER
+  // copies content, receipts, ratings, or metrics.
+  app.post('/api/hub/site/sync-from-peer', async (req, res) => {
+    try {
+      if (!checkPeerSecret(req)) return res.status(403).json({ error: 'Forbidden.' });
+      const { domains, all } = req.body || {};
+      let identities = [];
+      if (all) {
+        const base = peerHubApiBase();
+        const secret = (process.env.BLOG_LINK_SECRET || '').trim();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        try {
+          const resp = await fetch(`${base}/api/hub/site/verified-identities`, { signal: controller.signal, headers: { 'x-peer-secret': secret } });
+          if (!resp.ok) return res.status(502).json({ error: 'Peer identity index unreachable.' });
+          identities = (await resp.json()).sites || [];
+        } finally {
+          clearTimeout(timer);
+        }
+      } else if (Array.isArray(domains) && domains.length) {
+        for (const domain of domains.slice(0, 200)) {
+          const identity = await fetchPeerIdentity(domain);
+          if (identity) identities.push(identity);
+        }
+      } else {
+        return res.status(400).json({ error: 'Provide domains[] or all:true.' });
+      }
+      const synced = [];
+      const skipped = [];
+      for (const identity of identities) {
+        try {
+          const row = await mirrorPeerSite(identity);
+          if (row) synced.push({ domain: identity.domain, localDomain: row.domain, siteId: row.id });
+          else skipped.push({ domain: identity.domain, reason: 'not verifiable (no owner wallet or invalid domain)' });
+        } catch (error) {
+          skipped.push({ domain: identity.domain, reason: error.message });
+        }
+      }
+      res.json({ success: true, synced, skipped });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Identity sync failed', details: error.message });
     }
   });
 
@@ -1257,14 +1336,8 @@ export function registerHubRoutes(app) {
 
   app.post('/api/hub/blog/link/generate', requireAuth, async (req, res) => {
     try {
-      const crypto = await import('node:crypto');
-      const code = crypto.randomBytes(16).toString('hex');
-      const expiresAt = Date.now() + 15 * 60 * 1000;
-      const payload = JSON.stringify({ userId: req.user.id, code, expiresAt });
-      const secret = blogLinkSecret();
-      const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-      const linkToken = `${code}.${Buffer.from(payload).toString('base64url')}.${signature}`;
-
+      const wallet = req.user.walletAddress || req.user.wallets?.[0]?.address || '';
+      const linkToken = mintBlogLinkToken({ userId: req.user.id, wallet });
       res.json({ success: true, linkToken, expiresIn: 900, message: 'Paste this code in your blog admin settings to link your blog to your Nibgate hub account.' });
     } catch (error) {
       res.status(500).json({ error: 'Failed to generate linking code', details: error.message });
@@ -1276,25 +1349,19 @@ export function registerHubRoutes(app) {
       const { linkToken, domain, name } = req.body || {};
       if (!linkToken || !domain) return res.status(400).json({ error: 'linkToken and domain are required.' });
 
-      const crypto = await import('node:crypto');
-      const parts = linkToken.split('.');
-      if (parts.length !== 3) return res.status(400).json({ error: 'Invalid link token format.' });
-
-      const [, encodedPayload, signature] = parts;
-      const secret = blogLinkSecret();
-      const decodedPayload = Buffer.from(encodedPayload, 'base64url').toString();
-      const expectedSig = crypto.createHmac('sha256', secret).update(decodedPayload).digest('hex');
-      if (signature !== expectedSig) return res.status(403).json({ error: 'Invalid link token.' });
-
-      let payload;
-      try { payload = JSON.parse(decodedPayload); } catch { return res.status(400).json({ error: 'Invalid link token payload.' }); }
-
+      const payload = verifyBlogLinkToken(linkToken);
+      if (!payload) return res.status(403).json({ error: 'Invalid link token.' });
       if (Date.now() > payload.expiresAt) return res.status(410).json({ error: 'Link token has expired. Generate a new one from your hub dashboard.' });
 
-      const user = await db.user.findUnique({ where: { id: payload.userId } });
+      // Owner resolution is wallet-first across stacks: same wallet = same
+      // admin. A token minted on the other hub carries a foreign userId, so
+      // fall back to the bound wallet (creating a stub identity the admin's
+      // first wallet sign-in lands on).
+      let user = payload.userId ? await db.user.findUnique({ where: { id: payload.userId } }) : null;
+      if (!user && payload.wallet) user = await resolveUserByWallet(payload.wallet);
       if (!user) return res.status(404).json({ error: 'User not found.' });
 
-      const clean = cleanDomain(domain);
+      const clean = localCanonicalDomain(domain);
       const existing = await db.website.findFirst({ where: { domain: clean, deletedAt: null } });
 
       if (existing && existing.ownerId !== user.id) {
@@ -1304,10 +1371,10 @@ export function registerHubRoutes(app) {
       const website = existing
         ? await db.website.update({
             where: { id: existing.id },
-            data: { isVerified: true, verificationStatus: 'verified', verificationFailureReason: null, deletedAt: null, ownerId: user.id }
+            data: { isVerified: true, verificationStatus: 'verified', verificationSource: 'owner-link', verificationFailureReason: null, deletedAt: null, ownerId: user.id }
           })
         : await db.website.create({
-            data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', siteToken: randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
+            data: { domain: clean, name: name?.trim() || clean, ownerId: user.id, isVerified: true, verificationStatus: 'verified', verificationSource: 'owner-link', siteToken: randomBytes(24).toString('hex'), verifyToken: hashValue(`${clean}:${user.id}:${Date.now()}:${Math.random()}`).slice(0, 32) },
           });
 
       await syncWebsiteManifest(website).catch(() => {});

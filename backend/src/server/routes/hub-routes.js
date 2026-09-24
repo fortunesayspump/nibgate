@@ -459,7 +459,7 @@ export function registerHubRoutes(app) {
           const evtPayload = {
             resource: { id: req.body?.contentId || 'hub', title: title || 'content', type: req.body?.type || 'article', price: String(effectivePrice) },
             event: 'unlock_completed', url: payUrl, path: payPath,
-            paymentProvider: 'circle-gateway', verified: true,
+            paymentProvider: gateway.payment.paymentProvider || 'circle-gateway', verified: true,
             amount: Number(effectivePrice), revenue: Number(effectivePrice), currency: 'USDC',
             payer: gateway.payment.payer || '', txHash: gateway.payment.txHash || '',
             // Key on the SETTLED tx first: downstream reporters (agents posting

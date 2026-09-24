@@ -11,6 +11,7 @@ const dbMock = vi.hoisted(() => ({
   unlockReceipt: { updateMany: vi.fn(), upsert: vi.fn() },
   contentRating: { updateMany: vi.fn() },
   metric: { updateMany: vi.fn() },
+  blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({ db: dbMock }));
@@ -38,6 +39,7 @@ import {
   contentDataFor,
   upsertUnlockReceipt,
   createMetric,
+  mirrorPeerBlogPost,
 } from './helpers.js';
 
 describe('cross-stack verification sync', () => {
@@ -333,8 +335,7 @@ describe('cross-stack verification sync', () => {
     expect(identity.publisher.handle).toBe('h');
   });
 
-  it('mirror refreshes metadata fill-forward without stomping local edits', async () => {
-    process.env.NIBGATE_NETWORK = 'mainnet';
+  it('mirror refreshes metadata fill-forward without stomping local edits', async () => {    process.env.NIBGATE_NETWORK = 'mainnet';
     const identity = {
       domain: 'smalltalk.testnet.nibgate.xyz', name: 'Smalltalk', verificationStatus: 'verified',
       ownerWallets: ['0x0000000000000000000000000000000000000007'],
@@ -354,5 +355,36 @@ describe('cross-stack verification sync', () => {
     expect(updateData.description).toBeUndefined();
     expect(updateData.faviconUrl).toBe('https://peer/f.png');
     expect(dbMock.user.update).not.toHaveBeenCalled();
+  });
+
+  it('mirrorPeerBlogPost mirrors published posts, never drafts, newer-local-wins', async () => {
+    const authorWallet = '0x00000000000000000000000000000000000000aa';
+    dbMock.wallet.findUnique.mockResolvedValue(null);
+    dbMock.user.findUnique.mockResolvedValue(null);
+    dbMock.user.create.mockResolvedValue({ id: 'author1' });
+    dbMock.blogPost.findUnique.mockResolvedValue(null);
+    dbMock.blogPost.create.mockResolvedValue({ id: 'p1', slug: 'hello' });
+
+    const row = await mirrorPeerBlogPost({
+      slug: 'hello', title: 'Hello', bodyMarkdown: 'Body text here, long enough.',
+      excerpt: 'Hi', tag: 'Company', tags: ['a'], coverUrl: '', status: 'published',
+      publishedAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z',
+      author: { walletAddress: authorWallet },
+    });
+    expect(row.slug).toBe('hello');
+    expect(dbMock.blogPost.create.mock.calls[0][0].data.authorId).toBe('author1');
+    expect(dbMock.blogPost.create.mock.calls[0][0].data.status).toBe('published');
+
+    expect(await mirrorPeerBlogPost({ slug: 'd', title: 'D', bodyMarkdown: 'Body text here, long enough.', status: 'draft', author: { walletAddress: authorWallet } })).toBeNull();
+    expect(await mirrorPeerBlogPost({ slug: 'e', title: 'E', bodyMarkdown: 'Body text here, long enough.', status: 'published', author: {} })).toBeNull();
+
+    dbMock.blogPost.findUnique.mockResolvedValue({ id: 'p1', slug: 'hello', updatedAt: new Date('2026-10-01T00:00:00Z') });
+    dbMock.blogPost.update.mockClear();
+    const kept = await mirrorPeerBlogPost({
+      slug: 'hello', title: 'Hello v2', bodyMarkdown: 'Body text here, long enough.', status: 'published',
+      updatedAt: '2026-09-01T00:00:00Z', author: { walletAddress: authorWallet },
+    });
+    expect(kept.id).toBe('p1');
+    expect(dbMock.blogPost.update).not.toHaveBeenCalled();
   });
 });

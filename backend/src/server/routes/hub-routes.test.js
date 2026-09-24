@@ -5,6 +5,7 @@ const dbMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), create: vi.fn() },
   wallet: { findUnique: vi.fn() },
   publisherIdentity: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
+  blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({ db: dbMock }));
@@ -128,13 +129,40 @@ describe('hub routes: cross-stack identity surface', () => {
     expect(dbMock.website.create.mock.calls[0][0].data.ownerId).toBe('owner1');
   });
 
-  it('sync-from-peer rejects without secret and validates body', async () => {
-    const denied = mockRes();
+  it('sync-from-peer rejects without secret and validates body', async () => {    const denied = mockRes();
     await handlers['POST /api/hub/site/sync-from-peer']({ headers: {}, body: { all: true }, query: {} }, denied);
     expect(denied.statusCode).toBe(403);
 
     const bad = mockRes();
     await handlers['POST /api/hub/site/sync-from-peer']({ headers: { 'x-peer-secret': 'test-peer-secret' }, body: {}, query: {} }, bad);
     expect(bad.statusCode).toBe(400);
+  });
+
+  it('sync-from-peer all:true mirrors published blog posts with bodies', async () => {
+    const authorWallet = '0x00000000000000000000000000000000000000aa';
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (String(url).includes('/api/blog/posts/')) {
+        return { ok: true, json: async () => ({ post: { slug: 'hello', title: 'Hello', bodyMarkdown: 'Body text here, long enough.', excerpt: 'Hi', tag: 'Company', tags: ['a'], coverUrl: '', status: 'published', publishedAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z', author: { walletAddress: authorWallet } } }) };
+      }
+      if (String(url).includes('/api/blog/posts')) {
+        return { ok: true, json: async () => ({ posts: [{ slug: 'hello', title: 'Hello', status: 'published' }] }) };
+      }
+      return { ok: true, json: async () => ({ sites: [] }) };
+    }));
+
+    dbMock.wallet.findUnique.mockResolvedValue(null);
+    dbMock.user.findUnique.mockResolvedValue(null);
+    dbMock.user.create.mockResolvedValue({ id: 'author1' });
+    dbMock.blogPost.findUnique.mockResolvedValue(null);
+    dbMock.blogPost.create.mockResolvedValue({ id: 'p1', slug: 'hello' });
+
+    const res = mockRes();
+    await handlers['POST /api/hub/site/sync-from-peer'](
+      { headers: { 'x-peer-secret': 'test-peer-secret' }, body: { all: true }, query: {} },
+      res,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body.blogPosts.synced).toEqual([{ slug: 'hello' }]);
+    expect(dbMock.blogPost.create.mock.calls[0][0].data.bodyMarkdown).toContain('Body text');
   });
 });

@@ -32,7 +32,9 @@ router.get('/:postId', async (req, res, next) => {
         const hubApi = require('../../config/config').nibgate.hubApi;
         const sdk = await import('@nibgate/sdk/server');
         const data = await sdk.getRatingStats({ contentId: postId, hubApiUrl: hubApi });
-        if (data && data.success && Number(data.count) > 0) {
+        // NOTE: getRatingStats resolves to the stats object itself (no
+        // `success` wrapper) — gate on count, never on data.success.
+        if (data && Number(data.count) > 0) {
           const value = { average: data.average, count: Number(data.count) };
           statsCache.set(hubKey, { at: Date.now(), value });
           return res.json({ success: true, source: 'onchain', average: value.average, count: value.count });

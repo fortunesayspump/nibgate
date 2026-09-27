@@ -6,7 +6,7 @@ import { normalizeServerResource as normalizeResource } from '../core/resource.j
 import { serverEnv } from './env.js';
 import { createPaymentChallenge } from './challenge.js';
 import { jsonResponse } from './response.js';
-import { runCircleGatewayRequirement, defaultGatewayApi } from './gateway.js';
+import { runCircleGatewayRequirement, defaultGatewayApi, isMainnetNetwork, activePaymentNetwork } from './gateway.js';
 
 export const DEFAULT_TREASURY = '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12';
 export const DEFAULT_FEE_BPS = 100;
@@ -33,6 +33,13 @@ export const ARC_TESTNET_RPC_FALLBACKS = [
 // broadcasting a mainnet transaction to a testnet RPC is a silent failure.
 export const ARC_MAINNET_RPC = 'https://rpc.mainnet.arc.io';
 export const ARC_MAINNET_RPC_FALLBACKS = [];
+// Never fall back to the testnet RPC on a mainnet deployment: an unset
+// NIBGATE_PAYMENT_RPC_URL would otherwise broadcast real transfers to the
+// wrong chain (silent failure / stuck funds).
+export function defaultRpcUrl(network = activePaymentNetwork()) {
+  return isMainnetNetwork(network) ? ARC_MAINNET_RPC : ARC_TESTNET_RPC;
+}
+
 export const ARC_USDC = '0x3600000000000000000000000000000000000000';
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 
@@ -108,7 +115,7 @@ async function chainConfirmations(client, rpcKey) {
 }
 
 export function createTransferVerifier(options = {}) {
-  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const usdc = getAddress(options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC);
   const client = sharedPublicClient(rpcUrl);
 
@@ -202,7 +209,7 @@ export async function feeWalletAddressFor(creator, options = {}) {
 // per-process cache, so repeated payTo resolutions for the same creator hit the
 // RPC once.
 export function createPredictedWalletReader(factory, options = {}) {
-  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const client = sharedPublicClient(rpcUrl);
   const cache = new Map();
   // A dropped eth_call here silently downgrades the surface to paying the
@@ -509,7 +516,7 @@ export async function gatewayBalanceFor(wallet, { domain, gatewayApi = defaultGa
 
 // On-chain USDC balance of a fee wallet (direct-rail receipts land here).
 export async function feeWalletUsdcBalance(wallet, options = {}) {
-  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const usdc = options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC;
   const client = options.publicClient || sharedPublicClient(rpcUrl);
   return client.readContract({ address: getAddress(usdc), abi: ERC20_ABI, functionName: 'balanceOf', args: [getAddress(wallet)] });
@@ -522,7 +529,7 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   const walletKey = options.keeperKey || serverEnv('NIBGATE_KEEPER_PRIVATE_KEY') || '';
   if (!walletKey) throw new Error('withdrawGatewayBalanceFor requires keeperKey (NIBGATE_KEEPER_PRIVATE_KEY)');
   const account = privateKeyToAccount(walletKey);
-  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const usdc = options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC;
   const domain = options.domain || serverEnv('NIBGATE_GATEWAY_DOMAIN') || ARC_DOMAIN;
   const gatewayWallet = options.gatewayWallet || serverEnv('NIBGATE_GATEWAY_WALLET') || ARC_GATEWAY_WALLET;
@@ -570,7 +577,7 @@ export async function distributeFeeWallet(wallet, options = {}) {
   const walletKey = options.keeperKey || serverEnv('NIBGATE_KEEPER_PRIVATE_KEY') || '';
   if (!walletKey) throw new Error('distributeFeeWallet requires keeperKey (NIBGATE_KEEPER_PRIVATE_KEY)');
   const account = privateKeyToAccount(walletKey);
-  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const publicClient = options.publicClient || sharedPublicClient(rpcUrl);
   const walletClient = options.walletClient || createWalletClient({ transport: rpcTransport(rpcUrl) });
   const balance = await feeWalletUsdcBalance(wallet, { ...options, rpcUrl });
@@ -622,7 +629,7 @@ function defaultMirrors(primary = '') {
   return ARC_TESTNET_RPC_FALLBACKS;
 }
 function rpcTransport(rpcUrl = '', mirrors = null) {
-  const primary = rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const primary = rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const cacheKey = `transport:${primary}`;
   if (!transportCache.has(cacheKey)) {
     const list = (mirrors ?? defaultMirrors(primary)).filter((u) => u !== primary);
@@ -665,7 +672,7 @@ async function withRpcRetry(fn, { label = 'rpc', attempts = 4, baseDelayMs = 1_5
 // (CREATE2 via deployIfNeeded, permissionless) before ERC-1271 withdrawal.
 // Returns 'deployed' when code was created, 'exists' when already present.
 export async function ensureFeeWalletDeployed(wallet, options = {}) {
-  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || ARC_TESTNET_RPC;
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const publicClient = options.publicClient || sharedPublicClient(rpcUrl);
   const onchain = await publicClient.getCode({ address: getAddress(wallet) });
   if (onchain && onchain.length > 0) return { status: 'exists', wallet: getAddress(wallet) };

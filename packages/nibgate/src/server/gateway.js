@@ -65,7 +65,7 @@ export async function createGatewayBuyer(options = {}) {
   }
 
   const gatewayBuyer = new GatewayClient({
-    chain: options.buyerChain || serverEnv('NIBGATE_BUYER_CHAIN') || 'arcTestnet',
+    chain: options.buyerChain || serverEnv('NIBGATE_BUYER_CHAIN') || defaultBuyerChain(),
     privateKey: buyerPrivateKey,
     rpcUrl: options.buyerRpcUrl || serverEnv('NIBGATE_BUYER_RPC_URL') || undefined
   });
@@ -74,7 +74,7 @@ export async function createGatewayBuyer(options = {}) {
     ok: true,
     client: gatewayBuyer,
     address: gatewayBuyer.address,
-    chain: options.buyerChain || serverEnv('NIBGATE_BUYER_CHAIN') || 'arcTestnet'
+    chain: options.buyerChain || serverEnv('NIBGATE_BUYER_CHAIN') || defaultBuyerChain()
   };
 }
 
@@ -104,6 +104,26 @@ export async function withdrawFromGateway(amount, options = {}) {
   return { ok: true, ...result };
 }
 
+// Network-aware Circle Gateway defaults. An unset var must never silently pick
+// the other stack: mainnet content verified/paid through the TESTNET facilitator
+// fails, which drops the receipt (and revenue) on the floor.
+export function isMainnetNetwork(value = '') {
+  const v = String(value || '').toLowerCase();
+  return v === 'mainnet' || v.includes('5042');
+}
+export function activePaymentNetwork() {
+  return serverEnv('NIBGATE_PAYMENT_NETWORK') || serverEnv('NIBGATE_NETWORK') || '';
+}
+export function defaultFacilitatorUrl(network = activePaymentNetwork()) {
+  return isMainnetNetwork(network) ? 'https://gateway-api.circle.com' : 'https://gateway-api-testnet.circle.com';
+}
+export function defaultGatewayApi(network = activePaymentNetwork()) {
+  return isMainnetNetwork(network) ? 'https://gateway-api.circle.com/v1' : 'https://gateway-api-testnet.circle.com/v1';
+}
+export function defaultBuyerChain(network = activePaymentNetwork()) {
+  return isMainnetNetwork(network) ? 'arc' : 'arcTestnet';
+}
+
 export async function runCircleGatewayRequirement(request, resourceInput, options = {}) {
   let createGatewayMiddleware;
   try {
@@ -131,7 +151,7 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
   }
   const middleware = createGatewayMiddleware({
     sellerAddress: recipient,
-    facilitatorUrl: options.facilitatorUrl || serverEnv('NIBGATE_FACILITATOR_URL') || serverEnv('CIRCLE_GATEWAY_FACILITATOR_URL') || 'https://gateway-api-testnet.circle.com',
+    facilitatorUrl: options.facilitatorUrl || serverEnv('NIBGATE_FACILITATOR_URL') || serverEnv('CIRCLE_GATEWAY_FACILITATOR_URL') || defaultFacilitatorUrl(options.network || activePaymentNetwork()),
     networks: [options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002'],
     description: `Unlock ${resource.title}`
   });

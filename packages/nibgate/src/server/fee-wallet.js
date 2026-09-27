@@ -6,7 +6,7 @@ import { normalizeServerResource as normalizeResource } from '../core/resource.j
 import { serverEnv } from './env.js';
 import { createPaymentChallenge } from './challenge.js';
 import { jsonResponse } from './response.js';
-import { runCircleGatewayRequirement } from './gateway.js';
+import { runCircleGatewayRequirement, defaultGatewayApi } from './gateway.js';
 
 export const DEFAULT_TREASURY = '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12';
 export const DEFAULT_FEE_BPS = 100;
@@ -479,7 +479,7 @@ export function buildSelfBurnIntent({ wallet, value, domain, gatewayWallet, gate
 
 // Submit the self burn intent to Gateway's /v1/transfer with contractSigner:true
 // (ERC-1271). Returns the attestation + operator signature for gatewayMint.
-export async function submitGatewayWithdrawal(intent, { gatewayApi = GATEWAY_API_TESTNET } = {}) {
+export async function submitGatewayWithdrawal(intent, { gatewayApi = defaultGatewayApi() } = {}) {
   const signature = encodeAbiParameters(
     [{ type: 'uint256' }, { type: 'uint256' }, { type: 'tuple', components: TransferSpecFields }],
     [intent.maxBlockHeight, intent.maxFee, intent.spec],
@@ -495,7 +495,7 @@ export async function submitGatewayWithdrawal(intent, { gatewayApi = GATEWAY_API
 }
 
 // Fetch a wallet's Gateway ledger balance (available + pending).
-export async function gatewayBalanceFor(wallet, { domain, gatewayApi = GATEWAY_API_TESTNET } = {}) {
+export async function gatewayBalanceFor(wallet, { domain, gatewayApi = defaultGatewayApi() } = {}) {
   const res = await fetch(`${gatewayApi}/balances`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -527,7 +527,7 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   const domain = options.domain || serverEnv('NIBGATE_GATEWAY_DOMAIN') || ARC_DOMAIN;
   const gatewayWallet = options.gatewayWallet || serverEnv('NIBGATE_GATEWAY_WALLET') || ARC_GATEWAY_WALLET;
   const gatewayMinter = options.gatewayMinter || serverEnv('NIBGATE_GATEWAY_MINTER') || ARC_GATEWAY_MINTER;
-  const gatewayApi = options.gatewayApi || serverEnv('NIBGATE_GATEWAY_API') || GATEWAY_API_TESTNET;
+  const gatewayApi = options.gatewayApi || serverEnv('NIBGATE_GATEWAY_API') || defaultGatewayApi();
   const minFee = BigInt(options.gatewayFeeFloor ?? 4_000); // buffer above the 0.0035 testnet floor
 
   const publicClient = options.publicClient || sharedPublicClient(rpcUrl);

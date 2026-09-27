@@ -229,12 +229,16 @@ describe('feeWalletAddressFor', () => {
     expect(a).toMatch(/^0x[0-9a-fA-F]{40}$/)
   })
 
-  it('falls back to null when the factory read fails', async () => {
+  it('throws when the factory is configured but unreadable (fail closed)', async () => {
     const predictedWallet = async () => { throw new Error('rpc down') }
-    expect(await feeWalletAddressFor('0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12', {
+    await expect(feeWalletAddressFor('0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12', {
       feeWalletFactory: '0x1111111111111111111111111111111111111111',
       predictedWallet,
-    })).toBeNull()
+    })).rejects.toThrow('rpc down')
+  })
+
+  it('returns null when no factory is configured (direct to creator)', async () => {
+    expect(await feeWalletAddressFor('0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12', {})).toBeNull()
   })
 })
 

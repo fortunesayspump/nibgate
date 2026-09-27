@@ -191,12 +191,11 @@ export async function feeWalletAddressFor(creator, options = {}) {
   const factory = options.feeWalletFactory || serverEnv('NIBGATE_FEE_WALLET_FACTORY') || '';
   if (!factory) return null;
   const read = options.predictedWallet || createPredictedWalletReader(factory, options);
-  try {
-    const address = await read(getAddress(creator));
-    return address ? getAddress(address) : null;
-  } catch {
-    return null;
-  }
+  // Factory configured but unreachable: fail closed. Returning null here
+  // would silently downgrade to direct-to-recipient on one side while the
+  // other side resolves a fee wallet, producing a challenge/verify mismatch
+  // that can never verify. Unconfigured (no factory) still returns null.
+  return await read(getAddress(creator)).then((address) => (address ? getAddress(address) : null));
 }
 
 // Default predictedWallet reader: an eth_call to the factory view with a small

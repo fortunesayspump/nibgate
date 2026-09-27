@@ -96,9 +96,32 @@ function proofWalletFor(req, resource) {
   return /^0x[0-9a-f]{40}$/i.test(w) ? w.toLowerCase() : null;
 }
 
-function challengeFor(req, resource) {
-  const rail = req.query?.rail === 'transfer' ? 'transfer' : 'gateway';
-  return nibgateServer.createPaymentChallenge(resource, { paymentRail: rail });
+// Resolve the hosted fee-wallet payee for challenges. Fail closed when a
+// factory is configured but unresolvable, so a challenge can never advertise
+// a recipient the verifier will reject. Unconfigured surfaces pay creators
+// directly (no fee), preserving self-hosted behavior.
+async function resolveFeePayTo(recipient) {
+  const factory = process.env.NIBGATE_FEE_WALLET_FACTORY || '';
+  if (!factory) return recipient;
+  let resolved = recipient;
+  try {
+    const sdk = require('@nibgate/sdk/server');
+    if (sdk && typeof sdk.resolvePayTo === 'function') {
+      resolved = await sdk.resolvePayTo(recipient, { hosted: true });
+    }
+  } catch { /* fall through to fail-closed check below */ }
+  if (!resolved || String(resolved).toLowerCase() === String(recipient).toLowerCase()) {
+    throw new Error('fee-wallet resolution unavailable');
+  }
+  return resolved;
+}
+
+async function challengeForHosted(req, resource) {
+  const payTo = await resolveFeePayTo(resource.recipient || resource.payTo || '');
+  return nibgateServer.createPaymentChallenge(
+    { ...resource, recipient: payTo },
+    { paymentRail: req.query?.rail === 'transfer' ? 'transfer' : 'gateway' }
+  );
 }
 
 // Confirm the request may stream this post's media:
@@ -117,8 +140,12 @@ async function mediaAccessResult(req, post, resource) {
     if (!isPaidValue(post?.price)) {
       return { status: 403, body: { error: 'This post is invite-only. Connect and sign in with the wallet you were invited with to view its media.' } };
     }
-    const challenge = challengeFor(req, resource);
-    return { status: 402, body: challenge };
+    try {
+      const challenge = await challengeForHosted(req, resource);
+      return { status: 402, body: challenge };
+    } catch {
+      return { status: 503, body: { error: 'Payment setup unavailable, please retry.' } };
+    }
   }
   if (isInviteOnly && !accessService.inWhitelist(post, wallet)) {
     return { status: 403, body: { error: 'This post is invite-only — only whitelisted wallets can access it.' } };
@@ -131,8 +158,12 @@ async function mediaAccessResult(req, post, resource) {
       if (!decision.allowed && decision.reason === 'invite-only') {
         return { status: 403, body: { error: 'This post is invite-only — only whitelisted wallets can access it.' } };
       }
-      const challenge = challengeFor(req, resource);
-      return { status: 402, body: challenge };
+      try {
+        const challenge = await challengeForHosted(req, resource);
+        return { status: 402, body: challenge };
+      } catch {
+        return { status: 503, body: { error: 'Payment setup unavailable, please retry.' } };
+      }
     }
   }
   const decision = await accessService.canAccessPost(post, { wallet });

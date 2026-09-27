@@ -121,6 +121,31 @@ export function registerHubRoutes(app) {
     }
   });
 
+  // Secret-gated link info for the trusted subblog fleet. A verified
+  // nibgate-apex domain is already entitled, but the hub verifyToken is a
+  // credential, so it is only handed to callers presenting the shared peer
+  // secret (x-peer-secret === BLOG_LINK_SECRET). Lets an unlinked subblog
+  // self-heal its hub linkage on load instead of a manual re-link.
+  app.get('/api/hub/site/link-info', async (req, res) => {
+    try {
+      if (!checkPeerSecret(req)) return res.status(403).json({ error: 'Forbidden.' });
+      const domain = cleanDomain(String(req.query?.domain || ''));
+      if (!domain) return res.status(400).json({ error: 'domain is required.' });
+      const website = await db.website.findFirst({
+        where: { domain, deletedAt: null, isVerified: true, verificationStatus: 'verified' },
+        include: { owner: { include: { wallets: true } } },
+      });
+      if (!website) return res.status(404).json({ success: false, error: 'not_verified', domain });
+      const identity = await siteIdentityFor(website);
+      res.json({
+        success: true, domain: website.domain, siteId: website.id, verifyToken: website.verifyToken,
+        name: website.name, ownerWallet: identity.ownerWallets?.[0] || null,
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Failed to resolve link info', details: error.message });
+    }
+  });
+
   // Secret-gated peer identity index: verified sites with owner wallets and
   // publisher profile, for hub-to-hub identity sync (x-peer-secret must equal
   // the shared BLOG_LINK_SECRET). No content, receipts, ratings, or metrics.

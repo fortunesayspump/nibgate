@@ -309,11 +309,43 @@ export function normalizeContentType(value = '') {
   return 'article';
 }
 
+// Platform/infra hosts that must never be the stored identity of a site's
+// content: the widget reports the request host (often the API), while the
+// sync/unlock paths report the public host. Same post, two hosts -> two
+// Content rows -> inconsistent images/counts on the ledger. Collapsing them
+// onto the site origin keeps one row per post.
+const PLATFORM_HOSTS = new Set([
+  'nibgate.xyz', 'www.nibgate.xyz', 'testnet.nibgate.xyz',
+  'api.nibgate.xyz', 'testnet-api.nibgate.xyz',
+  'api-subblogs.nibgate.xyz', 'testnet-api-subblogs.nibgate.xyz',
+]);
+
+// Canonical stored URL for a site's resource. Absolute URLs on the site's own
+// host (or a testnet/www alias) or on a platform host are rewritten to the
+// canonical site origin; everything else is left untouched (external links).
 export function absoluteResourceUrl(website, resource = {}, fallbackUrl = '') {
   const value = String(resource.url || resource.path || fallbackUrl || '').trim();
-  if (!value) return `${originFor(website.domain)}/`;
-  if (/^https?:\/\//i.test(value)) return value;
-  return `${originFor(website.domain)}${value.startsWith('/') ? value : `/${value}`}`;
+  const origin = originFor(website.domain).replace(/\/+$/, '');
+  if (!value) return `${origin}/`;
+  if (!/^https?:\/\//i.test(value)) {
+    return `${origin}${value.startsWith('/') ? value : `/${value}`}`;
+  }
+  try {
+    const u = new URL(value);
+    const siteCanon = canonicalHost(cleanDomain(website.domain));
+    const hostCanon = canonicalHost(cleanDomain(u.hostname));
+    const sameSite = hostCanon === siteCanon || hostCanon === `www.${siteCanon}`;
+    if (sameSite || PLATFORM_HOSTS.has(u.hostname.toLowerCase())) {
+      u.protocol = 'https:';
+      u.host = String(website.domain).toLowerCase();
+    }
+    u.hash = '';
+    let normalized = u.toString();
+    if (normalized.length > origin.length + 1 && normalized.endsWith('/')) normalized = normalized.replace(/\/+$/, '');
+    return normalized;
+  } catch {
+    return value;
+  }
 }
 
 export function cleanTags(value) {

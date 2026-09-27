@@ -20,6 +20,8 @@ const envVarsSchema = Joi.object()
     NIBGATE_SITE_TOKEN: Joi.string().optional().description('Nibgate site token'),
     NIBGATE_SELLER_ADDRESS: Joi.string().optional().allow('').description('Wallet address for Nibgate payments (set in DB settings instead)'),
     NIBGATE_SECRET: Joi.string().required().description('Nibgate gateway secret key'),
+    HUB_PEER_SECRET: Joi.string().optional().description('Shared hub peer secret (BLOG_LINK_SECRET) for link-info self-heal'),
+    BLOG_LINK_SECRET: Joi.string().optional().description('Shared hub link secret (same value as the hub)'),
     R2_ENDPOINT: Joi.string().optional().description('Cloudflare R2 endpoint'),
     R2_BUCKET: Joi.string().optional().description('Cloudflare R2 bucket name'),
     R2_PUBLIC_URL: Joi.string().optional().description('Cloudflare R2 public URL'),
@@ -55,6 +57,9 @@ const config = {
     siteToken: envVars.NIBGATE_SITE_TOKEN || '',
     sellerAddress: envVars.NIBGATE_SELLER_ADDRESS || '',
     gatewaySecret: envVars.NIBGATE_SECRET,
+    // Shared with the hub (BLOG_LINK_SECRET) so an anchored subblog can pull
+    // its hub siteId/verifyToken from /hub/site/link-info and self-heal.
+    peerSecret: (envVars.HUB_PEER_SECRET || envVars.BLOG_LINK_SECRET || '').trim(),
   },
   r2: {
     endpoint: envVars.R2_ENDPOINT || '',

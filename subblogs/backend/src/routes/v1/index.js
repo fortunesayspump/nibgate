@@ -8,6 +8,8 @@ const setupRoute = require('./setup.route');
 const uploadRoute = require('./upload.route');
 const config = require('../../config/config');
 const prisma = require('../../lib/prisma');
+const { ensureHubLink } = require('../../lib/hub-link');
+const { requestSiteDomain } = require('../../middlewares/tenant');
 
 const router = express.Router();
 
@@ -29,6 +31,15 @@ router.get('/site', async (req, res) => {
   let settings = {};
   try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}
 
+  // Self-heal the hub linkage when missing (e.g. a mainnet mirror of a blog
+  // that was linked on testnet). Without this the widget is handed the wrong
+  // site id/token and every view/unlock event is dropped at the hub.
+  if (!settings.hubSiteId || !settings.hubToken) {
+    const domain = requestSiteDomain(req) || (req.site.subdomain ? `${req.site.subdomain}.nibgate.xyz` : '');
+    const healed = await ensureHubLink(req.site, domain);
+    if (healed?.linked) settings = healed.settings;
+  }
+
   const hubSiteId = settings.hubSiteId || req.siteId;
   const hubToken = settings.hubToken || req.site.verifyToken || '';
 
@@ -49,7 +60,7 @@ router.get('/site', async (req, res) => {
 
   res.json({
     success: true,
-    site: { id: req.siteId, name: req.site.name, description: req.site.description || '', subdomain: req.site.subdomain, verifyToken: req.site.verifyToken || '' },
+    site: { id: req.siteId, name: req.site.name, description: req.site.description || '', subdomain: req.site.subdomain, verifyToken: req.site.verifyToken || '', recipientWallet: settings.recipientWallet || '' },
     aboutMarkdown: settings.aboutMarkdown || '',
     hub: { siteId: hubSiteId, token: hubToken },
     widgetScript: hubToken

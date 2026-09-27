@@ -41,6 +41,7 @@ import {
   upsertUnlockReceipt,
   createMetric,
   mirrorPeerBlogPost,
+  absoluteResourceUrl,
 } from './helpers.js';
 
 describe('cross-stack verification sync', () => {
@@ -393,5 +394,29 @@ describe('cross-stack verification sync', () => {
     });
     expect(kept.id).toBe('p1');
     expect(dbMock.blogPost.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('absoluteResourceUrl canonicalization', () => {
+  const site = { domain: 'thedeepend.testnet.nibgate.xyz' };
+
+  it('collapses the subblogs API host onto the site origin', () => {
+    expect(absoluteResourceUrl(site, { url: 'https://api-subblogs.nibgate.xyz/writing/thedeepend-best-beaches' }))
+      .toBe('https://thedeepend.testnet.nibgate.xyz/writing/thedeepend-best-beaches');
+  });
+
+  it('collapses testnet/mainnet aliases of the same site', () => {
+    expect(absoluteResourceUrl(site, { url: 'https://thedeepend.nibgate.xyz/writing/x/' }))
+      .toBe('https://thedeepend.testnet.nibgate.xyz/writing/x');
+  });
+
+  it('leaves a different creator host untouched', () => {
+    expect(absoluteResourceUrl(site, { url: 'https://otherblog.nibgate.xyz/writing/y' }))
+      .toBe('https://otherblog.nibgate.xyz/writing/y');
+  });
+
+  it('resolves a relative path against the site origin', () => {
+    expect(absoluteResourceUrl(site, { path: '/writing/z' }))
+      .toBe('https://thedeepend.testnet.nibgate.xyz/writing/z');
   });
 });

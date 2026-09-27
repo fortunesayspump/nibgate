@@ -101,10 +101,9 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
 
     if (settings.hubSiteId && settings.hubToken) {
       const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video' };
-      // Report the URL the reader actually used (testnet- alias on the testnet
-      // stack), not the canonical mainnet host.
-      const reqHost = String(req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
-      const pubOrigin = reqHost ? `https://${reqHost}` : `https://${req.site.subdomain}.nibgate.xyz`;
+      // Report the site origin, never the API host.
+      const { sitePublicOrigin } = require('../../middlewares/tenant');
+      const pubOrigin = sitePublicOrigin(req, req.site.subdomain) || `https://${req.site.subdomain}.nibgate.xyz`;
       const pubUrl = `${pubOrigin}/${typePath[post.type] || 'posts'}/${post.slug}`;
       sdk.submitOnchainRating({
         siteId: settings.hubSiteId, token: settings.hubToken,

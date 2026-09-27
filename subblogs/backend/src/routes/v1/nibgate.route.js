@@ -18,13 +18,12 @@ function isPaidValue(price) {
   return !!price && price !== '0';
 }
 
-// Public page URL for hub attribution. Prefers the host the reader actually
-// used (so the testnet stack reports testnet-<name>.nibgate.xyz URLs) and
-// falls back to the canonical subdomain host.
+// Public page URL for hub attribution. Uses the site origin (request host only
+// when it is actually this site); never the API host.
 function requestPageUrl(req, subdomain, resourcePath) {
-  if (!subdomain) return undefined;
-  const host = String(req.get('x-forwarded-host') || req.get('host') || '').split(':')[0].toLowerCase();
-  const origin = host ? `https://${host}` : `https://${subdomain}.nibgate.xyz`;
+  const { sitePublicOrigin } = require('../../middlewares/tenant');
+  const origin = sitePublicOrigin(req, subdomain);
+  if (!origin) return undefined;
   return `${origin}${resourcePath || '/'}`;
 }
 
@@ -412,8 +411,13 @@ async function serveAccess(req, res, post, slug) {
 
 router.get('/access', async (req, res, next) => {
   try {
-    const slug = req.query.path?.replace(/^\/(?:writing|photos|music|video|docs|posts)\//, '') || '';
-    const post = slug ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug } }) : null;
+    const pathMatch = req.query.path?.match(/^\/(writing|photos|music|video|docs|posts)\/(.+)$/);
+    const slug = pathMatch ? pathMatch[2] : '';
+    const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
+    const postType = pathMatch ? pathType[pathMatch[1]] : undefined;
+    const post = slug
+      ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, ...(postType ? { type: postType } : {}) } })
+      : null;
     if (!post && slug) {
       return res.status(404).json({ ok: false, error: 'Post not found' });
     }
@@ -673,16 +677,18 @@ router.get('/manifest', async (req, res, next) => {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
-    // Media/manifest URLs must use the host in use (testnet alias on testnet),
-    // not the canonical subdomain host.
-    const { requestOrigin } = require('../../middlewares/tenant');
-    const origin = requestOrigin(req) || (subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`);
+    // Media/manifest URLs must use the site origin, never the API host.
+    const { sitePublicOrigin } = require('../../middlewares/tenant');
+    const origin = sitePublicOrigin(req, subdomain) || `${req.protocol}://${req.get('host')}`;
 
     const requestedPath = req.query.path;
     if (requestedPath) {
-      const slug = String(requestedPath).replace(/^\/(?:writing|photos|music|video|docs|posts)\//, '');
+      const pathMatch = String(requestedPath).match(/^\/(writing|photos|music|video|docs|posts)\/(.+)$/);
+      const slug = pathMatch ? pathMatch[2] : '';
+      const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
+      const postType = pathMatch ? pathType[pathMatch[1]] : undefined;
       const post = slug
-        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug }, include: { author: { select: { name: true } } } })
+        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, ...(postType ? { type: postType } : {}) }, include: { author: { select: { name: true } } } })
         : null;
       if (!post) return res.status(404).json({ ok: false, error: 'Post not found' });
 
@@ -770,8 +776,8 @@ router.get('/nibgate.json', async (req, res, next) => {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
     const subdomain = req.get('x-site-subdomain') || req.subdomain || req.site?.subdomain || '';
-    const { requestOrigin } = require('../../middlewares/tenant');
-    const origin = requestOrigin(req) || (subdomain ? `https://${subdomain}.nibgate.xyz` : `${req.protocol}://${req.get('host')}`);
+    const { sitePublicOrigin } = require('../../middlewares/tenant');
+    const origin = sitePublicOrigin(req, subdomain) || `${req.protocol}://${req.get('host')}`;
 
     const manifest = {
       name: req.site.name,

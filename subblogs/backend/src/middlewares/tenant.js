@@ -1,6 +1,7 @@
 const { status } = require('http-status');
 const { resolveSite } = require('../lib/tenant-cache');
 const { isValidSubdomain } = require('../lib/validate');
+const { activeNetworkName } = require('../lib/network');
 
 const PUBLIC_PATHS = [
   '/api/auth/login', '/api/auth/register', '/api/setup', '/api/health', '/api/nibgate/gateway/balance',
@@ -40,6 +41,21 @@ function requestSiteDomain(req, subdomain) {
   if (host && host.endsWith('.nibgate.xyz')) return host;
   const sub = canonicalSubdomain(subdomain || req.subdomain || req.site?.subdomain || '');
   return sub ? `${sub}.nibgate.xyz` : '';
+}
+
+// Public origin for emitted content links (page URL, manifest, media, rating
+// pub URL). Uses the request host ONLY when it is actually this site
+// (canonical or testnet alias). Otherwise — API host, proxy, localhost —
+// falls back to the canonical site origin for this stack, so links never
+// point at the API (e.g. testnet-api-subblogs.nibgate.xyz/...).
+function sitePublicOrigin(req, subdomain = '') {
+  const sub = canonicalSubdomain(subdomain || req.subdomain || req.site?.subdomain || '');
+  if (!sub) return '';
+  const host = String(req.get?.('x-forwarded-host') || req.get?.('host') || req.headers?.['x-forwarded-host'] || req.headers?.host || '').split(':')[0].toLowerCase();
+  if (host === `${sub}.nibgate.xyz` || host === `${sub}.testnet.nibgate.xyz` || host === `testnet-${sub}.nibgate.xyz`) {
+    return `https://${host}`;
+  }
+  return activeNetworkName() === 'mainnet' ? `https://${sub}.nibgate.xyz` : `https://${sub}.testnet.nibgate.xyz`;
 }
 
 function subdomainFromHost(host = '') {
@@ -86,4 +102,4 @@ async function resolveTenant(req, res, next) {
   }
 }
 
-module.exports = { resolveTenant, subdomainFromHost, canonicalSubdomain, TESTNET_PREFIX, requestHost, requestOrigin, requestSiteDomain };
+module.exports = { resolveTenant, subdomainFromHost, canonicalSubdomain, TESTNET_PREFIX, requestHost, requestOrigin, requestSiteDomain, sitePublicOrigin };

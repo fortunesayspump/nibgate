@@ -102,7 +102,7 @@ model BlogPost {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  @@unique([siteId, slug])
+  @@unique([siteId, type, slug])
   @@index([siteId, status, publishedAt])
   @@index([siteId, authorId])
 }

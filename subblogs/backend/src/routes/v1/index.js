@@ -84,17 +84,20 @@ router.post('/sync-hub', async (req, res) => {
 
 // Short mirror of a post URL on the site origin: GET /api/<type>/<slug> reads
 // straight through (free → body, paid → 402 x402 challenge). Same handler as
-// /access. The type prefix disambiguates slugs shared across post types.
+// /access. The type prefix selects the post type, so one slug can exist across
+// types on the same blog (/music/hey + /article/hey).
 router.get('/:type/:slug', async (req, res, next) => {
   try {
+    const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
+    const postType = pathType[req.params.type];
+    const where = postType
+      ? { siteId: req.siteId, slug: req.params.slug, type: postType }
+      : { siteId: req.siteId, slug: req.params.slug };
     const post = await prisma.blogPost.findFirst({
-      where: { siteId: req.siteId, slug: req.params.slug },
+      where,
       orderBy: { publishedAt: 'desc' },
     });
     if (!post) return res.status(404).json({ ok: false, error: 'Post not found' });
-    const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
-    const expectedType = typePath[post.type] || 'posts';
-    if (req.params.type !== expectedType) return res.status(404).json({ ok: false, error: 'Post not found' });
     req.query.path = `/${req.params.type}/${req.params.slug}`;
     return await nibgateRoute.serveAccess(req, res, post, req.params.slug);
   } catch (error) {

@@ -42,6 +42,28 @@
     return node ? node.getAttribute("content") : "";
   }
 
+  // Canonical page URL: the site's own <link rel=canonical>/og:url when present,
+  // else the current origin+path. Never window.location.href verbatim — a page
+  // served through a proxy/API host would otherwise file content under the
+  // wrong origin and split into duplicate rows.
+  function canonicalPageUrl() {
+    try {
+      var link = document.querySelector('link[rel="canonical"]');
+      if (link && link.href) return link.href.split("#")[0];
+    } catch (_error) {}
+    var og = meta("og:url");
+    if (og) return String(og).split("#")[0];
+    return window.location.origin + window.location.pathname;
+  }
+
+  function canonicalOrigin() {
+    try { return new URL(canonicalPageUrl()).origin; } catch (_error) { return window.location.origin; }
+  }
+
+  function absolutePath(path) {
+    try { return new URL(path || window.location.pathname, canonicalOrigin()).toString(); } catch (_error) { return path || ""; }
+  }
+
   function normalizeType(value) {
     var type = String(value || "").toLowerCase().trim();
     if (["music", "video", "article", "image"].indexOf(type) !== -1) return type;
@@ -54,32 +76,39 @@
   function detectResource() {
     var node = document.querySelector("[data-nibgate-resource]");
     if (node) {
+      var nodePath = node.getAttribute("data-nibgate-path") || window.location.pathname;
       return {
         id: node.getAttribute("data-nibgate-id") || node.id || "",
         title: node.getAttribute("data-nibgate-title") || document.title || "",
         type: normalizeType(node.getAttribute("data-nibgate-type")),
         price: node.getAttribute("data-nibgate-price") || "",
-        path: node.getAttribute("data-nibgate-path") || window.location.pathname,
-        imageUrl: node.getAttribute("data-nibgate-image") || ""
+        path: nodePath,
+        url: absolutePath(nodePath),
+        imageUrl: node.getAttribute("data-nibgate-image") || meta("og:image") || ""
       };
     }
     var resourceId = meta("nibgate:resource-id");
     if (!resourceId) return null;
+    var metaPath = meta("nibgate:path") || window.location.pathname;
     return {
       id: resourceId,
       title: meta("nibgate:title") || document.title || "",
       type: normalizeType(meta("nibgate:type")),
       price: meta("nibgate:price") || "",
-      path: meta("nibgate:path") || window.location.pathname,
+      path: metaPath,
+      url: absolutePath(metaPath),
       imageUrl: meta("nibgate:image") || meta("og:image") || ""
     };
   }
 
   function send(eventName, payload) {
+    var pageUrl = canonicalPageUrl();
+    var pagePath = pageUrl;
+    try { pagePath = new URL(pageUrl).pathname; } catch (_error) { pagePath = window.location.pathname; }
     var body = Object.assign({}, payload || {}, {
       siteId: siteId, token: token, event: eventName,
       visitorId: visitorId, sessionId: sessionId,
-      url: window.location.href, path: window.location.pathname,
+      url: pageUrl, path: pagePath,
       title: document.title || "", referrer: document.referrer || "",
       scrollDepth: maxScrollDepth
     });
@@ -160,7 +189,8 @@
           var id = resourceEl.getAttribute("data-nibgate-id") || resourceEl.id || "";
           if (seen[id]) continue;
           seen[id] = true;
-          send("resource_view", { resource: { id: id, title: resourceEl.getAttribute("data-nibgate-title") || document.title || "", type: normalizeType(resourceEl.getAttribute("data-nibgate-type")), price: resourceEl.getAttribute("data-nibgate-price") || "", path: resourceEl.getAttribute("data-nibgate-path") || window.location.pathname, imageUrl: resourceEl.getAttribute("data-nibgate-image") || "" }, source: "mutation" });
+          var mutationPath = resourceEl.getAttribute("data-nibgate-path") || window.location.pathname;
+          send("resource_view", { resource: { id: id, title: resourceEl.getAttribute("data-nibgate-title") || document.title || "", type: normalizeType(resourceEl.getAttribute("data-nibgate-type")), price: resourceEl.getAttribute("data-nibgate-price") || "", path: mutationPath, url: absolutePath(mutationPath), imageUrl: resourceEl.getAttribute("data-nibgate-image") || meta("og:image") || "" }, source: "mutation" });
         }
       }
     });

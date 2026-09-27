@@ -9,7 +9,7 @@ const uploadRoute = require('./upload.route');
 const config = require('../../config/config');
 const prisma = require('../../lib/prisma');
 const { ensureHubLink } = require('../../lib/hub-link');
-const { requestSiteDomain } = require('../../middlewares/tenant');
+const { activeNetworkName } = require('../../lib/network');
 
 const router = express.Router();
 
@@ -35,7 +35,8 @@ router.get('/site', async (req, res) => {
   // that was linked on testnet). Without this the widget is handed the wrong
   // site id/token and every view/unlock event is dropped at the hub.
   if (!settings.hubSiteId || !settings.hubToken) {
-    const domain = requestSiteDomain(req) || (req.site.subdomain ? `${req.site.subdomain}.nibgate.xyz` : '');
+    const sub = req.site.subdomain;
+    const domain = sub ? (activeNetworkName() === 'mainnet' ? `${sub}.nibgate.xyz` : `${sub}.testnet.nibgate.xyz`) : '';
     const healed = await ensureHubLink(req.site, domain);
     if (healed?.linked) settings = healed.settings;
   }

@@ -394,11 +394,6 @@ export function registerHubRoutes(app) {
           skip: offset,
         });
         for (const u of unlocks) {
-          // The rail/tx live in the metric metadata (the tracked event payload),
-          // so the unlock row can show which rail settled it and its proof ΓÇö
-          // otherwise a gateway unlock looks identical to a direct one.
-          let unlockMeta = {};
-          try { unlockMeta = u.metadata ? JSON.parse(u.metadata) : {}; } catch { unlockMeta = {}; }
           activities.push({
             type: 'unlock', id: u.id, websiteId: u.websiteId,
             actor: u.visitorId || u.sessionId || 'user',
@@ -409,10 +404,6 @@ export function registerHubRoutes(app) {
             domain: u.website?.domain || '',
             revenue: u.revenue || 0,
             currency: u.currency || 'USDC',
-            paymentProvider: unlockMeta.paymentProvider || null,
-            txHash: unlockMeta.txHash || null,
-            amount: unlockMeta.amount != null ? Number(unlockMeta.amount) : (u.revenue || 0),
-            payerWallet: unlockMeta.payer || unlockMeta.payerWallet || null,
             timestamp: u.createdAt,
           });
         }

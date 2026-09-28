@@ -25,6 +25,11 @@ export {
   NibgateUnlock,
   NibgateUnlockUI,
 } from './unlock.jsx'
+export {
+  useNibgateTip,
+  NibgateTipInline,
+  NibgateTipCard,
+} from './tip.jsx'
 
 // Single source of the React wallet stack. Import wagmi / AppKit /
 // react-query primitives from `@nibgate/wallet/react` (not the underlying

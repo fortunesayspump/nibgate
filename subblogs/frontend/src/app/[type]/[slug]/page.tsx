@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
+import NibgateTip, { NibgateTipRow } from "@/components/NibgateTip";
 import ReputationRating from "@/components/ReputationRating";
 import DocumentContent from "@/components/DocumentContent";
 import { serverFetch } from "@/lib/server-fetch";
@@ -157,6 +158,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
           <div className="small muted font-ui pn1" style={{ paddingTop: "0.75em" }}>
             <time>{fd(post.publishedAt)}</time>
             {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
+            <> · <NibgateTipRow resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} /></>
           </div>
           {post.excerpt && (post.type === "document" || !isPremium) && <p className="small muted" style={{ marginTop: "1em", marginBottom: "2em" }}>{post.excerpt}</p>}
         </div>
@@ -230,7 +232,15 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
         </div>
 
         <div className="wrap">
-          <ReputationRating resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start", margin: "0 calc(-1 * min(120px, 10vw))", padding: "0 16px" }}>
+            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+              <ReputationRating resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
+            </div>
+            <div aria-hidden="true" style={{ width: 1, alignSelf: "stretch", background: "var(--border, #e5e5e5)", margin: "28px 0" }} />
+            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+              <NibgateTip resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
+            </div>
+          </div>
         </div>
 
         {related.length > 0 && (

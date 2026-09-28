@@ -22,6 +22,11 @@
       "import": "./src/server.js",
       "default": "./src/server.js"
     },
+    "./browser": {
+      "types": "./src/index.d.ts",
+      "import": "./src/browser/index.js",
+      "default": "./src/browser/index.js"
+    },
     "./tracking": {
       "types": "./src/tracking.d.ts",
       "import": "./src/tracking.js",
@@ -64,10 +69,10 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@circle-fin/x402-batching": "^3.0.4",
+    "@circle-fin/x402-batching": "3.2.0",
     "@nibgate/wallet": "^0.1.0 || ^0.2.0 || ^0.3.0 || ^0.4.0",
-    "@x402/core": "^2.17.0",
-    "@x402/evm": "^2.17.0",
+    "@x402/core": "2.17.0",
+    "@x402/evm": "2.17.0",
     "viem": "^2.54.1"
   },
   "repository": {

@@ -1,3 +1,4 @@
+'use client'
 import { useEffect, useState } from 'react'
 import { switchToArcNetwork } from '../network.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'

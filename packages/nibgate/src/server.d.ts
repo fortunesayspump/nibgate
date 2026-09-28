@@ -333,3 +333,31 @@ export declare function registerProvider(name: string, factory: (config?: Record
 export declare function putBlob(input: { provider?: string; key: string; data: Uint8Array | Buffer; contentType?: string; cacheControl?: string }): Promise<Record<string, unknown>>;
 export declare function getBlob(input: { provider?: string; storageRef: string }): Promise<{ body?: Uint8Array | Buffer; contentType?: string; [key: string]: unknown } | null>;
 export declare function deleteBlob(input: { provider?: string; storageRef: string }): Promise<{ ok: boolean }>;
+export declare function gatewayBatchingExtra(network?: string): { name: 'GatewayWalletBatched'; version: '1'; verifyingContract: string } | undefined;
+
+// Nib Tip
+export declare function createTipChallenge(input: Record<string, unknown>, options?: Record<string, unknown>): Record<string, unknown>;
+export declare function tipReceipt(input: Record<string, unknown>): Record<string, unknown>;
+export declare function createTipRequirement(input: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ payee: string; feeBps: number; protocolFee: number; challenge: Record<string, unknown> }>;
+export declare function createTipVerifier(options?: Record<string, unknown>): { verifyDirect(args: Record<string, unknown>): Promise<boolean>; verifyGateway(args: Record<string, unknown>): Promise<Record<string, unknown>> };
+export declare function resolveTipPayee(recipient: string, options?: Record<string, unknown>): Promise<string>;
+export declare function resolveTipRecipient(input: Record<string, unknown>): Promise<Record<string, unknown>>;
+
+// Nib Tip holding boxes (no-key per-domain escrow + claim tokens)
+export declare const HOLDING_FACTORY_ABI: readonly unknown[];
+export declare const HOLDING_DEPLOYMENTS: Record<string, Record<string, unknown>>;
+export declare function holdingDeployment(network?: string): Record<string, unknown>;
+export declare function canonicalDomainKey(domain?: string): string;
+export declare function domainHashFor(domain?: string): string;
+export declare function mintHoldingAddress(domain: string, options?: Record<string, unknown>): string;
+export declare function holdingRecipient(domain: string, options?: Record<string, unknown>): string;
+export declare function buildHoldingRequirement(input: Record<string, unknown>, options?: Record<string, unknown>): { box: string; recipient: string; domainHash: string; challenge: Record<string, unknown>; feeBps: number; deployment: Record<string, unknown> };
+export declare function buildHoldingRelease(args: { domain: string; creator: string; factoryAddress?: string }): { to: string; data: string; value: bigint };
+export declare function submitHoldingRelease(call: { to: string; data: string; value?: bigint }, options: { privateKey: string; rpcUrl: string; chainId?: number }): Promise<string>;
+export declare function deployHoldingBox(domain: string, options: Record<string, unknown>): Promise<{ box: string; tx: string }>;
+export declare function withdrawHoldingBoxGateway(domain: string, options: Record<string, unknown>): Promise<Record<string, unknown>>;
+export declare function fundHoldingBox(domain: string, amountUsdc: number, options: Record<string, unknown>): Promise<string>;
+export declare function claimMessage(args: { domain: string; wallet: string; expiresAt: number }): string;
+export declare function mintClaimToken(args: { domain: string; wallet: string; expiresAt?: number }, signMessage: (message: string) => Promise<string>): Promise<{ domain: string; wallet: string; expiresAt: number; message: string; signature: string }>;
+export declare function verifyClaimToken(args: { message: string; signature: string; domain?: string; wallet?: string; maxAgeMs?: number; now?: number }): Promise<{ valid: boolean; signer?: string; reason?: string }>;
+export declare function createTipIntent(input: Record<string, unknown>): Record<string, unknown>;

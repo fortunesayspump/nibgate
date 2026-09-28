@@ -267,7 +267,12 @@ export function NibgateRatingUI({
 
   return (
     <div style={{ textAlign: 'center', padding: '28px 0', fontFamily: 'var(--font-content, inherit)', color: 'var(--fg, #0a0a0a)' }}>
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--muted, #6b6862)' }}>
+        <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2.5l2.95 5.98 6.6.96-4.78 4.65 1.13 6.58L12 17.56l-5.9 3.1 1.13-6.57L2.45 9.44l6.6-.96L12 2.5z" />
+        </svg>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, minHeight: 44 }}>
         {stars.map((v) => {
           const active = hover > 0 ? v <= hover : v <= selected
           return (

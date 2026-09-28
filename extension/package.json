@@ -1,0 +1,23 @@
+{
+  "name": "nibgate-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nibgate browser extension (testnet only).",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@circle-fin/x402-batching": "3.2.0",
+    "@mozilla/readability": "^0.6.0",
+    "qrcode-generator": "^2.0.4",
+    "viem": "^2.56.9"
+  }
+}

@@ -1,4 +1,5 @@
 import { db } from '@nibgate/internal/db.js';
+import { activeNetwork } from '@nibgate/internal/networks.js';
 import {
   distributeFeeWallet,
   ensureFeeWalletDeployed,
@@ -131,7 +132,54 @@ async function runFeeSweep() {
 
 export async function runRevenueSweep() {
   if (!process.env.NIBGATE_FEE_KEEPER) return { disabled: true };
-  return runFeeSweep();
+  const fees = await runFeeSweep();
+  const holding = await runHoldingBoxSweep().catch((error) => ({ error: error.message }));
+  return { ...fees, holding };
+}
+
+// ── Holding-box sweep ───────────────────────────────────────────────────────
+// Gateway holds credit a domain box's Circle Gateway ledger; the box's ERC-1271
+// self-withdrawal materializes the credit onchain so a claim can release it.
+// Circle batch settlement is deferred, so this runs periodically and is
+// idempotent (a materialized box has no withdrawable ledger left).
+async function runHoldingBoxSweep() {
+  let holding;
+  try {
+    holding = await import('../../../../packages/nibgate/src/server/holding.js');
+  } catch {
+    return { skipped: 'holding sdk unavailable' };
+  }
+  const privateKey = process.env.NIBGATE_KEEPER_PRIVATE_KEY || '';
+  const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_PAYMENT_RPC_URL || '';
+  if (!privateKey || !rpcUrl) return { skipped: 'no keeper keys' };
+
+  const held = await db.tip.findMany({
+    where: { status: 'held', paymentProvider: 'circle-gateway' },
+    select: { domain: true, contentUrl: true },
+  });
+  const domains = new Set();
+  for (const t of held) {
+    let d = t.domain;
+    if (!d && t.contentUrl) { try { d = new URL(t.contentUrl).hostname; } catch {} }
+    if (d) domains.add(holding.canonicalDomainKey(d));
+  }
+  const results = [];
+  for (const domain of domains) {
+    try {
+      const out = await holding.withdrawHoldingBoxGateway(domain, { privateKey, rpcUrl, network: activeNetwork().name });
+      if (out?.minted && out.tx) {
+        await db.tip.updateMany({
+          where: { status: 'held', paymentProvider: 'circle-gateway', OR: [{ domain }, { contentUrl: { contains: domain } }] },
+          data: { txHash: out.tx },
+        });
+      }
+      if (out?.minted) console.log(`Revenue keeper: holding box ${domain} minted ${out.tx}`);
+      results.push({ domain, ...out });
+    } catch (error) {
+      results.push({ domain, error: error.message });
+    }
+  }
+  return { swept: results.length, results };
 }
 
 // ── Schedule ────────────────────────────────────────────────────────────────

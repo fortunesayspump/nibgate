@@ -131,6 +131,53 @@ export function NibgateUnlock(props: {
   children?: ReactNode | ((state: ReturnType<typeof useNibgateUnlock>) => ReactNode);
 }): ReactNode;
 
+export interface TipResource {
+  url?: string;
+  path?: string;
+  title?: string;
+  price?: string | number;
+  tipAmount?: string | number;
+  recipient?: string;
+  network?: string;
+}
+
+export interface TipResult {
+  type: 'tip';
+  txHash: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
+  network: string;
+  recipient: string;
+  payer: string;
+  resource: string;
+  title: string;
+}
+
+export interface TipOptions {
+  resource?: TipResource;
+  challenge?: { accepts?: Array<{ payTo?: string; recipient?: string; amount?: string | number; network?: string }> };
+  recipient?: string;
+  amount?: string | number;
+  amounts?: Array<string | number>;
+  apiBase?: string;
+  style?: React.CSSProperties;
+  onPaid?: (result: TipResult) => void;
+}
+
+export function useNibgateTip(options?: TipOptions): {
+  tip: (amount?: string | number) => Promise<TipResult>;
+  status: string;
+  error: string;
+  receipt: TipResult | null;
+  isConnected: boolean;
+  address?: string;
+};
+
+export function NibgateTipInline(props: TipOptions): ReactNode;
+
+export function NibgateTipCard(props: TipOptions): ReactNode;
+
 export function GatewayWalletUI(props: {
   address: string;
   gatewayBalanceUrl?: string;

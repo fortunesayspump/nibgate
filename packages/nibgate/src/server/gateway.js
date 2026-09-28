@@ -6,6 +6,22 @@ async function importGatewayPackage(specifier) {
   return import(specifier);
 }
 
+// Batching option block the Circle v3 client requires on every gateway
+// accept (extra.name GatewayWalletBatched v1 + verifyingContract). Without
+// it, pay() throws "No Gateway batching option available" — for unlock AND
+// tip challenges alike. Pure data, no network.
+export function gatewayBatchingExtra(network = '') {
+  const net = String(network || '').toLowerCase();
+  const verifyingContract =
+    net.includes('5042002') || net === 'testnet' || net.includes('testnet')
+      ? '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'
+      : net.includes('5042') || net === 'mainnet' || net.includes('mainnet') || net.includes('arc')
+        ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
+        : '';
+  if (!verifyingContract) return undefined;
+  return { name: 'GatewayWalletBatched', version: '1', verifyingContract };
+}
+
 export async function payWithGateway(resourceInput, options = {}) {
   const resource = normalizeResource(resourceInput);
   const gatewayBuyerResult = await createGatewayBuyer(options);

@@ -454,3 +454,50 @@ model PaymentTxClaim {
   contentId String
   createdAt DateTime @default(now())
 }
+
+// Nib Tip receipts (LOCAL-ONLY until the Sep-30 freeze lifts — do not commit).
+// Tips settle like unlocks (fee-wallet payee, protocol fee) but grant no
+// access and never inflate unlock counts, so they live here instead of
+// UnlockReceipt. status: settled | held | released.
+model Tip {
+  id              String   @id @default(uuid())
+  contentUrl      String
+  contentId       String?
+  websiteId       String?
+  domain          String?
+  title           String?
+  amount          Float
+  currency        String?  @default("USDC")
+  network         String?
+  payerWallet     String?
+  recipientWallet String?
+  payeeWallet     String?
+  protocolFee     Float?
+  feeBps          Int?
+  paymentProvider String?
+  paymentId       String?
+  txHash          String?
+  releaseTx       String?
+  releasedAt      DateTime?
+  status          String   @default("settled")
+  holdReason      String?
+  createdAt       DateTime @default(now())
+
+  @@index([contentUrl])
+  @@index([status])
+  @@index([txHash])
+  @@index([payerWallet])
+  @@index([domain])
+}
+
+// One verified wallet per domain. First claim binds the domain; a later claim
+// to a different wallet goes to manual review, never auto-release.
+model TipDomainClaim {
+  id           String   @id @default(uuid())
+  domain       String   @unique
+  wallet       String
+  network      String?
+  releasedTips Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

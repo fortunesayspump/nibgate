@@ -4,6 +4,8 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/agent-discovery", "Agent discovery: machine-readable content cards, x402 purchasing, and the discovery.md guide."],
   ["https://docs.nibgate.xyz/reputation", "Onchain reputation: ratings, scores, and leaderboards."],
   ["https://docs.nibgate.xyz/nibshare", "Nibshare quick-share links and their machine-readable surfaces."],
+  ["https://docs.nibgate.xyz/tipping", "Nib Tips: tip any page. Resolved creators settle instantly; unresolved/external creators are held in a no-key per-domain box, claimable by the owner and refundable by the payer."],
+  ["https://docs.nibgate.xyz/tipping/agent-flow", "Agent flow for Nib Tips: resolve, challenge/verify (settled) or hold, and refund held tips over x402."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the public hub endpoints."],
 ];
 

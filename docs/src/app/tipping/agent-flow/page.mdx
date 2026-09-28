@@ -1,0 +1,119 @@
+import { Callout, Steps } from 'nextra/components'
+
+# Nib Tips — agent flow
+
+An agent can tip any page over the same x402 rail it uses for unlocks. The only branch is whether the hub can resolve the creator.
+
+<Callout type="info">
+All routes are canonical bare hub routes. Testnet host `testnet-api.nibgate.xyz`, mainnet `api.nibgate.xyz`. Amounts are USDC decimal strings; on-chain values are 6-decimal base units.
+</Callout>
+
+## 0. Try to resolve the creator
+
+```bash
+curl -s 'https://testnet-api.nibgate.xyz/hub/resolve?url=https://theinkwell.testnet.nibgate.xyz/writing/x'
+# → { "success": true, "wallet": "0x…", "confidence": 0.9, "source": "hub-index" }
+```
+
+- `wallet` present → **resolved** → use the settled flow.
+- `success:false` / no wallet → **unresolved** → use the held flow.
+
+## A. Settled tip (resolved creator)
+
+<Steps>
+### Get the challenge
+
+```bash
+curl -s https://testnet-api.nibgate.xyz/hub/tips/challenge \
+  -H 'content-type: application/json' \
+  -d '{"contentUrl":"https://theinkwell.testnet.nibgate.xyz/writing/x","amount":"0.05","recipient":"0xCreator","paymentRail":"transfer"}'
+# → accepts[0].payTo = creator payee, nibgate.feeBps, nibgate.protocolFee
+```
+
+### Pay
+
+Transfer the amount in USDC to `accepts[0].payTo` (or pay the Gateway challenge). With the Circle Agent Stack CLI:
+
+```bash
+circle services pay "https://testnet-api.nibgate.xyz/hub/tips/challenge" --address <agent-wallet> --chain ARC-TESTNET
+```
+
+### Record the settled tip
+
+```bash
+curl -s https://testnet-api.nibgate.xyz/hub/tips/verify \
+  -H 'content-type: application/json' \
+  -d '{"contentUrl":"https://theinkwell.testnet.nibgate.xyz/writing/x","amount":"0.05","recipient":"0xCreator","txHash":"0x…","walletAddress":"0xAgent","paymentRail":"transfer"}'
+# → { "success": true, "receipt": { "status": "settled", … } }
+```
+</Steps>
+
+No hold, no refund — the creator was paid directly.
+
+## B. Held tip (unresolved / external creator)
+
+<Steps>
+### Get the box
+
+```bash
+curl -s https://testnet-api.nibgate.xyz/hub/tips/hold \
+  -H 'content-type: application/json' \
+  -d '{"contentUrl":"https://ext.example/post","amount":"0.05","domain":"ext.example","paymentRail":"transfer"}'
+# → { "holdStatus": "challenge", "box": "0x…" }
+```
+
+### Fund the box
+
+Transfer `amount` USDC to `box`. The box is a deterministic no-key address; funds are safe even if it has no code yet.
+
+### Record the held tip
+
+```bash
+curl -s https://testnet-api.nibgate.xyz/hub/tips/hold \
+  -H 'content-type: application/json' \
+  -d '{"contentUrl":"https://ext.example/post","amount":"0.05","domain":"ext.example","paymentRail":"transfer","txHash":"0x…","walletAddress":"0xAgent"}'
+# → { "holdStatus": "held", "tip": { … } }
+```
+</Steps>
+
+## C. Refund a held tip (payer only)
+
+An agent that paid a held tip can reclaim it (full amount, no fee) until the creator claims.
+
+<Steps>
+### Sign a control message
+
+`personal_sign` (EIP-191) with the **paying** wallet:
+
+```txt
+Nibgate tip refund
+Domain: ext.example
+Wallet: 0xagent
+Issued: 2026-09-28T00:00:00.000Z
+```
+
+### Ask the hub to relay the refund
+
+```bash
+curl -s https://testnet-api.nibgate.xyz/hub/tips/refund \
+  -H 'content-type: application/json' \
+  -d '{"domain":"ext.example","payer":"0xAgent","message":"Nibgate tip refund…","signature":"0x…"}'
+# → { "success": true, "amount": 0.05, "refundTx": "0x…" }
+```
+
+A `202 pending-settlement` response means the Circle Gateway credit is still settling — retry shortly. `404` means nothing is held for that payer/domain.
+</Steps>
+
+## Reconcile against the ledger
+
+```bash
+curl -s 'https://testnet-api.nibgate.xyz/hub/ledger?type=tips&limit=50'
+```
+
+`type: "tip"` rows carry `amount`, `payerWallet`, `payeeWallet`, `txHash`, `status`. Refunds appear as negative `refunded` rows so totals net out. Machine payers are recorded identically to browser users.
+
+## Machine-readable indexes
+
+- `https://api.nibgate.xyz/openapi.json` — the tip routes with schemas (tag **Tips**)
+- `https://nibgate.xyz/discovery.md` — payer/agent guide
+- `https://api.nibgate.xyz/mcp` — MCP tools over the same data

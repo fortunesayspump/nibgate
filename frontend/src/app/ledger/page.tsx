@@ -5,13 +5,13 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import Image from "next/image";
-import { FiEye, FiUnlock, FiDollarSign, FiStar } from "react-icons/fi";
+import { FiEye, FiUnlock, FiDollarSign, FiStar, FiGift } from "react-icons/fi";
 import { explorerTxLink } from "@/lib/chains";
 
 import styles from "./page.module.css";
 
 type Activity = {
-  type: "view" | "unlock" | "payment" | "rating";
+  type: "view" | "unlock" | "payment" | "rating" | "tip";
   actor: string;
   contentTitle: string;
   contentUrl: string;
@@ -47,6 +47,7 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
   unlock: { label: "Unlock", icon: <FiUnlock size={18} /> },
   payment: { label: "Payment", icon: <FiDollarSign size={18} /> },
   rating: { label: "Rating", icon: <FiStar size={18} /> },
+  tip: { label: "Tip", icon: <FiGift size={18} /> },
 };
 
 const MAX_FEED_ITEMS = 300;
@@ -239,6 +240,7 @@ export default function LedgerPage() {
                             <td className="px-5 py-5 whitespace-nowrap text-sm max-w-[120px] truncate font-mono" title={a.actor}>{sn(a.actor)}</td>
                             <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
                               {a.type === "payment" && <span>{a.amount} {a.currency}</span>}
+                              {a.type === "tip" && <span>{a.amount} {a.currency}</span>}
                               {a.type === "unlock" && a.revenue ? <span>{a.revenue} {a.currency}</span> : null}
                               {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
                               {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
@@ -276,6 +278,8 @@ export default function LedgerPage() {
                                   {a.type === "unlock" && <Det label="Revenue" value={`${a.revenue || 0} ${a.currency || "USDC"}`} />}
                                   {a.type === "payment" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
                                   {a.type === "payment" && a.protocolFee != null && <Det label="Protocol Fee" value={`${a.protocolFee} ${a.currency || "USDC"}`} />}
+                                  {a.type === "tip" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
+                                  {a.type === "tip" && a.protocolFee != null && <Det label="Protocol Fee" value={`${a.protocolFee} ${a.currency || "USDC"}`} />}
                                   {a.paymentId && <Det label="Payment ID" value={a.paymentId} />}
                                   {a.txHash && <Det label={a.paymentProvider === "circle-gateway" ? "Gateway Ref" : "Tx Hash"} value={a.txHash} />}
                                   {a.chainId && <Det label="Chain ID" value={a.chainId} />}

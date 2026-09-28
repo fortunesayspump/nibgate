@@ -164,7 +164,7 @@ GET /hub/ledger?limit=50&skip=0&type=&domain=
 |-------|---------|-------------|
 | `limit` | `50` | Items per page (max 100) |
 | `skip` | `0` | Offset for pagination |
-| `type` | — | Filter by activity type: `views`, `unlocks`, `payments`, `ratings` |
+| `type` | — | Filter by activity type: `views`, `unlocks`, `payments`, `tips`, `ratings` |
 | `domain` | — | Filter by site domain (e.g. `fortune.nibgate.xyz` for per-site activity) |
 
 Returns sorted activity list plus total counts across all records.
@@ -208,6 +208,30 @@ Returns sorted activity list plus total counts across all records.
 ```
 
 The ledger is also available as a UI at `https://nibgate.xyz/ledger` with search, filtering, expandable row details, and live updates.
+
+## Tips
+
+Nib Tips pay the creator of any page. A resolved creator settles instantly; an unresolved (external) creator's tip is held in a no-key per-domain box until claimed, and is refundable by the payer meanwhile. Full flows on the [Nib Tips](/tipping) page.
+
+```http
+POST /hub/tips/challenge     # tip challenge for a resolved creator (x402 envelope, payTo)
+POST /hub/tips/verify        # record a settled tip after paying the challenge
+POST /hub/tips/hold          # no proof → box challenge; with txHash → record a held tip
+GET  /hub/tips/held?domain=  # public list of tips waiting in a domain's box
+POST /hub/tips/claim         # creator releases a domain's box (siteId + verifyToken)
+POST /hub/tips/refund        # payer refunds unclaimed held tips (signed control message)
+```
+
+| Endpoint | Key fields |
+|----------|-----------|
+| `challenge` | `contentUrl` (req), `amount` (req), `recipient` (req unless the hub index resolves the URL), `paymentRail` (`transfer` / `gateway`) → `accepts[0].payTo`, `payee`, `feeBps`, `protocolFee` |
+| `verify` | same + `txHash` (transfer) or `paymentSignature` (gateway) + `walletAddress` → receipt, `status: settled` |
+| `hold` | `contentUrl`, `amount`, `domain` (defaults to hostname); second call adds `txHash`, `walletAddress` → `holdStatus: held`, `box` |
+| `held` | `domain` (req), `limit` → `tips`, `total` |
+| `claim` | `siteId`, `token` (verifyToken) req; `creatorWallet`/`claimToken` when claiming to a non-owner wallet → `releaseTx`, `feeBps: 500`, `protocolFee` |
+| `refund` | `domain`, `payer`, `message`, `signature` req (EIP-191, signer must equal payer); optional `amount` cap → `refundTx`; `202` while Gateway credit settles, `404` when nothing is held |
+
+Refunds only ever touch `held` rows and only ever return funds to the signing payer, full amount, no fee. See [Nib Tips](/tipping) and the [holding contracts](/tipping/contracts) for the on-chain mechanics.
 
 ## Reputation & ratings
 

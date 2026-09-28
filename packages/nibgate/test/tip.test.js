@@ -213,4 +213,33 @@ describe('browser hold + refund helpers', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('normalizes gateway base units to decimals for transfer-only signers', async () => {
+    const { tipContent } = await import('../src/browser/tip.js')
+    let verifyBody = null
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      const u = String(url)
+      if (u.includes('/hub/resolve')) return { ok: true, status: 200, json: async () => ({ wallet: '0x0000000000000000000000000000000000000001' }) }
+      if (u.endsWith('/hub/tips/verify')) {
+        verifyBody = JSON.parse(init.body)
+        return { ok: true, status: 200, json: async () => ({ success: true }) }
+      }
+      return { ok: false, status: 404, json: async () => ({}) }
+    }))
+    // A gateway challenge quotes integer base units; the signer can only transfer.
+    const challenge = {
+      paymentRail: 'gateway',
+      accepts: [{ payTo: '0x0000000000000000000000000000000000000002', amount: '50000', network: 'eip155:5042002', extra: { name: 'GatewayWalletBatched' } }],
+    }
+    const signer = { address: '0x0000000000000000000000000000000000000009', sendTransaction: vi.fn(async () => '0xtx') }
+    try {
+      const out = await tipContent({ contentUrl: 'https://x.y', amount: '0.05', recipient: '0x0000000000000000000000000000000000000001', challenge, signer, hubApi: 'https://hub.test' })
+      expect(signer.sendTransaction).toHaveBeenCalledWith({ to: '0x0000000000000000000000000000000000000002', amount: 0.05, network: 'eip155:5042002' })
+      expect(out.amount).toBe(0.05)
+      expect(verifyBody.paymentRail).toBe('transfer')
+      expect(verifyBody.amount).toBe(0.05)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

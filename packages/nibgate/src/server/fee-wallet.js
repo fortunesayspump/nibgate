@@ -519,7 +519,10 @@ export async function feeWalletUsdcBalance(wallet, options = {}) {
   const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const usdc = options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC;
   const client = options.publicClient || sharedPublicClient(rpcUrl);
-  return client.readContract({ address: getAddress(usdc), abi: ERC20_ABI, functionName: 'balanceOf', args: [getAddress(wallet)] });
+  return withRpcRetry(
+    () => client.readContract({ address: getAddress(usdc), abi: ERC20_ABI, functionName: 'balanceOf', args: [getAddress(wallet)] }),
+    { label: 'feeWalletUsdcBalance' },
+  );
 }
 
 // Drive a fee wallet's Gateway-credited balance onto the chain: submit the self
@@ -674,7 +677,10 @@ async function withRpcRetry(fn, { label = 'rpc', attempts = 4, baseDelayMs = 1_5
 export async function ensureFeeWalletDeployed(wallet, options = {}) {
   const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const publicClient = options.publicClient || sharedPublicClient(rpcUrl);
-  const onchain = await publicClient.getCode({ address: getAddress(wallet) });
+  const onchain = await withRpcRetry(
+    () => publicClient.getCode({ address: getAddress(wallet) }),
+    { label: 'feeWalletGetCode' },
+  );
   if (onchain && onchain.length > 0) return { status: 'exists', wallet: getAddress(wallet) };
 
   const factory = options.feeWalletFactory || serverEnv('NIBGATE_FEE_WALLET_FACTORY') || '';

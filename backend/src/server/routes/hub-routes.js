@@ -1390,8 +1390,8 @@ export function registerHubRoutes(app) {
       if (!domain || !payer || !signature || !message) {
         return res.status(400).json({ error: 'domain, payer, signature, message required.' });
       }
-      const { verifyMessage } = await import('viem');
-      const signer = await verifyMessage({ message, signature }).catch(() => null);
+      const { recoverMessageAddress } = await import('viem');
+      const signer = await recoverMessageAddress({ message, signature }).catch(() => null);
       if (!signer || String(signer).toLowerCase() !== String(payer).toLowerCase()) {
         return res.status(403).json({ error: 'Wallet control proof failed.' });
       }

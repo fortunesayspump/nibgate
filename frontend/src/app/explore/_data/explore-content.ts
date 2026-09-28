@@ -87,7 +87,7 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     unlockCount: content.unlocks || 0,
     tags: parseTags(content),
     image: fallbackImage(content),
-    avatar: content.websiteFaviconUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(content.websiteName || content.websiteDomain || "N")}`,
+    avatar: content.websiteFaviconUrl || '/nibgate-mark.svg',
     topCreator: (content.unlocks || 0) > 0,
     url: content.url,
     views: content.views || 0,

@@ -74,7 +74,13 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
     const provider = providerRef.current
     if (!provider?.request) throw new Error('Wallet provider is not available.')
     const target = resolveTarget({ resource, challenge, recipient, amount: tipAmount ?? amount })
-    if (!target.to || !/^0x[a-fA-F0-9]{40}$/.test(target.to)) throw new Error('No recipient to tip.')
+    const contentUrl = resource?.url || resource?.path || ''
+    const base = (apiBase || '').replace(/\/+$/, '')
+    const resolved = target.to && /^0x[a-fA-F0-9]{40}$/.test(target.to)
+    let domain = ''
+    if (!resolved && contentUrl) { try { domain = new URL(contentUrl, 'https://x').hostname } catch { domain = '' } }
+    // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
+    if (!resolved && (!base || !domain)) throw new Error('No recipient to tip.')
     if (!(target.amount > 0)) throw new Error('Tip amount must be above zero.')
     setStatus('switching')
     setError('')
@@ -89,15 +95,45 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
       }
       setStatus('signing')
       const walletClient = createWalletClient({ chain: activeArcChain(), account, transport: custom(provider) })
-      const data = encodeFunctionData({
-        abi: USDC_TRANSFER_ABI,
-        functionName: 'transfer',
-        args: [target.to, BigInt(Math.round(target.amount * 1e6))],
-      })
-      const txHash = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account })
-      const hash = txHash?.hash || txHash || ''
+      const sendTo = async (to, amt) => {
+        const data = encodeFunctionData({
+          abi: USDC_TRANSFER_ABI,
+          functionName: 'transfer',
+          args: [to, BigInt(Math.round(amt * 1e6))],
+        })
+        const txHash = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account })
+        return txHash?.hash || txHash || ''
+      }
+
+      if (!resolved) {
+        // Hold: challenge → pay the predicted box → record the held tip.
+        const chalRes = await fetch(`${base}/hub/tips/hold`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', domain, paymentRail: 'transfer' }),
+        })
+        const chal = await chalRes.json().catch(() => ({}))
+        if (!chalRes.ok || !chal?.box) throw new Error(chal?.error || `Hold failed: ${chalRes.status}`)
+        const hash = await sendTo(chal.box, target.amount)
+        const held = await fetch(`${base}/hub/tips/hold`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', domain, paymentRail: 'transfer', txHash: hash, walletAddress: account }),
+        }).then((r) => r.json()).catch(() => ({}))
+        const out = {
+          type: 'tip', held: true, status: 'held', txHash: hash, paymentId: hash,
+          amount: target.amount, currency: 'USDC', network: activeChain().caip2,
+          domain, box: chal.box, payer: account, recipient: '',
+          resource: contentUrl, title: resource?.title || '', receipt: held?.tip || null,
+        }
+        setReceipt(out)
+        setStatus('done')
+        onPaid?.(out)
+        return out
+      }
+
+      const hash = await sendTo(target.to, target.amount)
       const out = {
         type: 'tip',
+        held: false,
         txHash: hash,
         paymentId: hash,
         amount: target.amount,
@@ -105,18 +141,17 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
         network: activeChain().caip2,
         recipient: target.to,
         payer: account,
-        resource: resource?.url || resource?.path || '',
+        resource: contentUrl,
         title: resource?.title || '',
       }
       // Record on the hub (best-effort; the chain tx is the truth). Send the
       // CREATOR as recipient so the hub resolves the fee-wallet payee itself.
-      const base = (apiBase || '').replace(/\/+$/, '')
       if (base) {
         fetch(`${base}/hub/tips/verify`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            contentUrl: resource?.url || resource?.path || '',
+            contentUrl,
             title: resource?.title || '',
             amount: target.amount,
             currency: 'USDC',
@@ -142,7 +177,30 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
     }
   }, [address, walletProvider, resource, challenge, recipient, amount, apiBase, onPaid])
 
-  return { tip, status, error, receipt, isConnected, address, chain: activeChain() }
+  // Payer refund for an unclaimed held tip. Signs a control message; funds can
+  // only ever return to the connected wallet.
+  const refund = useCallback(async (heldDomain) => {
+    const account = address
+    const provider = providerRef.current
+    if (!account) throw new Error('Connect your wallet to refund.')
+    if (!provider?.request) throw new Error('Wallet provider is not available.')
+    const base = (apiBase || '').replace(/\/+$/, '')
+    if (!base) throw new Error('Refund needs apiBase.')
+    const d = typeof heldDomain === 'string' ? heldDomain : (heldDomain?.domain || '')
+    if (!d) throw new Error('Refund needs a domain.')
+    const walletClient = createWalletClient({ chain: activeArcChain(), account, transport: custom(provider) })
+    const message = `Nibgate tip refund\nDomain: ${d}\nWallet: ${String(account).toLowerCase()}\nIssued: ${new Date().toISOString()}`
+    const signature = await walletClient.signMessage({ account, message })
+    const res = await fetch(`${base}/hub/tips/refund`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ domain: d, payer: account, message, signature }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok || body?.success === false) throw new Error(body?.error || `Refund failed: ${res.status}`)
+    return body
+  }, [address, walletProvider, apiBase])
+
+  return { tip, refund, status, error, receipt, isConnected, address, chain: activeChain() }
 }
 
 // Compact inline tip control: "Tip me" button + amount, no chrome.

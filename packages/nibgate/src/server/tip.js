@@ -71,7 +71,7 @@ export function createTipChallenge(input = {}, options = {}) {
       network,
       paymentRail,
       // Expiry/hold policy travels with the challenge so payers consent upfront.
-      holdPolicy: options.holdPolicy || 'unresolved tips are held per-domain until claimed; never expire; no refunds',
+      holdPolicy: options.holdPolicy || 'unresolved tips are held per-domain until claimed; never expire; refundable to the payer while unclaimed',
     },
   };
 }

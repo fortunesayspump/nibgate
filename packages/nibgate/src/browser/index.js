@@ -7,7 +7,7 @@ export { createEvmGatewayUnlock, createHostedUnlock, createCircleGatewayBrowserA
 export { rateResource, createOnchainRating, mountRatingUI, ratingMessage } from './rating-ui.js';
 export { trackResourcePage, setupResourcePage } from './track.js';
 export { createTransferCheckout, payWithTransfer } from './transfer.js';
-export { tipContent } from './tip.js';
+export { tipContent, holdTipContent, refundTip } from './tip.js';
 export { contentRatingHash, NIBGATE_CONTENT_HASH_NAMESPACE, NIBGATE_REPUTATION_ABI, NIBGATE_REPUTATION_CHAIN_ID, NIBGATE_REPUTATION_CHAIN_NAME, NIBGATE_REPUTATION_CONTRACT, NIBGATE_REPUTATION_RPC_URL, rateContentOnchain, reviewTextHash } from './reputation.js';
 export { renderDefaultUnlockUI, renderDefaultRatingUI, renderDefaultGatewayWalletUI } from './default-ui.js';
 export { CONTENT_TYPES, ACCESS_MODES, UNLOCK_MODES, normalizeContentType, normalizeResource, normalizeAccessPolicy, normalizeUnlockPolicy, validateResourceMetadata } from '../core/resource.js';

@@ -1,6 +1,6 @@
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Testnet only.
-import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, CHAIN_ID } from '../lib/api-client';
+import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, CHAIN_ID } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
 import {
@@ -199,6 +199,25 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
           hasSdk: (msg as Assess).hasSdk,
         });
         respond({ ok: true, resolution: resolution.resolution, hasSdk: resolution.hasSdk, domain: resolution.domain });
+      } catch (e) {
+        respond({ ok: false, error: String((e as Error)?.message || e) });
+      }
+    })();
+    return true;
+  }
+  if (msg?.type === 'TIP_REFUND') {
+    (async () => {
+      try {
+        await ensureUnlocked();
+        if (!isUnlocked()) return respond({ ok: false, needsUnlock: true });
+        const signer = sessionSigner();
+        if (!signer) throw new Error('Wallet locked.');
+        const domain = String(msg.domain || '');
+        if (!domain) throw new Error('Missing domain.');
+        const message = `Nibgate tip refund\nDomain: ${domain}\nWallet: ${signer.address.toLowerCase()}\nIssued: ${new Date().toISOString()}`;
+        const signature = await signer.signMessage(message);
+        const out = await refundHeldTip({ domain, payer: signer.address, message, signature, amount: msg.amount });
+        respond({ ok: true, ...out });
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
       }

@@ -143,7 +143,7 @@ async function paintBalances() {
 }
 
 // ── activity ──────────────────────────────────────────────────────────────
-type HistoryItem = { type?: string; amount?: string; title?: string; txHash?: string; payerWallet?: string; recipientWallet?: string; timestamp?: string };
+type HistoryItem = { type?: string; amount?: string; title?: string; txHash?: string; payerWallet?: string; recipientWallet?: string; timestamp?: string; domain?: string; status?: string };
 let historyItems: HistoryItem[] = [];
 
 function paintHistory(items: HistoryItem[], elId: string, limit?: number) {
@@ -191,6 +191,35 @@ function openDetail(item: HistoryItem) {
       val.textContent = v;
       body.append(key, val);
     }
+  }
+  if (item.status === 'held' && item.domain) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:14px;';
+    const btn = document.createElement('button');
+    btn.textContent = 'Refund tip';
+    btn.style.cssText = 'background:var(--surface-2);color:var(--danger);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Refunding…';
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'TIP_REFUND', domain: item.domain, amount: Number(item.amount) || undefined });
+        if (res?.ok) {
+          btn.textContent = `Refunded ✓${res.refundTx ? ` ${String(res.refundTx).slice(0, 10)}…` : ''}`;
+          item.status = 'refunded';
+        } else if (res?.needsUnlock) {
+          btn.textContent = 'Unlock wallet, then retry';
+          btn.disabled = false;
+        } else {
+          btn.textContent = res?.error || 'Refund failed';
+          btn.disabled = false;
+        }
+      } catch {
+        btn.textContent = 'Refund failed';
+        btn.disabled = false;
+      }
+    });
+    wrap.append(btn);
+    body?.append(wrap);
   }
   showScreen('detail');
 }

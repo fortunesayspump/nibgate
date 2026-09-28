@@ -32,7 +32,15 @@ export const ARC_TESTNET_RPC_FALLBACKS = [
 // mirrors explicitly. Never mix testnet mirrors into mainnet failover:
 // broadcasting a mainnet transaction to a testnet RPC is a silent failure.
 export const ARC_MAINNET_RPC = 'https://rpc.mainnet.arc.io';
-export const ARC_MAINNET_RPC_FALLBACKS = [];
+// Public mainnet mirrors (same-shape as the testnet DRPC/QuickNode fallbacks,
+// confirmed against provider docs). Keyed endpoints are still preferred via
+// NIBGATE_PAYMENT_RPC_URL / NIBGATE_RPC_MIRRORS ΓÇö these only absorb bursts
+// when the primary rate-limits.
+export const ARC_MAINNET_RPC_FALLBACKS = [
+  'https://arc.drpc.org',
+  'https://rpc.drpc.mainnet.arc.io',
+  'https://rpc.quicknode.mainnet.arc.io',
+];
 // Never fall back to the testnet RPC on a mainnet deployment: an unset
 // NIBGATE_PAYMENT_RPC_URL would otherwise broadcast real transfers to the
 // wrong chain (silent failure / stuck funds).

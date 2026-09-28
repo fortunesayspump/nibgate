@@ -72,7 +72,7 @@ export default function LedgerPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState(false);
-  const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, total: 0 });
+  const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, tips: 0, total: 0 });
 
   const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set());
   const knownIdsRef = useRef<Set<string>>(new Set());
@@ -155,18 +155,19 @@ export default function LedgerPage() {
             <div>
               <p className="text-xl font-medium">Ledger</p>
               <h1 className="nibgate-display-title mt-4 max-w-4xl text-5xl font-medium md:text-7xl">Network activity.</h1>
-              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Live feed of views, unlocks, payments, and ratings across all sites — every entry is verifiable with on-chain proofs or signed receipts.</p>
+              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Live feed of views, unlocks, payments, ratings, and tips across all sites — every entry is verifiable with on-chain proofs or signed receipts.</p>
             </div>
           </div>
 
           {/* Totals — barometer animation */}
-          <div className="grid gap-3 mt-8 grid-cols-2 sm:grid-cols-5">
+          <div className="grid gap-3 mt-8 grid-cols-2 sm:grid-cols-6">
             {[
               { label: "Total", value: serverTotals.total },
               { label: "Views", value: serverTotals.views },
               { label: "Unlocks", value: serverTotals.unlocks },
               { label: "Payments", value: serverTotals.payments },
               { label: "Ratings", value: serverTotals.ratings },
+              { label: "Tips", value: serverTotals.tips },
             ].map((s) => (
               <div key={s.label} className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
                 <span className="opacity-60">{s.label}</span>
@@ -183,7 +184,7 @@ export default function LedgerPage() {
               className="flex-1 rounded-full border border-black/45 bg-white px-5 py-3 text-sm outline-none transition focus:border-black focus:ring-2 focus:ring-black/10"
             />
             <div className="flex gap-2 flex-wrap">
-              {["", "views", "unlocks", "payments", "ratings"].map((t) => (
+              {["", "views", "unlocks", "payments", "ratings", "tips"].map((t) => (
                 <button key={t} onClick={() => setFilter(t)}
                   className={`rounded-full border px-5 py-3 text-sm font-medium transition ${filter === t ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}>
                   {t || "All"}

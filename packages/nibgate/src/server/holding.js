@@ -73,6 +73,17 @@ export const HOLDING_FACTORY_ABI = [
     outputs: [],
   },
   {
+    name: 'refund',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'domainHash_', type: 'bytes32' },
+      { name: 'payer', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: 'wallet', type: 'address' }],
+  },
+  {
     name: 'Release',
     type: 'event',
     anonymous: false,
@@ -81,6 +92,16 @@ export const HOLDING_FACTORY_ABI = [
       { name: 'creator', type: 'address', indexed: true },
       { name: 'amount', type: 'uint256', indexed: false },
       { name: 'protocolFee', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    name: 'Refunded',
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'domainHash', type: 'bytes32', indexed: true },
+      { name: 'payer', type: 'address', indexed: true },
+      { name: 'amount', type: 'uint256', indexed: false },
     ],
   },
 ];
@@ -151,6 +172,41 @@ export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId }
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
   if (receipt.status !== 'success') throw new Error(`Holding release reverted (tx ${txHash}).`);
+  return txHash;
+}
+
+export function buildHoldingRefund({ domain, payer, amountUsdc, factoryAddress }) {
+  const factory = String(factoryAddress || '');
+  const to = String(payer || '');
+  const amount = Number(amountUsdc || 0);
+  if (!factory || !to || !(amount > 0)) throw new Error('buildHoldingRefund requires domain, payer, amountUsdc, factoryAddress.');
+  return {
+    to: getAddress(factory),
+    data: encodeFunctionData({
+      abi: HOLDING_FACTORY_ABI,
+      functionName: 'refund',
+      args: [domainHashFor(domain), getAddress(to), BigInt(Math.round(amount * 1e6))],
+    }),
+    value: 0n,
+  };
+}
+
+// Submit a refund with a keeper key. Returns the tx hash.
+export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId }) {
+  if (!call?.to || !call?.data) throw new Error('submitHoldingRefund requires a refund call.');
+  if (!privateKey || !rpcUrl) throw new Error('submitHoldingRefund requires privateKey and rpcUrl.');
+  const account = privateKeyToAccount(privateKey);
+  const chain = {
+    id: Number(chainId) || 5042002,
+    name: 'arc',
+    nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+    rpcUrls: { default: { http: [rpcUrl] } },
+  };
+  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  const txHash = await client.sendTransaction({ to: call.to, data: call.data, value: call.value ?? 0n });
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  if (receipt.status !== 'success') throw new Error(`Holding refund reverted (tx ${txHash}).`);
   return txHash;
 }
 

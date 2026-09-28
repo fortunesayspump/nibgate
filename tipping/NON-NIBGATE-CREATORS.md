@@ -48,9 +48,12 @@ the right human, eventually, without the payer doing homework.
   wallet is idempotent; a different wallet claiming an already-claimed domain
   goes to manual review, never auto-release.
 - **Unclaimed holds never expire.** No sweep, no deadline. A tip owed is owed
-  indefinitely until claimed. (Deliberate policy: expiry would turn real gifts
-  into protocol revenue.)
-- **No refunds.** No payer clawback, ever — tips are gifts, stated at pay time.
+  indefinitely until claimed or refunded. (Deliberate policy: expiry would
+  turn real gifts into protocol revenue.)
+- **Payer refunds.** The payer can reclaim unclaimed tips in full (no fee) any
+  time before release, via a signed refund request; the hub verifies no release
+  occurred and relays the on-chain refund. Refunds are ledger-recorded and
+  netted from tip counts.
 - **Author vs site owner:** tips default to the verified site owner. Author
   splits are a post-hackathon revenue story, not v1.
 - **Identity:** hub accounts now; ERC-8004 agent/creator identities later.

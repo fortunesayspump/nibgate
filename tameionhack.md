@@ -48,8 +48,10 @@ Extends the unlock model (`content → pay → unlock`) with tipping
 - **Claiming is site-level.** Verify once (widget / terminal / hub link),
   claim everything. Verification mints the creator an agent-managed wallet
   (Circle Wallets) — a creator never needs to understand crypto to receive money.
-- **Unclaimed tips accrue per-domain** in backend-ledger holding, released on
-  verification. Disclosed as protocol-held, not escrowed on-chain (v1 scope).
+- **Unclaimed tips accrue per-domain** in on-chain holding boxes
+  (`TipHoldingFactory`, deterministic per domain) plus a backend-ledger index,
+  released on verification. Payers can reclaim unclaimed tips via refund (full
+  amount, no fee); refunds are ledger-recorded and netted from tip counts.
 - **Pricing:** higher protocol cut for non-Nibgate content — Nibgate provides
   the monetization infrastructure (resolution + custody), not just processing.
 - **Rails:** Gateway + direct-transfer x402, same as unlocks. Testnet +

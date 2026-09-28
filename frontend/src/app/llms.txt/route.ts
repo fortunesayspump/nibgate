@@ -25,7 +25,9 @@ const HUB_PAGES: Array<[string, string]> = [
 
 const API_ENDPOINTS: Array<[string, string]> = [
   [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Explore feed of verified content with title, type, price, domain, and reputation signals."],
-  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, and ratings."],
+  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips, and ratings."],
+  [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Tips waiting in a domain's no-key holding box (creator not yet on Nibgate); claimable by the site owner, refundable by the payer."],
+  [`${apiBaseUrl()}/hub/tips/refund`, "Payer-signed refund of unclaimed held tips (full amount, no fee)."],
   [`${apiBaseUrl()}/hub/stats`, "Platform totals for creators, sites, content, views, unlocks, revenue, and protocol fees."],
   [`${apiBaseUrl()}/ns/{slug}`, "Unlock a nibshare link — free shares return the body; paid shares return a 402 x402 challenge, pay and retry to read."],
   [`${apiBaseUrl()}/nibshare/{slug}/manifest`, "Public metadata manifest for a nibshare (title, type, price, access policy)."],

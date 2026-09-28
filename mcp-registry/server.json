@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.fortunesayspump/nibgate",
   "display_name": "Nibgate",
-  "description": "x402 paywall layer for creator sites and agents: paid content, pricing, reputation, ledger.",
-  "version": "0.2.5",
+  "description": "x402 paywall layer for creator sites and agents: paid content, tips, pricing, reputation, ledger.",
+  "version": "0.2.6",
   "website_url": "https://nibgate.xyz",
   "repository": {
     "source": "github",

@@ -8,7 +8,7 @@ import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.5';
+const SERVER_VERSION = '0.2.6';
 
 // Per-stack settlement facts for tool instructions (Circle CLI chain flag,
 // API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
@@ -259,7 +259,7 @@ const TOOLS = [
   },
   {
     name: 'get_ledger',
-    description: 'Get the public Nibgate activity ledger: recent views, unlocks, payments, and onchain ratings across verified sites. Includes wallet addresses, tx hashes, and receipts where available.',
+    description: 'Get the public Nibgate activity ledger: recent views, unlocks, payments, tips, and onchain ratings across verified sites. Includes wallet addresses, tx hashes, and receipts where available.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -310,7 +310,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      `Nibgate MCP server: verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. Settlements on this server are ${settlementFacts().networkBlurb}. Full guide: https://nibgate.xyz/discovery.md`,
+      `Nibgate MCP server: verified content discovery, unlock/payment/tip ledger, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge (resolved creator settles instantly) or /hub/tips/hold (unresolved/external creator is held in a no-key per-domain box, claimable by the owner and refundable by the payer until claimed). Full guide: https://nibgate.xyz/discovery.md`,
   };
 }
 

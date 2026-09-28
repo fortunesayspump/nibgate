@@ -29,6 +29,9 @@ packages/nibgate/.npmrc
 writeskill.md
 /local-ops/
 
+# Playwright/vitest local artifacts
+/test-results/
+
 # Google service account keys
 /.gsc/
 

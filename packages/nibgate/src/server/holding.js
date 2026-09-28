@@ -17,21 +17,35 @@ const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) retur
 // launch. Until then, pass explicit factoryAddress/initCodeHash (testnet
 // deploys) — the formula never changes, only the constants get pinned.
 
-// Contract status: factory deployed to Arc testnet 2026-09-25. These are the
-// network defaults; pass explicit factoryAddress/initCodeHash to override
-// (e.g. mainnet deploy). The formula never changes, only the constants.
+// Contract status: canonical factories deployed with payer-refund support —
+// Arc testnet 2026-09-28 (owner/keeper 0x796a…), Arc mainnet 2026-09-28
+// (owner treasury 0x558e…, hub keeper 0x0Ac8…). Owner can rotate the keeper;
+// keeper relays hub-verified release/refund. The formula never changes, only
+// the constants.
 export const HOLDING_DEPLOYMENTS = {
   testnet: {
     chainId: 5042002,
-    factoryAddress: '0xe6bdDa4aDE140d93F5116d3ce5516D1eE26934B0',
-    initCodeHash: '0x83902979ef3b0f085d1c9a6930d7fecbf01c74df7a5969d467a73581ff82d9fc',
+    factoryAddress: '0xf127a645d7c02a12e0a93b135f8acf9c3332e518',
+    initCodeHash: '0x0834a6c15bacd21bc1810fffb0d5d9bbf7c790dcdf4d950e1bf57828eb7e6514',
     usdc: '0x3600000000000000000000000000000000000000',
     treasury: '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12',
     feeBps: 500,
     gatewayWallet: '0x0077777d7EBA4688BDeF3E311b846F25870A19B9',
     gatewayMinter: '0x0022222ABE238Cc2C7Bb1f21003F0a260052475B',
     gatewayDomain: 26,
-    deployTx: '0xc636f988c7d419c2b900e8239900d9729d1d0c83c6c3b78700fe11a0d4342df1',
+    deployTx: '0xa2333e3cb7bedbfce1120b1da2a7e71f8530cf8025c4e907695478ca84707ada',
+  },
+  mainnet: {
+    chainId: 5042,
+    factoryAddress: '0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87',
+    initCodeHash: '0x94f9f922f2c114eb9c39962fdc532f66cf1e0a8b82f1f9126a23d0ce5c87886e',
+    usdc: '0x3600000000000000000000000000000000000000',
+    treasury: '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12',
+    feeBps: 500,
+    gatewayWallet: '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE',
+    gatewayMinter: '0x2222222d7164433c4C09B0b0D809a9b52C04C205',
+    gatewayDomain: 26,
+    deployTx: '0x06fe5b318d78c76d947d38440c14fcd8bdafc21314bc5f34d54c22adf89f263e',
   },
 };
 
@@ -40,7 +54,9 @@ export const HOLDING_FACTORY_PLACEHOLDER = HOLDING_DEPLOYMENTS.testnet.factoryAd
 export const HOLDING_INIT_CODE_HASH_PLACEHOLDER = HOLDING_DEPLOYMENTS.testnet.initCodeHash;
 
 export function holdingDeployment(network = 'testnet') {
-  const name = String(network || '').includes('5042') && !String(network).includes('5042002') ? 'mainnet' : 'testnet';
+  const raw = String(network || '').toLowerCase();
+  const isMainnet = raw === 'mainnet' || raw === 'eip155:5042' || (raw.includes('5042') && !raw.includes('5042002'));
+  const name = isMainnet ? 'mainnet' : 'testnet';
   const dep = HOLDING_DEPLOYMENTS[name];
   if (!dep) throw new Error(`No holding deployment for network "${network}".`);
   return { network: name, ...dep };
@@ -223,7 +239,7 @@ export function holdingRecipient(domain, options = {}) {
 //    (see withdrawHoldingBoxGateway). No hub shell, no custody in between.
 export function buildHoldingRequirement(input = {}, options = {}) {
   const dep = holdingDeployment(options.network);
-  const box = holdingRecipient(input.domain, options);
+  const box = holdingRecipient(input.domain, { ...options, factoryAddress: dep.factoryAddress, initCodeHash: dep.initCodeHash });
   const challenge = createTipChallenge(
     {
       contentUrl: input.contentUrl,
@@ -236,7 +252,7 @@ export function buildHoldingRequirement(input = {}, options = {}) {
       network: `eip155:${dep.chainId}`,
       paymentRail: options.paymentRail,
       paymentMode: options.paymentMode,
-      holdPolicy: 'funds held in a no-key onchain box until the site owner claims; never expire; no refunds',
+      holdPolicy: 'funds held in a no-key onchain box until the site owner claims; never expire; refundable to the payer while unclaimed',
     },
   );
   return { box, recipient: box, domainHash: domainHashFor(input.domain), challenge, feeBps: dep.feeBps, deployment: dep };
@@ -265,7 +281,7 @@ export async function deployHoldingBox(domain, options = {}) {
   });
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
   await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
-  return { box: holdingRecipient(domain, { factoryAddress: dep.factoryAddress }), tx: hash };
+  return { box: holdingRecipient(domain, { factoryAddress: dep.factoryAddress, initCodeHash: dep.initCodeHash }), tx: hash };
 }
 
 // Materialize a box's Gateway ledger credit on-chain using the box's ERC-1271
@@ -274,7 +290,7 @@ export async function deployHoldingBox(domain, options = {}) {
 // factory, then withdraws with the fee-wallet deploy step skipped.
 export async function withdrawHoldingBoxGateway(domain, options = {}) {
   const dep = holdingDeployment(options.network);
-  const box = options.box || holdingRecipient(domain, { factoryAddress: dep.factoryAddress });
+  const box = options.box || holdingRecipient(domain, { factoryAddress: dep.factoryAddress, initCodeHash: dep.initCodeHash });
   const { withdrawGatewayBalanceFor, gatewayBalanceFor } = await import('./fee-wallet.js');
   const gatewayApi = options.gatewayApi || undefined;
   const waitMs = Number(options.waitMs || 0);
@@ -305,7 +321,7 @@ export async function withdrawHoldingBoxGateway(domain, options = {}) {
 // to pre-fund). Returns the tx hash.
 export async function fundHoldingBox(domain, amountUsdc, options = {}) {
   const dep = holdingDeployment(options.network);
-  const box = options.box || holdingRecipient(domain, { factoryAddress: dep.factoryAddress });
+  const box = options.box || holdingRecipient(domain, { factoryAddress: dep.factoryAddress, initCodeHash: dep.initCodeHash });
   const privateKey = options.privateKey;
   const rpcUrl = options.rpcUrl;
   if (!privateKey || !rpcUrl) throw new Error('fundHoldingBox requires privateKey and rpcUrl.');

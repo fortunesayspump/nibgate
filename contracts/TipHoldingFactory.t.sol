@@ -89,8 +89,32 @@ contract TipHoldingFactoryTest is Test {
     }
 
     function test_RevertNonOwnerRelease() public {
-        vm.expectRevert(bytes("owner"));
+        vm.expectRevert(bytes("owner-or-keeper"));
         vm.prank(stranger);
+        factory.release(domainHash, creator);
+    }
+
+    function test_KeeperCanRelease() public {
+        address predicted = factory.predict(domainHash);
+        usdc.mint(predicted, 1_000_000);
+        vm.prank(owner);
+        factory.setKeeper(keeper);
+        // Keeper (hot key, not owner) relays a hub-verified release.
+        vm.prank(keeper);
+        address wallet = factory.release(domainHash, creator);
+        assertEq(wallet, predicted);
+        assertEq(usdc.balanceOf(creator), 950_000);
+        assertEq(usdc.balanceOf(treasury), 50_000);
+    }
+
+    function test_SetOwnerRotatesControl() public {
+        address next = makeAddr("nextOwner");
+        vm.prank(owner);
+        factory.setOwner(next);
+        assertEq(factory.owner(), next);
+        // Old owner no longer authorized.
+        vm.expectRevert(bytes("owner-or-keeper"));
+        vm.prank(owner);
         factory.release(domainHash, creator);
     }
 

@@ -462,3 +462,25 @@ export declare function payWithTransfer(resource: NibgateResource | string, opti
 export declare function renderDefaultUnlockUI(container: HTMLElement | string, resource: NibgateResource, options?: NibgateEvmGatewayUnlockOptions): NibgateEvmGatewayUnlockController & { element: HTMLElement; destroy: () => void };
 export declare function renderDefaultRatingUI(container: HTMLElement | string, resource: NibgateResource, options?: Record<string, unknown>): { element: HTMLElement; destroy: () => void };
 export declare function renderDefaultGatewayWalletUI(container: HTMLElement | string, options?: Record<string, unknown>): { element: HTMLElement; destroy: () => void; switchTab: (tab: string) => void };
+
+// Tip flow (browser): resolved creators get a direct tip; unresolved/external
+// creators get a no-key holding box. `refundTip` reverses an unclaimed hold.
+export interface NibgateTipSigner {
+  address?: string;
+  signTypedData?: (typedData: unknown) => Promise<string>;
+  sendTransaction?: (tx: { to: string; amount: string | number; network?: string }) => Promise<string>;
+  signMessage?: (message: string) => Promise<string>;
+}
+export declare function tipContent(input: {
+  contentUrl?: string; title?: string; amount: string | number; currency?: string;
+  network?: string; recipient?: string; challenge?: Record<string, unknown>;
+  signer: NibgateTipSigner; hubApi?: string; domain?: string;
+}): Promise<Record<string, unknown>>;
+export declare function holdTipContent(input: {
+  contentUrl?: string; title?: string; amount: string | number; currency?: string;
+  network?: string; domain?: string; signer: NibgateTipSigner; hubApi?: string;
+}): Promise<Record<string, unknown>>;
+export declare function refundTip(input: {
+  domain: string; payer?: string; signer: NibgateTipSigner; hubApi?: string;
+  amount?: number; message?: string;
+}): Promise<Record<string, unknown>>;

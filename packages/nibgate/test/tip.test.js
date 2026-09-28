@@ -12,7 +12,7 @@ describe('tip challenge', () => {
     expect(c.nibgate.tip).toBe(true)
     expect(c.accepts[0].payTo).toBe('0x0000000000000000000000000000000000000001')
     expect(c.accepts[0].network).toBe('eip155:5042002')
-    expect(c.nibgate.holdPolicy).toMatch(/no refunds/i)
+    expect(c.nibgate.holdPolicy).toMatch(/refundable/i)
   })
 
   it('rejects missing url and non-positive amounts', () => {
@@ -138,6 +138,79 @@ describe('tip revenue parity with unlocks', () => {
       expect(out.response.status).toBe(402)
     } finally {
       await new Promise((resolve) => facilitator.close(resolve))
+    }
+  })
+})
+
+describe('browser hold + refund helpers', () => {
+  it('holds a tip to the domain box when the creator is unresolved', async () => {
+    const { holdTipContent } = await import('../src/browser/tip.js')
+    const calls = []
+    const fetchMock = vi.fn(async (url, init) => {
+      calls.push({ url, body: init?.body ? JSON.parse(init.body) : null })
+      if (String(url).endsWith('/hub/tips/hold')) {
+        const body = JSON.parse(init.body)
+        if (body.txHash) return { ok: true, status: 200, json: async () => ({ success: true, holdStatus: 'held', tip: { id: 't1' } }) }
+        return { ok: true, status: 200, json: async () => ({ success: true, holdStatus: 'challenge', box: '0xbox' }) }
+      }
+      return { ok: false, status: 404, json: async () => ({ error: 'nope' }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const signer = { address: '0x0000000000000000000000000000000000000009', sendTransaction: vi.fn(async () => '0xtx') }
+    try {
+      const out = await holdTipContent({ contentUrl: 'https://ext.example/post', title: 'P', amount: '0.05', signer, hubApi: 'https://hub.test' })
+      expect(out.held).toBe(true)
+      expect(out.status).toBe('held')
+      expect(out.domain).toBe('ext.example')
+      expect(out.box).toBe('0xbox')
+      expect(out.txHash).toBe('0xtx')
+      expect(signer.sendTransaction).toHaveBeenCalledWith({ to: '0xbox', amount: '0.05', network: 'eip155:5042002' })
+      expect(calls[1].body.txHash).toBe('0xtx')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('tipContent falls back to a hold when no recipient resolves', async () => {
+    const { tipContent } = await import('../src/browser/tip.js')
+    let holdCalls = 0
+    const fetchMock = vi.fn(async (url, init) => {
+      const u = String(url)
+      if (u.includes('/hub/resolve')) return { ok: true, status: 200, json: async () => ({}) }
+      if (u.endsWith('/hub/tips/hold')) {
+        holdCalls += 1
+        const body = JSON.parse(init.body)
+        return { ok: true, status: 200, json: async () => (body.txHash ? { holdStatus: 'held', tip: {} } : { box: '0xbox' }) }
+      }
+      return { ok: false, status: 404, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const signer = { address: '0x0000000000000000000000000000000000000009', sendTransaction: vi.fn(async () => '0xtx') }
+    try {
+      const out = await tipContent({ contentUrl: 'https://ext.example/post', title: 'P', amount: '0.05', signer, hubApi: 'https://hub.test' })
+      expect(out.held).toBe(true)
+      expect(holdCalls).toBe(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('refundTip signs a control message and relays to the hub', async () => {
+    const { refundTip } = await import('../src/browser/tip.js')
+    let posted = null
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      posted = JSON.parse(init.body)
+      return { ok: true, status: 200, json: async () => ({ success: true, amount: 0.05, refundTx: '0xr' }) }
+    }))
+    const signer = { address: '0x0000000000000000000000000000000000000009', signMessage: vi.fn(async () => '0xsig') }
+    try {
+      const out = await refundTip({ domain: 'ext.example', signer, hubApi: 'https://hub.test' })
+      expect(out.refundTx).toBe('0xr')
+      expect(posted.payer).toBe(signer.address)
+      expect(posted.signature).toBe('0xsig')
+      expect(signer.signMessage).toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
     }
   })
 })

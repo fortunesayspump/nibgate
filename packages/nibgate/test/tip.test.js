@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { createServer } from 'node:http'
 import { createTipChallenge, tipReceipt, resolveTipRecipient, resolveTipPayee, createTipRequirement, createTipVerifier } from '../src/server/tip.js'
 
 describe('tip challenge', () => {
@@ -102,15 +103,41 @@ describe('tip revenue parity with unlocks', () => {
   })
 
   it('verifyGateway returns a 402 challenge when no payment signature is present', async () => {
-    const verifier = createTipVerifier({})
-    const out = await verifier.verifyGateway({
-      req: { headers: {}, method: 'POST' },
-      resource: { contentUrl: 'https://example.com/essay', title: 'Essay' },
-      recipient: feeWallet,
-      amount: '0.25',
-      network: 'eip155:5042002',
+    // The Circle middleware asks the facilitator which networks it supports
+    // before it can advertise a challenge. Point it at a local stub so the
+    // test is hermetic (no external facilitator, no timeouts).
+    const facilitator = createServer((req, res) => {
+      if (req.url === '/v1/x402/supported') {
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({
+          kinds: [{
+            network: 'eip155:5042002',
+            extra: {
+              verifyingContract: '0x0077777d7EBA4688BDeF3E311b846F25870A19B9',
+              assets: [{ symbol: 'USDC', address: '0x3600000000000000000000000000000000000000' }],
+            },
+          }],
+        }))
+        return
+      }
+      res.statusCode = 404
+      res.end('{}')
     })
-    expect(out.handled).toBe(true)
-    expect(out.response.status).toBe(402)
-  }, 15000)
+    await new Promise((resolve) => facilitator.listen(0, '127.0.0.1', resolve))
+    const { port } = facilitator.address()
+    try {
+      const verifier = createTipVerifier({ facilitatorUrl: `http://127.0.0.1:${port}` })
+      const out = await verifier.verifyGateway({
+        req: { headers: {}, method: 'POST' },
+        resource: { contentUrl: 'https://example.com/essay', title: 'Essay' },
+        recipient: feeWallet,
+        amount: '0.25',
+        network: 'eip155:5042002',
+      })
+      expect(out.handled).toBe(true)
+      expect(out.response.status).toBe(402)
+    } finally {
+      await new Promise((resolve) => facilitator.close(resolve))
+    }
+  })
 })

@@ -27,27 +27,36 @@ async function resolveRecipient({ api, contentUrl, recipient }) {
 }
 
 // Pay a resolved challenge. Returns { txHash, paymentSignature, paymentRail }.
+// payAmount is always normalized to decimal USDC: gateway-rail challenges
+// quote integer base units, transfer-rail challenges quote decimals.
 async function payChallenge({ chal, signer, network }) {
   const accept = chal.accepts?.[0] || {};
   const payTo = accept.payTo || accept.recipient || chal.payTo || '';
-  const payAmount = accept.amount || chal.amount;
+  const rawAmount = accept.amount ?? chal.amount;
   const payNetwork = accept.network || network || 'eip155:5042002';
   if (!payTo) throw new Error('tip challenge has no recipient.');
+  if (!(Number(rawAmount) > 0)) throw new Error('tip challenge has no amount.');
+  const gatewayQuoted =
+    (chal.paymentRail || accept.rail || '') === 'gateway' ||
+    accept.extra?.name === 'GatewayWalletBatched';
+  const payAmount = gatewayQuoted ? Number(rawAmount) / 1e6 : rawAmount;
   if (!(Number(payAmount) > 0)) throw new Error('tip challenge has no amount.');
   let txHash = '';
   let paymentSignature = '';
+  let paymentRail = chal.paymentRail || '';
   if (signer?.signTypedData) {
     const adapter = await createCircleGatewayBrowserAdapter({ network: payNetwork, signer });
     const paid = await adapter.pay(chal, { address: signer.address });
     txHash = paid?.transaction || paid?.txHash || '';
     paymentSignature = paid?.signature || txHash;
+    paymentRail = paymentRail || (paymentSignature && paymentSignature !== txHash ? 'gateway' : 'transfer');
   } else if (signer?.sendTransaction) {
     txHash = await signer.sendTransaction({ to: payTo, amount: payAmount, network: payNetwork });
     paymentSignature = txHash;
+    paymentRail = 'transfer';
   } else {
     throw new Error('tipContent needs a signer (signTypedData or sendTransaction).');
   }
-  const paymentRail = chal.paymentRail || (paymentSignature && paymentSignature !== txHash ? 'gateway' : 'transfer');
   return { txHash, paymentSignature, paymentRail, payTo, payAmount, payNetwork };
 }
 
@@ -67,10 +76,13 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
   let chal = challenge;
   if (!chal) {
     if (!api) throw new Error('tipContent needs a challenge or hubApi.');
+    // A signer that can only do plain transfers needs a transfer-rail
+    // challenge (decimal amounts); a gateway challenge quotes base units.
+    const paymentRail = signer?.signTypedData ? undefined : 'transfer';
     const res = await fetch(`${api}/hub/tips/challenge`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ contentUrl, title, amount, currency, recipient: resolved }),
+      body: JSON.stringify({ contentUrl, title, amount, currency, recipient: resolved, paymentRail }),
     });
     if (!res.ok) throw new Error(`tip challenge failed: ${res.status}`);
     chal = await res.json();

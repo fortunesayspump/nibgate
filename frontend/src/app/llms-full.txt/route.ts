@@ -67,7 +67,9 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 ## API endpoints
 
 - ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
-- ${api}/hub/ledger?limit=100 — Public ledger.
+- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips, ratings).
+- ${api}/hub/tips/held?domain={domain} — Tips waiting in a domain's no-key holding box; claimable by the site owner, refundable by the payer.
+- ${api}/hub/tips/refund — Payer-signed refund of unclaimed held tips (full amount, no fee).
 - ${api}/hub/stats — Platform totals (revenue, protocol fees).
 - ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
 - ${api}/nibshare/{slug}/manifest — Public manifest for a nibshare.

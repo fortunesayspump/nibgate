@@ -51,6 +51,33 @@ Standalone paid shares (no creator site required) live on the API host:
 | `GET https://api.nibgate.xyz/ns/{slug}` | Free → body directly; paid → 402 x402 challenge |
 | `GET https://api.nibgate.xyz/nibshare/{slug}/manifest` | Public metadata manifest |
 
+### Nib Tips
+
+Tip the creator of any page — additive revenue, no locked content (the receipt
+is the product). Whether a tip settles instantly or is held depends on whether
+the creator is already on Nibgate:
+
+| Scenario | Endpoint | Result |
+|---|---|---|
+| Creator resolved (on Nibgate) | `POST https://api.nibgate.xyz/hub/tips/challenge` → pay → `POST .../hub/tips/verify` | `settled` — USDC goes straight to the creator's payee |
+| Creator unresolved / external | `POST .../hub/tips/hold` (challenge) → fund box → `POST .../hub/tips/hold` (with `txHash`) | `held` — USDC sits in the domain's no-key box |
+
+Held funds are claimable by the verified site owner (`POST .../hub/tips/held`
+to inspect, `.../hub/tips/claim` with the site's `verifyToken` to release) and
+**refundable by the payer** until claimed:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST https://api.nibgate.xyz/hub/tips/refund` | Payer-signed refund of unclaimed held tips (full amount, no fee) |
+| `GET https://api.nibgate.xyz/hub/tips/held?domain=<d>` | Public list of tips waiting in a domain's box |
+
+A refund body is `{ domain, payer, message, signature }`; `signature` is an
+EIP-191 `personal_sign` of `message` by `payer`. The hub recovers the signer,
+sums that payer's still-held tips for the domain, relays the on-chain refund
+via the keeper, and writes a negative ledger row so totals net out. Refunds
+only ever return funds to the payer. There is **no refund** for tips that
+already settled (resolved creators) or were already claimed.
+
 ### On-Chain
 
 | Contract | Address | Purpose |

@@ -75,16 +75,17 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.5",
+    version: "0.2.6",
     description:
-      `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
+      `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
   },
   servers: [{ url: hubApi, description: "Production hub API" }],
   tags: [
     { name: "Discovery", description: "Verified content discovery for humans and AI agents" },
     { name: "Unlocks", description: "x402 paid unlocks: pay USDC, receive content" },
-    { name: "Ledger", description: "Public activity feed of views, unlocks, payments, and ratings" },
+    { name: "Tips", description: "Nib Tip: pay the creator of any page. Resolved creators are settled instantly; unresolved/external creators are held in a no-key per-domain box, claimable by them and refundable by the payer until claimed" },
+    { name: "Ledger", description: "Public activity feed of views, unlocks, payments, tips, and ratings" },
     { name: "Reputation", description: "Onchain reputation and leaderboards" },
     { name: "Platform", description: "Platform-wide stats and site indexes" },
   ],
@@ -672,6 +673,179 @@ export const openApiSpec = {
         },
         responses: {
           "200": { description: "Indexing result", content: { "application/json": { schema: { type: "object" } } } },
+        },
+      },
+    },
+    "/hub/tips/challenge": {
+      post: {
+        tags: ["Tips"],
+        summary: "Get a tip challenge for a resolved creator",
+        description:
+          "Tip any page. When the hub can resolve the creator it returns a tip challenge (x402 envelope) whose payTo is the creator's payee (fee wallet when hosted, otherwise the creator wallet). Pay the indicated USDC amount, then POST the transaction to /hub/tips/verify. Tips are additive: no locked content, the receipt is the product.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["contentUrl", "amount"],
+                properties: {
+                  contentUrl: { type: "string", format: "uri" },
+                  title: { type: "string" },
+                  amount: { type: "string", description: "USDC amount, decimal string" },
+                  currency: { type: "string", description: "USDC" },
+                  recipient: { type: "string", description: "Creator wallet (resolved by the caller). Required unless the hub index resolves the URL." },
+                  paymentRail: { type: "string", enum: ["transfer", "gateway"] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Tip challenge (x402Version, accepts[], payee, feeBps, protocolFee)", content: { "application/json": { schema: { type: "object" } } } },
+          "400": { description: "recipient required / invalid amount", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/hub/tips/verify": {
+      post: {
+        tags: ["Tips"],
+        summary: "Record a settled tip",
+        description:
+          "Submit the payment proof (transfer txHash or Circle Gateway signature) for a resolved tip. The hub verifies the transfer, then records a Tip row with status settled and returns a receipt. No access grant: a tip is revenue, not an entitlement.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["contentUrl", "amount"],
+                properties: {
+                  contentUrl: { type: "string", format: "uri" },
+                  title: { type: "string" },
+                  amount: { type: "string" },
+                  recipient: { type: "string" },
+                  paymentRail: { type: "string", enum: ["transfer", "gateway"] },
+                  txHash: { type: "string", description: "Required for the transfer rail" },
+                  paymentSignature: { type: "string", description: "Circle Gateway signature for the gateway rail" },
+                  walletAddress: { type: "string", description: "Payer wallet" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Settled tip receipt", content: { "application/json": { schema: { type: "object" } } } },
+          "402": { description: "Payment verification failed", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/hub/tips/hold": {
+      post: {
+        tags: ["Tips"],
+        summary: "Tip a creator not yet on Nibgate (no-key holding box)",
+        description:
+          "For unresolved/external creators. Call without a payment proof to get the deterministic per-domain holding box address; fund it with USDC; call again with txHash to record a Tip row with status held. Funds sit onchain in a no-key box (nobody, not even Nibgate, can move them), claimable by the verified site owner and refundable by the payer until claimed. Two rails: direct transfer or Circle Gateway credit.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["contentUrl", "amount"],
+                properties: {
+                  contentUrl: { type: "string", format: "uri" },
+                  title: { type: "string" },
+                  amount: { type: "string" },
+                  currency: { type: "string" },
+                  domain: { type: "string", description: "Holding key (defaults to the contentUrl hostname)" },
+                  paymentRail: { type: "string", enum: ["transfer", "gateway"] },
+                  txHash: { type: "string", description: "Omit to receive the box challenge; include to record the held tip" },
+                  walletAddress: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "holdStatus=challenge (box) or holdStatus=held (tip)", content: { "application/json": { schema: { type: "object" } } } },
+          "402": { description: "Hold transfer verification failed", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/hub/tips/held": {
+      get: {
+        tags: ["Tips"],
+        summary: "List unclaimed held tips for a domain",
+        description: "Public view of tips waiting in a domain's holding box. Used to show creators a 'you have $X waiting to claim' nudge. No website-verification gate.",
+        parameters: [
+          { name: "domain", in: "query", required: true, schema: { type: "string" } },
+          { name: "limit", in: "query", schema: { type: "integer", default: 50, maximum: 100 } },
+        ],
+        responses: {
+          "200": { description: "Held tips + total", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, tips: { type: "array", items: { type: "object" } }, total: { type: "number" } } } } } },
+        },
+      },
+    },
+    "/hub/tips/claim": {
+      post: {
+        tags: ["Tips"],
+        summary: "Claim a domain's held tips (creator)",
+        description:
+          "Site owner verifies ownership (siteId + verifyToken) then the keeper releases the domain's holding box in one atomic tx: net to the creator, held-tier cut to the treasury. Marks every held tip for the domain released. Claiming to a wallet other than the site's owner wallet additionally requires a signed claimToken proving control of that wallet.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["siteId", "token"],
+                properties: {
+                  siteId: { type: "string" },
+                  token: { type: "string", description: "The site's verifyToken" },
+                  creatorWallet: { type: "string" },
+                  claimToken: { type: "object", description: "Signed claim token (message + signature) when claiming to a different wallet" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "releaseTx + feeBps + protocolFee", content: { "application/json": { schema: { type: "object" } } } },
+          "403": { description: "Invalid site credentials or wallet control proof", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "409": { description: "Domain already claimed by another wallet (manual review)", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
+    "/hub/tips/refund": {
+      post: {
+        tags: ["Tips"],
+        summary: "Refund unclaimed held tips (payer)",
+        description:
+          "Payer-initiated refund for tips still held (never claimed/released). The payer signs a control message; the hub sums their held tips for the domain and the keeper relays an on-chain refund of the full amount, no fee. Refunded rows flip to status refunded and a negative refund entry is written to the ledger so tip totals net out. Only ever returns funds to the payer, so a proof of wallet control is sufficient.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["domain", "payer", "message", "signature"],
+                properties: {
+                  domain: { type: "string" },
+                  payer: { type: "string", description: "Payer wallet; must match the recovered signer" },
+                  amount: { type: "number", description: "Optional partial amount; defaults to the full held total" },
+                  message: { type: "string", description: "The signed control message" },
+                  signature: { type: "string", description: "EIP-191 personal_sign signature" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Refund result (amount, refundTx)", content: { "application/json": { schema: { type: "object" } } } },
+          "202": { description: "Circle Gateway credit still settling; retry the refund shortly", content: { "application/json": { schema: { type: "object" } } } },
+          "403": { description: "Wallet control proof failed", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "404": { description: "No unclaimed held tips for this payer/domain", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },
       },
     },

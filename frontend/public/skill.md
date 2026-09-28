@@ -800,3 +800,51 @@ app.get('/nibgate/access', async (req, res) => {
 - **Astro/SvelteKit/Remix**: Use SSR/server routes or endpoints. Plain static builds need a protected API or signed URL for private payloads.
 - **CMS apps**: Save Nibgate resource settings beside each content record. Use `settingsToAccessPolicy()` and `settingsToUnlockPolicy()` to convert stored settings to resource shapes. Mount the admin panel for easy management.
 - **Static/vanilla HTML/JS**: Compile the SDK into a bundle with esbuild (see section 8). Use `gate()` and `nibgate` from the global `Nibgate` namespace.
+
+## 18. Nib Tips (tips, holding, refunds)
+
+Nib Tip lets anyone tip the creator of a page. Tips are additive revenue — no
+locked content, the receipt is the product.
+
+- **Creator already on Nibgate (resolved):** the tip settles instantly to your
+  payee (fee wallet when hosted, else your wallet). Nothing to claim.
+- **Creator unresolved / external page:** the tip is held in a **no-key,
+  per-domain onchain box** (deterministic address, nobody can move it) until the
+  site owner claims. Claiming requires site ownership (your `verifyToken`) and
+  releases net to the creator with the held-tier fee.
+
+Browser helpers (`@nibgate/sdk/browser`):
+
+```ts
+import { tipContent, holdTipContent, refundTip } from '@nibgate/sdk/browser'
+
+// Resolves the creator and tips them; falls back to the domain holding box
+// automatically when the creator cannot be resolved.
+await tipContent({ contentUrl, title, amount: '0.5', signer, hubApi })
+
+// Explicit hold for an external/unclaimed creator.
+await holdTipContent({ contentUrl, amount: '0.5', signer, hubApi })
+
+// Payer refund of an unclaimed held tip (full amount, no fee).
+await refundTip({ domain, signer, hubApi })
+```
+
+Server helpers (`@nibgate/sdk/server`):
+
+```ts
+import { holdingDeployment, buildHoldingRefund, submitHoldingRefund } from '@nibgate/sdk/server'
+
+const dep = holdingDeployment('mainnet') // or 'testnet'
+const call = buildHoldingRefund({ domain, payer, amountUsdc, factoryAddress: dep.factoryAddress })
+await submitHoldingRefund(call, { privateKey, rpcUrl, chainId: dep.chainId })
+```
+
+Hub endpoints (canonical bare form): `POST /hub/tips/challenge`,
+`POST /hub/tips/verify`, `POST /hub/tips/hold`, `GET /hub/tips/held`,
+`POST /hub/tips/claim`, `POST /hub/tips/refund`. See
+https://nibgate.xyz/discovery.md for the payer/agent view.
+
+Fee policy: resolved/self-hosted member tips 100 bps (1%); non-member tips that
+are held then claimed 500 bps (5%). Payer refunds of unclaimed holds are always
+full amount with no fee. Refunds do **not** apply once a tip has settled or been
+claimed.

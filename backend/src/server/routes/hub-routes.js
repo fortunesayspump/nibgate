@@ -1350,18 +1350,16 @@ export function registerHubRoutes(app) {
         ] } : {})
       };
 
-      const [content, total] = await Promise.all([
+      const [allContent, total] = await Promise.all([
         db.content.findMany({
           where,
           include: { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
           orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit
         }),
         db.content.count({ where })
       ]);
 
-      const serialized = content.map(serializeContent);
+      const serialized = allContent.map(serializeContent);
       const sorted = serialized.sort((a, b) => {
         const va = a.websiteVerified ? 1 : 0;
         const vb = b.websiteVerified ? 1 : 0;
@@ -1372,7 +1370,8 @@ export function registerHubRoutes(app) {
         return (vb - va) || (imgB - imgA) || (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
       });
 
-      res.json({ success: true, content: sorted, total, limit, skip });
+      const content = sorted.slice(skip, skip + limit);
+      res.json({ success: true, content, total, limit, skip });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch explore content' });
     }

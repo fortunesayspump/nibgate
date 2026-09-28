@@ -478,14 +478,15 @@ export function registerHubRoutes(app) {
         }
       }
 
-      // 5. Recent tips (Tip — settled + released, any content indexed or not).
+      // 5. Recent tips (Tip — settled + released + refunded, any content indexed
+      // or not). Refunded rows (negative amounts) net out refunded holds.
       // Deliberately NO website verification gate: a tip to an unverified
       // page is still real money with a real receipt. Domain filter matches
       // the raw contentUrl substring.
       if (!type || type === 'tips') {
         const tips = await db.tip.findMany({
           where: {
-            status: { in: ['settled', 'released'] },
+            status: { in: ['settled', 'released', 'refunded'] },
             ...(domain ? { contentUrl: { contains: domain } } : {}),
           },
           orderBy: { createdAt: 'desc' },
@@ -1371,6 +1372,78 @@ export function registerHubRoutes(app) {
         success: true, domain, recipient, releaseTx, feeBps: dep.feeBps, protocolFee,
         released: rows, pending: 0,
       });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ── Tips: Payer Refund (unclaimed holds only) ──────────────────────────
+  // The payer proves wallet control by signature; the hub sums their unclaimed
+  // (held, never released/claimed) tips for the domain and relays an on-chain
+  // refund via the keeper. Full amount, no fee. Tip rows flip to 'refunded'
+  // plus a negative refund row so the ledger nets out.
+  app.post('/api/hub/tips/refund', hubTipLimiter, async (req, res) => {
+    try {
+      const holding = await holdingServer();
+      if (!holding) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { domain, payer, amount, signature, message } = req.body || {};
+      if (!domain || !payer || !signature || !message) {
+        return res.status(400).json({ error: 'domain, payer, signature, message required.' });
+      }
+      const { verifyMessage } = await import('viem');
+      const signer = await verifyMessage({ message, signature }).catch(() => null);
+      if (!signer || String(signer).toLowerCase() !== String(payer).toLowerCase()) {
+        return res.status(403).json({ error: 'Wallet control proof failed.' });
+      }
+      const canon = holding.canonicalDomainKey(domain);
+      const held = await db.tip.findMany({
+        where: {
+          status: 'held',
+          payerWallet: { equals: String(payer), mode: 'insensitive' },
+          OR: [{ domain: canon }, { contentUrl: { contains: canon } }],
+        },
+        orderBy: { createdAt: 'asc' }, take: 200,
+      });
+      if (!held.length) return res.status(404).json({ error: 'No unclaimed held tips for this payer/domain.' });
+      const total = held.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const refundAmount = amount != null ? Math.min(Number(amount), total) : total;
+      if (!(refundAmount > 0)) return res.status(400).json({ error: 'Nothing to refund.' });
+      const { privateKey, rpcUrl } = holdingKeeperKeys();
+      if (!privateKey || !rpcUrl) return res.status(500).json({ error: 'Refund relay not configured (keeper key/RPC).' });
+      const dep = holding.holdingDeployment(activeNetwork().name);
+      const factoryAddress = process.env.TIP_HOLDING_FACTORY || dep.factoryAddress;
+      const hasGatewayHold = held.some((t) => t.paymentProvider === 'circle-gateway');
+      if (hasGatewayHold) {
+        try {
+          const gw = await holding.withdrawHoldingBoxGateway(canon, {
+            privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0, factoryAddress,
+          });
+          if (gw?.withdrew === false) {
+            return res.status(202).json({
+              success: false, status: 'pending-settlement', domain: canon,
+              message: 'Circle Gateway is still settling this tip; retry the refund shortly.',
+            });
+          }
+        } catch (gwError) {
+          return res.status(502).json({ error: `Gateway collection failed: ${gwError.message}` });
+        }
+      }
+      const call = holding.buildHoldingRefund({ domain: canon, payer, amountUsdc: refundAmount, factoryAddress });
+      const refundTx = await holding.submitHoldingRefund(call, { privateKey, rpcUrl, chainId: dep.chainId });
+      await db.tip.updateMany({
+        where: { id: { in: held.map((t) => t.id) } },
+        data: { status: 'refunded' },
+      });
+      const refundRow = await db.tip.create({
+        data: {
+          contentUrl: held[0].contentUrl, contentId: held[0].contentId, websiteId: held[0].websiteId,
+          domain: canon, title: held[0].title, amount: -refundAmount, currency: held[0].currency || 'USDC',
+          network: activeNetwork().name, payerWallet: String(payer).toLowerCase(),
+          recipientWallet: String(payer).toLowerCase(), payeeWallet: String(payer).toLowerCase(),
+          paymentProvider: 'refund', paymentId: refundTx, txHash: refundTx, status: 'refunded',
+        },
+      });
+      res.json({ success: true, domain: canon, payer, amount: refundAmount, refundTx, id: refundRow.id });
     } catch (error) {
       res.status(400).json({ error: error.message });
     }

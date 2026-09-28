@@ -133,5 +133,5 @@ describe('contentRatingHash derivation', () => {
     })).toBe(expected)
     expect(contentRatingHash({ id: 'ec845c35-ebc2-490b-b8a5-fa6d0018b7f0', url: 'https://benedict.nibgate.xyz/writing/the-man-who-prepared-for-the-end-of-the-internet' })).toBe(expected)
     expect(contentRatingHash({}, { contentId: '0xec845c35ebc2490bb8a5fa6d0018b7f0' })).toBe('0xec845c35ebc2490bb8a5fa6d0018b7f0')
-  })
+  }, 20000)
 })

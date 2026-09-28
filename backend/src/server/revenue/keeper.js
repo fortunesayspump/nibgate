@@ -25,6 +25,12 @@ function addCreator(set, value) {
 
 async function listCreators() {
   const creators = new Set();
+  // Always-sweep allowlist for stranded wallets that earn through a fee
+  // wallet but own no sites and have no content/receipt rows carrying them
+  // (e.g. after an ownership move). Keeps funds from sitting unswept.
+  for (const raw of String(process.env.NIBGATE_FEE_KEEPER_EXTRA_CREATORS || '').split(',')) {
+    addCreator(creators, raw);
+  }
   try {
     const shares = await db.nibShare.findMany({ select: { ownerWallet: true }, where: { price: { gt: 0 } } });
     for (const s of shares) addCreator(creators, s.ownerWallet);

@@ -104,7 +104,7 @@ contract TipHoldingFactory {
         return wallet;
     }
 
-    function release(bytes32 domainHash_, address creator) external onlyOwner returns (address wallet) {
+    function release(bytes32 domainHash_, address creator) external onlyOwnerOrKeeper returns (address wallet) {
         require(creator != address(0), "creator");
         wallet = deploy(domainHash_);
         TipHoldingWallet(wallet).release(domainHash_, creator);

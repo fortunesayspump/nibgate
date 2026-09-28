@@ -85,6 +85,33 @@ describe('box-funding requirements', () => {
     expect(holdingRecipient('example.com')).toBe(mintHoldingAddress('example.com'))
   })
 
+  it('resolves mainnet (by name and chain id) to the mainnet factory', () => {
+    const byName = holdingDeployment('mainnet')
+    const byCaip = holdingDeployment('eip155:5042')
+    const byChain = holdingDeployment(5042)
+    expect(byName.network).toBe('mainnet')
+    expect(byName.chainId).toBe(5042)
+    expect(byName.factoryAddress).toBe('0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87')
+    expect(byName.initCodeHash).toBe('0x94f9f922f2c114eb9c39962fdc532f66cf1e0a8b82f1f9126a23d0ce5c87886e')
+    expect(byCaip.factoryAddress).toBe(byName.factoryAddress)
+    expect(byChain.factoryAddress).toBe(byName.factoryAddress)
+    expect(holdingDeployment('testnet').network).toBe('testnet')
+  })
+
+  it('predicts the box against the network-specific factory', () => {
+    const mainnet = buildHoldingRequirement(
+      { contentUrl: 'https://example.com/p', title: 'P', amount: '0.05', domain: 'example.com' },
+      { network: 'mainnet' },
+    )
+    const testnet = buildHoldingRequirement(
+      { contentUrl: 'https://example.com/p', title: 'P', amount: '0.05', domain: 'example.com' },
+      { network: 'testnet' },
+    )
+    expect(mainnet.box).toBe(holdingRecipient('example.com', holdingDeployment('mainnet')))
+    expect(mainnet.box).not.toBe(testnet.box)
+    expect(mainnet.deployment.network).toBe('mainnet')
+  })
+
   it('both rails pay the box; gateway amount is in base units', () => {
     const direct = buildHoldingRequirement(
       { contentUrl: 'http://example.com/p', title: 'P', amount: '0.05', domain: 'example.com' },

@@ -354,6 +354,8 @@ export declare function holdingRecipient(domain: string, options?: Record<string
 export declare function buildHoldingRequirement(input: Record<string, unknown>, options?: Record<string, unknown>): { box: string; recipient: string; domainHash: string; challenge: Record<string, unknown>; feeBps: number; deployment: Record<string, unknown> };
 export declare function buildHoldingRelease(args: { domain: string; creator: string; factoryAddress?: string }): { to: string; data: string; value: bigint };
 export declare function submitHoldingRelease(call: { to: string; data: string; value?: bigint }, options: { privateKey: string; rpcUrl: string; chainId?: number }): Promise<string>;
+export declare function buildHoldingRefund(args: { domain: string; payer: string; amountUsdc: number; factoryAddress?: string }): { to: string; data: string; value: bigint };
+export declare function submitHoldingRefund(call: { to: string; data: string; value?: bigint }, options: { privateKey: string; rpcUrl: string; chainId?: number }): Promise<string>;
 export declare function deployHoldingBox(domain: string, options: Record<string, unknown>): Promise<{ box: string; tx: string }>;
 export declare function withdrawHoldingBoxGateway(domain: string, options: Record<string, unknown>): Promise<Record<string, unknown>>;
 export declare function fundHoldingBox(domain: string, amountUsdc: number, options: Record<string, unknown>): Promise<string>;

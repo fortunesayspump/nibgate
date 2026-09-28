@@ -225,7 +225,7 @@ export default function LedgerPage() {
                             <td className="px-5 py-5 min-w-[180px]">
                               <div className="flex items-center gap-3">
                                 {a.imageUrl ? (
-                                  <Image src={a.imageUrl} alt="" width={40} height={40} className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" />
+                                  <Image src={a.imageUrl} alt="" width={40} height={40} className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" unoptimized />
                                 ) : null}
                                 <div className="min-w-0">
                                   <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}

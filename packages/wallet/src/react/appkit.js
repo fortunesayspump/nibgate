@@ -27,7 +27,10 @@ const DEFAULT_THEME_VARIABLES = {
 const DEFAULT_FEATURES = {
   analytics: false,
   email: false,
-  socials: false,
+  // Google (and friends) via Reown Social Login → embedded wallet. Requires
+  // Social Logins enabled in Reown Cloud for NIBGATE_APPKIT_PROJECT_ID.
+  // The embedded wallet signs SIWE like any wallet, so the hub needs no change.
+  socials: ['google'],
   swaps: false,
   onramp: false,
 }

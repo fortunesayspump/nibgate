@@ -187,6 +187,7 @@ export async function getShareMeta(req, res) {
       status: share.status,
       viewCount: share.viewCount,
       unlockCount: share.unlockCount,
+      ownerWallet: share.ownerWallet,
       revenue: (share.unlockCount || 0) * (share.price || 0)
     });
   } catch (error) {

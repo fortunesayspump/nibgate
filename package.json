@@ -42,7 +42,23 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "viem": "2.54.1",
     "vitest": "^3.2.1"
-  }
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fortunesayspump/nibgate.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fortunesayspump/nibgate/issues"
+  },
+  "homepage": "https://github.com/fortunesayspump/nibgate#readme"
 }

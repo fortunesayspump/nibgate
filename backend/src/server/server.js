@@ -104,16 +104,23 @@ export async function createApp(config, options = {}) {
 
     callback(null, {
       origin: function (origin, originCallback) {
-      const allowedOrigins = process.env.CORS_ORIGIN
-        ? process.env.CORS_ORIGIN.split(',')
-        : [
+      // Built-in origins (extension clients, local dev) always apply; the
+      // CORS_ORIGIN env var EXTENDS them rather than replacing them.
+      const allowedOrigins = [
             'https://nibgate.xyz',
             'https://testnet.nibgate.xyz',
             // Any *.nibgate.xyz subdomain (creator subblogs, testnet-* aliases).
             /^https:\/\/([a-z0-9-]+\.)*nibgate\.xyz$/,
             /^http:\/\/localhost:\d+$/,
             /^http:\/\/127\.0\.0\.1:\d+$/,
-            /\.vercel\.app$/
+            // Browser extensions are first-class machine clients (the Nibgate
+            // tipping extension fetches /hub/* from its background worker).
+            /^chrome-extension:\/\//,
+            /^moz-extension:\/\//,
+            /\.vercel\.app$/,
+            ...(process.env.CORS_ORIGIN
+              ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+              : []),
           ];
       if (!origin || allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin))) {
         originCallback(null, true);

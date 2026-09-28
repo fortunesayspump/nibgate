@@ -1,0 +1,409 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; }
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; }
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; }
+    @font-face { font-family: 'ABC Favorit'; src: url('fonts/ABCFavorit-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+    @font-face { font-family: 'ABC Favorit'; src: url('fonts/ABCFavorit-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; }
+
+    /* Hub design tokens — light first, dark via [data-theme] or system. */
+    :root {
+      color-scheme: light;
+      --nib-page-bg: #f4f4f0;
+      --nib-page-fg: #0a0a0a;
+      --nib-page-muted: #44423d;
+      --nib-surface: #ffffff;
+      --nib-surface-soft: #f0eee6;
+      --nib-surface-raised: #ffffff;
+      --nib-border-soft: #11111124;
+      --nib-olive: #7c9a6d;
+      --nib-teal: #0f766e;
+      --nib-plum: #2e1f5e;
+      --nib-yellow: #ffc900;
+      --nib-red: #ff3e30;
+      --nib-radius-control: 4px;
+      --nib-radius-action: 6px;
+      --nib-radius-card: 8px;
+      --nib-radius-pill: 999px;
+      --nib-scroll-thumb: #c3c9d1;
+      --nib-scroll-thumb-hover: #a7aeb8;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --nib-page-bg: #171813;
+      --nib-page-fg: #f4f4f0;
+      --nib-page-muted: #b9b2a6;
+      --nib-surface: #20221c;
+      --nib-surface-soft: #242820;
+      --nib-surface-raised: #282b24;
+      --nib-border-soft: #f3efe729;
+      --nib-olive: #a9c69a;
+      --nib-teal: #67c8bd;
+      --nib-plum: #b7a9e8;
+      --nib-yellow: #ffc900;
+      --nib-red: #ff5b4d;
+      --nib-scroll-thumb: #454a40;
+      --nib-scroll-thumb-hover: #565c50;
+    }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]) {
+        color-scheme: dark;
+        --nib-page-bg: #171813; --nib-page-fg: #f4f4f0; --nib-page-muted: #b9b2a6;
+        --nib-surface: #20221c; --nib-surface-soft: #242820; --nib-surface-raised: #282b24;
+        --nib-border-soft: #f3efe729; --nib-olive: #a9c69a; --nib-teal: #67c8bd;
+        --nib-plum: #b7a9e8; --nib-red: #ff5b4d;
+        --nib-scroll-thumb: #454a40; --nib-scroll-thumb-hover: #565c50;
+      }
+    }
+
+    :root {
+      --bg: var(--nib-page-bg);
+      --surface: var(--nib-surface);
+      --surface-2: var(--nib-surface-soft);
+      --surface-raised: var(--nib-surface-raised);
+      --border: var(--nib-border-soft);
+      --fg: var(--nib-page-fg);
+      --muted: var(--nib-page-muted);
+      --accent: var(--nib-olive);
+      --accent-ink: #10110e;
+      --gold: var(--nib-yellow);
+      --danger: var(--nib-red);
+      --radius: var(--nib-radius-card);
+      --radius-sm: var(--nib-radius-action);
+      --radius-xs: var(--nib-radius-control);
+      --font-ui: 'Kumbh Sans', 'ABC Favorit', Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { overflow: hidden; scrollbar-width: none; }
+    html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+    /* Hub-style auto-hiding scrollbars on scroll containers only. */
+    .scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+    .scroll:hover, .scroll.scrolling { scrollbar-color: var(--nib-scroll-thumb) transparent; }
+    .scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+    .scroll::-webkit-scrollbar-track { background: transparent; }
+    .scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+    .scroll:hover::-webkit-scrollbar-thumb, .scroll.scrolling::-webkit-scrollbar-thumb { background: var(--nib-scroll-thumb); background-clip: content-box; }
+    .scroll::-webkit-scrollbar-thumb:hover { background: var(--nib-scroll-thumb-hover); background-clip: content-box; }
+    .scroll::-webkit-scrollbar-corner { background: transparent; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      width: 360px; height: 600px; max-height: 600px;
+      font-family: var(--font-ui);
+      background: var(--bg); color: var(--fg); overflow: hidden;
+      -webkit-font-smoothing: antialiased; font-size: 13px; line-height: 1.45;
+    }
+    button { font-family: inherit; }
+    [hidden] { display: none !important; }
+    .muted { color: var(--muted); }
+    .err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 14px; }
+
+    /* ── controls ────────────────────────────────────────────────────── */
+    button.primary { width: 100%; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: var(--radius-action); padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    button.primary:hover { filter: brightness(1.05); }
+    button.primary:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; filter: none; }
+    button.ghost { width: 100%; background: transparent; color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-action); padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    button.ghost:hover { border-color: var(--muted); }
+    input, textarea { width: 100%; background: var(--surface-raised, var(--surface)); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-action); padding: 11px 12px; font-size: 13px; outline: none; font-family: inherit; }
+    input:focus, textarea:focus { border-color: var(--accent); }
+    .iconbtn { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 6px; border-radius: var(--radius-xs); }
+    .iconbtn:hover { color: var(--fg); background: var(--surface); }
+
+    /* ── onboarding / lock ───────────────────────────────────────────── */
+    .fullscreen { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; padding: 28px 24px; z-index: 20; }
+    .ob { display: flex; flex-direction: column; gap: 14px; }
+    .ob.center { margin-top: auto; margin-bottom: auto; }
+    .ob .logo { width: 52px; height: 52px; border-radius: var(--radius-card); margin: 12px auto 0; }
+    .ob h1 { font-family: var(--font-ui); font-size: 21px; font-weight: 700; letter-spacing: -.01em; text-align: center; margin: 6px 0 0; }
+    .ob p { color: var(--muted); text-align: center; margin: 0 0 8px; }
+    .ob .spacer { flex: 1; }
+    label.field { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin: 4px 0 -6px; text-transform: uppercase; }
+    .mnemonic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .mnemonic-grid span { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 6px; font-size: 12px; text-align: center; font-family: ui-monospace, Menlo, monospace; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+    .check input { width: auto; }
+
+    /* ── shell ───────────────────────────────────────────────────────── */
+    #app { position: absolute; inset: 0; display: flex; flex-direction: column; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
+    .acctchip { display: flex; align-items: center; gap: 10px; background: none; border: 0; cursor: pointer; padding: 4px; border-radius: var(--radius-action); color: var(--fg); }
+    .acctchip:hover { background: var(--surface); }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
+    .acctmeta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
+    .acctname { font-size: 12px; font-weight: 700; }
+    .acctaddr { font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+    .topactions { display: flex; align-items: center; gap: 6px; }
+    .pill { font-size: 10px; font-weight: 700; letter-spacing: .08em; background: var(--gold); color: #1a1a1a; border: 0; border-radius: var(--radius-pill); padding: 4px 10px; cursor: pointer; }
+    .pill.main { background: var(--accent); color: var(--accent-ink); }
+    #screens { flex: 1; overflow-y: auto; }
+    .screen { padding: 0 0 20px; }
+    .tabbar { display: flex; border-top: 1px solid var(--border); background: var(--bg); }
+    .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .04em; padding: 9px 0 10px; cursor: pointer; }
+    .tabbar button.on { color: var(--accent); }
+    .tabbar svg { width: 18px; height: 18px; }
+
+    /* ── home ────────────────────────────────────────────────────────── */
+    .balance-card { text-align: center; padding: 22px 16px 6px; }
+    .balance-card .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+    .balance-card .amount { font-size: 42px; font-weight: 700; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .balance-card .unit { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 3px; gap: 2px; width: fit-content; margin: 14px auto 0; }
+    .seg button { background: transparent; color: var(--muted); border: 0; border-radius: var(--radius-pill); padding: 5px 18px; font-size: 11px; font-weight: 700; cursor: pointer; }
+    .seg button.on { background: var(--surface-2); color: var(--fg); }
+    .actions { display: flex; justify-content: center; gap: 28px; padding: 18px 16px 6px; }
+    .act { display: flex; flex-direction: column; align-items: center; gap: 7px; background: none; border: 0; cursor: pointer; color: var(--fg); font-size: 11px; font-weight: 600; }
+    .act .bubble { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-ink); }
+    .act.secondary .bubble { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
+    .card { margin: 16px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .asset-row { display: flex; align-items: center; gap: 10px; padding: 14px; }
+    .token { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+    .token-meta { flex: 1; }
+    .token-name { font-weight: 700; font-size: 13px; }
+    .token-sub { color: var(--muted); font-size: 11px; }
+    .asset-amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .sect { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--muted); padding: 20px 16px 6px; text-transform: uppercase; }
+    .sect button { background: none; border: 0; color: var(--accent); font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: 0; text-transform: none; }
+    .rows { padding: 0 8px; }
+    .row { display: flex; align-items: center; gap: 10px; padding: 11px 8px; border-radius: var(--radius-action); cursor: pointer; }
+    .row:hover { background: var(--surface); }
+    .row .dir { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none; background: var(--surface-2); font-weight: 700; }
+    .row .dir.in { color: var(--accent); }
+    .row .dir.out { color: var(--gold); }
+    .row .main { flex: 1; min-width: 0; }
+    .row .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .row .sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .when { font-size: 11px; color: var(--muted); }
+    .empty { color: var(--muted); font-size: 12px; padding: 18px 0; text-align: center; }
+
+    .backbtn { background: none; border: 0; color: var(--fg); font-size: 13px; font-weight: 600; cursor: pointer; padding: 14px 16px 4px; }
+    .form { padding: 6px 16px 0; display: flex; flex-direction: column; gap: 8px; }
+    .form label { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 8px; text-transform: uppercase; letter-spacing: .06em; }
+    .amtwrap { position: relative; }
+    .amtwrap input { padding-right: 54px; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .amtwrap button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: var(--surface-2); color: var(--accent); border: 0; border-radius: var(--radius-xs); padding: 5px 9px; font-size: 11px; font-weight: 700; cursor: pointer; }
+    .hint { font-size: 11px; color: var(--muted); }
+    .review { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-size: 12px; }
+    .review .line { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; }
+    .review .line .k { color: var(--muted); }
+    .review .line .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; text-align: right; }
+
+    .qrwrap { display: flex; justify-content: center; padding: 20px 0 12px; }
+    #qr { background: #fff; padding: 12px; border-radius: var(--radius); }
+    #qr svg { display: block; }
+    .detail, .receive { margin: 8px 16px 0; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; }
+    .k2 { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .1em; margin-top: 12px; text-transform: uppercase; }
+    .k2:first-child { margin-top: 0; }
+    .v2 { font-family: ui-monospace, Menlo, monospace; word-break: break-all; margin-top: 3px; }
+    .note { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 12px; }
+
+    .setrow { margin: 10px 16px 0; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .setrow .t { font-weight: 700; }
+    .setrow .d { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
+    .setrow button { background: var(--surface-2); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; margin: 0 8px 8px 0; }
+    .setrow button:hover { border-color: var(--muted); }
+    .setrow button.sel { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .reveal-out { margin-top: 10px; }
+
+    .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: var(--radius-sm); color: transparent !important; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+  </style>
+</head>
+<body>
+  <!-- ONBOARDING -->
+  <section class="fullscreen scroll" id="screen-onboard" hidden>
+    <div class="ob center" id="ob-welcome">
+      <img class="logo" src="icons/icon128.png" alt="Nibgate" />
+      <h1>Welcome to Nibgate</h1>
+      <p>A self-custodial wallet for tipping the web. Your keys stay on this device.</p>
+      <button class="primary" id="ob-create-btn">Create a new wallet</button>
+      <button class="ghost" id="ob-import-btn">Import a recovery phrase</button>
+    </div>
+
+    <div class="ob" id="ob-create" hidden>
+      <h1>Create password</h1>
+      <p>This unlocks your wallet on this device. It cannot be recovered.</p>
+      <label class="field" for="new-password">Password</label>
+      <input id="new-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      <button class="primary" id="do-create">Create wallet</button>
+      <button class="ghost" id="ob-create-back">Back</button>
+    </div>
+
+    <div class="ob" id="ob-import" hidden>
+      <h1>Import wallet</h1>
+      <label class="field" for="imp-words">Recovery phrase</label>
+      <textarea id="imp-words" rows="3" placeholder="12 or 24 words separated by spaces"></textarea>
+      <label class="field" for="imp-password">Password</label>
+      <input id="imp-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      <button class="primary" id="do-import">Import wallet</button>
+      <button class="ghost" id="ob-import-back">Back</button>
+    </div>
+
+    <div class="ob" id="ob-backup" hidden>
+      <h1>Save your recovery phrase</h1>
+      <p>Write these words down. They are the only way to recover your wallet — never share them.</p>
+      <div class="mnemonic-grid grid-num" id="ob-mnemonic"></div>
+      <button class="ghost" id="ob-copy-phrase">Copy phrase</button>
+      <label class="check"><input type="checkbox" id="ob-saved" /> I&rsquo;ve saved my recovery phrase</label>
+      <button class="primary" id="ob-done" disabled>Continue</button>
+    </div>
+
+    <div class="err" id="ob-error"></div>
+  </section>
+
+  <!-- LOCK -->
+  <section class="fullscreen scroll" id="screen-lock" hidden>
+    <div class="ob center">
+      <img class="logo" src="icons/icon128.png" alt="Nibgate" />
+      <h1>Welcome back</h1>
+      <p>Unlock your Nibgate wallet to continue.</p>
+      <input id="lock-password" type="password" placeholder="Password" autocomplete="current-password" />
+      <button class="primary" id="lock-go">Unlock</button>
+      <div class="err" id="lock-error"></div>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <button class="acctchip" id="acct-chip">
+        <span class="avatar" id="acct-avatar">N</span>
+        <span class="acctmeta">
+          <span class="acctname">Nibgate Account</span>
+          <span class="acctaddr" id="acctaddr">No wallet</span>
+        </span>
+      </button>
+      <div class="topactions">
+        <button class="pill" id="netpill" title="Network">TESTNET</button>
+        <button class="iconbtn" id="to-settings" title="Settings" aria-label="Settings">&#9881;</button>
+      </div>
+    </header>
+
+    <main id="screens" class="scroll">
+      <section class="screen on" id="screen-home">
+        <div class="balance-card">
+          <div class="eyebrow">Total balance</div>
+          <div class="amount" id="balance">—</div>
+          <div class="unit">USDC · <span id="balnet">Arc Testnet</span></div>
+          <div class="seg">
+            <button id="tab-wallet" class="on">Wallet</button>
+            <button id="tab-gateway">Gateway</button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="act" id="btn-send">
+            <span class="bubble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m6 11 6-6 6 6"/></svg></span>
+            Send
+          </button>
+          <button class="act secondary" id="btn-receive">
+            <span class="bubble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="m6 13 6 6 6-6"/></svg></span>
+            Receive
+          </button>
+        </div>
+        <div class="card">
+          <div class="asset-row">
+            <span class="token">$</span>
+            <div class="token-meta"><div class="token-name">USDC</div><div class="token-sub">Arc testnet dollar</div></div>
+            <span class="asset-amt" id="asset-amt">—</span>
+          </div>
+        </div>
+        <div class="sect"><span>Recent activity</span><button id="view-all-activity">View all</button></div>
+        <div class="rows" id="history"><div class="empty">No activity yet.</div></div>
+      </section>
+
+      <section class="screen" id="screen-activity" hidden>
+        <div class="sect"><span>All activity</span></div>
+        <div class="rows" id="history-full"><div class="empty">No activity yet.</div></div>
+      </section>
+
+      <section class="screen" id="screen-send" hidden>
+        <button class="backbtn" id="send-back">&lsaquo; Back</button>
+        <div class="form">
+          <label for="send-to">Recipient address</label>
+          <input id="send-to" placeholder="0x…" spellcheck="false" />
+          <label for="send-amount">Amount (USDC)</label>
+          <div class="amtwrap">
+            <input id="send-amount" inputmode="decimal" placeholder="0.00" />
+            <button id="send-max">MAX</button>
+          </div>
+          <div class="hint" id="send-avail">Available: —</div>
+          <div class="review" id="send-review" hidden></div>
+          <button class="primary" id="send-review-btn" style="margin-top:10px">Review</button>
+          <button class="primary" id="send-confirm" hidden>Confirm &amp; send</button>
+          <div class="err" id="send-error"></div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-receive" hidden>
+        <button class="backbtn" id="receive-back">&lsaquo; Back</button>
+        <div class="qrwrap"><div id="qr"></div></div>
+        <div class="receive">
+          <div class="k2">Your address</div>
+          <div class="v2" id="receive-addr">—</div>
+          <div class="k2">Network</div>
+          <div class="v2" id="receive-net">—</div>
+          <button class="primary" id="receive-copy" style="margin-top:12px">Copy address</button>
+          <div class="note">Send only USDC on the active network. Anything else can be lost.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-settings" hidden>
+        <div class="sect"><span>Settings</span></div>
+        <div class="setrow">
+          <div class="t">Appearance</div>
+          <div class="d">Match the Nibgate hub in light or dark.</div>
+          <button id="theme-system">System</button>
+          <button id="theme-light">Light</button>
+          <button id="theme-dark">Dark</button>
+        </div>
+        <div class="setrow">
+          <div class="t">Network</div>
+          <div class="d" id="netsub">Play money only.</div>
+          <button id="net-testnet">Testnet</button>
+          <button id="net-mainnet">Mainnet</button>
+        </div>
+        <div class="setrow">
+          <div class="t">Security</div>
+          <div class="d">Your wallet is encrypted on this device.</div>
+          <button id="sec-lock">Lock now</button>
+          <button id="sec-reveal">Reveal recovery phrase</button>
+          <div id="reveal-wrap" hidden>
+            <input id="reveal-password" type="password" placeholder="Password" />
+            <button id="reveal-go" style="width:100%;margin-top:8px">Reveal</button>
+            <div class="mnemonic-grid reveal-out" id="reveal-out" hidden></div>
+          </div>
+        </div>
+        <div class="setrow">
+          <div class="t">About</div>
+          <div class="d">Nibgate extension · testnet build</div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-detail" hidden>
+        <button class="backbtn" id="detail-back">&lsaquo; Back</button>
+        <div class="detail" id="detail-body"></div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button id="nav-home" class="on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 4l9 7v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+        Home
+      </button>
+      <button id="nav-activity">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h5l2 6 4-14 2 8h5"/></svg>
+        Activity
+      </button>
+      <button id="nav-settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 0 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 0 1 0-4 1.7 1.7 0 0 0 1.4-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11 4a2 2 0 0 1 4 0 1.7 1.7 0 0 0 2.9 1.4l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 0 1 0 4z"/></svg>
+        Settings
+      </button>
+    </nav>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

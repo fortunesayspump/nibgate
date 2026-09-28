@@ -1,6 +1,7 @@
 import { normalizePaymentRail } from '../core/payment.js';
 import { normalizeServerResource as normalizeResource } from '../core/resource.js';
 import { serverEnv } from './env.js';
+import { gatewayBatchingExtra } from './gateway.js';
 
 export function createPaymentChallenge(resourceInput, options = {}) {
   const resource = normalizeResource(resourceInput);
@@ -8,14 +9,22 @@ export function createPaymentChallenge(resourceInput, options = {}) {
   const actor = options.actor || 'human';
   const recipient = resource.recipient || resource.payTo || options.recipient || serverEnv('NIBGATE_SELLER_ADDRESS') || '';
   const paymentRail = normalizePaymentRail(options.paymentRail || options.paymentMode || resource.paymentRail);
+  const challengeNetwork = options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002';
+  const batchingExtra = paymentRail === 'gateway' ? gatewayBatchingExtra(challengeNetwork) : undefined;
   return {
     x402Version: options.x402Version || 2,
     status: 402,
     scheme: 'exact',
     paymentMode: paymentRail === 'gateway' ? (options.paymentMode || serverEnv('NIBGATE_PAYMENT_MODE') || 'unconfigured') : 'transfer',
     paymentRail,
+    resource: {
+      url: resource.url || `${origin}${resource.path}`,
+      description: `Unlock ${resource.title}`,
+      mimeType: resource.type === 'article' ? 'text/html' : 'application/octet-stream',
+    },
     accepts: [
       {
+        scheme: 'exact',
         asset: resource.currency,
         network: options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002',
         amount: String(resource.price),
@@ -26,6 +35,7 @@ export function createPaymentChallenge(resourceInput, options = {}) {
         payTo: recipient,
         maxTimeoutSeconds: options.maxTimeoutSeconds || 120,
         rail: paymentRail,
+        ...(batchingExtra ? { extra: batchingExtra } : {}),
         transfer: paymentRail === 'transfer' ? {
           token: resource.currency || 'USDC',
           chainId: options.chainId || options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002',

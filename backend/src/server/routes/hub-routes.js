@@ -18,6 +18,7 @@ import {
   maybeAdoptPeerVerification, adoptCrossStackIfStale, fetchPeerVerification, peerHubApiBase,
   localCanonicalDomain, normalizeWalletAddress, mintBlogLinkToken, verifyBlogLinkToken,
   resolveUserByWallet, checkPeerSecret, mirrorPeerSite, fetchPeerIdentity, siteIdentityFor,
+  normalizeNetworkName,
   mirrorPeerBlogPost,
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
@@ -350,11 +351,14 @@ export function registerHubRoutes(app) {
       // totals drifted from the ledger (e.g. 796 events vs 780 verified). Both
       // surfaces stay in lockstep on the verified ledger.
       const verifiedUnlockWhere = { ...siteWhere, status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] } };
-      const [totalViews, totalUnlocks, totalPayments, totalRatings] = await Promise.all([
+      const [totalViews, totalUnlocks, totalPayments, totalRatings, totalTips] = await Promise.all([
         db.metric.count({ where: { type: 'view', contentId: { not: null }, ...siteWhere } }),
         db.unlockReceipt.count({ where: verifiedUnlockWhere }),
         db.unlockReceipt.count({ where: verifiedUnlockWhere }),
         db.contentRating.count({ where: { status: 'accepted', proof: { startsWith: 'onchain:' }, ...siteWhere } }),
+        // Tips count settled + released across ALL content — including
+        // unverified sites and pages never indexed. Money happened; show it.
+        db.tip.count({ where: { status: { in: ['settled', 'released'] }, ...(domain ? { contentUrl: { contains: domain } } : {}) } }),
       ]);
 
       const activities = [];
@@ -474,6 +478,48 @@ export function registerHubRoutes(app) {
         }
       }
 
+      // 5. Recent tips (Tip — settled + released, any content indexed or not).
+      // Deliberately NO website verification gate: a tip to an unverified
+      // page is still real money with a real receipt. Domain filter matches
+      // the raw contentUrl substring.
+      if (!type || type === 'tips') {
+        const tips = await db.tip.findMany({
+          where: {
+            status: { in: ['settled', 'released'] },
+            ...(domain ? { contentUrl: { contains: domain } } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        });
+        for (const t of tips) {
+          let tipDomain = '';
+          try { tipDomain = new URL(t.contentUrl).hostname; } catch {}
+          activities.push({
+            type: 'tip', id: t.id, websiteId: t.websiteId || null,
+            actor: t.payerWallet || 'wallet',
+            contentId: t.contentId || null,
+            contentTitle: t.title || t.contentUrl,
+            contentUrl: t.contentUrl,
+            domain: tipDomain,
+            amount: t.amount || 0,
+            protocolFee: t.protocolFee ?? null,
+            feeBps: t.feeBps ?? null,
+            currency: t.currency || 'USDC',
+            timestamp: t.createdAt,
+            // Verifiable tip fields
+            paymentId: t.paymentId || null,
+            txHash: t.txHash || null,
+            network: t.network || null,
+            paymentProvider: t.paymentProvider || null,
+            payerWallet: t.payerWallet || null,
+            recipientWallet: t.recipientWallet || null,
+            payeeWallet: t.payeeWallet || null,
+            status: t.status || 'settled',
+          });
+        }
+      }
+
       // Sort all by timestamp desc, cap at limit
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const result = activities.slice(0, limit);
@@ -482,7 +528,7 @@ export function registerHubRoutes(app) {
         success: true,
         activities: result,
         total: result.length,
-        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, total: totalViews + totalPayments + totalRatings },
+        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, tips: totalTips, total: totalViews + totalPayments + totalRatings + totalTips },
         hasMore: activities.length > limit,
         limit, skip: offset
       });
@@ -512,6 +558,17 @@ export function registerHubRoutes(app) {
     legacyHeaders: false,
     keyGenerator: (req) => ipKeyGenerator(req.ip),
     message: { ok: false, error: 'Too many payment requests, slow down.' },
+  });
+
+  // Tips mutate money state (holds, claims, receipts) — same abuse class as
+  // pay. Shared limiter across the tip surface.
+  const hubTipLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 60,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => ipKeyGenerator(req.ip),
+    message: { ok: false, error: 'Too many tip requests, slow down.' },
   });
 
   app.post('/api/hub/pay', hubPayLimiter, async (req, res) => {
@@ -990,6 +1047,360 @@ export function registerHubRoutes(app) {
       res.status(500).json({ error: 'Failed to read rating stats', details: error.message });
     }
   });
+
+  // ── Tips (Nib Tip; LOCAL-ONLY until the Sep-30 freeze lifts — do not commit)
+  // Challenge + verify harness the SDK tip module; revenue flows through the
+  // unlock fee machinery (resolvePayTo → fee wallet, feePolicy). Tips are
+  // recorded in Tip (never UnlockReceipt) so unlock counts stay clean.
+  // tip.js is untracked pre-freeze, so load it lazily: images built from git
+  // get a clean 501 instead of a boot crash. Never import it at top level.
+  const tipServer = async () => {
+    try {
+      return await import('../../../../packages/nibgate/src/server/tip.js');
+    } catch {
+      return null;
+    }
+  };
+
+  // Holding boxes: SDK helpers are untracked pre-freeze, so load lazily too.
+  const holdingServer = async () => {
+    try {
+      return await import('../../../../packages/nibgate/src/server/holding.js');
+    } catch {
+      return null;
+    }
+  };
+
+  // Keeper release: materialize the domain box and pay it out to the creator
+  // (net) + treasury (cut) in one atomic tx. Returns the tx hash.
+  const holdingKeeperKeys = () => ({
+    privateKey: process.env.NIBGATE_KEEPER_PRIVATE_KEY || '',
+    rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_PAYMENT_RPC_URL || '',
+  });
+
+  const releaseHoldingBox = async (domain, creator) => {
+    const holding = await holdingServer();
+    if (!holding) throw new Error('Holding SDK not available in this build.');
+    const dep = holding.holdingDeployment(activeNetwork().name);
+    const call = holding.buildHoldingRelease({ domain, creator, factoryAddress: dep.factoryAddress });
+    const { privateKey, rpcUrl } = holdingKeeperKeys();
+    if (!privateKey || !rpcUrl) throw new Error('Release requires NIBGATE_KEEPER_PRIVATE_KEY and an RPC URL.');
+    return holding.submitHoldingRelease(call, { privateKey, rpcUrl, chainId: dep.chainId });
+  };
+
+  app.post('/api/hub/tips/challenge', hubTipLimiter, async (req, res) => {
+    try {
+      const tip = await tipServer();
+      if (!tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { contentUrl, url, title, amount, currency, recipient, paymentRail, network } = req.body || {};
+      const hubNet = activeNetwork();
+      const out = await tip.createTipRequirement(
+        { contentUrl: contentUrl || url, title, amount, currency, recipient },
+        { network: hubNet.caip2, paymentRail },
+      );
+      res.json({ success: true, ...out.challenge, payee: out.payee, feeBps: out.feeBps, protocolFee: out.protocolFee });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/hub/tips/verify', hubTipLimiter, async (req, res) => {
+    try {
+      const tip = await tipServer();
+      if (!tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, walletAddress, contentId, websiteId } = req.body || {};
+      const rail = String(paymentRail || 'transfer').toLowerCase();
+      const hubNet = activeNetwork();
+      const tipNetwork = normalizeNetworkName(network) || hubNet.name;
+      const payNetwork = hubNet.caip2;
+      const reqd = await tip.createTipRequirement(
+        { contentUrl: contentUrl || url, title, amount, currency, recipient },
+        { network: payNetwork, paymentRail: rail },
+      );
+      const verifier = tip.createTipVerifier({});
+      let provider = 'direct-transfer';
+      let paymentId = txHash || null;
+      let receiptTxHash = txHash || null;
+      let payer = walletAddress || null;
+      if (rail === 'transfer' || rail === 'direct-transfer') {
+        if (!txHash) return res.status(400).json({ error: 'txHash is required.' });
+        const ok = await verifier.verifyDirect({
+          resource: { price: String(amount) },
+          txHash,
+          payment: { recipient: reqd.payee, amount: Number(amount) },
+        });
+        if (!ok) return res.status(402).json({ ok: false, error: 'Tip transfer verification failed' });
+      } else {
+        // Browser clients send the gateway signature in the body; the
+        // facilitator check reads the payment-signature header. Map it.
+        req.headers['payment-signature'] = req.headers['payment-signature'] || req.body?.paymentSignature || req.body?.paymentId || '';
+        const gw = await verifier.verifyGateway({
+          req, resource: { contentUrl: contentUrl || url, title }, recipient: reqd.payee, amount, network: payNetwork,
+        });
+        if (gw.handled) {
+          const status = gw.response?.status || 402;
+          let body = null;
+          try { body = JSON.parse(await gw.response.text()); } catch { body = { error: 'Payment required' }; }
+          return res.status(status).json(body);
+        }
+        provider = 'circle-gateway';
+        paymentId = gw.payment.paymentId || gw.payment.txHash || null;
+        receiptTxHash = gw.payment.txHash || null;
+        payer = gw.payment.payer || walletAddress || null;
+      }
+      const receipt = tip.tipReceipt({
+        contentUrl: contentUrl || url, title, amount, currency, network: tipNetwork,
+        payerWallet: payer, recipient, payee: reqd.payee,
+        protocolFee: reqd.protocolFee, feeBps: reqd.feeBps, txHash: receiptTxHash,
+      });
+      const row = await db.tip.create({
+        data: {
+          contentUrl: contentUrl || url, contentId: contentId || null, websiteId: websiteId || null,
+          title: title || null, amount: Number(amount), currency: currency || 'USDC', network: tipNetwork,
+          payerWallet: payer, recipientWallet: recipient || null, payeeWallet: reqd.payee,
+          protocolFee: reqd.protocolFee, feeBps: reqd.feeBps,
+          paymentProvider: provider, paymentId, txHash: receiptTxHash, status: 'settled',
+        },
+      });
+      res.json({ success: true, receipt, id: row.id });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/hub/tips', async (req, res) => {
+    try {
+      const where = {};
+      if (req.query?.contentUrl) where.contentUrl = String(req.query.contentUrl);
+      if (req.query?.status) where.status = String(req.query.status);
+      const tips = await db.tip.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(Number(req.query?.limit || 50) || 50, 100) });
+      res.json({ success: true, tips });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to list tips', details: error.message });
+    }
+  });
+
+  // Holding box (LOCAL-ONLY pre-freeze). Unresolved tips fund a no-key
+  // per-domain box onchain; claim triggers factory.release() which pays the
+  // creator net + treasury cut atomically. Two-step:
+  //   POST without proof  → box-funding challenge (same x402 envelope)
+  //   POST with proof      → verify into the box, record a held Tip
+  app.post('/api/hub/tips/hold', hubTipLimiter, async (req, res) => {
+    try {
+      const holding = await holdingServer();
+      const tip = await tipServer();
+      if (!holding || !tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { contentUrl, url, title, amount, currency, domain, paymentRail, walletAddress, txHash } = req.body || {};
+      const target = String(contentUrl || url || '');
+      if (!target) return res.status(400).json({ error: 'contentUrl is required.' });
+      if (!(Number(amount) > 0)) return res.status(400).json({ error: 'amount must be > 0.' });
+      let dom = String(domain || '').trim();
+      if (!dom) { try { dom = new URL(target).hostname; } catch { dom = ''; } }
+      if (!dom) return res.status(400).json({ error: 'Could not determine domain; pass domain explicitly.' });
+      const hubNet = activeNetwork();
+      const reqd = holding.buildHoldingRequirement(
+        { contentUrl: target, title, amount, currency, domain: dom },
+        { network: hubNet.name, paymentRail },
+      );
+      const rail = String(paymentRail || reqd.challenge.paymentRail || 'gateway').toLowerCase();
+      const isTransfer = rail === 'transfer' || rail === 'direct-transfer';
+      const gatewaySig = req.headers['payment-signature'] || req.body?.paymentSignature || req.body?.paymentId || '';
+      const hasProof = isTransfer ? Boolean(txHash) : Boolean(gatewaySig);
+      if (!hasProof) {
+        return res.json({ success: true, holdStatus: 'challenge', domain: dom, box: reqd.box, feeBps: reqd.feeBps, ...reqd.challenge });
+      }
+      const verifier = tip.createTipVerifier({});
+      let payer = walletAddress || null;
+      let paymentId = txHash || null;
+      let receiptTxHash = txHash || null;
+      let provider = 'direct-transfer';
+      if (isTransfer) {
+        const ok = await verifier.verifyDirect({
+          resource: { price: String(amount) },
+          txHash,
+          payment: { recipient: reqd.box, amount: Number(amount) },
+        });
+        if (!ok) return res.status(402).json({ ok: false, error: 'Hold transfer verification failed' });
+      } else {
+        provider = 'circle-gateway';
+        req.headers['payment-signature'] = gatewaySig;
+        const gw = await verifier.verifyGateway({
+          req, resource: { contentUrl: target, title }, recipient: reqd.box, amount, network: hubNet.caip2,
+        });
+        if (gw.handled) {
+          const status = gw.response?.status || 402;
+          let body = null;
+          try { body = JSON.parse(await gw.response.text()); } catch { body = { error: 'Payment required' }; }
+          return res.status(status).json(body);
+        }
+        paymentId = gw.payment.paymentId || gw.payment.txHash || null;
+        payer = gw.payment.payer || walletAddress || null;
+        // No onchain funds yet: Circle credits the box's Gateway ledger. The
+        // box's ERC-1271 withdrawal materializes it at claim time — no hub
+        // custody, no shell address.
+      }
+      const row = await db.tip.create({
+        data: {
+          contentUrl: target, domain: dom, title: title || null,
+          amount: Number(amount), currency: currency || 'USDC',
+          network: hubNet.name, payerWallet: payer,
+          payeeWallet: reqd.box, status: 'held', holdReason: 'awaiting-claim',
+          paymentProvider: provider, paymentId, txHash: receiptTxHash,
+          feeBps: reqd.feeBps,
+        },
+      });
+      res.json({ success: true, holdStatus: 'held', box: reqd.box, tip: row });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/hub/tips/held', async (req, res) => {
+    try {
+      const domain = String(req.query?.domain || '');
+      if (!domain) return res.status(400).json({ error: 'domain is required.' });
+      const tips = await db.tip.findMany({
+        where: { status: 'held', OR: [{ domain }, { contentUrl: { contains: domain } }] },
+        orderBy: { createdAt: 'desc' }, take: Math.min(Number(req.query?.limit || 50) || 50, 100),
+      });
+      const total = tips.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      res.json({ success: true, tips, total });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to list held tips', details: error.message });
+    }
+  });
+
+  // Claim: verify site ownership, then keeper releases the domain box onchain
+  // (net to creator, cut to treasury) and marks every held tip released.
+  app.post('/api/hub/tips/claim', hubTipLimiter, async (req, res) => {
+    try {
+      const holding = await holdingServer();
+      if (!holding) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { siteId, token, creatorWallet } = req.body || {};
+      if (!siteId || !token) return res.status(400).json({ error: 'siteId and token required.' });
+      const website = await db.website.findUnique({
+        where: { id: siteId },
+        include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } },
+      });
+      if (!website || website.verifyToken !== token) return res.status(403).json({ error: 'Invalid site credentials.' });
+      const domain = holding.canonicalDomainKey(website.domain);
+      const ownerWallet = website.owner?.wallets?.[0]?.address || website.owner?.walletAddress || null;
+      // Two proofs: site ownership (verifyToken above) + wallet control.
+      // Owner-link sites bind the owner wallet at sign-in, so the owner wallet
+      // is implicitly controlled. Claiming to any *other* wallet requires a
+      // signed claim token proving control of that wallet.
+      let recipient = String(creatorWallet || ownerWallet || '').trim() || null;
+      const claimToken = req.body?.claimToken || null;
+      if (claimToken) {
+        const check = await holding.verifyClaimToken({
+          ...claimToken,
+          domain,
+          wallet: recipient || claimToken.wallet,
+        });
+        if (!check.valid) return res.status(403).json({ error: `Wallet control proof failed: ${check.reason}` });
+        recipient = String(check.signer || claimToken.wallet || '').toLowerCase() || recipient;
+      } else if (creatorWallet && String(creatorWallet).toLowerCase() !== String(ownerWallet || '').toLowerCase()) {
+        return res.status(403).json({ error: 'Wallet control proof (claimToken) required to claim to a different wallet.' });
+      }
+      if (!recipient) return res.status(400).json({ error: 'No creator wallet to release to.' });
+      // One verified wallet per domain. First claim binds it; a different
+      // wallet later goes to manual review, never auto-release.
+      const walletLc = recipient.toLowerCase();
+      const priorClaim = await db.tipDomainClaim.findUnique({ where: { domain } });
+      if (priorClaim && priorClaim.wallet.toLowerCase() !== walletLc) {
+        return res.status(409).json({
+          error: 'This domain was already claimed by another wallet; needs manual review.',
+          code: 'domain-claimed-by-other-wallet',
+        });
+      }
+      await db.tipDomainClaim.upsert({
+        where: { domain },
+        create: { domain, wallet: walletLc, network: activeNetwork().name },
+        update: { wallet: walletLc },
+      });
+      const held = await db.tip.findMany({
+        where: { status: 'held', OR: [{ domain }, { contentUrl: { contains: website.domain } }] },
+        orderBy: { createdAt: 'asc' }, take: 100,
+      });
+      if (!held.length) return res.json({ success: true, released: [], pending: 0 });
+      // Collect any Gateway-credited balance into the box first (the box's
+      // ERC-1271 self-withdrawal), then release the box balance onchain.
+      const { privateKey, rpcUrl } = holdingKeeperKeys();
+      const hasGatewayHold = held.some((t) => t.paymentProvider === 'circle-gateway');
+      if (privateKey && rpcUrl && hasGatewayHold) {
+        try {
+          // Circle batched settlement is deferred. If the box's credit is not
+          // yet withdrawable, report settling instead of failing the claim.
+          const gw = await holding.withdrawHoldingBoxGateway(domain, {
+            privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0,
+          });
+          if (gw?.withdrew === false) {
+            return res.status(202).json({
+              success: false, status: 'pending-settlement', domain,
+              box: gw.box, available: gw.available,
+              message: 'Circle Gateway is still settling this tip; retry the claim shortly.',
+            });
+          }
+        } catch (gwError) {
+          return res.status(502).json({ error: `Gateway collection failed: ${gwError.message}` });
+        }
+      }
+      let releaseTx = null;
+      try {
+        releaseTx = await releaseHoldingBox(domain, recipient);
+      } catch (releaseError) {
+        return res.status(502).json({ error: `Onchain release failed: ${releaseError.message}` });
+      }
+      const dep = holding.holdingDeployment(activeNetwork().name);
+      const amount = held.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const protocolFee = Math.round(amount * dep.feeBps) / 10000;
+      await db.tip.updateMany({
+        where: { id: { in: held.map((t) => t.id) } },
+        data: {
+          status: 'released', recipientWallet: recipient, payeeWallet: recipient,
+          releaseTx, releasedAt: new Date(), holdReason: null,
+          feeBps: dep.feeBps, protocolFee,
+        },
+      });
+      const rows = await db.tip.findMany({ where: { id: { in: held.map((t) => t.id) } } });
+      await db.tipDomainClaim.update({
+        where: { domain },
+        data: { releasedTips: { increment: held.length } },
+      }).catch(() => {});
+      res.json({
+        success: true, domain, recipient, releaseTx, feeBps: dep.feeBps, protocolFee,
+        released: rows, pending: 0,
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/hub/resolve', async (req, res) => {
+    try {
+      const url = String(req.query?.url || '');
+      const content = url ? await db.content.findFirst({ where: { url } }) : null;
+      if (content?.recipientWallet) {
+        return res.json({ success: true, wallet: content.recipientWallet, confidence: 0.9, source: 'hub-index' });
+      }
+      // Domain-level fallback: a verified site's owner receives for the whole
+      // domain (per-article recipientWallet above still wins when present).
+      let host = '';
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { host = ''; }
+      if (host) {
+        const site = await db.website.findFirst({
+          where: { domain: host, deletedAt: null, isVerified: true },
+          include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } },
+        });
+        const wallet = site?.owner?.wallets?.[0]?.address || site?.owner?.walletAddress || null;
+        if (wallet) return res.json({ success: true, wallet, confidence: 0.8, source: 'hub-index-domain' });
+      }
+      return res.json({ success: false, state: 'unresolved', reason: 'no verified recipient' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to resolve recipient', details: error.message });
+    }
+  });
+
 
   // ── Reputation: Index Onchain Rating ────────────────────────────────────
 

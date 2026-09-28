@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Nibgate",
+  "version": "0.1.0",
+  "description": "Tip & unlock creator content anywhere on the web. Starts on testnet (free faucet USDC); switch to mainnet in settings for real payments.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Nibgate",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "exclude_matches": [
+        "*://nibgate.xyz/*",
+        "*://*.nibgate.xyz/*",
+        "*://localhost/*",
+        "*://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["activeTab", "scripting", "storage", "alarms", "idle"],
+  "web_accessible_resources": [
+    {
+      "resources": ["fonts/*.woff2"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "host_permissions": [
+    "https://testnet-api.nibgate.xyz/*",
+    "https://testnet-api-subblogs.nibgate.xyz/*",
+    "https://api.nibgate.xyz/*",
+    "https://api-subblogs.nibgate.xyz/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

@@ -41,3 +41,56 @@ jobs:
       - name: Contract tests
         run: forge test
         working-directory: contracts
+
+  extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
+      - name: Build extension
+        run: node scripts/build.mjs
+      - name: Typecheck extension
+        run: npx tsc --noEmit
+
+  e2e-hub-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nibgate_tip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nibgate_tip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client + schema
+        run: pnpm -C packages/cli exec prisma db push --schema=prisma/schema.prisma --accept-data-loss
+      - name: Run hub API E2E (non-funded)
+        run: pnpm exec playwright test --config=e2e/playwright.ci.config.ts
+

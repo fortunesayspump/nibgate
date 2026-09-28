@@ -11,6 +11,7 @@ export interface ShareMeta {
   createdAt: string;
   whitelist: boolean;
   status: string;
+  ownerWallet?: string;
 }
 
 export interface AccessResource {

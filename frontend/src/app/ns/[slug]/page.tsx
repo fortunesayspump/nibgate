@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { apiUrl } from '@/lib/api';
 import ShareClient from '@/features/nibshare/components/ShareClient';
+import ShareTip from '@/features/nibshare/components/ShareTip';
 import Footer from '@/features/nibshare/components/Footer';
 import { formatLongDate } from '@/features/nibshare/lib/format';
 import type { ShareMeta } from '@/features/nibshare/types';
@@ -131,6 +132,7 @@ export default async function SharePage({ params }: Props) {
         ) : (
           <ShareClient slug={slug} meta={meta} />
         )}
+        {!isExpired && <ShareTip slug={slug} meta={meta} />}
       </div>
     </article>,
   );

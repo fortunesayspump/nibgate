@@ -34,7 +34,7 @@ export const ARC_TESTNET_RPC_FALLBACKS = [
 export const ARC_MAINNET_RPC = 'https://rpc.mainnet.arc.io';
 // Public mainnet mirrors (same-shape as the testnet DRPC/QuickNode fallbacks,
 // confirmed against provider docs). Keyed endpoints are still preferred via
-// NIBGATE_PAYMENT_RPC_URL / NIBGATE_RPC_MIRRORS ΓÇö these only absorb bursts
+// NIBGATE_PAYMENT_RPC_URL / NIBGATE_RPC_MIRRORS — these only absorb bursts
 // when the primary rate-limits.
 export const ARC_MAINNET_RPC_FALLBACKS = [
   'https://arc.drpc.org',
@@ -554,8 +554,12 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   // A Gateway-credited ledger is not enough: Circle's TEE validates the
   // ERC-1271 signature by eth_call-ing isValidSignature on the wallet, which
   // returns empty bytes for a code-less address. Ensure the wallet contract is
-  // deployed first (permissionless, deterministic CREATE2).
-  await ensureFeeWalletDeployed(wallet, { ...options, rpcUrl, account });
+  // deployed first (permissionless, deterministic CREATE2). Callers that own a
+  // different factory (e.g. TipHoldingFactory) pass skipEnsureDeploy and
+  // deploy the contract themselves.
+  if (!options.skipEnsureDeploy) {
+    await ensureFeeWalletDeployed(wallet, { ...options, rpcUrl, account });
+  }
 
   // The gateway rail idempotency signal is the ledger balance itself: a
   // successful withdrawal debits the ledger, so the next sweep reads a lower

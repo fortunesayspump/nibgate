@@ -121,12 +121,13 @@ export function unlockedAccountAddress(): string {
 
 // Signer for the Circle Gateway rail. Key stays inside this module; callers
 // get only address + a signTypedData closure over the in-memory account.
-export function sessionSigner(): { address: string; signTypedData: (typedData: unknown) => Promise<string> } | null {
+export function sessionSigner(): { address: string; signTypedData: (typedData: unknown) => Promise<string>; signMessage: (message: string) => Promise<string> } | null {
   if (!sessionMnemonic || !unlockedAddress) return null;
   const account = mnemonicToAccount(sessionMnemonic);
   return {
     address: account.address,
     signTypedData: (typedData: unknown) => account.signTypedData(typedData as never),
+    signMessage: (message: string) => account.signMessage({ message }),
   };
 }
 

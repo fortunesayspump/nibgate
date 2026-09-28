@@ -121,6 +121,26 @@ export async function heldTipsForDomain(domain: string): Promise<{ count: number
   }
 }
 
+// Payer refund for unclaimed held tips. The wallet signs a control message and
+// the hub relays the on-chain refund (full amount, no fee, payer-only).
+export async function refundHeldTip(input: {
+  domain: string;
+  payer: string;
+  message: string;
+  signature: string;
+  amount?: number;
+}): Promise<{ success?: boolean; amount?: number; refundTx?: string; error?: string }> {
+  const { hubApi } = await activeNetwork();
+  const res = await fetch(`${hubApi}/hub/tips/refund`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.success === false) throw new Error(data?.error || `refund failed: ${res.status}`);
+  return data;
+}
+
 // Social proof: settled tip count + total for a domain, from the ledger.
 export async function tipStatsForDomain(domain: string): Promise<{ count: number; total: number }> {
   const { hubApi } = await activeNetwork();

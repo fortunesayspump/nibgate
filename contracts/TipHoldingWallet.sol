@@ -64,6 +64,15 @@ contract TipHoldingWallet {
     }
 
     event Released(bytes32 indexed domainHash, address indexed creator, uint256 amount, uint256 protocolFee);
+    event Refunded(bytes32 indexed domainHash, address indexed payer, uint256 amount);
+
+    bool private _locked;
+    modifier nonReentrant() {
+        require(!_locked, "reentrant");
+        _locked = true;
+        _;
+        _locked = false;
+    }
 
     constructor(
         address factory_,
@@ -87,7 +96,7 @@ contract TipHoldingWallet {
         domain = domain_;
     }
 
-    function release(bytes32 domainHash, address creator) external {
+    function release(bytes32 domainHash, address creator) external nonReentrant {
         require(msg.sender == factory, "factory-only");
         require(creator != address(0), "creator");
         uint256 balance = IERC20Minimal(usdc).balanceOf(address(this));
@@ -97,6 +106,20 @@ contract TipHoldingWallet {
         require(IERC20Minimal(usdc).transfer(creator, payout), "payout");
         if (fee > 0) require(IERC20Minimal(usdc).transfer(treasury, fee), "fee");
         emit Released(domainHash, creator, payout, fee);
+    }
+
+    // Payer refund for unclaimed tips: sends min(amount, balance) back in full
+    // (no fee — it never reached a creator). Factory-only; the hub verifies
+    // offchain that the tip is still held (not released/claimed) and that the
+    // caller is the original payer before relaying.
+    function refund(bytes32 domainHash, address payer, uint256 amount) external nonReentrant {
+        require(msg.sender == factory, "factory-only");
+        require(payer != address(0), "payer");
+        uint256 balance = IERC20Minimal(usdc).balanceOf(address(this));
+        uint256 value = amount < balance ? amount : balance;
+        require(value > 0, "empty");
+        require(IERC20Minimal(usdc).transfer(payer, value), "refund");
+        emit Refunded(domainHash, payer, value);
     }
 
     function domainSeparator() public pure returns (bytes32) {

@@ -56,8 +56,9 @@ JEV consumes `confidence` downstream (hold-vs-pay thresholds).
   movable by nobody — not even us, no keys exist to steal. Only a verified
   claim triggers `release(domain, creator)` minus the cut. The ERC-1271 hook
   only authorizes an exact self-transfer of the box's own Gateway credit.
-- No hub custody, ever. No expiry, no refunds (a tip owed is owed; expiry
-  would turn gifts into protocol revenue). Dust below the floor is rejected
+- No hub custody, ever. No expiry (expiry would turn gifts into protocol
+  revenue). Payers can refund unclaimed tips in full before release; refunds
+  are ledger-recorded and netted. Dust below the floor is rejected
   at challenge time; holds require a named payer wallet.
 - Attribution: canonical domain first, content fingerprint second. A tip
   belongs to at most one domain — never double-counted, never paid twice.

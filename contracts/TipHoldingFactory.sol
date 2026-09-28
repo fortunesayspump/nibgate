@@ -23,12 +23,22 @@ contract TipHoldingFactory {
     address public immutable gatewayMinter;
     uint32 public immutable domain;
     address public owner;
+    // Hub keeper hot key (set by owner) for automated release/refund relays.
+    // The owner (treasury/multisig) stays authoritative; the keeper only acts
+    // on hub-verified claim/refund requests.
+    address public keeper;
 
     event HoldingDeployed(bytes32 indexed domainHash, address indexed wallet);
     event HoldingReleased(bytes32 indexed domainHash, address indexed creator, address indexed wallet);
+    event HoldingRefunded(bytes32 indexed domainHash, address indexed payer, address indexed wallet, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "owner");
+        _;
+    }
+
+    modifier onlyOwnerOrKeeper() {
+        require(msg.sender == owner || msg.sender == keeper, "owner-or-keeper");
         _;
     }
 
@@ -57,6 +67,10 @@ contract TipHoldingFactory {
     function setOwner(address next) external onlyOwner {
         require(next != address(0), "owner");
         owner = next;
+    }
+
+    function setKeeper(address next) external onlyOwner {
+        keeper = next;
     }
 
     function domainHash(string calldata domain) public pure returns (bytes32) {
@@ -95,5 +109,15 @@ contract TipHoldingFactory {
         wallet = deploy(domainHash_);
         TipHoldingWallet(wallet).release(domainHash_, creator);
         emit HoldingReleased(domainHash_, creator, wallet);
+    }
+
+    // Payer refund for unclaimed tips (full amount, no fee). The hub verifies
+    // offchain that the payer's tips for the domain are still held (never
+    // released/claimed) before relaying. Emits for ledger accounting.
+    function refund(bytes32 domainHash_, address payer, uint256 amount) external onlyOwnerOrKeeper returns (address wallet) {
+        require(payer != address(0), "payer");
+        wallet = deploy(domainHash_);
+        TipHoldingWallet(wallet).refund(domainHash_, payer, amount);
+        emit HoldingRefunded(domainHash_, payer, wallet, amount);
     }
 }

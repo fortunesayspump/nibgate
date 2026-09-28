@@ -14,6 +14,8 @@ contract TipHoldingFactoryTest is Test {
     address owner = makeAddr("owner");
     address creator = makeAddr("creator");
     address stranger = makeAddr("stranger");
+    address payer = makeAddr("payer");
+    address keeper = makeAddr("keeper");
     address gatewayWallet = makeAddr("gatewayWallet");
     address gatewayMinter = makeAddr("gatewayMinter");
     uint16 constant FEE_BPS = 500;
@@ -118,5 +120,37 @@ contract TipHoldingFactoryTest is Test {
         vm.prank(stranger);
         address second = factory.deploy(domainHash);
         assertEq(first, second);
+    }
+
+    function test_RefundPayerBeforeRelease() public {
+        address predicted = factory.predict(domainHash);
+        usdc.mint(predicted, 1_000_000);
+        vm.prank(owner);
+        factory.setKeeper(keeper);
+        vm.prank(keeper);
+        address wallet = factory.refund(domainHash, payer, 1_000_000);
+        assertEq(wallet, predicted);
+        // Full refund, no fee: payer whole, treasury zero, box empty.
+        assertEq(usdc.balanceOf(payer), 1_000_000);
+        assertEq(usdc.balanceOf(treasury), 0);
+        assertEq(usdc.balanceOf(wallet), 0);
+    }
+
+    function test_RevertNonOwnerNonKeeperRefund() public {
+        address predicted = factory.predict(domainHash);
+        usdc.mint(predicted, 1_000_000);
+        vm.expectRevert(bytes("owner-or-keeper"));
+        vm.prank(stranger);
+        factory.refund(domainHash, payer, 1_000_000);
+    }
+
+    function test_RefundAfterReleaseEmpty() public {
+        address predicted = factory.predict(domainHash);
+        usdc.mint(predicted, 1_000_000);
+        vm.prank(owner);
+        factory.release(domainHash, creator);
+        vm.prank(owner);
+        vm.expectRevert(bytes("empty"));
+        factory.refund(domainHash, payer, 1_000_000);
     }
 }

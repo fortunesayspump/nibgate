@@ -20,5 +20,6 @@ All cuts in basis points, taken at settlement.
 Notes:
 - `NIBGATE_FEE_BPS` configures member rates; non-member rates are protocol
   constants (not creator-configurable).
-- Unclaimed holds never expire and are never swept. No refunds, ever.
+- Unclaimed holds never expire and are never swept. Payer refunds of unclaimed
+  tips are free (no protocol cut); released tips are final.
 - Mainnet launch re-confirms every number (real money changes psychology).

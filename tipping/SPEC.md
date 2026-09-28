@@ -32,8 +32,9 @@ For the claimant side, see `NON-NIBGATE-CREATORS.md`. For cuts, see `FEES.md`.
 
 A tip is `{ site, contentUrl, contentHash?, title, amount, payer, recipient?,
 status }`. Statuses: `settled` (paid direct), `held` (protocol holding for an
-unresolved/never-claimed creator), `released` (held → claimed). No `expired`:
-per policy unclaimed tips never expire and are never refunded (see
+unresolved/never-claimed creator), `released` (held → claimed), `refunded`
+(payer-reclaimed before release, full amount, no fee). No `expired`: per policy
+unclaimed tips never expire (see
 `NON-NIBGATE-CREATORS.md`). Same receipt shape as unlocks with
 `type: 'tip'`, so Explore, ledger, earnings, and reputation count tips with
 no new machinery.

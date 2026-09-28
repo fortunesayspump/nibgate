@@ -143,11 +143,6 @@ export function createNibgateWallet(options = {}) {
     themeMode: options.themeMode || 'light',
     themeVariables: options.themeVariables || DEFAULT_THEME_VARIABLES,
     features: { ...DEFAULT_FEATURES, ...(options.features || {}) },
-    // EVM-only surface: we pass a single Arc (EVM) network + wagmi adapter,
-    // but the "View All" directory still lists every chain's wallets. Hide it
-    // so users see injected + WalletConnect + the social (Google) section —
-    // socials render in their own block at the top when enabled.
-    allWallets: options.allWallets || 'HIDE',
   })
 
   cached = {

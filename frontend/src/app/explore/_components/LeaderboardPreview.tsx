@@ -5,7 +5,7 @@ import { apiUrl } from "@/lib/api";
 type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore?: number | null; unlocks: number; contentCount: number };
 
 function creatorAvatar(creator: Creator) {
-  return creator.avatarUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(creator.name || creator.walletAddress || "Creator")}`;
+  return creator.avatarUrl || '/nibgate-mark.svg';
 }
 
 async function getCreators() {

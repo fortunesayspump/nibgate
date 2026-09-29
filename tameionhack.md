@@ -3,7 +3,8 @@
 Tameion Agents Hackathon (Canteen × Circle), Sep 27 – Oct 10. AI agents that
 manage a business's money, settled in USDC on Arc. Judging: 30% agency,
 30% traction, 20% Circle stack, 20% innovation — on the **delta during the
-window**. Build rules (branches, no pushes before Sep 30): see `HACKATHON.md`.
+window**. Build rules (branches, no pushes before Sep 30): see `HACKATHON.md`
+— note the freeze was later lifted by direction; this plan stays as record.
 
 ## Thesis
 
@@ -46,8 +47,9 @@ Extends the unlock model (`content → pay → unlock`) with tipping
   link onto existing `Content` rows; external content is URL + extracted
   metadata + hash.
 - **Claiming is site-level.** Verify once (widget / terminal / hub link),
-  claim everything. Verification mints the creator an agent-managed wallet
-  (Circle Wallets) — a creator never needs to understand crypto to receive money.
+  claim everything. The hub keeper releases the domain box (net minus the
+  held-tier cut) to the wallet bound by site ownership + wallet-control
+  proof — a creator never needs to understand crypto to receive money.
 - **Unclaimed tips accrue per-domain** in on-chain holding boxes
   (`TipHoldingFactory`, deterministic per domain) plus a backend-ledger index,
   released on verification. Payers can reclaim unclaimed tips via refund (full
@@ -96,9 +98,11 @@ acquisition justified by objective + budget. Economic agency, not auto-pay.
 
 ## 4. JEV (decision layer)
 
-LLM proposes possibilities; JEV makes constrained decisions between them.
-Pure logic, no LLM inside, money-agnostic — shared by tipping, extension,
-Dr. Nib, metadata autofill, and hub ranking.
+Deterministic `decide`/`selectMany` engine plus the real JEV decisions model
+(`~typesafe/jev-latest` via OpenRouter) behind hub endpoints — shared by
+tipping, extension, Dr. Nib, metadata autofill, and hub ranking. The model
+only scores/picks from caller-supplied options; thresholds and safe defaults
+stay in code.
 
 Decision record: `{options[], scores{}, policy, action, reasons[], budgetDelta}`.
 Actions include `escalate` (low confidence / over threshold → human), so
@@ -114,14 +118,13 @@ Source #7 · Cost $0.30 · Relevance medium · Overlap 82%
 Action → SKIP
 ```
 
-## Money flow (testnet for the event)
+## Money flow (testnet-first, mainnet live)
 
-Hackathon scope is **testnet only**: faucet USDC, `eip155:5042002`,
+Hackathon scope started **testnet only**: faucet USDC, `eip155:5042002`,
 `testnet-*` hosts, testnet APIs. All new code stays `NIBGATE_NETWORK`-aware
-via the existing helpers so mainnet is a config flip, not a rewrite —
-but nothing hackathon-related is wired to, verified on, or demoed with
-mainnet until after the event. **Mainnet launch happens post-hackathon**
-(contracts + keeper + mainnet env flips then).
+via the existing helpers so mainnet is a config flip, not a rewrite.
+Mainnet factories, keeper, refunds, and tipping have since shipped live;
+testnet remains the staging mirror.
 - Dr. Nib budgets are real balances in agent wallets on whichever network
   the deployment targets.
 
@@ -153,7 +156,7 @@ author-vs-publication tip splits (post-hackathon revenue story).
 | Piece | Runs where | Infra needed |
 |---|---|---|
 | JEV core | library — bundled into callers, no hosting | none (zero-dep Node) |
-| Nib Tip API | new routes on the **existing** testnet hub backend (`nibgate-blog-testnet` Railway service) | none new; same DB, same deploy |
+| Nib Tip API | new routes on the **existing** hub backends (testnet + mainnet hub services) | none new; same DB, same deploy |
 | Extension | nowhere (distributed) + static review page | none; store listing post-event |
 | Dr. Nib chat UI | new routes in the **existing** testnet hub frontend (Vercel project) | none new |
 | Dr. Nib runner | **new** Railway service in `nibgate-testnet` project (long-lived agent loop + budget wallet) | one service + agent wallet, created at build time |

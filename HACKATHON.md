@@ -1,6 +1,10 @@
 # TAMEION HACKATHON — BUILD RULES (read before touching hackathon code)
 
-Event: Tameion Agents Hackathon, Sep 27 – Oct 10 (Canteen × Circle, on Arc).
+> **SUPERSEDED (Sep 29):** the Sep-30 push freeze below was lifted by direct
+> instruction — tipping, refunds, factories, SDK, hub, and mainnet deploys all
+> shipped to `main`/production before the window closed. Kept as the event
+> plan of record; do not follow the freeze rule. Event: Tameion Agents
+> Hackathon, Sep 27 – Oct 10 (Canteen × Circle, on Arc).
 Judging weights agency 30% + traction 30%, and judges the DELTA during the
 window — product shipped + businesses reached Sep 27–Oct 10. Work that lands
 before the window does not count.

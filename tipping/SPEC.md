@@ -1,20 +1,22 @@
-# Nib Tip — protocol spec (local-only until Sep-30 freeze lifts)
+# Nib Tip — protocol spec
 
-Tipping any content on the internet, SDK-first. Status: `packages/nibgate`
-re-exports from `@nibgate/sdk/server` the tip surface (`server/tip.js`:
+Tipping any content on the internet, SDK-first. Status: live on mainnet +
+testnet. `packages/nibgate` re-exports from `@nibgate/sdk/server` the tip surface (`server/tip.js`:
 `createTipChallenge`, `tipReceipt`, `createTipVerifier` with `verifyDirect` +
 `verifyGateway`, `resolveTipPayee`, `createTipRequirement`,
 `resolveTipRecipient`) and the holding surface (`server/holding.js`:
-`mintHoldingAddress`, `buildHoldingRequirement`, `buildHoldingRelease`,
-`submitHoldingRelease`, `deployHoldingBox`, `withdrawHoldingBoxGateway`,
+`mintHoldingAddress`, `holdingDeployment`, `buildHoldingRequirement`,
+`buildHoldingRelease`, `submitHoldingRelease`, `buildHoldingRefund`,
+`submitHoldingRefund`, `deployHoldingBox`, `withdrawHoldingBoxGateway`,
 `fundHoldingBox`, `mintClaimToken`/`verifyClaimToken`, `createTipIntent`), plus
-`browser/tip.js` (`tipContent`). SDK tip+holding vitest green including revenue
-parity and both-rails-pay-the-box. Hub endpoints (local-only, tested live on
-testnet): `/hub/tips/challenge`, `/hub/tips/verify` (both rails), `/hub/tips`,
+`browser/tip.js` (`tipContent`, `holdTipContent`, `refundTip`). Hub endpoints
+(live both nets): `/hub/tips/challenge`, `/hub/tips/verify` (both rails), `/hub/tips`,
 `/hub/tips/hold` (two-step: no proof → box-funding challenge, with proof →
-held), `/hub/tips/held`, `/hub/tips/claim`, `/hub/resolve`, backed by the `Tip`
-table (`settled`/`held`/`released`) and `TipDomainClaim` (one wallet per domain).
-Proven end-to-end on testnet (real funds, both rails): a hold funds a no-key
+held), `/hub/tips/held`, `/hub/tips/claim`, `/hub/tips/refund`, `/hub/resolve`,
+backed by the `Tip` table (`settled`/`held`/`released`/`refunded`) and
+`TipDomainClaim` (one wallet per domain).
+Proven end-to-end on testnet and mainnet (real funds, both rails): a hold
+funds a no-key
 domain box; the owner verifies and claims; the keeper runs
 `release(domain, creator)` paying net minus the 500bps held-tier cut. Gateway
 holds credit the box's Gateway ledger; the box implements ERC-1271, so the hub
@@ -42,15 +44,15 @@ no new machinery.
 ## Server (`@nibgate/sdk/server`)
 
 ```ts
-// Full self-hosted flow — no hub account needed.
-const nibtip = createNibTipServer({
-  network: 'eip155:5042002',   // or 'eip155:5042'
-  recipient: '0xCreatorWallet', // or (ctx) => resolveTipRecipient(ctx)
-  protocolCutBps?: number,      // default per FEES.md
-});
+// Requirement + challenge for a known recipient (mirrors the unlock path
+// so revenue can never drift from it).
+const reqd = await createTipRequirement(
+  { contentUrl, title, amount, recipient },
+  { network: 'eip155:5042', paymentRail: 'transfer' }, // or 'eip155:5042002'
+);
+// reqd = { payee, feeBps, protocolFee, challenge }
 
-// POST /api/tip/challenge → { amount, payTo, network, expiresAt, policy }
-// POST /api/tip/verify    → verifies Gateway receipt / direct transfer,
+// POST /api/tip/verify → verifies Gateway receipt / direct transfer,
 //                           returns { ok, proof, receipt }
 ```
 
@@ -67,6 +69,7 @@ takes the hosted cut. Same pattern as hub-hosted unlocks (`hub/pay`).
 ```text
 POST /hub/tips/challenge  { contentUrl, title?, amount }
 POST /hub/tips/verify     { payment proof... } → { ok, proof, receipt }
+POST /hub/tips/refund     { domain, payer, message, signature } → full-amount refund of unclaimed holds
 GET  /hub/tips/held?domain=X          (creator view of waiting tips)
 POST /hub/tips/claim     { siteId, token } (release on verification)
 GET  /hub/resolve?url=...             (creator resolution lookup)
@@ -77,21 +80,31 @@ GET  /hub/resolve?url=...             (creator resolution lookup)
 ```ts
 resolveTipRecipient({ url, title?, authorHint? })
   → { wallet?, confidence, source }
-// source: 'hub-index' | 'page-signal' | 'inferred' | 'unresolved'
+// source: 'hub-index' | 'hub-index-domain' | 'page-signal' | 'unresolved'
+// (extension JEV inference reports 'jev-model'; hub never guesses)
 ```
 
 Local signals first, hub lookup second, inference last. JEV consumes
 `confidence` downstream (hold vs pay thresholds).
 
-## Browser (`@nibgate/sdk` browser)
+## Browser (`@nibgate/sdk` browser + `@nibgate/wallet` React)
 
 ```ts
-nibgate.tip({ url, amount, recipient? })  // tip flow with wallet UX
-<NibTipButton resource={...} />           // drop-in component (subblogs, nibshare)
+import { tipContent, holdTipContent, refundTip } from '@nibgate/sdk/browser';
+
+await tipContent({ contentUrl, title, amount, signer, hubApi }); // resolved → settled; else → held
+await holdTipContent({ contentUrl, amount, signer, hubApi });     // explicit hold
+await refundTip({ domain, signer, hubApi });                      // payer refund
+```
+
+```tsx
+import { NibgateTipCard, NibgateTipInline, useNibgateTip } from '@nibgate/wallet/react';
+// useNibgateTip() returns { tip, refund, status, receipt } — direct tips and
+// held-tip refunds from one hook.
 ```
 
 ## Networks
 
 All endpoints and helpers take `network` / read `NIBGATE_NETWORK` (server) and
-`NEXT_PUBLIC_NIBGATE_NETWORK` (browser), defaulting to testnet. Testnet-only
-until the post-hackathon mainnet launch.
+`NEXT_PUBLIC_NIBGATE_NETWORK` (browser), defaulting to testnet. Live on both
+stacks; money never crosses (see DESIGN.md network model).

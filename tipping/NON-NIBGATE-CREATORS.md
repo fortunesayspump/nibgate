@@ -1,7 +1,7 @@
 # Nib Tip — tipping for non-Nibgate creators
 
 How tipping works when the creator has never heard of Nibgate. Companion to
-`SPEC.md` (protocol) and `FEES.md` (cuts). Status: design, pre-build.
+`SPEC.md` (protocol) and `FEES.md` (cuts). Status: live on both nets.
 
 ## The problem
 
@@ -25,15 +25,16 @@ the right human, eventually, without the payer doing homework.
    - Nothing solid → **unresolved**.
 3. **Resolved → pay direct.** Gateway or direct-transfer rails, same as unlocks.
    Receipt recorded (`type: 'tip'`). Done.
-4. **Unresolved → hold.** The tip settles into **protocol holding**, keyed by
-   canonical domain + content fingerprint (URL + title hash + snapshot hash).
-   The payer pays now; the creator claims later. The hold is a backend-ledger
-   entry (testnet scope), not an onchain escrow — disclosed as such.
+4. **Unresolved → hold.** The tip settles into **protocol holding**: a no-key,
+   deterministic per-domain on-chain box (`TipHoldingFactory`), keyed by
+   canonical domain, indexed in the backend ledger. The payer pays now; the
+   creator claims later. No hub custody, no shell address, no expiry.
 5. **Discovery.** Creator learns about held tips via: extension badge on their
    own site ("you have N tips waiting"), hub lookup by domain, or word of mouth.
 6. **Claim.** Creator verifies site ownership (widget / DNS / terminal flow —
-   same as hub site verification), hub mints/associates their wallet (Circle
-   Wallets, agent-managed), held tips release minus the protocol cut.
+   same as hub site verification) and proves wallet control; the hub keeper
+   then releases the domain box (net minus the held-tier cut) to their wallet.
+   Claiming to a non-owner wallet additionally requires a signed claim token.
 7. **After claim.** Future tips for that domain route direct. Creator may stay
    fully off-SDK (hub-hosted tip endpoint, destination = their wallet) or
    install the SDK (lower cut, self-hosted).
@@ -55,7 +56,8 @@ the right human, eventually, without the payer doing homework.
   occurred and relays the on-chain refund. Refunds are ledger-recorded and
   netted from tip counts.
 - **Author vs site owner:** tips default to the verified site owner. Author
-  splits are a post-hackathon revenue story, not v1.
+  splits stay a future revenue story (per-article `recipientWallet` already
+  exists on content rows if demand appears).
 - **Identity:** hub accounts now; ERC-8004 agent/creator identities later.
 
 ## Why this converts

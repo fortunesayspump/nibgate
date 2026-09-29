@@ -10,9 +10,9 @@ Agents don't see ads. They discover services through **registries, machine-reada
 
 | Surface | What | Status |
 |---|---|---|
-| MCP Registry | `io.github.fortunesayspump/nibgate` v0.2.1, remote `streamable-http` → `https://api.nibgate.xyz/mcp` | ✅ Live |
+| MCP Registry | `io.github.fortunesayspump/nibgate` v0.2.7, remote `streamable-http` → `https://api.nibgate.xyz/mcp` | ✅ Live |
 | x402 fan-out | `GET /.well-known/x402` — live paid resource URLs + instructions | ✅ Live, self-maintaining |
-| OpenAPI spec | x-payment-info on paid paths, ownership proofs, securitySchemes | ✅ Live (v0.2.1) |
+| OpenAPI spec | x-payment-info on paid paths, ownership proofs, securitySchemes | ✅ Live (v0.2.7) |
 | llms.txt | Endpoint listed in `frontend/src/app/llms.txt/route.ts` | ✅ Live |
 | discovery.md | Payer agent guide at `https://nibgate.xyz/discovery.md` | ✅ Live |
 

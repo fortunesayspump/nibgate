@@ -11,6 +11,7 @@ export default {
   lifecycle: "End-to-end lifecycle",
   "agent-discovery": "Agent discovery",
   reputation: "Reputation",
+  jev: "JEV judgment layer",
   "---platform": {
     type: "separator",
     title: "Creator Platform",

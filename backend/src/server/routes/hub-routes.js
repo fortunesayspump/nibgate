@@ -583,27 +583,19 @@ export function registerHubRoutes(app) {
     message: { ok: false, error: 'Too many tip requests, slow down.' },
   });
 
-  // JEV proposer calls hit a paid LLM — tighter budget than tips.
+  // JEV model calls hit a paid LLM — tighter budget than tips.
   const hubJevLimiter = rateLimit({
     windowMs: 60_000,
     limit: 30,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     keyGenerator: (req) => ipKeyGenerator(req.ip),
-    message: { ok: false, error: 'Too many proposer requests, slow down.' },
+    message: { ok: false, error: 'Too many JEV requests, slow down.' },
   });
 
-  // Lazy JEV proposer: the engine lives in TypeScript; modern Node imports it
-  // directly, older runtimes fall back to 501 (callers keep deterministic flow).
-  const jevProposer = async () => {
-    try {
-      return await import('../../../../jev/src/propose.ts');
-    } catch {
-      return null;
-    }
-  };
   // Lazy JEV decisions client — the REAL JEV model (`~typesafe/jev-latest`
-  // via /api/alpha/decisions), not a chat proxy. Same 501 fallback.
+  // via /api/alpha/decisions), not a chat proxy. Modern Node imports the TS
+  // directly; older runtimes fall back to 501 (callers keep deterministic flow).
   const jevDecider = async () => {
     try {
       return await import('../../../../jev/src/decisions.ts');
@@ -1487,44 +1479,6 @@ export function registerHubRoutes(app) {
       res.json({ success: true, domain: canon, payer, amount: refundAmount, refundTx, id: refundRow.id });
     } catch (error) {
       res.status(400).json({ error: error.message });
-    }
-  });
-
-  // ── JEV proposer (LLM-scored options for deterministic decide()) ─────────
-  // Server-side only: provider keys must never ship to browsers/extensions.
-  // Callers (e.g. the wallet extension) use this for ambiguity only — rules
-  // first, model only when local confidence is below threshold. The model
-  // returns SCORES; JEV still makes every decision downstream.
-  app.post('/api/hub/jev/propose', hubJevLimiter, async (req, res) => {
-    try {
-      const jev = await jevProposer();
-      if (!jev) return res.status(501).json({ error: 'JEV proposer not enabled in this build.' });
-      const { task, candidates, signals, hints } = req.body || {};
-      if (typeof task !== 'string' || !task.trim() || task.length > 500) {
-        return res.status(400).json({ error: 'task (1-500 chars) is required.' });
-      }
-      if (!Array.isArray(candidates) || !candidates.length || candidates.length > 12) {
-        return res.status(400).json({ error: 'candidates (1-12) are required.' });
-      }
-      for (const c of candidates) {
-        if (!c || typeof c.id !== 'string' || !c.id || c.id.length > 200 ||
-            typeof c.kind !== 'string' || !c.kind || c.kind.length > 40 ||
-            typeof c.cost !== 'number' || !(c.cost >= 0) || !Number.isFinite(c.cost) ||
-            typeof c.context !== 'string' || !c.context || c.context.length > 2000) {
-          return res.status(400).json({ error: 'Each candidate needs {id, kind, cost >= 0, context} within size limits.' });
-        }
-      }
-      if (!Array.isArray(signals) || !signals.length || signals.length > 8 ||
-          signals.some((s) => typeof s !== 'string' || !s || s.length > 40)) {
-        return res.status(400).json({ error: 'signals (1-8 short strings) are required.' });
-      }
-      if (hints != null && (typeof hints !== 'string' || hints.length > 500)) {
-        return res.status(400).json({ error: 'hints must be a short string.' });
-      }
-      const out = await jev.propose({ task: task.trim(), candidates, signals, hints });
-      res.json({ success: true, model: out.model, options: out.options, usage: out.usage || null });
-    } catch (error) {
-      res.status(502).json({ error: `Proposer failed: ${error.message}` });
     }
   });
 

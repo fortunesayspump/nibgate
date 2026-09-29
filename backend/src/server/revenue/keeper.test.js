@@ -56,7 +56,9 @@ describe('revenue keeper', () => {
     const result = await runRevenueSweep();
     expect(result.swept).toBe(2); // 0xaaa + 0xbbb only
     expect(result.wallets.map((w) => w.creator).sort()).toEqual(['0xaaaa00000000000000000000000000000000aaaa', '0xbbbb00000000000000000000000000000000bbbb']);
-  });
+    // runRevenueSweep loads the holding SDK lazily; under parallel workers the
+    // first import can exceed the 5s default.
+  }, 20000);
 
   it('skips creators when no factory is configured (feeWalletAddressFor → null)', async () => {
     process.env.NIBGATE_FEE_KEEPER = 'true';

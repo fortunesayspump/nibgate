@@ -16,33 +16,32 @@ scored options, so every decision is testable, replayable, and explainable.
 ```text
 jev/
   package.json / tsconfig.json
-  src/schema.ts    # Option, Policy, Decision, Trace types
-  src/decide.ts    # the engine: value scoring + policy gates
-  src/trace.ts     # human-readable decision trace renderer
-  src/propose.ts   # LLM proposer (Vercel AI Gateway free tier now, OpenRouter later)
-  test/decide.test.ts / test/propose.test.ts
+  src/schema.ts     # Option, Policy, Decision, Trace types
+  src/decide.ts     # the engine: value scoring + policy gates
+  src/trace.ts      # human-readable decision trace renderer
+  src/decisions.ts  # the real JEV decisions model client (OpenRouter /api/alpha/decisions)
+  test/decide.test.ts / test/decisions.test.ts
 ```
 
 Run: `node --test test/` from here (Node 20+, no install needed).
 
-## Producers: LLM propose is optional
+## Producers: where options come from
 
-JEV decides over scored options — **who scores them is the caller's choice**:
+JEV decides over scored options — **who produces them is the caller's choice**:
 
 | Producer | When | Example |
 |---|---|---|
-| `propose()` (LLM) | open-ended judgment: relevance, uniqueness, quality | Dr. Nib source scoring, recipient inference |
 | Deterministic rules | fixed choices: content types, thresholds, structural signals | `article` vs `video` vs `audio` from DOM tags; `structuralScores()` in `extension/src/content/dom-candidates.ts` |
-| Hybrid | rules first, LLM only for ambiguity | DOM blocks scored by structure; LLM breaks ties below confidence |
+| JEV decisions model | open-ended judgment where the *model* picks the option | recipient inference on an ambiguous page (`chooseOption`) |
+| Hybrid | rules first, model only for ambiguity | DOM blocks scored by structure; the decisions model breaks ties below confidence |
 
-`decide()`/`selectMany()` never know or care where scores came from. Rule:
-if the choice set is fixed or the page structure speaks, **don't spend an
-LLM call** — reserve the Vercel free tier (then OpenRouter keys) for genuinely
-open judgments.
+Rule: if the choice set is fixed or the page structure speaks, **don't spend a
+model call** — reserve JEV for genuinely open judgments, and even then only
+when local confidence is low.
 
 ## Where JEV decides (full scope — not just Dr. Nib)
 
-| Surface | LLM proposes | JEV decides | Shape |
+| Surface | Producer | JEV decides | Shape |
 |---|---|---|---|
 | Dr. Nib research | actions per source | buy / tip / skip / cross-check / stop / escalate | `decide` per step, budget across steps |
 | Nib Tip (unresolved creator) | recipient candidates | pay / hold / escalate | `decide` |
@@ -55,14 +54,17 @@ Single-winner spends use `decide()`; slates, tags, and rankings use
 `selectMany()` (ordered picks + skipped + escalated, budget consumed
 sequentially, ties by id).
 
-## LLM providers
+## LLM provider
 
-| | Decisions (the real JEV model) | Proposer (chat scoring) |
-|---|---|---|
-| Model | `~typesafe/jev-latest` (aliases `typesafe/jev-1.13`) | `typesafe/jev-router` |
-| Endpoint | `POST https://openrouter.ai/api/alpha/decisions` | `POST https://openrouter.ai/api/v1/chat/completions` |
-| Module | `src/decisions.ts` (`decisions`, `chooseOption`) | `src/propose.ts` (`propose`) |
-| Env | `OPENROUTER_API_KEY`, `JEV_DECISIONS_MODEL`, `JEV_DECISIONS_URL` | `OPENROUTER_API_KEY`, `JEV_LLM_PROVIDER=openrouter`, `JEV_MODEL` |
+JEV uses TypeSafe's **decisions** models via OpenRouter — the real JEV model,
+not a chat proxy.
+
+| | |
+|---|---|
+| Model | `~typesafe/jev-latest` (aliases `typesafe/jev-1.13`) |
+| Endpoint | `POST https://openrouter.ai/api/alpha/decisions` |
+| Module | `src/decisions.ts` (`decisions`, `chooseOption`) |
+| Env | `OPENROUTER_API_KEY`, `JEV_DECISIONS_MODEL`, `JEV_DECISIONS_URL` |
 
 JEV *decisions* models are **not** chat models — calling one on `/chat/completions`
 returns `is a decisions model and cannot be used with the chat/completions endpoint`.
@@ -86,6 +88,5 @@ POST /api/alpha/decisions
 
 `chooseOption()` wraps the `choice` shape: give it ids + descriptions, get back
 the pick with calibrated confidence. The model makes the constrained pick;
-callers still own the threshold and any downstream `decide()` gates. Both
-endpoints are hub-proxied (`POST /hub/jev/propose`, `POST /hub/jev/decide`) so
-the key never leaves the server.
+callers still own the threshold and any downstream `decide()` gates. The one
+hub-proxied surface is `POST /hub/jev/decide`, so the key never leaves the server.

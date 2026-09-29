@@ -850,50 +850,6 @@ export const openApiSpec = {
         },
       },
     },
-    "/hub/jev/propose": {
-      post: {
-        tags: ["JEV"],
-        summary: "Score candidates with the JEV proposer model",
-        description:
-          "Runs the hub-hosted JEV proposer (OpenRouter typesafe/jev-router) over a caller-supplied candidate pool and returns per-signal scores. The model never invents candidates and never decides — callers feed the scores into deterministic decide()/selectMany(). Used by the wallet extension as a last resort when no recipient resolves locally (rules first, model only for ambiguity). Rate-limited; keep candidate pools small.",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["task", "candidates", "signals"],
-                properties: {
-                  task: { type: "string", description: "What to score, in plain language (max 500 chars)" },
-                  candidates: {
-                    type: "array",
-                    maxItems: 12,
-                    items: {
-                      type: "object",
-                      required: ["id", "kind", "cost", "context"],
-                      properties: {
-                        id: { type: "string" },
-                        kind: { type: "string" },
-                        cost: { type: "number" },
-                        context: { type: "string", description: "Evidence text (max 2000 chars)" },
-                      },
-                    },
-                  },
-                  signals: { type: "array", maxItems: 8, items: { type: "string" } },
-                  hints: { type: "string" },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          "200": { description: "Scored options + model + usage", content: { "application/json": { schema: { type: "object" } } } },
-          "400": { description: "Invalid task/candidates/signals", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
-          "501": { description: "Proposer not enabled in this build", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
-          "502": { description: "Provider failure", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
-        },
-      },
-    },
     "/hub/jev/decide": {
       post: {
         tags: ["JEV"],

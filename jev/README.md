@@ -57,11 +57,35 @@ sequentially, ties by id).
 
 ## LLM providers
 
-| | Now | Before |
+| | Decisions (the real JEV model) | Proposer (chat scoring) |
 |---|---|---|
-| Provider | OpenRouter (your keys) | Vercel AI Gateway (free monthly credit, rate-limited subset) |
-| Env | `OPENROUTER_API_KEY` | `AI_GATEWAY_API_KEY` |
-| Select | `JEV_LLM_PROVIDER=openrouter` (default) | `JEV_LLM_PROVIDER=vercel` |
-| Model override | `JEV_MODEL` (default `typesafe/jev-router`) | `JEV_MODEL` |
+| Model | `~typesafe/jev-latest` (aliases `typesafe/jev-1.13`) | `typesafe/jev-router` |
+| Endpoint | `POST https://openrouter.ai/api/alpha/decisions` | `POST https://openrouter.ai/api/v1/chat/completions` |
+| Module | `src/decisions.ts` (`decisions`, `chooseOption`) | `src/propose.ts` (`propose`) |
+| Env | `OPENROUTER_API_KEY`, `JEV_DECISIONS_MODEL`, `JEV_DECISIONS_URL` | `OPENROUTER_API_KEY`, `JEV_LLM_PROVIDER=openrouter`, `JEV_MODEL` |
 
-Both speak OpenAI-compatible chat JSON. The proposer only ever returns *scores* — JEV still makes every decision.
+JEV *decisions* models are **not** chat models — calling one on `/chat/completions`
+returns `is a decisions model and cannot be used with the chat/completions endpoint`.
+Ask them structured questions over a `state` instead:
+
+```jsonc
+POST /api/alpha/decisions
+{
+  "model": "~typesafe/jev-latest",
+  "state": "External coffee blog; byline 0xaaa, footer 0xbbb",
+  "questions": {
+    "recipient": {
+      "type": "choice",              // choice | score | noul
+      "instructions": "Choose the author wallet",
+      "criteria": { "0xaaa": "author byline", "0xbbb": "footer link" }   // keys ARE the choices
+    }
+  }
+}
+// → { "answers": { "recipient": { "type":"choice", "choice":"0xaaa", "probabilities": {…}, "confidence": 1 } }, … }
+```
+
+`chooseOption()` wraps the `choice` shape: give it ids + descriptions, get back
+the pick with calibrated confidence. The model makes the constrained pick;
+callers still own the threshold and any downstream `decide()` gates. Both
+endpoints are hub-proxied (`POST /hub/jev/propose`, `POST /hub/jev/decide`) so
+the key never leaves the server.

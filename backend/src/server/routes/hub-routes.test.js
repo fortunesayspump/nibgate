@@ -242,3 +242,96 @@ describe('hub routes: JEV proposer', () => {
     expect(res.statusCode).toBe(502);
   });
 });
+
+describe('hub routes: JEV decisions', () => {
+  let handlers;
+  const ORIG = {};
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    for (const k of ['JEV_DECISIONS_MODEL', 'JEV_DECISIONS_URL', 'OPENROUTER_API_KEY']) {
+      ORIG[k] = process.env[k];
+      delete process.env[k];
+    }
+    const { app, handlers: h } = stubApp();
+    registerHubRoutes(app);
+    handlers = h;
+  });
+
+  afterEach(() => {
+    for (const k of ['JEV_DECISIONS_MODEL', 'JEV_DECISIONS_URL', 'OPENROUTER_API_KEY']) {
+      if (ORIG[k] === undefined) delete process.env[k];
+      else process.env[k] = ORIG[k];
+    }
+    vi.unstubAllGlobals();
+  });
+
+  const body = (over = {}) => ({
+    state: 'External coffee blog. Byline: 0xaaaa. Footer link: 0xbbbb.',
+    instructions: 'Choose the wallet that belongs to the creator/author.',
+    questionId: 'recipient',
+    candidates: [
+      { id: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', context: 'author byline next to the title' },
+      { id: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', context: 'generic footer payment link' },
+    ],
+    ...over,
+  });
+
+  it('rejects invalid bodies', async () => {
+    for (const b of [
+      {},
+      { state: 'x' },
+      { state: 'x', instructions: 'y', candidates: [{ id: '0xaa', context: 'c' }] }, // < 2 candidates
+      { state: 'x', instructions: 'y', candidates: new Array(13).fill({ id: 'a', context: 'c' }) },
+      { state: 'x', instructions: 'y', candidates: [{ id: '', context: 'c' }, { id: 'b', context: 'c' }] },
+      { state: 'x', instructions: '', candidates: [{ id: 'a', context: 'c' }, { id: 'b', context: 'c' }] },
+    ]) {
+      const res = mockRes();
+      await handlers['POST /api/hub/jev/decide']({ headers: {}, body: b, query: {} }, res);
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('returns the decisions model pick', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    let seenUrl = '';
+    let seenBody = {};
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      seenUrl = String(url);
+      seenBody = JSON.parse(String(init.body));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          model: 'typesafe/jev-1.13-20260917',
+          provider: 'TypeSafe',
+          answers: { recipient: { type: 'choice', choice: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', probabilities: { '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa': 1 }, confidence: 1 } },
+          usage: { input_tokens: 500, output_tokens: 30, cost: 0.00002 },
+        }),
+        text: async () => '{}',
+      };
+    }));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/decide']({ headers: {}, body: body(), query: {} }, res);
+    expect(seenUrl).toBe('https://openrouter.ai/api/alpha/decisions');
+    expect(seenBody.model).toBe('~typesafe/jev-latest');
+    expect(seenBody.questions.recipient.type).toBe('choice');
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.choice).toBe('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(res.body.confidence).toBe(1);
+    expect(res.body.model).toBe('typesafe/jev-1.13-20260917');
+  });
+
+  it('502s when the model picks nothing usable', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ model: 'm', answers: { recipient: { type: 'choice', choice: '0xzzz', probabilities: {}, confidence: 1 } } }),
+      text: async () => '{}',
+    })));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/decide']({ headers: {}, body: body(), query: {} }, res);
+    expect(res.statusCode).toBe(502);
+  });
+});

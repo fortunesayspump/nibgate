@@ -466,6 +466,7 @@ model Tip {
   websiteId       String?
   domain          String?
   title           String?
+  imageUrl        String?
   amount          Float
   currency        String?  @default("USDC")
   network         String?

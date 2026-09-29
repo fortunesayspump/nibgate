@@ -233,11 +233,35 @@ describe('browser hold + refund helpers', () => {
     }
     const signer = { address: '0x0000000000000000000000000000000000000009', sendTransaction: vi.fn(async () => '0xtx') }
     try {
-      const out = await tipContent({ contentUrl: 'https://x.y', amount: '0.05', recipient: '0x0000000000000000000000000000000000000001', challenge, signer, hubApi: 'https://hub.test' })
+      const out = await tipContent({ contentUrl: 'https://x.y', amount: '0.05', contentId: 'cid-1', imageUrl: 'https://x.y/cover.png', recipient: '0x0000000000000000000000000000000000000001', challenge, signer, hubApi: 'https://hub.test' })
       expect(signer.sendTransaction).toHaveBeenCalledWith({ to: '0x0000000000000000000000000000000000000002', amount: 0.05, network: 'eip155:5042002' })
       expect(out.amount).toBe(0.05)
       expect(verifyBody.paymentRail).toBe('transfer')
       expect(verifyBody.amount).toBe(0.05)
+      expect(verifyBody.contentId).toBe('cid-1')
+      expect(verifyBody.imageUrl).toBe('https://x.y/cover.png')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('holdTipContent forwards content metadata to the hub', async () => {
+    const { holdTipContent } = await import('../src/browser/tip.js')
+    const bodies = []
+    vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+      const body = JSON.parse(init.body)
+      bodies.push(body)
+      if (body.txHash) return { ok: true, status: 200, json: async () => ({ success: true, holdStatus: 'held', tip: {} }) }
+      return { ok: true, status: 200, json: async () => ({ success: true, holdStatus: 'challenge', box: '0xbox' }) }
+    }))
+    const signer = { address: '0x0000000000000000000000000000000000000009', sendTransaction: vi.fn(async () => '0xtx') }
+    try {
+      await holdTipContent({ contentUrl: 'https://ext.example/post', contentId: 'cid-9', imageUrl: 'https://ext.example/c.png', title: 'P', amount: '0.05', signer, hubApi: 'https://hub.test' })
+      expect(bodies).toHaveLength(2)
+      for (const b of bodies) {
+        expect(b.contentId).toBe('cid-9')
+        expect(b.imageUrl).toBe('https://ext.example/c.png')
+      }
     } finally {
       vi.unstubAllGlobals()
     }

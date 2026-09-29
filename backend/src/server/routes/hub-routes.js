@@ -493,6 +493,16 @@ export function registerHubRoutes(app) {
           take: limit,
           skip: offset,
         });
+        // Backfill covers for rows recorded before imageUrl existed: resolve
+        // through the indexed Content row by id first, then by URL.
+        const ids = [...new Set(tips.map((t) => t.contentId).filter(Boolean))];
+        const urls = [...new Set(tips.filter((t) => !t.imageUrl).map((t) => t.contentUrl).filter(Boolean))];
+        const [byId, byUrl] = await Promise.all([
+          ids.length ? db.content.findMany({ where: { id: { in: ids } }, select: { id: true, imageUrl: true } }) : [],
+          urls.length ? db.content.findMany({ where: { url: { in: urls } }, select: { url: true, imageUrl: true } }) : [],
+        ]);
+        const imgById = new Map(byId.map((c) => [c.id, c.imageUrl]));
+        const imgByUrl = new Map(byUrl.map((c) => [c.url, c.imageUrl]));
         for (const t of tips) {
           let tipDomain = '';
           try { tipDomain = new URL(t.contentUrl).hostname; } catch {}
@@ -503,6 +513,7 @@ export function registerHubRoutes(app) {
             contentTitle: t.title || t.contentUrl,
             contentUrl: t.contentUrl,
             domain: tipDomain,
+            imageUrl: t.imageUrl || (t.contentId && imgById.get(t.contentId)) || imgByUrl.get(t.contentUrl) || null,
             amount: t.amount || 0,
             protocolFee: t.protocolFee ?? null,
             feeBps: t.feeBps ?? null,
@@ -1109,7 +1120,7 @@ export function registerHubRoutes(app) {
     try {
       const tip = await tipServer();
       if (!tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
-      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, walletAddress, contentId, websiteId } = req.body || {};
+      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, walletAddress, contentId, websiteId, imageUrl } = req.body || {};
       const rail = String(paymentRail || 'transfer').toLowerCase();
       const hubNet = activeNetwork();
       const tipNetwork = normalizeNetworkName(network) || hubNet.name;
@@ -1157,7 +1168,7 @@ export function registerHubRoutes(app) {
       const row = await db.tip.create({
         data: {
           contentUrl: contentUrl || url, contentId: contentId || null, websiteId: websiteId || null,
-          title: title || null, amount: Number(amount), currency: currency || 'USDC', network: tipNetwork,
+          title: title || null, imageUrl: imageUrl || null, amount: Number(amount), currency: currency || 'USDC', network: tipNetwork,
           payerWallet: payer, recipientWallet: recipient || null, payeeWallet: reqd.payee,
           protocolFee: reqd.protocolFee, feeBps: reqd.feeBps,
           paymentProvider: provider, paymentId, txHash: receiptTxHash, status: 'settled',
@@ -1191,7 +1202,7 @@ export function registerHubRoutes(app) {
       const holding = await holdingServer();
       const tip = await tipServer();
       if (!holding || !tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
-      const { contentUrl, url, title, amount, currency, domain, paymentRail, walletAddress, txHash } = req.body || {};
+      const { contentUrl, url, title, amount, currency, domain, paymentRail, walletAddress, txHash, contentId, websiteId, imageUrl } = req.body || {};
       const target = String(contentUrl || url || '');
       if (!target) return res.status(400).json({ error: 'contentUrl is required.' });
       if (!(Number(amount) > 0)) return res.status(400).json({ error: 'amount must be > 0.' });
@@ -1242,7 +1253,8 @@ export function registerHubRoutes(app) {
       }
       const row = await db.tip.create({
         data: {
-          contentUrl: target, domain: dom, title: title || null,
+          contentUrl: target, contentId: contentId || null, websiteId: websiteId || null,
+          domain: dom, title: title || null, imageUrl: imageUrl || null,
           amount: Number(amount), currency: currency || 'USDC',
           network: hubNet.name, payerWallet: payer,
           payeeWallet: reqd.box, status: 'held', holdReason: 'awaiting-claim',
@@ -1437,7 +1449,7 @@ export function registerHubRoutes(app) {
       const refundRow = await db.tip.create({
         data: {
           contentUrl: held[0].contentUrl, contentId: held[0].contentId, websiteId: held[0].websiteId,
-          domain: canon, title: held[0].title, amount: -refundAmount, currency: held[0].currency || 'USDC',
+          domain: canon, title: held[0].title, imageUrl: held[0].imageUrl, amount: -refundAmount, currency: held[0].currency || 'USDC',
           network: activeNetwork().name, payerWallet: String(payer).toLowerCase(),
           recipientWallet: String(payer).toLowerCase(), payeeWallet: String(payer).toLowerCase(),
           paymentProvider: 'refund', paymentId: refundTx, txHash: refundTx, status: 'refunded',

@@ -229,4 +229,40 @@ describe('startFeeKeeper scheduling', () => {
     vi.advanceTimersByTime(60_000 * 3);
     // With fake timers the interval fires per schedule; assert via sweep count stability below.
   });
+
+  it('logs an idle line when no creators are discovered', async () => {
+    process.env.NIBGATE_FEE_KEEPER = 'true';
+    dbMock.nibShare.findMany.mockResolvedValue([]);
+    dbMock.user.findMany.mockResolvedValue([]);
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const result = await runRevenueSweep();
+      expect(result.swept).toBe(0);
+      expect(spy).toHaveBeenCalledWith(expect.stringMatching(/sweep idle/));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('logs a per-cycle summary with distributed and error counts', async () => {
+    process.env.NIBGATE_FEE_KEEPER = 'true';
+    dbMock.nibShare.findMany.mockResolvedValue([
+      { ownerWallet: '0xaaaa00000000000000000000000000000000aaaa' },
+      { ownerWallet: '0xbbbb00000000000000000000000000000000bbbb' },
+    ]);
+    dbMock.user.findMany.mockResolvedValue([]);
+    sdkMock.feeWalletAddressFor.mockResolvedValue('0xfeewallet');
+    sdkMock.sweepFeeWallet
+      .mockResolvedValueOnce({ gateway: { minted: false }, distributed: { distributed: true } })
+      .mockRejectedValueOnce(new Error('boom'));
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await runRevenueSweep();
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringMatching(/sweep done creators=2 distributed=1 gatewayMinted=0 errors=1/),
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

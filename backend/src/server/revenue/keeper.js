@@ -104,7 +104,10 @@ async function recoverGhostGeneration(feeWallet, options = {}) {
 
 async function runFeeSweep() {
   const creators = await listCreators();
-  if (!creators.length) return { swept: 0, wallets: [] };
+  if (!creators.length) {
+    console.log('Revenue keeper: sweep idle (no creators discovered)');
+    return { swept: 0, wallets: [] };
+  }
 
   const results = [];
   for (const creator of creators) {
@@ -127,6 +130,13 @@ async function runFeeSweep() {
       console.log(`Revenue keeper: sweep failed for ${creator}:`, error.message);
     }
   }
+  // One summary line per cycle, always — silent idles are how stranded funds
+  // go unnoticed. `distributed` counts paid-out wallets, `errors` counts
+  // failed ones; everything else was already empty.
+  const paid = results.filter((r) => r.distributed?.distributed).length;
+  const minted = results.filter((r) => r.gateway?.minted).length;
+  const errors = results.filter((r) => r.error).length;
+  console.log(`Revenue keeper: sweep done creators=${creators.length} distributed=${paid} gatewayMinted=${minted} errors=${errors}`);
   return { swept: results.length, wallets: results };
 }
 

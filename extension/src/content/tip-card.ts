@@ -234,6 +234,37 @@ async function assessState(): Promise<CardInput | null> {
     const fallback = extractContent();
     if (fallback) content = fallback;
   }
+
+  // Low-confidence escalation: the deterministic page model owns the clear-cut
+  // cases. When it is inconclusive — an unknown kind, or a content page it
+  // could not bind to a tippable region — ask the hub's JEV model whether this
+  // is creator content. Only a confident "yes" renders a card; a coin flip
+  // stays silent, so we never invent a tip surface on an app/landing page.
+  if (!content && (map.kind === 'unknown' || (map.kind === 'content' && !eligible))) {
+    try {
+      const fallback = extractContent();
+      const words = (document.body?.innerText || '').trim().split(/\s+/).filter(Boolean).length;
+      if (fallback && words >= 200) {
+        const state = [
+          `URL: ${window.location.href.split('#')[0]}`,
+          `Title: ${map.title || document.title || ''}`,
+          `Site: ${map.siteName || ''}`,
+          `Detected kind: ${map.kind} (${map.kindDecision.reasons[0] || 'no reason'})`,
+          `Word count: ${words}`,
+          `Byline present: ${map.author ? `yes (${map.author})` : 'no'}`,
+          `Paragraphs: ${document.querySelectorAll('article p, main p, p').length}`,
+          `Excerpt: ${(document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 600)}`,
+        ].join('\n').slice(0, 4000);
+        const verdict = await chrome.runtime.sendMessage({ type: 'JEV_CLASSIFY', state });
+        try {
+          document.documentElement.setAttribute('data-nibgate-jev', String(verdict?.probability ?? ''));
+        } catch {}
+        if (verdict?.ok && Number(verdict.probability) >= 0.65) {
+          content = fallback;
+        }
+      }
+    } catch {}
+  }
   if (!content) return null;
 
   const pageWallet = recipientWalletFromPage();

@@ -28,6 +28,7 @@ import {
 } from '../hub/helpers.js';
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
 import { startFeeKeeper } from '../revenue/keeper.js';
+import { startMetadataEnricher } from '../jev/metadata.js';
 
 export function registerHubRoutes(app) {
   startVerificationMonitor();
@@ -36,6 +37,10 @@ export function registerHubRoutes(app) {
   startDataIntegrityMonitor();
   startGscSitemapMonitor();
   startGscIndexMonitor();
+  // JEV tentative-metadata pass for content that has no tags. Opt-in.
+  if (process.env.NIBGATE_DISABLE_KEEPER !== 'true') {
+    startMetadataEnricher();
+  }
   // The keeper sweeps matured gateway balances on a timer. Payment-flow
   // stress/e2e runs set NIBGATE_DISABLE_KEEPER=true so sweeps can't drain a
   // buyer's (or wallet's) ledger between maturation and spend.
@@ -1519,6 +1524,76 @@ export function registerHubRoutes(app) {
       res.json({ success: true, ...chosen });
     } catch (error) {
       res.status(502).json({ error: `Decide failed: ${error.message}` });
+    }
+  });
+
+  // ── JEV classify (noul probability: is this creator content?) ────────────
+  // The deterministic page model handles the clear cases; the extension calls
+  // this ONLY when its own judgment is low-confidence. Returns a calibrated
+  // 0..1 probability the caller thresholds (it must not act on a coin flip).
+  app.post('/api/hub/jev/classify', hubJevLimiter, async (req, res) => {
+    try {
+      const jev = await jevDecider();
+      if (!jev) return res.status(501).json({ error: 'JEV decisions not enabled in this build.' });
+      const { state, instructions } = req.body || {};
+      if (typeof state !== 'string' || !state.trim() || state.length > 4000) {
+        return res.status(400).json({ error: 'state (1-4000 chars) is required.' });
+      }
+      if (instructions != null && (typeof instructions !== 'string' || instructions.length > 500)) {
+        return res.status(400).json({ error: 'instructions must be a short string.' });
+      }
+      const out = await jev.askNoul({
+        state: state.trim(),
+        questionId: 'isContent',
+        instructions:
+          instructions ||
+          'Probability (0..1) that this is a single creator-authored content page (an article, story, post, or media piece) that a reader could tip — not a landing page, feed, listing, app, auth, or shopping page.',
+      });
+      if (!out) return res.status(502).json({ error: 'No usable judgment returned.' });
+      res.json({ success: true, probability: out.probability, model: out.model, usage: out.usage || null });
+    } catch (error) {
+      res.status(502).json({ error: `Classify failed: ${error.message}` });
+    }
+  });
+
+  // ── JEV tags (batch noul over candidate tags) ────────────────────────────
+  // Tentative metadata for thin content: score a bounded candidate tag set in
+  // ONE request and return the confident top-k. Callers decide whether to
+  // persist the result as tentative.
+  app.post('/api/hub/jev/tags', hubJevLimiter, async (req, res) => {
+    try {
+      const jev = await jevDecider();
+      if (!jev) return res.status(501).json({ error: 'JEV decisions not enabled in this build.' });
+      const { state, candidates, topK, minProbability } = req.body || {};
+      if (typeof state !== 'string' || !state.trim() || state.length > 4000) {
+        return res.status(400).json({ error: 'state (1-4000 chars) is required.' });
+      }
+      if (!Array.isArray(candidates) || candidates.length < 2 || candidates.length > 24) {
+        return res.status(400).json({ error: 'candidates (2-24 tags) are required.' });
+      }
+      const tags = [];
+      for (const c of candidates) {
+        if (typeof c !== 'string' || !c.trim() || c.length > 60) {
+          return res.status(400).json({ error: 'Each candidate must be a short tag string.' });
+        }
+        tags.push(c.trim());
+      }
+      const k = topK == null ? 3 : Number(topK);
+      if (!Number.isInteger(k) || k < 1 || k > 10) return res.status(400).json({ error: 'topK must be 1-10.' });
+      const minP = minProbability == null ? 0 : Number(minProbability);
+      if (!(minP >= 0 && minP <= 1)) return res.status(400).json({ error: 'minProbability must be 0-1.' });
+      const out = await jev.askNoulBatch({
+        state: state.trim(),
+        questions: tags.map((tag, i) => ({ id: `t${i}`, instructions: `Probability (0..1) that the tag "${tag}" accurately describes this content.` })),
+      });
+      if (!out) return res.status(502).json({ error: 'No usable tags returned.' });
+      const scored = tags
+        .map((tag, i) => ({ tag, probability: out.answers[`t${i}`] ?? 0 }))
+        .filter((t) => t.probability >= minP)
+        .sort((a, b) => b.probability - a.probability);
+      res.json({ success: true, tags: scored.slice(0, k), model: out.model, usage: out.usage || null });
+    } catch (error) {
+      res.status(502).json({ error: `Tags failed: ${error.message}` });
     }
   });
 

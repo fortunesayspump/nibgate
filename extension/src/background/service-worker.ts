@@ -1,6 +1,6 @@
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Testnet only.
-import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, CHAIN_ID } from '../lib/api-client';
+import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, classifyPage, CHAIN_ID } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
 import {
@@ -199,6 +199,21 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
           hasSdk: (msg as Assess).hasSdk,
         });
         respond({ ok: true, resolution: resolution.resolution, hasSdk: resolution.hasSdk, domain: resolution.domain });
+      } catch (e) {
+        respond({ ok: false, error: String((e as Error)?.message || e) });
+      }
+    })();
+    return true;
+  }
+  // Low-confidence page classification: the deterministic page model handles
+  // clear cases; the content script asks here only when its own judgment is
+  // inconclusive. A confident probability lets it render; otherwise it stays
+  // silent (we never tip on a coin flip).
+  if (msg?.type === 'JEV_CLASSIFY') {
+    (async () => {
+      try {
+        const out = await classifyPage({ state: String(msg.state || '') });
+        respond(out ? { ok: true, probability: out.probability } : { ok: false, error: 'no-judgment' });
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
       }

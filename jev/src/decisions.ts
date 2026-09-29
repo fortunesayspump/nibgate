@@ -154,3 +154,56 @@ export async function chooseOption(
     usage: result.usage,
   };
 }
+
+// ── noul: calibrated 0..1 probability judgments ─────────────────────────────
+// One `noul` question returns a single probability. Batch them in ONE request
+// (questions is a record) when scoring many candidates, e.g. tags.
+
+export interface NoulQuestion {
+  /** Short stable id (question key); the answer is looked up by it. */
+  id: string;
+  /** The judgment to make, phrased so the answer is a probability. */
+  instructions: string;
+}
+
+export interface NoulBatchResult {
+  /** id -> probability 0..1 */
+  answers: Record<string, number>;
+  model: string;
+  usage?: DecisionsUsage;
+}
+
+/** Ask a batch of noul questions over one state. Returns null on no answers. */
+export async function askNoulBatch(
+  input: { state: string | Record<string, unknown> | unknown[]; questions: NoulQuestion[]; model?: string },
+  fetchFn?: FetchFn,
+): Promise<NoulBatchResult | null> {
+  if (!input.questions?.length) return null;
+  const questions: Record<string, unknown> = {};
+  for (const q of input.questions) {
+    questions[q.id] = { type: 'noul', instructions: String(q.instructions || '').slice(0, 500) };
+  }
+  const result = await decisions({ state: input.state, model: input.model, questions }, fetchFn);
+  const answers: Record<string, number> = {};
+  for (const q of input.questions) {
+    const a = result.answers?.[q.id] as { noul?: unknown } | undefined;
+    const p = Number(a?.noul);
+    if (Number.isFinite(p)) answers[q.id] = Math.min(1, Math.max(0, p));
+  }
+  if (!Object.keys(answers).length) return null;
+  return { answers, model: result.model, usage: result.usage };
+}
+
+/** Single noul probability. Returns null when the model gives no number. */
+export async function askNoul(
+  input: { state: string | Record<string, unknown> | unknown[]; instructions: string; questionId?: string; model?: string },
+  fetchFn?: FetchFn,
+): Promise<{ probability: number; model: string; usage?: DecisionsUsage } | null> {
+  const qid = input.questionId || 'judgment';
+  const out = await askNoulBatch(
+    { state: input.state, model: input.model, questions: [{ id: qid, instructions: input.instructions }] },
+    fetchFn,
+  );
+  if (!out || !(qid in out.answers)) return null;
+  return { probability: out.answers[qid], model: out.model, usage: out.usage };
+}

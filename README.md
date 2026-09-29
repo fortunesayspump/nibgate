@@ -4,7 +4,7 @@
 
 Nibgate is a verified content discovery, unlock, and reputation layer for creator-owned work. Creators keep their content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content without moving it into a closed marketplace.
 
-Built on ARC testnet and the x402 protocol, with two payment rails: Circle Gateway (EIP-3009 facilitator) and direct USDC transfer to the creator's receiver.
+Built on Arc and the x402 protocol, live on mainnet with testnet mirroring, with two payment rails: Circle Gateway (EIP-3009 facilitator) and direct USDC transfer to the creator's receiver.
 
 **Key packages:**
 
@@ -42,14 +42,25 @@ backend/       Express hub API — payment verification, hosted-pay resolution,
 frontend/      Next.js hub UI — public site, dashboard, Explore, leaderboards
 subblogs/      Subblogs — full blog platform for creators (Express+Prisma + Next.js)
 packages/      @nibgate/sdk npm package + wallet package + CLI tooling
-contracts/     Solidity + Foundry: reputation contracts and the per-creator
-               GatewayFeeWallet / GatewayFeeWalletFactory (revenue model)
+contracts/     Solidity + Foundry: reputation contracts, per-creator
+               GatewayFeeWallet / GatewayFeeWalletFactory (revenue model),
+               and TipHoldingFactory / TipHoldingWallet (no-key per-domain
+               tip boxes: deterministic CREATE2, keeper release/refund)
 docs/          Nextra docs site for docs.nibgate.xyz
 scripts/       E2E flows and deployment tooling (reputation, revenue factory)
+e2e/           Playwright browser harness (extension + tip flows; run outputs ignored)
+extension/     MV3 wallet extension — content detection, tip/hold/refund UI, JEV fallback
+jev/           JEV decision layer — deterministic decide/selectMany engine plus
+               the real JEV decisions-model client (OpenRouter)
+tipping/       Nib Tip design record (DESIGN/SPEC/FEES/NON-NIBGATE-CREATORS) —
+               protocol reference; implementation lives in packages/nibgate,
+               backend tip routes, contracts, and the extension
+dr-nib/        Dr. Nib research agent — design only, no code yet
+mcp-registry/ MCP registry record for the hub MCP server
 nibgate.config.json  Sample CLI config (routes to local demo content)
 ```
 
-Local-only, not tracked: `e2e/` (Playwright browser harness), `local-ops/` (agent wallets), `video/`, `v2-labs/`, `revenue-model/` (research/poc). See `.gitignore`.
+Local-only, not tracked: `local-ops/` (agent wallets), `video/`, `v2-labs/`, `revenue-model/` (research/poc), e2e run outputs (`e2e/screenshots/`, `e2e/random-blog-results/`). See `.gitignore`. The e2e harness code itself (configs, specs, helpers) IS tracked.
 
 ## Workspace Shape
 

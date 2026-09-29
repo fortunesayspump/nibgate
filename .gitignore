@@ -37,7 +37,13 @@ writeskill.md
 
 # revenue model research (kept local, not committed)
 /revenue-model/
-/e2e/
+# Playwright e2e harness: track the code (configs, specs, helpers), ignore
+# run outputs (screenshots, reports, traces)
+/e2e/*
+!/e2e/*.config.ts
+!/e2e/*.mjs
+!/e2e/*.json
+!/e2e/tests/
 
 # circle agent stack sandbox (local only)
 /agent-lab/

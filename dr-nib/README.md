@@ -1,8 +1,8 @@
 # Dr. Nib, PhD (agent interface) — pre-build scope
 
-Status: design only. No code, no commits, no pushes until the hackathon window.
-Part of the Tameion trio (`tipping/` = protocol, `extension/` = humans,
-`dr-nib/` = agents). See `../tameionhack.md` for the full plan.
+Status: design only, no code yet. Part of the Tameion trio (`tipping/` =
+protocol, `extension/` = humans, `dr-nib/` = agents). See `../tameionhack.md`
+for the full plan.
 
 ## What it is
 

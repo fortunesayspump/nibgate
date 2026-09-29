@@ -2,9 +2,8 @@
 
 Single source of truth for what Nib Tip is and how it works. Companions:
 `SPEC.md` (protocol reference), `FEES.md` (cuts), `NON-NIBGATE-CREATORS.md`
-(claimant funnel). Status: core proven live on testnet (real funds, both
-rails wired, hold → claim → release, 100/100 SDK tests) — all local-only
-until the Sep-30 freeze lifts.
+(claimant funnel). Status: live on mainnet + testnet (real funds, both rails,
+hold → claim → release, refunds).
 
 ## Problem
 
@@ -38,7 +37,8 @@ homework.
 1. **Hub index** — domain claimed before, or content fingerprinted before.
 2. **Page signals** — author meta, `rel=me`, canonical, payment pointers
    (passed as `authorHint`; extraction runs DOM-side in the extension).
-3. **Inferred** — reserved for JEV-side scoring (not implemented).
+3. **Inferred** — JEV-side scoring of DOM candidates (`jev-model` source);
+   below threshold it falls through, never guesses.
 4. **Unresolved** — hold path below.
 
 JEV consumes `confidence` downstream (hold-vs-pay thresholds).
@@ -154,15 +154,14 @@ Exists (`@nibgate/sdk/server`, re-exported):
   `verifyClaimToken`, `createTipIntent`, `holdingDeployment`.
 
 Still needed for the full design above:
-- `inferred` resolution source (JEV track).
-- Domain-proof checkers (meta/DNS/well-known fetch + verify) — hub-side,
-  extending the existing widget-check machinery (claim currently uses the
-  hub's site `verifyToken` + wallet-control proof).
+- Domain-proof checkers beyond the widget ladder (meta/DNS/well-known fetch +
+  verify, hub-side) — claim currently uses the hub site `verifyToken` +
+  wallet-control proof, which covers SDK sites; the ladder matters for
+  off-SDK domains.
 
 ## Open items
 
 Claim notifications (v1 = extension "waiting" indicator on held tips + hub
 lookup; no email infra exists — User has no email field, no mail provider in
-backend), extension/JEV wiring (contracts stable: confidence output + hub
-endpoints; not yet consumed), creator docs, agent-doc propagation
-(openapi/MCP/discovery/skill), ship (frozen till Sep-30).
+backend). Author splits stay a post-hackathon revenue story (per-article
+`recipientWallet` already exists if demand appears).

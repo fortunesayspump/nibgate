@@ -5,6 +5,6 @@
   "description": "JEV decision layer: deterministic constrained choice over LLM-proposed options.",
   "type": "module",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/decide.test.ts test/decisions.test.ts"
   }
 }

@@ -1,15 +1,17 @@
-# JEV — decision layer (pre-build scope)
+# JEV — decision layer
 
-Status: building locally, testnet only. No commits, no pushes until the
-hackathon window. Part of the Tameion trio's shared core — see
-`../tameionhack.md`. Consumers: `../tipping/` (spend/hold), `../extension/`
-(content-ID/amounts), `../dr-nib/` (research actions), hub ranking.
+Status: live on mainnet + testnet. Part of the Tameion trio's shared core — see
+`../tameionhack.md`. Consumers: the wallet extension (recipient inference,
+settle-vs-hold, page classification), hub metadata enrichment, hub ranking.
 
 ## Rule
 
-LLMs propose possibilities. JEV makes constrained decisions between those
-possibilities. **No LLM inside JEV** — pure deterministic functions over
-scored options, so every decision is testable, replayable, and explainable.
+Deterministic JEV (`decide`/`selectMany`) makes constrained decisions between
+possibilities and never touches the network — every engine decision is
+testable, replayable, and explainable. The decisions model (`decisions.ts`,
+TypeSafe's `~typesafe/jev-latest` on OpenRouter) only ever *scores or picks
+from caller-supplied options*; it can never invent candidates, move funds, or
+render UI. Callers own the threshold and always keep a safe default.
 
 ## Layout
 
@@ -23,7 +25,7 @@ jev/
   test/decide.test.ts / test/decisions.test.ts
 ```
 
-Run: `node --test test/` from here (Node 20+, no install needed).
+Run: `npm test` from here (Node 20+, no install needed).
 
 ## Producers: where options come from
 
@@ -44,8 +46,9 @@ when local confidence is low.
 | Surface | Producer | JEV decides | Shape |
 |---|---|---|---|
 | Dr. Nib research | actions per source | buy / tip / skip / cross-check / stop / escalate | `decide` per step, budget across steps |
-| Nib Tip (unresolved creator) | recipient candidates | pay / hold / escalate | `decide` |
-| Metadata autofill | tag/category candidates | top-k tags | `selectMany` |
+| Nib Tip (unresolved creator) | recipient candidates | pay / hold / escalate | `chooseOption` → `decide` |
+| Tip settle-vs-hold | declared wallet vs escrow | settle / hold | `choice` + 0.65 gate |
+| Metadata autofill | tag/category candidates | top-k tags | `selectMany` + `askNoulBatch` |
 | Extension content-ID | page signals | is-content / recipient / amount | `decide` + page markers (`extension/docs/MARKING.md`) |
 | Hub ranking | relevance assessments | ordered slate | `selectMany` |
 | Recommendations | candidate items | ordered slate | `selectMany` |

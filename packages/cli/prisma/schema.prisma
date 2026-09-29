@@ -124,6 +124,7 @@ model Content {
   imageUrl              String?
   contentType           String             @default("article") // music, video, article, image
   tags                  String? // Comma-separated tags for the search engine
+  tagsTentative         Boolean            @default(false) // tags inferred by JEV (not publisher-provided)
   url                   String
   path                  String?
   currency              String             @default("USDC")

@@ -87,6 +87,13 @@ POST /api/alpha/decisions
 ```
 
 `chooseOption()` wraps the `choice` shape: give it ids + descriptions, get back
-the pick with calibrated confidence. The model makes the constrained pick;
-callers still own the threshold and any downstream `decide()` gates. The one
-hub-proxied surface is `POST /hub/jev/decide`, so the key never leaves the server.
+the pick with calibrated confidence. `askNoul()` / `askNoulBatch()` wrap the
+`noul` shape for calibrated 0..1 probabilities (page classification, tag
+scoring). The model makes the constrained pick; callers still own the threshold
+and any downstream `decide()` gates. Hub-proxied surfaces:
+
+- `POST /hub/jev/decide` — choice over candidate ids (recipient inference)
+- `POST /hub/jev/classify` — noul "is this creator content?" probability
+- `POST /hub/jev/tags` — batch noul tag scoring (tentative discovery metadata)
+
+The key never leaves the server.

@@ -258,4 +258,53 @@ describe('hub routes: JEV decisions', () => {
     await handlers['POST /api/hub/jev/decide']({ headers: {}, body: body(), query: {} }, res);
     expect(res.statusCode).toBe(502);
   });
+
+  it('classify returns a calibrated probability', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    let seenBody = {};
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      seenBody = JSON.parse(String(init.body));
+      return { ok: true, status: 200, json: async () => ({ model: 'typesafe/jev-1.13', answers: { isContent: { type: 'noul', noul: 0.81 } } }), text: async () => '{}' };
+    }));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/classify']({ headers: {}, body: { state: 'Blog post, 900 words, byline present' }, query: {} }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.probability).toBe(0.81);
+    expect(seenBody.questions.isContent.type).toBe('noul');
+  });
+
+  it('classify rejects bad bodies', async () => {
+    for (const b of [{}, { state: '' }, { state: 'x', instructions: 'y'.repeat(600) }]) {
+      const res = mockRes();
+      await handlers['POST /api/hub/jev/classify']({ headers: {}, body: b, query: {} }, res);
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('tags scores candidates and returns confident top-k', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ model: 'm', answers: { t0: { type: 'noul', noul: 0.9 }, t1: { type: 'noul', noul: 0.2 }, t2: { type: 'noul', noul: 0.7 } } }),
+      text: async () => '{}',
+    })));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/tags']({ headers: {}, body: { state: 'about coffee brewing', candidates: ['coffee', 'sports', 'brewing'], topK: 2, minProbability: 0.3 }, query: {} }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.tags.map((t) => t.tag)).toEqual(['coffee', 'brewing']);
+  });
+
+  it('tags rejects bad bodies', async () => {
+    for (const b of [
+      {},
+      { state: 'x' },
+      { state: 'x', candidates: ['onlyone'] },
+      { state: 'x', candidates: new Array(25).fill('t') },
+      { state: 'x', candidates: ['a', 'b'], topK: 0 },
+    ]) {
+      const res = mockRes();
+      await handlers['POST /api/hub/jev/tags']({ headers: {}, body: b, query: {} }, res);
+      expect(res.statusCode).toBe(400);
+    }
+  });
 });

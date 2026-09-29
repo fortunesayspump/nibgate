@@ -186,6 +186,29 @@ export async function inferRecipient(input: {
   }
 }
 
+// JEV page classification: ask the hub's JEV model for a calibrated
+// probability that this is a creator content page. Used only when the
+// deterministic page model is inconclusive. Returns null on any failure so
+// callers stay silent (never guess). Never throws.
+export async function classifyPage(input: { state: string }): Promise<{ probability: number } | null> {
+  try {
+    if (!input?.state) return null;
+    const { hubApi } = await activeNetwork();
+    const res = await fetch(`${hubApi}/hub/jev/classify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: String(input.state).slice(0, 4000) }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const probability = Number(data?.probability);
+    if (!Number.isFinite(probability)) return null;
+    return { probability };
+  } catch {
+    return null;
+  }
+}
+
 // Social proof: settled tip count + total for a domain, from the ledger.
 export async function tipStatsForDomain(domain: string): Promise<{ count: number; total: number }> {
   const { hubApi } = await activeNetwork();

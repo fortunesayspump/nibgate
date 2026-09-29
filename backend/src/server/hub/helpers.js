@@ -456,7 +456,7 @@ export function contentDataFor(website, payload = {}, publisher = null) {
   return {
     externalId,
     title,
-    description: resource.description || payload.description || null,
+    description: resource.description || resource.summary || resource.excerpt || payload.description || null,
     ...(imgUrl ? { imageUrl: imgUrl } : {}),
     contentType,
     tags: tags.join(','),
@@ -1570,6 +1570,7 @@ export function serializeContent(content) {
     contentType: content.contentType,
     tags: content.tags || '',
     tagList: cleanTags(content.tags),
+    tagsTentative: content.tagsTentative === true,
     url: content.url,
     path: content.path || '',
     currency: content.currency || 'USDC',

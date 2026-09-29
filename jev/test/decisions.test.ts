@@ -119,4 +119,41 @@ describe('jev decisions client', () => {
     delete process.env.JEV_DECISIONS_MODEL;
     delete process.env.JEV_DECISIONS_URL;
   });
+
+  it('askNoul returns the calibrated probability', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const spy = stubFetch({
+      model: 'm',
+      answers: {
+        isContent: { type: 'noul', noul: 0.83 },
+        aboutCoffee: { type: 'noul', noul: 0.91 },
+        aboutSports: { type: 'noul', noul: 0.04 },
+        bogus: { type: 'noul', noul: 1.9 },
+      },
+    });
+    {
+      const { askNoul } = await import('../src/decisions.ts');
+      const out = await askNoul({ state: 'a blog post about coffee', instructions: 'Is this a creator content page?', questionId: 'isContent' }, spy);
+      assert.equal(out?.probability, 0.83);
+    }
+    {
+      const { askNoulBatch } = await import('../src/decisions.ts');
+      const out = await askNoulBatch(
+        { state: 'a blog post about coffee', questions: [{ id: 'aboutCoffee', instructions: 'coffee?' }, { id: 'aboutSports', instructions: 'sports?' }, { id: 'bogus', instructions: 'clamp?' }] },
+        spy,
+      );
+      assert.equal(out?.answers.aboutCoffee, 0.91);
+      assert.equal(out?.answers.aboutSports, 0.04);
+      assert.equal(out?.answers.bogus, 1); // clamped to 1
+    }
+    delete process.env.OPENROUTER_API_KEY;
+  });
+
+  it('askNoul returns null when the model omits the answer', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    const spy = stubFetch({ model: 'm', answers: { other: { type: 'noul', noul: 0.5 } } });
+    const { askNoul } = await import('../src/decisions.ts');
+    assert.equal(await askNoul({ state: 's', instructions: 'i', questionId: 'wanted' }, spy), null);
+    delete process.env.OPENROUTER_API_KEY;
+  });
 });

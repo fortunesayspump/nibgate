@@ -209,6 +209,53 @@ export async function classifyPage(input: { state: string }): Promise<{ probabil
   }
 }
 
+// JEV settle-vs-hold gate: a wallet declared on the page (page signal) is
+// NOT hub-verified, so before settling directly to it, ask the decisions
+// model to choose between settling and holding for the verified owner.
+// Returns true only for a confident settle pick; anything else (low
+// confidence, failure, invented id) means HOLD — the safe default, since held
+// funds stay claimable. Never throws.
+export async function decideSettleOrHold(input: {
+  contentUrl: string; title?: string; author?: string; siteName?: string;
+  wallet: string; walletContext?: string;
+}): Promise<{ settle: boolean; confidence: number }> {
+  try {
+    const wallet = String(input.wallet || '');
+    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) return { settle: false, confidence: 0 };
+    const { hubApi } = await activeNetwork();
+    const state = [
+      `Page URL: ${input.contentUrl}`,
+      input.title ? `Title: ${input.title}` : '',
+      input.author ? `Author byline text: ${input.author}` : '',
+      input.siteName ? `Site: ${input.siteName}` : '',
+      `Declared wallet: ${wallet} (${input.walletContext || 'found on page'})`,
+    ].filter(Boolean).join('\n').slice(0, 4000);
+    const res = await fetch(`${hubApi}/hub/jev/decide`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        state,
+        instructions: 'Choose whether to settle a tip DIRECTLY to the declared wallet, or HOLD it in escrow for the verified site owner to claim. Settle only if the wallet plausibly belongs to this page\u2019s creator (byline, declared recipient metadata); hold if it looks incidental, injected, or unrelated (ads, footer boilerplate, third-party widgets).',
+        questionId: 'settleOrHold',
+        candidates: [
+          { id: wallet, context: `settle directly to ${wallet}`.slice(0, 2000) },
+          { id: 'hold', context: 'hold in escrow for the verified owner to claim'.slice(0, 2000) },
+        ],
+      }),
+    });
+    if (!res.ok) return { settle: false, confidence: 0 };
+    const data = await res.json();
+    const choice = String(data?.choice || '');
+    const confidence = Number(data?.confidence ?? 0);
+    if (choice.toLowerCase() === wallet.toLowerCase() && confidence >= 0.65) {
+      return { settle: true, confidence };
+    }
+    return { settle: false, confidence: Number.isFinite(confidence) ? confidence : 0 };
+  } catch {
+    return { settle: false, confidence: 0 };
+  }
+}
+
 // Social proof: settled tip count + total for a domain, from the ledger.
 export async function tipStatsForDomain(domain: string): Promise<{ count: number; total: number }> {
   const { hubApi } = await activeNetwork();

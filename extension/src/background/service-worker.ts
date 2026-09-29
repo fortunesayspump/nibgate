@@ -1,6 +1,6 @@
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Testnet only.
-import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, classifyPage, CHAIN_ID } from '../lib/api-client';
+import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, decideSettleOrHold, classifyPage, CHAIN_ID } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
 import {
@@ -264,6 +264,26 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
           resolution = {
             ...resolution,
             resolution: { state: 'resolved', wallet: inferred.wallet, confidence: inferred.confidence, source: 'jev-model' },
+          };
+        }
+      }
+      if (resolution.resolution.state === 'resolved' && resolution.resolution.source === 'page-signal') {
+        // Settle-vs-hold gate: a declared-but-unverified wallet could be
+        // planted or unrelated, so the decisions model arbitrates. Settle only
+        // on a confident pick; otherwise fall through to the hold branch and
+        // the verified owner claims later. Hub-verified resolutions skip this.
+        const verdict = await decideSettleOrHold({
+          contentUrl: target,
+          title: msg.content.title,
+          author: msg.content.author,
+          siteName: msg.content.siteName,
+          wallet: resolution.resolution.wallet,
+          walletContext: 'declared page wallet, not hub-verified',
+        });
+        if (!verdict.settle) {
+          resolution = {
+            ...resolution,
+            resolution: { state: 'held', reason: 'unverified recipient held for verified owner' },
           };
         }
       }

@@ -1,0 +1,126 @@
+import { Callout, Cards } from 'nextra/components'
+
+# JEV in the stack
+
+JEV is Nibgate's judgment layer: **models propose possibilities, JEV makes constrained decisions**. The deterministic engine (`decide`/`selectMany`) always has the last word; the real JEV decisions model (`~typesafe/jev-latest`, TypeSafe's System One model on OpenRouter) only scores or picks from caller-supplied options — it can never invent candidates, move funds, or render UI by itself.
+
+<Callout type="info">
+Rule of the stack: **deterministic rules first, model only on ambiguity.** Every integration below fires the model solely when local logic is inconclusive, gates the answer on calibrated confidence, and falls back to the safe default (hold, skip, stay silent) on any failure.
+</Callout>
+
+## The three layers
+
+| Layer | Code | What it does |
+|---|---|---|
+| Deterministic engine | `jev/src/decide.ts` | `decide()` (single winner) and `selectMany()` (ordered slates) over scored options with budget + confidence gates. Pure functions — no network, no keys, fully testable. |
+| Decisions client | `jev/src/decisions.ts` | `decisions()` (raw), `chooseOption()` (pick one id), `askNoul()` / `askNoulBatch()` (calibrated 0..1 probabilities). Speaks `POST https://openrouter.ai/api/alpha/decisions`. |
+| Hub endpoints | `backend/src/server/routes/hub-routes.js` | `POST /hub/jev/decide`, `/hub/jev/classify`, `/hub/jev/tags` — validated, rate-limited (30/min/IP), keys server-side. |
+
+`jev/src/schema.ts` defines the shared types (`JevOption`, `JevPolicy`, `JevDecision`); `jev/src/trace.ts` renders human-readable decision traces.
+
+## Call path A — tip recipient inference (extension)
+
+When a reader taps a tip preset on a page whose creator didn't resolve locally:
+
+```txt
+tip-card.ts — recipientWalletsFromPage()
+  meta tags (nibgate:recipient…) → payment links → tagged slot → byline zones
+  ≤8 candidates, each with ≤300 chars of authorship context
+        │
+        ▼  TIP_START { content, pageWallet, candidateWallets }
+service-worker.ts — resolveContent() → hub index, then page wallet
+        │ unresolved?
+        ▼
+api-client.ts — inferRecipient()
+  POST /hub/jev/decide { state, instructions, candidates }
+        │ model picks one wallet id (+ probabilities, confidence)
+        ▼  confidence ≥ 0.6 (same bar as declared page signals)
+resolved as source "jev-model" → challenge → confirm dialog flags
+"Recipient was inferred by the model — double-check it." → TIP_CONFIRM pays
+        │ below 0.6, or any error
+        ▼
+existing hold flow (no-key box), unchanged
+```
+
+Key properties, all enforced in code:
+- The model chooses **only** among the DOM-supplied ids; invented ids are rejected (case-insensitive match in `chooseOption`, re-checked in `inferRecipient`).
+- The human still approves in the confirm dialog, which names an inferred recipient explicitly.
+- No key material in the bundle — the extension never talks to OpenRouter directly.
+
+### Settle-vs-hold gate
+
+A wallet merely *declared* on a page (page signal, never hub-verified) could be planted or unrelated, so it doesn't settle on declaration alone. Before the challenge, `decideSettleOrHold()` asks the model to choose between settling to that wallet and holding for the verified owner. Settle requires the wallet pick at confidence ≥ 0.65; anything else falls through to the existing hold branch. Hub-verified resolutions skip the gate entirely — verified means verified.
+
+## Call path B — low-confidence page classification (extension)
+
+`mapPage()` is decisive for clear cases (content/feeds/landings/apps). When it's inconclusive — `kind === 'unknown'`, or a content page it couldn't bind to a tippable region — and the page has real prose (≥200 words) with a Readability fallback, the content script escalates:
+
+```txt
+tip-card.ts — assessState()
+  mapPage() inconclusive + prose ≥ 200 words + extractContent() fallback
+        │
+        ▼  JEV_CLASSIFY { state }
+service-worker.ts → api-client.ts — classifyPage()
+  POST /hub/jev/classify { state }   (state ≤ 4000 chars: URL, title, site,
+  detected kind + reason, word count, byline, paragraph count, 600-char excerpt)
+        │ probability ≥ 0.65
+        ▼
+render card from the fallback metadata, marked data-nibgate-jev
+        │ below 0.65, or any error
+        ▼
+stay silent (never invent a tip surface on an app/landing page)
+```
+
+## Call path C — tentative discovery metadata (hub)
+
+Thin content often ships with no tags, so tag search can't find it. The metadata enricher fills the gap without ever overwriting publisher data:
+
+```txt
+startMetadataEnricher() — opt-in via NIBGATE_METADATA_ENRICH=1
+  (hourly by default, 8 rows per cycle)
+        │
+        ▼  Content with price > 0, live, verified site, tags empty
+candidateTagsFor() — vocabulary hits in the text → salient title
+words → broad vocabulary (≤24, deduped)
+        │
+        ▼  askNoulBatch — one request, one noul question per tag
+top-k (default 4) with probability ≥ 0.6
+        │
+        ▼
+write tags + tagsTentative = true
+        │
+        ▼  explore serves tags / tagList / tagsTentative
+```
+
+Only genuinely undecided rows are touched; anything with publisher tags is never rewritten, and per-row model failures skip the row instead of failing the cycle.
+
+## Architecture invariants
+
+- **Keys never leave the server.** The extension, SDK browser helpers, and agents all go through the hub endpoints. `OPENROUTER_API_KEY` lives only in hub env.
+- **The model never invents.** Choice ids must match supplied candidates; scores outside 0..1 are clamped; empty answers are rejected before anything acts.
+- **Thresholds before acting:** recipient inference ≥ 0.6, page classification ≥ 0.65, settle-vs-hold ≥ 0.65, tags ≥ 0.6 top-k.
+- **Bounded cost:** ≤12 candidates (decide), ≤24 tags, state ≤4000 chars, 30 req/min per IP — and the model only fires on ambiguity, so steady-state spend is ~$0.00002 per genuinely hard page. Steady, unambiguous traffic costs nothing.
+- **Safe defaults:** hold instead of guessing a recipient, silence instead of rendering on a coin flip, skip instead of writing a tag that missed the bar.
+
+## Configuration
+
+| Variable | Where | Default | Purpose |
+|---|---|---|---|
+| `OPENROUTER_API_KEY` | hub env (both nets) | — (required) | Model access; never bundled client-side |
+| `JEV_DECISIONS_MODEL` | hub env | `~typesafe/jev-latest` | Model override (aliases `typesafe/jev-1.13`) |
+| `JEV_DECISIONS_URL` | hub env | OpenRouter `/api/alpha/decisions` | Endpoint override |
+| `NIBGATE_METADATA_ENRICH` | hub env | off | Set `1` to run the background tag pass |
+| `NIBGATE_METADATA_ENRICH_INTERVAL_MS` | hub env | `3600000` | Cycle period |
+| `NIBGATE_METADATA_ENRICH_BATCH` | hub env | `8` | Rows per cycle |
+| `NIBGATE_METADATA_ENRICH_INITIAL_DELAY_MS` | hub env | `60000` | Delay after boot |
+
+## Verification
+
+- `node --test test/` in `jev/` — engine + decisions client against stubbed transports (17 tests, no network).
+- `vitest run` in `backend/` — route validation, stubbed-model success paths, and failure mapping for all three endpoints.
+- Extension `tsc --noEmit` + production build; Playwright `extension-random-blogs` for detection/placement on real third-party sites (the model fallback itself is covered by unit tests plus live probes, since it only fires on user taps over ambiguous pages).
+- Live probes you can re-run: `POST /hub/jev/decide` with two wallets (expect the byline pick ~0.99), `/hub/jev/classify` on an article-shaped state (expect ~0.9+), `/hub/jev/tags` on a titled excerpt (expect the on-topic tags first).
+
+## Why a decisions model, not a chat model
+
+JEV decisions models are **not** chat models — calling one on `/chat/completions` returns `is a decisions model and cannot be used with the chat/completions endpoint`. They take `{ model, state, questions }` where each question is `choice` (criteria keys *are* the options), `score`, or `noul`, and return calibrated answers with probabilities and confidence. That shape is exactly what a threshold-gated pipeline needs: no prose to parse, no invented entities, just a number to compare against a bar. See the [JEV package README](https://github.com/fortunesayspump/nibgate/tree/main/jev) for the raw API contract.

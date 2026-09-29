@@ -57,13 +57,11 @@ sequentially, ties by id).
 
 ## LLM providers
 
-| | Now (hackathon) | Later |
+| | Now | Before |
 |---|---|---|
-| Provider | Vercel AI Gateway (free monthly credit, rate-limited subset) | OpenRouter (your keys) |
-| Env | `AI_GATEWAY_API_KEY` | `OPENROUTER_API_KEY` |
-| Select | `JEV_LLM_PROVIDER=vercel` (default) | `JEV_LLM_PROVIDER=openrouter` |
-| Model override | `JEV_MODEL` | `JEV_MODEL` |
+| Provider | OpenRouter (your keys) | Vercel AI Gateway (free monthly credit, rate-limited subset) |
+| Env | `OPENROUTER_API_KEY` | `AI_GATEWAY_API_KEY` |
+| Select | `JEV_LLM_PROVIDER=openrouter` (default) | `JEV_LLM_PROVIDER=vercel` |
+| Model override | `JEV_MODEL` (default `typesafe/jev-router`) | `JEV_MODEL` |
 
-Both speak OpenAI-compatible chat JSON; switching is one env var, zero code
-changes. The proposer only ever returns *scores* — JEV still makes every
-decision.
+Both speak OpenAI-compatible chat JSON. The proposer only ever returns *scores* — JEV still makes every decision.

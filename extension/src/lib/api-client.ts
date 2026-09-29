@@ -141,6 +141,53 @@ export async function refundHeldTip(input: {
   return data;
 }
 
+// JEV recipient inference: score DOM candidate wallets with the hub-hosted
+// model when local resolution fails. Returns null on any failure so callers
+// fall through to the hold flow. Never throws. Rules first, model only here.
+export async function proposeRecipient(input: {
+  contentUrl: string; title?: string; author?: string; siteName?: string;
+  candidates: Array<{ address: string; context?: string }>;
+}): Promise<{ wallet: string; confidence: number } | null> {
+  try {
+    const wallets = (input.candidates || [])
+      .filter((c) => /^0x[a-fA-F0-9]{40}$/.test(c?.address || ''))
+      .slice(0, 8);
+    if (!wallets.length) return null;
+    const { hubApi } = await activeNetwork();
+    const res = await fetch(`${hubApi}/hub/jev/propose`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        task: 'Pick the wallet most likely to belong to the creator of this page for receiving a tip. Prefer authorship signals (bylines, declared recipient metadata) over incidental addresses.',
+        candidates: wallets.map((w) => ({
+          id: w.address,
+          kind: 'wallet',
+          cost: 0,
+          context: `address ${w.address}; ${w.context || ''} — page: ${input.title || ''} by ${input.author || ''} (${input.siteName || ''}) ${input.contentUrl}`.slice(0, 500),
+        })),
+        signals: ['relevance', 'confidence'],
+        hints: 'Return confidence as your honest probability that this wallet is the creator.',
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const options = Array.isArray(data?.options) ? data.options : [];
+    let best: { wallet: string; confidence: number } | null = null;
+    for (const o of options) {
+      const wallet = String(o?.id || '');
+      if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) continue;
+      const confidence = Number(o?.scores?.confidence ?? 0);
+      if (best && confidence <= best.confidence) continue;
+      best = { wallet, confidence };
+    }
+    // Same bar as declared page signals: below this we hold, never guess.
+    if (!best || !(best.confidence >= 0.6)) return null;
+    return best;
+  } catch {
+    return null;
+  }
+}
+
 // Social proof: settled tip count + total for a domain, from the ledger.
 export async function tipStatsForDomain(domain: string): Promise<{ count: number; total: number }> {
   const { hubApi } = await activeNetwork();

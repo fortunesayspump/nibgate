@@ -166,3 +166,79 @@ describe('hub routes: cross-stack identity surface', () => {
     expect(dbMock.blogPost.create.mock.calls[0][0].data.bodyMarkdown).toContain('Body text');
   });
 });
+
+describe('hub routes: JEV proposer', () => {
+  let handlers;
+  const ORIG = {};
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    for (const k of ['JEV_LLM_PROVIDER', 'OPENROUTER_API_KEY', 'JEV_MODEL']) {
+      ORIG[k] = process.env[k];
+      delete process.env[k];
+    }
+    const { app, handlers: h } = stubApp();
+    registerHubRoutes(app);
+    handlers = h;
+  });
+
+  afterEach(() => {
+    for (const k of ['JEV_LLM_PROVIDER', 'OPENROUTER_API_KEY', 'JEV_MODEL']) {
+      if (ORIG[k] === undefined) delete process.env[k];
+      else process.env[k] = ORIG[k];
+    }
+    vi.unstubAllGlobals();
+  });
+
+  const goodBody = () => ({
+    task: 'Pick the tip recipient for this page',
+    candidates: [
+      { id: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', kind: 'wallet', cost: 0, context: 'author byline on the page' },
+      { id: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', kind: 'wallet', cost: 0, context: 'footer link' },
+    ],
+    signals: ['relevance', 'confidence'],
+  });
+
+  it('rejects missing/invalid bodies', async () => {
+    for (const body of [
+      {},
+      { task: 'x' },
+      { task: 'x', candidates: [], signals: ['a'] },
+      { task: 'x', candidates: new Array(13).fill({ id: 'a', kind: 'w', cost: 0, context: 'c' }), signals: ['a'] },
+      { ...goodBody(), signals: [] },
+      { ...goodBody(), candidates: [{ id: '', kind: 'w', cost: 0, context: 'c' }] },
+    ]) {
+      const res = mockRes();
+      await handlers['POST /api/hub/jev/propose']({ headers: {}, body, query: {} }, res);
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('scores candidates through the configured model', async () => {
+    process.env.JEV_LLM_PROVIDER = 'openrouter';
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: '{"options":[{"id":"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scores":{"relevance":0.9,"confidence":0.8}}]}' } }] }),
+      text: async () => '{}',
+    })));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/propose']({ headers: {}, body: goodBody(), query: {} }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.model).toBe('typesafe/jev-router');
+    expect(res.body.options).toHaveLength(1);
+    expect(res.body.options[0].id).toBe('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+    expect(res.body.options[0].scores.relevance).toBe(0.9);
+  });
+
+  it('surfaces provider failures as 502', async () => {
+    process.env.JEV_LLM_PROVIDER = 'openrouter';
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}), text: async () => 'slow down' })));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/propose']({ headers: {}, body: goodBody(), query: {} }, res);
+    expect(res.statusCode).toBe(502);
+  });
+});

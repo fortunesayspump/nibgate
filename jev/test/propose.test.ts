@@ -52,4 +52,30 @@ describe('propose', () => {
     );
     delete process.env.AI_GATEWAY_API_KEY;
   });
+
+  it('uses the openrouter JEV router model by default', async () => {
+    process.env.JEV_LLM_PROVIDER = 'openrouter';
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    delete process.env.JEV_MODEL;
+    let seenUrl = '';
+    let seenBody = {};
+    let seenAuth = '';
+    const spyFetch = (async (url, init) => {
+      seenUrl = String(url);
+      seenAuth = String(init?.headers?.authorization || '');
+      seenBody = JSON.parse(String(init?.body || '{}'));
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"options":[{"id":"a","scores":{"relevance":0.5,"confidence":0.5}}]}' } }] }), text: async () => '{}' };
+    }) as Parameters<typeof propose>[1];
+    try {
+      const r = await propose(req, spyFetch);
+      assert.equal(seenUrl, 'https://openrouter.ai/api/v1/chat/completions');
+      assert.equal(seenBody.model, 'typesafe/jev-router');
+      assert.equal(seenAuth, 'Bearer test-key');
+      assert.equal(r.model, 'typesafe/jev-router');
+      assert.equal(r.options.length, 1);
+    } finally {
+      delete process.env.JEV_LLM_PROVIDER;
+      delete process.env.OPENROUTER_API_KEY;
+    }
+  });
 });

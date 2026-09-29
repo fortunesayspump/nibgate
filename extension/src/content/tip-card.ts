@@ -3,7 +3,8 @@
 // content container — like native widgets, not a detached corner overlay.
 // Rendered in a Shadow DOM so the host page's CSS can never break it (and
 // ours never leaks out). No wallet code here: signing happens in the worker.
-import { extractContent, contentContainer, isBoilerplateZone, recipientWalletFromPage, hasNibgateSdk } from './extract';
+import { extractContent, contentContainer, isBoilerplateZone, recipientWalletFromPage, recipientWalletsFromPage, hasNibgateSdk } from './extract';
+import type { PageWalletCandidate } from './extract';
 import { mapPage } from './page-model';
 import { isTippableUrl } from './guard';
 
@@ -412,8 +413,12 @@ async function startTipFlow(amount: string, content: CardInput['content'], pageW
   }
   say('Preparing tip…');
   let started: any;
+  // DOM candidate wallets for the worker's JEV fallback: when nothing
+  // resolves locally, the hub model scores these (rules first, LLM only here).
+  let candidateWallets: PageWalletCandidate[] = [];
+  try { candidateWallets = recipientWalletsFromPage(); } catch { candidateWallets = []; }
   try {
-    started = await chrome.runtime.sendMessage({ type: 'TIP_START', amount: tipAmount, content, pageWallet, hasSdk: hasNibgateSdk() });
+    started = await chrome.runtime.sendMessage({ type: 'TIP_START', amount: tipAmount, content, pageWallet, candidateWallets, hasSdk: hasNibgateSdk() });
   } catch {
     say('Extension error — reopen the popup and try again.');
     return;
@@ -433,8 +438,11 @@ async function startTipFlow(amount: string, content: CardInput['content'], pageW
   const heldNote = started.held
     ? '\nThis creator is not on Nibgate yet — the tip is held in a no-key onchain box for them to claim.'
     : '';
+  const inferredNote = !started.held && review.source === 'jev-model'
+    ? '\nRecipient was inferred by the model from page signals — double-check it.'
+    : '';
   const ok = window.confirm(
-    `Tip $${review.amount || amount} USDC?\nTo: ${review.recipient || 'creator'}\nPay to: ${review.payee || ''}\nRail: ${review.rail || 'transfer'}${heldNote}`,
+    `Tip $${review.amount || amount} USDC?\nTo: ${review.recipient || 'creator'}\nPay to: ${review.payee || ''}\nRail: ${review.rail || 'transfer'}${heldNote}${inferredNote}`,
   );
   if (!ok) {
     say('Cancelled.');

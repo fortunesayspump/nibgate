@@ -1,6 +1,6 @@
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Testnet only.
-import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, CHAIN_ID } from '../lib/api-client';
+import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, proposeRecipient, CHAIN_ID } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
 import {
@@ -232,7 +232,25 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
       const target = msg.content.canonicalUrl || msg.content.url;
       const rail = await activeRail(msg.rail);
       await ensureUnlocked();
-      const resolution = await resolveContent(target, { pageWallet: msg.pageWallet, hasSdk: msg.hasSdk });
+      let resolution = await resolveContent(target, { pageWallet: msg.pageWallet, hasSdk: msg.hasSdk });
+      if (resolution.resolution.state !== 'resolved' && Array.isArray(msg.candidateWallets) && msg.candidateWallets.length) {
+        // Hybrid JEV fallback: rules failed, so score the DOM candidates with
+        // the hub-hosted model. A confident winner resolves like a declared
+        // page signal; anything less holds as before. Any failure → hold.
+        const inferred = await proposeRecipient({
+          contentUrl: target,
+          title: msg.content.title,
+          author: msg.content.author,
+          siteName: msg.content.siteName,
+          candidates: msg.candidateWallets,
+        });
+        if (inferred) {
+          resolution = {
+            ...resolution,
+            resolution: { state: 'resolved', wallet: inferred.wallet, confidence: inferred.confidence, source: 'jev-model' },
+          };
+        }
+      }
       if (resolution.resolution.state !== 'resolved') {
         // Unknown creator: fund a no-key holding box; the owner claims later.
         let domain = resolution.domain;
@@ -276,14 +294,15 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
         pending: true,
         needsUnlock: !isUnlocked(),
         challenge,
-        review: {
-          amount: String(amount),
-          recipient: resolution.resolution.wallet,
-          payee: payTo,
-          title: msg.content.title,
-          contentUrl: target,
-          rail,
-        },
+          review: {
+            amount: String(amount),
+            recipient: resolution.resolution.wallet,
+            payee: payTo,
+            title: msg.content.title,
+            contentUrl: target,
+            rail,
+            source: resolution.resolution.source || '',
+          },
       });
     } catch (e) {
       respond({ ok: false, error: String((e as Error)?.message || e) });

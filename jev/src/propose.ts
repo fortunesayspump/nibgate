@@ -2,10 +2,11 @@ import type { JevOption } from './schema.js';
 
 // LLM proposer: turns an open-ended task into scored JevOptions for decide().
 // Provider is env-selected, both speak OpenAI-compatible chat JSON:
-//   JEV_LLM_PROVIDER=vercel|openrouter   (default: vercel — free monthly credit)
+//   JEV_LLM_PROVIDER=vercel|openrouter   (default: openrouter)
 //   AI_GATEWAY_API_KEY=...               (Vercel AI Gateway key)
-//   OPENROUTER_API_KEY=...               (later; same shape, more models)
-//   JEV_MODEL=...                        (default per provider below)
+//   OPENROUTER_API_KEY=...               (OpenRouter key)
+//   JEV_MODEL=...                        (default per provider below;
+//     openrouter default is the purpose-built JEV router model)
 //
 // resolveFetch lets tests inject a stub; production passes global fetch.
 
@@ -34,13 +35,13 @@ type FetchFn = (url: string, init?: Record<string, unknown>) => Promise<{
 }>;
 
 function providerConfig() {
-  const provider = (process.env.JEV_LLM_PROVIDER || 'vercel').toLowerCase();
+  const provider = (process.env.JEV_LLM_PROVIDER || 'openrouter').toLowerCase();
   if (provider === 'openrouter') {
     return {
       provider,
       baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
       apiKey: process.env.OPENROUTER_API_KEY || '',
-      model: process.env.JEV_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+      model: process.env.JEV_MODEL || 'typesafe/jev-router',
     };
   }
   return {

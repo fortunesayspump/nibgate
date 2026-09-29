@@ -56,21 +56,54 @@ function isWalletAddress(value: string): boolean {
 // for routing convenience only — never for security decisions (claim
 // verification re-checks everything server-side).
 export function recipientWalletFromPage(root: ParentNode = document): string {
+  const found = recipientWalletsFromPage(root);
+  return found.length ? found[0].address : '';
+}
+
+export type PageWalletCandidate = { address: string; context: string };
+
+// ALL wallet-looking recipient signals on the page, each with the surrounding
+// context an LLM needs to judge authorship. Feeds the hub JEV proposer as a
+// last resort when nothing resolves — rules first, model only for ambiguity.
+export function recipientWalletsFromPage(root: ParentNode = document): PageWalletCandidate[] {
   const doc = root as Document;
+  const seen = new Set<string>();
+  const out: PageWalletCandidate[] = [];
+  const push = (address: string, context: string) => {
+    const clean = (address || '').trim();
+    if (!isWalletAddress(clean)) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ address: clean, context: String(context || '').replace(/\s+/g, ' ').trim().slice(0, 300) });
+  };
   const meta = ['nibgate:recipient', 'nibgate:wallet', 'nibgate:tip-to'];
   for (const name of meta) {
     const el = doc.querySelector?.(`meta[property="${name}"],meta[name="${name}"]`);
-    const value = el?.getAttribute?.('content') || '';
-    if (isWalletAddress(value)) return value.trim();
+    push(el?.getAttribute?.('content') || '', 'page metadata: declared tip recipient');
   }
-  const paymentLink = doc.querySelector?.('link[rel="payment"],a[rel="payment"]');
-  const href = paymentLink?.getAttribute?.('href') || '';
-  const ethMatch = href.match(/ethereum:(0x[a-fA-F0-9]{40})/i);
-  if (ethMatch) return ethMatch[1];
+  const paymentLinks = Array.from(doc.querySelectorAll?.('link[rel="payment"],a[rel="payment"]') || []);
+  for (const el of paymentLinks.slice(0, 4)) {
+    const href = (el as Element).getAttribute?.('href') || '';
+    const ethMatch = href.match(/ethereum:(0x[a-fA-F0-9]{40})/i);
+    if (ethMatch) push(ethMatch[1], `payment link: ${(el as Element).textContent || href}`.slice(0, 300));
+  }
   const tagged = doc.querySelector?.('[data-nibgate-recipient]');
-  const taggedValue = tagged?.getAttribute?.('data-nibgate-recipient') || '';
-  if (isWalletAddress(taggedValue)) return taggedValue.trim();
-  return '';
+  push(tagged?.getAttribute?.('data-nibgate-recipient') || '', 'tagged recipient slot on the page');
+  // Bare addresses near authorship signals (bylines, author blocks).
+  const authorZones = Array.from(
+    doc.querySelectorAll?.('[rel="author"],[itemprop="author"],.byline,.author,.post-author,.entry-author,address') || [],
+  );
+  const addrRe = /0x[a-fA-F0-9]{40}/g;
+  for (const zone of authorZones.slice(0, 6)) {
+    const text = zone.textContent || '';
+    let m: RegExpExecArray | null;
+    while ((m = addrRe.exec(text)) !== null && out.length < 8) {
+      push(m[0], `near author credit: ${text.slice(Math.max(0, m.index - 80), m.index + 120)}`);
+    }
+    if (out.length >= 8) break;
+  }
+  return out.slice(0, 8);
 }
 
 // SDK detection: does this page run Nibgate (widget script or site marker)?

@@ -1,12 +1,14 @@
 import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession, sessionCookieName, nonceCookieName } from '@nibgate/internal/auth.js';
 import { claimPeerSitesForWallet } from '../hub/helpers.js';
+import { registerRateBuckets } from '../lib/rate-buckets.js';
 
 // In-memory SIWE brute-force guard: the verify endpoint gets a tight cap (20
 // attempts per IP per 15 min); the nonce endpoint is fetched on every
 // wallet-connect modal open, so it gets a generous cap (300/15 min) to avoid
 // locking out legit users behind shared NAT/VPN. Mirrors the tracking-rate-limit
 // bucket pattern; resets on restart, which is acceptable for an auth throttle.
-const authBuckets = new Map();
+// Registered with the shared sweeper so expired IP entries don't accumulate.
+const authBuckets = registerRateBuckets(new Map(), 15 * 60 * 1000);
 const AUTH_LIMITS = { nonce: 300, verify: 20 };
 function checkAuthRateLimit(req, kind) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';

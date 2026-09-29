@@ -1,6 +1,7 @@
 import { db } from '@nibgate/internal/db.js';
 import { hostsFor, activeNetworkName, networkByChainId } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
+import { registerRateBuckets } from '../lib/rate-buckets.js';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
 
@@ -201,7 +202,13 @@ export function trackingVisitorHash(req, website) {
 
 // ── Rate limiting ──────────────────────────────────────────────────────────
 
-export const trackingRateBuckets = new Map();
+export const trackingRateBuckets = registerRateBuckets(new Map(), 60_000);
+
+// Expired metric-dedupe rows are pruned hourly. (The in-memory buckets are
+// swept centrally by lib/rate-buckets.js.)
+setInterval(() => {
+  db.metricDedupe.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }).catch(() => {});
+}, 60 * 60 * 1000).unref?.();
 
 export function rateLimitKey(siteId, req, visitorHash = '') {
   return `${siteId}:${clientIpFor(req) || 'unknown'}:${visitorHash.slice(0, 16)}`;
@@ -222,13 +229,6 @@ export function checkTrackingRateLimit(siteId, req, visitorHash = '') {
   bucket.count += 1;
   if (bucket.count > maxHits) {
     return { ok: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
-  }
-
-  if (trackingRateBuckets.size > 5000 && Math.random() < 0.01) {
-    for (const [bucketKey, value] of trackingRateBuckets) {
-      if (value.resetAt <= now) trackingRateBuckets.delete(bucketKey);
-    }
-    db.metricDedupe.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }).catch(() => {});
   }
 
   return { ok: true };

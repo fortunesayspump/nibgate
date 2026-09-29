@@ -1,4 +1,5 @@
 import { activeNetwork } from '@nibgate/internal/networks.js';
+import { registerRateBuckets } from '../lib/rate-buckets.js';
 
 const NET = activeNetwork();
 const RPC_URL = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.NEXT_PUBLIC_ARC_RPC_URL || NET.reputationRpcUrl;
@@ -23,7 +24,7 @@ const ALLOWED_METHODS = new Set([
   'net_version',
 ])
 
-const rateLimiter = new Map()
+const rateLimiter = registerRateBuckets(new Map(), 60_000)
 
 function checkRateLimit(ip) {
   const now = Date.now()

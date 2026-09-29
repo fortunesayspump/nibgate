@@ -602,6 +602,15 @@ export function registerHubRoutes(app) {
       return null;
     }
   };
+  // Lazy JEV decisions client — the REAL JEV model (`~typesafe/jev-latest`
+  // via /api/alpha/decisions), not a chat proxy. Same 501 fallback.
+  const jevDecider = async () => {
+    try {
+      return await import('../../../../jev/src/decisions.ts');
+    } catch {
+      return null;
+    }
+  };
 
   app.post('/api/hub/pay', hubPayLimiter, async (req, res) => {
     try {
@@ -1516,6 +1525,46 @@ export function registerHubRoutes(app) {
       res.json({ success: true, model: out.model, options: out.options, usage: out.usage || null });
     } catch (error) {
       res.status(502).json({ error: `Proposer failed: ${error.message}` });
+    }
+  });
+
+  // ── JEV decisions (the actual JEV model) ─────────────────────────────────
+  // Ask `~typesafe/jev-latest` to choose ONE option over a described state.
+  // Server-side only (key stays on the hub). Returns the model's pick +
+  // calibrated confidence; the caller applies its own threshold before acting.
+  app.post('/api/hub/jev/decide', hubJevLimiter, async (req, res) => {
+    try {
+      const jev = await jevDecider();
+      if (!jev) return res.status(501).json({ error: 'JEV decisions not enabled in this build.' });
+      const { state, instructions, candidates, questionId } = req.body || {};
+      if (typeof state !== 'string' || !state.trim() || state.length > 4000) {
+        return res.status(400).json({ error: 'state (1-4000 chars) is required.' });
+      }
+      if (typeof instructions !== 'string' || !instructions.trim() || instructions.length > 500) {
+        return res.status(400).json({ error: 'instructions (1-500 chars) is required.' });
+      }
+      if (!Array.isArray(candidates) || candidates.length < 2 || candidates.length > 12) {
+        return res.status(400).json({ error: 'candidates (2-12) are required.' });
+      }
+      for (const c of candidates) {
+        if (!c || typeof c.id !== 'string' || !c.id || c.id.length > 200 ||
+            typeof c.context !== 'string' || !c.context || c.context.length > 2000) {
+          return res.status(400).json({ error: 'Each candidate needs {id, context} within size limits.' });
+        }
+      }
+      if (questionId != null && (typeof questionId !== 'string' || !questionId || questionId.length > 40)) {
+        return res.status(400).json({ error: 'questionId must be a short string.' });
+      }
+      const chosen = await jev.chooseOption({
+        state: state.trim(),
+        instructions: instructions.trim(),
+        questionId: questionId || 'choice',
+        options: candidates.map((c) => ({ id: c.id, description: c.context })),
+      });
+      if (!chosen) return res.status(502).json({ error: 'No usable decision returned.' });
+      res.json({ success: true, ...chosen });
+    } catch (error) {
+      res.status(502).json({ error: `Decide failed: ${error.message}` });
     }
   });
 

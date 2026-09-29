@@ -1,6 +1,6 @@
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Testnet only.
-import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, proposeRecipient, CHAIN_ID } from '../lib/api-client';
+import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, CHAIN_ID } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
 import {
@@ -234,10 +234,11 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
       await ensureUnlocked();
       let resolution = await resolveContent(target, { pageWallet: msg.pageWallet, hasSdk: msg.hasSdk });
       if (resolution.resolution.state !== 'resolved' && Array.isArray(msg.candidateWallets) && msg.candidateWallets.length) {
-        // Hybrid JEV fallback: rules failed, so score the DOM candidates with
-        // the hub-hosted model. A confident winner resolves like a declared
-        // page signal; anything less holds as before. Any failure → hold.
-        const inferred = await proposeRecipient({
+        // Hybrid JEV fallback: rules failed, so ask the hub's JEV decisions
+        // model (the real `~typesafe/jev-latest`) to choose among the DOM
+        // candidate wallets. A confident pick resolves like a declared page
+        // signal; anything less holds as before. Any failure → hold.
+        const inferred = await inferRecipient({
           contentUrl: target,
           title: msg.content.title,
           author: msg.content.author,

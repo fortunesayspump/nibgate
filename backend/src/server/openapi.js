@@ -894,6 +894,49 @@ export const openApiSpec = {
         },
       },
     },
+    "/hub/jev/decide": {
+      post: {
+        tags: ["JEV"],
+        summary: "Ask the JEV decisions model to choose one option",
+        description:
+          "Calls TypeSafe's actual JEV decisions model (`~typesafe/jev-latest` via OpenRouter's /api/alpha/decisions — a decisions model, not a chat model) to CHOOSE exactly one candidate over a described state. Returns the pick plus calibrated per-option probabilities and confidence. Server-side only; the provider key never leaves the hub. Used by the wallet extension as a last resort for recipient inference: rules first, model only on ambiguity, and the caller still applies its own confidence threshold before acting.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["state", "instructions", "candidates"],
+                properties: {
+                  state: { type: "string", description: "Situation the model reasons over — page URL, title, author, and where each wallet appeared (max 4000 chars)" },
+                  instructions: { type: "string", description: "What the choice is about, in plain language (max 500 chars)" },
+                  questionId: { type: "string", description: "Question key (default 'choice')" },
+                  candidates: {
+                    type: "array",
+                    minItems: 2,
+                    maxItems: 12,
+                    items: {
+                      type: "object",
+                      required: ["id", "context"],
+                      properties: {
+                        id: { type: "string", description: "Candidate id the model must choose (e.g. a wallet address)" },
+                        context: { type: "string", description: "Evidence describing this candidate (max 2000 chars)" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "The pick: {success, choice, confidence, probabilities, model, usage}", content: { "application/json": { schema: { type: "object" } } } },
+          "400": { description: "Invalid state/instructions/candidates", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "501": { description: "Decisions not enabled in this build", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+          "502": { description: "Model returned no usable decision, or provider failure", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        },
+      },
+    },
   },
   "x-discovery": {
     ownershipProofs: ["0x7514Ff68BE453931ce1a8e752140E209Dd125A"],

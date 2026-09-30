@@ -182,7 +182,7 @@ export default function LedgerPage() {
                   { label: "Nibshares", value: serverTotals.nibshareUnlocks },
                 ]
             ).map((s) => (
-              <div key={s.label} className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
+              <div key={s.label} className="rounded-2xl border px-4 py-3 text-sm sm:whitespace-nowrap" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
                 <span className="opacity-60">{s.label}</span>
                 <strong className="ml-2 whitespace-nowrap tabular-nums">{"amount" in s && s.amount != null ? (<>{s.amount.toFixed(2)} <span className="text-xs font-normal opacity-60">USDC</span></>) : <CountUp value={s.value || 0} />}</strong>
               </div>

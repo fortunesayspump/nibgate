@@ -33,7 +33,7 @@ export default function Header() {
 
   return (
     <>
-      <nav className="flex align-center font-ui">
+      <nav className="flex align-center font-ui" style={{ marginTop: 20 }}>
         <span className="flex-grow" style={{ display: "flex", alignItems: "baseline", gap: "0.3em" }}>
           <Link href="/" className="internal-link plain" style={{ fontSize: "1.15em", fontWeight: 500 }}>{siteName}</Link>
           {routeLabel && <span className="hide-mobile" style={{ color: "var(--accent)", fontSize: "1.15em", fontWeight: 500 }}> /{routeLabel}</span>}

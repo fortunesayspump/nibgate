@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DrNibFab from "@/components/DrNibFab";
 import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
 import NavigationProgress from "@/components/NavigationProgress";
@@ -59,7 +60,7 @@ export default function RootLayout({
         <SvgSprite />
         <div id="design-settings" style={{ display: "none" }}></div>
         <Providers>
-          <div className="flex min-w-0 flex-col lg:flex-row min-h-screen">
+          <div className="flex min-w-0 flex-col lg:flex-row min-h-[calc(100vh-var(--testnet-banner-h,0px))]">
             <main className="flex min-w-0 flex-1 flex-col">
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="nibgate-site-surface block text-black text-base font-normal leading-relaxed tracking-tight">
@@ -69,6 +70,7 @@ export default function RootLayout({
             </main>
           </div>
         </Providers>
+        <DrNibFab />
       </body>
     </html>
   );

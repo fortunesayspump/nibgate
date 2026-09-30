@@ -167,10 +167,10 @@ export default function LedgerPage() {
           <div className="grid gap-3 mt-8 grid-cols-2 sm:grid-cols-7">
             {(filter === "nibshare"
               ? [
-                  { label: "Nib total", value: serverTotals.nibshareViews + serverTotals.nibshareUnlocks },
-                  { label: "Nib views", value: serverTotals.nibshareViews },
-                  { label: "Nib unlocks", value: serverTotals.nibshareUnlocks },
-                  { label: "Nib revenue", text: `${serverTotals.nibshareRevenue.toFixed(2)} USDC` },
+                  { label: "Nibshare total", value: serverTotals.nibshareViews + serverTotals.nibshareUnlocks },
+                  { label: "Nibshare views", value: serverTotals.nibshareViews },
+                  { label: "Nibshare unlocks", value: serverTotals.nibshareUnlocks },
+                  { label: "Nibshare revenue", amount: serverTotals.nibshareRevenue },
                 ]
               : [
                   { label: "Total", value: serverTotals.total },
@@ -184,7 +184,7 @@ export default function LedgerPage() {
             ).map((s) => (
               <div key={s.label} className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
                 <span className="opacity-60">{s.label}</span>
-                <strong className="ml-2">{"text" in s && s.text != null ? s.text : <CountUp value={s.value || 0} />}</strong>
+                <strong className="ml-2 whitespace-nowrap tabular-nums">{"amount" in s && s.amount != null ? (<>{s.amount.toFixed(2)} <span className="text-xs font-normal opacity-60">USDC</span></>) : <CountUp value={s.value || 0} />}</strong>
               </div>
             ))}
           </div>

@@ -23,6 +23,8 @@ import {
   serializeContent, serializePublisherIdentity,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   ratingAverage, acceptedRatingCount,
+  TIP_MONEY_STATUSES, tipRevenueByContentId, attributeTips,
+  nibshareStatsByWallet, platformMoneyTotals,
   publisherPayloadFor, upsertPublisherIdentity, contentDataFor,
   findContentByIdOrExternal
 } from '../hub/helpers.js';
@@ -537,6 +539,65 @@ export function registerHubRoutes(app) {
         }
       }
 
+      // 6. Nibshare views + paid unlocks — privacy-safe by construction: entries
+      // carry the share title, wallets, amounts, and tx hashes, but NEVER the
+      // share link (no slug, share id, or url). Nibshares are private; the
+      // ledger proves money moved without revealing where to read it. Draft
+      // shares are excluded. No domain filter possible (shares have no domain),
+      // so a domain-filtered query skips this section.
+      let nibshareViews = 0, nibshareUnlocks = 0, nibshareRevenue = 0;
+      if ((!type || type === 'nibshare') && !domain) {
+        const [nibViewRows, nibReceiptRows] = await Promise.all([
+          db.nibShareEvent.findMany({
+            where: { type: 'view', share: { status: { not: 'draft' } } },
+            include: { share: { select: { title: true, ownerWallet: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: offset,
+          }).catch(() => []),
+          db.nibShareReceipt.findMany({
+            where: { amount: { gt: 0 }, share: { status: { not: 'draft' } } },
+            include: { share: { select: { title: true, ownerWallet: true, currency: true } } },
+            orderBy: { unlockedAt: 'desc' },
+            take: limit,
+            skip: offset,
+          }).catch(() => []),
+        ]);
+        for (const v of nibViewRows) {
+          activities.push({
+            type: 'nibshare_view', id: v.id, source: 'nibshare',
+            actor: v.wallet || 'anonymous',
+            contentTitle: v.share?.title || 'Private share',
+            domain: 'nibshare',
+            ownerWallet: v.share?.ownerWallet || null,
+            timestamp: v.createdAt,
+          });
+        }
+        for (const r of nibReceiptRows) {
+          activities.push({
+            type: 'nibshare_unlock', id: r.id, source: 'nibshare',
+            actor: r.payerWallet || 'wallet',
+            contentTitle: r.share?.title || 'Private share',
+            domain: 'nibshare',
+            ownerWallet: r.share?.ownerWallet || null,
+            amount: r.amount || 0,
+            protocolFee: r.protocolFee ?? null,
+            currency: r.share?.currency || 'USDC',
+            timestamp: r.unlockedAt,
+            txHash: r.txHash || null,
+            payerWallet: r.payerWallet || null,
+          });
+        }
+        const [nibViewCount, nibReceiptCount, nibRevenueRows] = await Promise.all([
+          db.nibShareEvent.count({ where: { type: 'view', share: { status: { not: 'draft' } } } }).catch(() => 0),
+          db.nibShareReceipt.count({ where: { amount: { gt: 0 }, share: { status: { not: 'draft' } } } }).catch(() => 0),
+          db.nibShareReceipt.findMany({ where: { amount: { gt: 0 }, share: { status: { not: 'draft' } } }, select: { amount: true } }).catch(() => []),
+        ]);
+        nibshareViews = nibViewCount;
+        nibshareUnlocks = nibReceiptCount;
+        nibshareRevenue = nibRevenueRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      }
+
       // Sort all by timestamp desc, cap at limit
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const result = activities.slice(0, limit);
@@ -545,7 +606,7 @@ export function registerHubRoutes(app) {
         success: true,
         activities: result,
         total: result.length,
-        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, tips: totalTips, total: totalViews + totalPayments + totalRatings + totalTips },
+        totals: { views: totalViews, unlocks: totalUnlocks, payments: totalPayments, ratings: totalRatings, tips: totalTips, nibshareViews, nibshareUnlocks, nibshareRevenue, total: totalViews + totalPayments + totalRatings + totalTips + nibshareViews + nibshareUnlocks },
         hasMore: activities.length > limit,
         limit, skip: offset
       });
@@ -1860,7 +1921,12 @@ export function registerHubRoutes(app) {
           }),
           db.content.count({ where: verifiedWhere })
         ]);
-        const items = content.map(serializeContent)
+        const tipByContent = await tipRevenueByContentId(content.map((c) => c.id));
+        const items = content.map(serializeContent).map((c) => ({
+          ...c,
+          tipRevenue: tipByContent.get(c.id) || 0,
+          revenue: c.revenue + (tipByContent.get(c.id) || 0),
+        }))
           .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views) || (b.revenue - a.revenue) || (new Date(b.createdAt) - new Date(a.createdAt)))
           .slice(skip, skip + limit)
           .map((content, index) => ({ rank: skip + index + 1, ...content }));
@@ -1877,16 +1943,27 @@ export function registerHubRoutes(app) {
           }),
           db.website.count({ where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' } })
         ]);
+        const contentToSite = new Map();
+        const siteToOwner = new Map();
+        const domainToSite = new Map();
+        for (const w of websites) {
+          siteToOwner.set(w.id, w.ownerId || null);
+          if (w.domain) domainToSite.set(String(w.domain).toLowerCase(), w.id);
+          for (const c of w.content || []) contentToSite.set(c.id, w.id);
+        }
+        const siteTips = await attributeTips({ contentToSite, siteToOwner, domainToSite });
         const items = websites.map((website) => {
           const content = website.content.map(serializeContent);
           const score = siteReputationScore(content, website);
+          const tipRevenue = siteTips.bySite.get(website.id) || 0;
           return {
             id: website.id, name: website.name, domain: website.domain, description: website.description || '',
             faviconUrl: website.faviconUrl || `https://www.google.com/s2/favicons?domain=${website.domain}&sz=128`, ownerName: website.owner?.username || '',
             ownerWallet: primaryWalletAddress(website.owner || {}), reputationScore: score,
             contentCount: content.length, views: content.reduce((sum, item) => sum + item.views, 0),
             unlocks: content.reduce((sum, item) => sum + item.unlocks, 0),
-            revenue: content.reduce((sum, item) => sum + item.revenue, 0),
+            revenue: content.reduce((sum, item) => sum + item.revenue, 0) + tipRevenue,
+            tipRevenue,
             verificationStatus: website.verificationStatus || '', lastVerifiedAt: website.lastVerifiedAt || null
           };
         }).sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views)).slice(skip, skip + limit).map((site, index) => ({ rank: skip + index + 1, ...site }));
@@ -1901,16 +1978,46 @@ export function registerHubRoutes(app) {
         }),
         db.user.count({ where: { wallets: { some: {} } } })
       ]);
+      const contentToOwner = new Map();
+      const siteToOwner = new Map();
+      const domainToSite = new Map();
+      const allWallets = [];
+      for (const u of users) {
+        for (const w of u.websites || []) {
+          siteToOwner.set(w.id, u.id);
+          if (w.domain) domainToSite.set(String(w.domain).toLowerCase(), w.id);
+          for (const c of w.content || []) contentToOwner.set(c.id, w.id);
+        }
+        for (const wl of u.wallets || []) {
+          if (wl.address) allWallets.push(wl.address);
+        }
+      }
+      const [creatorTips, creatorNib] = await Promise.all([
+        attributeTips({ contentToSite: contentToOwner, siteToOwner, domainToSite }),
+        nibshareStatsByWallet(allWallets),
+      ]);
+      const nibFor = (user) => {
+        const agg = { revenue: 0, unlocks: 0, views: 0 };
+        for (const wl of user.wallets || []) {
+          const s = creatorNib.get(String(wl.address || '').toLowerCase());
+          if (s) { agg.revenue += s.revenue; agg.unlocks += s.unlocks; agg.views += s.views; }
+        }
+        return agg;
+      };
       const items = users.map((user) => {
         const websites = user.websites || [];
         const content = websites.flatMap((website) => website.content.map(serializeContent));
         const score = creatorReputationScore(content, websites);
+        const tipRevenue = creatorTips.byOwner.get(user.id) || 0;
+        const nib = nibFor(user);
         return {
           id: user.id, name: user.username || 'Unnamed creator',
           walletAddress: primaryWalletAddress(user), avatarUrl: user.avatarUrl || '', bio: user.bio || '',
           reputationScore: score, verifiedSites: websites.filter((w) => w.isVerified && w.verificationStatus === 'verified').length,
           siteCount: websites.length, contentCount: content.length, views: content.reduce((s, c) => s + c.views, 0),
-          unlocks: content.reduce((s, c) => s + c.unlocks, 0), revenue: content.reduce((s, c) => s + c.revenue, 0)
+          unlocks: content.reduce((s, c) => s + c.unlocks, 0),
+          revenue: content.reduce((s, c) => s + c.revenue, 0) + tipRevenue + nib.revenue,
+          tipRevenue, nibshareRevenue: nib.revenue, nibshareUnlocks: nib.unlocks, nibshareViews: nib.views,
         };
       }).filter((creator) => creator.contentCount > 0 || creator.verifiedSites > 0)
         .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
@@ -1949,9 +2056,21 @@ export function registerHubRoutes(app) {
         .catch(() => ({ _sum: { protocolFee: 0 } }));
       const protocolFees = Number(feeAgg._sum.protocolFee || 0);
 
+      // Tips and nibshares are creator money too — fold them into revenue.
+      // Historical rows count (no date filter), so old tips/shares land here
+      // retroactively the moment this ships.
+      const money = await platformMoneyTotals();
+
       res.json({
         success: true,
-        stats: { creators: creatorCount, sites: siteCount, content: contentCount, views, unlocks, revenue, protocolFees }
+        stats: {
+          creators: creatorCount, sites: siteCount, content: contentCount, views, unlocks,
+          revenue: revenue + money.tipRevenue + money.nibshareRevenue,
+          protocolFees: protocolFees + money.tipFees + money.nibshareFees,
+          tips: money.tips, tipRevenue: money.tipRevenue,
+          nibshareUnlocks: money.nibshareUnlocks, nibshareViews: money.nibshareViews,
+          nibshareRevenue: money.nibshareRevenue,
+        }
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch platform stats', details: error.message });

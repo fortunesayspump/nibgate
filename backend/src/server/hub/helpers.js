@@ -1523,6 +1523,136 @@ function average(values = []) {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
+// ── Tips + Nibshare money attribution ─────────────────────────────────────
+// Tips settle like unlocks (fee-wallet payee, protocol fee) but grant no access,
+// so they live in Tip rows, never UnlockReceipt — unlock counts stay clean.
+// Nibshare revenue lives in NibShareReceipt (wallet-owned shares, no site).
+// Both are real creator money, so leaderboards and platform stats fold them in
+// next to unlock receipts. Settled + released + refunded tips net out (refunds
+// are negative rows); held tips haven't reached a creator and are excluded.
+// Historical rows count automatically — no migration, old tips/shares pay out
+// in these totals the moment this ships.
+
+export const TIP_MONEY_STATUSES = ['settled', 'released', 'refunded'];
+
+const moneyAmount = (r) => {
+  const n = Number(r?.amount || 0);
+  return Number.isFinite(n) ? n : 0;
+};
+
+function domainFromUrl(url = '') {
+  try { return new URL(String(url)).hostname.toLowerCase(); } catch { return ''; }
+}
+
+// Sum of money tips per content id (negative refund rows net out).
+export async function tipRevenueByContentId(contentIds = []) {
+  const ids = [...new Set((contentIds || []).filter(Boolean))];
+  const map = new Map();
+  if (!ids.length) return map;
+  const tips = await db.tip.findMany({
+    where: { status: { in: TIP_MONEY_STATUSES }, contentId: { in: ids } },
+    select: { contentId: true, amount: true },
+  }).catch(() => []);
+  for (const t of tips) {
+    if (!t.contentId) continue;
+    map.set(t.contentId, (map.get(t.contentId) || 0) + moneyAmount(t));
+  }
+  return map;
+}
+
+// Attribute every money tip to at most one owner: contentId first, then
+// websiteId, then domain. Returns per-content, per-site, and per-owner sums
+// (each tip counted exactly once per level).
+export async function attributeTips({ contentToSite = new Map(), siteToOwner = new Map(), domainToSite = new Map() } = {}) {
+  const tips = await db.tip.findMany({
+    where: { status: { in: TIP_MONEY_STATUSES } },
+    select: { contentId: true, websiteId: true, domain: true, contentUrl: true, amount: true },
+    orderBy: { createdAt: 'desc' },
+    take: 5000,
+  }).catch(() => []);
+  const byContent = new Map();
+  const bySite = new Map();
+  const byOwner = new Map();
+  const add = (map, key, amt) => { if (key) map.set(key, (map.get(key) || 0) + amt); };
+  for (const t of tips) {
+    const amt = moneyAmount(t);
+    let siteId = null;
+    if (t.contentId) {
+      add(byContent, t.contentId, amt);
+      siteId = contentToSite.get(t.contentId) || null;
+    }
+    if (!siteId && t.websiteId) siteId = t.websiteId;
+    if (!siteId) {
+      const d = String(t.domain || '').trim().toLowerCase() || domainFromUrl(t.contentUrl);
+      if (d) siteId = domainToSite.get(d) || null;
+    }
+    if (siteId) {
+      add(bySite, siteId, amt);
+      add(byOwner, siteToOwner.get(siteId), amt);
+    }
+  }
+  return { byContent, bySite, byOwner };
+}
+
+// Nibshare money per owner wallet: paid receipts (amount > 0) summed as revenue,
+// receipt count as unlocks, view events as views. Keyed by lowercased wallet.
+// Free unlocks (amount 0) add no revenue and are not counted as unlocks —
+// same "unlock = money" semantics as hub unlock counts.
+export async function nibshareStatsByWallet(wallets = []) {
+  const set = new Set();
+  for (const w of wallets || []) {
+    const s = String(w || '').trim();
+    if (s) { set.add(s); set.add(s.toLowerCase()); }
+  }
+  const map = new Map();
+  if (!set.size) return map;
+  const shares = await db.nibShare.findMany({
+    where: { status: { not: 'draft' }, ownerWallet: { in: [...set] } },
+    select: { id: true, ownerWallet: true },
+  }).catch(() => []);
+  if (!shares.length) return map;
+  const ownerOf = new Map(shares.map((s) => [s.id, String(s.ownerWallet || '').toLowerCase()]));
+  const ids = shares.map((s) => s.id);
+  const [receipts, views] = await Promise.all([
+    db.nibShareReceipt.findMany({ where: { shareId: { in: ids }, amount: { gt: 0 } }, select: { shareId: true, amount: true } }).catch(() => []),
+    db.nibShareEvent.findMany({ where: { shareId: { in: ids }, type: 'view' }, select: { shareId: true } }).catch(() => []),
+  ]);
+  const bucket = (w) => {
+    let b = map.get(w);
+    if (!b) { b = { revenue: 0, unlocks: 0, views: 0 }; map.set(w, b); }
+    return b;
+  };
+  for (const r of receipts) {
+    if (!(Number(r.amount) > 0)) continue;
+    const b = bucket(ownerOf.get(r.shareId));
+    b.revenue += moneyAmount(r);
+    b.unlocks += 1;
+  }
+  for (const v of views) bucket(ownerOf.get(v.shareId)).views += 1;
+  return map;
+}
+
+// Platform-wide money totals: tips (net of refunds) + nibshare paid receipts.
+// No date filter — historical rows count, so old tips and shares show up
+// retroactively the moment these totals ship.
+export async function platformMoneyTotals() {
+  const [tips, receipts, nibViews, nibUnlocks] = await Promise.all([
+    db.tip.findMany({ where: { status: { in: TIP_MONEY_STATUSES } }, select: { amount: true, status: true, protocolFee: true } }).catch(() => []),
+    db.nibShareReceipt.findMany({ where: { amount: { gt: 0 } }, select: { amount: true, protocolFee: true } }).catch(() => []),
+    db.nibShareEvent.count({ where: { type: 'view' } }).catch(() => 0),
+    db.nibShareReceipt.count({ where: { amount: { gt: 0 } } }).catch(() => 0),
+  ]);
+  return {
+    tips: tips.filter((t) => t.status !== 'refunded').length,
+    tipRevenue: tips.reduce((s, t) => s + moneyAmount(t), 0),
+    tipFees: tips.reduce((s, t) => s + (Number(t.protocolFee) || 0), 0),
+    nibshareRevenue: receipts.reduce((s, r) => s + moneyAmount(r), 0),
+    nibshareUnlocks: nibUnlocks,
+    nibshareViews: nibViews,
+    nibshareFees: receipts.reduce((s, r) => s + (Number(r.protocolFee) || 0), 0),
+  };
+}
+
 // ── Content serialization ─────────────────────────────────────────────────
 
 export function serializeContent(content) {

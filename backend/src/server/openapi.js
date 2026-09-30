@@ -75,7 +75,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.7",
+    version: "0.2.8",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -312,11 +312,11 @@ export const openApiSpec = {
         tags: ["Ledger"],
         summary: "Public activity ledger",
         description:
-          "Returns a live feed of views, unlocks, payments, and onchain ratings across verified sites, sorted by timestamp. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
+          "Returns a live feed of views, unlocks, payments, tips, onchain ratings, and privacy-safe nibshare views/unlocks across verified sites, sorted by timestamp. Nibshare entries carry titles, wallets, amounts, and tx hashes but never the private share link. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
         parameters: [
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["views", "unlocks", "payments", "ratings"] }, description: "Filter by activity type." },
+          { name: "type", in: "query", schema: { type: "string", enum: ["views", "unlocks", "payments", "ratings", "tips", "nibshare"] }, description: "Filter by activity type." },
           { name: "domain", in: "query", schema: { type: "string" }, description: "Filter by site domain, e.g. example.nibgate.xyz." },
         ],
         responses: {
@@ -337,6 +337,10 @@ export const openApiSpec = {
                         unlocks: { type: "integer" },
                         payments: { type: "integer" },
                         ratings: { type: "integer" },
+                        tips: { type: "integer" },
+                        nibshareViews: { type: "integer" },
+                        nibshareUnlocks: { type: "integer" },
+                        nibshareRevenue: { type: "number" },
                         total: { type: "integer" },
                       },
                     },
@@ -353,7 +357,7 @@ export const openApiSpec = {
       get: {
         tags: ["Platform"],
         summary: "Platform stats",
-        description: "Real totals for creators, verified sites, content, views, unlocks, and revenue.",
+        description: "Real totals for creators, verified sites, content, views, unlocks, and revenue (unlocks + tips + nibshares).",
         responses: {
           "200": {
             description: "Platform totals",
@@ -373,6 +377,11 @@ export const openApiSpec = {
                         unlocks: { type: "integer" },
                         revenue: { type: "number" },
                         protocolFees: { type: "number", description: "Cumulative 1% protocol fees collected on hosted payments" },
+                        tips: { type: "integer" },
+                        tipRevenue: { type: "number" },
+                        nibshareUnlocks: { type: "integer" },
+                        nibshareViews: { type: "integer" },
+                        nibshareRevenue: { type: "number" },
                       },
                     },
                   },

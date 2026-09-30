@@ -23,7 +23,7 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 | Endpoint | Description |
 |---|---|
 | `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
-| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, ratings |
+| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips, ratings, and nibshares (`type=nibshare`). Nibshare entries show titles, wallets, and amounts but never the private share link |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
 | `GET /hub/reputation/ratings/stats?contentId=` | Read a content's on-chain rating stats (average 1-5, count) |

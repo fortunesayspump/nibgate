@@ -3,7 +3,7 @@
   "name": "io.github.fortunesayspump/nibgate",
   "display_name": "Nibgate",
   "description": "x402 paywall layer for creator sites and agents: paid content, tips, pricing, reputation, ledger.",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "website_url": "https://nibgate.xyz",
   "repository": {
     "source": "github",

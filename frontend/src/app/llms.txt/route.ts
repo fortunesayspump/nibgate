@@ -14,7 +14,7 @@ type ExploreContent = {
 
 const HUB_PAGES: Array<[string, string]> = [
   [`${siteOrigin()}/explore`, "Content discovery feed indexing verified creator content from connected sites."],
-  [`${siteOrigin()}/ledger`, "Public activity ledger of every view, unlock, payment, and onchain rating across sites."],
+  [`${siteOrigin()}/ledger`, "Public activity ledger of every view, unlock, payment, tip, onchain rating, and nibshare across sites (nibshare links stay private)."],
   [`${siteOrigin()}/leaderboards`, "Reputation leaderboards for creators, sites, and content."],
   [`${siteOrigin()}/discovery.md`, "Plain-language agent guidance: endpoints, x402 payment flow (Circle Agent Stack one-liner or raw Gateway), nibshare links, and rating flow."],
   [`${siteOrigin()}/skill.md`, "Integration guide for @nibgate/sdk covering widget install, gating, payments, and admin."],
@@ -25,13 +25,13 @@ const HUB_PAGES: Array<[string, string]> = [
 
 const API_ENDPOINTS: Array<[string, string]> = [
   [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Explore feed of verified content with title, type, price, domain, and reputation signals."],
-  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips, and ratings."],
+  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips, ratings, and nibshares (privacy-safe: no share links)."],
   [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Tips waiting in a domain's no-key holding box (creator not yet on Nibgate); claimable by the site owner, refundable by the payer."],
   [`${apiBaseUrl()}/hub/tips/refund`, "Payer-signed refund of unclaimed held tips (full amount, no fee)."],
-  [`${apiBaseUrl()}/hub/stats`, "Platform totals for creators, sites, content, views, unlocks, revenue, and protocol fees."],
+  [`${apiBaseUrl()}/hub/stats`, "Platform totals for creators, sites, content, views, unlocks, revenue (unlocks + tips + nibshares), and protocol fees."],
   [`${apiBaseUrl()}/ns/{slug}`, "Unlock a nibshare link — free shares return the body; paid shares return a 402 x402 challenge, pay and retry to read."],
   [`${apiBaseUrl()}/nibshare/{slug}/manifest`, "Public metadata manifest for a nibshare (title, type, price, access policy)."],
-  [`${apiBaseUrl()}/hub/reputation/leaderboards`, "Ranked creators, sites, and content by reputation score."],
+  [`${apiBaseUrl()}/hub/reputation/leaderboards`, "Ranked creators, sites, and content by reputation score; revenue includes unlocks, tips, and nibshares."],
   [`${apiBaseUrl()}/hub/sitemap/content`, "All content URLs across verified sites."],
   [`${apiBaseUrl()}/openapi.json`, "Machine-readable OpenAPI specification for the public hub API, including unlock endpoints."],
   [`${apiBaseUrl()}/mcp`, "Model Context Protocol server exposing Nibgate discovery tools to AI agents."],

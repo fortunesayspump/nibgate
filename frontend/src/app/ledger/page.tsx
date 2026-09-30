@@ -5,13 +5,13 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
 import Image from "next/image";
-import { FiEye, FiUnlock, FiDollarSign, FiStar, FiGift } from "react-icons/fi";
+import { FiEye, FiUnlock, FiDollarSign, FiStar, FiCoffee } from "react-icons/fi";
 import { explorerTxLink } from "@/lib/chains";
 
 import styles from "./page.module.css";
 
 type Activity = {
-  type: "view" | "unlock" | "payment" | "rating" | "tip";
+  type: "view" | "unlock" | "payment" | "rating" | "tip" | "nibshare_view" | "nibshare_unlock";
   actor: string;
   contentTitle: string;
   contentUrl: string;
@@ -21,6 +21,8 @@ type Activity = {
   id: string;
   websiteId?: string;
   domain?: string;
+  source?: string;
+  ownerWallet?: string;
   currency?: string;
   referrer?: string;
   durationMs?: number;
@@ -47,7 +49,9 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode }> = {
   unlock: { label: "Unlock", icon: <FiUnlock size={18} /> },
   payment: { label: "Payment", icon: <FiDollarSign size={18} /> },
   rating: { label: "Rating", icon: <FiStar size={18} /> },
-  tip: { label: "Tip", icon: <FiGift size={18} /> },
+  tip: { label: "Tip", icon: <FiCoffee size={18} /> },
+  nibshare_view: { label: "Nibshare view", icon: <FiEye size={18} /> },
+  nibshare_unlock: { label: "Nibshare unlock", icon: <FiUnlock size={18} /> },
 };
 
 const MAX_FEED_ITEMS = 300;
@@ -72,7 +76,7 @@ export default function LedgerPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState(false);
-  const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, tips: 0, total: 0 });
+  const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, tips: 0, nibshareViews: 0, nibshareUnlocks: 0, nibshareRevenue: 0, total: 0 });
 
   const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set());
   const knownIdsRef = useRef<Set<string>>(new Set());
@@ -140,7 +144,7 @@ export default function LedgerPage() {
   const filtered = activities.filter((a) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return [a.contentTitle, a.id, a.domain, a.actor, a.txHash, a.paymentId, a.walletAddress, a.payerWallet, a.recipientWallet]
+    return [a.contentTitle, a.id, a.domain, a.actor, a.txHash, a.paymentId, a.walletAddress, a.payerWallet, a.recipientWallet, a.ownerWallet]
       .some((v) => (v || "").toLowerCase().includes(q));
   });
 
@@ -155,23 +159,32 @@ export default function LedgerPage() {
             <div>
               <p className="text-xl font-medium">Ledger</p>
               <h1 className="nibgate-display-title mt-4 max-w-4xl text-5xl font-medium md:text-7xl">Network activity.</h1>
-              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Live feed of views, unlocks, payments, ratings, and tips across all sites — every entry is verifiable with on-chain proofs or signed receipts.</p>
+              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Live feed of views, unlocks, payments, ratings, tips, and nibshares across all sites — every entry is verifiable with on-chain proofs or signed receipts. Nibshare links stay private: titles and payments show, links never do.</p>
             </div>
           </div>
 
-          {/* Totals — barometer animation */}
-          <div className="grid gap-3 mt-8 grid-cols-2 sm:grid-cols-6">
-            {[
-              { label: "Total", value: serverTotals.total },
-              { label: "Views", value: serverTotals.views },
-              { label: "Unlocks", value: serverTotals.unlocks },
-              { label: "Payments", value: serverTotals.payments },
-              { label: "Ratings", value: serverTotals.ratings },
-              { label: "Tips", value: serverTotals.tips },
-            ].map((s) => (
+          {/* Totals — barometer animation. Nibshare filter scopes to nibshare-only stats. */}
+          <div className="grid gap-3 mt-8 grid-cols-2 sm:grid-cols-7">
+            {(filter === "nibshare"
+              ? [
+                  { label: "Nib total", value: serverTotals.nibshareViews + serverTotals.nibshareUnlocks },
+                  { label: "Nib views", value: serverTotals.nibshareViews },
+                  { label: "Nib unlocks", value: serverTotals.nibshareUnlocks },
+                  { label: "Nib revenue", text: `${serverTotals.nibshareRevenue.toFixed(2)} USDC` },
+                ]
+              : [
+                  { label: "Total", value: serverTotals.total },
+                  { label: "Views", value: serverTotals.views },
+                  { label: "Unlocks", value: serverTotals.unlocks },
+                  { label: "Payments", value: serverTotals.payments },
+                  { label: "Ratings", value: serverTotals.ratings },
+                  { label: "Tips", value: serverTotals.tips },
+                  { label: "Nibshares", value: serverTotals.nibshareUnlocks },
+                ]
+            ).map((s) => (
               <div key={s.label} className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
                 <span className="opacity-60">{s.label}</span>
-                <strong className="ml-2"><CountUp value={s.value} /></strong>
+                <strong className="ml-2">{"text" in s && s.text != null ? s.text : <CountUp value={s.value || 0} />}</strong>
               </div>
             ))}
           </div>
@@ -184,7 +197,7 @@ export default function LedgerPage() {
               className="flex-1 rounded-full border border-black/45 bg-white px-5 py-3 text-sm outline-none transition focus:border-black focus:ring-2 focus:ring-black/10"
             />
             <div className="flex gap-2 flex-wrap">
-              {["", "views", "unlocks", "payments", "ratings", "tips"].map((t) => (
+              {["", "views", "unlocks", "payments", "ratings", "tips", "nibshare"].map((t) => (
                 <button key={t} onClick={() => setFilter(t)}
                   className={`rounded-full border px-5 py-3 text-sm font-medium transition ${filter === t ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}>
                   {t || "All"}
@@ -217,7 +230,7 @@ export default function LedgerPage() {
                     {filtered.map((a) => {
                       const k = a.id;
                       const open = expanded.has(k);
-                      const meta = TYPE_META[a.type];
+                      const meta = TYPE_META[a.type] || { label: a.type, icon: null };
                       return (
                         <Fragment key={k}>
                           <tr className={"border-b transition cursor-pointer hover:bg-gray/70" + (newItemIds.has(a.id) ? " " + styles.slideIn : "")} onClick={() => toggle(k)} style={{ borderColor: 'var(--nib-border-soft)' }}>
@@ -230,10 +243,16 @@ export default function LedgerPage() {
                                   <Image src={a.imageUrl} alt="" width={40} height={40} className="h-10 w-10 rounded-lg border border-dark-gray/40 object-cover shrink-0 bg-gray" unoptimized />
                                 ) : null}
                                 <div className="min-w-0">
-                                  <Link href={a.contentUrl || "#"} target="_blank" onClick={(e) => e.stopPropagation()}
-                                    className="underline underline-offset-2 decoration-dark-gray/40 hover:decoration-black font-medium">
-                                    {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
-                                  </Link>
+                                  {a.contentUrl ? (
+                                    <Link href={a.contentUrl} target="_blank" onClick={(e) => e.stopPropagation()}
+                                      className="underline underline-offset-2 decoration-dark-gray/40 hover:decoration-black font-medium">
+                                      {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
+                                    </Link>
+                                  ) : (
+                                    <span className="font-medium" title="Private share — link hidden">
+                                      {a.contentTitle.length > 50 ? `${a.contentTitle.slice(0, 50)}...` : a.contentTitle}
+                                    </span>
+                                  )}
                                   {a.domain && <div className="text-sm opacity-60 truncate">{a.domain}</div>}
                                 </div>
                               </div>
@@ -242,6 +261,7 @@ export default function LedgerPage() {
                             <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
                               {a.type === "payment" && <span>{a.amount} {a.currency}</span>}
                               {a.type === "tip" && <span>{a.amount} {a.currency}</span>}
+                              {a.type === "nibshare_unlock" && <span>{a.amount} {a.currency}</span>}
                               {a.type === "unlock" && a.revenue ? <span>{a.revenue} {a.currency}</span> : null}
                               {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
                               {a.type === "view" && a.durationMs ? <span>{(a.durationMs / 1000).toFixed(0)}s</span> : null}
@@ -281,6 +301,10 @@ export default function LedgerPage() {
                                   {a.type === "payment" && a.protocolFee != null && <Det label="Protocol Fee" value={`${a.protocolFee} ${a.currency || "USDC"}`} />}
                                   {a.type === "tip" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
                                   {a.type === "tip" && a.protocolFee != null && <Det label="Protocol Fee" value={`${a.protocolFee} ${a.currency || "USDC"}`} />}
+                                  {a.type === "nibshare_unlock" && <Det label="Amount" value={`${a.amount || 0} ${a.currency || "USDC"}`} />}
+                                  {a.type === "nibshare_unlock" && a.protocolFee != null && <Det label="Protocol Fee" value={`${a.protocolFee} ${a.currency || "USDC"}`} />}
+                                  {(a.type === "nibshare_view" || a.type === "nibshare_unlock") && <Det label="Share" value="Private — link hidden" />}
+                                  {a.ownerWallet && <Det label="Creator" value={a.ownerWallet} />}
                                   {a.paymentId && <Det label="Payment ID" value={a.paymentId} />}
                                   {a.txHash && <Det label={a.paymentProvider === "circle-gateway" ? "Gateway Ref" : "Tx Hash"} value={a.txHash} />}
                                   {a.chainId && <Det label="Chain ID" value={a.chainId} />}

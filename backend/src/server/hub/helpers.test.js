@@ -13,6 +13,10 @@ const dbMock = vi.hoisted(() => ({
   metric: { updateMany: vi.fn() },
   contentEvent: { updateMany: vi.fn() },
   blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
+  tip: { findMany: vi.fn() },
+  nibShare: { findMany: vi.fn() },
+  nibShareReceipt: { findMany: vi.fn(), count: vi.fn() },
+  nibShareEvent: { findMany: vi.fn(), count: vi.fn() },
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({ db: dbMock }));
@@ -42,6 +46,10 @@ import {
   createMetric,
   mirrorPeerBlogPost,
   absoluteResourceUrl,
+  tipRevenueByContentId,
+  attributeTips,
+  nibshareStatsByWallet,
+  platformMoneyTotals,
 } from './helpers.js';
 
 describe('cross-stack verification sync', () => {
@@ -418,5 +426,77 @@ describe('absoluteResourceUrl canonicalization', () => {
   it('resolves a relative path against the site origin', () => {
     expect(absoluteResourceUrl(site, { path: '/writing/z' }))
       .toBe('https://thedeepend.testnet.nibgate.xyz/writing/z');
+  });
+});
+
+describe('tip + nibshare money attribution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('tipRevenueByContentId nets refunds and ignores held tips', async () => {
+    dbMock.tip.findMany.mockResolvedValue([
+      { contentId: 'c1', amount: 1 },
+      { contentId: 'c1', amount: 0.5 },
+      { contentId: 'c1', amount: -1, status: 'refunded' },
+      { contentId: 'c2', amount: 2 },
+    ]);
+    const map = await tipRevenueByContentId(['c1', 'c2']);
+    expect(map.get('c1')).toBeCloseTo(0.5);
+    expect(map.get('c2')).toBe(2);
+    // held tips never reach the query: only money statuses are requested
+    expect(dbMock.tip.findMany.mock.calls[0][0].where.status).toEqual({ in: ['settled', 'released', 'refunded'] });
+  });
+
+  it('attributeTips counts each tip once with contentId > websiteId > domain priority', async () => {
+    dbMock.tip.findMany.mockResolvedValue([
+      { contentId: 'c1', websiteId: 's9', domain: 'other.xyz', contentUrl: '', amount: 1 },
+      { contentId: null, websiteId: 's1', domain: null, contentUrl: '', amount: 2 },
+      { contentId: null, websiteId: null, domain: 'alpha.nibgate.xyz', contentUrl: '', amount: 4 },
+      { contentId: null, websiteId: null, domain: null, contentUrl: 'https://alpha.nibgate.xyz/post', amount: 8 },
+      { contentId: null, websiteId: null, domain: null, contentUrl: 'https://unknown.xyz/x', amount: 16 },
+    ]);
+    const out = await attributeTips({
+      contentToSite: new Map([['c1', 's1']]),
+      siteToOwner: new Map([['s1', 'u1']]),
+      domainToSite: new Map([['alpha.nibgate.xyz', 's1']]),
+    });
+    expect(out.byContent.get('c1')).toBe(1);
+    // s1: 1 (via content) + 2 (websiteId) + 4 (domain) + 8 (url host) = 15, unknown skipped
+    expect(out.bySite.get('s1')).toBe(15);
+    expect(out.byOwner.get('u1')).toBe(15);
+    expect(out.bySite.has('s9')).toBe(false);
+  });
+
+  it('nibshareStatsByWallet matches wallets case-insensitively and counts paid only', async () => {
+    dbMock.nibShare.findMany.mockResolvedValue([
+      { id: 'sh1', ownerWallet: '0xABC' },
+    ]);
+    dbMock.nibShareReceipt.findMany.mockResolvedValue([
+      { shareId: 'sh1', amount: 1.5 },
+      { shareId: 'sh1', amount: 0 },
+    ]);
+    dbMock.nibShareEvent.findMany.mockResolvedValue([
+      { shareId: 'sh1' }, { shareId: 'sh1' },
+    ]);
+    const map = await nibshareStatsByWallet(['0xabc']);
+    expect(map.get('0xabc')).toEqual({ revenue: 1.5, unlocks: 1, views: 2 });
+  });
+
+  it('platformMoneyTotals nets tips and sums nibshare revenue', async () => {
+    dbMock.tip.findMany.mockResolvedValue([
+      { amount: 1, status: 'settled', protocolFee: 0.01 },
+      { amount: -1, status: 'refunded', protocolFee: 0 },
+    ]);
+    dbMock.nibShareReceipt.findMany.mockResolvedValue([{ amount: 2, protocolFee: 0.02 }]);
+    dbMock.nibShareEvent.count.mockResolvedValue(7);
+    dbMock.nibShareReceipt.count.mockResolvedValue(3);
+    const t = await platformMoneyTotals();
+    expect(t.tipRevenue).toBe(0);
+    expect(t.tips).toBe(1);
+    expect(t.tipFees).toBeCloseTo(0.01);
+    expect(t.nibshareRevenue).toBe(2);
+    expect(t.nibshareUnlocks).toBe(3);
+    expect(t.nibshareViews).toBe(7);
   });
 });

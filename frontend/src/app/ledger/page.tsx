@@ -165,7 +165,7 @@ export default function LedgerPage() {
 
           {/* Totals — barometer animation. Flex (not grid) so tiles size to their
               content: one line each, no overflow, no stretched boxes. */}
-          <div className="flex flex-wrap gap-3 mt-8">
+          <div className="flex flex-wrap justify-center gap-3 mt-8">
             {(filter === "nibshare"
               ? [
                   { label: "Nibshare total", value: serverTotals.nibshareViews + serverTotals.nibshareUnlocks },

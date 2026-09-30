@@ -37,6 +37,10 @@ writeskill.md
 
 # revenue model research (kept local, not committed)
 /revenue-model/
+# dr-nib reference implementations (third-party, re-fetchable — see dr-nib/references/README.md)
+dr-nib/references/gpt-researcher/
+dr-nib/references/open-deep-research/
+dr-nib/references/storm/
 # Playwright e2e harness: track the code (configs, specs, helpers), ignore
 # run outputs (screenshots, reports, traces)
 /e2e/*

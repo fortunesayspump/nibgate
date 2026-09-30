@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ResearchRun {
+  id          String   @id @default(uuid())
+  brief       Json
+  plan        Json?
+  depth       String   @default("standard")
+  status      String   @default("draft")
+  budgetCap   Float
+  provider    String   @default("hub")
+  versions    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  steps       ResearchStep[]
+  sources     ResearchSource[]
+  claims      ResearchClaim[]
+  reports     ResearchReport[]
+  exports     ResearchExport[]
+  ledger      BudgetLedger[]
+  decisions   ResearchDecision[]
+
+  @@index([status, updatedAt])
+}
+
+model ResearchStep {
+  id        String    @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  kind      String
+  status    String    @default("pending")
+  input     Json?
+  output    Json?
+  cost      Float     @default(0)
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([runId])
+}
+
+model ResearchSource {
+  id        String   @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  url       String
+  title     String?
+  domain    String?
+  relevance Float?
+  trust     Float?
+  cost      Float    @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([runId, url])
+  @@index([runId])
+}
+
+model ResearchClaim {
+  id        String   @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  text      String
+  status    String   @default("unknown")
+  passages  Json     @default("[]")
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+}
+
+model ResearchReport {
+  id        String   @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  version   Int
+  markdown  String
+  citations Json     @default("[]")
+  createdAt DateTime @default(now())
+
+  @@unique([runId, version])
+  @@index([runId])
+}
+
+model ResearchExport {
+  id            String   @id @default(uuid())
+  runId         String
+  run           ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reportVersion Int
+  format        String
+  r2Key         String?
+  status        String   @default("queued")
+  createdAt     DateTime @default(now())
+
+  @@index([runId])
+}
+
+model BudgetLedger {
+  id        String   @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  kind      String
+  amount    Float
+  txRef     String?
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+}
+
+model ResearchDecision {
+  id        String   @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  step      String
+  question  Json
+  criteria  String?
+  output    Json
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+}

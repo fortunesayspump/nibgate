@@ -73,7 +73,6 @@ html, body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  scrollbar-gutter: stable;
   background-color: var(--nib-header-bg, #10110e);
   color: var(--ink);
   font-family: var(--font-ui);
@@ -483,23 +482,19 @@ td {
 /* Custom Sidebar Flat Boxes */
 .dashboard-sidebar {
   padding: 0 !important;
-  position: fixed !important;
-  top: 80px;
-  bottom: 0;
-  left: 0;
   width: 248px !important;
-  z-index: 10;
   flex: 0 0 248px;
   min-width: 248px;
+  height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 .dashboard-main-content {
-  margin-left: 248px;
-  width: calc(100% - 248px);
-  min-height: calc(100vh - 80px);
+  flex: 1 1 auto;
   min-width: 0;
+  height: 100%;
+  min-height: 0;
   overflow-x: auto;
 }
 
@@ -554,9 +549,14 @@ td {
 
 @media (max-width: 1023px) {
   .dashboard-sidebar {
+    position: fixed;
+    top: calc(80px + var(--testnet-banner-h, 0px));
+    bottom: 0;
+    left: 0;
+    height: auto;
+    z-index: 10;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    z-index: 10;
   }
   .dashboard-sidebar.mobile-open {
     transform: translateX(0);
@@ -588,7 +588,7 @@ td {
   font-family: var(--font-display, "Kumbh Sans", "ABC Favorit", Arial, sans-serif);
   font-size: 18px;
   font-weight: 500;
-  min-height: 80px;
+  min-height: 104px;
   display: flex;
   flex-direction: column;
   align-items: center;

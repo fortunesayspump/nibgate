@@ -59,7 +59,7 @@ function resolveTarget({ resource, challenge, recipient, amount }) {
   }
 }
 
-export function useNibgateTip({ resource, challenge, recipient, amount, apiBase, onPaid } = {}) {
+export function useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid } = {}) {
   const { address, isConnected } = useAppKitAccount()
   const { walletProvider } = useAppKitProvider('eip155')
   const [status, setStatus] = useState('idle')
@@ -67,6 +67,7 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
   const [receipt, setReceipt] = useState(null)
   const providerRef = useRef(null)
   useEffect(() => { providerRef.current = walletProvider || null }, [walletProvider])
+  const MIN_TIP = Number(minAmount ?? 0.1);
 
   const tip = useCallback(async (tipAmount) => {
     const account = address
@@ -82,6 +83,7 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
     // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
     if (!resolved && (!base || !domain)) throw new Error('No recipient to tip.')
     if (!(target.amount > 0)) throw new Error('Tip amount must be above zero.')
+    if (!(target.amount >= MIN_TIP)) throw new Error(`Minimum tip is $${MIN_TIP.toFixed(2)}.`)
     // Hosted creators are paid through their per-creator fee wallet (CREATE2),
     // not the creator EOA, so the hub can verify the tx and split the fee.
     // Resolve the payee via the tip challenge; fall back to the creator.
@@ -218,9 +220,10 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
 }
 
 // Compact inline tip control: "Tip me" button + amount, no chrome.
-export function NibgateTipInline({ resource, challenge, recipient, amount, amounts, apiBase, onPaid, style }) {
-  const { tip, status, error } = useNibgateTip({ resource, challenge, recipient, amount, apiBase, onPaid })
-  const presets = Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]
+export function NibgateTipInline({ resource, challenge, recipient, amount, amounts, minAmount, apiBase, onPaid, style }) {
+  const { tip, status, error } = useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid })
+  const min = Number(minAmount ?? 0.1);
+  const presets = (Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]).filter((a) => Number(a) >= min);
   const busy = status === 'switching' || status === 'signing'
   return (
     <span data-nibgate-tip-inline style={{ display: 'inline-flex', gap: 8, alignItems: 'center', ...(style || {}) }}>
@@ -245,15 +248,14 @@ export function NibgateTipInline({ resource, challenge, recipient, amount, amoun
 }
 
 // Status-line CTA. One persistent element so the idle → armed change actually
-// animates (dotted underline fades in, arrow slides on hover). Always tips:
-// the custom amount when valid, else the fallback (default preset).
-function CtaButton({ custom, fallback, hoverCta, setHoverCta, onTip }) {
-  const amt = Number(custom) > 0 ? Number(custom) : (Number(fallback) > 0 ? Number(fallback) : 0);
-  const armed = amt > 0;
+// animates (dotted underline fades in, arrow slides on hover). Clicking with
+// no valid amount is a no-op.
+function CtaButton({ custom, hoverCta, setHoverCta, onTip }) {
+  const armed = Number(custom) > 0;
   return (
     <button
       type="button"
-      onClick={() => { if (armed) onTip(amt) }}
+      onClick={() => { if (armed) onTip(Number(custom)) }}
       onMouseEnter={() => setHoverCta(true)}
       onMouseLeave={() => setHoverCta(false)}
       onFocus={() => setHoverCta(true)}
@@ -278,12 +280,13 @@ function CtaButton({ custom, fallback, hoverCta, setHoverCta, onTip }) {
 
 // Full tip block, styled like NibgateRatingUI: centered, no title, amounts as
 // the interactive row, status line beneath. Straight to the point.
-export function NibgateTipCard({ resource, challenge, recipient, amount, amounts, apiBase, onPaid, style }) {
-  const { tip, status, error, receipt, isConnected, address } = useNibgateTip({ resource, challenge, recipient, amount, apiBase, onPaid })
+export function NibgateTipCard({ resource, challenge, recipient, amount, amounts, minAmount, apiBase, onPaid, style }) {
+  const { tip, status, error, receipt, isConnected, address } = useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid })
   const [custom, setCustom] = useState('')
   const [hover, setHover] = useState(null)
   const [hoverCta, setHoverCta] = useState(false)
-  const presets = Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]
+  const min = Number(minAmount ?? 0.1);
+  const presets = (Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]).filter((a) => Number(a) >= min);
   const busy = status === 'switching' || status === 'signing'
   const label = error || (status === 'switching' ? 'Switching network…' : status === 'signing' ? 'Confirm in your wallet…' : status === 'done' ? 'Tipped ✓' : 'Tip the creator')
   const amountBtn = (a) => ({
@@ -338,8 +341,9 @@ export function NibgateTipCard({ resource, challenge, recipient, amount, amounts
         </span>
         <span style={{ fontSize: 17, color: 'var(--muted, #6b6862)', marginLeft: 12 }}>USDC</span>
       </div>
+      {min > 0 ? <div style={{ fontSize: 13, color: 'var(--muted, #6b6862)', marginTop: 6 }}>Minimum tip ${min.toFixed(2)} USDC</div> : null}
       <div style={{ fontSize: 17, color: error ? '#dc2626' : 'var(--muted, #6b6862)', marginTop: 8, minHeight: '1.4em' }}>
-        {(busy || error) ? label : <CtaButton custom={custom} fallback={presets[0]} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} />}
+        {(busy || error) ? label : <CtaButton custom={custom} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} />}
       </div>
       {receipt || isConnected ? (
         <div style={{ fontSize: 13, color: 'var(--muted, #6b6862)', marginTop: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>

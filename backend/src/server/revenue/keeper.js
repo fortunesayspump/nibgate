@@ -26,11 +26,22 @@ function addCreator(set, value) {
 
 async function listCreators() {
   const creators = new Set();
-  // Always-sweep allowlist for stranded wallets that earn through a fee
-  // wallet but own no sites and have no content/receipt rows carrying them
-  // (e.g. after an ownership move). Keeps funds from sitting unswept.
-  for (const raw of String(process.env.NIBGATE_FEE_KEEPER_EXTRA_CREATORS || '').split(',')) {
-    addCreator(creators, raw);
+  try {
+    // Verified-site owners are the canonical hosted payees (same source the hub
+    // /api/hub/resolve uses). Their payout wallet can live on the Wallet
+    // relation OR User.walletAddress, so read both — otherwise subblog creators
+    // whose fee wallets hold funds are never discovered (the root cause of
+    // stranded credits).
+    const sites = await db.website.findMany({
+      where: { deletedAt: null, isVerified: true },
+      select: { owner: { select: { walletAddress: true, wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }], select: { address: true } } } } },
+    });
+    for (const s of sites) {
+      for (const w of (s.owner?.wallets || [])) addCreator(creators, w.address);
+      addCreator(creators, s.owner?.walletAddress);
+    }
+  } catch (error) {
+    console.log('Revenue keeper: site-owner discovery failed:', error.message);
   }
   try {
     const shares = await db.nibShare.findMany({ select: { ownerWallet: true }, where: { price: { gt: 0 } } });

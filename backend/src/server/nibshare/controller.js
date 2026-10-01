@@ -210,8 +210,10 @@ export async function recordView(req, res) {
   try {
     const share = await service.findShareBySlug(req.params.slug);
     if (!share) return res.status(404).json({ error: 'Share not found' });
-    await service.recordView(share, String(req.body?.viewer || '').toLowerCase() || null);
-    res.json({ success: true });
+    const viewer = String(req.body?.viewer || '').toLowerCase() || null;
+    const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'unknown';
+    const result = await service.recordView(share, viewer, { dedupeKey: `anon:${ip}` });
+    res.json({ success: true, deduped: Boolean(result?.deduped) });
   } catch (error) {
     res.status(500).json({ error: 'Failed to record view', details: error.message });
   }

@@ -1,4 +1,5 @@
 import { normalizeResource } from '../core/resource.js';
+import { transferOwnershipMessage } from '../core/ownership.js';
 import { checkResourceAccess } from './index.js';
 
 export function createTransferCheckout(resource, options = {}) {
@@ -38,15 +39,26 @@ export function createTransferCheckout(resource, options = {}) {
 }
 
 export async function payWithTransfer(resource, options = {}) {
+  const normalized = normalizeResource(resource);
   const checkout = options.checkout || createTransferCheckout(resource, options).pay;
-  const result = await checkout({ resource: normalizeResource(resource), challenge: options.challenge || null });
+  const result = await checkout({ resource: normalized, challenge: options.challenge || null });
   const txHash = result?.metadata?.txHash || result?.txHash || result?.paymentSignature || result?.signature || '';
   if (!txHash) throw new Error('Transfer checkout did not return a txHash.');
+  // The hub requires an ownership proof binding the (public) txHash to this
+  // resource. Prefer one the checkout already produced; else sign it here via
+  // options.signOwnership({ txHash, resource, message }). Without it every
+  // hosted direct unlock 402s.
+  let ownerProof = (result?.headers || {})['x-nibgate-tx-owner'] || options.txOwnerProof || '';
+  if (!ownerProof && typeof options.signOwnership === 'function') {
+    ownerProof = await options.signOwnership({ txHash, resource: normalized, message: transferOwnershipMessage(txHash, normalized) });
+  }
   return checkResourceAccess(resource, {
     ...options,
     headers: {
       ...(options.headers || {}),
-      'x-nibgate-transfer-tx': txHash
+      'x-nibgate-transfer-tx': txHash,
+      ...(ownerProof ? { 'x-nibgate-tx-owner': ownerProof } : {}),
+      ...(result?.headers || {})
     },
     payment: result.metadata || { paymentProvider: 'direct-transfer', txHash, paymentId: txHash }
   });

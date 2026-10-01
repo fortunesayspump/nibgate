@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppKitAccount } from '@nibgate/wallet/react';
 import ContentViewer from './ContentViewer';
 import UnlockGate from './UnlockGate';
@@ -13,11 +13,20 @@ export default function ShareClient({ slug, meta }: { slug: string; meta: ShareM
   const { connect, busy: connecting } = useNibgateConnect();
   const [freePayload, setFreePayload] = useState<AccessPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Record at most one view per actor (anonymous once, each wallet once) for the
+  // life of the page. Wallets that flap connect/disconnect (e.g. in-app browsers)
+  // previously re-fired this on every address change and spammed viewCount.
+  const viewRecorded = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    const key = address ? address.toLowerCase() : 'anon';
+    if (viewRecorded.current[key]) return;
+    viewRecorded.current[key] = true;
+    nibshareApi.recordView(slug, address).catch(() => {});
+  }, [slug, address]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      nibshareApi.recordView(slug, address).catch(() => {});
       if (!(Number(meta.price) > 0)) {
         try {
           const data = await nibshareApi.access(slug, { wallet: address });

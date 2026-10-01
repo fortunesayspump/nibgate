@@ -151,7 +151,7 @@ const PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000
 // re-signs the ownership message for the txHash already on-chain and resubmits
 // the existing payment, so the buyer is never charged twice. Anything that
 // genuinely cannot be recovered is surfaced for support rather than retried.
-function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, setProof, setUnlocked }) {
+function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, setProof, setUnlocked, address, walletProvider }) {
   const runningRef = useRef(false)
   const [recovering, setRecovering] = useState(false)
   const [pendingRecovery, setPendingRecovery] = useState(null)
@@ -758,6 +758,8 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     setPayload,
     setProof,
     setUnlocked,
+    address,
+    walletProvider,
   })
 
   return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail: switchRail, pendingRecovery: recovery.pendingRecovery, recovering: recovery.recovering, runRecovery: () => recovery.runRecovery(walletProvider, address), dismissRecovery: () => recovery.setPendingRecovery(null) }

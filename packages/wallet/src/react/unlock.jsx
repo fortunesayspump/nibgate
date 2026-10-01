@@ -8,7 +8,7 @@ import { ensureWalletAuthorized } from './authorize.js'
 import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
-import { ownershipMessage } from '@nibgate/sdk'
+import { ownershipMessage, transferOwnershipMessage } from '@nibgate/sdk'
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
 import { GatewayWalletUI } from './gateway-wallet.jsx'
@@ -204,8 +204,16 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       const data = encodeFunctionData({ abi: USDC_TRANSFER_ABI, functionName: 'transfer', args: [payTo, amountUsdc] })
       const tx = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account: account })
       const txHash = tx?.hash || tx || ''
+      // The hub requires an ownership proof binding the txHash to this resource
+      // (a broadcast tx is public, so without it anyone could replay it). Sign
+      // it here and hand the headers to the SDK to send on the verify request.
+      const ownerProof = await walletClient.signMessage({ account: account, message: transferOwnershipMessage(txHash, resource) })
       return {
         paymentSignature: txHash,
+        headers: {
+          'x-nibgate-transfer-tx': txHash,
+          'x-nibgate-tx-owner': ownerProof,
+        },
         metadata: {
           paymentProvider: 'direct-transfer',
           paymentId: txHash,
@@ -262,10 +270,15 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     const w = addressRef.current
     const rail = railRef.current || resource.paymentRail || 'gateway'
     if (!path) return path
-    const base = `${path}${path.includes('?') ? '&' : '?'}rail=${encodeURIComponent(rail)}`
-    if (!w) return base
-    return `${base}&wallet=${encodeURIComponent(w)}`
-  }, [resource.paymentRail])
+    const parts = [`rail=${encodeURIComponent(rail)}`]
+    // The hub binds the transfer ownership proof to resource.path and the
+    // access route is a GET, so the path must ride the query string (a body
+    // isn't sent) — otherwise the client's signed message can never match the
+    // server's.
+    if (resource.path) parts.push(`path=${encodeURIComponent(resource.path)}`)
+    if (w) parts.push(`wallet=${encodeURIComponent(w)}`)
+    return `${path}${path.includes('?') ? '&' : '?'}${parts.join('&')}`
+  }, [resource.paymentRail, resource.path])
 
   const signInIfEnabled = useCallback(async () => {
     if (!siweEnabledRef.current) return

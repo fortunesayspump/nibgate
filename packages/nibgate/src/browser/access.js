@@ -104,6 +104,7 @@ export async function payWithPaymentSignature(resource, options = {}) {
   let paymentSignature = options.paymentSignature || '';
   let paymentMemo = options.memo || '';
   let paymentMetadata = options.payment || {};
+  let resultHeaders = {};
 
   if (!paymentSignature) {
     const paymentRequiredHeader = options.paymentRequiredHeader || '';
@@ -121,6 +122,9 @@ export async function payWithPaymentSignature(resource, options = {}) {
     paymentSignature = result?.paymentSignature || result?.signature || result?.payment || '';
     paymentMemo = result?.memo || result?.paymentMemo || '';
     paymentMetadata = result?.metadata || result?.paymentMetadata || result || {};
+    // Direct-rail checkouts return the txHash + ownership-proof headers the
+    // hub requires (x-nibgate-transfer-tx / x-nibgate-tx-owner).
+    resultHeaders = result?.headers || {};
   }
 
   if (!paymentSignature) {
@@ -136,6 +140,7 @@ export async function payWithPaymentSignature(resource, options = {}) {
       accept: 'application/json',
       'payment-signature': paymentSignature,
       ...(paymentMemo ? { 'payment-memo': paymentMemo } : {}),
+      ...resultHeaders,
       ...(options.headers || {})
     }
   });

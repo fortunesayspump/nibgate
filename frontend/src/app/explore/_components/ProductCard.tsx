@@ -133,7 +133,7 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
   return (
     <article className={`explore-feature-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <figure className="explore-art">
-        <Image src={productImage(product)} alt="" width={800} height={600} priority={priority} sizes="(max-width: 900px) 100vw, 560px" unoptimized />
+        <Image src={productImage(product)} alt="" width={800} height={600} priority={priority} sizes="(max-width: 900px) 100vw, 560px" />
         {product.type === 'Video' && playIcon}
         {product.type === 'Music' && waveform}
         {product.type === 'Document' && docIcon}
@@ -177,7 +177,7 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
         </div>
       </div>
       <div className="article-body">
-        <Image className="article-media" src={productImage(product)} alt="Article cover" width={800} height={450} unoptimized />
+        <Image className="article-media" src={productImage(product)} alt="Article cover" width={800} height={450} sizes="(max-width: 900px) 100vw, 720px" />
         <div className="article-content">
           <h3 className="article-title">{product.title}</h3>
           <p className="article-summary">{product.summary || 'No description available for this content.'}</p>
@@ -204,7 +204,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
   return (
     <article className={`market-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="market-media" style={{ aspectRatio: randomRatio }}>
-        <Image className="market-thumbnail" src={productImage(product)} alt={product.title} width={800} height={600} sizes="(max-width: 900px) 100vw, 400px" unoptimized />
+        <Image className="market-thumbnail" src={productImage(product)} alt={product.title} width={800} height={600} sizes="(max-width: 900px) 100vw, 400px" />
         
         {product.type === 'Video' && (
           <div className="market-play-icon">

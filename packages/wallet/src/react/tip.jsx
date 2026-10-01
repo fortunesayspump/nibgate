@@ -82,6 +82,20 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
     // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
     if (!resolved && (!base || !domain)) throw new Error('No recipient to tip.')
     if (!(target.amount > 0)) throw new Error('Tip amount must be above zero.')
+    // Hosted creators are paid through their per-creator fee wallet (CREATE2),
+    // not the creator EOA, so the hub can verify the tx and split the fee.
+    // Resolve the payee via the tip challenge; fall back to the creator.
+    let payToAddr = resolved ? target.to : '';
+    if (base && payToAddr) {
+      try {
+        const chRes = await fetch(`${base}/hub/tips/challenge`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', recipient: payToAddr }),
+        });
+        const ch = await chRes.json().catch(() => ({}));
+        if (chRes.ok && ch?.payee && /^0x[a-fA-F0-9]{40}$/.test(ch.payee)) payToAddr = ch.payee;
+      } catch {}
+    }
     setStatus('switching')
     setError('')
     try {
@@ -130,7 +144,7 @@ export function useNibgateTip({ resource, challenge, recipient, amount, apiBase,
         return out
       }
 
-      const hash = await sendTo(target.to, target.amount)
+      const hash = await sendTo(payToAddr, target.amount)
       const out = {
         type: 'tip',
         held: false,
@@ -231,14 +245,15 @@ export function NibgateTipInline({ resource, challenge, recipient, amount, amoun
 }
 
 // Status-line CTA. One persistent element so the idle → armed change actually
-// animates (dotted underline fades in, arrow slides on hover). Clicking with
-// no valid amount is a no-op.
-function CtaButton({ custom, hoverCta, setHoverCta, onTip }) {
-  const armed = Number(custom) > 0;
+// animates (dotted underline fades in, arrow slides on hover). Always tips:
+// the custom amount when valid, else the fallback (default preset).
+function CtaButton({ custom, fallback, hoverCta, setHoverCta, onTip }) {
+  const amt = Number(custom) > 0 ? Number(custom) : (Number(fallback) > 0 ? Number(fallback) : 0);
+  const armed = amt > 0;
   return (
     <button
       type="button"
-      onClick={() => { if (armed) onTip(Number(custom)) }}
+      onClick={() => { if (armed) onTip(amt) }}
       onMouseEnter={() => setHoverCta(true)}
       onMouseLeave={() => setHoverCta(false)}
       onFocus={() => setHoverCta(true)}
@@ -324,7 +339,7 @@ export function NibgateTipCard({ resource, challenge, recipient, amount, amounts
         <span style={{ fontSize: 17, color: 'var(--muted, #6b6862)', marginLeft: 12 }}>USDC</span>
       </div>
       <div style={{ fontSize: 17, color: error ? '#dc2626' : 'var(--muted, #6b6862)', marginTop: 8, minHeight: '1.4em' }}>
-        {(busy || error) ? label : <CtaButton custom={custom} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} />}
+        {(busy || error) ? label : <CtaButton custom={custom} fallback={presets[0]} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} />}
       </div>
       {receipt || isConnected ? (
         <div style={{ fontSize: 13, color: 'var(--muted, #6b6862)', marginTop: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>

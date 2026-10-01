@@ -351,6 +351,131 @@ export async function runTransferClaim({ txHash, resource, options = {}, fetchIm
   return claimTransferTx({ txHash, contentId: resource.id ?? resource.path ?? '', registryUrl, fetchImpl });
 }
 
+// ── Pre-broadcast preflight ────────────────────────────────────────────────
+// The direct rail has an ordering flaw the protocol cannot remove: the buyer
+// signs and broadcasts the USDC transfer, and only afterwards signs the
+// ownership proof. verifyTransfer() is called after the broadcast is
+// irreversible, so anything it rejects — a mis-resolved fee wallet, an
+// underfunded payer, a challenge that went stale — is charged and locked.
+//
+// EIP-3009 transferWithAuthorization is the real fix (authorize, verify
+// read-only, then settle), but it needs a funded relayer. For surfaces that
+// don't run one, this closes the reachable subset instead: everything the
+// verifier's acceptance criteria depend on, checked BEFORE the buyer is asked
+// to approve a transaction. It cannot catch a signature that fails to produce,
+// or a network drop between broadcast and verification — reconciliation is the
+// safety net for those.
+//
+// Every check here mirrors a condition that would otherwise be discovered only
+// after the money left the wallet:
+//   1. payable        -> price > 0, currency known
+//   2. payTo          -> the fee wallet actually resolves (the silent killer:
+//                        an unreadable factory yields a valid-looking address
+//                        that can never receive, so it fails post-broadcast)
+//   3. amount         -> positive, and equal to the price that will be verified
+//   4. payer          -> syntactically a valid EVM address
+//   5. balance        -> payer holds enough USDC to cover the amount
+//
+// Returns { ok, reason, payTo, amount, currency, network, payerBalance }.
+export async function preflightTransfer(resourceInput, { payer, amount, options = {} } = {}) {
+  const resource = normalizeResource(resourceInput);
+  const fail = (reason, hint, extra = {}) => ({ ok: false, reason, hint, ...extra });
+
+  // A pinned recipient (hub already resolved creator -> fee wallet) must not be
+  // re-resolved, or we'd compute the fee wallet OF the fee wallet — an
+  // undeployed address. Same guard as runHostedTransferRequirement.
+  const pinned = resource.payTo && resource.payTo === resource.recipient;
+  let payTo;
+  try {
+    payTo = pinned
+      ? resource.payTo
+      : await resolvePayTo(
+          resource.recipient || resource.payTo || options.recipient || options.sellerAddress || serverEnv('NIBGATE_SELLER_ADDRESS') || '',
+          options
+        );
+  } catch (error) {
+    // Fail closed: an unreachable fee-wallet factory means we cannot know the
+    // address the verifier will require, so it must not be paid blind.
+    return fail('preflight-payto-unresolved', `Could not resolve the payment address: ${error?.message || error}`);
+  }
+
+  if (!payTo) return fail('preflight-payto-unresolved', 'No payment address is configured for this resource.');
+
+  let resolvedPayTo;
+  try {
+    resolvedPayTo = getAddress(payTo);
+  } catch {
+    return fail('preflight-payto-unresolved', `Payment address is not a valid address: ${payTo}`);
+  }
+
+  const price = Number(resource.price ?? 0);
+  const requested = amount === undefined || amount === null || amount === '' ? price : Number(amount);
+  if (!Number.isFinite(price) || price <= 0) {
+    return fail('preflight-not-payable', 'This resource is not priced for direct payment.');
+  }
+  // A client-supplied amount that disagrees with the challenge would broadcast
+  // a transfer the verifier rejects (it requires value >= price), so refuse it
+  // here rather than after the broadcast.
+  if (!Number.isFinite(requested) || requested <= 0) {
+    return fail('preflight-invalid-amount', 'Payment amount must be a positive number.');
+  }
+  if (Math.abs(requested - price) > 1e-9) {
+    return fail('preflight-amount-mismatch', `Price is ${price}, but the payment would send ${requested}.`, { price, requested });
+  }
+
+  let payerAddress;
+  try {
+    payerAddress = getAddress(String(payer || ''));
+  } catch {
+    return fail('preflight-invalid-payer', 'A valid paying wallet address is required.');
+  }
+
+  const amountWei = BigInt(Math.round(price * 1e6));
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
+  const usdc = options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC;
+  const client = options.publicClient || sharedPublicClient(rpcUrl);
+
+  let balanceWei;
+  try {
+    balanceWei = await withRpcRetry(
+      () => client.readContract({ address: getAddress(usdc), abi: ERC20_ABI, functionName: 'balanceOf', args: [payerAddress] }),
+      { label: 'preflightTransfer.balanceOf' }
+    );
+  } catch (error) {
+    // Unknown balance must not block a payment the user could actually afford;
+    // it also must not silently pass. Report it as unknown and let the buyer
+    // proceed — the wallet shows its own balance and will refuse if too low.
+    return {
+      ok: true,
+      balanceKnown: false,
+      reason: 'preflight-balance-unavailable',
+      payTo: resolvedPayTo,
+      amount: price,
+      currency: resource.currency || 'USDC',
+      network: options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || ARC_TESTNET_CHAIN,
+      detail: `USDC balance could not be read: ${error?.message || error}`,
+    };
+  }
+
+  const balance = BigInt(balanceWei ?? 0n);
+  if (balance < amountWei) {
+    return fail('preflight-insufficient-balance', 'Your USDC balance is lower than the price of this content.', {
+      balance: Number(balance) / 1e6,
+      amount: price,
+    });
+  }
+
+  return {
+    ok: true,
+    balanceKnown: true,
+    payTo: resolvedPayTo,
+    amount: price,
+    currency: resource.currency || 'USDC',
+    network: options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || ARC_TESTNET_CHAIN,
+    payerBalance: Number(balance) / 1e6,
+  };
+}
+
 // Hosted-pay requirement for the hub's transfer (client-broadcast direct) rail.
 // Serves the 402 challenge with the seller (fee wallet) as payTo when no tx is
 // presented, or verifies the buyer's broadcast USDC transfer on-chain and

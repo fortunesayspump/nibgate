@@ -12,17 +12,26 @@
     "start": "node src/server.js",
     "worker": "node src/worker.js",
     "db:push": "npx prisma db push --schema=./prisma/schema.prisma",
-    "db:generate": "npx prisma generate --schema=./prisma/schema.prisma"
+    "db:generate": "npx prisma generate --schema=./prisma/schema.prisma",
+    "db:sql": "npx prisma db execute --schema=./prisma/schema.prisma --stdin",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@nibgate/internal": "workspace:*",
     "@prisma/client": "^5.22.0",
     "bullmq": "^5.12.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "ioredis": "^5.4.1"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "@types/cookie-parser": "^1.4.7",
+    "@types/supertest": "^7.2.1",
+    "prisma": "^5.22.0",
+    "supertest": "^7.3.0",
+    "vitest": "^3.2.7"
   }
 }

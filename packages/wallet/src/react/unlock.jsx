@@ -21,6 +21,28 @@ import { GatewayWalletUI } from './gateway-wallet.jsx'
 
 const NETWORK = activeChain().caip2
 const PROOF_PREFIX = 'nibgate:payment-proof:'
+// A direct-rail attempt that has been broadcast but not yet confirmed as
+// unlocked. Survives reloads and tab closes so an interrupted confirmation can
+// be finished WITHOUT paying again.
+const PENDING_PREFIX = 'nibgate:pending-payment:'
+
+function pendingKey(id) { return `${PENDING_PREFIX}${id}` }
+
+export function readPendingPayment(id) {
+  try {
+    const raw = localStorage.getItem(pendingKey(id))
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function writePendingPayment(id, record) {
+  try {
+    if (record) localStorage.setItem(pendingKey(id), JSON.stringify(record))
+    else localStorage.removeItem(pendingKey(id))
+  } catch {}
+}
+
+export function clearPendingPayment(id) { writePendingPayment(id, null) }
 const USDC = '0x3600000000000000000000000000000000000000'
 const ARC_RPC = activeChain().rpcUrl
 const BALANCE_OF = '0x70a08231'
@@ -54,6 +76,196 @@ function waitForChain(check, timeoutMs = 8000) {
     }
     tick()
   })
+}
+
+// Derive the preflight URL from the access URL by swapping its final segment
+// (/hub/pay -> /hub/preflight, /nibshare/:slug/access -> .../preflight), so every
+// surface gets the check without per-surface configuration.
+function preflightUrlFor(accessUrl) {
+  if (!accessUrl || typeof accessUrl !== 'string') return ''
+  const [pathPart, query = ''] = accessUrl.split('?')
+  const trimmed = pathPart.replace(/\/+$/, '')
+  // Require a parent segment: a bare '/pay' has no route family to derive from,
+  // and guessing '/preflight' would POST at a path that means nothing.
+  if (trimmed.split('/').filter(Boolean).length < 2) return ''
+  const segments = trimmed.split('/')
+  segments[segments.length - 1] = 'preflight'
+  return `${segments.join('/')}${query ? `?${query}` : ''}`
+}
+
+// Read-only pre-broadcast gate for the direct rail.
+//
+// The transfer branch broadcasts an irreversible USDC transfer BEFORE the
+// ownership proof exists, so every reason the hub would later reject — an
+// unresolvable fee wallet, an underfunded payer, an amount that disagrees with
+// the challenge — used to be discovered after the money left the wallet. This
+// asks the hub to re-run those checks first and aborts while nothing has moved.
+//
+// Deliberately FAIL-OPEN: a preflight that is unreachable, errors, or answers
+// something unparseable must not block a payment that would otherwise succeed,
+// otherwise a bug here takes down every unlock. Only an explicit machine
+// `reason` from a 200/402 stops the payment.
+async function runDirectPreflight({ accessUrl, resource, payer, amount, rail }) {
+  const url = preflightUrlFor(accessUrl)
+  if (!url || typeof fetch !== 'function') return { proceed: true, reason: 'preflight-skipped' }
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        contentId: resource?.id,
+        path: resource?.path,
+        title: resource?.title,
+        payer,
+        amount,
+        rail,
+      }),
+    })
+    const body = await res.json().catch(() => null)
+    if (!body || typeof body !== 'object') return { proceed: true, reason: 'preflight-unparseable' }
+    // Server told us the check is unavailable, or there is nothing to pay.
+    if (body.proceedAnyway || body.needed === false) return { proceed: true, reason: body.reason || 'preflight-skipped' }
+    // An explicit rejection with a machine reason is the case we care about.
+    if (!body.ok && body.reason) return { proceed: false, reason: body.reason, hint: body.hint, balance: body.balance, price: body.amount }
+    if (!body.ok) return { proceed: true, reason: 'preflight-soft-fail' }
+    // The hub's payTo is authoritative: it is the exact address the verifier
+    // will match the Transfer log against, including fee-wallet resolution.
+    return { proceed: true, payTo: body.payTo || '', amount: body.amount, currency: body.currency }
+  } catch {
+    return { proceed: true, reason: 'preflight-unreachable' }
+  }
+}
+
+// Age a broadcast note stops being auto-recoverable. The money is on-chain
+// either way, but an ancient note is more likely a stale tab than a payment
+// someone is waiting on — so surface it for a manual retry rather than
+// silently re-prompting a signature long afterwards.
+const PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+// ── Recovery for interrupted direct-rail payments ───────────────────────
+// The direct rail's ordering flaw has one common, fully-recoverable shape: the
+// USDC transfer landed but the ownership proof never made it to the hub (the
+// signature prompt was dismissed, the tab closed, or the request failed).
+//
+// This finishes that payment. It does NOT send another transaction — it only
+// re-signs the ownership message for the txHash already on-chain and resubmits
+// the existing payment, so the buyer is never charged twice. Anything that
+// genuinely cannot be recovered is surfaced for support rather than retried.
+function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, setProof, setUnlocked }) {
+  const runningRef = useRef(false)
+  const [recovering, setRecovering] = useState(false)
+  const [pendingRecovery, setPendingRecovery] = useState(null)
+
+  // Re-sign for the SAME txHash. Nothing is broadcast here.
+  const recoverPending = useCallback(async (provider, account) => {
+    const pending = readPendingPayment(resource.id)
+    if (!pending?.txHash) return null
+    if (Date.now() - Number(pending.at || 0) > PENDING_MAX_AGE_MS) return null
+    if (!account || !provider || typeof provider.request !== 'function') return null
+
+    if (pending.rail === 'transfer') {
+      let ownerProof
+      try {
+        ownerProof = await signMessageWithProvider(
+          provider,
+          account,
+          transferOwnershipMessage(pending.txHash, { ...resource, path: resource.path || pending.resourcePath })
+        )
+      } catch {
+        // Dismissed again: keep the note so a later visit can retry, but do not
+        // leave the user thinking the payment vanished.
+        return { recoverable: true, txHash: pending.txHash, amount: pending.amount, signed: false }
+      }
+      return {
+        recoverable: true,
+        signed: true,
+        txHash: pending.txHash,
+        amount: pending.amount,
+        paymentSignature: pending.txHash,
+        headers: {
+          'x-nibgate-transfer-tx': pending.txHash,
+          'x-nibgate-tx-owner': ownerProof,
+        },
+        metadata: {
+          paymentProvider: 'direct-transfer',
+          paymentId: pending.txHash,
+          txHash: pending.txHash,
+          recipient: pending.payTo,
+          amount: pending.amount,
+          currency: 'USDC',
+          network: NETWORK,
+        },
+      }
+    }
+    return null
+  }, [resource])
+
+  const runRecovery = useCallback(async (provider, account) => {
+    if (recovering || runningRef.current) return false
+    setRecovering(true)
+    try {
+      const recovered = await recoverPending(provider, account)
+      if (!recovered) {
+        setPendingRecovery(null)
+        return false
+      }
+      if (!recovered.signed) {
+        // Ask again; the note is still on disk.
+        setPendingRecovery({ ...recovered, needsSignature: true })
+        return false
+      }
+      const { checkResourceAccess } = await import('@nibgate/sdk')
+      const result = await checkResourceAccess(resource, {
+        accessPath: accessPathFor(accessPath),
+        paymentProvider: 'direct-transfer-recovery',
+        checkout: async () => ({
+          paymentSignature: recovered.paymentSignature,
+          headers: recovered.headers,
+          metadata: recovered.metadata,
+        }),
+      })
+      if (result.ok) {
+        clearPendingPayment(resource.id)
+        const nextProof = result.payload?.unlockProof || storedProof(resource.id)
+        try { if (result.payload?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, result.payload.unlockProof) } catch {}
+        setPayload(result.payload)
+        setProof(nextProof)
+        setUnlocked(true)
+        setPendingRecovery(null)
+        return true
+      }
+      // The payment could not be completed automatically (e.g. the transfer
+      // itself never confirmed). Surface it honestly instead of looping.
+      setPendingRecovery({ ...recovered, needsSignature: false, failed: true })
+      return false
+    } catch {
+      setPendingRecovery((prev) => (prev ? { ...prev, failed: true } : prev))
+      return false
+    } finally {
+      setRecovering(false)
+    }
+  }, [recoverPending, resource, accessPath, accessPathFor, setPayload, setProof, setUnlocked])
+
+  // Offer recovery as soon as a wallet is available and a broadcast note exists.
+  useEffect(() => {
+    if (!address || !walletProvider) return
+    const pending = readPendingPayment(resource.id)
+    if (!pending?.txHash) return
+    if (Date.now() - Number(pending.at || 0) > PENDING_MAX_AGE_MS) {
+      clearPendingPayment(resource.id)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const recovered = await recoverPending(walletProvider, address)
+        if (!cancelled && recovered) setPendingRecovery({ ...recovered, needsSignature: !recovered.signed })
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [resource.id, address, walletProvider, recoverPending])
+
+  return { pendingRecovery, setPendingRecovery, recovering, runRecovery }
 }
 
 export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, authBase = '', noncePath = '', verifyPath = '' }) {
@@ -99,6 +311,10 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   const onUnlockRef = useRef(onUnlock)
   const railRef = useRef(paymentRail)
   const walletProviderRef = useRef(walletProvider)
+  // Resolved access URL for the current unlock attempt. checkout() runs inside
+  // checkResourceAccess and has no direct access to the accessPath prop, so the
+  // preflight URL is derived from this instead.
+  const accessUrlRef = useRef('')
 
   useEffect(() => { addressRef.current = address }, [address])
   useEffect(() => { chainIdRef.current = chainId }, [chainId])
@@ -206,10 +422,44 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       if (!payTo) throw new Error('No recipient address in the transfer challenge.')
       const amount = Number(input?.challenge?.accepts?.[0]?.amount || resource.price || 0)
       if (!(amount > 0)) throw new Error('Invalid payment amount.')
+
+      // ── Pre-broadcast gate ──────────────────────────────────────────────
+      // Everything the hub would check AFTER the transfer (payTo resolution,
+      // price agreement, payer balance) is knowable BEFORE it. Rejecting here
+      // costs nothing; rejecting after the broadcast costs the user their money.
+      const preflight = await runDirectPreflight({
+        accessUrl: accessUrlRef.current,
+        resource,
+        payer: account,
+        amount,
+        rail,
+      })
+      if (!preflight.proceed) {
+        const error = new Error(getPaymentErrorMessage({ reason: preflight.reason }))
+        error.nibgateReason = preflight.reason
+        error.preflightHint = preflight.hint
+        throw error
+      }
+      // Prefer the hub-resolved address so we broadcast to exactly what the
+      // verifier matches, closing the fee-wallet mismatch class entirely.
+      const resolvedPayTo = preflight.payTo || payTo
       const amountUsdc = BigInt(Math.round(amount * 1e6))
-      const data = encodeFunctionData({ abi: USDC_TRANSFER_ABI, functionName: 'transfer', args: [payTo, amountUsdc] })
+      const data = encodeFunctionData({ abi: USDC_TRANSFER_ABI, functionName: 'transfer', args: [resolvedPayTo, amountUsdc] })
       const tx = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account: account })
       const txHash = tx?.hash || tx || ''
+      // Record the broadcast IMMEDIATELY, before asking for the ownership
+      // signature. If the user closes the prompt, the tab dies, or the wallet
+      // throws, the money is already gone — this note is the only thing that
+      // lets us finish the unlock later without charging them twice.
+      writePendingPayment(resource.id, {
+        txHash,
+        payTo: resolvedPayTo,
+        amount,
+        rail,
+        resourcePath: resource.path || '',
+        contentId: resource.id,
+        at: Date.now(),
+      })
       // The hub requires an ownership proof binding the txHash to this resource
       // (a broadcast tx is public, so without it anyone could replay it). Sign
       // it here and hand the headers to the SDK to send on the verify request.
@@ -224,7 +474,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
           paymentProvider: 'direct-transfer',
           paymentId: txHash,
           txHash,
-          recipient: payTo,
+          recipient: resolvedPayTo,
           amount,
           currency: 'USDC',
           network: NETWORK,
@@ -351,8 +601,10 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       }
       const { checkResourceAccess } = await import('@nibgate/sdk')
       const rail = railRef.current || resource.paymentRail || 'gateway'
+      const accessUrl = accessPathFor(accessPath)
+      accessUrlRef.current = accessUrl
       const result = await checkResourceAccess(resource, {
-        accessPath: accessPathFor(accessPath),
+        accessPath: accessUrl,
         paymentProvider: rail === 'transfer' ? 'direct-transfer-browser' : 'circle-gateway-browser',
         challengeMessage: rail === 'transfer'
           ? 'Payment required. Send USDC to the recipient in your wallet...'
@@ -375,6 +627,8 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       if (result.ok) {
         const nextProof = result.payload?.unlockProof || storedProof(resource.id)
         try { if (result.payload?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, result.payload.unlockProof) } catch {}
+        // Unlocked for real: the broadcast note has served its purpose.
+        clearPendingPayment(resource.id)
         setPayload(result.payload)
         setProof(nextProof)
         setUnlocked(true)
@@ -382,11 +636,21 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         onUnlockRef.current?.(result)
         return true
       }
-      setError(getPaymentErrorMessage(result.error || ''))
+      // Prefer the server's machine reason (`reason`) over the human summary
+      // (`error`). The summary for the direct rail is generic ("Transfer
+      // ownership check failed"), so mapping only that string fell through to
+      // the default and told the user to check their balance — on a rail where
+      // their money had already left the wallet.
+      setError(getPaymentErrorMessage({ reason: result.payload?.reason, error: result.error || '' }))
       setStatus('')
       return false
     } catch (err) {
-      const message = isWalletRejection(err) ? 'Request cancelled.' : getWalletErrorMessage(err) || 'Unlock failed.'
+      // A preflight rejection carries a machine reason and a message already mapped
+      // to specific copy ("nothing was charged"). getWalletErrorMessage would
+      // overwrite it with the generic wallet default, so check it first.
+      const message = isWalletRejection(err) ? 'Request cancelled.'
+        : err?.nibgateReason ? getPaymentErrorMessage({ reason: err.nibgateReason })
+        : getWalletErrorMessage(err) || 'Unlock failed.'
       setError(message)
       setStatus('')
       return false
@@ -397,6 +661,9 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   }, [resource, accessPath, accessPathFor, checkout, open])
 
   const clear = useCallback(() => {
+    // Clearing means the user walked away, so drop the broadcast note too —
+    // otherwise a later mount would re-offer a recovery they just dismissed.
+    clearPendingPayment(resource.id)
     try {
       localStorage.removeItem(`${PROOF_PREFIX}${resource.id}`)
     } catch {}
@@ -481,7 +748,19 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     setStatus('')
   }, [isConnected, resource.id])
 
-  return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail: switchRail }
+  // Interrupted-payment recovery: finishes a broadcast direct-rail payment by
+  // re-signing the existing txHash. Requires accessPathFor, so it is wired up
+  // here rather than inside usePaymentRecovery.
+  const recovery = usePaymentRecovery({
+    resource,
+    accessPathFor,
+    accessPath,
+    setPayload,
+    setProof,
+    setUnlocked,
+  })
+
+  return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail: switchRail, pendingRecovery: recovery.pendingRecovery, recovering: recovery.recovering, runRecovery: () => recovery.runRecovery(walletProvider, address), dismissRecovery: () => recovery.setPendingRecovery(null) }
 }
 
 const HOLD_MS = 1500
@@ -510,7 +789,7 @@ const labelButtonStyle = {
   margin: 0,
 }
 
-export function NibgateUnlockUI({ resource, busy, checking, status, error, address, disconnect, unlock, connect, gatewayBalance, gatewayBalanceUrl, walletBalance, paymentRail, setPaymentRail }) {
+export function NibgateUnlockUI({ resource, busy, checking, status, error, address, disconnect, unlock, connect, gatewayBalance, gatewayBalanceUrl, walletBalance, paymentRail, setPaymentRail, pendingRecovery, recovering, runRecovery, dismissRecovery }) {
   const lottieRef = useRef(null)
   const [holdPct, setHoldPct] = useState(0)
   const [holdTransition, setHoldTransition] = useState('none')
@@ -784,6 +1063,80 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
       </div>
       {status && <div style={{ textAlign: 'center', marginTop: 16, fontSize: 18, color: 'var(--muted, #6b6862)', minHeight: 28 }}>{status}</div>}
       {error && <div style={{ textAlign: 'center', marginTop: 16, fontSize: 18, color: '#dc2626', minHeight: 28 }}>{error}</div>}
+
+      {/* An interrupted payment takes priority over the pay button: the money
+          has already left the wallet, so offering "pay again" first would
+          double-charge. */}
+      {pendingRecovery && (
+        <div
+          role="status"
+          style={{
+            marginTop: 18,
+            padding: '14px 16px',
+            borderRadius: 10,
+            border: '1px solid rgba(220,38,38,0.35)',
+            background: 'rgba(220,38,38,0.07)',
+            textAlign: 'left',
+            fontSize: 15,
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>
+            {pendingRecovery.failed
+              ? 'We could not finish your earlier payment'
+              : 'You have an unfinished payment'}
+          </div>
+          <div style={{ color: 'var(--muted, #6b6862)' }}>
+            {pendingRecovery.failed ? (
+              <>
+                Your USDC transfer was broadcast as <code>{String(pendingRecovery.txHash).slice(0, 10)}…</code> but the
+                unlock did not complete. Please contact support with that transaction hash — <strong>do not pay again</strong>.
+              </>
+            ) : (
+              <>
+                Your USDC transfer was already sent as <code>{String(pendingRecovery.txHash).slice(0, 10)}…</code>. Finish
+                unlocking it below — <strong>this will not charge you again</strong>.
+              </>
+            )}
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {!pendingRecovery.failed && (
+              <button
+                type="button"
+                disabled={recovering}
+                onClick={() => runRecovery()}
+                style={{
+                  cursor: recovering ? 'progress' : 'pointer',
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  border: '1px solid currentColor',
+                  background: 'transparent',
+                  color: 'inherit',
+                  font: 'inherit',
+                }}
+              >
+                {recovering ? 'Finishing…' : 'Finish my unlock'}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={recovering}
+              onClick={() => dismissRecovery()}
+              style={{
+                cursor: 'pointer',
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid rgba(107,104,98,0.5)',
+                background: 'transparent',
+                color: 'var(--muted, #6b6862)',
+                font: 'inherit',
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {showGateway && address && (
         <GatewayWalletUI
           address={address}

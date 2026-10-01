@@ -12,7 +12,7 @@
     "routes": "node bin/nibgate.js routes"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.4.20",
+    "@nibgate/sdk": "0.4.32",
     "@prisma/client": "^5.22.0",
     "cookie": "^1.1.1",
     "nanoid": "^5.1.5",

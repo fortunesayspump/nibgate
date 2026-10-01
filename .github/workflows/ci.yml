@@ -33,6 +33,12 @@ jobs:
           find backend/src -name '*.js' -exec node --check {} + &&
           find subblogs/backend/src -name '*.js' -exec node --check {} +
 
+      # Catches a published @nibgate dep pinned behind npm latest. A stale pin
+      # once shipped a direct-rail payment path that charged the user and then
+      # failed verification, with every build green.
+      - name: Check @nibgate deps are not behind npm
+        run: node scripts/check-sdk-versions.mjs
+
       - name: Run tests
         run: pnpm test
 

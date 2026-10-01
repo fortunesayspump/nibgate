@@ -1,0 +1,20 @@
+# Flat, npm-style node_modules layout.
+#
+# This app was on npm until the 0.4.14/0.4.31 bump. npm hoists one copy of
+# each package; pnpm's default isolated layout resolved @tiptap/core twice
+# (once with the @tiptap/pm peer, once without), which TypeScript sees as two
+# incompatible ProseMirror type identities and the Next build rejected.
+#
+# nodeLinker: hoisted reproduces the layout this app already built and tested
+# against, while keeping pnpm as the installer and pnpm-lock.yaml as the source
+# of truth. Without it, dual-package hazard, not the payment code, decides
+# whether this deploys.
+#
+# This lives here rather than in .npmrc on purpose: the repo's .gitignore
+# ignores every .npmrc (to keep npm auth tokens out of git), so a .npmrc fix
+# would build locally and then silently 404 on the deploy. pnpm-workspace.yaml
+# is tracked.
+nodeLinker: hoisted
+
+packages:
+  - '.'

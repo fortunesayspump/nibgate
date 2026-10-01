@@ -8,7 +8,13 @@ import { ensureWalletAuthorized } from './authorize.js'
 import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
-import { ownershipMessage, transferOwnershipMessage } from '@nibgate/sdk'
+import { ownershipMessage } from '@nibgate/sdk'
+
+// Local copy of the tx-binding message so this file never depends on a newer
+// @nibgate/sdk than the installed one (Vercel was resolving the published SDK
+// without the new export). MUST match the hub's transferOwnershipMessage.
+const transferOwnershipMessage = (txHash, resource) =>
+  `Nibgate transfer ownership\ntx:${String(txHash || '').toLowerCase()}\nresource:${resource?.path || resource?.url || ''}`;
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
 import { GatewayWalletUI } from './gateway-wallet.jsx'

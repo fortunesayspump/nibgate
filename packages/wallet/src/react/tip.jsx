@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
+import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { encodeFunctionData, createWalletClient, custom } from 'viem'
 import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
@@ -62,16 +62,35 @@ function resolveTarget({ resource, challenge, recipient, amount }) {
 export function useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid } = {}) {
   const { address, isConnected } = useAppKitAccount()
   const { walletProvider } = useAppKitProvider('eip155')
+  const { open } = useAppKit()
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [receipt, setReceipt] = useState(null)
   const providerRef = useRef(null)
   useEffect(() => { providerRef.current = walletProvider || null }, [walletProvider])
+  const addressRef = useRef(null)
+  useEffect(() => { addressRef.current = address || null }, [address])
   const MIN_TIP = Number(minAmount ?? 0.1);
 
+  async function waitForWallet(timeoutMs = 30000) {
+    const started = Date.now()
+    while (Date.now() - started < timeoutMs) {
+      if (addressRef.current) return addressRef.current
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+    return null
+  }
+
   const tip = useCallback(async (tipAmount) => {
-    const account = address
-    if (!account) throw new Error('Connect your wallet to tip.')
+    let account = address
+    if (!account) {
+      // No wallet: open the connect modal and wait for the user, instead of
+      // just erroring — a tip click with no wallet should bring up connect.
+      setStatus('connecting')
+      try { await open() } catch {}
+      account = await waitForWallet()
+      if (!account) throw new Error('Connect your wallet to tip.')
+    }
     const provider = providerRef.current
     if (!provider?.request) throw new Error('Wallet provider is not available.')
     const target = resolveTarget({ resource, challenge, recipient, amount: tipAmount ?? amount })

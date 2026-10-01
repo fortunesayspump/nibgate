@@ -19,7 +19,34 @@ export const PAYMENT_ERRORS = {
   already_used: 'This payment was already used. The content may already be unlocked — refresh to check.',
   invalid_signature: 'The payment signature could not be verified. Please try again.',
   rate_limited: 'Too many attempts. Please wait a moment and try again.',
-  default: 'Payment could not be verified. Check your balance and try again.',
+
+  // ── Pre-broadcast preflight reasons ────────────────────────────────────
+  // These abort BEFORE any transfer is broadcast, so no money has moved and
+  // retrying is safe. The copy says so explicitly — reusing the post-broadcast
+  // "don't pay again" wording here would wrongly alarm the user.
+  'preflight-payto-unresolved': 'This payment can’t be set up right now — the payment address didn’t resolve. Nothing was charged.',
+  'preflight-not-payable': 'This content isn’t priced for direct payment. Nothing was charged.',
+  'preflight-invalid-amount': 'That payment amount wasn’t valid, so nothing was charged. Please try again.',
+  'preflight-amount-mismatch': 'The price changed before your payment went through, so nothing was charged. Refresh to see the current price.',
+  'preflight-invalid-payer': 'We couldn’t read your wallet address, so nothing was charged. Reconnect your wallet and try again.',
+  'preflight-insufficient-balance': 'Your USDC balance is lower than the price of this content, so nothing was charged. Add funds and try again.',
+  'preflight-rate-limited': 'Too many payment attempts. Wait a moment and try again — nothing was charged.',
+
+  // ── Post-broadcast direct-rail reasons ───────────────────────────────────
+  // These are NOT safe to "try again": the transfer may already be mined and
+  // irrevocable on-chain. Re-broadcasting risks paying twice for one unlock, so
+  // the copy tells the user what actually happened and that support can sort it
+  // out against the tx hash.
+  'transfer-ownership-proof-required': 'Your payment was sent but the confirmation step did not complete. Do not pay again — contact support with your transaction hash and we will finish unlocking your content.',
+  'transfer-owner-mismatch': 'Your payment was sent but we could not confirm it came from the paying wallet. Do not pay again — contact support with your transaction hash.',
+  'transfer-owner-invalid': 'Your payment was sent but the confirmation signature was not readable. Do not pay again — contact support with your transaction hash.',
+  'txhash-claimed-elsewhere': 'That payment was already applied to different content. Refresh to see what it unlocked, or contact support with your transaction hash.',
+  'claim-registry-unreachable': 'We could not record your payment right now. Your transfer may have gone through — contact support with your transaction hash before paying again.',
+
+  // Fallback must never mention balance (insufficient_balance is mapped above,
+  // so reaching here means an unknown failure) and must never invite a retry on
+  // a rail that may have already charged the user.
+  default: 'Something went wrong confirming this payment. If you completed the payment, contact support with your transaction hash before trying again.',
 };
 
 export function getPaymentErrorMessage(error, { fallback = PAYMENT_ERRORS.default } = {}) {

@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install",
-  "buildCommand": "npm run build",
+  "installCommand": "npx pnpm@10 install --frozen-lockfile",
+  "buildCommand": "pnpm run build",
   "outputDirectory": ".next"
 }

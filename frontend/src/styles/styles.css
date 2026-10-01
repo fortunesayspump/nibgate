@@ -554,12 +554,16 @@ td {
     bottom: 0;
     left: 0;
     height: auto;
+    width: 248px !important;
     z-index: 10;
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .dashboard-sidebar.mobile-open {
     transform: translateX(0);
+  }
+  .dashboard-sidebar .dashboard-box-text {
+    opacity: 1;
   }
   .dashboard-main-content {
     margin-left: 0;
@@ -590,39 +594,110 @@ td {
   font-weight: 500;
   min-height: 104px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  text-align: center;
+  justify-content: flex-start;
+  gap: 10px;
+  text-align: left;
   border-left: 6px solid transparent;
-  padding: 0 16px;
+  padding: 12px;
   transition: background 0.2s, color 0.2s, opacity 0.2s;
   width: 100%;
 }
 
 .dashboard-box-label {
   display: block;
-  font-size: 20px;
-  line-height: 1.1;
+  font-size: 19px;
+  line-height: 1.15;
   transition: transform 0.2s;
 }
 
 .dashboard-box-icon {
-  width: 24px;
-  height: 24px;
-  margin-bottom: 10px;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
   color: currentColor;
   transition: transform 0.2s, opacity 0.2s;
 }
 
+.dashboard-box-slot {
+  width: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-box-text {
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Mini rail (icon column + hover overlay panel), used on run detail */
+.drnib-rail {
+  position: relative;
+  width: 64px;
+  flex-shrink: 0;
+  align-self: stretch;
+  display: none;
+}
+@media (min-width: 1024px) {
+  .drnib-rail { display: block; }
+}
+.drnib-rail-mini {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.drnib-rail-mini .dashboard-box {
+  justify-content: center;
+  padding: 0;
+}
+.drnib-rail-mini .dashboard-box-slot {
+  width: auto;
+}
+.drnib-rail-mini .dashboard-box-text {
+  display: none;
+}
+.drnib-rail-mini .dashboard-box-text {
+  display: none;
+}
+.drnib-rail-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 64px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.3s ease;
+}
+.drnib-rail:hover .drnib-rail-panel {
+  width: 248px;
+}
+.drnib-rail-panel .dashboard-box {
+  width: 248px;
+  flex-shrink: 0;
+}
+.drnib-rail-panel .dashboard-box-text {
+  opacity: 0;
+  transition: opacity 0.2s ease 0.05s;
+}
+.drnib-rail:hover .drnib-rail-panel .dashboard-box-text {
+  opacity: 1;
+}
+
 .dashboard-box-description {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   color: color-mix(in srgb, currentColor 72%, transparent);
   font-family: var(--font-ui, "ABC Favorit", Arial, sans-serif);
   font-size: 12px;
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.3;
   transition: color 0.2s, transform 0.2s;
 }
 
@@ -657,18 +732,18 @@ body[data-theme="dark"] .dashboard-box:hover {
 
 .dashboard-box:hover .dashboard-box-icon,
 .dashboard-box:focus-visible .dashboard-box-icon {
-  transform: translateY(-2px) scale(1.08);
+  transform: translateX(2px) scale(1.08);
 }
 
 .dashboard-box:hover .dashboard-box-label,
 .dashboard-box:focus-visible .dashboard-box-label {
-  transform: translateY(-1px);
+  transform: translateX(1px);
 }
 
 .dashboard-box:hover .dashboard-box-description,
 .dashboard-box:focus-visible .dashboard-box-description {
   color: currentColor;
-  transform: translateY(1px);
+  transform: translateX(1px);
 }
 
 .dashboard-drawer-backdrop {

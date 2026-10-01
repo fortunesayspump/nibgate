@@ -22,6 +22,10 @@ export function useNibgateConnect(options = {}) {
   const modalOpenRef = useRef(false)
   const connectingWalletRef = useRef(false)
   const runningRef = useRef(false)
+  // Kept in a ref because detectSilentSession runs inside connect() and must not
+  // re-create the callback when the provider object identity changes.
+  const walletProviderRef = useRef(walletProvider)
+  useEffect(() => { walletProviderRef.current = walletProvider }, [walletProvider])
 
   useEffect(() => { addressRef.current = address ? `0x${String(address).replace(/^0x/, '')}` : null }, [address])
   useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
@@ -81,7 +85,10 @@ export function useNibgateConnect(options = {}) {
       return true
     } catch (err) {
       if (isWalletRejection(err)) {
+        // Same reasoning as connect(): a rejection is expected when someone
+        // dismisses the SIWE prompt, so name it instead of appearing to hang.
         setStatus('idle')
+        setError('Sign-in cancelled. Tap Sign in again when you\'re ready.')
       } else {
         setError(getWalletErrorMessage(err))
         setStatus('error')
@@ -93,6 +100,26 @@ export function useNibgateConnect(options = {}) {
     }
   }, [address, walletProvider, authBase, noncePath, verifyPath])
 
+  // A silent probe for an already-authorized wallet. eth_accounts NEVER shows a
+  // prompt, so this is safe to call speculatively.
+  //
+  // This exists because of a mobile-specific failure: if the wallet still holds
+  // a live session (common after a dApp was backgrounded, or when another tab
+  // is connected), re-opening the modal makes the wallet auto-decline with
+  // "a previous request is still pending" / "connection already active". Asking
+  // eth_accounts first reuses that session instead of starting a doomed race.
+  async function detectSilentSession() {
+    const provider = walletProviderRef?.current
+    if (!provider || typeof provider.request !== 'function') return null
+    try {
+      const accounts = await provider.request({ method: 'eth_accounts' })
+      const first = Array.isArray(accounts) ? accounts[0] : null
+      return first ? `0x${String(first).replace(/^0x/, '')}` : null
+    } catch {
+      return null
+    }
+  }
+
   const connect = useCallback(async () => {
     if (runningRef.current) return false
     runningRef.current = true
@@ -100,32 +127,40 @@ export function useNibgateConnect(options = {}) {
     setStatus('connecting')
     setError(null)
     let addr
-    let attempt = 0
     try {
-      // AppKit's open() shows the modal; selecting a wallet triggers AppKit to
-      // reconcile the account into useAppKitAccount (synced by its connector).
-      // Poll for the address; if the first pass doesn't resolve (e.g. after a
-      // full cache+permission clear), retry once before erroring.
-      while (attempt < 2) {
-        attempt += 1
+      // 1. Reuse an existing authorized session without prompting. On mobile
+      //    this is the difference between connecting instantly and hitting a
+      //    wallet-side auto-decline because another request is still open.
+      addr = await detectSilentSession()
+
+      // 2. Only escalate to the modal if there is nothing to reuse.
+      if (!addr) {
         try {
           await open()
         } catch {
           // modal open can race account sync; waitForWallet keeps polling.
         }
         addr = await waitForWallet()
-        if (addr) break
       }
+
+      // 3. AppKit reconciled but useAppKitAccount may still be settling; one
+      //    bounded poll before surfacing an error.
+      if (!addr) addr = await waitForWallet(8000)
+
       if (!addr) {
         setStatus('error')
-        setError('Wallet did not connect. Approve the MetaMask connection for this site, then try again.')
+        setError('Wallet did not connect. If your wallet is already connected to another app, disconnect it there first, then approve the connection here.')
         return false
       }
       await sign(addr)
       return true
     } catch (err) {
       if (isWalletRejection(err)) {
+        // A rejection is a normal outcome, not a fault: the user closed the
+        // prompt. Silently returning to idle left people tapping again with no
+        // idea why, so say what happened and invite one clean retry.
         setStatus('idle')
+        setError('Connection cancelled. Tap Connect when you\'re ready.')
       } else {
         setError(getWalletErrorMessage(err))
         setStatus('error')

@@ -72,9 +72,13 @@ export default function DashboardSidebar({ isMobileOpen, onMobileClose }: { isMo
               data-tab={link.id}
               onClick={onMobileClose}
             >
-              <Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} />
-              <span className="dashboard-box-label">{link.name}</span>
-              <span className="dashboard-box-description">{link.description}</span>
+              <span className="dashboard-box-slot">
+                <Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} />
+              </span>
+              <span className="dashboard-box-text">
+                <span className="dashboard-box-label">{link.name}</span>
+                <span className="dashboard-box-description">{link.description}</span>
+              </span>
             </Link>
           );
         })}

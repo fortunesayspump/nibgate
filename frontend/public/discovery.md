@@ -25,6 +25,7 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 | `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
 | `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips, ratings, and nibshares (`type=nibshare`). Nibshare entries show titles, wallets, and amounts but never the private share link |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
+| `POST /hub/preflight` | Free dry run for the direct-USDC rail — check price, recipient, and payer balance **before** sending an irreversible transfer. Never charges. |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
 | `GET /hub/reputation/ratings/stats?contentId=` | Read a content's on-chain rating stats (average 1-5, count) |
 | `POST /hub/site/info` | Get site info by siteId + token |
@@ -121,19 +122,34 @@ The same URL shape works with any x402 client library. Gotchas:
 
 **Direct-transfer alternative** (on-chain USDC transfer, no Gateway deposit):
 
-1. `GET /api/nibgate/access?path=X&rail=transfer&wallet=<payer>` → 402
+This rail settles *before* it unlocks, so the transfer is irreversible the moment
+you broadcast it. Step 1 is optional for the Gateway path but **strongly
+recommended here** — it is the only way to learn that a payment would fail
+before you lose the USDC.
+
+1. *(recommended)* `POST <access-url-with-/preflight>` with
+   `{ contentId, price, payer }` → `ok:true`, or `ok:false` plus a
+   `price_mismatch` / `unfunded` / `recipient_unresolved` / `invalid_address`
+   reason. Nothing is charged and no transaction is created. If the hub cannot
+   answer it replies `ok:true, proceedAnyway:true`, so a diagnostic outage never
+   blocks you.
+2. `GET /api/nibgate/access?path=X&rail=transfer&wallet=<payer>` → 402
    challenge JSON with the seller `recipient` and `amount`
-2. Broadcast a plain ERC-20 `transfer(recipient, amount)` of USDC (6 decimals)
+3. Broadcast a plain ERC-20 `transfer(recipient, amount)` of USDC (6 decimals)
    on Arc Testnet and wait for the receipt
-3. Sign the EIP-191 message
+4. Sign the EIP-191 message
    ``Nibgate transfer ownership\ntx:<txHash lowercase>\nresource:<path>`` with
    the **paying** wallet
-4. Retry the same GET with `x-nibgate-transfer-tx: <txHash>` plus
+5. Retry the same GET with `x-nibgate-transfer-tx: <txHash>` plus
    `x-nibgate-tx-owner: <signature>` → settled content is returned
 
 The signature binds the public txHash to your wallet and this exact resource;
 missing or mismatched proofs are rejected (`transfer-ownership-proof-required`,
 `transfer-owner-mismatch`) and each txHash unlocks only one resource.
+
+If step 5 is interrupted (dismissed signature, closed tab), the USDC is gone
+but the unlock is not lost: re-sign the message for the **same** txHash and
+retry step 5. Never broadcast a second transfer for an existing payment.
 
 **Recording:** all settled payments are recorded server-side at the payment
 layer — receipts, metrics, and the public ledger treat machine payers exactly

@@ -2,7 +2,7 @@ import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
 import { activeNetwork } from '@nibgate/internal/networks.js';
 import { randomBytes } from 'node:crypto';
-import { runHostedPayRequirement } from '@nibgate/sdk/server';
+import { runHostedPayRequirement, preflightTransfer } from '@nibgate/sdk/server';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { deleteManagedProfileImage } from './upload-routes.js';
 import {
@@ -669,6 +669,95 @@ export function registerHubRoutes(app) {
       return null;
     }
   };
+
+  // ── Pre-broadcast preflight for the direct rail ──────────────────────────
+  // The direct rail broadcasts an irreversible USDC transfer BEFORE the
+  // ownership proof exists, so anything /hub/pay would reject is discovered
+  // after the buyer's money has left their wallet. This endpoint re-runs the
+  // verifier's acceptance criteria read-only (price, payTo, payer balance)
+  // so the wallet can abort before asking for a transaction.
+  //
+  // Read-only and free: it creates no claim, no receipt, no entitlement, and
+  // never moves funds. Safe to call on every "unlock" button press.
+  const hubPreflightLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 60,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req) => ipKeyGenerator(req.ip),
+    message: { ok: false, error: 'Too many preflight requests, slow down.', reason: 'preflight-rate-limited' },
+  });
+
+  app.post('/api/hub/preflight', hubPreflightLimiter, async (req, res) => {
+    try {
+      const { payer, amount, recipient, title, paymentRail } = req.body || {};
+      const rail = paymentRail || req.body?.rail || 'transfer';
+
+      // Free content needs no payment, so there is nothing to preflight.
+      const contentRecord = await findContentByIdOrExternal(req.body?.contentId);
+      if (contentRecord && Number(contentRecord.price || 0) <= 0) {
+        return res.json({ ok: true, needed: false, reason: 'preflight-free-resource' });
+      }
+      if (rail !== 'transfer') {
+        // Gateway (x402) already authorizes before settlement, so the ordering
+        // problem this endpoint exists to solve does not apply to it.
+        return res.json({ ok: true, needed: false, rail });
+      }
+
+      // Same untrusted-body rule as /hub/pay: server-side values win whenever
+      // the contentId maps to a tracked record, so a caller cannot preflight a
+      // price/recipient different from the one that would be verified.
+      let effectivePrice = contentRecord?.price ? Number(contentRecord.price) : (amount ?? req.body?.price);
+      let resolvedRecipient = contentRecord?.recipientWallet || recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
+
+      const result = await preflightTransfer(
+        {
+          id: req.body?.contentId || 'hub',
+          title: title || 'content',
+          price: String(effectivePrice ?? ''),
+          recipient: resolvedRecipient,
+          path: req.body?.path || '/',
+        },
+        { payer, amount: req.body?.amount, options: { hosted: true } }
+      );
+
+      if (!result.ok) {
+        // 402 so clients can treat it like any other payment refusal, but the
+        // body carries the machine `reason` that getPaymentErrorMessage maps.
+        return res.status(402).json({
+          ok: false,
+          needed: true,
+          error: 'Preflight rejected this payment',
+          reason: result.reason,
+          hint: result.hint,
+          ...(Number.isFinite(result.balance) ? { balance: result.balance, amount: result.amount } : {}),
+        });
+      }
+
+      return res.json({
+        ok: true,
+        needed: true,
+        rail,
+        // The wallet MUST broadcast to this exact payTo: it is what the
+        // verifier will match the Transfer log against.
+        payTo: result.payTo,
+        amount: result.amount,
+        currency: result.currency,
+        network: result.network,
+        balanceKnown: result.balanceKnown !== false,
+      });
+    } catch (error) {
+      // Preflight is an optimization. If it errors we must not block a payment
+      // that would otherwise succeed — tell the client to proceed.
+      return res.status(200).json({
+        ok: true,
+        needed: false,
+        proceedAnyway: true,
+        reason: 'preflight-unavailable',
+        detail: error?.message || String(error),
+      });
+    }
+  });
 
   app.post('/api/hub/pay', hubPayLimiter, async (req, res) => {
     try {

@@ -9,6 +9,7 @@ export function registerNibshareRoutes(app) {
   app.post('/api/nibshare/:slug/view', controller.recordView);
   app.post('/api/nibshare/:slug/unlock', controller.unlockShare);
   app.get('/api/nibshare/:slug/access', controller.accessShare);
+  app.post('/api/nibshare/:slug/preflight', controller.preflightShare);
   app.get('/api/nibshare/:slug/media/:kind', controller.getShareMedia);
   app.post('/api/nibshare/gateway/balance', controller.gatewayBalance);
   app.post('/api/nibshare/:slug/entitlements/:wallet/revoke', controller.requireAuth, controller.revokeEntitlement);

@@ -1,11 +1,5 @@
-import Header from "@/components/Header";
-import DrNibWorkspace from "@/components/dr-nib/DrNibWorkspace";
+import { redirect } from "next/navigation";
 
-export default function DrNibPage() {
-  return (
-    <>
-      <Header />
-      <DrNibWorkspace />
-    </>
-  );
+export default function DrNibIndex() {
+  redirect("/dr-nib/research");
 }

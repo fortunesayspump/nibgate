@@ -3,7 +3,7 @@ const validate = require('../../middlewares/validate');
 const nibgateValidation = require('../../validations/nibgate.validation');
 const prisma = require('../../lib/prisma');
 const config = require('../../config/config');
-const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
+const { createCircleGatewayServer, getBlob, decryptBytes, unpackCipherBlob, preflightTransfer } = require('@nibgate/sdk/server');
 const { storedToKey } = require('../../lib/keywrap');
 const { registerR2Provider } = require('../../lib/storage');
 const { renderDocument } = require('../../services/document-render');
@@ -171,6 +171,41 @@ async function mediaAccessResult(req, post, resource) {
     return { status: 403, body: { error: 'You must unlock this post to view its media.' } };
   }
   return null;
+}
+
+function accessSlugFor(req) {
+  const pathMatch = req.query.path?.match(/^\/(writing|photos|music|video|docs|posts)\/(.+)$/);
+  return pathMatch ? pathMatch[2] : '';
+}
+
+async function resolveAccessPost(req) {
+  const pathMatch = req.query.path?.match(/^\/(writing|photos|music|video|docs|posts)\/(.+)$/);
+  const slug = pathMatch ? pathMatch[2] : '';
+  if (!slug) return null;
+  const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
+  const postType = pathMatch ? pathType[pathMatch[1]] : undefined;
+  return prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, ...(postType ? { type: postType } : {}) } });
+}
+
+// Resolve the payTo/price the SAME way /access does. Preflight must judge the
+// exact figure the challenge will ask for, otherwise it can pass a check that
+// the payment then fails.
+function payContextFor(req, post, slug) {
+  const settings = (() => { try { return req.site.settings ? JSON.parse(req.site.settings) : {}; } catch { return {}; } })();
+  const recipient = post?.recipientWallet || settings.recipientWallet || process.env.NIBGATE_SELLER_ADDRESS || '';
+  return {
+    recipient,
+    resource: {
+      id: post?.id || slug || 'unknown',
+      title: post?.title || req.query.title || '',
+      type: post?.type || 'article',
+      price: post ? (isPaidValue(post.price) ? post.price : '0') : (req.query.price || '0.01'),
+      currency: 'USDC',
+      path: req.query.path || (slug ? `/posts/${slug}` : '/'),
+      description: post?.excerpt || '',
+      recipient,
+    },
+  };
 }
 
 async function serveAccess(req, res, post, slug) {
@@ -442,13 +477,8 @@ async function serveAccess(req, res, post, slug) {
 
 router.get('/access', async (req, res, next) => {
   try {
-    const pathMatch = req.query.path?.match(/^\/(writing|photos|music|video|docs|posts)\/(.+)$/);
-    const slug = pathMatch ? pathMatch[2] : '';
-    const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
-    const postType = pathMatch ? pathType[pathMatch[1]] : undefined;
-    const post = slug
-      ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, ...(postType ? { type: postType } : {}) } })
-      : null;
+    const post = await resolveAccessPost(req);
+    const slug = accessSlugFor(req);
     if (!post && slug) {
       return res.status(404).json({ ok: false, error: 'Post not found' });
     }
@@ -458,6 +488,40 @@ router.get('/access', async (req, res, next) => {
     return await serveAccess(req, res, post, slug);
   } catch (error) {
     next(error);
+  }
+});
+
+// POST /nibgate/preflight — direct-rail safety check, run BEFORE the wallet
+// broadcasts USDC. The direct rail pays first and unlocks second, so anything
+// that would make the second step fail (wrong price, unfunded payer, unverified
+// payTo) has to be caught while the money is still in the wallet.
+//
+// The SDK's client derives this path from the access path, so it must exist on
+// the same origin or the check silently never runs. Answered locally with the
+// same SDK the access route unlocks with — no hub hop, no extra trust boundary.
+router.post('/preflight', async (req, res, next) => {
+  try {
+    const post = await resolveAccessPost(req);
+    const slug = accessSlugFor(req);
+    if (!post && slug) return res.status(404).json({ ok: true, proceedAnyway: true });
+    if (post && post.status !== 'published') return res.status(404).json({ ok: true, proceedAnyway: true });
+
+    const { recipient, resource } = payContextFor(req, post, slug);
+    if (!recipient || !isPaidValue(post?.price)) {
+      return res.json({ ok: true, proceedAnyway: true, reason: 'not_paid' });
+    }
+
+    const claimed = accessService.walletFor(req);
+    // Same rule as /access: only a session-corroborated wallet may steer a
+    // check. A bare ?wallet= still yields the public price.
+    const payer = (await accessService.possessedWalletFor(req, claimed, resource)) || '';
+
+    const result = await preflightTransfer(resource, { payer, amount: post.price, options: { hosted: true } });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    // Never block a payment on our own diagnostics being unavailable.
+    logger?.warn?.('nibgate preflight unavailable', { message: error?.message });
+    return res.json({ ok: true, proceedAnyway: true, reason: 'preflight_unavailable' });
   }
 });
 

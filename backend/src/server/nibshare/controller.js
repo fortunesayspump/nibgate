@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getUserBySession, requireAuth, sessionCookieName } from '@nibgate/internal/auth.js';
-import { runHostedPayRequirement } from '@nibgate/sdk/server';
+import { runHostedPayRequirement, preflightTransfer } from '@nibgate/sdk/server';
 import { decryptMediaBlob, decryptShareBody, expirySecondsFor, mediaItemFor, paymentProofFor, primaryWallet, sharePublicUrl, walletFromPaymentProof } from './utils.js';
 import * as service from './service.js';
 
@@ -94,6 +94,89 @@ async function resolvePayment(req, res, share, challengePrice) {
     return null;
   }
   return { payer, txHash: null };
+}
+
+// ── Pre-broadcast preflight for the direct rail ──────────────────────────
+// POST /api/nibshare/:slug/preflight
+//
+// Shares reach the same runHostedPayRequirement seam as /hub/pay, so the
+// direct rail here has the same broadcast-before-proof ordering. Nibshare
+// DEFAULTS to the gateway rail (which authorizes before settlement), so the
+// dangerous path is only reachable when the caller asks for ?rail=transfer —
+// but "only reachable if you ask for it" is not a safety property, so the same
+// preflight gate is applied.
+//
+// Read-only: no claim, no receipt, no entitlement, no funds.
+export async function preflightShare(req, res) {
+  try {
+    res.setHeader('Cache-Control', 'private, no-store');
+    const share = await service.findShareBySlug(req.params.slug);
+    if (!share) return res.status(404).json({ ok: false, error: 'Share not found' });
+    const blocked = assertReachable(share);
+    if (blocked) return res.status(blocked.status).json({ ok: false, error: blocked.body });
+
+    // Free shares need no payment, so there is nothing to preflight.
+    if (!(share.price > 0)) return res.json({ ok: true, needed: false, reason: 'preflight-free-resource' });
+
+    const rail = req.body?.rail || req.query?.rail || 'gateway';
+    if (!/^transfer$/i.test(String(rail).replace(/[-\s]+/g, '_').replace(/^(direct|wallet)_/, ''))) {
+      // Gateway (x402) authorizes before settlement — nothing to guard.
+      return res.json({ ok: true, needed: false, rail });
+    }
+
+    // Use the same price the real challenge would mint, including any
+    // whitelist tier, so preflight can't approve an amount the unlock route
+    // would then reject.
+    const claimed = String(req.body?.walletAddress || req.query?.wallet || '').trim().toLowerCase();
+    const possessed = await possessedWalletFor(req, claimed);
+    const challengePrice = possessed ? service.effectivePrice(share, possessed) : share.price;
+
+    if (Number(challengePrice) <= 0) {
+      return res.json({ ok: true, needed: false, reason: 'preflight-price-tier-zero' });
+    }
+
+    const result = await preflightTransfer(
+      {
+        id: share.id,
+        title: share.title || 'content',
+        price: String(challengePrice),
+        recipient: share.ownerWallet,
+        path: req.body?.path || req.query?.path || req.originalUrl || '/',
+      },
+      { payer: possessed || (/^0x[0x0-9a-f]{40}$/.test(claimed) ? claimed : ''), options: { hosted: true } }
+    );
+
+    if (!result.ok) {
+      return res.status(402).json({
+        ok: false,
+        needed: true,
+        error: 'Preflight rejected this payment',
+        reason: result.reason,
+        hint: result.hint,
+        ...(Number.isFinite(result.balance) ? { balance: result.balance, amount: result.amount } : {}),
+      });
+    }
+
+    return res.json({
+      ok: true,
+      needed: true,
+      rail: 'transfer',
+      payTo: result.payTo,
+      amount: result.amount,
+      currency: share.currency || result.currency,
+      network: result.network,
+      balanceKnown: result.balanceKnown !== false,
+    });
+  } catch (error) {
+    // Preflight is an optimization — never block a payment that would succeed.
+    return res.status(200).json({
+      ok: true,
+      needed: false,
+      proceedAnyway: true,
+      reason: 'preflight-unavailable',
+      detail: error?.message || String(error),
+    });
+  }
 }
 
 export async function createShare(req, res) {

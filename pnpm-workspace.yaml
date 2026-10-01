@@ -2,4 +2,5 @@ packages:
   - docs
   - frontend
   - backend
+  - dr-nib/backend
   - packages/*

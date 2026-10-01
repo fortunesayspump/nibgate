@@ -24,6 +24,8 @@ const HUB_PAGES: Array<[string, string]> = [
 ];
 
 const API_ENDPOINTS: Array<[string, string]> = [
+  [`${apiBaseUrl()}/hub/pay`, "x402 unlock endpoint for hub-tracked content: POST bare for a 402 challenge, then retry with the payment header."],
+  [`${apiBaseUrl()}/hub/preflight`, "Optional free dry run for the direct-USDC rail: verifies price, recipient, and payer balance BEFORE an irreversible transfer. Never charges."],
   [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Explore feed of verified content with title, type, price, domain, and reputation signals."],
   [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips, ratings, and nibshares (privacy-safe: no share links)."],
   [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Tips waiting in a domain's no-key holding box (creator not yet on Nibgate); claimable by the site owner, refundable by the payer."],

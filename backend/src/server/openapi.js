@@ -75,7 +75,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.8",
+    version: "0.2.9",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -179,6 +179,36 @@ export const openApiSpec = {
         responses: {
           "200": { description: "Metadata", content: { "application/json": { schema: { type: "object" } } } },
           "404": { description: "Unknown slug", content: { "application/json": { schema: errorSchema } } },
+        },
+      },
+    },
+    "/hub/preflight": {
+      post: {
+        tags: ["Unlocks"],
+        summary: "Check a direct USDC transfer before the payer signs",
+        description:
+          "Optional, free, read-only dry run for the direct-transfer rail (Circle Gateway settles first, then the unlock is claimed). Because the transfer is irreversible, check this BEFORE sending USDC: it verifies the server-side price you were quoted, that the payTo/creator fee wallet resolves, and that the payer holds enough USDC on Arc. Returns ok:false with a reason ('price_mismatch', 'unfunded', 'recipient_unresolved', 'invalid_address') when the payment is guaranteed to fail afterwards. Nothing is charged and no transaction is created. When the hub cannot complete the check it answers ok:true with proceedAnyway:true so callers are never blocked by diagnostics.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["contentId", "price"],
+                properties: {
+                  contentId: { type: "string", description: "Tracked hub content id or externalId; server-side price and recipient win over body values when it maps." },
+                  title: { type: "string" },
+                  path: { type: "string" },
+                  amount: { type: "string", description: "Amount the payer intends to send, in USDC. Compared against the server-side price." },
+                  payer: { type: "string", description: "Payer wallet address (0x…). Used only to read its USDC balance; never charged." },
+                  options: { type: "object", description: "Forwarded transfer options, e.g. { hosted: true }." },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": { description: "Preflight result", content: { "application/json": { schema: { type: "object" } } } },
         },
       },
     },

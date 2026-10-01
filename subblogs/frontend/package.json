@@ -8,8 +8,8 @@
     "start": "next start"
   },
   "dependencies": {
-    "@nibgate/sdk": "^0.4.20",
-    "@nibgate/wallet": "^0.4.9",
+    "@nibgate/sdk": "0.4.32",
+    "@nibgate/wallet": "0.4.16",
     "@reown/appkit": "1.8.21",
     "@reown/appkit-adapter-wagmi": "1.8.21",
     "@tailwindcss/typography": "^0.5.20",
@@ -47,11 +47,13 @@
     "x-data-spreadsheet": "^1.1.9",
     "xlsx": "^0.18.5"
   },
-  "overrides": {
-    "@wagmi/connectors": "8.0.20",
-    "@wagmi/core": "3.5.5",
-    "@base-org/account": "2.4.0",
-    "viem": "2.54.1"
+  "pnpm": {
+    "overrides": {
+      "@wagmi/connectors": "8.0.20",
+      "@wagmi/core": "3.5.5",
+      "@base-org/account": "2.4.0",
+      "viem": "2.54.1"
+    }
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

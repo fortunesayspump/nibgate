@@ -2,22 +2,45 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// This datasource is Dr. Nib's own schema on the hub cluster â€” research tables
+// only, never hub tables. DATABASE_URL is deliberately not used here: in this
+// service that name means the *hub* database (see src/env.js), and reusing it
+// for our own tables is exactly the confusion worth making impossible.
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("DRNIB_DATABASE_URL")
 }
 
 model ResearchRun {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
+  userId      String? // hub account that owns this project (no FK: hub tables live in another schema)
+  walletAddress String?
+  title       String?
+  description String?
   brief       Json
+  metadata    Json      @default("{}")
   plan        Json?
-  depth       String   @default("standard")
-  status      String   @default("draft")
-  budgetCap   Float
-  provider    String   @default("hub")
-  versions    Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  depth       String    @default("standard")
+  status      String    @default("draft")
+  /// Why a run is parked: user | cap | error | jev | awaiting. Null while it is
+  /// moving. The UI says different things for each, and resume only makes sense
+  /// for some of them.
+  pauseReason String?
+  /// The question the run is blocked on, if it is blocked on one. The run stays
+  /// parked until this is answered â€” it is the mid-run question card.
+  pendingQuestion Json?
+  /// Guidance typed while the run was moving, held until the current stage
+  /// finishes so a stage never reads half-written input.
+  pendingGuidance Json?
+  /// Prepaid cap. Deposits are held against it; spends draw it down; the
+  /// remainder is refunded on settle.
+  budgetCap   Decimal   @db.Decimal(18, 6) @default(0)
+  endedAt     DateTime?
+  settledAt   DateTime?
+  versions    Int       @default(1)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   steps       ResearchStep[]
   sources     ResearchSource[]
   claims      ResearchClaim[]
@@ -26,7 +49,9 @@ model ResearchRun {
   ledger      BudgetLedger[]
   decisions   ResearchDecision[]
 
+  @@index([userId, updatedAt])
   @@index([status, updatedAt])
+  @@index([deletedAt])
 }
 
 model ResearchStep {
@@ -35,14 +60,15 @@ model ResearchStep {
   run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   kind      String
   status    String    @default("pending")
+  attempt   Int       @default(1)
   input     Json?
   output    Json?
-  cost      Float     @default(0)
+  cost      Decimal   @db.Decimal(18, 6) @default(0)
   startedAt DateTime?
   endedAt   DateTime?
   createdAt DateTime  @default(now())
 
-  @@index([runId])
+  @@index([runId, kind])
 }
 
 model ResearchSource {
@@ -54,7 +80,7 @@ model ResearchSource {
   domain    String?
   relevance Float?
   trust     Float?
-  cost      Float    @default(0)
+  cost      Decimal   @db.Decimal(18, 6) @default(0)
   createdAt DateTime @default(now())
 
   @@unique([runId, url])
@@ -99,27 +125,44 @@ model ResearchExport {
   @@index([runId])
 }
 
+/// Append-only money log, the source of truth for a run's balance.
+/// kind: deposit (funds held against the cap, including raises) | spend (drawn
+/// down by a stage) | fee (the platform's cut, taken as spends happen) |
+/// refund (unspent remainder returned when a run settles). Never negative:
+/// balance is deposits - spends - fees.
 model BudgetLedger {
   id        String   @id @default(uuid())
   runId     String
   run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   kind      String
-  amount    Float
+  amount    Decimal   @db.Decimal(18, 6)
   txRef     String?
   createdAt DateTime @default(now())
 
   @@index([runId])
 }
 
+/// One entry in the run's decision log. kind="question" rows are the intake
+/// transcript (prompt, options, the user's answer); kind="decision" rows record
+/// what JEV was shown and what it returned. seq gives the transcript its order so
+/// the wizard can step back and forward and resume mid-intake.
 model ResearchDecision {
-  id        String   @id @default(uuid())
-  runId     String
-  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  step      String
-  question  Json
-  criteria  String?
-  output    Json
-  createdAt DateTime @default(now())
+  id         String    @id @default(uuid())
+  runId      String
+  run        ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  seq        Int       @default(0)
+  kind       String    @default("decision")
+  type       String?
+  step       String
+  prompt     String?
+  question   Json
+  criteria   Json?
+  answer     Json?
+  output     Json?
+  confidence Float?
+  answeredAt DateTime?
+  createdAt  DateTime  @default(now())
 
-  @@index([runId])
+  @@index([runId, seq])
+  @@index([runId, kind])
 }

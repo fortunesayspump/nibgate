@@ -23,7 +23,7 @@ async function relayX402Payment(req, res, share, price, paymentRail) {
       title: share.title || 'content',
       price: String(price),
       recipient: share.ownerWallet,
-      path: req.body?.path || req.originalUrl || '/',
+      path: req.body?.path || req.query?.path || req.originalUrl || '/',
       paymentRail: paymentRail || req.query?.rail || undefined,
     },
     { hosted: true },

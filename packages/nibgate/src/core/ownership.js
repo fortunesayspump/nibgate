@@ -4,3 +4,10 @@
 export function ownershipMessage(resource, address) {
   return `Nibgate ownership confirmation\nresource:${resource?.path || resource?.url || resource?.id || ''}\nwallet:${String(address || '').toLowerCase()}`;
 }
+
+// Deterministic message binding a broadcast txHash to a resource, so a public
+// on-chain transfer can't be replayed by a third party to unlock content. MUST
+// match the server's `transferOwnershipMessage` exactly (fail closed otherwise).
+export function transferOwnershipMessage(txHash, resource) {
+  return `Nibgate transfer ownership\ntx:${String(txHash || '').toLowerCase()}\nresource:${resource?.path || resource?.url || ''}`;
+}

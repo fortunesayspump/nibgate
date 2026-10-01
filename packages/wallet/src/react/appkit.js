@@ -89,13 +89,38 @@ function clearStaleWalletState() {
 function clearStaleWalletStateIfVersionChanged() {
   if (typeof window === 'undefined') return
   try {
-    if (localStorage.getItem(STORAGE_VERSION_KEY) === STORAGE_VERSION) return
-    clearStaleWalletState()
+    const current = localStorage.getItem(STORAGE_VERSION_KEY)
+    if (current === STORAGE_VERSION) return
+    // Only wipe when we can actually read a PREVIOUS (different) version. On
+    // ephemeral/partitioned storage (common in mobile in-app browsers) the key
+    // is absent on every load; wiping then would nuke the live session and
+    // cause a connect/disconnect loop. A missing key means there is nothing
+    // meaningful to clear anyway.
+    if (current !== null) clearStaleWalletState()
     localStorage.setItem(STORAGE_VERSION_KEY, STORAGE_VERSION)
   } catch {
     // ignore storage failures
   }
 }
+
+// Heuristic for a wallet's in-app browser (Zerion, MetaMask Mobile, Coinbase,
+// Trust, etc.). In these, WalletConnect QR/deeplink round-trips are the classic
+// source of connect/disconnect churn, so we prefer the injected host provider
+// and drop the WalletConnect connector entirely.
+export function isInAppBrowser() {
+  if (typeof window === 'undefined') return false
+  const ua = String((typeof navigator !== 'undefined' && navigator.userAgent) || '')
+  const eth = window.ethereum
+  if (eth && (eth.isZerion || eth.isTrust || eth.isOKExWallet || eth.isTokenPocket || eth.isCoinbaseWallet === true && /CoinbaseBrowser/i.test(ua))) {
+    return true
+  }
+  return /Zerion|MetaMask\/|MetaMaskMobile|CoinbaseBrowser|CBWallet|Trust\/|OKApp|TokenPocket|imToken|BitKeep|BitgetWallet|Rainbow|Robinhood|Farcaster|Warpcast/i.test(ua)
+}
+
+// EIP-6963 async injection + no storage-backed disconnect shim: in-app browsers
+// inject the provider late and have unreliable storage, which makes the default
+// shimDisconnect flip the connector between connected/disconnected.
+const INJECTED_OPTS = { shimDisconnect: false, unstable_shimAsyncInject: 2_000 }
 
 let cached = null
 
@@ -108,12 +133,14 @@ export function createNibgateWallet(options = {}) {
   const chains = options.chains && options.chains.length ? options.chains : [activeArcChain()]
   const appKitNetworks = chains
 
-  const connectors = options.connectors || [
-    injected(),
-    injected({ target: 'metaMask' }),
-    injected({ target: 'rabby' }),
-    walletConnect({ projectId }),
-  ]
+  const connectors = options.connectors || (isInAppBrowser()
+    ? [injected(INJECTED_OPTS)]
+    : [
+        injected(INJECTED_OPTS),
+        injected({ target: 'metaMask', ...INJECTED_OPTS }),
+        injected({ target: 'rabby', ...INJECTED_OPTS }),
+        walletConnect({ projectId }),
+      ])
 
   const transports = Object.fromEntries(chains.map((chain) => [chain.id, http(rpcUrl)]))
 

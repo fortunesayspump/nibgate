@@ -55,6 +55,11 @@ const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a
 // Overridable per network via options / env so one contract works per chain.
 export const ARC_GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9';
 export const ARC_GATEWAY_MINTER = '0x0022222ABE238Cc2C7Bb1f21003F0a260052475B';
+// Mainnet Gateway contracts. The keeper leg MUST use these on mainnet; falling
+// back to the testnet constants silently builds burn intents the mainnet fee
+// wallet's ERC-1271 rejects (sourceContract/destinationContract mismatch).
+export const ARC_MAINNET_GATEWAY_WALLET = '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE';
+export const ARC_MAINNET_GATEWAY_MINTER = '0x2222222d7164433c4C09B0b0D809a9b52C04C205';
 export const ARC_DOMAIN = 26;
 export const GATEWAY_API_TESTNET = 'https://gateway-api-testnet.circle.com/v1';
 export const ARC_MIN_GATEWAY_FEE = 3_500n; // observed testnet floor: 0.0035 USDC
@@ -543,9 +548,13 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
   const usdc = options.usdcAddress || serverEnv('NIBGATE_USDC_ADDRESS') || ARC_USDC;
   const domain = options.domain || serverEnv('NIBGATE_GATEWAY_DOMAIN') || ARC_DOMAIN;
-  const gatewayWallet = options.gatewayWallet || serverEnv('NIBGATE_GATEWAY_WALLET') || ARC_GATEWAY_WALLET;
-  const gatewayMinter = options.gatewayMinter || serverEnv('NIBGATE_GATEWAY_MINTER') || ARC_GATEWAY_MINTER;
   const gatewayApi = options.gatewayApi || serverEnv('NIBGATE_GATEWAY_API') || defaultGatewayApi();
+  // Never silently fall back to the testnet Gateway on mainnet: empty config
+  // would otherwise strand every credited fee wallet (the exact bug that left
+  // mainnet seller credits unminted).
+  const mainnet = isMainnetNetwork(options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || serverEnv('NIBGATE_NETWORK') || '');
+  const gatewayWallet = options.gatewayWallet || serverEnv('NIBGATE_GATEWAY_WALLET') || (mainnet ? ARC_MAINNET_GATEWAY_WALLET : ARC_GATEWAY_WALLET);
+  const gatewayMinter = options.gatewayMinter || serverEnv('NIBGATE_GATEWAY_MINTER') || (mainnet ? ARC_MAINNET_GATEWAY_MINTER : ARC_GATEWAY_MINTER);
   const minFee = BigInt(options.gatewayFeeFloor ?? 4_000); // buffer above the 0.0035 testnet floor
 
   const publicClient = options.publicClient || sharedPublicClient(rpcUrl);

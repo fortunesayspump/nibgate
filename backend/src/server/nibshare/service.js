@@ -3,7 +3,7 @@ import { db } from '@nibgate/internal/db.js';
 export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
 import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets, canAccess as sdkCanAccess } from '@nibgate/sdk/server';
-import { protocolFeeFor } from '@nibgate/sdk/server';
+import { protocolFeeFor, ensureFeeWalletDeployed, feeWalletAddressFor } from '@nibgate/sdk/server';
 import { FREE_TIER_MAX_BYTES, MAX_EXPIRY_HOURS, decryptShareBody, parsePrice, shareKeySecret, sharePublicUrl, uniqueSlug } from './utils.js';
 
 export class HttpError extends Error {
@@ -78,8 +78,9 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
   const { storageRef, url } = await putBlob({ key: r2Key, data: blob });
   const contentHash = contentHashFor(ownerWallet, storageRef, plaintext);
 
+  let share;
   try {
-    return await db.nibShare.create({
+    share = await db.nibShare.create({
       data: {
         id,
         ownerWallet,
@@ -109,6 +110,22 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
     await deleteBlob({ storageRef: r2Key }).catch(() => {});
     throw error;
   }
+
+  // Deploy the owner's fee wallet up-front so the first unlock can verify and
+  // settle without depending on the keeper. Best-effort: creation always wins.
+  await ensureCreatorFeeWallet(ownerWallet).catch(() => {});
+  return share;
+}
+
+// Materialize a creator's per-creator fee wallet (CREATE2). Circle's settlement
+// and the ERC-1271 self-withdrawal both fail on a code-less address, so a share
+// whose fee wallet is not yet deployed cannot be paid/verified. No-op when the
+// factory/keeper key are unset (self-hosted/simple deployments).
+async function ensureCreatorFeeWallet(ownerWallet) {
+  if (!ownerWallet) return;
+  const wallet = await feeWalletAddressFor(ownerWallet);
+  if (!wallet) return;
+  await ensureFeeWalletDeployed(wallet, { creator: ownerWallet });
 }
 
 export function findShareBySlug(slug) {
@@ -264,11 +281,35 @@ export async function editSharePayload(share) {
   };
 }
 
-export async function recordView(share, viewer) {
+// Views are deduped per viewer/IP within a window so a polling client, retry
+// loop, or agent can't inflate viewCount 1:1 (a POST /view burst produced 125
+// events in ~40s). Wallet viewers dedupe via the event history; anonymous
+// viewers dedupe in-process by their dedupeKey (IP).
+const VIEW_DEDUPE_MS = Number(process.env.NIBGATE_VIEW_DEDUPE_MS || 5 * 60 * 1000);
+const anonViewSeen = new Map();
+
+export async function recordView(share, viewer, { dedupeKey } = {}) {
+  const now = Date.now();
+  if (viewer) {
+    const recent = await db.nibShareEvent.findFirst({
+      where: { shareId: share.id, wallet: viewer },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recent && now - new Date(recent.createdAt).getTime() < VIEW_DEDUPE_MS) return { deduped: true };
+  } else if (dedupeKey) {
+    const key = `${share.id}:${dedupeKey}`;
+    const last = anonViewSeen.get(key);
+    if (last && now - last < VIEW_DEDUPE_MS) return { deduped: true };
+    anonViewSeen.set(key, now);
+    if (anonViewSeen.size > 5000) {
+      for (const [k, ts] of anonViewSeen) if (now - ts > VIEW_DEDUPE_MS) anonViewSeen.delete(k);
+    }
+  }
   await db.nibShare.update({ where: { id: share.id }, data: { viewCount: { increment: 1 } } });
   await db.nibShareEvent.create({
     data: { shareId: share.id, type: 'view', wallet: viewer || null }
   });
+  return { deduped: false };
 }
 
 // Grants exactly-one access per payment (ACCESS-CONTROL-DESIGN §5). The caller

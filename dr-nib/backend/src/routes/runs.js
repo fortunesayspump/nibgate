@@ -8,6 +8,7 @@ import * as auth from '../auth.js';
 import { budgetState, raiseCap, settle } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
 import { deriveDescription, deriveTitle, nextQuestion, TRASH_TTL_MS } from '../intake.js';
+import { generateIntakeQuestion } from '../llm/generate.js';
 import { answerIntakeQuestion, createQuestion } from '../answer-flow.js';
 import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
@@ -67,7 +68,14 @@ runs.post('/', async (req, res) => {
         status: 'intake',
       },
     });
-    const question = nextQuestion([]);
+    // The opener is generated for the topic when a model is configured —
+    // a generic first question is where "this feels canned" comes from.
+    // Bank fallback keeps creation instant and infallible either way.
+    let question = nextQuestion([]);
+    try {
+      const live = await generateIntakeQuestion({ topic: topic.trim(), answered: [] });
+      if (live.question) question = { ...live.question, source: 'llm' };
+    } catch {}
     if (question) await createQuestion(run.id, 0, question);
     res.status(201).json({ id: run.id, title: run.title, description: run.description, status: run.status, question });
   } catch (e) { res.status(500).json({ error: e.message }); }

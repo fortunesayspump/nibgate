@@ -6,7 +6,7 @@
 // SSE contract keep working. The caller decides what to do with the result; the
 // fallback never pretends the model spoke.
 import { chat, chatJson, isLlmConfigured } from './provider.js';
-import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages } from './prompts.js';
+import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
 
 const cleanStrings = (v, cap = 12) =>
@@ -301,4 +301,49 @@ export async function generateThinking({ question, answer, fetchImpl } = {}) {
     }
   }
   return { ok: true, source: 'fallback', model: null, usage: null, text: null };
+}
+
+/**
+ * Intake stage: propose the single next question for this topic. The model
+ * GENERATES; this function only validates the shape. Anything off-spec (or
+ * any transport failure) falls back to null and the caller uses the bank —
+ * a bad question is worse than a generic one, and intake must never hard
+ * fail on a model hiccup.
+ */
+export async function generateIntakeQuestion({ topic, answered = [], fetchImpl } = {}) {
+  const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, question: null });
+  if (!isLlmConfigured()) return fallback(null);
+  try {
+    const { data, usage, model } = await chatJson({
+      effort: 'low',
+      messages: intakeQuestionMessages({ topic, answered }),
+      temperature: 0.4,
+      maxTokens: 400,
+      fetchImpl,
+    });
+    const question = cleanIntakeQuestion(data);
+    if (!question) return fallback('model returned an off-spec question');
+    return { ok: true, source: 'llm', model, usage, question };
+  } catch (err) {
+    return fallback(err?.message || String(err));
+  }
+}
+
+function cleanIntakeQuestion(data) {
+  if (!data || typeof data !== 'object') return null;
+  const type = data.type;
+  if (!['pick_one', 'pick_any', 'free'].includes(type)) return null;
+  const prompt = String(data.prompt || '').trim().slice(0, 280);
+  if (prompt.length < 12) return null;
+  const key = String(data.key || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'q';
+  let options = [];
+  if (type !== 'free') {
+    if (!Array.isArray(data.options)) return null;
+    options = data.options.slice(0, 5).map((o, i) => ({
+      id: String(o?.id || `o${i + 1}`).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) || `o${i + 1}`,
+      label: String(o?.label || '').trim().slice(0, 60),
+    })).filter((o) => o.label.length >= 2);
+    if (options.length < 2) return null;
+  }
+  return { key, type, prompt, options, allowOther: data.allowOther !== false };
 }

@@ -22,7 +22,9 @@ afterEach(wipe);
 
 describe('tool registry', () => {
   it('advertises exactly the instruments, each with a cost model', () => {
-    expect(toolNames().sort()).toEqual(['compute', 'http_request', 'run_code', 'search_sources', 'web_fetch', 'web_search']);
+    // `compute` (Node vm) is deliberately NOT advertised: vm is not a security
+    // boundary, so model-authored code is forced through run_code's sandbox.
+    expect(toolNames().sort()).toEqual(['http_request', 'run_code', 'search_sources', 'web_fetch', 'web_search']);
     for (const spec of toolSpecs()) {
       expect(spec.description.length).toBeGreaterThan(20);
       expect(['metered', 'zero']).toContain(spec.cost);
@@ -99,10 +101,9 @@ describe('runTool', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('computes over caller-supplied data with zero cost', async () => {
+  it('refuses the removed compute tool (model code must use run_code)', async () => {
     const out = await runTool(RUN, 'compute', { code: 'input.a * input.b', input: { a: 6, b: 7 } });
-    expect(out.ok).toBe(true);
-    expect(out.output.result).toBe(42);
-    expect(out.costUsd).toBe(0);
+    expect(out.ok).toBe(false);
+    expect(out.error).toMatch(/unknown tool: compute/);
   });
 });

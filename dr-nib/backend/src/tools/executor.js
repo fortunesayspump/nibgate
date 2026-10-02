@@ -14,7 +14,6 @@ import { recordEvent } from '../eventlog.js';
 import { applyUrlPolicy, checkUrlPolicy, normalizePolicy } from './policy.js';
 import { searchAll, extractAll } from '../retrieval/index.js';
 import { httpRequest } from './http.js';
-import { compute } from './compute.js';
 import { searchEvidence } from './evidence.js';
 import { runInSandbox, sandboxConfigured, writeSandboxFile } from './sandbox.js';
 
@@ -73,16 +72,6 @@ const TOOLS = {
         { url: input.url, method: input.method || 'GET', headers: input.headers || {}, body: input.body ?? null },
         { fetchImpl: ctx.fetchImpl },
       );
-      return { output: out, costUsd: 0 };
-    },
-  },
-
-  compute: {
-    description: 'Crunch small numbers over collected evidence: arithmetic, simple statistics, tables. Sandboxed expression only — no network, files, or time. For anything heavier (parsing a PDF, plotting, installing a package, real files) use run_code.',
-    cost: 'zero',
-    async run(input) {
-      need(input, 'code');
-      const out = await compute({ code: input.code, input: input.input ?? null });
       return { output: out, costUsd: 0 };
     },
   },
@@ -165,7 +154,6 @@ function summarize(name, input) {
     return `${urls.length} url(s): ${String(urls[0] || '').slice(0, 100)}`;
   }
   if (name === 'http_request') return `${input.method || 'GET'} ${String(input.url || '').slice(0, 120)}`;
-  if (name === 'compute') return String(input.code || '').slice(0, 120);
   if (name === 'run_code') return String(input.command || input.code || '').slice(0, 120);
   if (name === 'search_sources') return String(input.query || '').slice(0, 120);
   return '';

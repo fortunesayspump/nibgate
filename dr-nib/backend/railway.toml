@@ -1,0 +1,27 @@
+# Railway service: Dr. Nib backend.
+#
+# This service shares the monorepo, so its Root Directory must be the repo root
+# (not dr-nib/backend) — dr-nib/backend depends on @nibgate/internal via
+# `workspace:*`, which only resolves from the workspace root. Point Railway's
+# "Railway Config File" setting at this file.
+#
+# Start runs generate + migrate + serve, so the first deploy creates the schema
+# and every later deploy applies new migrations. Migrations are tracked in the
+# `drnib` schema named by DRNIB_DATABASE_URL.
+[build]
+builder = "nixpacks"
+watchPatterns = [
+  "dr-nib/**",
+  "packages/internal/**",
+  "packages/nibgate/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml"
+]
+
+[deploy]
+startCommand = "pnpm --filter @nibgate/dr-nib-backend start:prod"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

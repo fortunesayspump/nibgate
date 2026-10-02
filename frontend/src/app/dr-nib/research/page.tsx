@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2, Send, Square } from "lucide-react";
 import { drNibApi, type IntakeAnswer, type IntakeOption, type IntakeQuestion } from "@/lib/dr-nib-api";
+import { useNibgateConnect } from "@/lib/useNibgateConnect";
 
 const SAMPLES = [
   "Compare Arc vs Base for USDC micropayments, last 90 days",
@@ -25,6 +26,10 @@ function hasAnswer(a: IntakeAnswer): boolean {
 
 export default function ResearchNewPage() {
   const router = useRouter();
+  // Dr. Nib is wallet-gated through the same shared hub session as the header.
+  // When a call comes back 401 (wallet connected but not signed in), prompt and
+  // open the shared connect/sign-in rather than showing a raw error.
+  const { connect } = useNibgateConnect();
   const [phase, setPhase] = useState<Phase>("composer");
   const [topic, setTopic] = useState("");
   const [project, setProject] = useState<any | null>(null);
@@ -85,6 +90,18 @@ export default function ResearchNewPage() {
     setTimeout(() => setNotice(""), 3000);
   }
 
+  // One place for failed calls: a 401 means the wallet is connected but there
+  // is no hub session, so prompt and open the shared sign-in. Everything else
+  // is a real error with the server's status shown.
+  function fail(e: any, label: string) {
+    if (e?.code === "unauthenticated") {
+      flash("Sign in to Nibgate to use Dr. Nib.");
+      connect();
+      return;
+    }
+    flash(`${label} (${e?.message || e}).`);
+  }
+
   async function send() {
     const t = topic.trim();
     if (!t) return flash("Type a question first — even one line.");
@@ -97,7 +114,7 @@ export default function ResearchNewPage() {
       setIdx(0);
       setPhase("questions");
     } catch (e: any) {
-      flash(`Could not reach Dr. Nib (${e.message}). Is it running on :3100?`);
+      fail(e, "Could not reach Dr. Nib");
     } finally {
       setBusy(false);
     }
@@ -150,7 +167,7 @@ export default function ResearchNewPage() {
         else setIdx((i) => i + 1);
       });
     } catch (e: any) {
-      flash(`That didn't go through (${e.message}).`);
+      fail(e, "That didn't go through");
     } finally {
       setBusy(false);
     }
@@ -187,7 +204,7 @@ export default function ResearchNewPage() {
         }
       }
     } catch (e: any) {
-      flash(`Planning failed (${e.message}).`);
+      fail(e, "Planning failed");
     } finally {
       setBusy(false);
     }
@@ -200,7 +217,7 @@ export default function ResearchNewPage() {
       await drNibApi.approveRun(project.id);
       router.push(`/dr-nib/research/${project.id}`);
     } catch (e: any) {
-      flash(`Approve failed: ${e.message}`);
+      fail(e, "Approve failed");
     } finally {
       setBusy(false);
     }

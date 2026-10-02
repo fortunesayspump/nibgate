@@ -15,11 +15,11 @@ importers:
   .:
     dependencies:
       '@nibgate/sdk':
-        specifier: 0.4.33
-        version: 0.4.33(3c4bcb6f348081a880e857389c4db2c8)
+        specifier: 0.4.34
+        version: 0.4.34(3c4bcb6f348081a880e857389c4db2c8)
       '@nibgate/wallet':
-        specifier: 0.4.17
-        version: 0.4.17(3c4bcb6f348081a880e857389c4db2c8)
+        specifier: 0.4.18
+        version: 0.4.18(3c4bcb6f348081a880e857389c4db2c8)
       '@reown/appkit':
         specifier: 1.8.21
         version: 1.8.21(@types/react@19.3.0)(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(encoding@0.1.13)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.3.0))(zod@3.25.76)
@@ -431,14 +431,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@nibgate/sdk@0.4.32':
-    resolution: {integrity: sha512-vkUlVrIXbSq6aVjkcugkIvFKFXc1Lvb7BpW0iosq21S4hbSc0E6QXUj+cZjbnfRQNU4owfO3SjgH5v+Cbo7VcA==}
+  '@nibgate/sdk@0.4.34':
+    resolution: {integrity: sha512-7SxH0ASJa2hf8ZHZShdlDfE7W22yLroQcolmEZ+jIHOKGaYzmXHiiDvz3lDPfA+1Z1UkFzjBZq9KMth1TagwFw==}
 
-  '@nibgate/sdk@0.4.33':
-    resolution: {integrity: sha512-UYfWyMdSSPyX0iZJbi0Aia82Yqnto6yVfUmDomfQAzjyXYUhFaRHKJvjlRVYeqLb+cPv4pc0Cyx2fi5tFaQdeg==}
-
-  '@nibgate/wallet@0.4.17':
-    resolution: {integrity: sha512-vLi1pbIyg0vaPlY1FIkjOX/ARbYaVBI8GgvvA4y0Wot9PPuYoSgP8pjeRm3DSczq0Itsh2MYD2Duu73xcX6A0A==}
+  '@nibgate/wallet@0.4.18':
+    resolution: {integrity: sha512-wChz33BC6LGlMIjey9vlK9SlSiFhIKODxM73AzEw000dP1aVbMNmRKNA6XOrXHnx+QX3XtGmDzGhqqoLVPHR9w==}
     peerDependencies:
       '@reown/appkit': 1.8.21
       '@reown/appkit-adapter-wagmi': 1.8.21
@@ -3249,10 +3246,10 @@ snapshots:
   '@next/swc-win32-x64-msvc@15.5.27':
     optional: true
 
-  '@nibgate/sdk@0.4.32(3c4bcb6f348081a880e857389c4db2c8)':
+  '@nibgate/sdk@0.4.34(3c4bcb6f348081a880e857389c4db2c8)':
     dependencies:
       '@circle-fin/x402-batching': 3.2.0(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(viem@2.54.1(typescript@5.9.3)(zod@3.25.76))
-      '@nibgate/wallet': 0.4.17(3c4bcb6f348081a880e857389c4db2c8)
+      '@nibgate/wallet': 0.4.18(3c4bcb6f348081a880e857389c4db2c8)
       '@x402/core': 2.17.0
       '@x402/evm': 2.17.0(typescript@5.9.3)
       viem: 2.54.1(typescript@5.9.3)(zod@3.25.76)
@@ -3268,28 +3265,9 @@ snapshots:
       - wagmi
       - zod
 
-  '@nibgate/sdk@0.4.33(3c4bcb6f348081a880e857389c4db2c8)':
+  '@nibgate/wallet@0.4.18(3c4bcb6f348081a880e857389c4db2c8)':
     dependencies:
-      '@circle-fin/x402-batching': 3.2.0(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(viem@2.54.1(typescript@5.9.3)(zod@3.25.76))
-      '@nibgate/wallet': 0.4.17(3c4bcb6f348081a880e857389c4db2c8)
-      '@x402/core': 2.17.0
-      '@x402/evm': 2.17.0(typescript@5.9.3)
-      viem: 2.54.1(typescript@5.9.3)(zod@3.25.76)
-    transitivePeerDependencies:
-      - '@reown/appkit'
-      - '@reown/appkit-adapter-wagmi'
-      - '@tanstack/react-query'
-      - bufferutil
-      - react
-      - react-dom
-      - typescript
-      - utf-8-validate
-      - wagmi
-      - zod
-
-  '@nibgate/wallet@0.4.17(3c4bcb6f348081a880e857389c4db2c8)':
-    dependencies:
-      '@nibgate/sdk': 0.4.32(3c4bcb6f348081a880e857389c4db2c8)
+      '@nibgate/sdk': 0.4.34(3c4bcb6f348081a880e857389c4db2c8)
       '@reown/appkit': 1.8.21(@types/react@19.3.0)(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(encoding@0.1.13)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.3.0))(zod@3.25.76)
       '@reown/appkit-adapter-wagmi': 1.8.21(ba4fde1ebc2e9ff7c2f2ff57190ce0a9)
       '@tanstack/react-query': 5.101.2(react@19.3.0)

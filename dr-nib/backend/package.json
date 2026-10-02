@@ -12,6 +12,7 @@
     "start": "node src/server.js",
     "start:prod": "prisma generate --schema=./prisma/schema.prisma && prisma migrate deploy --schema=./prisma/schema.prisma && node src/server.js",
     "worker": "node src/worker.js",
+    "worker:prod": "prisma generate --schema=./prisma/schema.prisma && node src/worker.js",
     "db:push": "npx prisma db push --schema=./prisma/schema.prisma",
     "db:generate": "npx prisma generate --schema=./prisma/schema.prisma",
     "db:sql": "npx prisma db execute --schema=./prisma/schema.prisma --stdin",

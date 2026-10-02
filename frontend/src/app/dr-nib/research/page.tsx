@@ -90,13 +90,15 @@ export default function ResearchNewPage() {
     setTimeout(() => setNotice(""), 3000);
   }
 
-  // One place for failed calls: a 401 means the wallet is connected but there
-  // is no hub session, so prompt and open the shared sign-in. Everything else
-  // is a real error with the server's status shown.
+  // One place for failed calls: a 401 means there is no hub session for this
+  // call. Never auto-fire connect() here — that is what caused the sign-again
+  // loop (sign in succeeds, the next call 401s on transport, fail() signs
+  // again, forever). Show the prompt with an explicit button instead.
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   function fail(e: any, label: string) {
     if (e?.code === "unauthenticated") {
-      flash("Sign in to Nibgate to use Dr. Nib.");
-      connect();
+      setNeedsSignIn(true);
+      flash("Sign in to Nibgate to use Dr. Nib, then retry.");
       return;
     }
     flash(`${label} (${e?.message || e}).`);
@@ -109,6 +111,7 @@ export default function ResearchNewPage() {
     setNotice("");
     try {
       const run: any = await drNibApi.createProject(t);
+      setNeedsSignIn(false);
       setProject(run);
       setItems(run.question ? [{ seq: 0, question: run.question }] : []);
       setIdx(0);
@@ -283,6 +286,13 @@ export default function ResearchNewPage() {
   return (
     <div>
       {notice && <div className="mb-4 border border-dark-gray/50 bg-white px-4 py-2 text-sm">{notice}</div>}
+      {needsSignIn && (
+        <div className="mb-4">
+          <button onClick={() => { setNeedsSignIn(false); connect(); }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white">
+            Sign in with wallet
+          </button>
+        </div>
+      )}
 
       {project && phase !== "composer" && (
         <div className="mx-auto mb-4 max-w-2xl border-b border-dark-gray/30 pb-3 text-left">

@@ -1,7 +1,10 @@
-// Dr. Nib's API lives at its own mainnet subdomain with the session cookie
-// scoped to .nibgate.xyz, so the browser reaches it directly. (A same-origin
-// /drnib-api proxy also exists in next.config.ts as a fallback.)
-const BASE = process.env.NEXT_PUBLIC_DRNIB_API_URL || (process.env.NODE_ENV === "production" ? "https://drnib.nibgate.xyz" : "http://localhost:3100");
+// Dr. Nib is a separate service, but the browser must reach it through the
+// same-origin /drnib-api proxy (see next.config.ts rewrites). A direct
+// absolute URL (localhost:3100, drnib.nibgate.xyz) is a different origin from
+// the page: the hub SIWE session cookie either isn't sent at all
+// (127.0.0.1 page vs localhost API) or needs CORS, so every call 401s even
+// right after a successful sign-in — the sign-again loop.
+const BASE = process.env.NEXT_PUBLIC_DRNIB_API_URL || "/drnib-api";
 
 async function req(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${BASE}${path}`, {

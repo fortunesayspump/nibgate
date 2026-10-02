@@ -1,7 +1,7 @@
-// In production the hub frontend reaches Dr. Nib through its own /drnib-api
-// proxy (see next.config.ts) so the .nibgate.xyz session cookie is sent.
-// Locally it talks to the service directly.
-const BASE = process.env.NEXT_PUBLIC_DRNIB_API_URL || (process.env.NODE_ENV === "production" ? "/drnib-api" : "http://localhost:3100");
+// Dr. Nib's API lives at its own mainnet subdomain with the session cookie
+// scoped to .nibgate.xyz, so the browser reaches it directly. (A same-origin
+// /drnib-api proxy also exists in next.config.ts as a fallback.)
+const BASE = process.env.NEXT_PUBLIC_DRNIB_API_URL || (process.env.NODE_ENV === "production" ? "https://drnib.nibgate.xyz" : "http://localhost:3100");
 
 async function req(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${BASE}${path}`, {

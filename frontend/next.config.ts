@@ -7,7 +7,7 @@ if (!/^https?:\/\//.test(apiUrl)) apiUrl = 'https://' + apiUrl;
 // same-origin proxy so the `.nibgate.xyz` SIWE session cookie is sent — a
 // direct cross-origin call to a *.up.railway.app host would not carry a
 // .nibgate.xyz cookie and every authenticated request would 401.
-let drnibUrl = (process.env.DRNIB_API_URL || (process.env.NODE_ENV === "production" ? "https://nibgate-drnib-mainnet-production.up.railway.app" : "http://localhost:3100")).replace(/\/+$/, '');
+let drnibUrl = (process.env.DRNIB_API_URL || (process.env.NODE_ENV === "production" ? "https://drnib.nibgate.xyz" : "http://localhost:3100")).replace(/\/+$/, '');
 if (!/^https?:\/\//.test(drnibUrl)) drnibUrl = 'https://' + drnibUrl;
 
 const nextConfig: NextConfig = {

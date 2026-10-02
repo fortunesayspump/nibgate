@@ -50,13 +50,12 @@ Runtime knobs (optional, defaults are fine): `LLM_MODEL`, `LLM_FALLBACK_MODELS`,
 
 ## 3. Frontend
 
-The hub frontend reaches Dr. Nib through a **same-origin proxy**: `next.config.ts`
-rewrites `/drnib-api/*` to the service (`DRNIB_API_URL`, defaulting to the
-Railway domain in production), and `dr-nib-api.ts` defaults to `/drnib-api` in
-production. This matters because the SIWE session cookie is scoped to
-`.nibgate.xyz` — a direct cross-origin call to the `*.up.railway.app` host would
-not carry it. No extra Vercel env is required; override `DRNIB_API_URL` only for
-a different deployment or a custom domain.
+The hub UI stays at `nibgate.xyz/dr-nib`; only the **API** lives on its own
+subdomain, `drnib.nibgate.xyz` (CNAME → the Railway service, TLS by Railway).
+Because the subdomain is under `.nibgate.xyz`, the browser sends the SIWE
+session cookie to it directly. `dr-nib-api.ts` defaults to that subdomain in
+production; `next.config.ts` also exposes a same-origin `/drnib-api` proxy as a
+fallback. Set `DRNIB_API_URL` only to point at a different deployment.
 
 ## 4. Verify after deploy
 

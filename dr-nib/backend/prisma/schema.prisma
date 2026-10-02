@@ -48,6 +48,7 @@ model ResearchRun {
   exports     ResearchExport[]
   ledger      BudgetLedger[]
   decisions   ResearchDecision[]
+  events      ResearchEvent[]
 
   @@index([userId, updatedAt])
   @@index([status, updatedAt])
@@ -64,11 +65,20 @@ model ResearchStep {
   input     Json?
   output    Json?
   cost      Decimal   @db.Decimal(18, 6) @default(0)
+  /// Crash-recovery lease. A step that is still `active` after its lease
+  /// expired belongs to a dead worker: the boot sweeper resets it to
+  /// `pending` and re-enqueues the run. A live step renews its lease on a
+  /// heartbeat so a slow stage (long LLM call, big crawl) is never mistaken
+  /// for a dead one.
+  workerId    String?
+  leaseUntil  DateTime?
+  heartbeatAt DateTime?
   startedAt DateTime?
   endedAt   DateTime?
   createdAt DateTime  @default(now())
 
   @@index([runId, kind])
+  @@index([status, leaseUntil])
 }
 
 model ResearchSource {
@@ -128,8 +138,8 @@ model ResearchExport {
 /// Append-only money log, the source of truth for a run's balance.
 /// kind: deposit (funds held against the cap, including raises) | spend (drawn
 /// down by a stage) | fee (the platform's cut, taken as spends happen) |
-/// refund (unspent remainder returned when a run settles). Never negative:
-/// balance is deposits - spends - fees.
+/// refund (unspent remainder returned when a run settles). Amounts are never
+/// negative; balance is deposits − spends − fees − refunds.
 model BudgetLedger {
   id        String   @id @default(uuid())
   runId     String
@@ -165,4 +175,60 @@ model ResearchDecision {
 
   @@index([runId, seq])
   @@index([runId, kind])
+}
+
+/// Idempotency records for mutating routes. A retried request with the same
+/// Idempotency-Key (a double-click, a dropped connection retried) replays the
+/// stored response instead of executing twice — critical when the second
+/// execution would spend money. Scoped per user so keys never leak across
+/// accounts. statusCode 0 means in flight (a concurrent duplicate gets 409).
+model IdempotencyKey {
+  id         String   @id @default(uuid())
+  userId     String
+  key        String
+  statusCode Int      @default(0)
+  response   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([createdAt])
+}
+
+/// Per-user memory of which domains earned citations.
+///
+/// After a report ships, every domain the run read gets reads+1 and every
+/// domain it actually cited gets cites+1. Future runs consult the rate before
+/// judging trust — a source that proved useful before starts with evidence
+/// behind it. Read-but-uncited counts as read, never as a demerit: a source
+/// the run skipped was never given the chance, and counting that as a miss
+/// would let one skip justify the next.
+model QueryMemory {
+  id        String   @id @default(uuid())
+  userId    String
+  domain    String
+  reads     Int      @default(0)
+  cites     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, domain])
+  @@index([userId])
+}
+
+/// The durable, ordered event log for a run. Every SSE event is written here
+/// before it is broadcast, so a client that disconnects at step five can
+/// reconnect and replay from step six, and the run's whole history is
+/// inspectable after the fact. `seq` is per-run and monotonic, which is what
+/// makes replay exact (`?after=<seq>` or the SSE Last-Event-ID header).
+model ResearchEvent {
+  id        String   @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  seq       Int
+  type      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@unique([runId, seq])
+  @@index([runId, seq])
 }

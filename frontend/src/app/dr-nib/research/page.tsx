@@ -37,6 +37,8 @@ export default function ResearchNewPage() {
   const [liveWeb, setLiveWeb] = useState(true);
   const [formats, setFormats] = useState<string[]>(["pdf"]);
   const [budgetCap, setBudgetCap] = useState(2.5);
+  const [length, setLength] = useState("standard");
+  const [lengthWords, setLengthWords] = useState(4000);
   const [estimate, setEstimate] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -171,7 +173,10 @@ export default function ResearchNewPage() {
     setBusy(true);
     setNotice("");
     try {
-      await drNibApi.configureRun(project.id, { depth, budgetCap, formats, liveWeb });
+      await drNibApi.configureRun(project.id, {
+        depth, budgetCap, formats, liveWeb,
+        length, ...(length === "custom" ? { lengthWords } : {}),
+      });
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => setTimeout(r, 800));
         const full: any = await drNibApi.getRun(project.id);
@@ -341,6 +346,29 @@ export default function ResearchNewPage() {
               <button key={f} onClick={() => setFormats((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]))} className={`border px-2.5 py-1 text-xs uppercase ${formats.includes(f) ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{f}</button>
             ))}
           </div>
+          <div className="mt-4">
+            <span className="text-sm font-medium">Report length</span>
+            <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Report length">
+              {[
+                { id: "brief", label: "Brief · ~1,200 words" },
+                { id: "standard", label: "Standard · ~4,000 words" },
+                { id: "comprehensive", label: "Comprehensive · ~12,000 words" },
+                { id: "custom", label: "Custom…" },
+              ].map((o) => (
+                <button key={o.id} onClick={() => setLength(o.id)} aria-pressed={length === o.id}
+                  className={`border px-3 py-1.5 text-xs ${length === o.id ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{o.label}</button>
+              ))}
+            </div>
+            {length === "custom" ? (
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                <label htmlFor="drnib-words" className="opacity-60">Words</label>
+                <input id="drnib-words" type="number" min={300} max={50000} step={100} value={lengthWords}
+                  onChange={(e) => setLengthWords(Number(e.target.value) || 0)}
+                  className="w-32 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm" />
+                <span className="text-xs opacity-60">300 – 50,000, clamped if outside</span>
+              </div>
+            ) : null}
+          </div>
           <div className="mt-5 flex gap-2">
             <button onClick={() => setPhase("questions")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
             <button onClick={plan} disabled={busy} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Planning…" : "Plan run"}</button>
@@ -355,6 +383,7 @@ export default function ResearchNewPage() {
             <p className="text-[15px] font-medium leading-7">{project?.title || topic}</p>
             <p className="mt-1 text-xs opacity-60">{project?.description}</p>
             <p className="mt-3 text-xs opacity-60">Depth: {depth} · Cap: ${budgetCap.toFixed(2)} · {liveWeb ? "live web" : "curated only"} · {formats.join(", ")}</p>
+            <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ~${Number(lengthWords || 0).toLocaleString()} words` : `${length} · ~${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"} words`}</p>
             <p className="mt-3 text-sm">Estimated cost: <strong>${(estimate ?? 0.2).toFixed(2)}</strong> · Run {project?.id?.slice(0, 8)}</p>
           </div>
           <div className="mt-4 flex gap-2">

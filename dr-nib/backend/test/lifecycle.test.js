@@ -36,6 +36,11 @@ async function reset() {
 }
 
 async function makeRun(over = {}) {
+  // A fresh run holds exactly its cap — nothing more. Depositing a stray 5
+  // against a cap of 0 would model a state no real code path can produce
+  // (configure holds the cap it sets; raiseCap holds only the difference),
+  // and every balance assertion below depends on deposited == cap.
+  const cap = over.budgetCap ?? 5;
   const run = await db.researchRun.create({
     data: {
       userId: ALICE.id,
@@ -43,11 +48,13 @@ async function makeRun(over = {}) {
       title: 'Test run',
       brief: { topic: 'testing' },
       status: 'intake',
-      budgetCap: toDb(5),
+      budgetCap: toDb(cap),
       ...over,
     },
   });
-  await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(5) } });
+  if (cap > 0) {
+    await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(cap) } });
+  }
   return run;
 }
 

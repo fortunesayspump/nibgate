@@ -3,10 +3,12 @@ import { db } from '../db.js';
 import * as auth from '../auth.js';
 import { budgetState, raiseCap } from '../money.js';
 import { jsonSafe, toNum } from '../units.js';
+import { idempotency } from '../idempotency.js';
 
 export const budgets = Router();
 
 budgets.use((req, res, next) => auth.middleware(req, res, next));
+budgets.use((req, res, next) => idempotency(req, res, next));
 
 // Budget is a view of the run's ledger, so it comes from the same place as the
 // money: never recomputed per client, never trusted from the request body.

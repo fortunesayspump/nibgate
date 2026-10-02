@@ -12,10 +12,19 @@ import { config } from './env.js';
 import { runs } from './routes/runs.js';
 import { budgets } from './routes/budgets.js';
 import { exports } from './routes/exports.js';
+import { mcp } from './mcp/routes.js';
 import { initQueue, queueMode } from './queue.js';
+import { requeueOrphans } from './worker.js';
 
 export async function createApp() {
   await initQueue();
+  // This process executes stages too (inline mode), so it sweeps for anything
+  // a dead worker left mid-stage before serving traffic.
+  const swept = await requeueOrphans().catch((e) => {
+    console.error('[dr-nib] orphan sweep failed:', e.message);
+    return { reclaimed: 0, runs: [] };
+  });
+  if (swept.reclaimed) console.log(`[dr-nib] reclaimed ${swept.reclaimed} orphaned step(s) across ${swept.runs.length} run(s)`);
   const app = express();
   app.set('trust proxy', true);
   app.use(express.json({ limit: '1mb' }));
@@ -30,6 +39,7 @@ export async function createApp() {
   app.use('/v1/runs', runs);
   app.use('/v1/budgets', budgets);
   app.use('/v1', exports);
+  app.use('/mcp', mcp);
   app.use((err, _req, res, _next) => res.status(500).json({ error: err?.message || 'internal' }));
   return app;
 }

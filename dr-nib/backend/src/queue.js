@@ -36,8 +36,21 @@ export async function enqueue(name, data, opts = {}) {
 }
 
 export function startWorkers(handlers) {
-  if (mode !== 'bullmq') return;
+  if (mode !== 'bullmq') return [];
+  const workers = [];
   for (const [name, fn] of Object.entries(handlers)) {
-    new Worker(name, async (job) => fn(job.data, job), { connection });
+    workers.push(new Worker(name, async (job) => fn(job.data, job), { connection }));
+  }
+  return workers;
+}
+
+export async function closeQueue(workers = []) {
+  for (const w of workers) {
+    try { await w.close(); } catch {}
+  }
+  if (connection) {
+    const c = connection;
+    connection = null;
+    try { await c.quit(); } catch {}
   }
 }

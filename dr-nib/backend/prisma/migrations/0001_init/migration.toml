@@ -1,0 +1,6 @@
+-- Initial Dr. Nib schema: research runs, steps, sources, claims, reports,
+-- exports, the append-only budget ledger, and the decision log.
+-- Baseline generated from prisma/schema.prisma via `prisma migrate diff`.
+-- Provider: postgresql. Test schema guard (_test suffix) is enforced by
+-- test/setup.js, not by migrations.
+provider = "postgresql"

@@ -21,3 +21,10 @@ const url = process.env.DRNIB_DATABASE_URL || '';
 if (!/[?&]schema=drnib_test\b/.test(url)) {
   throw new Error(`Refusing to run against ${url || '(nothing)'}. DRNIB_DATABASE_URL must name a schema ending in _test.`);
 }
+
+// Hermetic models: tests must never spend real money or depend on live
+// services. Point the JEV client at a dead port (every decision falls back,
+// deterministically) and drop any model key the shell happens to carry, so a
+// developer's local .env can never make the suite non-deterministic.
+process.env.HUB_API_URL = 'http://127.0.0.1:9';
+delete process.env.OPENROUTER_API_KEY;

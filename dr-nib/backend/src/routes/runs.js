@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { publish, subscribe } from '../events.js';
-import { requestExecute, requestPlan } from '../worker.js';
+import { subscribe } from '../events.js';
+import { recordEvent, replayEvents } from '../eventlog.js';
+import { idempotency } from '../idempotency.js';
+import { requestExecute, requestPlan, estimatePlanCost } from '../worker.js';
 import * as auth from '../auth.js';
 import { budgetState, raiseCap, settle } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
-import { applyAnswer, deriveDescription, deriveTitle, nextQuestion, think, TRASH_TTL_MS } from '../intake.js';
+import { deriveDescription, deriveTitle, nextQuestion, TRASH_TTL_MS } from '../intake.js';
+import { answerIntakeQuestion, createQuestion } from '../answer-flow.js';
+import { resolveLength } from '../length.js';
 
 export const runs = Router();
 
@@ -13,6 +17,8 @@ export const runs = Router();
 // so there is no separate Dr. Nib sign-in and no way to reach another
 // person's run.
 runs.use((req, res, next) => auth.middleware(req, res, next));
+// Retried mutating requests replay instead of executing twice (see idempotency.js).
+runs.use((req, res, next) => idempotency(req, res, next));
 
 async function ownedRun(req, res, { allowDeleted = false } = {}) {
   const run = await db.researchRun.findUnique({ where: { id: req.params.id } });
@@ -31,17 +37,6 @@ async function ownedRun(req, res, { allowDeleted = false } = {}) {
 async function withBudget(run) {
   const { ledger, ...rest } = run;
   return { ...rest, ...(await budgetState(run.id)) };
-}
-
-async function answeredKeys(runId) {
-  const rows = await db.researchDecision.findMany({ where: { runId, kind: 'question' }, orderBy: { seq: 'asc' } });
-  return rows.filter((r) => r.answer != null).map((r) => r.question?.key).filter(Boolean);
-}
-
-function createQuestion(runId, seq, q) {
-  return db.researchDecision.create({
-    data: { runId, seq, kind: 'question', type: q.type, step: 'intake', prompt: q.prompt, question: q },
-  });
 }
 
 async function purgeExpired() {
@@ -119,62 +114,29 @@ runs.get('/:id', async (req, res) => {
 });
 
 // Answer the current intake question. Re-answering invalidates the transcript
-// after it, and sharpens the project's title/description/metadata.
+// after it, and sharpens the project's title/description/metadata. The flow
+// itself lives in answer-flow.js so the MCP server advances the same
+// transcript through the same code.
 runs.post('/:id/answers', async (req, res) => {
   try {
     const { seq, answer } = req.body || {};
     const run = await ownedRun(req, res);
     if (!run) return;
-    const question = await db.researchDecision.findFirst({ where: { runId: run.id, kind: 'question', seq: Number(seq), step: 'intake' } });
-    if (!question) return res.status(404).json({ error: 'question not found' });
-
-    await db.researchDecision.deleteMany({ where: { runId: run.id, kind: 'question', step: 'intake', seq: { gt: Number(seq) } } });
-    await db.researchDecision.update({ where: { id: question.id }, data: { answer: answer ?? {}, answeredAt: new Date() } });
-
-    const reasoning = think({ question: question.question, answer });
-    const patch = applyAnswer({ run, question: question.question, answer });
-    const updated = await db.researchRun.update({
-      where: { id: run.id },
-      data: { brief: patch.brief, metadata: patch.metadata, title: patch.title, description: patch.description },
-    });
-
-    const keys = await answeredKeys(run.id);
-    const next = nextQuestion(keys);
-    const done = !next;
-    if (next) await createQuestion(run.id, Number(seq) + 1, next);
-    else await db.researchRun.update({ where: { id: run.id }, data: { status: 'intake-done' } });
-
-    await db.researchDecision.create({
-      data: {
-        runId: run.id,
-        seq: Number(seq),
-        kind: 'decision',
-        type: done ? 'noul' : 'choice',
-        step: 'intake-stop',
-        prompt: 'Leave intake?',
-        question: { options: { proceed: 'plan now', ask_more: 'ask another question' } },
-        answer: { picked: done ? 'proceed' : 'ask_more' },
-        output: { decision: done ? 'proceed' : 'ask_more', confidence: done ? 0.9 : 0.8 },
-        confidence: done ? 0.9 : 0.8,
-      },
-    });
-
-    res.json({
-      thinking: reasoning,
-      done,
-      next: next || null,
-      project: { id: updated.id, title: updated.title, description: updated.description, status: updated.status, metadata: updated.metadata },
-    });
+    const out = await answerIntakeQuestion(run, seq, answer);
+    res.status(out.status).json(out.body);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Configure, then plan. This is where a budget first exists: the cap is
-// selected here and held before anything is spent.
+// selected here and held before anything is spent. Length (preset or exact
+// word count) is resolved here too, so the plan is priced for the report the
+// user actually asked for — never a silent default.
 runs.post('/:id/configure', async (req, res) => {
   try {
     const {
       depth = 'standard', budgetCap, liveWeb = true,
       language = 'en', perspective = 'neutral', formats = ['pdf'],
+      length = 'standard', lengthWords = null,
     } = req.body || {};
     if (!(Number(budgetCap) > 0)) return res.status(400).json({ error: 'budgetCap must be > 0' });
     const run = await ownedRun(req, res);
@@ -182,7 +144,8 @@ runs.post('/:id/configure', async (req, res) => {
     if (run.status !== 'intake-done' && run.status !== 'planning') {
       return res.status(409).json({ error: `cannot configure from ${run.status}` });
     }
-    const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats };
+    const resolvedLength = resolveLength({ length, lengthWords });
+    const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats, length: resolvedLength.preset, lengthWords: resolvedLength.words };
     await db.researchRun.update({
       where: { id: run.id },
       data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null },
@@ -190,7 +153,7 @@ runs.post('/:id/configure', async (req, res) => {
     const holds = await db.budgetLedger.findFirst({ where: { runId: run.id, kind: 'deposit' } });
     if (!holds) await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(budgetCap) } });
     await requestPlan(run.id);
-    res.status(202).json({ id: run.id, status: 'planning' });
+    res.status(202).json({ id: run.id, status: 'planning', length: resolvedLength });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -199,9 +162,52 @@ runs.post('/:id/approve', async (req, res) => {
     const run = await ownedRun(req, res);
     if (!run) return;
     if (run.status !== 'planned') return res.status(409).json({ error: `cannot approve from ${run.status}` });
+    // Approving is accepting the spend: the balance must cover the plan's own
+    // estimate, or the run would pause almost immediately with nothing learned.
+    // A plan with no estimate has not finished planning — approving it would be
+    // accepting an unknown spend, so wait instead.
+    const { balance } = await budgetState(run.id);
+    const estimate = Number(run.plan?.estimate);
+    if (!Number.isFinite(estimate)) {
+      return res.status(409).json({ error: 'plan has no estimate yet — wait for planning to finish' });
+    }
+    if (balance < estimate) {
+      return res.status(409).json({ error: `balance $${balance.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first` });
+    }
     await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
     await requestExecute(run.id);
     res.json({ id: run.id, status: 'running' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Edit the plan: add, drop, or reorder sub-questions, with live re-pricing.
+// Allowed while the plan is still a proposal (planning/planned) — never
+// mid-run, where changing the questions would orphan collected evidence.
+// Every edit is a new plan version on the same record; nothing is destroyed.
+runs.patch('/:id/plan', async (req, res) => {
+  try {
+    const { sub_questions: subQuestions } = req.body || {};
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    if (run.status !== 'planning' && run.status !== 'planned') {
+      return res.status(409).json({ error: `cannot edit the plan from ${run.status} — plans edit before approval, revisions continue after` });
+    }
+    if (!Array.isArray(subQuestions) || !subQuestions.length || subQuestions.length > 12) {
+      return res.status(400).json({ error: 'sub_questions must be 1-12 non-empty strings' });
+    }
+    const cleaned = subQuestions.map((q) => String(q || '').trim()).filter(Boolean).slice(0, 12);
+    if (!cleaned.length) return res.status(400).json({ error: 'sub_questions must be 1-12 non-empty strings' });
+    const estimate = estimatePlanCost({
+      subQuestions: cleaned,
+      depth: run.brief?.depth,
+      lengthWords: run.brief?.lengthWords,
+    });
+    const updated = await db.researchRun.update({
+      where: { id: run.id },
+      data: { plan: { sub_questions: cleaned, estimate, edited: true }, status: 'planned' },
+    });
+    await recordEvent(run.id, { type: 'plan.edited', estimate, sub_questions: cleaned });
+    res.json({ id: run.id, status: 'planned', plan: updated.plan });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -215,7 +221,7 @@ runs.post('/:id/pause', async (req, res) => {
       return res.status(409).json({ error: `cannot pause from ${run.status}` });
     }
     await db.researchRun.update({ where: { id: run.id }, data: { status: 'paused', pauseReason: 'user' } });
-    publish(run.id, { type: 'status', status: 'paused', pauseReason: 'user' });
+    await recordEvent(run.id, { type: 'status', status: 'paused', pauseReason: 'user' });
     res.json({ id: run.id, status: 'paused', pauseReason: 'user' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -226,9 +232,9 @@ runs.post('/:id/resume', async (req, res) => {
     if (!run) return;
     if (run.status !== 'paused') return res.status(409).json({ error: `cannot resume from ${run.status}` });
     const { balance } = await budgetState(run.id);
-    if (balance <= 0) return res.status(409).json({ error: 'out of budget Ã¢â‚¬â€ raise the cap or end the run' });
+    if (balance <= 0) return res.status(409).json({ error: 'out of budget — raise the cap or end the run' });
     await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
-    publish(run.id, { type: 'status', status: 'running' });
+    await recordEvent(run.id, { type: 'status', status: 'running' });
     await requestExecute(run.id);
     res.json({ id: run.id, status: 'running' });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -246,7 +252,7 @@ runs.post('/:id/end', async (req, res) => {
       where: { id: run.id },
       data: { status: 'ended', endedAt: new Date(), pauseReason: 'user', pendingQuestion: null },
     });
-    publish(run.id, { type: 'status', status: 'ended', pauseReason: 'user' });
+    await recordEvent(run.id, { type: 'status', status: 'ended', pauseReason: 'user' });
     const money = await settle(run.id, 'ended');
     res.json({ id: run.id, status: 'ended', ...money });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -278,7 +284,7 @@ runs.post('/:id/awaiting/answer', async (req, res) => {
       where: { id: run.id },
       data: { status: 'running', pauseReason: null, pendingQuestion: null, brief: { ...(run.brief || {}), guidance: text ?? '' } },
     });
-    publish(run.id, { type: 'status', status: 'running', answered: question?.id ?? null });
+    await recordEvent(run.id, { type: 'status', status: 'running', answered: question?.id ?? null });
     await requestExecute(run.id);
     res.json({ id: run.id, status: 'running' });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -299,7 +305,7 @@ runs.post('/:id/guidance', async (req, res) => {
     if (!run) return;
     if (['ended', 'complete'].includes(run.status)) return res.status(409).json({ error: `run is ${run.status}` });
     await db.researchRun.update({ where: { id: run.id }, data: { pendingGuidance: { text: String(text).trim() } } });
-    publish(run.id, { type: 'guidance.queued' });
+    await recordEvent(run.id, { type: 'guidance.queued' });
     res.status(202).json({ id: run.id, pendingGuidance: { text: String(text).trim() } });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -312,10 +318,10 @@ runs.post('/:id/budget', async (req, res) => {
     if (!run) return;
     const result = await raiseCap(run.id, Number(amount), txRef || null);
     if (!result.ok) return res.status(400).json({ error: result.error });
-    publish(run.id, { type: 'budget.raised', cap: result.budgetCap, balance: result.balance });
+    await recordEvent(run.id, { type: 'budget.raised', cap: result.budgetCap, balance: result.balance });
     if (run.status === 'paused' && run.pauseReason === 'cap' && result.balance > 0) {
       await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
-      publish(run.id, { type: 'status', status: 'running' });
+      await recordEvent(run.id, { type: 'status', status: 'running' });
       await requestExecute(run.id);
     }
     res.json({ id: run.id, ...result });
@@ -326,7 +332,16 @@ runs.get('/:id/events', async (req, res) => {
   const run = await ownedRun(req, res);
   if (!run) return;
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-  res.write(`data: ${JSON.stringify({ type: 'hello', status: run.status })}\n\n`);
+  // Reconnect support: a client that drops mid-run replays stored events after
+  // its cursor (SSE Last-Event-ID, or ?after=) before attaching to the live
+  // channel, so history is never lost to a disconnect.
+  const cursor = req.headers['last-event-id'] ?? req.query.after;
+  const afterSeq = Number.isFinite(Number(cursor)) ? Number(cursor) : -1;
+  res.write(`event: hello\ndata: ${JSON.stringify({ type: 'hello', status: run.status })}\n\n`);
+  const replay = await replayEvents(run.id, afterSeq);
+  for (const e of replay) {
+    res.write(`id: ${e.seq}\ndata: ${JSON.stringify(e)}\n\n`);
+  }
   subscribe(run.id, res);
 });
 
@@ -336,7 +351,7 @@ runs.post('/:id/revise', async (req, res) => {
     if (!run) return;
     const version = run.versions + 1;
     await db.researchRun.update({ where: { id: run.id }, data: { versions: version, status: 'running', pauseReason: null } });
-    publish(run.id, { type: 'status', status: 'running', version });
+    await recordEvent(run.id, { type: 'status', status: 'running', version });
     await requestExecute(run.id);
     res.status(202).json({ id: run.id, version, status: 'running' });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -355,7 +370,7 @@ async function nextSeq(runId) {
   return (last?.seq ?? -1) + 1;
 }
 
-// Soft delete Ã¢â€ â€™ trash, restorable for seven days. A live or paused run has to be
+// Soft delete → trash, restorable for seven days. A live or paused run has to be
 // ended first: it holds a queue job and prepaid funds.
 const DELETABLE = ['ended', 'complete', 'failed', 'intake', 'intake-done'];
 

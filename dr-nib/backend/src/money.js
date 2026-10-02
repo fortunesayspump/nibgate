@@ -15,15 +15,15 @@ export async function budgetState(runId) {
   const deposited = total('deposit');
   const spend = total('spend');
   const fee = total('fee');
-  const refund = total('refund');
+  const refunded = total('refund');
   const used = spend.plus(fee);
   return {
     deposited: toNum(deposited),
     spend: toNum(spend),
     fee: toNum(fee),
-    refund: toNum(refund),
+    refunded: toNum(refunded),
     used: toNum(used),
-    balance: toNum(deposited.minus(used).minus(refund)),
+    balance: toNum(deposited.minus(used).minus(refunded)),
   };
 }
 
@@ -47,17 +47,19 @@ export async function draw(runId, amount, kind = 'spend') {
   return { ok: true, fee: toNum(feeDb), ...(await budgetState(runId)) };
 }
 
-// Hold more against the cap. Raise-only once a run is configured: a cap that
-// could go down mid-run is a cap the user was never really shown.
+// Hold more against the cap. Raise-only, always: the ledger records the
+// *difference* between the new cap and the old one, so deposited always equals
+// the cap and a raise can never double-count money already held. A cap that
+// could move down mid-run is a cap the user was never really shown.
 export async function raiseCap(runId, amount, txRef = null) {
   const run = await db.researchRun.findUniqueOrThrow({ where: { id: runId } });
   if (!(toNum(amount) > 0)) return { ok: false, error: 'amount must be > 0' };
-  if (run.status !== 'intake-done' && run.status !== 'intake' && toDb(amount).lt(run.budgetCap)) {
-    return { ok: false, error: 'a budget can only be raised' };
-  }
+  const capDb = toDb(run.budgetCap);
+  const deltaDb = toDb(amount).minus(capDb);
+  if (deltaDb.lte(ZERO)) return { ok: false, error: 'a budget can only be raised' };
   await db.$transaction([
     db.researchRun.update({ where: { id: runId }, data: { budgetCap: toDb(amount) } }),
-    db.budgetLedger.create({ data: { runId, kind: 'deposit', amount: toDb(amount), txRef } }),
+    db.budgetLedger.create({ data: { runId, kind: 'deposit', amount: deltaDb, txRef } }),
   ]);
   return { ok: true, budgetCap: toNum(amount), ...(await budgetState(runId)) };
 }
@@ -74,6 +76,10 @@ export async function settle(runId, reason) {
   rows.push(db.researchRun.update({ where: { id: runId }, data: { settledAt: new Date() } }));
   await db.$transaction(rows);
   const after = await budgetState(runId);
-  publish(runId, { type: 'settled', reason, refunded: toNum(remainder), ...after });
-  return { refunded: toNum(remainder), ...after };
+  // NOTE: after carries the *cumulative* refunded total, which must not
+  // clobber this call's remainder under the same key. The response keeps both:
+  // refunded (what this settle handed back) and totalRefunded (to date).
+  const { refunded: totalRefunded, ...rest } = after;
+  publish(runId, { type: 'settled', reason, refunded: toNum(remainder), totalRefunded, ...rest });
+  return { refunded: toNum(remainder), totalRefunded, ...rest };
 }

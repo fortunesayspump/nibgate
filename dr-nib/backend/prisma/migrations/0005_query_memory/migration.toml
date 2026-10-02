@@ -1,0 +1,2 @@
+-- Per-user memory of cited domains (see 0001_init for the base tables).
+provider = "postgresql"

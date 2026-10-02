@@ -49,6 +49,19 @@ const textBtn = {
   gap: 4,
 };
 
+// Canonical absolute URL for a tip target. Creator sites usually pass a
+// relative path (resource.path); the hub attributes tips by URL, so absolutize
+// against the current origin before sending.
+function resolveContentUrl(resource) {
+  const raw = String(resource?.url || resource?.path || '').trim()
+  if (!raw) return ''
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    try { return new URL(raw, window.location.origin).href } catch { return raw }
+  }
+  return raw
+}
+
 // Resolve the tip recipient + amount from props (direct mode) or a challenge.
 function resolveTarget({ resource, challenge, recipient, amount }) {
   const accept = challenge?.accepts?.[0] || {}
@@ -94,11 +107,14 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
     const provider = providerRef.current
     if (!provider?.request) throw new Error('Wallet provider is not available.')
     const target = resolveTarget({ resource, challenge, recipient, amount: tipAmount ?? amount })
-    const contentUrl = resource?.url || resource?.path || ''
+    const contentUrl = resolveContentUrl(resource)
+    const contentId = resource?.contentId || resource?.id || ''
+    const websiteId = resource?.websiteId || ''
+    const imageUrl = resource?.imageUrl || ''
     const base = (apiBase || '').replace(/\/+$/, '')
     const resolved = target.to && /^0x[a-fA-F0-9]{40}$/.test(target.to)
-    let domain = ''
-    if (!resolved && contentUrl) { try { domain = new URL(contentUrl, 'https://x').hostname } catch { domain = '' } }
+    let domain = resource?.domain || ''
+    if (!domain && contentUrl) { try { domain = new URL(contentUrl).hostname } catch { domain = '' } }
     // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
     if (!resolved && (!base || !domain)) throw new Error('No recipient to tip.')
     if (!(target.amount > 0)) throw new Error('Tip amount must be above zero.')
@@ -142,21 +158,27 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
 
       if (!resolved) {
         // Hold: challenge → pay the predicted box → record the held tip.
+        const holdBody = {
+          contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC',
+          domain, paymentRail: 'transfer',
+          contentId: contentId || undefined, websiteId: websiteId || undefined, imageUrl: imageUrl || undefined,
+        }
         const chalRes = await fetch(`${base}/hub/tips/hold`, {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', domain, paymentRail: 'transfer' }),
+          body: JSON.stringify(holdBody),
         })
         const chal = await chalRes.json().catch(() => ({}))
         if (!chalRes.ok || !chal?.box) throw new Error(chal?.error || `Hold failed: ${chalRes.status}`)
         const hash = await sendTo(chal.box, target.amount)
         const held = await fetch(`${base}/hub/tips/hold`, {
           method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', domain, paymentRail: 'transfer', txHash: hash, walletAddress: account }),
+          body: JSON.stringify({ ...holdBody, txHash: hash, walletAddress: account }),
         }).then((r) => r.json()).catch(() => ({}))
         const out = {
           type: 'tip', held: true, status: 'held', txHash: hash, paymentId: hash,
           amount: target.amount, currency: 'USDC', network: activeChain().caip2,
           domain, box: chal.box, payer: account, recipient: '',
+          contentId: contentId || undefined, imageUrl: imageUrl || undefined,
           resource: contentUrl, title: resource?.title || '', receipt: held?.tip || null,
         }
         setReceipt(out)
@@ -194,6 +216,10 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
             paymentRail: 'transfer',
             txHash: hash,
             walletAddress: account,
+            domain: domain || undefined,
+            contentId: contentId || undefined,
+            websiteId: websiteId || undefined,
+            imageUrl: imageUrl || undefined,
           }),
         }).then((r) => r.json()).then((d) => {
           if (d?.receipt) setReceipt({ ...out, ...d.receipt });

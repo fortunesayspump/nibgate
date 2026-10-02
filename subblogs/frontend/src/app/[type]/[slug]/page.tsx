@@ -143,6 +143,17 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
   const resourcePath = `/${typeMap[post.type] || "posts"}/${post.slug}`;
   const manifestUrl = `${origin}/api/nibgate/manifest?path=${encodeURIComponent(resourcePath)}`;
   const accessUrl = `${origin}/api${resourcePath}`;
+  // Canonical absolute URL + cover so tips attribute to this post (and site)
+  // in the hub ledger instead of landing with an empty contentId/domain.
+  const tipResource = {
+    id: post.id,
+    title: post.title,
+    type: post.type,
+    price: post.price || "0",
+    path: resourcePath,
+    url: `${origin}${resourcePath}`,
+    imageUrl: post.coverUrl || undefined,
+  };
 
   return (
     <>
@@ -158,7 +169,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
           <div className="small muted font-ui pn1" style={{ paddingTop: "0.75em" }}>
             <time>{fd(post.publishedAt)}</time>
             {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
-            <> · <NibgateTipRow resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} /></>
+            <> · <NibgateTipRow resource={tipResource} /></>
           </div>
           {post.excerpt && (post.type === "document" || !isPremium) && <p className="small muted" style={{ marginTop: "1em", marginBottom: "2em" }}>{post.excerpt}</p>}
         </div>
@@ -238,7 +249,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             </div>
             <div aria-hidden="true" style={{ width: 1, alignSelf: "stretch", background: "var(--border, #e5e5e5)", margin: "28px 0" }} />
             <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-              <NibgateTip resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
+              <NibgateTip resource={tipResource} />
             </div>
           </div>
         </div>

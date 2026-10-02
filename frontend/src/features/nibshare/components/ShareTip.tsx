@@ -16,6 +16,8 @@ export default function ShareTip({ slug, meta, apiBase }: { slug: string; meta: 
         title: meta.title,
         price: meta.price || '0',
         recipient: meta.ownerWallet,
+        // Keep nibshare tips labeled like their ledger entries: private, no site.
+        domain: 'nibshare',
       }}
       recipient={meta.ownerWallet}
       apiBase={apiBase || apiBaseUrl()}

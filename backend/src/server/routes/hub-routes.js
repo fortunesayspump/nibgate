@@ -26,7 +26,7 @@ import {
   TIP_MONEY_STATUSES, tipRevenueByContentId, attributeTips,
   nibshareStatsByWallet, platformMoneyTotals,
   publisherPayloadFor, upsertPublisherIdentity, contentDataFor,
-  findContentByIdOrExternal
+  findContentByIdOrExternal, resolveTipContent
 } from '../hub/helpers.js';
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
 import { startFeeKeeper } from '../revenue/keeper.js';
@@ -494,33 +494,57 @@ export function registerHubRoutes(app) {
         const tips = await db.tip.findMany({
           where: {
             status: { in: ['settled', 'released', 'refunded'] },
-            ...(domain ? { contentUrl: { contains: domain } } : {}),
+            ...(domain ? { OR: [{ contentUrl: { contains: domain } }, { domain }] } : {}),
           },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: offset,
         });
-        // Backfill covers for rows recorded before imageUrl existed: resolve
-        // through the indexed Content row by id first, then by URL.
+        // Reconcile every tip against the indexed Content row so the ledger
+        // shows the same contentId/websiteId/domain/cover as views and unlocks.
+        // This also repairs older rows written by clients that sent only a
+        // relative path and no metadata: match by hub id, then URL, then path.
+        const pathKeyFor = (value) => {
+          const raw = String(value || '');
+          if (!raw) return '';
+          try { return new URL(raw).pathname; } catch { return raw.startsWith('/') ? raw : `/${raw}`; }
+        };
         const ids = [...new Set(tips.map((t) => t.contentId).filter(Boolean))];
-        const urls = [...new Set(tips.filter((t) => !t.imageUrl).map((t) => t.contentUrl).filter(Boolean))];
-        const [byId, byUrl] = await Promise.all([
-          ids.length ? db.content.findMany({ where: { id: { in: ids } }, select: { id: true, imageUrl: true } }) : [],
-          urls.length ? db.content.findMany({ where: { url: { in: urls } }, select: { url: true, imageUrl: true } }) : [],
+        const urls = [...new Set(tips.map((t) => t.contentUrl).filter((u) => /^https?:\/\//i.test(u)))];
+        const paths = [...new Set(tips.map((t) => pathKeyFor(t.contentUrl)).filter(Boolean))];
+        const [byId, byUrl, byPath] = await Promise.all([
+          ids.length ? db.content.findMany({ where: { id: { in: ids } }, include: { website: true } }) : [],
+          urls.length ? db.content.findMany({ where: { url: { in: urls } }, include: { website: true } }) : [],
+          paths.length ? db.content.findMany({ where: { path: { in: paths } }, include: { website: true } }) : [],
         ]);
-        const imgById = new Map(byId.map((c) => [c.id, c.imageUrl]));
-        const imgByUrl = new Map(byUrl.map((c) => [c.url, c.imageUrl]));
+        const contentById = new Map(byId.map((c) => [c.id, c]));
+        const contentByUrl = new Map(byUrl.map((c) => [c.url, c]));
+        // Only trust a path match when one site owns it; a shared slug must not
+        // mis-attribute a tip.
+        const pathCounts = new Map();
+        for (const c of byPath) pathCounts.set(c.path, (pathCounts.get(c.path) || 0) + 1);
+        const contentByPath = new Map();
+        for (const c of byPath) if (pathCounts.get(c.path) === 1) contentByPath.set(c.path, c);
         for (const t of tips) {
-          let tipDomain = '';
-          try { tipDomain = new URL(t.contentUrl).hostname; } catch {}
+          const content = (t.contentId && contentById.get(t.contentId))
+            || contentByUrl.get(t.contentUrl)
+            || contentByPath.get(pathKeyFor(t.contentUrl))
+            || null;
+          const site = content?.website || null;
+          const resolvedContentId = t.contentId || content?.id || null;
+          const resolvedWebsiteId = t.websiteId || content?.websiteId || site?.id || null;
+          // Prefer the stored domain (hold rows set it explicitly); fall back
+          // to the indexed site, then to parsing contentUrl.
+          let tipDomain = t.domain || site?.domain || '';
+          if (!tipDomain) { try { tipDomain = new URL(t.contentUrl).hostname; } catch {} }
           activities.push({
-            type: 'tip', id: t.id, websiteId: t.websiteId || null,
+            type: 'tip', id: t.id, websiteId: resolvedWebsiteId,
             actor: t.payerWallet || 'wallet',
-            contentId: t.contentId || null,
-            contentTitle: t.title || t.contentUrl,
-            contentUrl: t.contentUrl,
+            contentId: resolvedContentId,
+            contentTitle: t.title || content?.title || t.contentUrl,
+            contentUrl: content?.url || t.contentUrl,
             domain: tipDomain,
-            imageUrl: t.imageUrl || (t.contentId && imgById.get(t.contentId)) || imgByUrl.get(t.contentUrl) || null,
+            imageUrl: t.imageUrl || content?.imageUrl || null,
             amount: t.amount || 0,
             protocolFee: t.protocolFee ?? null,
             feeBps: t.feeBps ?? null,
@@ -1296,7 +1320,7 @@ export function registerHubRoutes(app) {
     try {
       const tip = await tipServer();
       if (!tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
-      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, walletAddress, contentId, websiteId, imageUrl } = req.body || {};
+      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, walletAddress, contentId, websiteId, imageUrl, domain } = req.body || {};
       const rail = String(paymentRail || 'transfer').toLowerCase();
       const hubNet = activeNetwork();
       const tipNetwork = normalizeNetworkName(network) || hubNet.name;
@@ -1336,15 +1360,31 @@ export function registerHubRoutes(app) {
         receiptTxHash = gw.payment.txHash || null;
         payer = gw.payment.payer || walletAddress || null;
       }
+      // Attribute the tip to indexed content when possible. Clients may send
+      // only a relative path; resolve it (or the given contentId/externalId)
+      // so the row carries contentId/websiteId/domain/imageUrl like a view.
+      const resolved = await resolveTipContent({
+        contentId, contentUrl: contentUrl || url, websiteId,
+      }).catch(() => null);
+      const resolvedWebsite = resolved?.website || null;
+      const storedUrl = resolved?.url || contentUrl || url || null;
+      const storedContentId = resolved?.id || contentId || null;
+      const storedWebsiteId = websiteId || resolved?.websiteId || resolvedWebsite?.id || null;
+      const storedImageUrl = imageUrl || resolved?.imageUrl || null;
+      let storedDomain = String(domain || '').trim();
+      if (!storedDomain) { try { storedDomain = storedUrl ? new URL(storedUrl).hostname : ''; } catch { storedDomain = ''; } }
+      if (!storedDomain) storedDomain = resolvedWebsite?.domain || '';
       const receipt = tip.tipReceipt({
-        contentUrl: contentUrl || url, title, amount, currency, network: tipNetwork,
+        contentUrl: storedUrl || contentUrl || url, title, amount, currency, network: tipNetwork,
         payerWallet: payer, recipient, payee: reqd.payee,
         protocolFee: reqd.protocolFee, feeBps: reqd.feeBps, txHash: receiptTxHash,
       });
       const row = await db.tip.create({
         data: {
-          contentUrl: contentUrl || url, contentId: contentId || null, websiteId: websiteId || null,
-          title: title || null, imageUrl: imageUrl || null, amount: Number(amount), currency: currency || 'USDC', network: tipNetwork,
+          contentUrl: storedUrl || contentUrl || url || null, contentId: storedContentId, websiteId: storedWebsiteId,
+          domain: storedDomain || null,
+          title: title || resolved?.title || null, imageUrl: storedImageUrl,
+          amount: Number(amount), currency: currency || 'USDC', network: tipNetwork,
           payerWallet: payer, recipientWallet: recipient || null, payeeWallet: reqd.payee,
           protocolFee: reqd.protocolFee, feeBps: reqd.feeBps,
           paymentProvider: provider, paymentId, txHash: receiptTxHash, status: 'settled',
@@ -1382,12 +1422,22 @@ export function registerHubRoutes(app) {
       const target = String(contentUrl || url || '');
       if (!target) return res.status(400).json({ error: 'contentUrl is required.' });
       if (!(Number(amount) > 0)) return res.status(400).json({ error: 'amount must be > 0.' });
+      // Resolve indexed content first: it recovers the canonical URL, an
+      // explicit domain, and contentId/websiteId/imageUrl from a client that
+      // only sent a relative path.
+      const resolved = await resolveTipContent({ contentId, contentUrl: target, websiteId }).catch(() => null);
+      const resolvedWebsite = resolved?.website || null;
+      const storedUrl = resolved?.url || target;
+      const storedContentId = resolved?.id || contentId || null;
+      const storedWebsiteId = websiteId || resolved?.websiteId || resolvedWebsite?.id || null;
+      const storedImageUrl = imageUrl || resolved?.imageUrl || null;
       let dom = String(domain || '').trim();
-      if (!dom) { try { dom = new URL(target).hostname; } catch { dom = ''; } }
+      if (!dom) { try { dom = new URL(storedUrl).hostname; } catch { dom = ''; } }
+      if (!dom) dom = resolvedWebsite?.domain || '';
       if (!dom) return res.status(400).json({ error: 'Could not determine domain; pass domain explicitly.' });
       const hubNet = activeNetwork();
       const reqd = holding.buildHoldingRequirement(
-        { contentUrl: target, title, amount, currency, domain: dom },
+        { contentUrl: storedUrl, title: title || resolved?.title, amount, currency, domain: dom },
         { network: hubNet.name, paymentRail },
       );
       const rail = String(paymentRail || reqd.challenge.paymentRail || 'gateway').toLowerCase();
@@ -1429,8 +1479,8 @@ export function registerHubRoutes(app) {
       }
       const row = await db.tip.create({
         data: {
-          contentUrl: target, contentId: contentId || null, websiteId: websiteId || null,
-          domain: dom, title: title || null, imageUrl: imageUrl || null,
+          contentUrl: storedUrl, contentId: storedContentId, websiteId: storedWebsiteId,
+          domain: dom, title: title || resolved?.title || null, imageUrl: storedImageUrl,
           amount: Number(amount), currency: currency || 'USDC',
           network: hubNet.name, payerWallet: payer,
           payeeWallet: reqd.box, status: 'held', holdReason: 'awaiting-claim',

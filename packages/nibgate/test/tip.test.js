@@ -256,10 +256,11 @@ describe('browser hold + refund helpers', () => {
     }))
     const signer = { address: '0x0000000000000000000000000000000000000009', sendTransaction: vi.fn(async () => '0xtx') }
     try {
-      await holdTipContent({ contentUrl: 'https://ext.example/post', contentId: 'cid-9', imageUrl: 'https://ext.example/c.png', title: 'P', amount: '0.05', signer, hubApi: 'https://hub.test' })
+      await holdTipContent({ contentUrl: 'https://ext.example/post', contentId: 'cid-9', websiteId: 'w-9', imageUrl: 'https://ext.example/c.png', title: 'P', amount: '0.05', signer, hubApi: 'https://hub.test' })
       expect(bodies).toHaveLength(2)
       for (const b of bodies) {
         expect(b.contentId).toBe('cid-9')
+        expect(b.websiteId).toBe('w-9')
         expect(b.imageUrl).toBe('https://ext.example/c.png')
       }
     } finally {

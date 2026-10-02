@@ -36,12 +36,41 @@ if (!process.env.DRNIB_DATABASE_URL) {
   throw new Error('DRNIB_DATABASE_URL is required — point it at this service\'s own schema, e.g. ?schema=drnib');
 }
 
+const hubApiUrl = (process.env.HUB_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+
+// Network, stated rather than inferred, with a safe inference as fallback: a
+// testnet hub URL is unambiguous, so we honour it; anything else is treated as
+// mainnet. `DRNIB_NETWORK` overrides when the deployment wants to be explicit.
+const network = (() => {
+  const explicit = String(process.env.DRNIB_NETWORK || '').toLowerCase();
+  if (explicit === 'mainnet' || explicit === 'testnet') return explicit;
+  return /testnet/i.test(hubApiUrl) ? 'testnet' : 'mainnet';
+})();
+
+// Defense in depth for the product decision that Dr. Nib is mainnet-only.
+// The frontend gate hides the app on testnet; this stops a testnet-pointed
+// backend from serving runs at all if the operator asks for mainnet-only. It
+// fails loudly at boot rather than silently serving the wrong network.
+const mainnetOnly = /^(1|true|yes)$/i.test(String(process.env.DRNIB_MAINNET_ONLY || ''));
+if (mainnetOnly && network !== 'mainnet') {
+  throw new Error(`DRNIB_MAINNET_ONLY is set but this service is configured for ${network} (HUB_API_URL=${hubApiUrl}). Point it at the mainnet hub or unset the flag.`);
+}
+
 export const config = {
   root,
   port: Number(process.env.PORT || 3100),
   hubDatabaseUrl,
   drnibDatabaseUrl: process.env.DRNIB_DATABASE_URL,
-  hubApiUrl: (process.env.HUB_API_URL || 'http://localhost:3000').replace(/\/+$/, ''),
+  hubApiUrl,
+  network,
+  mainnetOnly,
+  // Per-user ceiling on simultaneously live runs. Each run holds a funded cap
+  // and spends provider money; without a cap, many concurrent runs are a
+  // denial-of-wallet on the operator. Raise deliberately, not accidentally.
+  maxActiveRuns: (() => {
+    const n = Number(process.env.DRNIB_MAX_ACTIVE_RUNS);
+    return Number.isInteger(n) && n > 0 ? n : 3;
+  })(),
   corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:3001').split(',').map((s) => s.trim()),
   redisUrl: process.env.REDIS_URL || null,
 };

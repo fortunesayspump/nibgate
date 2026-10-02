@@ -10,6 +10,7 @@ import { jsonSafe, toDb } from '../units.js';
 import { deriveDescription, deriveTitle, nextQuestion, TRASH_TTL_MS } from '../intake.js';
 import { answerIntakeQuestion, createQuestion } from '../answer-flow.js';
 import { resolveLength } from '../length.js';
+import { assertCanCreateRun } from '../limits.js';
 
 export const runs = Router();
 
@@ -51,6 +52,10 @@ runs.post('/', async (req, res) => {
   try {
     const { topic } = req.body || {};
     if (!topic || typeof topic !== 'string' || !topic.trim()) return res.status(400).json({ error: 'topic is required' });
+    // A live run holds a funded cap and spends provider money: cap how many a
+    // user can have in flight at once (denial-of-wallet guard).
+    const gate = await assertCanCreateRun(req.user.id);
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.error, active: gate.active, cap: gate.cap });
     const run = await db.researchRun.create({
       data: {
         userId: req.user.id,

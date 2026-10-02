@@ -9,16 +9,21 @@ export const SESSION_COOKIE = sessionCookieName();
 export async function currentUser(req) {
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) return null;
-  try {
-    return await getUserBySession(token);
-  } catch {
-    // An unreachable hub database is not a signed-in user.
-    return null;
-  }
+  // No catch here on purpose: an unknown/expired token resolves to null
+  // (getUserBySession returns null), while a database/network failure throws.
+  // Swallowing that throw as "not signed in" is what turned Railway proxy
+  // blips into sign-in-again loops, so it must propagate to requireUser.
+  return await getUserBySession(token);
 }
 
 export async function requireUser(req, res, next) {
-  const user = await currentUser(req);
+  let user;
+  try {
+    user = await currentUser(req);
+  } catch {
+    // The session store is unreachable — that is outage, not logged-out.
+    return res.status(503).json({ error: 'Dr. Nib account lookup is temporarily unavailable. Retry in a moment.', code: 'account_unavailable' });
+  }
   if (!user) return res.status(401).json({ error: 'Sign in to Nibgate to use Dr. Nib.', code: 'unauthenticated' });
   req.user = user;
   next();

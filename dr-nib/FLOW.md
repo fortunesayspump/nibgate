@@ -298,8 +298,13 @@ the plan.
 - **Source policy** — search the live web, or use only the sources the user provided.
 - **Language** — what the report is written in.
 - **Length and perspective** — how long the report should be, and the angle it argues from.
-  Perspective comes as a few presets — neutral, skeptical, bullish/bearish, executive, academic —
-  with room to describe your own.
+  Length is three presets — brief (~1,200 words), standard (~4,000), comprehensive (~12,000) —
+  **plus an exact word count** for when a preset is not what you mean; an out-of-range count
+  clamps to 300–50,000 and says so. Length is not a single token cap: it sizes the report, so a
+  comprehensive report is written **section by section**, each section generated from its own
+  evidence and then assembled, rather than asked for in one call that would overrun. Perspective
+  comes as a few presets — neutral, skeptical, bullish/bearish, executive, academic — with room to
+  describe your own.
 
 These are pre-filled from what intake learned where it makes sense, but they are the user's to
 change, and they're shown as controls rather than as prose. There is **no time limit beside the
@@ -669,6 +674,45 @@ Restoring is ordinary, not administrative: the project simply leaves the trash a
 Projects with its status intact — same answers, same plan, same budget, same report.
 
 ---
+
+## Verifying the report
+
+Writing is bound by the evidence, but a promise in a prompt is not an enforcement. After the
+report is written, a **verify pass** runs: the report's factual claims are extracted, each is
+matched against the run's own collected passages, and **JEV scores whether the passage supports
+the claim** — one batch call for the whole set, not a round trip per claim. A claim whose best
+passage scores below the support threshold is recorded as **unknown** rather than quietly
+standing, and the record is visible to follow-ups and to the audit. If the model is unconfigured
+there is nothing honest to extract from, so the run says **unverified** instead of manufacturing
+claims by splitting sentences; if JEV is unreachable the run records unverified too, never a guess.
+
+## The run remembers what earned citations
+
+Each finished run writes a small **query memory**: every domain it read gets a read, every domain
+the report actually cited gets a cite, per user. Future trust judgements are shown that history —
+"cited in N of M past runs" — as one more piece of evidence. It only ever *informs* the judgement;
+JEV still decides, and a domain with no prior is absent rather than assumed bad. Read-but-uncited
+is counted as a read, never a demerit: a source the run skipped was never given the chance to earn
+a citation, and treating that as a miss would let one skip justify the next.
+
+## Other agents can commission it
+
+Dr. Nib is **agent-facing as well as people-facing**. An MCP server exposes the same run flows as
+tools — open a project, answer its intake, configure and approve, pause/resume/end, raise the
+budget, read the report — so another agent can commission research and follow it. The tools call
+the same code paths as the HTTP routes, including the same ownership rule: every call names the
+owner wallet, which must own the run, and a run created through MCP is namespaced to that wallet.
+A service key gates the surface; with none set the server runs open for local development and says
+so, never silently.
+
+## The build gates
+
+Research quality is checked by gates that **fail the build**, not by vibes. Each gate is computed
+from a finished run's own records: **citation resolution** (every claim's cited passage maps to a
+source the run actually collected), **supported rate** (share of claims backed above threshold),
+**uncited rate**, **cost per supported claim**, and **stopping efficiency** (steps used against
+the depth allowance). Thresholds live in one place, and a failing gate names the bar it broke —
+so a regression is caught before it ships, and a red build says which metric moved.
 
 ## What this borrows from
 

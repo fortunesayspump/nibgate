@@ -514,7 +514,9 @@ export function registerMcpRoute(app) {
         }),
         db.content.findFirst({
           where: { deletedAt: null, price: { gt: 0 }, website: VERIFIED_SITE_WHERE },
-          orderBy: { updatedAt: 'desc' },
+          // Content carries createdAt only (no updatedAt on the model) —
+          // newest synced surface first.
+          orderBy: { createdAt: 'desc' },
           select: { path: true, url: true, slug: true, website: { select: { domain: true } } },
         }),
       ]);

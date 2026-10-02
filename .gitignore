@@ -41,6 +41,7 @@ writeskill.md
 dr-nib/references/gpt-researcher/
 dr-nib/references/open-deep-research/
 dr-nib/references/storm/
+dr-nib/references/keryx/
 # Playwright e2e harness: track the code (configs, specs, helpers), ignore
 # run outputs (screenshots, reports, traces)
 /e2e/*

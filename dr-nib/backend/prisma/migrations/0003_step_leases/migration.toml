@@ -1,0 +1,2 @@
+-- Crash-recovery lease on research steps (see 0001_init for the base tables).
+provider = "postgresql"

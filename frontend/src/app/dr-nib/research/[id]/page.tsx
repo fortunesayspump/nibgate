@@ -2,11 +2,10 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Loader2, Pause, Play } from "lucide-react";
+import { ChevronDown, Pause, Play } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
+import { subscribeRunEvents } from "@/lib/dr-nib-events";
 import { PageHeader, TrustChip } from "@/components/dr-nib/common";
-
-type ChatMsg = { id: number; role: "user" | "assistant"; text: string; cites?: number[] };
 
 function secs(startedAt?: string, endedAt?: string): number | null {
   if (!startedAt || !endedAt) return null;
@@ -65,9 +64,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const [run, setRun] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState("");
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [draft, setDraft] = useState("");
-  const [thinking, setThinking] = useState(false);
+  const [streamLive, setStreamLive] = useState(true);
+  const [exportError, setExportError] = useState("");
 
   async function load() {
     try {
@@ -77,42 +75,43 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     } catch (e: any) { setError(e.message); }
   }
 
+  // Exports render on demand from the finished report and download directly.
+  async function downloadExport(format: string) {
+    setExportError("");
+    try {
+      const out = await drNibApi.createExport(id, format);
+      const blob = new Blob([out.content ?? ""], { type: out.contentType || "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = out.filename || `report.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setExportError(e?.message || "Export failed.");
+    }
+  }
+
+  // Live first, polling never: the run page follows the run's event log over
+  // SSE, and the server replays anything a reconnect missed. Only if the
+  // stream itself fails does the page degrade to slow polling — silence is
+  // never an option while a run is moving.
   useEffect(() => {
     load();
-    const t = setInterval(async () => {
-      try {
-        const r = await drNibApi.getRun(id);
-        setRun(r);
-        if (r.status === "complete" || r.status === "failed") {
-          clearInterval(t);
-          try { setReport(await drNibApi.getReport(id)); } catch {}
-        }
-      } catch {}
-    }, 2500);
-    return () => clearInterval(t);
+    let poll: ReturnType<typeof setInterval> | null = null;
+    const unsub = subscribeRunEvents(
+      id,
+      () => { load(); },
+      () => {
+        setStreamLive(false);
+        if (!poll) poll = setInterval(load, 5000);
+      },
+    );
+    return () => { unsub(); if (poll) clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  function ask() {
-    const text = draft.trim();
-    if (!text || thinking) return;
-    const sources = run?.sources || [];
-    setChat((m) => [...m, { id: Date.now(), role: "user", text }]);
-    setDraft("");
-    setThinking(true);
-    setTimeout(() => {
-      const cites = sources.slice(0, 3).map((_: any, i: number) => i + 1);
-      setChat((m) => [...m, {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: sources.length
-          ? `Based on what this run found: the strongest evidence comes from the top-ranked sources, and I'd treat anything single-sourced as provisional. Ask me about a specific claim and I'll point at the passage.`
-          : `This run hasn't gathered sources yet — check back once the activity feed shows fetched pages.`,
-        cites,
-      }]);
-      setThinking(false);
-    }, 1200);
-  }
 
   if (error) return <p className="text-sm text-red-700">Could not load run: {error}</p>;
   if (!run) return <p className="text-sm opacity-60">Loading run…</p>;
@@ -177,12 +176,14 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium">Report · v{report.version}</p>
-                <div className="flex flex-wrap gap-2">
-                  {["pdf", "word", "excel", "powerpoint"].map((f) => (
-                    <button key={f} onClick={() => drNibApi.createExport(id, f)} className="border border-dark-gray/60 px-2.5 py-1 text-[11px] font-medium uppercase">{f}</button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {["md", "json", "bibtex"].map((f) => (
+                    <button key={f} onClick={() => downloadExport(f)} className="border border-dark-gray/60 px-2.5 py-1 text-[11px] font-medium uppercase">{f}</button>
                   ))}
                 </div>
               </div>
+              {exportError ? <p className="mb-2 text-xs text-red-700">{exportError}</p> : null}
+              <p className="mb-3 text-[11px] opacity-60">PDF, Word, Excel, and PowerPoint renderers are not wired yet.</p>
               <article className="whitespace-pre-wrap text-sm leading-7">{report.markdown}</article>
             </section>
           )}
@@ -190,29 +191,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <section className="mt-4 border border-dark-gray/50 bg-white">
             <div className="border-b border-dark-gray/40 px-4 py-3">
               <p className="text-sm font-medium">Ask about this run</p>
-              <p className="text-xs opacity-60">Follow-ups cite this run's sources.</p>
+              <p className="text-xs opacity-60">
+                {streamLive ? "Live — this view follows the run as it happens." : "Stream unavailable — refreshing slowly instead."}
+              </p>
             </div>
-            <div className="max-h-80 space-y-3 overflow-y-auto p-4">
-              {chat.length === 0 ? (
-                <p className="text-sm opacity-60">e.g. “Which claim is weakest?” or “Why trust source 1 over source 4?”</p>
-              ) : chat.map((m) => (
-                <div key={m.id} className={m.role === "user" ? "flex justify-end" : ""}>
-                  <div className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "bg-black text-white" : "border border-dark-gray/40 bg-gray"}`}>
-                    {m.text}
-                    {m.cites && m.cites.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {m.cites.map((c) => (<span key={c} className="rounded border border-dark-gray/50 bg-white px-1.5 py-0.5 text-[11px]">[{c}] {(run.sources || [])[c - 1]?.domain}</span>))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {thinking && (<div className="flex items-center gap-2 text-sm opacity-60"><Loader2 size={14} className="animate-spin" aria-hidden="true" /> thinking…</div>)}
-            </div>
-            <div className="flex items-end gap-2 border-t border-dark-gray/40 p-3">
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } }} rows={2}
-                placeholder="Ask about this research…" className="flex-1 resize-none border border-dark-gray/50 bg-gray rounded-xl px-3 py-2 text-sm outline-none" />
-              <button onClick={ask} disabled={thinking} className="flex h-10 items-center bg-black px-4 text-sm font-medium text-white disabled:opacity-50" aria-label="Send">Send</button>
+            <div className="p-4">
+              <p className="text-sm opacity-60">
+                Follow-up chat will answer only from what this run collected, on its own small balance.
+                It is not connected yet — nothing here will guess at an answer.
+              </p>
             </div>
           </section>
         </div>

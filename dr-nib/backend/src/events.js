@@ -4,8 +4,9 @@ const channels = new Map();
 
 export function publish(runId, event) {
   const payload = { ...event, at: new Date().toISOString() };
+  const idLine = Number.isInteger(payload.seq) ? `id: ${payload.seq}\n` : '';
   for (const res of channels.get(runId) || []) {
-    try { res.write(`data: ${JSON.stringify(payload)}\n\n`); } catch {}
+    try { res.write(`${idLine}data: ${JSON.stringify(payload)}\n\n`); } catch {}
   }
 }
 

@@ -61,10 +61,11 @@ describe('budget ledger', () => {
   it('holds an exact balance rather than accumulating float drift', async () => {
     for (let i = 0; i < 10; i++) await draw(RUN, 0.1);
     const state = await budgetState(RUN);
-    // 10 x 0.10 + 10 x 0.001 == 1.11 exactly. Floats would give 1.1100000000000003.
+    // 10 x 0.10 spend + 10 x 0.001 fee == 1.01 exactly. Floats would drift
+    // (0.1 is unrepresentable in binary); Decimal does not.
     expect(state.spend).toBe(1);
     expect(state.fee).toBe(0.01);
-    expect(state.used).toBe(1.11);
+    expect(state.used).toBe(1.01);
   });
 });
 
@@ -104,7 +105,8 @@ describe('settling', () => {
 
   it('returns the unspent remainder immediately and zeroes the balance', async () => {
     const result = await settle(RUN, 'ended');
-    expect(result.refunded).toBeCloseTo(3.7363, 4);
+    // 5 deposited − 1.25 spent − 0.0125 (1% fee) = 3.7375 refunded.
+    expect(result.refunded).toBeCloseTo(3.7375, 4);
     expect(result.balance).toBe(0);
   });
 

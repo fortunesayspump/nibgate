@@ -28,7 +28,7 @@ export const drNibApi = {
     req(`/v1/runs/${id}/answers`, { method: "POST", body: JSON.stringify({ seq, answer }) }),
   configureRun: (
     id: string,
-    body: { depth?: string; budgetCap: number; formats?: string[]; liveWeb?: boolean },
+    body: { depth?: string; budgetCap: number; formats?: string[]; liveWeb?: boolean; length?: string; lengthWords?: number },
   ) => req(`/v1/runs/${id}/configure`, { method: "POST", body: JSON.stringify(body) }),
   approveRun: (id: string) => req(`/v1/runs/${id}/approve`, { method: "POST" }),
   pauseRun: (id: string) => req(`/v1/runs/${id}/pause`, { method: "POST" }),

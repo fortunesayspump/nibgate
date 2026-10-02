@@ -1,0 +1,2 @@
+-- Idempotency records for mutating routes (see 0001_init for the base tables).
+provider = "postgresql"

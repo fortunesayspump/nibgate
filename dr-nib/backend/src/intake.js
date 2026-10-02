@@ -72,6 +72,16 @@ export function nextQuestion(answeredKeys) {
   return q ? { ...q, options: q.options.map((o) => ({ ...o })) } : null;
 }
 
+/** Keys the bank still has open — what JEV weighs against stopping. */
+export function remainingKeys(answeredKeys) {
+  return BANK.map((item) => item.key).filter((key) => !answeredKeys.includes(key));
+}
+
+// One-line human rendering of an answer, for prompts and logs.
+export function describeAnswer(question, answer) {
+  return labelFor(question, answer);
+}
+
 function labelFor(question, answer) {
   const ids = Array.isArray(answer?.optionIds) ? answer.optionIds : [];
   const labels = ids

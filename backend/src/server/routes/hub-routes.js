@@ -1797,6 +1797,80 @@ export function registerHubRoutes(app) {
     }
   });
 
+  // ── JEV batch (mixed choice + noul judgments in ONE request) ─────────────
+  // One model round trip for a batch of independent judgments — e.g. grading
+  // several candidate questions plus the global brief state, or scoring a set
+  // of sources. Callers still own every threshold; the response carries
+  // per-question answers plus the model and usage for the audit trail.
+  app.post('/api/hub/jev/batch', hubJevLimiter, async (req, res) => {
+    try {
+      const jev = await jevDecider();
+      if (!jev) return res.status(501).json({ error: 'JEV decisions not enabled in this build.' });
+      const { state, questions } = req.body || {};
+      if (typeof state !== 'string' || !state.trim() || state.length > 4000) {
+        return res.status(400).json({ error: 'state (1-4000 chars) is required.' });
+      }
+      if (!Array.isArray(questions) || questions.length < 1 || questions.length > 12) {
+        return res.status(400).json({ error: 'questions (1-12) are required.' });
+      }
+      const seen = new Set();
+      const record = {};
+      for (const q of questions) {
+        if (!q || typeof q.id !== 'string' || !q.id || q.id.length > 40 || seen.has(q.id)) {
+          return res.status(400).json({ error: 'Each question needs a unique short id.' });
+        }
+        seen.add(q.id);
+        if (typeof q.instructions !== 'string' || !q.instructions.trim() || q.instructions.length > 500) {
+          return res.status(400).json({ error: `Question ${q.id} needs instructions (1-500 chars).` });
+        }
+        if (q.type === 'choice') {
+          if (!Array.isArray(q.options) || q.options.length < 2 || q.options.length > 8) {
+            return res.status(400).json({ error: `Choice question ${q.id} needs 2-8 options.` });
+          }
+          const criteria = {};
+          for (const o of q.options) {
+            if (!o || typeof o.id !== 'string' || !o.id || o.id.length > 60 ||
+                typeof o.description !== 'string' || !o.description || o.description.length > 500) {
+              return res.status(400).json({ error: `Question ${q.id} options need {id, description} within size limits.` });
+            }
+            criteria[o.id] = o.description;
+          }
+          record[q.id] = { type: 'choice', instructions: q.instructions.trim(), criteria };
+        } else if (q.type === 'noul') {
+          record[q.id] = { type: 'noul', instructions: q.instructions.trim() };
+        } else {
+          return res.status(400).json({ error: `Question ${q.id} must be type choice or noul.` });
+        }
+      }
+      const out = await jev.decisions({ state: state.trim(), questions: record });
+      const answers = {};
+      for (const q of questions) {
+        const a = out.answers?.[q.id];
+        if (q.type === 'choice') {
+          const choice = typeof a?.choice === 'string' ? a.choice : null;
+          const options = (q.options || []).map((o) => o.id);
+          const probabilities = {};
+          for (const id of options) {
+            const p = Number(a?.probabilities?.[id]);
+            probabilities[id] = Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : 0;
+          }
+          answers[q.id] = {
+            type: 'choice',
+            choice: choice && options.includes(choice) ? choice : null,
+            probabilities,
+            confidence: Number.isFinite(Number(a?.confidence)) ? Number(a.confidence) : 0,
+          };
+        } else {
+          const p = Number(a?.noul);
+          answers[q.id] = { type: 'noul', probability: Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : 0 };
+        }
+      }
+      res.json({ success: true, answers, model: out.model, usage: out.usage || null });
+    } catch (error) {
+      res.status(502).json({ error: `Batch failed: ${error.message}` });
+    }
+  });
+
   app.get('/api/hub/resolve', async (req, res) => {
     try {
       const url = String(req.query?.url || '');

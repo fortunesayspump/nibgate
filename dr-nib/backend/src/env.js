@@ -10,8 +10,14 @@ import dotenv from 'dotenv';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 
-for (const p of [path.join(root, '.env'), path.join(root, '..', '..', '.env')]) {
-  if (fs.existsSync(p)) dotenv.config({ path: p });
+// Under vitest the harness owns the environment (test/setup.js): loading the
+// developer's local .env here would re-introduce real keys and endpoints that
+// tests deliberately removed, making hermetic tests secretly live. So in test
+// workers, read the environment as given and validate it — nothing more.
+if (!process.env.VITEST) {
+  for (const p of [path.join(root, '.env'), path.join(root, '..', '..', '.env')]) {
+    if (fs.existsSync(p)) dotenv.config({ path: p });
+  }
 }
 
 // Two databases, deliberately, and they must not be confused.

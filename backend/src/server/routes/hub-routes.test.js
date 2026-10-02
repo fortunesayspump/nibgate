@@ -307,4 +307,62 @@ describe('hub routes: JEV decisions', () => {
       expect(res.statusCode).toBe(400);
     }
   });
+
+  it('batch answers mixed choice and noul questions in one call', async () => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    let seenBody = {};
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      seenBody = JSON.parse(String(init.body));
+      return {
+        ok: true, status: 200,
+        json: async () => ({
+          model: 'typesafe/jev-1.13',
+          answers: {
+            proceed: { type: 'choice', choice: 'write', probabilities: { write: 0.8, expand: 0.2 }, confidence: 0.8 },
+            trust: { type: 'noul', noul: 0.74 },
+          },
+        }),
+        text: async () => '{}',
+      };
+    }));
+    const res = mockRes();
+    await handlers['POST /api/hub/jev/batch']({
+      headers: {},
+      body: {
+        state: 'topic x, 3 sources collected',
+        questions: [
+          {
+            id: 'proceed', type: 'choice', instructions: 'Write or expand?',
+            options: [{ id: 'write', description: 'enough evidence' }, { id: 'expand', description: 'gap remains' }],
+          },
+          { id: 'trust', type: 'noul', instructions: 'Probability the source is credible.' },
+        ],
+      },
+      query: {},
+    }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.answers.proceed).toEqual({
+      type: 'choice', choice: 'write', probabilities: { write: 0.8, expand: 0.2 }, confidence: 0.8,
+    });
+    expect(res.body.answers.trust).toEqual({ type: 'noul', probability: 0.74 });
+    expect(seenBody.questions.proceed.type).toBe('choice');
+    expect(seenBody.questions.trust.type).toBe('noul');
+  });
+
+  it('batch rejects bad bodies', async () => {
+    for (const b of [
+      {},
+      { state: 'x' },
+      { state: 'x', questions: [] },
+      { state: 'x', questions: new Array(13).fill({ id: 'q', type: 'noul', instructions: 'i' }) },
+      { state: 'x', questions: [{ id: 'q', type: 'bogus', instructions: 'i' }] },
+      { state: 'x', questions: [{ id: 'q', type: 'choice', instructions: 'i', options: [{ id: 'only' }] }] },
+      { state: 'x', questions: [{ id: 'q', type: 'choice', instructions: 'i' }, { id: 'q', type: 'noul', instructions: 'i' }] },
+    ]) {
+      const res = mockRes();
+      await handlers['POST /api/hub/jev/batch']({ headers: {}, body: b, query: {} }, res);
+      expect(res.statusCode).toBe(400);
+    }
+  });
 });

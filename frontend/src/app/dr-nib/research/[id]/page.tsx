@@ -1,63 +1,11 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, Pause, Play, Send } from "lucide-react";
+import { ArrowLeft, Pause, Play, Send } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { subscribeRunEvents } from "@/lib/dr-nib-events";
 import { TrustChip } from "@/components/dr-nib/common";
-
-function secs(startedAt?: string, endedAt?: string): number | null {
-  if (!startedAt || !endedAt) return null;
-  return Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000));
-}
-
-function StepRow({ s }: { s: any }) {
-  const [open, setOpen] = useState(false);
-  const out = s.output || {};
-  const dur = secs(s.startedAt, s.endedAt);
-  const queries: string[] = out.queries || [];
-  const urls: string[] = out.urls || [];
-  const verdicts: any[] = out.verdicts || [];
-  const hasDetail = Boolean(out.why || queries.length || urls.length || verdicts.length);
-  return (
-    <li className="rounded-xl border border-dark-gray/40 bg-gray">
-      <button onClick={() => hasDetail && setOpen((o) => !o)} disabled={!hasDetail}
-        className={`flex w-full items-start gap-3 p-3 text-left ${hasDetail ? "" : "cursor-default"}`}>
-        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${s.status === "done" ? "" : s.status === "active" ? "animate-pulse bg-black" : "bg-black/20"}`} style={s.status === "done" ? { background: "var(--nib-teal)" } : undefined} />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium capitalize">{s.kind}</span>
-            {dur !== null ? (
-              <span className="rounded-full bg-black/10 px-2 py-0.5 text-[11px]">took {dur}s</span>
-            ) : s.status === "active" ? (
-              <span className="rounded-full bg-black px-2 py-0.5 text-[11px] font-medium text-white">running…</span>
-            ) : null}
-            <span className="text-[11px] opacity-60">{s.status}</span>
-          </span>
-          {out.why ? <span className="mt-1 block text-[13px] opacity-75">{out.why}</span> : null}
-        </span>
-        {hasDetail ? <ChevronDown size={15} aria-hidden="true" className={`mt-1 shrink-0 opacity-60 transition ${open ? "rotate-180" : ""}`} /> : null}
-      </button>
-      {open && hasDetail ? (
-        <div className="space-y-2 border-t border-dark-gray/40 px-3 py-2.5 text-xs">
-          {queries.length > 0 && (
-            <div><p className="mb-1 font-medium uppercase tracking-wider opacity-60" style={{ fontSize: 10 }}>Queries issued</p>
-              <ul className="space-y-0.5">{queries.map((q) => (<li key={q} className="font-mono opacity-80">“{q}”</li>))}</ul></div>
-          )}
-          {urls.length > 0 && (
-            <div><p className="mb-1 font-medium uppercase tracking-wider opacity-60" style={{ fontSize: 10 }}>Pages opened</p>
-              <ul className="space-y-0.5">{urls.map((u) => (<li key={u} className="break-all font-mono opacity-80">{u}</li>))}</ul></div>
-          )}
-          {verdicts.length > 0 && (
-            <div><p className="mb-1 font-medium uppercase tracking-wider opacity-60" style={{ fontSize: 10 }}>JEV verdicts</p>
-              <ul className="space-y-0.5">{verdicts.map((v: any) => (<li key={v.url} className="opacity-80">{v.keep ? "kept" : "dropped"} · rel {v.relevance} · trust {v.trust} · <span className="break-all font-mono">{v.url}</span></li>))}</ul></div>
-          )}
-        </div>
-      ) : null}
-    </li>
-  );
-}
 
 export default function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -117,10 +65,41 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   // SSE, and the server replays anything a reconnect missed. Only if the
   // stream itself fails does the page degrade to slow polling — silence is
   // never an option while a run is moving.
+  // Guidance typed while the run is moving. The server holds it until the
+  // current stage ends, then the worker picks it up — the box always
+  // accepts it, the run applies it when safe.
+  const [guidance, setGuidance] = useState("");
+  const [guidanceBusy, setGuidanceBusy] = useState(false);
+  const [guidanceNote, setGuidanceNote] = useState("");
+  async function sendGuidance() {
+    const text = guidance.trim();
+    if (!text || guidanceBusy) return;
+    setGuidanceBusy(true);
+    setGuidanceNote("");
+    try {
+      await drNibApi.sendGuidance(id, text);
+      setGuidance("");
+      setGuidanceNote("Noted — applies at the next stage boundary.");
+      await load();
+    } catch (e: any) {
+      setGuidanceNote(e?.message || "That didn't go through — retry.");
+    } finally {
+      setGuidanceBusy(false);
+    }
+  }
+
+  // Live log behavior: the feed is a tail — new activity pins to the bottom
+  // only if the reader is already there, so reading back never yanks.
+  const feedRef = useRef<HTMLDivElement>(null);
+  const tailRef = useRef(true);
+  useEffect(() => {
+    const el = feedRef.current;
+    if (el && tailRef.current) el.scrollTop = el.scrollHeight;
+  }, [run]);
+
   // Live first, polling never: the run page follows the run's event log over
   // SSE, and the server replays anything a reconnect missed. Only if the
-  // stream itself fails does the page degrade to slow polling — silence is
-  // never an option while a run is moving.
+  // stream itself fails does the page degrade to slow polling.
   useEffect(() => {
     load();
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -220,28 +199,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         </section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      {/* Command-center layout: the left column is the work product and scrolls
+          with the page; the right column is the agent, fixed in place with its
+          own scroll and a guidance box pinned at the bottom. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0">
-          <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-medium">Activity</p>
-              <span className="rounded-full border border-dark-gray/50 px-2.5 py-0.5 text-[11px] font-medium uppercase">{run.status}</span>
-            </div>
-            {(run.steps || []).length === 0 ? (
-              <p className="text-sm opacity-60">No steps yet — approve the plan to start.</p>
-            ) : (
-              <ol className="space-y-2">
-                {run.steps.map((s: any) => (<StepRow key={s.id} s={s} />))}
-              </ol>
-            )}
-            <div className="mt-4 border-t border-dark-gray/40 pt-3">
-              <div className="flex justify-between text-xs opacity-70"><span>Budget used</span><span>${spent.toFixed(2)} / ${cap.toFixed(2)}</span></div>
-              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>
-            </div>
-          </section>
-
           {!report && (run.status === "running" || run.status === "paused") && (
-            <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
+            <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
               <p className="text-sm font-medium">Report</p>
               <div className="mt-3 space-y-2" aria-hidden="true">
                 <div className="h-3 w-3/4 animate-pulse rounded bg-black/10" />
@@ -253,7 +217,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           )}
 
           {report && (
-            <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
+            <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium">Report · v{report.version}</p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -268,24 +232,14 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             </section>
           )}
 
-          <section className="mt-4 border border-dark-gray/50 bg-white">
-            <div className="border-b border-dark-gray/40 px-4 py-3">
-              <p className="text-sm font-medium">Ask about this run</p>
-              <p className="text-xs opacity-60">
-                {streamLive ? "Live — this view follows the run as it happens." : "Stream unavailable — refreshing slowly instead."}
-              </p>
-            </div>
-            <div className="p-4">
-              <p className="text-sm opacity-60">
-                Follow-up chat will answer only from what this run collected, on its own small balance.
-                It is not connected yet — nothing here will guess at an answer.
-              </p>
-            </div>
-          </section>
-        </div>
+          {!report && run.status !== "running" && run.status !== "paused" && (
+            <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
+              <p className="text-sm font-medium">Report</p>
+              <p className="mt-2 text-sm opacity-60">No report yet — it lands here once the run produces one.</p>
+            </section>
+          )}
 
-        <aside className="flex flex-col gap-4">
-          <section className="border border-dark-gray/50 bg-white p-4">
+          <section className="mt-4 border border-dark-gray/50 bg-white p-4">
             <p className="mb-3 text-sm font-medium">Sources ({(run.sources || []).length})</p>
             {(run.sources || []).length === 0 ? (
               <p className="text-xs opacity-60">Sources appear here as the run finds and scores them.</p>
@@ -303,10 +257,76 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               </ul>
             )}
           </section>
-          <section className="border border-dark-gray/50 bg-white p-4 text-sm">
-            <p className="mb-2 font-medium">Run budget</p>
-            <p className="text-2xl font-medium leading-none">${cap.toFixed(2)}</p>
-            <p className="mt-1 text-xs opacity-60">cap · ${spent.toFixed(2)} spent</p>
+
+          <section className="mt-4 border border-dark-gray/50 bg-white p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-sm font-medium">Run budget</p>
+              <p className="text-xs opacity-60">${spent.toFixed(2)} of ${cap.toFixed(2)}</p>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>
+          </section>
+        </div>
+
+        <aside className="min-w-0 xl:sticky xl:top-4">
+          <section className="flex min-h-[60vh] flex-col border border-dark-gray/50 bg-white xl:h-[calc(100vh-9rem)]">
+            <div className="flex items-center justify-between gap-2 border-b border-dark-gray/40 px-4 py-3">
+              <p className="text-sm font-medium">Agent activity</p>
+              <span className="flex items-center gap-1.5 text-[11px] opacity-60">
+                <span className={`h-1.5 w-1.5 rounded-full ${streamLive ? "animate-pulse bg-black" : "bg-black/30"}`} />
+                {streamLive ? "Live" : "Polling"}
+              </span>
+            </div>
+            <div ref={feedRef} onScroll={(e) => { const el = e.currentTarget; tailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              {(run.steps || []).length === 0 ? (
+                <p className="text-sm opacity-60">No steps yet — approve the plan to start.</p>
+              ) : (
+                (run.steps || []).map((s: any) => {
+                  const out = s.output || {};
+                  return (
+                    <div key={s.id} className="rounded-xl border border-dark-gray/40 bg-gray p-3">
+                      <p className="flex flex-wrap items-center gap-2 text-[13px]">
+                        <span className={`h-1.5 w-1.5 rounded-full ${s.status === "done" ? "" : s.status === "active" ? "animate-pulse bg-black" : "bg-black/25"}`} style={s.status === "done" ? { background: "var(--nib-teal)" } : undefined} />
+                        <span className="font-medium capitalize">{s.kind}</span>
+                        <span className="opacity-50">{s.status}</span>
+                      </p>
+                      {out.why ? <p className="mt-1.5 text-[13px] leading-6 opacity-80">{out.why}</p> : null}
+                      {(out.queries || []).length > 0 ? (
+                        <div className="mt-2">
+                          <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Queries</p>
+                          <ul className="mt-0.5 space-y-0.5">{out.queries.map((q: string) => (<li key={q} className="font-mono text-[11px] opacity-70">“{q}”</li>))}</ul>
+                        </div>
+                      ) : null}
+                      {(out.urls || []).length > 0 ? (
+                        <p className="mt-1.5 font-mono text-[11px] opacity-60">{out.urls.length} page{out.urls.length === 1 ? "" : "s"} opened</p>
+                      ) : null}
+                      {(out.verdicts || []).length > 0 ? (
+                        <p className="mt-1 text-[11px] opacity-60">{out.verdicts.filter((v: any) => v.keep).length}/{out.verdicts.length} sources kept</p>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="border-t border-dark-gray/40 p-3">
+              {["ended", "complete", "failed"].includes(run.status) ? (
+                <p className="px-1 py-2 text-xs opacity-60">Run is over — guidance is closed.</p>
+              ) : (
+                <>
+                  <div className="relative">
+                    <textarea value={guidance} onChange={(e) => setGuidance(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendGuidance(); } }}
+                      rows={2} placeholder="Steer the run — applies at the next stage boundary…"
+                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2.5 pb-10 text-sm outline-none" />
+                    <button onClick={sendGuidance} disabled={guidanceBusy || !guidance.trim()} aria-label="Send guidance"
+                      className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
+                      <Send size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                  {guidanceNote && <p className="mt-1.5 px-1 text-[11px] opacity-60">{guidanceNote}</p>}
+                </>
+              )}
+            </div>
           </section>
         </aside>
       </div>

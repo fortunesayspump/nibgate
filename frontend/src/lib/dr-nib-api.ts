@@ -61,6 +61,8 @@ export const drNibApi = {
   getReport: (id: string) => req(`/v1/runs/${id}/report`),
   answerAwaiting: (id: string, text: string) =>
     req(`/v1/runs/${id}/awaiting/answer`, { method: "POST", body: JSON.stringify({ text }) }),
+  sendGuidance: (id: string, text: string) =>
+    req(`/v1/runs/${id}/guidance`, { method: "POST", body: JSON.stringify({ text }) }),
   createExport: (id: string, format: string) =>
     req(`/v1/runs/${id}/exports`, { method: "POST", body: JSON.stringify({ format }) }),
   getBudget: (runId: string) => req(`/v1/budgets/${runId}`),

@@ -3,6 +3,11 @@ const BASE = process.env.NEXT_PUBLIC_DRNIB_API_URL || "http://localhost:3100";
 async function req(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
+    // The hub SIWE session cookie is the account. Cross-origin (the frontend on
+    // :3001 talking to the service on :3100, or the deployed pair), the browser
+    // only sends it when credentials are explicitly included — without this
+    // every authenticated call comes back 401.
+    credentials: "include",
     headers: { "content-type": "application/json", ...(opts.headers || {}) },
   });
   if (!res.ok) throw new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}`);

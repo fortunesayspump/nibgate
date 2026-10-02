@@ -10,6 +10,12 @@ type TipResource = {
   type: string;
   price: string;
   path: string;
+  // Absolute canonical post URL. The hub attributes tips (and derives the
+  // site domain) by URL, so a bare relative path leaves the ledger row
+  // unattributed. Falls back to origin + path when omitted.
+  url?: string;
+  imageUrl?: string;
+  websiteId?: string;
 };
 
 // Hub API for tip recording. Override per deployment:

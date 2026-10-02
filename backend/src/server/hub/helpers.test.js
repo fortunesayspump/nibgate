@@ -7,7 +7,7 @@ const dbMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   publisherIdentity: { upsert: vi.fn(), findUnique: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
   session: { count: vi.fn() },
-  content: { updateMany: vi.fn() },
+  content: { updateMany: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
   unlockReceipt: { updateMany: vi.fn(), upsert: vi.fn() },
   contentRating: { updateMany: vi.fn() },
   metric: { updateMany: vi.fn() },
@@ -50,6 +50,7 @@ import {
   attributeTips,
   nibshareStatsByWallet,
   platformMoneyTotals,
+  resolveTipContent,
 } from './helpers.js';
 
 describe('cross-stack verification sync', () => {
@@ -481,6 +482,39 @@ describe('tip + nibshare money attribution', () => {
     ]);
     const map = await nibshareStatsByWallet(['0xabc']);
     expect(map.get('0xabc')).toEqual({ revenue: 1.5, unlocks: 1, views: 2 });
+  });
+
+  it('resolveTipContent resolves hub ids, site external ids, absolute URLs, and relative paths', async () => {
+    const row = { id: 'hub-content-1', externalId: 'post-uuid', websiteId: 'w1', url: 'https://medswarm.nibgate.xyz/writing/bp', path: '/writing/bp', imageUrl: 'https://img/c.png', website: { id: 'w1', domain: 'medswarm.nibgate.xyz' } };
+    dbMock.content.findFirst.mockResolvedValue(row);
+
+    expect(await resolveTipContent({ contentId: 'post-uuid' })).toBe(row);
+    expect(dbMock.content.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { OR: [{ id: 'post-uuid' }, { externalId: 'post-uuid' }] } }));
+
+    vi.clearAllMocks();
+    dbMock.content.findMany.mockResolvedValue([row]);
+    expect(await resolveTipContent({ contentUrl: '/writing/bp' })).toBe(row);
+    expect(dbMock.content.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { path: '/writing/bp', deletedAt: null }, take: 2 }));
+
+    // A shared path (2 owners) must not mis-attribute.
+    dbMock.content.findMany.mockResolvedValue([row, { ...row, id: 'other' }]);
+    expect(await resolveTipContent({ contentUrl: '/writing/bp' })).toBeNull();
+
+    vi.clearAllMocks();
+    dbMock.content.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(row);
+    expect(await resolveTipContent({ contentUrl: 'https://medswarm.nibgate.xyz/writing/bp', websiteId: 'w1' })).toBe(row);
+    const calls = dbMock.content.findFirst.mock.calls.map((c) => c[0].where);
+    expect(calls[0]).toEqual({ websiteId: 'w1', path: '/writing/bp', deletedAt: null });
+    expect(calls[1]).toEqual({ url: 'https://medswarm.nibgate.xyz/writing/bp', deletedAt: null });
+  });
+
+  it('resolveTipContent returns null when there is nothing to resolve', async () => {
+    dbMock.content.findFirst.mockResolvedValue(null);
+    dbMock.content.findMany.mockResolvedValue([]);
+    expect(await resolveTipContent({})).toBeNull();
+    expect(await resolveTipContent({ contentUrl: '/nope' })).toBeNull();
   });
 
   it('platformMoneyTotals nets tips and sums nibshare revenue', async () => {

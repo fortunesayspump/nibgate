@@ -139,6 +139,14 @@ export interface TipResource {
   tipAmount?: string | number;
   recipient?: string;
   network?: string;
+  // Content identity, forwarded to the hub so tips attribute to the same
+  // contentId/websiteId/domain/imageUrl as views and unlocks in the ledger.
+  id?: string;
+  contentId?: string;
+  websiteId?: string;
+  imageUrl?: string;
+  domain?: string;
+  type?: string;
 }
 
 export interface TipResult {

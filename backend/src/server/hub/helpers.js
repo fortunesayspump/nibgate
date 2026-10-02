@@ -35,6 +35,54 @@ export async function findContentByIdOrExternal(contentId = '') {
   });
 }
 
+// Tip carriers are heterogeneous: the React wallet hook, the SDK browser
+// helper, and creator sites each hand the hub whatever they have. Older/naive
+// clients send a bare relative path ("/writing/slug") and none of the content
+// metadata, so a Tip row lands with no contentId/websiteId and the ledger
+// cannot attribute it to a site. Resolve whatever identifiers we were given
+// (hub id, site external id, absolute URL, or path) back to the indexed
+// Content row so a tip carries the same contentId/websiteId/domain/imageUrl
+// as views and unlocks.
+export async function resolveTipContent({ contentId, contentUrl, url, path, websiteId } = {}) {
+  const cid = String(contentId || '').trim();
+  if (cid) {
+    const byId = await findContentByIdOrExternal(cid);
+    if (byId) return byId;
+  }
+  const raw = String(contentUrl || url || path || '').trim();
+  if (!raw) return null;
+  const absolute = /^https?:\/\//i.test(raw);
+  let lookupPath = raw;
+  if (absolute) {
+    try { lookupPath = new URL(raw).pathname; } catch { /* keep raw */ }
+  } else if (!lookupPath.startsWith('/')) {
+    lookupPath = `/${lookupPath}`;
+  }
+  const wid = String(websiteId || '').trim();
+  if (wid) {
+    const scoped = await db.content.findFirst({
+      where: { websiteId: wid, path: lookupPath, deletedAt: null },
+      include: { website: true },
+    });
+    if (scoped) return scoped;
+  }
+  if (absolute) {
+    const byUrl = await db.content.findFirst({
+      where: { url: raw, deletedAt: null },
+      include: { website: true },
+    });
+    if (byUrl) return byUrl;
+  }
+  // Path-only fallback: only trust it when exactly one site owns the path,
+  // so a shared slug ("/writing/about") can never mis-attribute a tip.
+  const byPath = await db.content.findMany({
+    where: { path: lookupPath, deletedAt: null },
+    include: { website: true },
+    take: 2,
+  });
+  return byPath.length === 1 ? byPath[0] : null;
+}
+
 export function cleanDomain(domain = '') {
   return String(domain).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
 }

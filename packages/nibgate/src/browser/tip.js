@@ -60,7 +60,7 @@ async function payChallenge({ chal, signer, network }) {
   return { txHash, paymentSignature, paymentRail, payTo, payAmount, payNetwork };
 }
 
-export async function tipContent({ contentUrl, title, amount, currency = 'USDC', network, recipient, challenge, signer, hubApi, domain, contentId, imageUrl }) {
+export async function tipContent({ contentUrl, title, amount, currency = 'USDC', network, recipient, challenge, signer, hubApi, domain, contentId, websiteId, imageUrl }) {
   const api = normalizeApi(hubApi);
   const net = network || 'eip155:5042002';
 
@@ -70,7 +70,7 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
   const resolved = challenge ? recipient : await resolveRecipient({ api, contentUrl, recipient });
   if (!resolved) {
     // External / unclaimed creator: hold the tip in the domain's no-key box.
-    return holdTipContent({ contentUrl, title, amount, currency, network: net, domain, contentId, imageUrl, signer, hubApi: api });
+    return holdTipContent({ contentUrl, title, amount, currency, network: net, domain, contentId, websiteId, imageUrl, signer, hubApi: api });
   }
 
   let chal = challenge;
@@ -95,7 +95,7 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
   const receipt = {
     type: 'tip', contentUrl, title, amount: Number(paid.payAmount), currency,
     network: payNetwork, txHash, paymentId: txHash, held: false,
-    contentId: contentId || undefined, imageUrl: imageUrl || undefined,
+    contentId: contentId || undefined, websiteId: websiteId || undefined, imageUrl: imageUrl || undefined,
   };
   if (api) {
     await fetch(`${api}/hub/tips/verify`, {
@@ -103,6 +103,7 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
       headers: { 'content-type': 'application/json', ...(paymentSignature && paymentRail !== 'transfer' ? { 'payment-signature': paymentSignature } : {}) },
       body: JSON.stringify({
         ...receipt,
+        domain: domain || undefined,
         recipient: resolved || '',
         paymentRail,
         walletAddress: signer?.address || '',
@@ -115,7 +116,7 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
 
 // Unresolved/external creator: fund the domain's deterministic no-key holding
 // box. The creator claims later; the payer can refund until then.
-export async function holdTipContent({ contentUrl, title, amount, currency = 'USDC', network, domain, contentId, imageUrl, signer, hubApi }) {
+export async function holdTipContent({ contentUrl, title, amount, currency = 'USDC', network, domain, contentId, websiteId, imageUrl, signer, hubApi }) {
   const api = normalizeApi(hubApi);
   const net = network || 'eip155:5042002';
   if (!api) throw new Error('holdTipContent needs hubApi.');
@@ -124,7 +125,7 @@ export async function holdTipContent({ contentUrl, title, amount, currency = 'US
   if (!dom) { try { dom = new URL(contentUrl).hostname; } catch { dom = ''; } }
   if (!dom) throw new Error('holdTipContent needs a domain or contentUrl.');
 
-  const base = { contentUrl, title, amount, currency, domain: dom, contentId: contentId || undefined, imageUrl: imageUrl || undefined };
+  const base = { contentUrl, title, amount, currency, domain: dom, contentId: contentId || undefined, websiteId: websiteId || undefined, imageUrl: imageUrl || undefined };
   const chalRes = await fetch(`${api}/hub/tips/hold`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ ...base, paymentRail: 'transfer' }),

@@ -21,6 +21,13 @@ async function req(path: string, opts: RequestInit = {}) {
     (err as any).code = 'unauthenticated';
     throw err;
   }
+  if (res.status === 503) {
+    // The session store is unreachable (outage), not a missing login.
+    // Surfaced separately so the UI says "retry", never "sign in again".
+    const err = new Error('Dr. Nib account lookup is temporarily unavailable. Retry in a moment.');
+    (err as any).code = 'unavailable';
+    throw err;
+  }
   if (!res.ok) throw new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}`);
   return res.json();
 }

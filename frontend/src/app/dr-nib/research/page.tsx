@@ -101,6 +101,11 @@ export default function ResearchNewPage() {
       flash("Sign in to Nibgate to use Dr. Nib, then retry.");
       return;
     }
+    if (e?.code === "unavailable") {
+      // Outage, not logged-out: retrying is the fix, signing in changes nothing.
+      flash("Dr. Nib couldn't reach accounts just now — retry in a moment.");
+      return;
+    }
     flash(`${label} (${e?.message || e}).`);
   }
 

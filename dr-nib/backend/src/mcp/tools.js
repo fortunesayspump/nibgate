@@ -16,6 +16,7 @@ import { budgetState, raiseCap, settle } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
 import { requestExecute, requestPlan } from '../worker.js';
 import { recordEvent } from '../eventlog.js';
+import { assertCanCreateRun } from '../limits.js';
 
 function checkWallet(wallet) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(String(wallet || ''))) {
@@ -51,9 +52,12 @@ export const TOOLS = [
       const bad = checkWallet(ownerWallet);
       if (bad) throw new Error(bad.error);
       if (!topic || typeof topic !== 'string' || !topic.trim()) throw new Error('topic is required');
+      const userId = `wallet:${String(ownerWallet).toLowerCase()}`;
+      const gate = await assertCanCreateRun(userId);
+      if (!gate.ok) throw new Error(gate.error);
       const run = await db.researchRun.create({
         data: {
-          userId: `wallet:${String(ownerWallet).toLowerCase()}`,
+          userId,
           walletAddress: ownerWallet,
           title: deriveTitle(topic),
           description: deriveDescription(topic),

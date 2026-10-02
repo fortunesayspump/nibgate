@@ -11,7 +11,9 @@ export async function initQueue() {
   const url = process.env.REDIS_URL;
   if (!url) { mode = 'inline'; return; }
   try {
-    connection = new IORedis(url, { maxRetriesPerRequest: 2, enableReadyCheck: true });
+    // BullMQ's blocking connections require maxRetriesPerRequest: null; with a
+    // finite value the Worker constructor throws at boot.
+    connection = new IORedis(url, { maxRetriesPerRequest: null, enableReadyCheck: true });
     await connection.ping();
     mode = 'bullmq';
   } catch {

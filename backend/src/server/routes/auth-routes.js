@@ -1,4 +1,5 @@
 import { createNonce, verifySignInAndLogin, getUserBySession, logoutSession, sessionCookieName, nonceCookieName } from '@nibgate/internal/auth.js';
+import { activeNetwork } from '@nibgate/internal/networks.js';
 import { claimPeerSitesForWallet } from '../hub/helpers.js';
 import { registerRateBuckets } from '../lib/rate-buckets.js';
 
@@ -35,8 +36,12 @@ export function registerAuthRoutes(app) {
     if (!rate.ok) return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rate.retryAfter });
     const nonce = createNonce();
     res.cookie(nonceCookieName(), nonce, { ...cookieOpts, maxAge: 1000 * 60 * 10 });
-    
-    res.json({ nonce });
+
+    // The verifier only accepts its own active chain, and the signer must use
+    // the same one — so advertise it. (Local dev is a split stack: the page
+    // can present mainnet while the hub verifies testnet. Guessing locally
+    // produced "signed but never signed in".)
+    res.json({ nonce, chainId: activeNetwork().chainId });
   });
 
   // 2. Verify Signature & Login

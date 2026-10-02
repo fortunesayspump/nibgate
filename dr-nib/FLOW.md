@@ -714,6 +714,15 @@ source the run actually collected), **supported rate** (share of claims backed a
 the depth allowance). Thresholds live in one place, and a failing gate names the bar it broke —
 so a regression is caught before it ships, and a red build says which metric moved.
 
+## Where it runs
+
+Dr. Nib is **mainnet-only**. Every run spends real money — model calls, JEV decisions, and source
+retrieval, paid by Nibgate's own provider keys — and the payer funds it in USDC. On testnet that
+USDC is free, so a public Dr. Nib there would be an open faucet for real compute; the economics
+only hold where payment is real. Testnet builds show a plain "runs on mainnet" notice instead of
+the app. The gate is the frontend build's network, independent of the backend's chain: tests and
+demos run the mainnet UI against a testnet-funded backend, so the flow is real without real spend.
+
 ## What this borrows from
 
 **GPT Researcher** does the part Dr. Nib's run view is built from: an agent that picks its

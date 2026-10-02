@@ -59,6 +59,8 @@ export const drNibApi = {
   deleteRun: (id: string) => req(`/v1/runs/${id}`, { method: "DELETE" }),
   restoreRun: (id: string) => req(`/v1/runs/${id}/restore`, { method: "POST" }),
   getReport: (id: string) => req(`/v1/runs/${id}/report`),
+  answerAwaiting: (id: string, text: string) =>
+    req(`/v1/runs/${id}/awaiting/answer`, { method: "POST", body: JSON.stringify({ text }) }),
   createExport: (id: string, format: string) =>
     req(`/v1/runs/${id}/exports`, { method: "POST", body: JSON.stringify({ format }) }),
   getBudget: (runId: string) => req(`/v1/budgets/${runId}`),

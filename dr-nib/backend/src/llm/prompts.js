@@ -185,3 +185,37 @@ In one or two sentences, say what you took from that answer and what it changes 
     { role: 'user', content: user },
   ];
 }
+
+/**
+ * Intake stage: propose the single next question that most reduces
+ * uncertainty about the brief. The model GENERATES the question; JEV still
+ * decides whether intake continues at all. Return JSON only.
+ */
+export function intakeQuestionMessages({ topic, answered = [] } = {}) {
+  const system = `${RESEARCH_SYSTEM} You are interviewing the user before researching. Return JSON only.`;
+  const known = answered.length
+    ? answered.map((a) => `- ${a.prompt || a.key}: ${a.answer}`).join('\n')
+    : '(nothing asked yet)';
+  const user = `Research topic: ${topic || '(unspecified)'}
+
+Already established:
+${known}
+
+Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
+
+Propose the ONE next question that most reduces uncertainty about this specific topic. Reference the topic by name. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply, free when only a typed answer makes sense.
+
+Return JSON with exactly this shape:
+{
+  "key": "short-snake-key",
+  "type": "pick_one" | "pick_any" | "free",
+  "prompt": "one concrete question naming the topic",
+  "options": [{"id": "a", "label": "..."}],
+  "allowOther": true
+}
+options: 2-4 items for pick types (ids short, labels under 40 chars), [] for free. No prose outside the JSON.`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}

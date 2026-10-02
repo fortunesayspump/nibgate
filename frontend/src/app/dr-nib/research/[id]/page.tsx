@@ -2,10 +2,10 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Pause, Play } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pause, Play, Send } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { subscribeRunEvents } from "@/lib/dr-nib-events";
-import { PageHeader, TrustChip } from "@/components/dr-nib/common";
+import { TrustChip } from "@/components/dr-nib/common";
 
 function secs(startedAt?: string, endedAt?: string): number | null {
   if (!startedAt || !endedAt) return null;
@@ -66,6 +66,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const [error, setError] = useState("");
   const [streamLive, setStreamLive] = useState(true);
   const [exportError, setExportError] = useState("");
+  const [awaitingText, setAwaitingText] = useState("");
+  const [awaitingBusy, setAwaitingBusy] = useState(false);
+  const [awaitingError, setAwaitingError] = useState("");
 
   async function load() {
     try {
@@ -94,6 +97,26 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     }
   }
 
+  // Answer the mid-run question a parked run is waiting on. Nothing moves
+  // until this lands — it is the whole unblock.
+  async function answerAwaiting() {
+    const text = awaitingText.trim();
+    if (!text || awaitingBusy) return;
+    setAwaitingBusy(true);
+    setAwaitingError("");
+    try {
+      await drNibApi.answerAwaiting(id, text);
+      setAwaitingText("");
+      await load();
+    } catch (e: any) {
+      setAwaitingError(e?.message || "That didn't go through — retry.");
+    } finally {
+      setAwaitingBusy(false);
+    }
+  }
+  // SSE, and the server replays anything a reconnect missed. Only if the
+  // stream itself fails does the page degrade to slow polling — silence is
+  // never an option while a run is moving.
   // Live first, polling never: the run page follows the run's event log over
   // SSE, and the server replays anything a reconnect missed. Only if the
   // stream itself fails does the page degrade to slow polling — silence is
@@ -121,24 +144,81 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const cap = Number(run.budgetCap || 0);
   const pct = cap > 0 ? Math.min(100, Math.round((spent / cap) * 100)) : 0;
 
+  const statusStyle: Record<string, string> = {
+    running: "bg-black text-white",
+    awaiting: "bg-amber-100 text-amber-900 border border-amber-300",
+    paused: "bg-black/10 text-black",
+    complete: "bg-emerald-100 text-emerald-900 border border-emerald-300",
+    failed: "bg-red-100 text-red-800 border border-red-300",
+  };
+  const pill = statusStyle[run.status] || "bg-black/10 text-black";
+
+  const banner: Record<string, string> = {
+    planning: "Planning the run — breaking the brief into answerable questions.",
+    planned: "Plan is ready — approve it from Research to start spending.",
+    running: (run.steps || []).length === 0
+      ? "Approved — starting the first pass now."
+      : "Running — steps, sources, and the report appear below as they land.",
+    awaiting: "Parked — Dr. Nib needs one answer from you to continue.",
+    paused: run.pauseReason === "cap"
+      ? "Parked at the budget cap — raise it to continue."
+      : "Paused by you — resume when ready.",
+    complete: "Complete — the report below is the finished product.",
+    failed: "This run failed — the unspent balance was refunded.",
+    ended: "Ended — the unspent balance was refunded.",
+  };
+
   return (
     <div>
-      <PageHeader
-        eyebrow="Dr. Nib · Research"
-        title={topic.length > 70 ? topic.slice(0, 70) + "…" : topic}
-        desc={`${run.status} · ${run.brief?.depth || "standard"} depth · $${spent.toFixed(2)} of $${cap.toFixed(2)} spent`}
-        action={
-          <div className="flex gap-2">
-            <Link href="/dr-nib/projects" className="rounded-full border border-dark-gray/50 bg-white px-6 py-3 text-sm font-medium">Projects</Link>
-            {run.status === "running" && (
-              <button onClick={() => drNibApi.pauseRun(id).then(load)} className="flex items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-medium text-white"><Pause size={15} aria-hidden="true" /> Pause</button>
-            )}
-            {run.status === "paused" && (
-              <button onClick={() => drNibApi.resumeRun(id).then(load)} className="flex items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-medium text-white"><Play size={15} aria-hidden="true" /> Resume</button>
-            )}
+      {/* Run header: its own compact design, not the site display header.
+          Title is content, not a billboard — status and money lead. */}
+      <header className="mb-4 border border-dark-gray/50 bg-white">
+        <div className="flex items-center justify-between gap-3 border-b border-dark-gray/30 px-4 py-2">
+          <Link href="/dr-nib/projects" className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider opacity-60 hover:opacity-100">
+            <ArrowLeft size={13} /> Projects
+          </Link>
+          <span className="flex items-center gap-2">
+            {run.status === "running" && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black" />}
+            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase ${pill}`}>{run.status}</span>
+          </span>
+        </div>
+        <div className="px-4 py-4 md:px-5">
+          <h1 className="text-xl font-medium leading-snug md:text-2xl">{topic}</h1>
+          <p className="mt-1.5 text-xs opacity-60">
+            {run.brief?.depth || "standard"} depth · ${(run.plan?.estimate ?? 0).toFixed(2)} est · ${spent.toFixed(2)} of ${cap.toFixed(2)} spent · {(run.sources || []).length} sources
+          </p>
+          {banner[run.status] && <p className="mt-2.5 border-l-2 border-black/60 pl-3 text-sm leading-6">{banner[run.status]}</p>}
+          {(run.status === "running" || run.status === "paused") && (
+            <div className="mt-3 flex gap-2">
+              {run.status === "running" && (
+                <button onClick={() => drNibApi.pauseRun(id).then(load)} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white"><Pause size={14} aria-hidden="true" /> Pause</button>
+              )}
+              {run.status === "paused" && (
+                <button onClick={() => drNibApi.resumeRun(id).then(load)} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white"><Play size={14} aria-hidden="true" /> Resume</button>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {run.status === "awaiting" && run.pendingQuestion && (
+        <section className="mb-4 border border-amber-300 bg-amber-50 p-4 md:p-5">
+          <p className="text-xs font-medium uppercase tracking-wider text-amber-900">Dr. Nib is waiting on you</p>
+          <p className="mt-1.5 text-[15px] font-medium leading-7">{run.pendingQuestion.prompt}</p>
+          {run.pendingQuestion.why && <p className="mt-1 text-sm opacity-70">{run.pendingQuestion.why}</p>}
+          <div className="relative mt-3">
+            <textarea value={awaitingText} onChange={(e) => setAwaitingText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); answerAwaiting(); } }}
+              rows={2} placeholder='Answer, or type "either"'
+              className="w-full resize-none rounded-xl border border-amber-300 bg-white px-4 py-3 pb-11 text-sm outline-none" />
+            <button onClick={answerAwaiting} disabled={awaitingBusy || !awaitingText.trim()} aria-label="Send answer"
+              className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center bg-black text-white disabled:opacity-50">
+              <Send size={16} aria-hidden="true" />
+            </button>
           </div>
-        }
-      />
+          {awaitingError && <p className="mt-2 text-xs text-red-700">{awaitingError}</p>}
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">

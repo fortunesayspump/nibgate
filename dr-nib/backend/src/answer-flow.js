@@ -9,7 +9,7 @@ import {
   applyAnswer, describeAnswer, nextQuestion,
   remainingKeys, think,
 } from './intake.js';
-import { generateThinking } from './llm/generate.js';
+import { generateThinking, generateIntakeQuestion } from './llm/generate.js';
 import { decideIntakeStop } from './jev/intake.js';
 
 export async function answeredKeys(runId) {
@@ -62,7 +62,25 @@ export async function answerIntakeQuestion(run, seq, answer) {
   });
 
   const keys = await answeredKeys(run.id);
-  const next = nextQuestion(keys);
+  let next = nextQuestion(keys);
+  // The question itself is generated, not banked, when a model is
+  // configured: one topic-specific question per answer, same cost class as
+  // the thinking call above. Anything off-spec falls back to the bank, and
+  // the bank stays the decider of last resort — JEV still owns stop/go.
+  try {
+    const prior = await db.researchDecision.findMany({
+      where: { runId: run.id, kind: 'question', answer: { not: null } },
+      orderBy: { seq: 'asc' },
+      select: { question: true, answer: true },
+    });
+    const live = await generateIntakeQuestion({
+      topic: updated.brief?.topic,
+      answered: prior.map((r) => ({ prompt: r.question?.prompt || r.question?.key, answer: describeAnswer(r.question, r.answer) })),
+    });
+    if (live.question && !keys.includes(live.question.key)) {
+      next = { ...live.question, source: 'llm' };
+    }
+  } catch {}
   // The stop decision belongs to JEV. When it cannot be reached, the bank
   // rule (done when the bank is empty) decides instead — and the decision
   // row says which one decided, so a fallback is never mistaken for a

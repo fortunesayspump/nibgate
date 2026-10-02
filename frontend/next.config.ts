@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@nibgate/wallet"],
   turbopack: {},
   images: {
-    remotePatterns: [new URL("https://**/**")],
+    // Plain object (not a URL): a URL instance pins `search: ""` and any
+    // image URL with a query string then fails the match and 500s the page.
+    remotePatterns: [{ protocol: "https", hostname: "**" }],
     dangerouslyAllowSVG: true,
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",

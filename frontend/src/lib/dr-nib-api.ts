@@ -13,6 +13,11 @@ async function req(path: string, opts: RequestInit = {}) {
     credentials: "include",
     headers: { "content-type": "application/json", ...(opts.headers || {}) },
   });
+  if (res.status === 401) {
+    const err = new Error('Sign in to Nibgate to use Dr. Nib.');
+    (err as any).code = 'unauthenticated';
+    throw err;
+  }
   if (!res.ok) throw new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}`);
   return res.json();
 }

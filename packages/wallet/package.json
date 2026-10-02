@@ -1,6 +1,6 @@
 {
   "name": "@nibgate/wallet",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "description": "Single Nibgate wallet standard: chain guard, error mapping, SIWE sign-in, and a shared Reown AppKit (AppKit + wagmi) React provider, connect, and unlock.",
   "type": "module",
   "publishConfig": {
@@ -29,7 +29,7 @@
     }
   },
   "dependencies": {
-    "@nibgate/sdk": "0.4.33",
+    "@nibgate/sdk": "0.4.34",
     "lottie-web": "^5.12.2",
     "viem": "^2.52.2"
   },

@@ -1512,6 +1512,13 @@ html[data-theme="light"] .explore-art {
   column-span: all;
 }
 
+.market-search-status {
+  margin: 0 0 12px;
+  color: var(--explore-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .explore-intro {
   display: grid;
   justify-items: center;

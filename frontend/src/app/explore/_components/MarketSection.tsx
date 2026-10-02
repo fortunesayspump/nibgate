@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { contentTypes, sortTabs, type ExploreProduct } from "../_data/catalog";
+import { toExploreProduct } from "../_data/explore-content";
 import { ExploreCard } from "./ProductCard";
 
 function sortKey(label: string) {
@@ -33,24 +34,53 @@ function categoryMatches(product: ExploreProduct, category: string) {
   return haystack.includes(clean);
 }
 
-export default function MarketSection({ products }: { products: ExploreProduct[] }) {
-  const [sort, setSort] = useState("trending");
+export default function MarketSection({
+  products,
+  fixedType = "",
+  initialSort = "trending",
+}: {
+  products: ExploreProduct[];
+  fixedType?: string;
+  initialSort?: string;
+}) {
+  const [sort, setSort] = useState(initialSort);
   const [activeType, setActiveType] = useState("All");
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
+  // Server-side search results: the `products` prop only holds the top-200
+  // trending cards, so a client-side filter can never find low-traction
+  // content (e.g. a brand-new subblog). When a query is active we ask the
+  // full discovery index instead. Bare `/hub/...` path uses the
+  // next.config.ts rewrite to the backend.
+  const [remoteResults, setRemoteResults] = useState<ExploreProduct[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const searchSeq = useRef(0);
 
   useEffect(() => {
     const onCategory = (event: Event) => {
       const category = (event as CustomEvent<{ category?: string }>).detail?.category || "All";
       setActiveCategory(category);
       setSearchQuery("");
+      setRemoteResults(null);
+      setSearching(false);
+      setSearchError("");
       setVisibleCount(12);
     };
     const onSearch = (event: Event) => {
       const q = (event as CustomEvent<{ q?: string }>).detail?.q || "";
       setSearchQuery(q);
       setActiveCategory("All");
+      if (!q.trim()) {
+        searchSeq.current += 1;
+        setRemoteResults(null);
+        setSearching(false);
+        setSearchError("");
+      } else {
+        setSearching(true);
+        setSearchError("");
+      }
       setVisibleCount(12);
     };
     window.addEventListener("nibgate:explore-category", onCategory);
@@ -61,20 +91,49 @@ export default function MarketSection({ products }: { products: ExploreProduct[]
     };
   }, []);
 
-  const isActive = searchQuery || activeCategory !== "All" || activeType !== "All";
+  const trimmedQuery = searchQuery.trim();
+  const effectiveType = fixedType || activeType;
+
+  useEffect(() => {
+    if (!trimmedQuery) return;
+    const seq = ++searchSeq.current;
+    const timer = setTimeout(async () => {
+      if (searchSeq.current !== seq) return;
+      try {
+        const params = new URLSearchParams();
+        params.set("q", trimmedQuery);
+        params.set("sort", sort);
+        params.set("limit", "100");
+        if (effectiveType && effectiveType !== "All") params.set("type", effectiveType.toLowerCase());
+        const res = await fetch(`/hub/explore/content?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const content = Array.isArray(data.content) ? data.content : [];
+        if (searchSeq.current !== seq) return;
+        setRemoteResults(content.map(toExploreProduct));
+      } catch {
+        if (searchSeq.current !== seq) return;
+        setRemoteResults([]);
+        setSearchError("Search is unavailable right now. Try again in a moment.");
+      } finally {
+        if (searchSeq.current === seq) setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [trimmedQuery, sort, effectiveType]);
 
   const filteredProducts = useMemo(() => {
-    let result = products;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((p) =>
-        [p.title, p.type, p.summary, p.creator, ...(p.tags || [])].join(" ").toLowerCase().includes(q)
-      );
+    // Active query → server results arrive pre-sorted; keep backend order and
+    // only apply the client-side category filter on top.
+    if (trimmedQuery) {
+      const base = remoteResults ?? [];
+      return base.filter((p) => categoryMatches(p, activeCategory));
     }
+    let result = products;
     result = result.filter((p) => categoryMatches(p, activeCategory));
-    if (activeType !== "All") result = result.filter((p) => p.type === activeType);
+    if (!fixedType && activeType !== "All") result = result.filter((p) => p.type === activeType);
     return sortProducts(result, sort);
-  }, [products, sort, searchQuery, activeType, activeCategory]);
+  }, [products, sort, trimmedQuery, remoteResults, activeType, activeCategory, fixedType]);
   const visibleProducts = filteredProducts.slice(0, visibleCount);
   const title = activeCategory === "All" ? "Explore content" : activeCategory;
 
@@ -105,10 +164,21 @@ export default function MarketSection({ products }: { products: ExploreProduct[]
       </div>
       <div className="market-layout">
         <div className="market-products">
+          {trimmedQuery && (
+            <p className="market-search-status" aria-live="polite">
+              {searching
+                ? `Searching discovery for "${trimmedQuery}"…`
+                : searchError || `${filteredProducts.length} result${filteredProducts.length === 1 ? "" : "s"} for "${trimmedQuery}"`}
+            </p>
+          )}
           <div className="market-grid">
             {visibleProducts.length === 0 ? (
               <div className="explore-empty-state market-empty-state">
-                <p>No tracked content is available yet.</p>
+                <p>
+                  {trimmedQuery && !searching
+                    ? `No results for "${trimmedQuery}" in discovery.`
+                    : "No tracked content is available yet."}
+                </p>
               </div>
             ) : (
               visibleProducts.map((product, i) => (

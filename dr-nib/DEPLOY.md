@@ -6,13 +6,21 @@ the Postgres cluster with the hub but keeps its own tables in a separate
 
 ## 1. Create the service
 
+Deployed as `nibgate-drnib-mainnet` in the `nibgate-mainnet` project (production
+environment). Its service settings, mirroring the hub backend because Dr. Nib
+needs the monorepo's `workspace:*` deps:
+
 - **Source:** GitHub repo `fortunesayspump/nibgate`, branch `main`.
-- **Root Directory: `dr-nib/backend`.** Railway checks out the whole repo, so
-  pnpm still finds the workspace root two levels up and resolves the
-  `@nibgate/internal` workspace dependency.
-- **Railway Config File:** `dr-nib/backend/railway.toml` (auto-detected when the
-  root directory is `dr-nib/backend`; it sets the build watch patterns, the
-  start command, and the `/health` healthcheck).
+- **Root Directory:** *(repo root)* — not `dr-nib/backend`. The build context
+  must be the repo root so pnpm resolves the workspace; the start command is
+  scoped to the package instead.
+- **Start Command:** `pnpm --filter @nibgate/dr-nib-backend start:prod`
+  (generate → migrate deploy → serve).
+- **Healthcheck Path:** `/health`.
+
+> Note: `railway.toml`/config-as-code is deprecated on Railway; the settings
+> above are set on the service directly, so the repository's
+> `dr-nib/backend/railway.toml` is only a reference now.
 
 The start command runs `prisma generate` → `prisma migrate deploy` → serve, so
 the first deploy creates the `drnib` schema and later deploys apply new
@@ -42,9 +50,13 @@ Runtime knobs (optional, defaults are fine): `LLM_MODEL`, `LLM_FALLBACK_MODELS`,
 
 ## 3. Frontend
 
-The hub frontend reaches this service through `NEXT_PUBLIC_DRNIB_API_URL`. Set
-it to the deployed service URL (or a same-origin proxy path) and redeploy the
-frontend.
+The hub frontend reaches Dr. Nib through a **same-origin proxy**: `next.config.ts`
+rewrites `/drnib-api/*` to the service (`DRNIB_API_URL`, defaulting to the
+Railway domain in production), and `dr-nib-api.ts` defaults to `/drnib-api` in
+production. This matters because the SIWE session cookie is scoped to
+`.nibgate.xyz` — a direct cross-origin call to the `*.up.railway.app` host would
+not carry it. No extra Vercel env is required; override `DRNIB_API_URL` only for
+a different deployment or a custom domain.
 
 ## 4. Verify after deploy
 

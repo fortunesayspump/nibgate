@@ -21,12 +21,18 @@ beforeEach(async () => {
 afterEach(wipe);
 
 describe('tool registry', () => {
-  it('advertises exactly the five instruments, each with a cost model', () => {
-    expect(toolNames().sort()).toEqual(['compute', 'http_request', 'search_sources', 'web_fetch', 'web_search']);
+  it('advertises exactly the instruments, each with a cost model', () => {
+    expect(toolNames().sort()).toEqual(['compute', 'http_request', 'run_code', 'search_sources', 'web_fetch', 'web_search']);
     for (const spec of toolSpecs()) {
       expect(spec.description.length).toBeGreaterThan(20);
       expect(['metered', 'zero']).toContain(spec.cost);
     }
+  });
+
+  it('reports run_code unavailable when sandbox execution is not configured', async () => {
+    const out = await runTool(RUN, 'run_code', { command: 'echo hi' });
+    expect(out.ok).toBe(false);
+    expect(out.error).toMatch(/not configured|unavailable/);
   });
 });
 

@@ -14,6 +14,7 @@ import { searchEvidence } from './tools/evidence.js';
 import { runChoice, runNoul } from './jev/decisions.js';
 import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
+import { destroySandbox, destroyAllSandboxes } from './tools/sandbox.js';
 import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
 import { chat, isLlmConfigured } from './llm/provider.js';
@@ -736,6 +737,8 @@ export async function runExecute(runId) {
 
   await park(runId, 'complete');
   await settle(runId, 'complete');
+  // The run is over: its sandbox has no more work and must not keep billing.
+  await destroySandbox(runId);
 }
 
 export async function runInline(name, data) {
@@ -778,6 +781,7 @@ if (isMainEntry) {
     while (inFlightSteps() > 0 && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 500));
     }
+    await destroyAllSandboxes().catch(() => {});
     await closeQueue(workers).catch(() => {});
     process.exit(0);
   };

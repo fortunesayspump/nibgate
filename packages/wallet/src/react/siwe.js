@@ -1,4 +1,5 @@
 import { createSignInMessage } from '../siwe.js'
+import { activeChain } from '../chain.js'
 import { toHex } from 'viem'
 
 // Sign a SIWE (or any) message through an EIP-1193 wallet provider. personal_sign
@@ -35,8 +36,16 @@ export async function signInWithSiwe(address, signMessage, options = {}) {
   const host = typeof window !== 'undefined' ? window.location.host : options.domain || ''
   const origin = typeof window !== 'undefined' ? window.location.origin : options.uri || 'https://nibgate.xyz'
 
+  // The verifier is strict about chainId, and the page's build-time network
+  // can disagree with the backend's (local dev presents mainnet while the hub
+  // verifies testnet). The nonce endpoint advertises the chain the verifier
+  // will accept — always prefer it over the local guess, or every signature
+  // verifies nowhere and the user signs forever without a session.
+  const chainId = options.chainId || nonceData.chainId || activeChain().id
+
   const message = createSignInMessage({
     address,
+    chainId,
     nonce: nonceData.nonce,
     domain: host,
     uri: origin,

@@ -6,12 +6,13 @@ the Postgres cluster with the hub but keeps its own tables in a separate
 
 ## 1. Create the service
 
-- **Source:** this repo.
-- **Root Directory: the repo root** (not `dr-nib/backend`). `dr-nib/backend`
-  depends on `@nibgate/internal` via `workspace:*`, which only resolves from the
-  workspace root.
-- **Railway Config File:** `dr-nib/backend/railway.toml` (sets the build watch
-  patterns, the start command, and the `/health` healthcheck).
+- **Source:** GitHub repo `fortunesayspump/nibgate`, branch `main`.
+- **Root Directory: `dr-nib/backend`.** Railway checks out the whole repo, so
+  pnpm still finds the workspace root two levels up and resolves the
+  `@nibgate/internal` workspace dependency.
+- **Railway Config File:** `dr-nib/backend/railway.toml` (auto-detected when the
+  root directory is `dr-nib/backend`; it sets the build watch patterns, the
+  start command, and the `/health` healthcheck).
 
 The start command runs `prisma generate` → `prisma migrate deploy` → serve, so
 the first deploy creates the `drnib` schema and later deploys apply new
@@ -31,6 +32,9 @@ Set these on the service (never commit them):
 | `DRNIB_SERVICE_KEY` | random string; gates the MCP server. If unset the MCP surface runs open (dev only) |
 | `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the free layer (arXiv + direct fetch) |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
+| `RAILWAY_API_TOKEN` | optional; enables the `run_code` sandbox tool (isolated ephemeral VMs for parsing, stats, scripts) |
+| `RAILWAY_ENVIRONMENT_ID` | the environment sandboxes are created in (same project) |
+| `DRNIB_SANDBOX_IDLE_MINUTES` | optional; sandbox idle TTL, default 10 |
 | `PORT` | leave unset; Railway injects it |
 
 Runtime knobs (optional, defaults are fine): `LLM_MODEL`, `LLM_FALLBACK_MODELS`,

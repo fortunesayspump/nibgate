@@ -16,6 +16,7 @@ import { searchAll, extractAll } from '../retrieval/index.js';
 import { httpRequest } from './http.js';
 import { compute } from './compute.js';
 import { searchEvidence } from './evidence.js';
+import { runInSandbox, sandboxConfigured, writeSandboxFile } from './sandbox.js';
 
 function need(input, ...fields) {
   for (const f of fields) {
@@ -77,12 +78,36 @@ const TOOLS = {
   },
 
   compute: {
-    description: 'Crunch numbers over collected evidence: statistics, tables, comparisons. Sandboxed arithmetic only — no network, files, or time. Input data via `input`, expression via `code`.',
+    description: 'Crunch small numbers over collected evidence: arithmetic, simple statistics, tables. Sandboxed expression only — no network, files, or time. For anything heavier (parsing a PDF, plotting, installing a package, real files) use run_code.',
     cost: 'zero',
     async run(input) {
       need(input, 'code');
       const out = await compute({ code: input.code, input: input.input ?? null });
       return { output: out, costUsd: 0 };
+    },
+  },
+
+  run_code: {
+    description: 'Run a shell command or a script in an isolated ephemeral Linux VM: install packages, parse documents, compute statistics and charts, run CLI tools. No access to platform secrets or the private network; the VM is discarded after the run.',
+    cost: 'metered',
+    async run(input, ctx) {
+      if (!sandboxConfigured()) throw new Error('run_code is unavailable: sandbox execution is not configured on this deployment');
+      if (!input?.command && !input?.code) throw new Error('provide either command or code');
+      for (const f of input.files || []) {
+        if (!f?.path || typeof f.content !== 'string') throw new Error('each file needs {path, content}');
+        await writeSandboxFile(ctx.runId, f.path, f.content);
+      }
+      let command = input.command;
+      if (!command) {
+        const lang = String(input.language || 'node').toLowerCase();
+        const ext = { node: 'mjs', javascript: 'mjs', python: 'py', python3: 'py', bash: 'sh', sh: 'sh' }[lang] || 'txt';
+        const runner = { node: 'node', javascript: 'node', python: 'python3', python3: 'python3', bash: 'bash', sh: 'sh' }[lang] || 'node';
+        const path = input.path || `/tmp/drnib-snippet.${ext}`;
+        await writeSandboxFile(ctx.runId, path, input.code);
+        command = `${runner} ${path}`;
+      }
+      const out = await runInSandbox(ctx.runId, command, { timeoutSec: Math.min(Math.max(Number(input.timeoutSec) || 120, 1), 600) });
+      return { output: out, costUsd: out.costUsd };
     },
   },
 
@@ -141,6 +166,7 @@ function summarize(name, input) {
   }
   if (name === 'http_request') return `${input.method || 'GET'} ${String(input.url || '').slice(0, 120)}`;
   if (name === 'compute') return String(input.code || '').slice(0, 120);
+  if (name === 'run_code') return String(input.command || input.code || '').slice(0, 120);
   if (name === 'search_sources') return String(input.query || '').slice(0, 120);
   return '';
 }

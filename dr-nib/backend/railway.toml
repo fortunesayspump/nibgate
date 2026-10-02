@@ -1,9 +1,8 @@
 # Railway service: Dr. Nib backend.
 #
-# This service shares the monorepo, so its Root Directory must be the repo root
-# (not dr-nib/backend) — dr-nib/backend depends on @nibgate/internal via
-# `workspace:*`, which only resolves from the workspace root. Point Railway's
-# "Railway Config File" setting at this file.
+# Set this service's Root Directory to dr-nib/backend. Railway checks out the
+# whole repo, so pnpm still finds the workspace root two levels up and resolves
+# dr-nib's `@nibgate/internal` workspace dependency.
 #
 # Start runs generate + migrate + serve, so the first deploy creates the schema
 # and every later deploy applies new migrations. Migrations are tracked in the

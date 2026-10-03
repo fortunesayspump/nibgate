@@ -264,10 +264,25 @@ const briefPolicy = (run) => ({
 //
 // Each query goes through the tool executor, so every search is policy-checked,
 // metered, and written to the run's audit trail as a tool.call.
+const QUERY_STOPWORDS = new Set(
+  'what,are,the,and,for,over,last,with,from,that,this,how,they,does,between,into,under,more,most,such,than,then,when,which,while,about,based,using,used,each,have,has,had,been,were,was,but,not,all,any,can,its,per,does,doing,either,also,other,than,those,these,there,their,them,they,will,would,should,could,been,being,doing,down,during,does,doing'.split(','),
+);
+
+// Sub-questions are report prose ("What are the median fees…?"); most free
+// indexes want keywords, not sentences. Reduce to significant tokens (numbers
+// always survive: "90 days", "$1" carry the question) so arXiv-all-style
+// backends match instead of returning empty on a 30-word sentence.
+function keywordQuery(q) {
+  const tokens = String(q || '').toLowerCase().replace(/[^a-z0-9$€£¥.\s-]/g, ' ').split(/\s+/).filter(Boolean);
+  const kept = tokens.filter((w) => /\d/.test(w) || (w.length > 2 && !QUERY_STOPWORDS.has(w)));
+  const short = kept.slice(0, 12).join(' ').trim();
+  return short || String(q || '').trim();
+}
+
 async function searchStage(runId, run, queries) {
   const brief = run.brief || {};
   const limits = depthLimits(brief.depth);
-  const list = (Array.isArray(queries) && queries.length ? queries : [brief.topic || 'the brief']).slice(0, limits.queries);
+  const list = (Array.isArray(queries) && queries.length ? queries : [brief.topic || 'the brief']).slice(0, limits.queries).map(keywordQuery);
 
   const settled = [];
   let costUsd = 0;

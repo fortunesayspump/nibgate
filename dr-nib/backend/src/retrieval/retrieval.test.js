@@ -25,12 +25,17 @@ describe('URL normalization and dedupe', () => {
 
 describe('retrieval status', () => {
   it('reports the free bench always available, keyed pair by key', () => {
-    expect(retrievalStatus()).toEqual({ tavily: false, exa: false, free: true, any: true });
+    expect(retrievalStatus()).toEqual({ tavily: false, exa: false, searxng: false, free: true, any: true });
   });
 
   it('reports each provider independently', () => {
     vi.stubEnv('TAVILY_API_KEY', 'tvly-x');
-    expect(retrievalStatus()).toEqual({ tavily: true, exa: false, free: true, any: true });
+    expect(retrievalStatus()).toEqual({ tavily: true, exa: false, searxng: false, free: true, any: true });
+  });
+
+  it('reports a configured searxng instance', () => {
+    vi.stubEnv('SEARXNG_URL', 'https://search.example.com');
+    expect(retrievalStatus().searxng).toBe(true);
   });
 });
 
@@ -80,7 +85,7 @@ describe('searchAll', () => {
     // Tavily 1 credit * 0.008 + Exa 0.005 + free bench 0
     expect(out.costUsd).toBeCloseTo(0.013, 6);
     expect(out.providers.map((p) => p.name).sort()).toEqual(
-      ['arxiv', 'edgar', 'exa', 'gdelt', 'hn', 'openalex', 'polymarket', 'stackexchange', 'tavily', 'wikipedia'],
+      ['arxiv', 'crossref', 'edgar', 'exa', 'gdelt', 'hn', 'openalex', 'polymarket', 'semanticscholar', 'stackexchange', 'tavily', 'wikipedia'],
     );
     expect(out.providers.every((p) => p.ok)).toBe(true);
   });
@@ -121,7 +126,7 @@ describe('searchAll', () => {
         return jsonResponse({ query: { search: [{ title: 'USD Coin', snippet: 'a <span>stablecoin</span>' }] } });
       }
       if (u.includes('openalex.org')) {
-        return jsonResponse({ results: [{ id: 'https://doi.org/10.1/x', title: 'Stablecoin fees', abstract_inverted_index: { Stablecoin: [0], fees: [1] }, publication_date: '2025-03-01', authorships: [], cited_by_count: 7 }] });
+        return jsonResponse({ results: [{ id: 'https://doi.org/10.2/openalex-fees', title: 'Stablecoin fees', abstract_inverted_index: { Stablecoin: [0], fees: [1] }, publication_date: '2025-03-01', authorships: [], cited_by_count: 7 }] });
       }
       if (u.includes('efts.sec.gov')) {
         return jsonResponse({ hits: { hits: [{ _source: { ciks: ['1234567'], forms: ['10-K'], filedAt: '2025-02-20', entityName: 'Circle' } }] } });
@@ -138,6 +143,12 @@ describe('searchAll', () => {
       if (u.includes('polymarket')) {
         return jsonResponse([{ question: 'Will USDC hold peg?', slug: 'usdc-peg', volume: 1000, outcomes: ['Yes', 'No'], outcomePrices: ['0.99', '0.01'] }]);
       }
+      if (u.includes('semanticscholar')) {
+        return jsonResponse({ data: [{ title: 'Stablecoin design', abstract: 'We study pegs.', url: 'https://s2.example/p', openAccessPdf: { url: 'https://s2.example/p.pdf' }, year: 2024, authors: [{ name: 'A. Uthor' }], citationCount: 3 }] });
+      }
+      if (u.includes('crossref')) {
+        return jsonResponse({ message: { items: [{ DOI: '10.1/x', title: ['Ledger money'], author: [{ given: 'B', family: 'Uilder' }], published: { 'date-parts': [[2023]] }, 'container-title': ['J. Money'], URL: 'https://doi.org/10.1/x' }] } });
+      }
       if (u.includes('export.arxiv.org')) {
         return { ok: true, status: 200, text: async () => '<?xml version="1.0"?><feed></feed>' };
       }
@@ -147,11 +158,13 @@ describe('searchAll', () => {
     expect(out.fallback).toBe(false);
     expect(out.costUsd).toBe(0);
     expect(out.providers.map((p) => p.name).sort()).toEqual(
-      ['arxiv', 'edgar', 'gdelt', 'hn', 'openalex', 'polymarket', 'stackexchange', 'wikipedia'],
+      ['arxiv', 'crossref', 'edgar', 'gdelt', 'hn', 'openalex', 'polymarket', 'semanticscholar', 'stackexchange', 'wikipedia'],
     );
     expect(out.providers.every((p) => p.ok)).toBe(true);
     const byProvider = Object.fromEntries(out.results.map((r) => [r.provider, r]));
     expect(byProvider.wikipedia.url).toBe('https://en.wikipedia.org/wiki/USD_Coin');
+    expect(byProvider.semanticscholar.url).toBe('https://s2.example/p.pdf');
+    expect(byProvider.crossref.url).toBe('https://doi.org/10.1/x');
     expect(byProvider.openalex.snippet).toMatch(/Stablecoin fees|fees/);
     expect(byProvider.edgar.url).toContain('CIK=1234567');
     expect(byProvider.stackexchange.url).toBe('https://stackoverflow.com/q/1');
@@ -175,6 +188,51 @@ describe('extractAll', () => {
     expect(out.documents[0].provider).toBe('direct');
     expect(out.documents[0].text).toContain('Readable body sentence one.');
     expect(out.costUsd).toBe(0);
+  });
+
+  it('reads office documents: docx, xlsx, and pptx', async () => {
+    const JSZip = (await import('jszip')).default;
+    const XLSX = await import('xlsx');
+    const docx = new JSZip();
+    docx.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    docx.file('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Hello docx world, this is a long enough sentence to pass the readability floor.</w:t></w:r></w:p></w:body></w:document>');
+    const docxBuf = Buffer.from(await docx.generateAsync({ type: 'uint8array' }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['name', 'value', 'note'], ['usdc', '1.00', 'stablecoin dollar peg'], ['arc', 'fast', 'low fee chain'], ['base', 'fast', 'coinbase rollup']]), 'Fees');
+    const xlsxBuf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const pptx = new JSZip();
+    pptx.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>');
+    pptx.file('ppt/slides/slide1.xml', '<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:t>Hello slide world, another long enough sentence for the floor.</a:t></p:sld>');
+    const pptxBuf = Buffer.from(await pptx.generateAsync({ type: 'uint8array' }));
+    const bodies = {
+      'https://example.com/report.docx': docxBuf,
+      'https://example.com/fees.xlsx': xlsxBuf,
+      'https://example.com/deck.pptx': pptxBuf,
+    };
+    const fetchImpl = vi.fn().mockImplementation(async (url) => {
+      if (String(url).endsWith('/robots.txt')) return { ok: false, status: 404, text: async () => '' };
+      return { ok: true, status: 200, headers: { get: () => 'application/octet-stream' }, arrayBuffer: async () => bodies[String(url)] };
+    });
+    const { extractAll } = await import('./index.js');
+    const out = await extractAll({ urls: Object.keys(bodies) }, { fetchImpl });
+    expect(out.skipped).toEqual([]);
+    expect(out.documents).toHaveLength(3);
+    const texts = out.documents.map((d) => d.text).join('\n');
+    expect(texts).toMatch(/Hello docx world/);
+    expect(texts).toMatch(/usdc/);
+    expect(texts).toMatch(/Hello slide world/);
+  });
+
+  it('names bot-block pages instead of reporting no text', async () => {
+    const html = '<html><head><script>cf-challenge</script></head><body><p>Checking your browser before you access this site, please wait a moment while we verify things here.</p></body></html>';
+    const fetchImpl = vi.fn().mockImplementation(async (url) => {
+      if (String(url).endsWith('/robots.txt')) return { ok: false, status: 404, text: async () => '' };
+      return { ok: true, status: 200, text: async () => html };
+    });
+    const { extractAll } = await import('./index.js');
+    const out = await extractAll({ urls: ['https://example.com/guarded'] }, { fetchImpl });
+    expect(out.documents).toHaveLength(0);
+    expect(out.skipped[0].reason).toBe('blocked-bot-check');
   });
 
   it('refuses paywalled pages instead of working around them', async () => {

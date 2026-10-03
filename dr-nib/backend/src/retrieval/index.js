@@ -22,6 +22,9 @@ import { stackexchangeSearch } from './providers/stackexchange.js';
 import { gdeltSearch } from './providers/gdelt.js';
 import { hnSearch } from './providers/hn.js';
 import { polymarketSearch } from './providers/polymarket.js';
+import { semanticscholarSearch } from './providers/semanticscholar.js';
+import { crossrefSearch } from './providers/crossref.js';
+import { searxngSearch, isSearxngConfigured } from './providers/searxng.js';
 import { directExtract } from './providers/direct.js';
 import { circuitAllows, circuitFailure, circuitSuccess } from './circuit.js';
 
@@ -34,8 +37,9 @@ export function retrievalStatus() {
   const tavily = isTavilyConfigured();
   const exa = isExaConfigured();
   // The free bench needs no keys and is always available: a keyless
-  // deployment searches, it just searches free indexes.
-  return { tavily, exa, free: true, any: true };
+  // deployment searches, it just searches free indexes. A self-hosted
+  // SearXNG joins the bench when SEARXNG_URL is set.
+  return { tavily, exa, searxng: isSearxngConfigured(), free: true, any: true };
 }
 
 export function isRetrievalConfigured() {
@@ -105,11 +109,14 @@ export async function searchAll(input, { fetchImpl } = {}) {
   if (includeFree) {
     freeCall('wikipedia', wikipediaSearch, { query, maxResults: 4 });
     freeCall('openalex', openalexSearch, { query, maxResults: 4 });
+    freeCall('semanticscholar', semanticscholarSearch, { query, maxResults: 4 });
+    freeCall('crossref', crossrefSearch, { query, maxResults: 4 });
     freeCall('edgar', edgarSearch, { query, maxResults: 4 });
     freeCall('stackexchange', stackexchangeSearch, { query, maxResults: 4 });
     freeCall('gdelt', gdeltSearch, { query, maxResults: 6 });
     freeCall('hn', hnSearch, { query, maxResults: 4 });
     freeCall('polymarket', polymarketSearch, { query, maxResults: 4 });
+    if (isSearxngConfigured()) freeCall('searxng', searxngSearch, { query, maxResults });
   }
 
   // arXiv is free and keyless, so it is always in the mix (capped small).

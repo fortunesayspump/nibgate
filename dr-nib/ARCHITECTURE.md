@@ -54,7 +54,7 @@ agent callers. Every mutating route is idempotency-keyed.
 | `research_claim` | run_id, text, status (supported/contradicted/unknown), passage refs | append-only; never rewritten |
 | `research_report` | run_id, version, markdown, citations JSON | immutable versions; revise creates n+1 |
 | `research_export` | run_id, report_version, format, r2_key, status | async render jobs |
-| `budget_ledger` | run_id, kind (deposit/hold/spend/refund), amount, tx refs | append-only; source of truth |
+| `budget_ledger` | run_id, kind (deposit/spend/fee/refund), amount, txRef | append-only; source of truth |
 | `research_decision` | run_id, step, question, criteria version, inputs, output | append-only; powers the trace |
 
 Money rule: ledger is append-only; no negative balances (enforced in a

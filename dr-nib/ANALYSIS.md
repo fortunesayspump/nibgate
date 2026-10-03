@@ -353,7 +353,7 @@ pipeline is format-agnostic until synthesis.
 
 ---
 
-## 12. Code-level mechanisms stolen from open source (repos cloned Sep 2026)
+## 12. Code-level mechanisms stolen from open source (repos cloned Sep 2026, raid Oct 2026)
 
 Read directly from `gpt-researcher`, `open-deep-research`, and `storm`
 source. These are implementation patterns, not ideas.
@@ -412,6 +412,43 @@ source. These are implementation patterns, not ideas.
 - **Co-STORM moderator** mines *uncited* retrieved material for new
   questions; **mind map** as shared conceptual space; human steer
   mid-run. → Moderator-style gap-fill + outline view + steerable runs.
+
+### Free-first retrieval doctrine (Oct 2026 raid)
+
+- **Provider bench with keyed upgrades on top** (self-hosted metasearch,
+  scholarly indexes, RSS/feeds free; Tavily/Exa join when keys exist).
+  → Our 11-index free layer + keyed slots.
+- **Isolated reader workers** (child process per parse, strict schema
+  validation on stdout). → Our in-process unpdf/mammoth/SheetJS readers
+  (no child-process need at our volume; escalation path documented).
+- **SSRF-hardened fetch** (DNS-pinning, per-hop re-vetting, byte caps that
+  distrust content-length). → Our policy checks (DNS-pinning adopted as the
+  bar to clear next).
+- **Block-page honesty** (named bot-check errors, never "no text").
+  → Our `blocked-bot-check` skip reason.
+- **Self-hosted search by env, no public fallback** (private questions never
+  touch random third parties). → Our `SEARXNG_URL` gating, same rule.
+
+### Coinbase AgentKit (MIT)
+
+- **Action-provider pattern** (wallet + fund-moving actions as uniform tools
+  through an executor). → Our tool registry + executor already matches; kept.
+- **Spend-permission model + guardrails middleware note** — and the honest
+  admission that stock AgentKit does *not* cap or allowlist. → Our design is
+  deliberately stricter: per-call ceilings + run-ledger balance + price preview.
+- **x402 action trio** (`discover`, `make_http_request`, `retry_with_x402`).
+  → Our `pay_x402` merges all three into one call.
+
+### Coinbase x402 + circle-nanopayment-sample (MIT)
+
+- **402 challenge/response shapes** (`PAYMENT-REQUIRED` base64 envelope,
+  `payment-signature` retry, `PAYMENT-RESPONSE` receipt). → Our preview parser
+  reads the same shapes.
+- **Buyer pattern: `getBalances → deposit → pay`** (Gateway authorizations
+  draw from GatewayWallet balance, never the raw wallet). → Our
+  `ensureGatewayFunded` step before every paid call.
+- **Seller pattern** (`createGatewayMiddleware`). → Matches our hub's existing
+  middleware; no change needed.
 
 ---
 

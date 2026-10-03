@@ -69,6 +69,11 @@ function StepDetail({ step, open }: { step: any; open: boolean }) {
       </p>
       {out.why ? <p className="mt-1.5 text-[13px] leading-6 opacity-80">{out.why}</p> : null}
       {out.error ? <p className="mt-1.5 text-[13px] text-red-700">{out.error}</p> : null}
+      {(out.providers || []).length > 0 || out.fallback === true || out.attempted === false ? (
+        <p className="mt-1.5 font-mono text-[11px] opacity-60">
+          {out.fallback === true || out.attempted === false ? "offline stub — no provider reached" : `via ${(out.providers || []).join(" + ") || "providers"}`}
+        </p>
+      ) : null}
       {(out.queries || []).length > 0 ? (
         <div className="mt-2">
           <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Queries</p>

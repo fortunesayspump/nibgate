@@ -137,6 +137,7 @@ export async function runTool(runId, name, input, { policy, fetchImpl } = {}) {
       costUsd: cost,
       ok: true,
       detail: summarize(name, input),
+      result: summarizeResult(name, output),
     });
     return { ok: true, output, costUsd: cost };
   } catch (err) {
@@ -157,4 +158,44 @@ function summarize(name, input) {
   if (name === 'run_code') return String(input.command || input.code || '').slice(0, 120);
   if (name === 'search_sources') return String(input.query || '').slice(0, 120);
   return '';
+}
+
+// What came back, in one compact JSON-safe line per tool. The feed renders
+// this under the call — a tool row without its result is a cliffhanger, and
+// the step output alone does not cover standalone calls (run_code,
+// http_request) whose results live nowhere else.
+function summarizeResult(name, output) {
+  try {
+    if (!output || typeof output !== 'object') return null;
+    if (name === 'web_search') {
+      const results = Array.isArray(output.results) ? output.results : [];
+      return {
+        hits: results.length,
+        items: results.slice(0, 8).map((r) => ({ title: String(r?.title || r?.url || '').slice(0, 120), url: r?.url || null })),
+      };
+    }
+    if (name === 'web_fetch') {
+      const docs = Array.isArray(output.documents) ? output.documents : [];
+      const chars = docs.reduce((n, d) => n + String(d?.text || '').length, 0);
+      return { pages: docs.length, chars, items: docs.slice(0, 8).map((d) => ({ title: String(d?.title || d?.url || '').slice(0, 120), url: d?.url || null })) };
+    }
+    if (name === 'http_request') {
+      const body = typeof output.body === 'string' ? output.body : JSON.stringify(output.body ?? '');
+      return { status: output.status ?? null, bytes: body ? body.length : 0, preview: String(body || '').slice(0, 300) };
+    }
+    if (name === 'run_code') {
+      return {
+        exitCode: output.exitCode ?? null,
+        stdout: String(output.stdout || '').slice(-500),
+        stderr: String(output.stderr || '').slice(-300),
+      };
+    }
+    if (name === 'search_sources') {
+      const matches = Array.isArray(output.matches) ? output.matches : [];
+      return { searched: output.searched ?? null, hits: matches.length, items: matches.slice(0, 5).map((m) => ({ title: String(m?.title || m?.url || '').slice(0, 120), url: m?.url || null })) };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

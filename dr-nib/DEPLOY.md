@@ -40,6 +40,11 @@ Set these on the service (never commit them):
 | `DRNIB_SERVICE_KEY` | random string; gates the MCP server. If unset the MCP surface runs open (dev only) |
 | `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the free layer (arXiv + direct fetch) |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
+| `SEARXNG_URL` | optional; a self-hosted SearXNG instance (see `ops/searxng/settings.yml`) joins the free search bench — no key, Google-grade breadth |
+| `SEMANTICSCHOLAR_API_KEY` | optional free key; lifts the anonymous rate limit on paper search |
+| `DRNIB_AGENT_PRIVATE_KEY` | optional; funds the agent spending wallet (tips, paid unlocks, x402). Without it the spend tools do not exist. Fund the derived address with USDC on the active network |
+| `DRNIB_SPEND_MAX_TIP` | optional; per-tip ceiling in USD, default 1 |
+| `DRNIB_SPEND_MAX_UNLOCK` / `DRNIB_SPEND_MAX_X402` | optional; per-call ceilings in USD, default 2 |
 | `RAILWAY_API_TOKEN` | optional; enables the `run_code` sandbox tool (isolated ephemeral VMs for parsing, stats, scripts) |
 | `RAILWAY_ENVIRONMENT_ID` | the environment sandboxes are created in (same project) |
 | `DRNIB_SANDBOX_IDLE_MINUTES` | optional; sandbox idle TTL, default 10 |

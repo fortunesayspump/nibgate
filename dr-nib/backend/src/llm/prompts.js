@@ -195,6 +195,7 @@ In one or two sentences, say what you took from that answer and what it changes 
 export function directDataMessages({ brief, queries = [], tools = [] } = {}) {
   const system = `${RESEARCH_SYSTEM} You reach for primary data, not prose. Return JSON only.`;
   const canCode = tools.includes('run_code');
+  const canSpend = tools.some((t) => ['tip_creator', 'unlock_content', 'pay_x402'].includes(t));
   const user = `Brief:
 ${briefSummary(brief)}
 
@@ -206,10 +207,11 @@ Propose up to 3 direct calls to primary sources. Prefer stable, keyless public e
 public CSV/JSON datasets). Each call must be plausibly load-bearing for the brief —
 no fishing, no duplicates.
 ${canCode ? 'You may also propose run_code commands (isolated Linux VM: curl, python3, jq available) to query RPC endpoints or crunch a downloaded dataset.' : 'Sandbox compute is unavailable on this deployment: http_request calls only.'}
+${canSpend ? `Money is available from the run budget, capped per call: unlock_content pays for a gated article/share and returns its body (use when the evidence needs what's behind the paywall), pay_x402 pays any x402-gated API or dataset, tip_creator tips a decisive creator page (max $1, use sparingly — a receipt, not evidence). Every cent draws from the same budget; propose spend only when free paths cannot get it.` : 'No spending money is configured on this deployment: propose http_request/run_code only, never tips or paid unlocks.'}
 
 Return JSON with exactly this shape:
 {
-  "calls": [{"tool": "http_request" | "run_code", "input": {"method": "GET", "url": "https://..."} | {"command": "..."}, "why": "one line: what this settles"}]
+  "calls": [{"tool": "http_request" | "run_code" | "tip_creator" | "unlock_content" | "pay_x402", "input": {"method": "GET", "url": "https://..."} | {"command": "..."} | {"contentUrl": "https://...", "amount": 0.25} | {"url": "https://..."}, "why": "one line: what this settles"}]
 }
 http_request input: method (GET/POST/HEAD), url (required, public https only), optional headers/body.
 run_code input: command (required, one shell line) or code+language. Empty calls array if nothing suitable exists.

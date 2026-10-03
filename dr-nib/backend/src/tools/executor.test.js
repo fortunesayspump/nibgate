@@ -24,7 +24,7 @@ describe('tool registry', () => {
   it('advertises exactly the instruments, each with a cost model', () => {
     // `compute` (Node vm) is deliberately NOT advertised: vm is not a security
     // boundary, so model-authored code is forced through run_code's sandbox.
-    expect(toolNames().sort()).toEqual(['http_request', 'run_code', 'search_sources', 'web_fetch', 'web_search']);
+    expect(toolNames().sort()).toEqual(['http_request', 'pay_x402', 'run_code', 'search_sources', 'tip_creator', 'unlock_content', 'web_fetch', 'web_search']);
     for (const spec of toolSpecs()) {
       expect(spec.description.length).toBeGreaterThan(20);
       expect(['metered', 'zero']).toContain(spec.cost);

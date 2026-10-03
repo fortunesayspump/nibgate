@@ -10,6 +10,9 @@
 // papers, filings, and reports are first-class evidence, not refusals.
 // Scanned/image PDFs have no text to extract and are reported as such.
 import { extractText as extractPdfText } from 'unpdf';
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 
 const UA = 'DrNibResearch/1.0 (+https://nibgate.xyz; research agent, respects robots.txt)';
 
@@ -90,6 +93,52 @@ function looksPdf(contentType, url) {
   return ext === 'pdf';
 }
 
+// Office formats, by content type or extension. Legacy .doc/.xls (OLE
+// binaries) are NOT covered — only the modern OOXML (.docx/.xlsx/.pptx),
+// which are zips of XML the agent reads without native code.
+function officeKind(contentType, url) {
+  const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
+  if (ct.includes('wordprocessingml')) return 'docx';
+  if (ct.includes('spreadsheetml')) return 'xlsx';
+  if (ct.includes('presentationml')) return 'pptx';
+  const ext = String(url).split('?')[0].split('.').pop()?.toLowerCase() || '';
+  if (ext === 'docx') return 'docx';
+  if (ext === 'xlsx' || ext === 'xlsm') return 'xlsx';
+  if (ext === 'pptx') return 'pptx';
+  return null;
+}
+
+async function extractOffice(kind, buf) {
+  if (kind === 'docx') {
+    const out = await mammoth.extractRawText({ buffer: buf });
+    return String(out?.value || '');
+  }
+  if (kind === 'xlsx') {
+    const wb = XLSX.read(buf, { type: 'buffer', dense: true });
+    const parts = [];
+    for (const name of wb.SheetNames.slice(0, 5)) {
+      const sheet = wb.Sheets[name];
+      const csv = XLSX.utils.sheet_to_csv(sheet);
+      const lines = csv.split('\n').filter((l) => l.trim()).slice(0, 200);
+      if (lines.length) parts.push(`Sheet: ${name}\n${lines.join('\n')}`);
+    }
+    return parts.join('\n\n');
+  }
+  // pptx: slides are XML in a zip; text lives in <a:t> runs, in order.
+  const zip = await JSZip.loadAsync(buf);
+  const slides = Object.keys(zip.files)
+    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+    .sort((a, b) => Number(a.match(/slide(\d+)/)[1]) - Number(b.match(/slide(\d+)/)[1]))
+    .slice(0, 60);
+  const parts = [];
+  for (const [i, path] of slides.entries()) {
+    const xml = await zip.files[path].async('string');
+    const runs = [...xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((m) => m[1].replace(/\s+/g, ' ').trim()).filter(Boolean);
+    if (runs.length) parts.push(`Slide ${i + 1}:\n${runs.join('\n')}`);
+  }
+  return parts.join('\n\n');
+}
+
 function classifyBody(contentType, url, sample = '') {
   const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
   if (ct.startsWith('text/html') || ct === 'application/xhtml+xml') return 'html';
@@ -130,6 +179,20 @@ function htmlToText(html) {
   return s;
 }
 
+// Bot-block pages carry fingerprints, not content. Matched against the raw
+// HTML head so a tech article merely MENTIONING captchas never trips it.
+const BLOCK_MARKERS = [
+  /cf-challenge/i, /__cf_bm/i, /just a moment.*cloudflare/is,
+  /checking your browser before you access/i, /verify you are (a )?human/i,
+  /captcha-delivery/i, /perimeterx/i, /datadome/i, /_px_/i,
+  /please verify you are not a robot/i, /ddos protection by/i,
+];
+
+function looksBlocked(html) {
+  const head = String(html || '').slice(0, 8000);
+  return BLOCK_MARKERS.some((re) => re.test(head));
+}
+
 /**
  * Extract readable text from URLs directly. Free; metered at zero.
  * @returns {Promise<{documents:Array, skipped:Array, costUsd:0}>}
@@ -153,20 +216,35 @@ export async function directExtract({ urls, maxChars = 20000, timeoutMs = 20000 
       if (res.status === 401 || res.status === 403) { skipped.push({ url, reason: `http-${res.status}` }); continue; }
       if (!res.ok) { skipped.push({ url, reason: `http-${res.status}` }); continue; }
       const contentType = res.headers?.get ? res.headers.get('content-type') : null;
-      if (looksPdf(contentType, url)) {
+      // One download, every path: bytes serve the document parsers and decode
+      // once for the text paths. Anything over 10MB is not a readable page.
+      // Test doubles that only implement text() still work: decode from text.
+      const buf = typeof res.arrayBuffer === 'function'
+        ? Buffer.from(await res.arrayBuffer())
+        : Buffer.from(await res.text(), 'utf8');
+      if (buf.length > 10 * 1024 * 1024) { skipped.push({ url, reason: 'file-too-large' }); continue; }
+      const office = officeKind(contentType, url);
+      const pdfMagic = buf.subarray(0, 5).toString('latin1') === '%PDF-';
+      if (office || looksPdf(contentType, url) || pdfMagic) {
+        const isOffice = Boolean(office);
         try {
-          const buf = Buffer.from(await res.arrayBuffer());
-          if (buf.length > 8 * 1024 * 1024) { skipped.push({ url, reason: 'pdf-too-large' }); continue; }
-          const { text, totalPages } = await extractPdfText(new Uint8Array(buf));
-          const joined = (Array.isArray(text) ? text.join('\n\n') : String(text || '')).replace(/\r\n/g, '\n').trim().slice(0, maxChars);
-          if (joined.length < 50) { skipped.push({ url, reason: (totalPages || 0) > 0 ? 'pdf-scanned-no-text' : 'no-readable-text' }); continue; }
-          documents.push({ url, title: decodeURIComponent(String(url).split('/').pop()?.split('?')[0] || url).slice(0, 200), text: joined, pages: totalPages || null, provider: 'direct', costUsd: 0 });
+          let text;
+          let pages = null;
+          if (isOffice) {
+            text = String(await extractOffice(office, buf) || '').replace(/\r\n/g, '\n').trim().slice(0, maxChars);
+          } else {
+            const { text: pages_text, totalPages } = await extractPdfText(new Uint8Array(buf));
+            pages = totalPages || null;
+            text = (Array.isArray(pages_text) ? pages_text.join('\n\n') : String(pages_text || '')).replace(/\r\n/g, '\n').trim().slice(0, maxChars);
+          }
+          if (text.length < 50) { skipped.push({ url, reason: pages ? 'pdf-scanned-no-text' : 'no-readable-text' }); continue; }
+          documents.push({ url, title: decodeURIComponent(String(url).split('/').pop()?.split('?')[0] || url).slice(0, 200), text, pages, provider: 'direct', costUsd: 0 });
         } catch {
-          skipped.push({ url, reason: 'unsupported-type' });
+          skipped.push({ url, reason: isOffice ? 'office-parse-failed' : 'unsupported-type' });
         }
         continue;
       }
-      const raw = await res.text();
+      const raw = buf.toString('utf8');
       const kind = classifyBody(contentType, url, raw);
       if (kind === 'unsupported') { skipped.push({ url, reason: 'unsupported-type' }); continue; }
       if (kind === 'text') {
@@ -177,6 +255,7 @@ export async function directExtract({ urls, maxChars = 20000, timeoutMs = 20000 
       }
       const html = raw;
       if (looksPaywalled(html)) { skipped.push({ url, reason: 'paywalled' }); continue; }
+      if (looksBlocked(html)) { skipped.push({ url, reason: 'blocked-bot-check' }); continue; }
       const text = htmlToText(html).slice(0, maxChars);
       if (text.length < 200) { skipped.push({ url, reason: 'no-readable-text' }); continue; }
       documents.push({ url, title: titleOf(html), text, provider: 'direct', costUsd: 0 });

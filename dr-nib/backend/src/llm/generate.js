@@ -6,7 +6,7 @@
 // SSE contract keep working. The caller decides what to do with the result; the
 // fallback never pretends the model spoke.
 import { chat, chatJson, isLlmConfigured } from './provider.js';
-import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages } from './prompts.js';
+import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, directDataMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
 
 const cleanStrings = (v, cap = 12) =>
@@ -327,6 +327,50 @@ export async function generateIntakeQuestion({ topic, answered = [], fetchImpl }
   } catch (err) {
     return fallback(err?.message || String(err));
   }
+}
+
+/**
+ * Direct-data stage: propose up to 3 primary-source calls now that search
+ * came back thin. The model PROPOSES; this function only validates the shape
+ * (allowlisted tool, capped count, sane input). Anything off-spec falls back
+ * to no calls — a bad call is worse than none, and the executor re-validates
+ * everything anyway.
+ */
+export async function generateDirectData({ brief, queries = [], tools = [], fetchImpl } = {}) {
+  const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, calls: [] });
+  const allowed = (Array.isArray(tools) && tools.length ? tools : ['http_request']).filter((t) => ['http_request', 'run_code'].includes(t));
+  if (!isLlmConfigured()) return fallback(null);
+  try {
+    const { data, usage, model } = await chatJson({
+      effort: 'low',
+      messages: directDataMessages({ brief, queries, tools: allowed }),
+      temperature: 0.3,
+      maxTokens: 1000,
+      fetchImpl,
+    });
+    const calls = cleanDirectCalls(Array.isArray(data) ? data : data?.calls, allowed);
+    if (!calls) return fallback('model returned off-spec calls');
+    return { ok: true, source: 'llm', model, usage, calls };
+  } catch (err) {
+    return fallback(err?.message || String(err));
+  }
+}
+
+function cleanDirectCalls(calls, allowed) {
+  if (!Array.isArray(calls)) return null;
+  const out = [];
+  for (const c of calls.slice(0, 3)) {
+    if (!c || typeof c !== 'object') return null;
+    if (!allowed.includes(c.tool)) return null;
+    const input = c.input && typeof c.input === 'object' ? c.input : null;
+    if (!input) return null;
+    if (c.tool === 'http_request' && typeof input.url !== 'string') return null;
+    if (c.tool === 'run_code' && typeof input.command !== 'string' && typeof input.code !== 'string') return null;
+    const why = String(c.why || '').trim().slice(0, 200);
+    if (!why) return null;
+    out.push({ tool: c.tool, input, why });
+  }
+  return out;
 }
 
 function cleanIntakeQuestion(data) {

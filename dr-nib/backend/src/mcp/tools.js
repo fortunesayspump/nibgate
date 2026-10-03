@@ -213,6 +213,29 @@ export const TOOLS = [
     },
   },
   {
+    name: 'reprompt_run',
+    description: 'Send a finished run again with a new prompt: bumps the version, re-executes every stage (skip is per-version), and steers the new pass with the prompt. Needs a positive balance — raise the cap first otherwise.',
+    input: { ownerWallet: '0x…', runId: 'uuid', prompt: 'redo the search with shorter queries' },
+    async run({ ownerWallet, runId, prompt }) {
+      const bad = checkWallet(ownerWallet);
+      if (bad) throw new Error(bad.error);
+      const { error, run } = await ownedRun(runId, ownerWallet);
+      if (error) throw new Error(error);
+      if (!['complete', 'failed', 'ended', 'paused'].includes(run.status)) throw new Error(`reprompt from ${run.status} — finish, fail, end, or pause the run first`);
+      const text = typeof prompt === 'string' ? prompt.trim().slice(0, 2000) : '';
+      const { balance } = await budgetState(run.id);
+      if (!(balance > 0)) throw new Error('out of budget — raise the cap first');
+      const version = run.versions + 1;
+      await db.researchRun.update({
+        where: { id: run.id },
+        data: { versions: version, status: 'running', pauseReason: null, ...(text ? { pendingGuidance: { text } } : {}) },
+      });
+      await recordEvent(run.id, { type: 'status', status: 'running', version, reprompt: text ? true : undefined });
+      await requestExecute(run.id);
+      return { id: run.id, version, status: 'running' };
+    },
+  },
+  {
     name: 'get_report',
     description: 'Read the latest finished report version with citations.',
     input: { ownerWallet: '0x…', runId: 'uuid' },

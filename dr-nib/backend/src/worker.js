@@ -8,18 +8,18 @@ import { db } from './db.js';
 import { recordEvent } from './eventlog.js';
 import { enqueue } from './queue.js';
 import { budgetState, draw, settle } from './money.js';
-import { generatePlan, generateReport, generateReportLong, generateRoundReview } from './llm/generate.js';
+import { generatePlan, generateReport, generateReportLong, generateRoundReview, generateDirectData } from './llm/generate.js';
 import { resolveLength } from './length.js';
 import { searchEvidence } from './tools/evidence.js';
 import { runChoice, runNoul } from './jev/decisions.js';
 import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
-import { destroySandbox, destroyAllSandboxes } from './tools/sandbox.js';
+import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/sandbox.js';
 import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
 import { chat, isLlmConfigured } from './llm/provider.js';
 
-const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, score: 0.02, write: 0.09 };
+const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, data: 0.04, score: 0.02, write: 0.09 };
 
 // Plan pricing. An estimate is a promise about money, so the formula is
 // stated, not hidden: one full pipeline pass at table rates, scaled by depth
@@ -395,6 +395,82 @@ async function trustCriteria(run) {
   return criteria;
 }
 
+// Direct-data stage: when retrieval came back thin, the model reaches for
+// primary sources itself — public HTTP APIs, sandbox compute when the
+// deployment offers it. Bounded (3 calls max) and fully inside the tool
+// executor, so policy, metering, and the audit trail apply exactly as they do
+// to stage-driven calls. Results join the evidence set; scoreStage still puts
+// every one of them past JEV trust.
+async function dataStage(runId, run, queries) {
+  const fetchStep = await db.researchStep.findFirst({
+    where: { runId, kind: 'fetch' },
+    orderBy: { createdAt: 'desc' },
+  });
+  const have = (fetchStep?.output?.documents || []).length;
+  if (have >= 3) {
+    await sleep(200);
+    return { skipped: true, why: 'Retrieval already delivered enough to judge; no direct calls needed.', calls: [], documents: [] };
+  }
+  if (!isLlmConfigured()) {
+    await sleep(200);
+    return { skipped: true, why: 'Model unconfigured: nobody to propose direct calls.', calls: [], documents: [] };
+  }
+  const available = ['http_request'];
+  if (sandboxConfigured()) available.push('run_code');
+  const out = await generateDirectData({ brief: run.brief, queries, tools: available });
+  if (!out.calls?.length) {
+    return {
+      skipped: true, why: 'No direct calls proposed — the evidence set stays as retrieval left it.',
+      calls: [], documents: [], source: out.source, model: out.model, llmError: out.llmError || null,
+    };
+  }
+  const calls = [];
+  const documents = [];
+  let costUsd = 0;
+  for (const [n, c] of out.calls.slice(0, 3).entries()) {
+    const called = await runTool(runId, c.tool, c.input, { policy: briefPolicy(run) });
+    costUsd += called.costUsd;
+    calls.push({ tool: c.tool, ok: called.ok, why: c.why, error: called.ok ? undefined : called.error });
+    if (called.ok) {
+      const doc = toDirectDocument(n, c, called.output);
+      if (doc) documents.push(doc);
+    }
+  }
+  return {
+    why: documents.length
+      ? 'Retrieval came back thin, so the run asked primary sources directly; every result below still faces JEV trust.'
+      : 'Direct calls went out but returned nothing usable.',
+    calls, documents, costUsd, attempted: true, fallback: false,
+    source: out.source, model: out.model,
+  };
+}
+
+// One tool result becomes one scorable document. Text is capped: the report
+// cites from excerpts, and a 2MB API dump must never ride the ledger or the
+// prompt.
+function toDirectDocument(n, call, output) {
+  if (call.tool === 'http_request') {
+    const body = typeof output?.body === 'string' ? output.body : JSON.stringify(output?.body ?? '');
+    if (!body.trim()) return null;
+    let title = 'API response';
+    try {
+      const u = new URL(call.input?.url || '');
+      title = `${u.hostname}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 120);
+    } catch {}
+    return { url: String(call.input?.url || ''), title, text: body.slice(0, 8000), relevance: 0.5, provider: 'direct' };
+  }
+  if (call.tool === 'run_code') {
+    const stdout = String(output?.stdout || '');
+    if (!stdout.trim()) return null;
+    return {
+      url: `sandbox://run/${n}`,
+      title: String(call.input?.command || call.input?.code || 'sandbox computation').slice(0, 120),
+      text: stdout.slice(0, 8000), relevance: 0.5, provider: 'direct',
+    };
+  }
+  return null;
+}
+
 // Score stage: keep relevance and trust as separate axes. Relevance comes from
 // the retrieval ranking; trust is a JUDGEMENT, so it goes to JEV — one calibrated
 // probability per source. If JEV is unavailable the run parks (never guesses).
@@ -404,8 +480,15 @@ async function scoreStage(runId, run) {
     where: { runId, kind: 'fetch' },
     orderBy: { createdAt: 'desc' },
   });
-  const documents = fetchStep?.output?.documents || [];
-  const attempted = fetchStep?.output?.attempted === true;
+  const dataStep = await db.researchStep.findFirst({
+    where: { runId, kind: 'data', status: 'done' },
+    orderBy: { createdAt: 'desc' },
+  });
+  // Direct-call evidence joins the retrieved set before judging: an API
+  // response or sandbox computation is scored by JEV on the same axes, never
+  // smuggled past trust.
+  const documents = [...(fetchStep?.output?.documents || []), ...(dataStep?.output?.documents || [])];
+  const attempted = fetchStep?.output?.attempted === true || (dataStep?.output?.attempted === true && (dataStep?.output?.documents || []).length > 0);
 
   // Placeholder sources exist for exactly one reason: the web was never asked
   // (fully offline). A genuine empty result is reported as empty — inventing
@@ -747,6 +830,10 @@ export async function runExecute(runId) {
 
     const fetched = await stage(runId, 'fetch', attempt, () => fetchStage(runId, run));
     if (!fetched?.skipped && !(await charge(runId, 'fetch', fetched?.costUsd))) return;
+    if (await halt(runId)) return;
+
+    const direct = await stage(runId, 'data', attempt, () => dataStage(runId, run, queries));
+    if (!direct?.skipped && !(await charge(runId, 'data', direct?.costUsd))) return;
     if (await halt(runId)) return;
 
     const scored = await stage(runId, 'score', attempt, () => scoreStage(runId, run));

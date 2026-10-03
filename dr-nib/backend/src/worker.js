@@ -182,6 +182,38 @@ export async function requeueOrphans({ enqueueFn = enqueue } = {}) {
   return { reclaimed: orphans.length, runs: requeued };
 }
 
+// ── Stalled-run sweep ─────────────────────────────────────────────────────────
+// The orphan sweep only sees steps stuck `active`. A run can also strand with
+// NO active step: the driver died between stages (or between the last stage
+// and the next decision), so nothing is leased and nothing is queued, and the
+// run sits `running` forever. This sweep runs at boot and re-enqueues every
+// `running` run that has no stage in flight and has been quiet for a while —
+// stages skip when already done, so replaying from the last finished stage is
+// safe. Out-of-budget runs park at the cap instead (resume handles them);
+// anything not `running` is the owner's call, never the sweeper's.
+export async function requeueStalledRuns({ enqueueFn = enqueue, olderThanMs = 120_000 } = {}) {
+  const cutoff = new Date(Date.now() - olderThanMs);
+  const stuck = await db.researchRun.findMany({
+    where: { status: 'running', updatedAt: { lt: cutoff }, deletedAt: null },
+    select: { id: true },
+  });
+  const kicked = [];
+  for (const { id } of stuck) {
+    const active = await db.researchStep.count({ where: { runId: id, status: 'active' } });
+    if (active) continue; // a stage is genuinely moving; leave it alone
+    const { balance } = await budgetState(id);
+    if (!(balance > 0)) {
+      await park(id, 'paused', 'cap');
+      continue;
+    }
+    await db.researchRun.update({ where: { id }, data: { updatedAt: new Date() } });
+    await recordEvent(id, { type: 'status', status: 'running', note: 'requeued: backend restarted with no stage in flight' });
+    await enqueueFn('run.execute', { runId: id });
+    kicked.push(id);
+  }
+  return { kicked };
+}
+
 // Charge the stage, or park at the cap rather than overspending. The balance
 // stays intact and the owner decides: raise the cap or end.
 //
@@ -723,7 +755,17 @@ export async function runExecute(runId) {
     if (await halt(runId)) return;
 
     const review = await reviewRound(runId, run, round);
-    const verdict = await decideRoundContinue(runId, run, review, round, maxRounds);
+    let verdict;
+    try {
+      verdict = await decideRoundContinue(runId, run, review, round, maxRounds);
+    } catch (error) {
+      // A stage failure parks visibly via stage(); the round decision sits
+      // outside any stage, so without this a throw here kills the driver and
+      // the run sits `running` forever with no error anywhere. Fail loudly.
+      await recordEvent(runId, { type: 'failed', kind: 'review', error: String(error?.message || error).slice(0, 300) });
+      await park(runId, 'failed', 'error');
+      return;
+    }
     if (!verdict) return; // JEV parked the run
     if (verdict === 'write') break;
     run = await loadRun(runId);
@@ -769,8 +811,9 @@ if (isMainEntry) {
   const { initQueue, startWorkers, queueMode, closeQueue } = await import('./queue.js');
   await initQueue();
   const swept = await requeueOrphans();
+  const stalled = await requeueStalledRuns();
   const workers = startWorkers(workerHandlers);
-  console.log(`[dr-nib] worker up (${queueMode()}), reclaimed ${swept.reclaimed} orphaned step(s) across ${swept.runs.length} run(s)`);
+  console.log(`[dr-nib] worker up (${queueMode()}), reclaimed ${swept.reclaimed} orphaned step(s) across ${swept.runs.length} run(s), requeued ${stalled.kicked.length} stalled run(s)`);
 
   let shuttingDown = false;
   const shutdown = async (signal) => {

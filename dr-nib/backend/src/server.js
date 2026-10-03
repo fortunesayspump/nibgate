@@ -14,7 +14,7 @@ import { budgets } from './routes/budgets.js';
 import { exports } from './routes/exports.js';
 import { mcp } from './mcp/routes.js';
 import { initQueue, queueMode } from './queue.js';
-import { requeueOrphans } from './worker.js';
+import { requeueOrphans, requeueStalledRuns } from './worker.js';
 
 export async function createApp() {
   await initQueue();
@@ -25,6 +25,13 @@ export async function createApp() {
     return { reclaimed: 0, runs: [] };
   });
   if (swept.reclaimed) console.log(`[dr-nib] reclaimed ${swept.reclaimed} orphaned step(s) across ${swept.runs.length} run(s)`);
+  // …and for runs stranded with no stage in flight at all (driver died between
+  // stages): re-enqueue them so a restart resumes work instead of freezing it.
+  const stalled = await requeueStalledRuns().catch((e) => {
+    console.error('[dr-nib] stalled sweep failed:', e.message);
+    return { kicked: [] };
+  });
+  if (stalled.kicked.length) console.log(`[dr-nib] requeued ${stalled.kicked.length} stalled run(s): ${stalled.kicked.join(', ')}`);
   const app = express();
   app.set('trust proxy', true);
   app.use(express.json({ limit: '1mb' }));

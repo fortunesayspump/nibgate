@@ -65,7 +65,9 @@ export async function searchAll(input, { fetchImpl } = {}) {
       calls.push(
         fn(args, { fetchImpl }).then(
           (r) => { circuitSuccess(name); return { name, ...r }; },
-          (e) => { circuitFailure(name); throw e; },
+          // Tag the failure with its provider: an untagged throw renders as
+          // "unknown" downstream and nobody can tell what broke.
+          (e) => { if (e && typeof e === 'object') e.provider = name; circuitFailure(name); throw e; },
         ),
       );
     }

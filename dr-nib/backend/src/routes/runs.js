@@ -122,7 +122,11 @@ runs.get('/:id', async (req, res) => {
         decisions: { orderBy: { seq: 'asc' } },
       },
     });
-    res.json(jsonSafe(await withBudget(full)));
+    // The feed's raw material: recent events (tool calls with results, status
+    // transitions, questions) ride along so the page renders the full timeline
+    // from one fetch — the SSE stream then only nudges it to reload.
+    const events = await replayEvents(run.id, -1, 300);
+    res.json(jsonSafe({ ...(await withBudget(full)), events }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

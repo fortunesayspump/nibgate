@@ -366,9 +366,24 @@ runs.post('/:id/revise', async (req, res) => {
   try {
     const run = await ownedRun(req, res);
     if (!run) return;
+    // Reprompt: a finished run goes again with a new prompt. The version bump
+    // means every stage re-executes (skip is per-version), and the prompt is
+    // held as guidance so it steers the new pass at the stage boundary.
+    if (!['complete', 'failed', 'ended', 'paused'].includes(run.status)) {
+      return res.status(409).json({ error: `reprompt from ${run.status} — finish, fail, end, or pause the run first` });
+    }
+    const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 2000) : '';
+    const { balance } = await budgetState(run.id);
+    if (!(balance > 0)) return res.status(409).json({ error: 'out of budget — raise the cap first' });
     const version = run.versions + 1;
-    await db.researchRun.update({ where: { id: run.id }, data: { versions: version, status: 'running', pauseReason: null } });
-    await recordEvent(run.id, { type: 'status', status: 'running', version });
+    await db.researchRun.update({
+      where: { id: run.id },
+      data: {
+        versions: version, status: 'running', pauseReason: null,
+        ...(prompt ? { pendingGuidance: { text: prompt } } : {}),
+      },
+    });
+    await recordEvent(run.id, { type: 'status', status: 'running', version, reprompt: prompt ? true : undefined });
     await requestExecute(run.id);
     res.status(202).json({ id: run.id, version, status: 'running' });
   } catch (e) { res.status(500).json({ error: e.message }); }

@@ -187,6 +187,40 @@ In one or two sentences, say what you took from that answer and what it changes 
 }
 
 /**
+ * Direct-data stage: web search already came back thin, so the model reaches
+ * for primary data itself — public HTTP APIs, and sandbox compute when the
+ * deployment offers it. The model PROPOSES calls; the executor validates,
+ * policy-checks, and meters every one. Return JSON only.
+ */
+export function directDataMessages({ brief, queries = [], tools = [] } = {}) {
+  const system = `${RESEARCH_SYSTEM} You reach for primary data, not prose. Return JSON only.`;
+  const canCode = tools.includes('run_code');
+  const user = `Brief:
+${briefSummary(brief)}
+
+Web search already came back thin for:
+${queries.map((q) => `- ${q}`).join('\n') || '(no queries)'}
+
+Propose up to 3 direct calls to primary sources. Prefer stable, keyless public endpoints
+(CoinGecko, public chain-explorer APIs with demo keys, SEC EDGAR, arXiv API, GitHub API,
+public CSV/JSON datasets). Each call must be plausibly load-bearing for the brief —
+no fishing, no duplicates.
+${canCode ? 'You may also propose run_code commands (isolated Linux VM: curl, python3, jq available) to query RPC endpoints or crunch a downloaded dataset.' : 'Sandbox compute is unavailable on this deployment: http_request calls only.'}
+
+Return JSON with exactly this shape:
+{
+  "calls": [{"tool": "http_request" | "run_code", "input": {"method": "GET", "url": "https://..."} | {"command": "..."}, "why": "one line: what this settles"}]
+}
+http_request input: method (GET/POST/HEAD), url (required, public https only), optional headers/body.
+run_code input: command (required, one shell line) or code+language. Empty calls array if nothing suitable exists.
+Rules for valid JSON: plain double-quoted strings only — no quotes inside values, no trailing commas, no comments, no code fences. Keep why under 12 plain words. No prose outside the JSON.`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
+/**
  * Intake stage: propose the single next question that most reduces
  * uncertainty about the brief. The model GENERATES the question; JEV still
  * decides whether intake continues at all. Return JSON only.

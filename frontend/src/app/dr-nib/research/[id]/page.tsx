@@ -89,8 +89,17 @@ function StepDetail({ step, open }: { step: any; open: boolean }) {
       {out.error ? <p className="mt-1.5 text-[13px] text-red-700">{out.error}</p> : null}
       {(out.providers || []).length > 0 || out.fallback === true || out.attempted === false ? (
         <p className="mt-1.5 font-mono text-[11px] opacity-60">
-          {out.fallback === true || out.attempted === false ? "offline stub — no provider reached" : `via ${(out.providers || []).join(" + ") || "providers"}`}
+          {out.fallback === true || out.attempted === false
+            ? "offline stub — no provider reached"
+            : `via ${(out.providers || []).map((p: any) => typeof p === "string" ? p : `${p.name}${p.ok === false ? " (failed)" : p.count != null ? ` · ${p.count}` : ""}`).join(" + ")}`}
         </p>
+      ) : null}
+      {((out.providers || []) as any[]).some((p) => p && typeof p === "object" && p.ok === false && p.error) ? (
+        <ul className="mt-1 space-y-0.5">
+          {(out.providers as any[]).filter((p) => p?.ok === false && p?.error).map((p: any, n: number) => (
+            <li key={n} className="font-mono text-[11px] text-red-700">{p.name}: {String(p.error).slice(0, 160)}</li>
+          ))}
+        </ul>
       ) : null}
       {(out.queries || []).length > 0 ? (
         <div className="mt-2">
@@ -100,7 +109,7 @@ function StepDetail({ step, open }: { step: any; open: boolean }) {
       ) : null}
       {(out.results || []).length > 0 ? (
         <details className="mt-2" open={open}>
-          <summary className="cursor-pointer text-[11px] font-medium opacity-70">{out.results.length} hits{out.providers?.length ? ` · ${out.providers.join(" + ")}` : ""}</summary>
+          <summary className="cursor-pointer text-[11px] font-medium opacity-70">{out.results.length} hits</summary>
           <ul className="mt-1 space-y-1.5">
             {out.results.map((r: any, n: number) => (
               <li key={r.url || n} className="text-[12px] leading-5">
@@ -228,6 +237,28 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
       setGuidanceNote(e?.message || "That didn't go through — retry.");
     } finally {
       setGuidanceBusy(false);
+    }
+  }
+
+  // Reprompt: a finished run goes again with a new prompt. New version, every
+  // stage re-executes, the prompt steers the pass. Needs balance — the button
+  // says so when there is none.
+  const [reprompt, setReprompt] = useState("");
+  const [repromptBusy, setRepromptBusy] = useState(false);
+  const [repromptError, setRepromptError] = useState("");
+  async function sendReprompt() {
+    const text = reprompt.trim();
+    if (!text || repromptBusy) return;
+    setRepromptBusy(true);
+    setRepromptError("");
+    try {
+      await drNibApi.repromptRun(id, text);
+      setReprompt("");
+      await load();
+    } catch (e: any) {
+      setRepromptError(e?.message || "That didn't go through — retry.");
+    } finally {
+      setRepromptBusy(false);
     }
   }
 
@@ -471,7 +502,21 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             </div>
             <div className="border-t border-dark-gray/40 p-3">
               {["ended", "complete", "failed"].includes(run.status) ? (
-                <p className="px-1 py-2 text-xs opacity-60">Run is over — guidance is closed.</p>
+                <div className="border-2 border-black bg-white p-3">
+                  <p className="text-xs font-medium uppercase tracking-wider opacity-60">↻ Run it again, with a steer</p>
+                  <p className="mt-1 text-xs opacity-60">New version — every stage re-executes and your prompt steers the pass. Needs balance.</p>
+                  <div className="relative mt-2">
+                    <textarea value={reprompt} onChange={(e) => setReprompt(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReprompt(); } }}
+                      rows={2} placeholder='e.g. "redo the search with shorter queries, then hit public APIs"'
+                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2.5 pb-10 text-sm outline-none" />
+                    <button onClick={sendReprompt} disabled={repromptBusy || !reprompt.trim()} aria-label="Send reprompt"
+                      className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
+                      <Send size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                  {repromptError && <p className="mt-1.5 text-[11px] text-red-700">{repromptError}</p>}
+                </div>
               ) : run.status === "awaiting" && run.pendingQuestion ? (
                 <div className="border-2 border-black bg-white p-3">
                   <p className="text-xs font-medium uppercase tracking-wider opacity-60">△ Waiting on you</p>

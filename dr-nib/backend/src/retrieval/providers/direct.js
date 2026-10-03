@@ -5,6 +5,12 @@
 // FLOW.md sets for all tooling: robots.txt is respected, paywalled and
 // login-walled pages are skipped rather than worked around, and quotes stay
 // within fair use (we keep passages, not whole articles).
+//
+// PDFs download and read too (text layer via unpdf, pure JS, no native deps):
+// papers, filings, and reports are first-class evidence, not refusals.
+// Scanned/image PDFs have no text to extract and are reported as such.
+import { extractText as extractPdfText } from 'unpdf';
+
 const UA = 'DrNibResearch/1.0 (+https://nibgate.xyz; research agent, respects robots.txt)';
 
 // robots.txt per origin, cached for the process lifetime. A robots file we
@@ -67,14 +73,22 @@ function looksPaywalled(text) {
 }
 
 // File types, by what we can honestly do with them today. Text-like formats
-// are parsed in-house with no dependencies. Binary formats (PDF, Word, Excel)
-// are refused with a named reason — not crashed on, not silently dropped — so
-// adding a parser later is additive, never a behavior change to existing paths.
+// and PDFs are parsed in-house with no native dependencies. Other binaries
+// (Word, Excel) are refused with a named reason — not crashed on, not
+// silently dropped — so adding a parser later is additive, never a behavior
+// change to existing paths.
 const TEXT_TYPES = [
   'text/plain', 'text/markdown', 'text/csv', 'text/tab-separated-values',
   'application/json', 'application/x-ndjson', 'text/xml', 'application/xml',
 ];
 const TEXT_EXTS = new Set(['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.jsonl', '.ndjson', '.xml', '.log']);
+
+function looksPdf(contentType, url) {
+  const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
+  if (ct === 'application/pdf' || ct === 'application/x-pdf') return true;
+  const ext = String(url).split('?')[0].split('.').pop()?.toLowerCase() || '';
+  return ext === 'pdf';
+}
 
 function classifyBody(contentType, url, sample = '') {
   const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
@@ -138,8 +152,22 @@ export async function directExtract({ urls, maxChars = 20000, timeoutMs = 20000 
       }
       if (res.status === 401 || res.status === 403) { skipped.push({ url, reason: `http-${res.status}` }); continue; }
       if (!res.ok) { skipped.push({ url, reason: `http-${res.status}` }); continue; }
+      const contentType = res.headers?.get ? res.headers.get('content-type') : null;
+      if (looksPdf(contentType, url)) {
+        try {
+          const buf = Buffer.from(await res.arrayBuffer());
+          if (buf.length > 8 * 1024 * 1024) { skipped.push({ url, reason: 'pdf-too-large' }); continue; }
+          const { text, totalPages } = await extractPdfText(new Uint8Array(buf));
+          const joined = (Array.isArray(text) ? text.join('\n\n') : String(text || '')).replace(/\r\n/g, '\n').trim().slice(0, maxChars);
+          if (joined.length < 50) { skipped.push({ url, reason: (totalPages || 0) > 0 ? 'pdf-scanned-no-text' : 'no-readable-text' }); continue; }
+          documents.push({ url, title: decodeURIComponent(String(url).split('/').pop()?.split('?')[0] || url).slice(0, 200), text: joined, pages: totalPages || null, provider: 'direct', costUsd: 0 });
+        } catch {
+          skipped.push({ url, reason: 'unsupported-type' });
+        }
+        continue;
+      }
       const raw = await res.text();
-      const kind = classifyBody(res.headers?.get ? res.headers.get('content-type') : null, url, raw);
+      const kind = classifyBody(contentType, url, raw);
       if (kind === 'unsupported') { skipped.push({ url, reason: 'unsupported-type' }); continue; }
       if (kind === 'text') {
         const text = raw.replace(/\r\n/g, '\n').trim().slice(0, maxChars);

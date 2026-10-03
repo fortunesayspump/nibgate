@@ -38,7 +38,7 @@ Set these on the service (never commit them):
 | `HUB_API_URL` | the deployed hub API origin, e.g. `https://api.nibgate.xyz` |
 | `CORS_ORIGIN` | the deployed hub frontend origin, e.g. `https://nibgate.xyz` |
 | `DRNIB_SERVICE_KEY` | random string; gates the MCP server. If unset the MCP surface runs open (dev only) |
-| `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the free layer (arXiv + direct fetch) |
+| `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the 11-index free layer (SearXNG when configured, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv) + direct fetch |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
 | `SEARXNG_URL` | optional; a self-hosted SearXNG instance (see `ops/searxng/settings.yml`) joins the free search bench — no key, Google-grade breadth |
 | `SEMANTICSCHOLAR_API_KEY` | optional free key; lifts the anonymous rate limit on paper search |

@@ -44,6 +44,7 @@ dr-nib/references/storm/
 dr-nib/references/agentkit/
 dr-nib/references/x402/
 dr-nib/references/circle-nanopayment-sample/
+dr-nib/references/erc8183-reference/
 dr-nib/references/local-only/
 # Playwright e2e harness: track the code (configs, specs, helpers), ignore
 # run outputs (screenshots, reports, traces)
@@ -67,3 +68,7 @@ packages/cli/generated/
 subblogs/backend/prisma/generated/
 logs/
 session-*.md
+
+# Local foundry binaries (re-fetch: see dr-nib/ESCROW.md build notes)
+tools/foundry/
+contracts/lib/openzeppelin-contracts/

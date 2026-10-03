@@ -18,8 +18,35 @@ SDK, hooks, evaluator guide). Our money model already matches it, down to the
 platform fee being basis points taken on completion.
 
 We deploy the stock contract and solve the one gap it does not cover — a
-research run spends over time, so unspent money must come home — with the
-spec's own extension point: a **hook**, not a fork.
+research run spends over time, so unspent money must come home — by making
+the job's **provider a splitter contract** instead of the operator wallet.
+
+## The one gap, solved with a splitter-as-provider
+
+ERC-8183 settles all-or-nothing — `complete` releases the whole budget.
+A research run prepaies a cap, stages draw it down, and the remainder comes
+back. A post-hoc hook cannot do the split: in the reference implementation
+`complete()` transfers the full budget to the provider *before* `afterAction`
+fires, so by hook time the money has already moved. The compliant answer is
+structural: set the job's provider to `NibgateRunSplitter`, so `complete()`
+parks the whole cap in the splitter, and a permissionless `split()` divides
+it afterwards:
+
+1. Worker `submit(jobId, abi.encode(reportHash, spentUsdc))` when the report
+   lands; keeper `complete(jobId, reportHash)` after verifying spent against
+   the ledger. Full cap now sits in the splitter.
+2. Anyone calls `split(jobId, spent, operator, keeperSig)` with the keeper's
+   spend attestation. The contract verifies: job Completed, provider is us,
+   spent within budget, keeper signature over
+   `(chain, core, splitter, job, spent, operator, client, treasury, fee)`.
+3. Atomically in one transaction: `spent − 1%` to the operator, `1%` to the
+   treasury (`platformFeeBP` on the job stays 0 — the splitter *is* the fee
+   logic), remainder to the client. One split per job, then the door shuts.
+
+Rejected/expired jobs never touch the splitter — the core refunds those
+directly, un-hookable and un-splittable. And because the keeper pre-signs the
+attestation at submit time, execution needs no live keeper: anyone (backend,
+user, stranger) can run `split()` once the signature exists.
 
 ## ERC-8183 → Dr. Nib mapping
 
@@ -40,20 +67,21 @@ Run-status correspondence: `intake/configure` → Open, `approve+fund` →
 Funded, `running` → Funded, report written → Submitted, `complete/failed/
 ended` → Completed/Rejected (+ `settle()`), expired → Expired.
 
-## The one gap, solved with a hook: NibgateDrawdownHook
+## The one gap, solved with a splitter-as-provider: NibgateRunSplitter
 
 ERC-8183 settles all-or-nothing — `complete` releases the whole budget.
 A research run prepaies a cap, stages draw it down, and the remainder comes
-back. So `complete` runs through a standard `afterAction` hook that:
+back. So `complete` parks the full cap in the splitter, and a permissionless
+`split()` divides it afterwards:
 
 1. Reads `(reportHash, spentUsdc)` from the submitted deliverable (already
    attested by the keeper's `complete`, which verified it against the ledger).
 2. Sends `spent − 1%` to the provider, `1%` of spent to the treasury
-   (`platformFeeBP` on the job itself stays 0 — the hook *is* the fee logic).
+   (`platformFeeBP` on the job itself stays 0 — the splitter *is* the fee logic).
 3. Sends the remainder to the client, atomically in the same transaction.
 
-Rejected/expired jobs bypass the hook by spec (full refund, no fee) —
-`claimRefund` is deliberately not hookable, so a buggy hook can delay a
+Rejected/expired jobs bypass the splitter by spec (full refund, no fee) —
+`claimRefund` is deliberately not hookable, so a buggy splitter can delay a
 payout but can never trap funds. The escrow contract stays 100% stock:
 audited surface, ecosystem-compatible, reputation-composable later.
 
@@ -61,9 +89,11 @@ Retired alternatives: **A (extend a contract with `drawDown`)** — rejected:
 it forks the audited surface and tangles run money with the tip-holding
 contracts, which serve a different product. **B (one job per stage)** —
 rejected: breaks "prepay the cap" and multiplies gas/round-trips.
-**C (meter offchain, settle once without escrow)** — rejected: no onchain
-protection at all; this is today's ledger-only state, kept only until the
-contract deploys.
+**B2 (post-hoc split hook)** — rejected on reading the reference code:
+`complete()` transfers before `afterAction` fires, so a hook can observe the
+payout but never redirect it. **C (meter offchain, settle once without
+escrow)** — rejected: no onchain protection at all; this is today's
+ledger-only state, kept only until the contract deploys.
 
 ## What the evaluator is, in phases
 
@@ -71,7 +101,7 @@ contract deploys.
   boxes; every attestation is an onchain event carrying the report hash.
 - **Later:** JEV-gated evaluator contract — arbitrary checks before
   `complete`/`reject`, per the spec's evaluator-may-be-a-contract clause.
-  The hook split works identically under either evaluator.
+  The splitter math works identically under either evaluator.
 
 The evaluator is trusted for completion either way (spec § Security). For
 research budgets this is acceptable; high-value runs get reputation gating
@@ -86,7 +116,7 @@ to end (Circle is explicit: never credit 18-dec values into 6-dec records).
 
 - **Transfers to `address(0)` revert** (forbidden burn); self-destructing a
   contract holding USDC *moves that USDC out*. Refund paths must never address
-  zero; the hook must never be destructible.
+  zero; the splitter must never be destructible (it isn't — no selfdestruct path).
 - **Blocklist reverts consume gas with no receipt.** Settlement retries treat
   "no receipt" as unknown, never as success.
 - **Block timestamps are non-decreasing, not increasing** — order onchain
@@ -113,12 +143,32 @@ the exact report bytes the money paid for, retrievable from Postgres/R2.
 
 ## Build status
 
-- [ ] Deploy stock `AgenticCommerce` on Arc testnet (reference impl, unmodified)
-- [ ] Write + test `NibgateDrawdownHook` (split on complete, full passthrough otherwise)
+- [x] Stock core surveyed (`erc8183-reference`: `ACPCore`, `IACP`/`IACPHook`, hooks, evaluator guide — read-only reference)
+- [x] `NibgateRunSplitter` written + 7 forge tests green (split math, zero-spend refund, submitJob relay + keeper gate, wrong-key/overspend/double-split/uncompleted rejections)
+- [x] Deployed on Arc testnet (Oct 2026): core `0x5135ae9be828be42b63f176848a7b720aedf4c58`, splitter `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` (keeper `0x796a…`, treasury `0x558e…`, 100 bps) — recorded in `contracts/deployments/arc-testnet.json:escrow`
+- [x] Full lifecycle proven onchain with real testnet USDC (job 10, tx `0xcb6a…74b8`): $0.05 funded → $0.03 spent → split 17820 operator / 180 treasury / 12000 client refund, all atomic
 - [ ] Backend job lifecycle: create/setBudget/fund-status/submit/complete/reject mirroring run status
 - [ ] Frontend configure→approve becomes deposit (`approve` + `fund`, then run)
 - [ ] Keeper completes with ledger-attested `(reportHash, spentUsdc)`
 - [ ] Testnet soak with real (testnet) USDC before any mainnet discussion
+
+## Reproducing the deployment
+
+Toolchain: `tools/foundry/` (forge v1.8.4, gitignored, re-fetch per
+`foundry.paradigm.xyz`), OpenZeppelin v5.0.2 sparse (`contracts/lib`,
+gitignored, re-fetch per commands below).
+
+```bash
+# deps
+git clone --depth 1 --branch v5.0.2 --filter=blob:none --sparse \
+  https://github.com/OpenZeppelin/openzeppelin-contracts contracts/lib/openzeppelin-contracts
+git -C contracts/lib/openzeppelin-contracts sparse-checkout set contracts
+# build + test
+./tools/foundry/forge build --root contracts
+./tools/foundry/forge test --root contracts --match-contract NibgateRunSplitterTest
+# deploy (local-ops/ scripts are local-only, not committed)
+DEPLOYER_KEY=0x... KEEPER_ADDRESS=0x... node local-ops/deploy-escrow.mjs testnet
+```
 
 ## Open (unchanged)
 

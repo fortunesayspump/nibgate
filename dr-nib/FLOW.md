@@ -375,12 +375,15 @@ separate charge. When the run ends, the remainder returns **immediately, in the 
 The cap is both the amount funded and the point at which the run stops itself: the next stage
 would carry it past what's left, so it pauses and asks whether to raise the cap or end.
 
-On-chain, this is **a purpose-built escrow contract on Arc** — the same EVM, the same
-permissionless-factory pattern the holding boxes already use. A run's escrow holds the cap, is
-drawn down per stage under keeper-relayed, hub-verified settlement, takes the 1% fee as it goes,
-and refunds the remainder to the payer on close. Arc's sub-second deterministic finality means
-the close-out is a single settled transaction, not a wait. It is a contract to write and test,
-not an open question about whether the chain can do it.
+On-chain, this is **stock ERC-8183 (Agentic Commerce) escrow on Arc plus a
+drawdown hook** — designed in `dr-nib/ESCROW.md`, not yet deployed. A run's
+escrow holds the cap funded at approve; stages meter spend in the offchain
+ledger; at settle the keeper completes with the ledger-attested spend and the
+hook splits atomically (spent minus 1% to the operator, 1% to treasury,
+remainder to the payer). Arc's sub-second deterministic finality means the
+close-out is a single settled transaction, not a wait. Until the contract
+deploys, the ledger alone enforces budgets — real outflows are operator-funded
+and the 1% accrues uncollected.
 
 ---
 

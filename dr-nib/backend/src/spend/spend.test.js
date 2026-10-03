@@ -8,8 +8,10 @@ vi.mock('../llm/provider.js', () => ({
 import { checkAmount, isSpendConfigured, MAX_TIP_USD } from './policy.js';
 import { agentAddress } from './wallet.js';
 import { previewPrice } from './unlocks.js';
+import { reconcileRun } from './reconcile.js';
 import { generateDirectData } from '../llm/generate.js';
 import { chatJson } from '../llm/provider.js';
+import { db } from '../db.js';
 
 const TEST_KEY = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
@@ -59,6 +61,38 @@ describe('402 price preview', () => {
   it('refuses a 402 with no readable price', async () => {
     const out = await previewPrice('https://x.example/paid', async () => mockRes(402, { body: '{"nope":true}' }));
     expect(out.unknown).toBe(true);
+  });
+});
+
+describe('ledger-chain reconciliation', () => {
+  it('matches claimed hashes, flags both directions of mismatch', async () => {
+    vi.stubEnv('DRNIB_AGENT_PRIVATE_KEY', TEST_KEY);
+    const run = await db.researchRun.create({
+      data: { userId: 'test-reconcile', brief: { topic: 't' }, metadata: {}, status: 'complete' },
+    });
+    const goodTx = '0xaaaabbbbccccddddeeeeffff0000111122223333444455556666777788889999';
+    const ghostTx = '0x1111111111111111111111111111111111111111111111111111111111111111';
+    await db.budgetLedger.createMany({
+      data: [
+        { runId: run.id, kind: 'deposit', amount: 2 },
+        { runId: run.id, kind: 'spend', amount: 0.25, txRef: goodTx },
+        { runId: run.id, kind: 'spend', amount: 0.1, txRef: ghostTx },
+      ],
+    });
+    const stranger = '0x9999000000000000000000000000000000000000000000000000000000000000';
+    const pub = {
+      getLogs: async () => [
+        { transactionHash: goodTx, args: { to: '0xPayee000000000000000000000000000000000001', value: 250000n } },
+        { transactionHash: stranger, args: { to: '0xStranger00000000000000000000000000000002', value: 50000n } },
+      ],
+    };
+    const out = await reconcileRun(run.id, { publicClient: pub });
+    expect(out.ok).toBe(false);
+    expect(out.onchain.map((o) => o.tx)).toEqual([goodTx.toLowerCase()]);
+    expect(out.unmatchedLedger.map((r) => r.txRef)).toEqual([ghostTx]);
+    expect(out.unmatchedChain.map((o) => o.tx)).toEqual([stranger.toLowerCase()]);
+    await db.budgetLedger.deleteMany({ where: { runId: run.id } });
+    await db.researchRun.delete({ where: { id: run.id } });
   });
 });
 

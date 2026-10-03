@@ -236,6 +236,19 @@ export const TOOLS = [
     },
   },
   {
+    name: 'reconcile_run',
+    description: 'Audit a run’s onchain spends: every ledger-claimed tx hash must resolve to a mined Transfer, and every agent-wallet outflow must resolve to a ledger row. Returns matches plus both directions of mismatch.',
+    input: { ownerWallet: '0x…', runId: 'uuid' },
+    async run({ ownerWallet, runId }) {
+      const bad = checkWallet(ownerWallet);
+      if (bad) throw new Error(bad.error);
+      const { error, run } = await ownedRun(runId, ownerWallet);
+      if (error) throw new Error(error);
+      const { reconcileRun } = await import('../spend/reconcile.js');
+      return reconcileRun(run.id);
+    },
+  },
+  {
     name: 'get_report',
     description: 'Read the latest finished report version with citations.',
     input: { ownerWallet: '0x…', runId: 'uuid' },

@@ -1,7 +1,7 @@
 // SearXNG self-hosted metasearch — free if you host it.
 //
-// The keryx pattern: point SEARXNG_URL at your own instance (or a public one)
-// and get Google/Bing-grade results with no API key and no per-query price.
+// Point SEARXNG_URL at your own instance (or a public one) and get
+// Google/Bing-grade results with no API key and no per-query price.
 // Absent URL, this provider simply does not exist — nothing configured,
 // nothing called.
 const TIMEOUT_MS = 20000;

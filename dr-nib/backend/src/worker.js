@@ -14,6 +14,7 @@ import { searchEvidence } from './tools/evidence.js';
 import { runChoice, runNoul } from './jev/decisions.js';
 import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
+import { isSpendConfigured } from './spend/policy.js';
 import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/sandbox.js';
 import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
@@ -426,6 +427,10 @@ async function dataStage(runId, run, queries) {
   }
   const available = ['http_request'];
   if (sandboxConfigured()) available.push('run_code');
+  // Money, when the deployment gave the agent a wallet: the model may reach
+  // for paid sources and tip decisive creators, inside per-call ceilings and
+  // the run's own balance. No key, no spend tools — the prompt says so too.
+  if (isSpendConfigured()) available.push('tip_creator', 'unlock_content', 'pay_x402');
   const out = await generateDirectData({ brief: run.brief, queries, tools: available });
   if (!out.calls?.length) {
     return {
@@ -439,7 +444,9 @@ async function dataStage(runId, run, queries) {
   for (const [n, c] of out.calls.slice(0, 3).entries()) {
     const called = await runTool(runId, c.tool, c.input, { policy: briefPolicy(run) });
     costUsd += called.costUsd;
-    calls.push({ tool: c.tool, ok: called.ok, why: c.why, error: called.ok ? undefined : called.error });
+    // Onchain spends keep their receipts on the step: the ledger records the
+    // dollars via charge(), the tx hash lives here and in the tool.call event.
+    calls.push({ tool: c.tool, ok: called.ok, why: c.why, error: called.ok ? undefined : called.error, txHash: called.output?.txHash || undefined });
     if (called.ok) {
       const doc = toDirectDocument(n, c, called.output);
       if (doc) documents.push(doc);
@@ -476,6 +483,21 @@ function toDirectDocument(n, call, output) {
       title: String(call.input?.command || call.input?.code || 'sandbox computation').slice(0, 120),
       text: stdout.slice(0, 8000), relevance: 0.5, provider: 'direct',
     };
+  }
+  // Paid content becomes evidence like anything else: the unlock/pay tools
+  // return their body, which joins the scorable set (JEV still judges it).
+  // Tips buy goodwill, not evidence — receipt only, no document.
+  if (call.tool === 'unlock_content' || call.tool === 'pay_x402') {
+    const text = typeof output?.text === 'string' && output.text.trim()
+      ? output.text
+      : JSON.stringify(output?.data ?? '');
+    if (!text.trim()) return null;
+    let title = 'Paid content';
+    try {
+      const u = new URL(call.input?.url || '');
+      title = `Paid: ${u.hostname}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 120);
+    } catch {}
+    return { url: String(call.input?.url || ''), title, text: text.slice(0, 8000), relevance: 0.5, provider: 'direct' };
   }
   return null;
 }

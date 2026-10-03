@@ -16,6 +16,13 @@ import { searchAll, extractAll } from '../retrieval/index.js';
 import { httpRequest } from './http.js';
 import { searchEvidence } from './evidence.js';
 import { runInSandbox, sandboxConfigured, writeSandboxFile } from './sandbox.js';
+import { isSpendConfigured } from '../spend/policy.js';
+import { tipCreator } from '../spend/tips.js';
+import { unlockContent, payX402 } from '../spend/unlocks.js';
+
+function needSpend() {
+  if (!isSpendConfigured()) throw new Error('agent spending is not configured on this deployment (DRNIB_AGENT_PRIVATE_KEY)');
+}
 
 function need(input, ...fields) {
   for (const f of fields) {
@@ -109,6 +116,43 @@ const TOOLS = {
       return { output: out, costUsd: 0 };
     },
   },
+
+  tip_creator: {
+    description: 'Tip a creator page in USDC from the run budget (max $1/call) via the hub tip rail. Use when a source was decisive for the report. Settles onchain; returns the hub receipt.',
+    cost: 'onchain',
+    async run(input, ctx) {
+      needSpend();
+      need(input, 'contentUrl', 'amount');
+      const out = await tipCreator({ runId: ctx.runId, contentUrl: input.contentUrl, amount: input.amount, title: input.title });
+      return { output: out, costUsd: out.amount };
+    },
+  },
+
+  unlock_content: {
+    description: 'Pay to unlock a paid Nibgate article/share (max $2/call) and read its body. The price is read off the free 402 challenge first; the call refuses when the price is unreadable or over budget. Returns the unlocked text as evidence.',
+    cost: 'onchain',
+    async run(input, ctx) {
+      needSpend();
+      need(input, 'url');
+      const verdict = checkUrlPolicy(input.url, ctx.policy);
+      if (!verdict.ok) throw new Error(`refused: ${verdict.reason}`);
+      const out = await unlockContent({ runId: ctx.runId, url: input.url });
+      return { output: out, costUsd: out.amount };
+    },
+  },
+
+  pay_x402: {
+    description: 'Pay any x402-gated URL (max $2/call): public APIs, data feeds, paid tools. Price previewed free off the 402; refuses blind or over-budget. Returns the paid response.',
+    cost: 'onchain',
+    async run(input, ctx) {
+      needSpend();
+      need(input, 'url');
+      const verdict = checkUrlPolicy(input.url, ctx.policy);
+      if (!verdict.ok) throw new Error(`refused: ${verdict.reason}`);
+      const out = await payX402({ runId: ctx.runId, url: input.url });
+      return { output: out, costUsd: out.amount };
+    },
+  },
 };
 
 export function toolNames() {
@@ -157,6 +201,8 @@ function summarize(name, input) {
   if (name === 'http_request') return `${input.method || 'GET'} ${String(input.url || '').slice(0, 120)}`;
   if (name === 'run_code') return String(input.command || input.code || '').slice(0, 120);
   if (name === 'search_sources') return String(input.query || '').slice(0, 120);
+  if (name === 'tip_creator') return `${input.amount} → ${String(input.contentUrl || '').slice(0, 100)}`;
+  if (name === 'unlock_content' || name === 'pay_x402') return String(input.url || '').slice(0, 120);
   return '';
 }
 
@@ -193,6 +239,13 @@ function summarizeResult(name, output) {
     if (name === 'search_sources') {
       const matches = Array.isArray(output.matches) ? output.matches : [];
       return { searched: output.searched ?? null, hits: matches.length, items: matches.slice(0, 5).map((m) => ({ title: String(m?.title || m?.url || '').slice(0, 120), url: m?.url || null })) };
+    }
+    if (name === 'tip_creator') {
+      return { tipped: output?.amount ?? null, payee: output?.payee || null, tx: output?.txHash || null };
+    }
+    if (name === 'unlock_content' || name === 'pay_x402') {
+      const text = typeof output?.text === 'string' ? output.text : JSON.stringify(output?.data ?? '');
+      return { paid: output?.amount ?? null, tx: output?.txHash || null, preview: String(text || '').slice(0, 300) };
     }
     return null;
   } catch {

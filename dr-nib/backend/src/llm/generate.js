@@ -338,7 +338,7 @@ export async function generateIntakeQuestion({ topic, answered = [], fetchImpl }
  */
 export async function generateDirectData({ brief, queries = [], tools = [], fetchImpl } = {}) {
   const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, calls: [] });
-  const allowed = (Array.isArray(tools) && tools.length ? tools : ['http_request']).filter((t) => ['http_request', 'run_code'].includes(t));
+  const allowed = (Array.isArray(tools) && tools.length ? tools : ['http_request']).filter((t) => ['http_request', 'run_code', 'tip_creator', 'unlock_content', 'pay_x402'].includes(t));
   if (!isLlmConfigured()) return fallback(null);
   try {
     const { data, usage, model } = await chatJson({
@@ -366,6 +366,8 @@ function cleanDirectCalls(calls, allowed) {
     if (!input) return null;
     if (c.tool === 'http_request' && typeof input.url !== 'string') return null;
     if (c.tool === 'run_code' && typeof input.command !== 'string' && typeof input.code !== 'string') return null;
+    if (c.tool === 'tip_creator' && (typeof input.contentUrl !== 'string' || !Number.isFinite(Number(input.amount)))) return null;
+    if ((c.tool === 'unlock_content' || c.tool === 'pay_x402') && typeof input.url !== 'string') return null;
     const why = String(c.why || '').trim().slice(0, 200);
     if (!why) return null;
     out.push({ tool: c.tool, input, why });

@@ -236,8 +236,6 @@ async function charge(runId, kind, actualCost) {
   return result.ok;
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 // ── Pipeline ──────────────────────────────────────────────────────────────────
 // Real providers (retrieval) and the router (generation) sit behind metered
 // interfaces. When a provider is not configured the stage falls back to a
@@ -302,7 +300,6 @@ async function searchStage(runId, run, queries) {
     providers.push(...(out.providers || []));
   }
   if (!attempted) {
-    await sleep(600);
     return {
       why: 'No retrieval provider could be reached, so the run cannot touch the web. This is a labelled offline stub.',
       queries: list,
@@ -341,7 +338,6 @@ async function fetchStage(runId, run) {
   const results = search?.output?.results || [];
   const attempted = search?.output?.attempted === true;
   if (!results.length) {
-    await sleep(300);
     return {
       why: attempted
         ? 'The providers returned no candidates, so there is nothing to read. The report will say the evidence does not cover the brief.'
@@ -423,11 +419,9 @@ async function dataStage(runId, run, queries) {
   });
   const have = (fetchStep?.output?.documents || []).length;
   if (have >= 3) {
-    await sleep(200);
     return { skipped: true, why: 'Retrieval already delivered enough to judge; no direct calls needed.', calls: [], documents: [] };
   }
   if (!isLlmConfigured()) {
-    await sleep(200);
     return { skipped: true, why: 'Model unconfigured: nobody to propose direct calls.', calls: [], documents: [] };
   }
   const available = ['http_request'];
@@ -510,7 +504,6 @@ async function scoreStage(runId, run) {
   // sources to fill it would be fabrication, and the report prompt already
   // knows how to say the evidence does not cover the brief.
   if (!documents.length && !attempted) {
-    await sleep(300);
     await db.researchSource.createMany({
       data: [
         { runId, url: 'https://example.com/a', title: 'Example source A', domain: 'example.com', relevance: 0.9, trust: 0.8 },

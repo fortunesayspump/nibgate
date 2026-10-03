@@ -24,19 +24,19 @@ describe('URL normalization and dedupe', () => {
 });
 
 describe('retrieval status', () => {
-  it('reports nothing configured when no keys are set', () => {
-    expect(retrievalStatus()).toEqual({ tavily: false, exa: false, any: false });
+  it('reports the free bench always available, keyed pair by key', () => {
+    expect(retrievalStatus()).toEqual({ tavily: false, exa: false, free: true, any: true });
   });
 
   it('reports each provider independently', () => {
     vi.stubEnv('TAVILY_API_KEY', 'tvly-x');
-    expect(retrievalStatus()).toEqual({ tavily: true, exa: false, any: true });
+    expect(retrievalStatus()).toEqual({ tavily: true, exa: false, free: true, any: true });
   });
 });
 
 describe('searchAll', () => {
   it('returns an explicit empty fallback when every provider is disabled', async () => {
-    const out = await searchAll({ query: 'x', includeAcademic: false }, { fetchImpl: vi.fn() });
+    const out = await searchAll({ query: 'x', includeAcademic: false, includeFree: false }, { fetchImpl: vi.fn() });
     expect(out.fallback).toBe(true);
     expect(out.results).toEqual([]);
     expect(out.costUsd).toBe(0);
@@ -73,12 +73,15 @@ describe('searchAll', () => {
     const out = await searchAll({ query: 'x', includeContent: true }, { fetchImpl });
     expect(out.fallback).toBe(false);
     // a.com/one + b.com/two + c.com/three + arxiv paper == 4 distinct URLs
+    // (the free bench returns empty against this mock's exa-shaped default)
     expect(out.results.map((r) => r.url).sort()).toEqual([
       'https://a.com/one', 'https://arxiv.org/abs/1234.1', 'https://b.com/two', 'https://c.com/three',
     ]);
-    // Tavily 1 credit * 0.008 + Exa 0.005 + arXiv 0
+    // Tavily 1 credit * 0.008 + Exa 0.005 + free bench 0
     expect(out.costUsd).toBeCloseTo(0.013, 6);
-    expect(out.providers.map((p) => p.name).sort()).toEqual(['arxiv', 'exa', 'tavily']);
+    expect(out.providers.map((p) => p.name).sort()).toEqual(
+      ['arxiv', 'edgar', 'exa', 'gdelt', 'hn', 'openalex', 'polymarket', 'stackexchange', 'tavily', 'wikipedia'],
+    );
     expect(out.providers.every((p) => p.ok)).toBe(true);
   });
 
@@ -102,13 +105,59 @@ describe('searchAll', () => {
       status: 200,
       text: async () => `<?xml version="1.0"?><feed><entry><id>https://arxiv.org/abs/1234.5678</id><title>Some Paper</title><summary>An abstract.</summary><published>2026-01-01T00:00:00Z</published><author><name>Jane Doe</name></author></entry></feed>`,
     });
-    const out = await searchAll({ query: 'quantum x402' }, { fetchImpl });
+    const out = await searchAll({ query: 'quantum x402', includeFree: false }, { fetchImpl });
     expect(out.fallback).toBe(false);
     expect(out.results).toHaveLength(1);
     expect(out.results[0].provider).toBe('arxiv');
     expect(out.results[0].url).toBe('https://arxiv.org/abs/1234.5678');
     expect(out.costUsd).toBe(0);
     expect(out.providers).toEqual([{ name: 'arxiv', ok: true, count: 1, costUsd: 0 }]);
+  });
+
+  it('fans the free bench through one mock, keyed by host', async () => {
+    const fetchImpl = vi.fn().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('wikipedia.org')) {
+        return jsonResponse({ query: { search: [{ title: 'USD Coin', snippet: 'a <span>stablecoin</span>' }] } });
+      }
+      if (u.includes('openalex.org')) {
+        return jsonResponse({ results: [{ id: 'https://doi.org/10.1/x', title: 'Stablecoin fees', abstract_inverted_index: { Stablecoin: [0], fees: [1] }, publication_date: '2025-03-01', authorships: [], cited_by_count: 7 }] });
+      }
+      if (u.includes('efts.sec.gov')) {
+        return jsonResponse({ hits: { hits: [{ _source: { ciks: ['1234567'], forms: ['10-K'], filedAt: '2025-02-20', entityName: 'Circle' } }] } });
+      }
+      if (u.includes('stackexchange')) {
+        return jsonResponse({ items: [{ link: 'https://stackoverflow.com/q/1', title: 'How do fees work?', score: 5, answer_count: 2, is_answered: true, tags: ['fees'] }] });
+      }
+      if (u.includes('gdeltproject')) {
+        return jsonResponse({ articles: [{ title: 'USDC news', url: 'https://news.example/a', seendate: '20260930T120000Z', domain: 'example', language: 'English' }] });
+      }
+      if (u.includes('hn.algolia')) {
+        return jsonResponse({ hits: [{ title: 'USDC thread', url: null, objectID: '999', points: 42, num_comments: 7, created_at: '2025-09-01T00:00:00Z' }] });
+      }
+      if (u.includes('polymarket')) {
+        return jsonResponse([{ question: 'Will USDC hold peg?', slug: 'usdc-peg', volume: 1000, outcomes: ['Yes', 'No'], outcomePrices: ['0.99', '0.01'] }]);
+      }
+      if (u.includes('export.arxiv.org')) {
+        return { ok: true, status: 200, text: async () => '<?xml version="1.0"?><feed></feed>' };
+      }
+      throw new Error(`unexpected host: ${u.slice(0, 80)}`);
+    });
+    const out = await searchAll({ query: 'usdc fees' }, { fetchImpl });
+    expect(out.fallback).toBe(false);
+    expect(out.costUsd).toBe(0);
+    expect(out.providers.map((p) => p.name).sort()).toEqual(
+      ['arxiv', 'edgar', 'gdelt', 'hn', 'openalex', 'polymarket', 'stackexchange', 'wikipedia'],
+    );
+    expect(out.providers.every((p) => p.ok)).toBe(true);
+    const byProvider = Object.fromEntries(out.results.map((r) => [r.provider, r]));
+    expect(byProvider.wikipedia.url).toBe('https://en.wikipedia.org/wiki/USD_Coin');
+    expect(byProvider.openalex.snippet).toMatch(/Stablecoin fees|fees/);
+    expect(byProvider.edgar.url).toContain('CIK=1234567');
+    expect(byProvider.stackexchange.url).toBe('https://stackoverflow.com/q/1');
+    expect(byProvider.gdelt.url).toBe('https://news.example/a');
+    expect(byProvider.hn.url).toBe('https://news.ycombinator.com/item?id=999');
+    expect(byProvider.polymarket.url).toBe('https://polymarket.com/event/usdc-peg');
   });
 });
 
@@ -227,7 +276,7 @@ describe('provider circuit', () => {
     circuitFailure('tavily');
     const fetchImpl = vi.fn();
     const { searchAll } = await import('./index.js');
-    const out = await searchAll({ query: 'x', includeAcademic: false }, { fetchImpl });
+    const out = await searchAll({ query: 'x', includeAcademic: false, includeFree: false }, { fetchImpl });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(out.providers).toEqual([{ name: 'tavily', ok: false, count: 0, costUsd: 0, error: 'circuit-open', retryAfterMs: expect.any(Number) }]);
     __resetCircuits();

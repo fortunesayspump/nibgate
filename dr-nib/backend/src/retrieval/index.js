@@ -4,12 +4,24 @@
 // breadth; Exa gives semantic and academic reach. Both are optional and both
 // are metered: a provider that is not configured is simply absent, and a
 // provider that fails is recorded as a disagreement rather than silently
-// averaged away. When nothing is configured the caller gets an explicit empty
-// result and decides its own fallback — this layer never invents sources.
+// averaged away. Underneath the keyed pair sits a free bench that needs no
+// keys at all — GDELT for news, Wikipedia for background, OpenAlex for
+// papers, EDGAR for filings, Stack Exchange and Hacker News for practitioner
+// answers, Polymarket for live question prices, arXiv for preprints — so a
+// keyless deployment still searches eight indexes, not one. When nothing is
+// configured the caller gets an explicit empty result and decides its own
+// fallback — this layer never invents sources.
 import { RetrievalUnavailable, dedupeByUrl } from './util.js';
 import { isTavilyConfigured, tavilyExtract, tavilySearch } from './providers/tavily.js';
 import { exaSearch, isExaConfigured } from './providers/exa.js';
 import { arxivSearch } from './providers/arxiv.js';
+import { wikipediaSearch } from './providers/wikipedia.js';
+import { openalexSearch } from './providers/openalex.js';
+import { edgarSearch } from './providers/edgar.js';
+import { stackexchangeSearch } from './providers/stackexchange.js';
+import { gdeltSearch } from './providers/gdelt.js';
+import { hnSearch } from './providers/hn.js';
+import { polymarketSearch } from './providers/polymarket.js';
 import { directExtract } from './providers/direct.js';
 import { circuitAllows, circuitFailure, circuitSuccess } from './circuit.js';
 
@@ -21,7 +33,9 @@ export { normalizeUrl } from './util.js';
 export function retrievalStatus() {
   const tavily = isTavilyConfigured();
   const exa = isExaConfigured();
-  return { tavily, exa, any: tavily || exa };
+  // The free bench needs no keys and is always available: a keyless
+  // deployment searches, it just searches free indexes.
+  return { tavily, exa, free: true, any: true };
 }
 
 export function isRetrievalConfigured() {
@@ -36,9 +50,22 @@ export function isRetrievalConfigured() {
  *   disagreement is visible downstream rather than flattened.
  */
 export async function searchAll(input, { fetchImpl } = {}) {
-  const { query, maxResults = 8, searchDepth, type, timeRange, includeDomains, excludeDomains, includeContent = false, includeAcademic = true } = input || {};
+  const { query, maxResults = 8, searchDepth, type, timeRange, includeDomains, excludeDomains, includeContent = false, includeAcademic = true, includeFree = true } = input || {};
   const status = retrievalStatus();
   const calls = [];
+  const freeCall = (name, fn, args) => {
+    const gate = circuitAllows(name);
+    if (!gate.allowed) {
+      calls.push(Promise.resolve({ name, skipped: 'circuit-open', retryAfterMs: gate.retryAfterMs }));
+    } else {
+      calls.push(
+        fn(args, { fetchImpl }).then(
+          (r) => { circuitSuccess(name); return { name, ...r }; },
+          (e) => { circuitFailure(name); throw e; },
+        ),
+      );
+    }
+  };
 
   if (status.tavily) {
     const gate = circuitAllows('tavily');
@@ -72,6 +99,19 @@ export async function searchAll(input, { fetchImpl } = {}) {
       );
     }
   }
+  // The free bench: five keyless indexes behind one flag. Each is capped
+  // small and circuit-broken like the keyed pair; empties are disagreements,
+  // not failures.
+  if (includeFree) {
+    freeCall('wikipedia', wikipediaSearch, { query, maxResults: 4 });
+    freeCall('openalex', openalexSearch, { query, maxResults: 4 });
+    freeCall('edgar', edgarSearch, { query, maxResults: 4 });
+    freeCall('stackexchange', stackexchangeSearch, { query, maxResults: 4 });
+    freeCall('gdelt', gdeltSearch, { query, maxResults: 6 });
+    freeCall('hn', hnSearch, { query, maxResults: 4 });
+    freeCall('polymarket', polymarketSearch, { query, maxResults: 4 });
+  }
+
   // arXiv is free and keyless, so it is always in the mix (capped small).
   // Academic noise on non-academic queries is filtered downstream by relevance
   // and JEV trust — the same treatment every source gets.

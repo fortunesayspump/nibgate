@@ -15,6 +15,9 @@ function buildFeed(run: any): any[] {
   const items: any[] = [];
   for (const d of run.decisions || []) {
     if (d.kind === "thinking" && d.output?.text) items.push({ t: "thinking", at: d.createdAt, text: d.output.text });
+    // Every question asked and every answer given, intake and mid-run alike:
+    // the transcript is the run's memory and the owner should see all of it.
+    if (d.kind === "question") items.push({ t: "qa", at: d.answeredAt || d.createdAt, d });
   }
   for (const s of run.steps || []) items.push({ t: "step", at: s.createdAt, step: s });
   for (const e of run.events || []) {
@@ -57,6 +60,21 @@ function ToolResult({ e }: { e: any }) {
   );
 }
 
+// An answer is one of several shapes (typed text, picked options, checked
+// options) — render what the owner actually said, not the JSON.
+function formatAnswer(d: any): string {
+  const a = d.answer;
+  if (a == null) return "";
+  if (typeof a.text === "string" && a.text.trim()) return a.text.trim();
+  const q = d.question || {};
+  const opts: any[] = Array.isArray(q.options) ? q.options : [];
+  const label = (id: string) => opts.find((o) => o.id === id)?.label || id;
+  if (typeof a.picked === "string") return label(a.picked);
+  if (Array.isArray(a.picked)) return a.picked.map(label).join(", ");
+  if (typeof a === "string") return a;
+  return "";
+}
+
 function StepDetail({ step, open }: { step: any; open: boolean }) {
   const out = step.output || {};
   return (
@@ -88,7 +106,7 @@ function StepDetail({ step, open }: { step: any; open: boolean }) {
               <li key={r.url || n} className="text-[12px] leading-5">
                 <span className="font-medium">{r.title || r.url}</span>
                 {r.url ? <span className="block break-all font-mono text-[11px] opacity-50">{r.url}</span> : null}
-                {r.snippet || r.content ? <span className="block opacity-60">{String(r.snippet || r.content).slice(0, 220)}</span> : null}
+                {r.snippet || r.content ? <span className="block opacity-60">{String(r.snippet || r.content)}</span> : null}
               </li>
             ))}
           </ul>
@@ -98,13 +116,17 @@ function StepDetail({ step, open }: { step: any; open: boolean }) {
         <details className="mt-2" open={open}>
           <summary className="cursor-pointer text-[11px] font-medium opacity-70">{out.documents.length} pages read</summary>
           <ul className="mt-1 space-y-1.5">
-            {out.documents.map((d: any, n: number) => (
-              <li key={d.url || n} className="text-[12px] leading-5">
-                <span className="font-medium">{d.title || d.url}</span>
-                <span className="font-mono text-[11px] opacity-50"> · {String(d.text || "").length.toLocaleString()} chars</span>
-                {d.text ? <span className="block opacity-60">{String(d.text).slice(0, 220)}…</span> : null}
-              </li>
-            ))}
+            {out.documents.map((d: any, n: number) => {
+              const text = String(d.text || "");
+              const capped = text.length > 5000;
+              return (
+                <li key={d.url || n} className="text-[12px] leading-5">
+                  <span className="font-medium">{d.title || d.url}</span>
+                  <span className="font-mono text-[11px] opacity-50"> · {text.length.toLocaleString()} chars{capped ? " (first 5,000 shown)" : ""}</span>
+                  {text ? <span className="block whitespace-pre-wrap opacity-60">{capped ? text.slice(0, 5000) : text}</span> : null}
+                </li>
+              );
+            })}
           </ul>
         </details>
       ) : null}
@@ -243,6 +265,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const spent = Number(run.spent || 0);
   const cap = Number(run.budgetCap || 0);
   const pct = cap > 0 ? Math.min(100, Math.round((spent / cap) * 100)) : 0;
+  // Honest empties: a finished search with zero sources is a finding ("asked,
+  // found nothing"), not a loading state — say so instead of promising live
+  // content that is never coming.
+  const searchDone = (run.steps || []).some((s: any) => s.kind === "search" && s.status === "done");
+  const nothingFound = searchDone && (run.sources || []).length === 0;
 
   const statusStyle: Record<string, string> = {
     running: "bg-black text-white",
@@ -270,9 +297,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
   return (
     <div>
-      {/* Run header: its own compact design, not the site display header.
-          Title is content, not a billboard — status and money lead. */}
-      <header className="mb-4 border border-dark-gray/50 bg-white">
+      {/* Command-center layout: the left column is the run — header, work
+          product, budget — kept deliberately narrow; the right column is the
+          agent, the wider panel, fixed in place with its own scroll and the
+          composer pinned at the bottom. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <div className="min-w-0">
+      {/* Run header: compact, lives in the left column. Title is content,
+          not a billboard — status and money lead. */}
+      <header className="border border-dark-gray/50 bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-dark-gray/30 px-4 py-2">
           <Link href="/dr-nib/projects" className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider opacity-60 hover:opacity-100">
             <ArrowLeft size={13} /> Projects
@@ -301,29 +334,34 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
         </div>
       </header>
 
-      {/* Parked questions live in the right-side composer, not up here: the
-          question replaces the guidance box the way an opencode permission
-          prompt takes over the prompt area. */}
-
-      {/* Command-center layout: the left column is the work product and scrolls
-          with the page; the right column is the agent — the wider panel, fixed
-          in place with its own scroll and the composer pinned at the bottom. */}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
-        <div className="min-w-0">
-          {!report && (run.status === "running" || run.status === "paused") && (
-            <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
+          {!report && (run.status === "running" || run.status === "paused") && !nothingFound && (
+            <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
               <p className="text-sm font-medium">Report</p>
               <div className="mt-3 space-y-2" aria-hidden="true">
                 <div className="h-3 w-3/4 animate-pulse rounded bg-black/10" />
                 <div className="h-3 w-full animate-pulse rounded bg-black/10" />
                 <div className="h-3 w-5/6 animate-pulse rounded bg-black/10" />
               </div>
-              <p className="mt-3 text-xs opacity-60">Drafting sections as steps complete — they appear here live.</p>
+              <p className="mt-3 text-xs opacity-60">Research is still moving — sections land here as steps complete.</p>
+            </section>
+          )}
+
+          {!report && nothingFound && (
+            <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
+              <p className="text-sm font-medium">Report</p>
+              <p className="mt-2 text-sm opacity-60">Search finished with no candidates, so there is nothing to write from. Steer the run from the activity panel, or end it and keep the unspent balance.</p>
+            </section>
+          )}
+
+          {!report && !nothingFound && run.status !== "running" && run.status !== "paused" && (
+            <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
+              <p className="text-sm font-medium">Report</p>
+              <p className="mt-2 text-sm opacity-60">No report yet — it lands here once the run produces one.</p>
             </section>
           )}
 
           {report && (
-            <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
+            <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium">Report · v{report.version}</p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -338,17 +376,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             </section>
           )}
 
-          {!report && run.status !== "running" && run.status !== "paused" && (
-            <section className="rounded-2xl border border-dark-gray/50 bg-white p-5">
-              <p className="text-sm font-medium">Report</p>
-              <p className="mt-2 text-sm opacity-60">No report yet — it lands here once the run produces one.</p>
-            </section>
-          )}
-
           <section className="mt-4 border border-dark-gray/50 bg-white p-4">
             <p className="mb-3 text-sm font-medium">Sources ({(run.sources || []).length})</p>
             {(run.sources || []).length === 0 ? (
-              <p className="text-xs opacity-60">Sources appear here as the run finds and scores them.</p>
+              <p className="text-xs opacity-60">{searchDone ? "Search finished with no candidates — nothing to score." : "Sources appear here as the run finds and scores them."}</p>
             ) : (
               <ul className="space-y-2">
                 {run.sources.map((s: any, i: number) => (
@@ -394,6 +425,20 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                       <div key={`th-${i}`} className="border-l-2 border-black/40 pl-3">
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Dr. Nib&apos;s read</p>
                         <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.text}</p>
+                      </div>
+                    );
+                  }
+                  if (item.t === "qa") {
+                    const ans = formatAnswer(item.d);
+                    return (
+                      <div key={`qa-${i}`} className="rounded-xl border-2 border-black bg-white p-3">
+                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
+                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : ""}
+                        </p>
+                        <p className="mt-1 text-[13px] font-medium leading-6">{item.d.prompt || item.d.question?.prompt}</p>
+                        {item.d.answer != null ? (
+                          <p className="mt-1.5 border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">You: {ans || "(empty answer)"}</p>
+                        ) : null}
                       </div>
                     );
                   }

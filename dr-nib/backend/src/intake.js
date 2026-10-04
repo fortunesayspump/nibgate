@@ -72,6 +72,17 @@ export function nextQuestion(answeredKeys) {
   return q ? { ...q, options: q.options.map((o) => ({ ...o })) } : null;
 }
 
+/** Next batch from the bank: up to n unasked questions, easy choices first. */
+export function nextQuestions(answeredKeys, n = 5) {
+  const open = BANK.filter((item) => !answeredKeys.includes(item.key));
+  const rank = (q) => (q.type === 'pick_one' ? 0 : q.type === 'pick_any' ? 1 : 2);
+  return open
+    .slice()
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, Math.max(1, Math.min(n, 5)))
+    .map((q) => ({ ...q, options: q.options.map((o) => ({ ...o })) }));
+}
+
 /** Keys the bank still has open — what JEV weighs against stopping. */
 export function remainingKeys(answeredKeys) {
   return BANK.map((item) => item.key).filter((key) => !answeredKeys.includes(key));

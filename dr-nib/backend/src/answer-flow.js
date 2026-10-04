@@ -6,10 +6,10 @@
 // how two clients learn to disagree about what was asked.
 import { db } from './db.js';
 import {
-  applyAnswer, describeAnswer, nextQuestion,
+  applyAnswer, describeAnswer, nextQuestion, nextQuestions,
   remainingKeys, think,
 } from './intake.js';
-import { generateThinking, generateIntakeQuestion } from './llm/generate.js';
+import { generateThinking, generateIntakeQuestion, generateIntakeBatch } from './llm/generate.js';
 import { decideIntakeStop } from './jev/intake.js';
 
 export async function answeredKeys(runId) {
@@ -24,42 +24,69 @@ export function createQuestion(runId, seq, q) {
 }
 
 /**
- * Record one intake answer and advance the transcript.
- * @param {object} run  an already-authorized run row
- * @returns {Promise<{status:number, body:object}>}
+ * One thinking: the model's own read when reachable, deterministic fallback
+ * otherwise, persisted as a thinking row. Independent per answer, so batches
+ * run these concurrently — the batch wall clock is one thinking, not five.
  */
-export async function answerIntakeQuestion(run, seq, answer) {
-  const question = await db.researchDecision.findFirst({
-    where: { runId: run.id, kind: 'question', seq: Number(seq), step: 'intake' },
-  });
-  if (!question) return { status: 404, body: { error: 'question not found' } };
-
-  await db.researchDecision.deleteMany({ where: { runId: run.id, kind: 'question', step: 'intake', seq: { gt: Number(seq) } } });
-  await db.researchDecision.update({ where: { id: question.id }, data: { answer: answer ?? {}, answeredAt: new Date() } });
-
-  // The visible reasoning is the model's own words when one is configured;
-  // the deterministic line is the fallback, and the response says which.
-  let thinkingText = think({ question: question.question, answer });
+export async function thinkOne(runId, seq, questionObj, answer) {
+  let thinkingText = think({ question: questionObj, answer });
   let thinkingSource = 'fallback';
   try {
-    const live = await generateThinking({ question: question.question, answer: describeAnswer(question.question, answer) });
+    const live = await generateThinking({ question: questionObj, answer: describeAnswer(questionObj, answer) });
     if (live.text) {
       thinkingText = live.text;
       thinkingSource = 'llm';
       await db.researchDecision.create({
         data: {
-          runId: run.id, seq: Number(seq), kind: 'thinking', step: 'intake',
-          prompt: question.question?.prompt || null, question: question.question || {},
+          runId, seq: Number(seq), kind: 'thinking', step: 'intake',
+          prompt: questionObj?.prompt || null, question: questionObj || {},
           output: { text: live.text, model: live.model }, confidence: null,
         },
       });
     }
   } catch {}
+  return { thinkingText, thinkingSource };
+}
+
+/**
+ * Record one answer: validate, save, think, sharpen the brief. Shared by the
+ * single-answer and batch endpoints so both doors advance the same
+ * transcript. Returns null-ok when the question does not exist.
+ */
+export async function recordAnswer(run, seq, answer, { reanswer = false } = {}) {
+  const question = await db.researchDecision.findFirst({
+    where: { runId: run.id, kind: 'question', seq: Number(seq), step: 'intake' },
+  });
+  if (!question) return { ok: false };
+  // Re-answering is a single-answer affordance (Back button, MCP retry): the
+  // requester invalidates the transcript after it first. Batches are
+  // answered once, together — a batch containing an answered question is a
+  // client bug, rejected rather than half-applied.
+  if (question.answer != null && !reanswer) return { ok: false, error: 'question already answered' };
+  if (reanswer) {
+    await db.researchDecision.deleteMany({ where: { runId: run.id, kind: 'question', step: 'intake', seq: { gt: Number(seq) } } });
+  }
+
+  await db.researchDecision.update({ where: { id: question.id }, data: { answer: answer ?? {}, answeredAt: new Date() } });
+
+  const { thinkingText, thinkingSource } = await thinkOne(run.id, seq, question.question, answer);
   const patch = applyAnswer({ run, question: question.question, answer });
   const updated = await db.researchRun.update({
     where: { id: run.id },
     data: { brief: patch.brief, metadata: patch.metadata, title: patch.title, description: patch.description },
   });
+  return { ok: true, question, thinkingText, thinkingSource, updated };
+}
+
+/**
+ * Record one intake answer and advance the transcript.
+ * @param {object} run  an already-authorized run row
+ * @returns {Promise<{status:number, body:object}>}
+ */
+export async function answerIntakeQuestion(run, seq, answer) {
+  const recorded = await recordAnswer(run, seq, answer, { reanswer: true });
+  if (!recorded.ok) return { status: 404, body: { error: 'question not found' } };
+  const { question, thinkingText, thinkingSource, updated } = recorded;
 
   const keys = await answeredKeys(run.id);
   let next = nextQuestion(keys);
@@ -144,7 +171,141 @@ export async function answerIntakeQuestion(run, seq, answer) {
       thinking: thinkingText,
       thinkingSource,
       done,
-      next: next || null,
+      next: next ? { ...next, seq: Number(seq) + 1 } : null,
+      project: { id: updated.id, title: updated.title, description: updated.description, status: updated.status, metadata: updated.metadata },
+    },
+  };
+}
+
+/**
+ * Answer a whole batch at once. All-or-nothing validation first (a batch
+ * containing an unknown or already-answered question is rejected whole —
+ * half-applied batches would leave the transcript incoherent), then one
+ * thinking per answer, one stop decision, and one next batch. Same
+ * transcript, same stop rules as single answers.
+ */
+export async function answerIntakeBatch(run, answers) {
+  if (!Array.isArray(answers) || !answers.length || answers.length > 5) {
+    return { status: 400, body: { error: 'answers must be 1-5 {seq, answer} pairs' } };
+  }
+  const rows = [];
+  for (const item of answers) {
+    const seq = Number(item?.seq);
+    if (!Number.isInteger(seq)) return { status: 400, body: { error: 'every answer needs an integer seq' } };
+    const q = await db.researchDecision.findFirst({
+      where: { runId: run.id, kind: 'question', seq, step: 'intake' },
+    });
+    if (!q) return { status: 404, body: { error: `question ${seq} not found` } };
+    if (q.answer != null) return { status: 409, body: { error: `question ${seq} already answered` } };
+    rows.push({ seq, answer: item?.answer ?? {}, q });
+  }
+
+  const thinkings = await Promise.all(rows.map(async ({ seq, answer, q }) => {
+    const t = await thinkOne(run.id, seq, q.question, answer);
+    return { seq, thinking: t.thinkingText, source: t.thinkingSource };
+  }));
+  // Brief patches chain sequentially (each builds on the last brief) with a
+  // single write at the end — parallel updates would lose answers to races.
+  let cur = { brief: run.brief, metadata: run.metadata, title: run.title, description: run.description };
+  for (const { seq, answer, q } of rows) {
+    await db.researchDecision.update({ where: { id: q.id }, data: { answer: answer ?? {}, answeredAt: new Date() } });
+    cur = applyAnswer({
+      run: { ...run, brief: cur.brief, metadata: cur.metadata, title: cur.title, description: cur.description },
+      question: q.question, answer,
+    });
+  }
+  const updated = await db.researchRun.update({
+    where: { id: run.id },
+    data: { brief: cur.brief, metadata: cur.metadata, title: cur.title, description: cur.description },
+  });
+
+  const keys = await answeredKeys(run.id);
+  let nextBatch = nextQuestions(keys, 5);
+  try {
+    const prior = await db.researchDecision.findMany({
+      where: { runId: run.id, kind: 'question', answer: { not: null } },
+      orderBy: { seq: 'asc' },
+      select: { question: true, answer: true },
+    });
+    const live = await generateIntakeBatch({
+      topic: updated.brief?.topic,
+      answered: prior.map((r) => ({ prompt: r.question?.prompt || r.question?.key, answer: describeAnswer(r.question, r.answer) })),
+    });
+    if (live.questions.length) {
+      nextBatch = live.questions.filter((q) => !keys.includes(q.key)).map((q) => ({ ...q, source: 'llm' }));
+      if (!nextBatch.length) nextBatch = nextQuestions(keys, 5);
+    }
+  } catch {}
+
+  const lastAnswerDesc = `${rows.length} answer${rows.length === 1 ? '' : 's'} this batch`;
+  const stop = await decideIntakeStop({
+    topic: updated.brief?.topic,
+    answeredKeys: keys,
+    remainingKeys: remainingKeys(keys),
+    lastAnswer: lastAnswerDesc,
+  });
+  const reframed = stop.source === 'jev' && stop.reframe === true;
+  if (reframed) {
+    try {
+      const rejected = (await db.researchDecision.findMany({
+        where: { runId: run.id, kind: 'question' },
+        orderBy: { seq: 'asc' },
+        select: { question: true },
+      })).map((r) => r.question?.prompt || r.question?.key).filter(Boolean).slice(-6);
+      const retry = await generateIntakeBatch({
+        topic: updated.brief?.topic,
+        answered: [],
+        count: 3,
+        reframe: { rejected, reason: 'answers do not converge on anything plannable' },
+      });
+      if (retry.questions.length) nextBatch = retry.questions.map((q) => ({ ...q, source: 'llm' }));
+    } catch {}
+  }
+  let done = reframed ? false : stop.done;
+  if (done == null) done = !nextBatch.length;
+  if (!done && !nextBatch.length) done = true;
+  if (!done) {
+    const top = await db.researchDecision.findFirst({ where: { runId: run.id, kind: 'question' }, orderBy: { seq: 'desc' }, select: { seq: true } });
+    let seq = Number(top?.seq ?? -1);
+    const created = [];
+    for (const q of nextBatch) {
+      seq += 1;
+      await createQuestion(run.id, seq, q);
+      created.push({ ...q, seq });
+    }
+    nextBatch = created;
+  } else {
+    await db.researchRun.update({ where: { id: run.id }, data: { status: 'intake-done' } });
+  }
+
+  await db.researchDecision.create({
+    data: {
+      runId: run.id,
+      seq: rows[rows.length - 1].seq,
+      kind: 'decision',
+      type: stop.source === 'jev' ? 'choice' : 'noul',
+      step: 'intake-stop',
+      prompt: 'Leave intake?',
+      question: { options: { proceed: 'plan now', ask_more: 'ask another batch', reframe: 'drop this angle, open another' } },
+      answer: { picked: done ? 'proceed' : reframed ? 'reframe' : 'ask_more' },
+      output: {
+        decision: done ? 'proceed' : reframed ? 'reframe' : 'ask_more',
+        source: stop.source,
+        batchSize: rows.length,
+        ...(stop.source === 'jev'
+          ? { probabilities: stop.probabilities, model: stop.model, usage: stop.usage }
+          : { confidence: done ? 0.9 : 0.8 }),
+      },
+      confidence: stop.source === 'jev' ? stop.confidence : done ? 0.9 : 0.8,
+    },
+  });
+
+  return {
+    status: 200,
+    body: {
+      thinkings,
+      done,
+      next: nextBatch,
       project: { id: updated.id, title: updated.title, description: updated.description, status: updated.status, metadata: updated.metadata },
     },
   };

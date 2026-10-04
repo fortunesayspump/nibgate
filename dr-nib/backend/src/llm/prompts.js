@@ -223,10 +223,46 @@ Rules for valid JSON: plain double-quoted strings only — no quotes inside valu
 }
 
 /**
- * Intake stage: propose the single next question that most reduces
- * uncertainty about the brief. The model GENERATES the question; JEV still
- * decides whether intake continues at all. Return JSON only.
+ * Intake stage, batched: propose up to N next questions in ONE call instead
+ * of one call per question. Easy choices first (pick_one, then pick_any,
+ * then free) so the user builds momentum. Same shape rules per question as
+ * the single-question prompt. Return JSON only.
  */
+export function intakeBatchMessages({ topic, answered = [], count = 5, reframe = null } = {}) {
+  const n = Math.max(1, Math.min(Number(count) || 5, 5));
+  const system = `${RESEARCH_SYSTEM} You are interviewing the user before researching. Return JSON only.`;
+  const known = answered.length
+    ? answered.map((a) => `- ${a.prompt || a.key}: ${a.answer}`).join('\n')
+    : '(nothing asked yet)';
+  const reframeBlock = reframe?.rejected?.length
+    ? `\nThe judge rejected the current line of questioning as unproductive ("${String(reframe.reason || 'wrong angle').slice(0, 160)}"). Open COMPLETELY different angles — do not repeat, rephrase, or narrow these rejected prompts:\n${reframe.rejected.map((p) => `- ${p}`).join('\n')}\n`
+    : '';
+  const user = `Research topic: ${topic || '(unspecified)'}
+
+Already established:
+${known}
+${reframeBlock}
+Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
+
+Propose the ${n} next questions that most reduce uncertainty about this specific topic, ordered easiest-first: pick_one (2-4 short options) before pick_any (several can apply) before free (typed answer only).
+
+Hard rules for every prompt:
+- NEVER restate the research topic — use a two-word handle at most, never the full topic sentence.
+- No two questions may share their first six words. Vary openings.
+- Name the concrete trade-off, window, or scope each answer would settle.
+
+Return JSON with exactly this shape:
+{
+  "questions": [
+    {"key": "short-snake-key", "type": "pick_one" | "pick_any" | "free", "prompt": "...", "options": [{"id": "a", "label": "..."}], "allowOther": true}
+  ]
+}
+options: 2-4 items for pick types (ids short, labels under 40 chars), [] for free. No prose outside the JSON.`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
 export function intakeQuestionMessages({ topic, answered = [], reframe = null } = {}) {
   const system = `${RESEARCH_SYSTEM} You are interviewing the user before researching. Return JSON only.`;
   const known = answered.length
@@ -242,7 +278,12 @@ ${known}
 ${reframeBlock}
 Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
 
-Propose the ONE next question that most reduces uncertainty about this specific topic. Reference the topic by name. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply, free when only a typed answer makes sense.
+Propose the ONE next question that most reduces uncertainty about this specific topic. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply, free when only a typed answer makes sense.
+
+Hard rules for the prompt text:
+- NEVER restate the research topic — the user already sees it above every question. If you must anchor, use a two-word handle ("the paywall question"), never the full topic sentence.
+- Two questions in a row may not share their first six words. Vary your openings.
+- Name the concrete trade-off, window, or scope the answer would settle — not the topic area in general.
 
 Return JSON with exactly this shape:
 {

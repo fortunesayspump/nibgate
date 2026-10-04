@@ -10,8 +10,8 @@
 // creates are namespaced to that wallet, so wallet access never crosses
 // accounts.
 import { db } from '../db.js';
-import { applyAnswer, deriveDescription, deriveTitle, nextQuestion } from '../intake.js';
-import { answerIntakeQuestion, createQuestion } from '../answer-flow.js';
+import { applyAnswer, deriveDescription, deriveTitle, nextQuestions } from '../intake.js';
+import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answer-flow.js';
 import { budgetState, raiseCap, settle } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
 import { requestExecute, requestPlan } from '../worker.js';
@@ -66,9 +66,12 @@ export const TOOLS = [
           status: 'intake',
         },
       });
-      const question = nextQuestion([]);
-      if (question) await createQuestion(run.id, 0, question);
-      return { id: run.id, title: run.title, description: run.description, status: run.status, question: question || null };
+      const questions = nextQuestions([], 5);
+      for (let i = 0; i < questions.length; i += 1) {
+        await createQuestion(run.id, i, questions[i]);
+        questions[i] = { ...questions[i], seq: i };
+      }
+      return { id: run.id, title: run.title, description: run.description, status: run.status, question: questions[0] || null, questions };
     },
   },
   {
@@ -94,6 +97,20 @@ export const TOOLS = [
       if (error) throw new Error(error);
       const out = await answerIntakeQuestion(run, seq, answer);
       if (out.status !== 200) throw new Error(out.body.error || 'answer failed');
+      return out.body;
+    },
+  },
+  {
+    name: 'answer_questions',
+    description: 'Answer a whole intake batch at once (up to 5 {seq, answer} pairs). One thinking per answer, one stop decision, one next batch. All-or-nothing.',
+    input: { ownerWallet: '0x…', runId: 'uuid', answers: [{ seq: 0, answer: { optionIds: [], text: '' } }] },
+    async run({ ownerWallet, runId, answers }) {
+      const bad = checkWallet(ownerWallet);
+      if (bad) throw new Error(bad.error);
+      const { error, run } = await ownedRun(runId, ownerWallet);
+      if (error) throw new Error(error);
+      const out = await answerIntakeBatch(run, answers);
+      if (out.status !== 200) throw new Error(out.body.error || 'batch answer failed');
       return out.body;
     },
   },

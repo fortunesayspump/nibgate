@@ -13,7 +13,7 @@ const SAMPLES = [
   "Summarize the x402 ecosystem and who is shipping on it",
 ];
 
-type Phase = "composer" | "questions" | "configure" | "review";
+type Phase = "composer" | "creating" | "questions" | "configure" | "review";
 type Item = { seq: number; question: IntakeQuestion; answer?: IntakeAnswer; thinking?: string };
 
 function cleanAnswer(a: IntakeAnswer, q: IntakeQuestion, other: boolean): IntakeAnswer {
@@ -23,6 +23,18 @@ function cleanAnswer(a: IntakeAnswer, q: IntakeQuestion, other: boolean): Intake
 }
 function hasAnswer(a: IntakeAnswer): boolean {
   return Boolean((a.optionIds && a.optionIds.length) || (a.text && a.text.trim()));
+}
+
+// Saved-answer label for collapsed batch cards: option labels, not ids.
+function answerLabel(it: { question: IntakeQuestion; answer?: IntakeAnswer }): string {
+  const a = it.answer;
+  if (!a) return "";
+  if (a.text && a.text.trim()) {
+    const ids = (a.optionIds || []).map((id) => it.question.options.find((o) => o.id === id)?.label || id);
+    return [...ids, `"${a.text.trim()}"`].filter(Boolean).join(", ");
+  }
+  const ids = (a.optionIds || []).map((id) => it.question.options.find((o) => o.id === id)?.label || id);
+  return ids.join(", ") || "(answered)";
 }
 
 export default function ResearchNewPage() {
@@ -36,9 +48,15 @@ export default function ResearchNewPage() {
   const [project, setProject] = useState<any | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [idx, setIdx] = useState(0);
-  const [draft, setDraft] = useState<IntakeAnswer>({ optionIds: [], text: "" });
-  const [otherOpen, setOtherOpen] = useState(false);
+  const [drafts, setDrafts] = useState<Record<number, IntakeAnswer>>({});
+  const [otherOpen, setOtherOpen] = useState<Record<number, boolean>>({});
   const [thinking, setThinking] = useState<{ shown: string } | null>(null);
+  // The batch whose answers just landed: thinking streams first, then the UI
+  // waits on Next (see advanceBatch). Nothing auto-advances.
+  const [pendingBatch, setPendingBatch] = useState<null | { answers: { seq: number; answer: IntakeAnswer }[]; res: any }>(null);
+  // True while the answers are still flying: the loading screen shows
+  // instantly on click (optimistic), the stream lands into it when it arrives.
+  const [loadingAnswer, setLoadingAnswer] = useState(false);
   const [depth, setDepth] = useState("standard");
   const [liveWeb, setLiveWeb] = useState(true);
   const [formats, setFormats] = useState<string[]>(["pdf"]);
@@ -48,20 +66,21 @@ export default function ResearchNewPage() {
   const [estimate, setEstimate] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // Echo of the sent topic, shown on the creating screen as the confirmation.
+  const [topicEcho, setTopicEcho] = useState("");
   // Onchain escrow is opt-in per run: the ledger path stays default, and a
   // funded escrow becomes a hard gate at approve (backend enforces Funded).
   const [escrowOptIn, setEscrowOptIn] = useState(false);
   const [escrowFunded, setEscrowFunded] = useState(false);
   const stopRef = useRef<null | (() => void)>(null);
 
-  const current = items[idx];
-
-  useEffect(() => {
-    const a = items[idx]?.answer;
-    setDraft({ optionIds: a?.optionIds || [], text: a?.text || "" });
-    setOtherOpen(Boolean(a?.text));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx]);
+  // The open batch: every unanswered question, in order. Answered batches
+  // render collapsed above it.
+  const openBatch = items.filter((it) => !it.answer);
+  const batchProgress = openBatch.filter((it) => {
+    const d = drafts[it.seq] || { optionIds: [], text: "" };
+    return hasAnswer(cleanAnswer(d, it.question, !!otherOpen[it.seq]));
+  }).length;
 
   // Resume a project that was left mid-intake.
   useEffect(() => {
@@ -117,27 +136,35 @@ export default function ResearchNewPage() {
   async function send() {
     const t = topic.trim();
     if (!t) return flash("Type a question first — even one line.");
-    setBusy(true);
+    // Instant: the thinking screen opens on click with your message shown as
+    // sent. No button-loading state ever — the screen IS the confirmation.
+    setTopicEcho(t);
+    setPhase("creating");
     setNotice("");
     try {
       const run: any = await drNibApi.createProject(t);
       setNeedsSignIn(false);
       setProject(run);
-      setItems(run.question ? [{ seq: 0, question: run.question }] : []);
-      setIdx(0);
+      const first = Array.isArray(run.questions) && run.questions.length
+        ? run.questions
+        : run.question ? [{ ...run.question, seq: 0 }] : [];
+      setItems(first.map((q: any, i: number) => ({ seq: typeof q.seq === "number" ? q.seq : i, question: q })));
+      setDrafts({});
+      setOtherOpen({});
       setPhase("questions");
     } catch (e: any) {
+      // Back to composer on failure — the thinking screen must never strand.
+      setPhase("composer");
       fail(e, "Could not reach Dr. Nib");
-    } finally {
-      setBusy(false);
     }
   }
 
-  function streamThinking(text: string, onDone: () => void) {
+  function streamThinking(text: string) {
     return new Promise<void>((resolve) => {
       const full = String(text || "");
       let i = 0;
       setThinking({ shown: "" });
+      setStreamDone(false);
       const stepChars = Math.max(1, Math.round(full.length / 110));
       const timer = setInterval(() => {
         i += stepChars;
@@ -145,57 +172,140 @@ export default function ResearchNewPage() {
         if (i >= full.length) {
           clearInterval(timer);
           stopRef.current = null;
-          setThinking(null);
-          onDone();
+          setStreamDone(true);
           resolve();
         }
       }, 20);
+      // Stop means "I've read enough" — land the full text and wait on Next,
+      // never skip ahead silently.
       stopRef.current = () => {
         clearInterval(timer);
         stopRef.current = null;
-        setThinking(null);
+        setThinking({ shown: full });
+        setStreamDone(true);
         resolve();
       };
     });
   }
 
-  async function submit() {
-    if (!project || !current) return;
-    const ans = cleanAnswer(draft, current.question, otherOpen);
-    if (!hasAnswer(ans)) return flash("Pick an answer, or type your own.");
+  // The answer landed and the thinking streamed: now WAIT. Nothing advances
+  // until the user presses Next — auto-advance stole the reading moment.
+  // (Batch version below; single-question state kept for resume compat.)
+  const [streamDone, setStreamDone] = useState(false);
+
+  // Stream several thinkings back to back, each getting full screen time.
+  async function streamThinkings(texts: string[]) {
+    for (const text of texts) {
+      await streamThinking(text);
+    }
+  }
+
+  // Rebuild items from the server transcript — the self-heal for a 409
+  // (double-submit, stale tab): whatever is saved wins, drafts for answered
+  // questions are dropped, and the UI shows the true state.
+  async function reloadItems() {
+    if (!project) return;
+    try {
+      const run: any = await drNibApi.getRun(project.id);
+      const loaded: Item[] = (run.decisions || [])
+        .filter((d: any) => d.kind === "question")
+        .map((d: any) => ({ seq: d.seq, question: d.question, answer: d.answer || undefined, thinking: undefined }));
+      setItems(loaded);
+      setDrafts((prev) => {
+        const next: Record<number, IntakeAnswer> = {};
+        for (const it of loaded) {
+          if (!it.answer && prev[it.seq]) next[it.seq] = prev[it.seq];
+        }
+        return next;
+      });
+      if (run.status === "intake-done") setPhase("configure");
+    } catch { /* keep local state on failure */ }
+  }
+
+  // Submit the whole open batch at once: instant pending state (the button
+  // answers immediately), then the thinkings stream, then the UI waits on
+  // Next. One round trip per batch instead of per question.
+  async function submitBatch() {
+    if (!project || openBatch.length === 0) return;
+    const answers: { seq: number; answer: IntakeAnswer }[] = [];
+    for (const it of openBatch) {
+      const ans = cleanAnswer(drafts[it.seq] || { optionIds: [], text: "" }, it.question, !!otherOpen[it.seq]);
+      if (!hasAnswer(ans)) return flash(`Answer "${it.question.prompt.slice(0, 60)}…" first — or press Just plan it.`);
+      answers.push({ seq: it.seq, answer: ans });
+    }
     setBusy(true);
     setNotice("");
+    // Optimistic: move to the loading screen on click, not on response. The
+    // AI streams into this same screen when it lands, then waits on Next.
+    setThinking({ shown: "" });
+    setStreamDone(false);
+    setLoadingAnswer(true);
     try {
-      const res: any = await drNibApi.answerQuestion(project.id, current.seq, ans);
-      await streamThinking(res.thinking, () => {
-        setItems((prev) => {
-          const next = prev.map((it, i) => (i === idx ? { ...it, answer: ans, thinking: res.thinking } : it));
-          if (res.next && !next.some((it) => it.seq === current.seq + 1)) {
-            next.push({ seq: current.seq + 1, question: res.next });
-          }
-          return next;
-        });
-        if (res.project) setProject((p: any) => ({ ...p, ...res.project }));
-        if (res.done) setPhase("configure");
-        else setIdx((i) => i + 1);
-      });
+      const res: any = await drNibApi.answerBatch(project.id, answers);
+      setPendingBatch({ answers, res });
+      setLoadingAnswer(false);
+      const texts: string[] = (res.thinkings || []).map((t: any) => t.thinking).filter(Boolean);
+      await streamThinkings(texts.length ? texts : ["Noted."]);
     } catch (e: any) {
-      fail(e, "That didn't go through");
+      setThinking(null);
+      setPendingBatch(null);
+      setLoadingAnswer(false);
+      if ((e as any)?.status === 409) {
+        // Saved already (double tap, retry after a timeout): reload the
+        // transcript instead of erroring.
+        await reloadItems();
+        flash("Already saved — refreshed to the latest.");
+      } else {
+        fail(e, "Answers failed");
+      }
     } finally {
       setBusy(false);
     }
   }
 
-  function goPrev() {
-    if (idx > 0) setIdx(idx - 1);
-    else setPhase("composer");
+  function advanceBatch() {
+    const p = pendingBatch;
+    if (!p?.res) return;
+    setPendingBatch(null);
+    setThinking(null);
+    setStreamDone(false);
+    const bySeq = new Map(p.answers.map((a) => [a.seq, a.answer]));
+    const thinkBySeq = new Map<string | number, string>();
+    for (const t of p.res.thinkings || []) {
+      if (typeof t?.thinking === "string") thinkBySeq.set(t.seq, t.thinking);
+    }
+    setItems((prev) => {
+      const next = prev.map((it) => bySeq.has(it.seq)
+        ? { ...it, answer: bySeq.get(it.seq), thinking: thinkBySeq.get(it.seq) }
+        : it);
+      for (const q of p.res.next || []) {
+        if (typeof q.seq === "number" && !next.some((it) => it.seq === q.seq)) {
+          next.push({ seq: q.seq, question: q });
+        }
+      }
+      return next;
+    });
+    if (p.res.project) setProject((prev: any) => ({ ...prev, ...p.res.project }));
+    if (p.res.done) setPhase("configure");
   }
 
-  function goNext() {
-    const saved = current?.answer;
-    const changed = !saved || JSON.stringify(cleanAnswer(draft, current!.question, otherOpen)) !== JSON.stringify(saved);
-    if (idx < items.length - 1 && !changed) setIdx(idx + 1);
-    else submit();
+  // "Just plan it" — skip the rest of intake. The brief goes to planning
+  // as-is; unanswered questions stay unanswered, nothing is fabricated.
+  async function justPlanIt() {
+    if (!project) return;
+    setBusy(true);
+    try {
+      await drNibApi.finishIntake(project.id);
+      setPhase("configure");
+    } catch (e: any) {
+      fail(e, "Could not skip intake");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function goComposer() {
+    setPhase("composer");
   }
 
   async function plan() {
@@ -236,59 +346,74 @@ export default function ResearchNewPage() {
     }
   }
 
-  function renderOptions(q: IntakeQuestion) {
+  function renderOptions(q: IntakeQuestion, seq: number) {
+    const draft = drafts[seq] || { optionIds: [], text: "" };
+    const other = !!otherOpen[seq];
+    const setD = (ans: IntakeAnswer) => setDrafts((p) => ({ ...p, [seq]: ans }));
+    const setO = (v: boolean) => setOtherOpen((p) => ({ ...p, [seq]: v }));
     if (q.type === "free") {
       return (
         <textarea
           value={draft.text || ""}
-          onChange={(e) => setDraft({ optionIds: [], text: e.target.value })}
-          rows={4}
+          onChange={(e) => setD({ optionIds: [], text: e.target.value })}
+          rows={3}
           placeholder="Type your answer"
-          className="mt-6 w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 text-sm outline-none"
+          className="mt-4 w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 text-sm outline-none"
         />
       );
     }
 
     const pick = (o: IntakeOption) => {
-      if (q.type === "pick_one") { setDraft({ optionIds: [o.id], text: "" }); setOtherOpen(false); }
+      if (q.type === "pick_one") { setD({ optionIds: [o.id], text: "" }); setO(false); }
       else {
         const ids = draft.optionIds || [];
-        setDraft((d) => ({ ...d, optionIds: ids.includes(o.id) ? ids.filter((x) => x !== o.id) : [...ids, o.id] }));
+        setD({ ...draft, optionIds: ids.includes(o.id) ? ids.filter((x) => x !== o.id) : [...ids, o.id] });
       }
     };
 
     return (
-      <div className="mt-6 space-y-2">
-        {q.options.map((o) => {
-          const on = !otherOpen && (draft.optionIds || []).includes(o.id);
-          return (
-            <button key={o.id} onClick={() => pick(o)}
-              className={`block w-full border px-4 py-3 text-left text-sm transition ${on ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
-              {o.label}
-            </button>
-          );
-        })}
-        {q.allowOther && (
-          <>
-            <button
-              onClick={() => {
-                if (q.type === "pick_one") { setOtherOpen(true); setDraft({ optionIds: [], text: draft.text || "" }); }
-                else setOtherOpen((v) => !v);
-              }}
-              className={`block w-full border px-4 py-3 text-left text-sm transition ${otherOpen ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
-              Another answer…
-            </button>
-            {otherOpen && (
-              <input
-                autoFocus
-                value={draft.text || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
-                placeholder="Type your answer"
-                className="w-full border border-dark-gray/50 bg-white rounded-xl px-3 py-2.5 text-sm outline-none"
-              />
-            )}
-          </>
-        )}
+      <div className="mt-4">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wider opacity-50">
+          {q.type === "pick_one" ? "Select one" : "Select all that apply"}
+        </p>
+        <div className="space-y-2">
+          {q.options.map((o) => {
+            const on = !other && (draft.optionIds || []).includes(o.id);
+            return (
+              <button key={o.id} onClick={() => pick(o)}
+                className={`flex w-full items-center gap-3 border px-4 py-3 text-left text-sm transition ${on ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${on ? "border-white" : "border-dark-gray/60"} ${q.type === "pick_one" ? "rounded-full" : "rounded-sm"}`}>
+                  {on && <span className={`bg-white ${q.type === "pick_one" ? "h-2 w-2 rounded-full" : "h-2.5 w-2.5 rounded-[2px]"}`} />}
+                </span>
+                {o.label}
+              </button>
+            );
+          })}
+          {q.allowOther && (
+            <>
+              <button
+                onClick={() => {
+                  if (q.type === "pick_one") { setO(true); setD({ optionIds: [], text: draft.text || "" }); }
+                  else setO(!other);
+                }}
+                className={`flex w-full items-center gap-3 border px-4 py-3 text-left text-sm transition ${other ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${other ? "border-white" : "border-dark-gray/60"}`}>
+                  {other && <span className="h-2.5 w-2.5 rounded-[2px] bg-white" />}
+                </span>
+                Another answer…
+              </button>
+              {other && (
+                <input
+                  autoFocus
+                  value={draft.text || ""}
+                  onChange={(e) => setD({ ...draft, text: e.target.value })}
+                  placeholder="Type your answer"
+                  className="w-full border border-dark-gray/50 bg-white rounded-xl px-3 py-2.5 text-sm outline-none"
+                />
+              )}
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -332,27 +457,73 @@ export default function ResearchNewPage() {
         </section>
       )}
 
-      {phase === "questions" && thinking && (
-        <section className="mx-auto flex max-w-2xl flex-col items-center py-20 text-center">
-          <Loader2 className="mb-5 animate-spin opacity-70" size={22} />
-          <p className="min-h-[3rem] max-w-xl text-sm italic leading-6 opacity-80">{thinking.shown}</p>
-          <button onClick={() => stopRef.current?.()} className="mt-8 inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">
-            <Square size={12} /> Stop
-          </button>
+      {phase === "creating" && (
+        <section className="mx-auto flex max-w-2xl flex-col items-center py-10 text-center">
+          <div className="w-full rounded-2xl border border-dark-gray/50 bg-white px-4 py-3 text-left">
+            <p className="text-[11px] font-medium uppercase tracking-wider opacity-50">You asked</p>
+            <p className="mt-1 text-[15px] font-medium leading-7">{topicEcho}</p>
+          </div>
+          <div className="relative mt-12 flex h-40 w-40 items-center justify-center" aria-hidden="true">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-black/10" style={{ animationDuration: "2.2s" }} />
+            <span className="absolute inline-flex h-28 w-28 animate-ping rounded-full bg-black/10" style={{ animationDuration: "2.2s", animationDelay: "0.4s" }} />
+            <span className="absolute inline-flex h-16 w-16 animate-ping rounded-full bg-black/15" style={{ animationDuration: "2.2s", animationDelay: "0.8s" }} />
+            <span className="relative inline-flex h-8 w-8 rounded-full bg-black">
+              <span className="m-auto h-2 w-2 animate-pulse rounded-full bg-white" />
+            </span>
+          </div>
+          <p className="mt-8 text-xs font-medium uppercase tracking-wider opacity-50">Dreaming up questions…</p>
         </section>
       )}
 
-      {phase === "questions" && !thinking && current && (
+      {phase === "questions" && thinking && (
+        <section className="mx-auto flex max-w-2xl flex-col items-center py-20 text-center">
+          {(!streamDone || loadingAnswer) && <Loader2 className="mb-5 animate-pulse opacity-70" size={28} />}
+          {loadingAnswer && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Sending answers…</p>}
+          {!loadingAnswer && streamDone && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Noted — read it, then continue</p>}
+          {!loadingAnswer && <p className="min-h-[3rem] max-w-xl text-sm italic leading-6 opacity-80">{thinking.shown}</p>}
+          {streamDone ? (
+            <button onClick={advanceBatch} className="mt-8 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white">
+              Next <ArrowRight size={14} />
+            </button>
+          ) : (
+            <button onClick={() => stopRef.current?.()} className="mt-8 inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">
+              <Square size={12} /> I&apos;ve read enough
+            </button>
+          )}
+        </section>
+      )}
+
+      {phase === "questions" && !thinking && openBatch.length > 0 && (
         <section className="mx-auto max-w-2xl py-6">
-          <p className="text-xs font-medium uppercase tracking-wider opacity-50">Question {idx + 1}</p>
-          <h2 className="nibgate-display-title mt-1 text-2xl font-medium md:text-3xl">{current.question.prompt}</h2>
-          {renderOptions(current.question)}
-          <div className="mt-6 flex items-center justify-between">
-            <button onClick={goPrev} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wider opacity-50">
+              Answer these · {batchProgress} of {openBatch.length} done
+            </p>
+            <button onClick={justPlanIt} disabled={busy} className="shrink-0 text-xs font-medium uppercase tracking-wider opacity-60 underline hover:opacity-100">
+              Just plan it →
+            </button>
+          </div>
+          <div className="mb-5 h-1.5 w-full overflow-hidden rounded-full bg-black/10">
+            <div className="h-full rounded-full bg-black transition-all" style={{ width: `${openBatch.length ? Math.round((batchProgress / openBatch.length) * 100) : 0}%` }} />
+          </div>
+          {items.filter((it) => it.answer).map((it) => (
+            <div key={it.seq} className="mb-3 border border-dark-gray/40 bg-white px-4 py-3">
+              <p className="text-sm font-medium leading-6">{it.question.prompt}</p>
+              <p className="mt-1 text-xs opacity-60">✓ {answerLabel(it)}</p>
+            </div>
+          ))}
+          {openBatch.map((it) => (
+            <div key={it.seq} className="mb-4 border border-dark-gray/50 bg-white p-4 md:p-5">
+              <p className="text-[15px] font-medium leading-7">{it.question.prompt}</p>
+              {renderOptions(it.question, it.seq)}
+            </div>
+          ))}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <button onClick={goComposer} disabled={busy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">
               <ArrowLeft size={14} /> Back
             </button>
-            <button onClick={goNext} disabled={busy} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">
-              Next <ArrowRight size={14} />
+            <button onClick={submitBatch} disabled={busy || batchProgress < openBatch.length} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">
+              {busy ? "Saving…" : `Submit ${openBatch.length === 1 ? "answer" : `all ${openBatch.length}`}`} <ArrowRight size={14} />
             </button>
           </div>
         </section>

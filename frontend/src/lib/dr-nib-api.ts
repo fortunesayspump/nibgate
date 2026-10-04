@@ -28,7 +28,11 @@ async function req(path: string, opts: RequestInit = {}) {
     (err as any).code = 'unavailable';
     throw err;
   }
-  if (!res.ok) throw new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}`);
+    (err as any).status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -49,6 +53,10 @@ export const drNibApi = {
   createProject: (topic: string) => req("/v1/runs", { method: "POST", body: JSON.stringify({ topic }) }),
   answerQuestion: (id: string, seq: number, answer: IntakeAnswer) =>
     req(`/v1/runs/${id}/answers`, { method: "POST", body: JSON.stringify({ seq, answer }) }),
+  answerBatch: (id: string, answers: { seq: number; answer: IntakeAnswer }[]) =>
+    req(`/v1/runs/${id}/answers/batch`, { method: "POST", body: JSON.stringify({ answers }) }),
+  finishIntake: (id: string) =>
+    req(`/v1/runs/${id}/intake/finish`, { method: "POST" }),
   configureRun: (
     id: string,
     body: { depth?: string; budgetCap: number; formats?: string[]; liveWeb?: boolean; length?: string; lengthWords?: number },

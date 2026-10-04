@@ -6,7 +6,7 @@
 // SSE contract keep working. The caller decides what to do with the result; the
 // fallback never pretends the model spoke.
 import { chat, chatJson, isLlmConfigured } from './provider.js';
-import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, directDataMessages } from './prompts.js';
+import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages, directDataMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
 
 const cleanStrings = (v, cap = 12) =>
@@ -323,6 +323,10 @@ export async function generateIntakeQuestion({ topic, answered = [], reframe = n
     });
     const question = cleanIntakeQuestion(data);
     if (!question) return fallback('model returned an off-spec question');
+    // Mechanical backstop for the "same question twice" failure: prompts that
+    // share most significant words with anything already asked are rejected
+    // even when the shape is valid. The caller falls back to the bank.
+    if (repeatsPriorGround(question.prompt, answered)) return fallback('model repeated prior ground');
     return { ok: true, source: 'llm', model, usage, question };
   } catch (err) {
     return fallback(err?.message || String(err));
@@ -373,6 +377,64 @@ function cleanDirectCalls(calls, allowed) {
     out.push({ tool: c.tool, input, why });
   }
   return out;
+}
+
+const REPEAT_STOP = new Set('what,are,the,and,for,with,from,that,this,how,they,does,between,into,under,more,most,such,than,then,when,which,while,about,based,using,used,each,have,has,had,been,were,was,but,not,all,any,can,its,your,you,our,which,should,there,their,will,would,than,then,over,last,which,what,does,doing,either,also,than,those,these,single,given,said'.split(','));
+
+function significantWords(s) {
+  return new Set(
+    String(s || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
+      .filter((w) => w.length > 3 && !REPEAT_STOP.has(w)),
+  );
+}
+
+function repeatsPriorGround(prompt, answered = []) {
+  const cur = significantWords(prompt);
+  if (!cur.size) return false;
+  return answered.some((a) => {
+    const prior = significantWords(a.prompt || a.key);
+    if (!prior.size) return false;
+    let inter = 0;
+    for (const w of cur) if (prior.has(w)) inter += 1;
+    return inter / Math.min(cur.size, prior.size) > 0.55;
+  });
+}
+
+/**
+ * Intake stage, batched: propose up to `count` next questions in one call.
+ * Each candidate goes through the same shape + repetition validation as a
+ * single question, and against the other candidates in the batch too — a
+ * batch that repeats itself is worse than no batch. Anything off-spec falls
+ * back to an empty list and the caller uses the bank.
+ */
+export async function generateIntakeBatch({ topic, answered = [], count = 5, reframe = null, fetchImpl } = {}) {
+  const n = Math.max(1, Math.min(Number(count) || 5, 5));
+  const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, questions: [] });
+  if (!isLlmConfigured()) return fallback(null);
+  try {
+    const { data, usage, model } = await chatJson({
+      effort: 'low',
+      messages: intakeBatchMessages({ topic, answered, count: n, reframe }),
+      temperature: 0.4,
+      maxTokens: 400 * n,
+      fetchImpl,
+    });
+    const raw = Array.isArray(data?.questions) ? data.questions : null;
+    if (!raw) return fallback('model returned no question list');
+    const seen = [...answered.map((a) => a.prompt || a.key)];
+    const questions = [];
+    for (const q of raw.slice(0, n)) {
+      const cleaned = cleanIntakeQuestion(q);
+      if (!cleaned) continue;
+      if (repeatsPriorGround(cleaned.prompt, seen.map((prompt) => ({ prompt })))) continue;
+      seen.push(cleaned.prompt);
+      questions.push(cleaned);
+    }
+    if (!questions.length) return fallback('model returned no usable questions');
+    return { ok: true, source: 'llm', model, usage, questions };
+  } catch (err) {
+    return fallback(err?.message || String(err));
+  }
 }
 
 function cleanIntakeQuestion(data) {

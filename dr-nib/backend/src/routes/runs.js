@@ -7,9 +7,9 @@ import { requestExecute, requestPlan, estimatePlanCost } from '../worker.js';
 import * as auth from '../auth.js';
 import { budgetState, raiseCap, settle } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
-import { deriveDescription, deriveTitle, nextQuestion, TRASH_TTL_MS } from '../intake.js';
-import { generateIntakeQuestion } from '../llm/generate.js';
-import { answerIntakeQuestion, createQuestion } from '../answer-flow.js';
+import { deriveDescription, deriveTitle, nextQuestions, TRASH_TTL_MS } from '../intake.js';
+import { generateIntakeBatch } from '../llm/generate.js';
+import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answer-flow.js';
 import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
 import { createJob, jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
@@ -69,16 +69,20 @@ runs.post('/', async (req, res) => {
         status: 'intake',
       },
     });
-    // The opener is generated for the topic when a model is configured —
-    // a generic first question is where "this feels canned" comes from.
-    // Bank fallback keeps creation instant and infallible either way.
-    let question = nextQuestion([]);
+    // The opener is a BATCH: up to 5 questions generated for the topic in one
+    // call when a model is configured — a generic first question is where
+    // "this feels canned" comes from. Bank fallback keeps creation instant
+    // and infallible either way.
+    let questions = nextQuestions([], 5);
     try {
-      const live = await generateIntakeQuestion({ topic: topic.trim(), answered: [] });
-      if (live.question) question = { ...live.question, source: 'llm' };
+      const live = await generateIntakeBatch({ topic: topic.trim(), answered: [], count: 5 });
+      if (live.questions.length) questions = live.questions.map((q) => ({ ...q, source: 'llm' }));
     } catch {}
-    if (question) await createQuestion(run.id, 0, question);
-    res.status(201).json({ id: run.id, title: run.title, description: run.description, status: run.status, question });
+    for (let i = 0; i < questions.length; i += 1) {
+      await createQuestion(run.id, i, questions[i]);
+      questions[i] = { ...questions[i], seq: i };
+    }
+    res.status(201).json({ id: run.id, title: run.title, description: run.description, status: run.status, question: questions[0] || null, questions });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -131,6 +135,20 @@ runs.get('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Skip the rest of intake: the user said "just plan it". Only from intake —
+// once planning starts there is nothing to skip. Unanswered questions stay
+// unanswered; JEV never sees them, and the brief goes to planning as-is.
+runs.post('/:id/intake/finish', async (req, res) => {
+  try {
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    if (run.status !== 'intake') return res.status(409).json({ error: `nothing to skip from ${run.status}` });
+    const updated = await db.researchRun.update({ where: { id: run.id }, data: { status: 'intake-done' } });
+    await recordEvent(run.id, { type: 'status', status: 'intake-done', skipped: true });
+    res.json({ id: updated.id, status: updated.status });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Answer the current intake question. Re-answering invalidates the transcript
 // after it, and sharpens the project's title/description/metadata. The flow
 // itself lives in answer-flow.js so the MCP server advances the same
@@ -141,6 +159,20 @@ runs.post('/:id/answers', async (req, res) => {
     const run = await ownedRun(req, res);
     if (!run) return;
     const out = await answerIntakeQuestion(run, seq, answer);
+    res.status(out.status).json(out.body);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Answer a whole batch at once: one thinking per answer, one stop decision,
+// one next batch. All-or-nothing — a batch containing an unknown or already-
+// answered question is rejected whole so the transcript never half-advances.
+runs.post('/:id/answers/batch', async (req, res) => {
+  try {
+    const { answers } = req.body || {};
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    if (run.status !== 'intake') return res.status(409).json({ error: `intake is ${run.status} — answers are closed` });
+    const out = await answerIntakeBatch(run, answers);
     res.status(out.status).json(out.body);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

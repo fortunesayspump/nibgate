@@ -10,6 +10,7 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/dr-nib", "Dr. Nib research agent: question to cited report, intake, budgets, escrow, reprompt."],
   ["https://docs.nibgate.xyz/dr-nib/budgets", "Run budgets: caps, per-stage draws, 1% fee, pause-never-overspend, instant refunds."],
   ["https://docs.nibgate.xyz/dr-nib/escrow", "Onchain escrow for runs: ERC-8183 jobs, keeper completion, splitter division, testnet addresses."],
+  ["https://docs.nibgate.xyz/dr-nib/agent-spending", "Agent spending: tips, paid unlocks, x402 payments from the run budget with per-call ceilings."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the public hub endpoints."],
 ];
 

@@ -1,22 +1,33 @@
 # Dr. Nib research agent
 
-Dr. Nib is a research agent that turns a question into a cited report. You describe what you want to know, answer a few scoping questions, set a budget cap in USDC, approve the plan — and it searches the web, reads sources, scores them for relevance and trust, and writes the report. Whatever it doesn't spend comes back.
+Dr. Nib turns a question into a cited report. You describe what you want to know, answer a few scoping questions, set a budget cap in USDC, approve the plan — and it searches the web, reads sources, scores them for relevance and trust, and writes the report. Whatever it doesn't spend comes back.
 
-Open it at **nibgate.xyz/dr-nib/research** (wallet sign-in required).
+Open it at **nibgate.xyz/dr-nib/research** (wallet or Google sign-in required).
 
-## The flow
+<Callout type="info">
+Dr. Nib is mainnet-presented: the UI renders under the mainnet network flag while your budget caps are plain USDC allowances unless you opt into [onchain escrow](./escrow).
+</Callout>
 
-1. **Ask** — type the research question. A project is created immediately so you can leave and resume later. Nothing spends yet.
-2. **Intake** — one scoping question at a time (choice, multi-select, or free text). Each answer sharpens the brief; a judgment layer (JEV) decides when the brief is whole, when to ask more, and when the current angle is unproductive — in which case the next question opens a different direction instead of narrowing a dead one.
-3. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length. Planning is free.
-4. **Review** — the plan shows sub-questions, uncertainties, and a cost estimate. Optionally fund an [onchain escrow](./escrow) first.
-5. **Approve & run** — stages execute: search → fetch → direct data gathering → scoring → review rounds → report. Pause anytime; resume picks up where it stopped.
-6. **Report** — versioned, cited, exportable (Markdown, JSON, BibTeX). Finished runs can run again with a new prompt; the original is kept.
+## The flow, end to end
 
-## What it costs
+```txt
+composer → intake (batches ≤5) → configure → review → approve → run → report
+  topic      scoping Q&A          depth/cap    plan +     escrow?    stages     cited,
+  sent       JEV stop/reframe     formats      estimate   then run   SSE live   exports
+```
 
-Every run holds a [budget](./budgets): stages draw from it plus a 1% platform fee, the run pauses (never overspends) at the cap, and the remainder is refunded at settle. Estimates are shown before you approve.
+1. **Ask** — type the research question and hit Send. The thinking screen opens instantly with your message shown as sent; questions stream in when generated. A project is created straight away, so you can leave and resume later (`?project=`). Nothing spends yet.
+2. **Intake, in batches** — up to 5 questions per screen (easy choices first), progress shown ("3 of 5 done"), prior batches collapsed with your answers labeled. Answer everything, submit once: one thinking per answer streams back, then you press Next when you've read. **Just plan it** skips the rest any time — unanswered questions stay unanswered, nothing is fabricated.
+3. **JEV runs the stop rule** — after each batch a calibrated decision picks `proceed` (brief is whole), `ask_more` (another batch, max 5), or `reframe` (the angle is dead — the next batch opens a different one, and the rejected direction stays on the record). The model proposes, JEV disposes; fallbacks are labeled, never silent.
+4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length. Planning is free.
+5. **Review** — sub-questions, uncertainties, cost estimate. Optionally fund an [onchain escrow](./escrow) first; approve is then gated on it being Funded.
+6. **Run** — the command-center page: report and sources on the left, the live reasoning feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript), guidance box or mid-run question card pinned at the bottom. Pause/resume any time.
+7. **Report** — versioned, cited, exportable (Markdown, JSON, BibTeX). Finished runs can **run again with a new prompt** (reprompt creates version N+1, original kept).
+
+## How a run spends
+
+Every stage draws from the run's [budget](./budgets) plus a 1% platform fee. The run pauses — never overspends — at the cap; raise it or end it. Search fans sub-questions (keyword-ified) across 11 free indexes plus keyed providers when configured; fetch opens ranked pages (PDFs and Office docs parsed, paywalls and bot-checks reported not worked around); a data stage reaches for primary APIs, sandbox compute, or paid sources when retrieval is thin; JEV scores every source and decides continue/write/stop per round.
 
 ## Machine access
 
-The same runs are drivable by agents: signed USDC payments for tips, paid unlocks, and x402 resources come from the run budget inside per-call ceilings, and every tool call is logged with what it cost and what came back.
+The same runs are drivable by agents over MCP (`answer_question`, `answer_questions`, `approve_plan`, `reprompt_run`, `reconcile_run`, …): signed USDC payments for tips, paid unlocks, and x402 resources come from the run budget inside per-call ceilings, and every tool call is logged with what it cost and what came back. See the spending rules below and [Budgets & refunds](./budgets).

@@ -20,6 +20,7 @@ const pages = [
   { path: "/dr-nib", priority: "0.9", changefreq: "weekly" },
   { path: "/dr-nib/budgets", priority: "0.7", changefreq: "weekly" },
   { path: "/dr-nib/escrow", priority: "0.7", changefreq: "weekly" },
+  { path: "/dr-nib/agent-spending", priority: "0.7", changefreq: "weekly" },
   { path: "/api-reference", priority: "0.9", changefreq: "weekly" },
   { path: "/examples", priority: "0.7", changefreq: "weekly" },
   { path: "/roadmap", priority: "0.7", changefreq: "weekly" },

@@ -1,0 +1,35 @@
+# Agent spending
+
+When retrieval comes back thin, the run reaches for primary sources itself — including paid ones — using money from its own budget. This page is the full ruleset: what the agent can spend on, the ceilings, and what stops it.
+
+<Callout type="info">
+No spending key, no spend tools: if `DRNIB_AGENT_PRIVATE_KEY` is unset, paid paths don't exist and the run works the free layer only.
+</Callout>
+
+## The wallet
+
+One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Runs never share balances — separation is per-run accounting in the [ledger](./budgets), enforced before anything signs. The standing invariant: wallet balance ≥ sum of active run caps.
+
+## What it can buy
+
+| Tool | Does | Ceiling/call | Evidence? |
+|---|---|---|---|
+| `unlock_content` | pays a gated article/share and reads the body | $2 | yes — body joins the scorable set |
+| `pay_x402` | pays any x402-gated API, dataset, or tool | $2 | yes — response joins the set |
+| `tip_creator` | tips a decisive creator page via the hub tip rail | $1 | no — receipt only |
+| `http_request` | free public APIs and feeds | $0 | yes |
+| `run_code` | sandbox compute (RPC reads, dataset crunching) | metered | yes — stdout |
+
+## The gates, in order
+
+1. **Price preview.** The 402 challenge is free to read, so the exact price is known before signing. Unreadable price → refuse to sign blind.
+2. **Per-call ceiling.** A hook aborts anything over the cap at signing time, inside the payment client itself.
+3. **Run balance.** The ledger must cover the exact price; otherwise the call never fires.
+4. **JEV trust after.** Paid content is scored like any source — paying never buys credibility.
+
+Tips are proposed sparingly for decisive sources; the model is instructed that free paths come first. Every cent draws from the run budget through the normal charge path, with transaction hashes on the step output and the tool-call events.
+
+## Funding it
+
+- Local/testnet: set `DRNIB_AGENT_PRIVATE_KEY` and fund the derived address with testnet USDC (Circle faucet).
+- Production: same variable on the backend; fund with real USDC when live spend is wanted. An empty wallet fails loudly (`agent wallet holds $0.00`) — nothing half-executes.

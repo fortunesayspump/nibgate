@@ -3,17 +3,34 @@
 Every Dr. Nib run holds its own budget in USDC. The rules are simple and absolute:
 
 - **Cap first.** You set the cap at configure time. Nothing executes until you approve the plan against it.
-- **Draw per stage.** Search, fetch, scoring, writing — each stage draws its cost plus a **1% platform fee**. The fee is taken as money moves, never up front.
+- **Draw per stage.** Search, fetch, scoring, writing — each stage draws its cost plus a **1% platform fee**. The fee is taken as money moves, never up front. Agent purchases (tips, paid unlocks, x402 calls) draw the same way with their transaction hashes on the record.
 - **Never overspend.** If the next stage would pass the cap, the run **pauses** with the balance intact. Raise the cap or end the run — your call.
 - **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent is refunded immediately. There is no holding period.
 
+<Callout type="info">
+Estimates are shown before you approve, and the run pauses instead of guessing when a plan has no estimate yet.
+</Callout>
+
 ## The ledger
 
-The budget ledger is append-only and is the only source of truth for a balance: `deposit` (the cap), `spend` (stages and agent purchases, with transaction hashes for onchain ones), `fee` (the 1%), `refund` (the remainder). Nothing is ever edited or deleted — raises only add the difference, so the cap can never silently move.
+The budget ledger is append-only and is the only source of truth for a balance:
+
+| Kind | Meaning |
+|---|---|
+| `deposit` | the cap (raises record only the delta, so the cap can never silently move) |
+| `spend` | stages and agent purchases (`txRef` carries the onchain hash when there is one) |
+| `fee` | the 1% platform cut on every draw |
+| `refund` | the remainder, written once at settle |
+
+Nothing is ever edited or deleted. Balance = deposited − spent − fee − refunded, always.
 
 ## Raising the cap
 
-Out of budget mid-run? Raise it (raise-only, always) and a paused run continues from the same stage. Stages that already finished are never charged twice.
+Out of budget mid-run? Raise it (raise-only, always) and a paused run continues from the same stage — finished stages are never charged twice. The approve step also refuses a plan whose estimate exceeds the balance, so a run can't start already broke.
+
+## Audit
+
+`reconcile_run` (MCP) checks both directions: every ledger-claimed transaction must resolve to a mined Transfer, and every agent-wallet outflow must resolve to a ledger row. Gateway deposits (still the agent's money) are reported separately so they never read as missing.
 
 ## Onchain escrow (optional)
 

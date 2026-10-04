@@ -2,24 +2,49 @@
 
 For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using stock [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. Testnet first; mainnet follows audit and soak.
 
+<Callout type="info">
+Escrow is opt-in per run. Runs without it keep the [ledger path](./budgets) — nothing about the default changes.
+</Callout>
+
 ## Roles
 
 | Role | Who |
 |---|---|
 | Client | your wallet — funds the job, receives refunds |
 | Provider | the run's splitter contract — receives the full cap on completion, then divides it |
-| Evaluator | the Nibgate keeper — attests completion against the run ledger |
+| Evaluator | the Nibgate keeper — attests completion against the run ledger (a JEV-gated evaluator contract is the planned successor) |
 
 ## Lifecycle
 
-1. **Open** — the backend opens the job (provider = splitter) after configure.
-2. **Fund** — at review you sign `setBudget` + `approve` + `fund`. The full cap locks in escrow.
-3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow.
-4. **Submit** — the worker submits `(reportHash, spentUsdc)` when the report lands.
-5. **Complete** — the keeper completes with the ledger-attested spend.
-6. **Split** — anyone executes the split: earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — atomically, in one transaction.
+```txt
+Open → Funded → Submitted → Completed → split
+  │       │          │            │           │
+  │       │          │            │           └─ operator (spent−1%), treasury (1%),
+  │       │          │            │              client (remainder), atomically
+  │       │          │            └─ keeper complete(reportHash), hook-free
+  │       │          └─ keeper relays submit(reportHash, spent)
+  │       └─ you sign setBudget + approve + fund
+  └─ backend createJob(provider=splitter)
+```
 
-Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund` is permissionless: anyone can trigger it, so funds are never hostage to a backend being alive.
+1. **Open** — the backend opens the job after configure (provider = splitter, evaluator = keeper).
+2. **Fund** — at review you sign `setBudget` + `approve` + `fund`. The full cap locks in escrow. Approve is then gated: the run only starts once the job reads Funded for at least the cap.
+3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow.
+4. **Submit** — the worker submits `(reportHash, spentUsdc)` through the splitter (the provider is a contract and cannot sign, so the keeper relays).
+5. **Complete** — the keeper completes with the ledger-attested spend.
+6. **Split** — anyone executes the keeper-signed attestation: earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — one atomic transaction.
+
+Why a splitter instead of the spec's hook: in the reference implementation `complete()` transfers the full budget *before* `afterAction` fires, so a hook can observe the payout but never redirect it. Setting the provider to the splitter keeps the escrow contract 100% stock.
+
+Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund` is permissionless: anyone can trigger it, so funds are never hostage to a backend being alive. One upstream quirk to know: if client and evaluator are ever the same address, the core checks the client branch first, so use distinct roles.
+
+## Backend endpoints
+
+| Endpoint | Does |
+|---|---|
+| `POST /v1/runs/:id/escrow` | open the job (planning/planned only, one per run) |
+| `GET /v1/runs/:id/escrow` | local record + live onchain status |
+| `POST /v1/runs/:id/escrow/complete` | keeper submit + complete with ledger spend; returns the split signature |
 
 ## Deployed addresses (Arc testnet)
 
@@ -28,4 +53,4 @@ Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund`
 | AgenticCommerce (stock ERC-8183) | `0x5135ae9be828be42b63f176848a7b720aedf4c58` |
 | NibgateRunSplitter (100 bps) | `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` |
 
-USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks.
+USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. Full lifecycle proven onchain: $0.05 funded → $0.03 spent → 17820 operator / 180 treasury / 12000 client, atomic.

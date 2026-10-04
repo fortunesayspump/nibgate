@@ -57,8 +57,9 @@ const TOOLS = {
     description: 'Read pages: extract clean text from URLs. Robots and paywalls are respected; skipped URLs are reported with reasons, never worked around.',
     cost: 'metered',
     async run(input, ctx) {
-      need(input, 'urls');
-      const urls = (Array.isArray(input.urls) ? input.urls : [input.urls]).map(String).slice(0, 20);
+      const urls = input?.urls ?? input?.url;
+      need({ urls }, 'urls');
+      const list = (Array.isArray(urls) ? urls : [urls]).map(String).slice(0, 20);
       for (const url of urls) {
         const verdict = checkUrlPolicy(url, ctx.policy);
         if (!verdict.ok) throw new Error(`refused: ${verdict.reason}`);
@@ -122,8 +123,9 @@ const TOOLS = {
     cost: 'onchain',
     async run(input, ctx) {
       needSpend();
-      need(input, 'contentUrl', 'amount');
-      const out = await tipCreator({ runId: ctx.runId, contentUrl: input.contentUrl, amount: input.amount, title: input.title });
+      const contentUrl = input?.contentUrl ?? input?.url;
+      need({ contentUrl, amount: input?.amount }, 'contentUrl', 'amount');
+      const out = await tipCreator({ runId: ctx.runId, contentUrl, amount: input.amount, title: input.title });
       return { output: out, costUsd: out.amount };
     },
   },

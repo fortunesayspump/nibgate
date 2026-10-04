@@ -117,7 +117,7 @@ export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0
  * History entries are shaped for the next proposal: tool, literal input,
  * and outcome — a retry loop can only learn from failures it can see.
  */
-export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = 'tool-agent', policy = { allow: [], deny: [] }, fetchImpl, onStep } = {}) {
+export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = 'tool-agent', policy = { allow: [], deny: [] }, balanceUsd = null, fetchImpl, onStep } = {}) {
   if (!isLlmConfigured()) throw new Error('LLM is not configured');
   const steps = [];
   let spentUsd = 0;
@@ -154,7 +154,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
       break;
     }
     seen.add(fingerprint);
-    const judgement = await judgeToolCall({ task, proposal, history: steps, spentUsd });
+    const judgement = await judgeToolCall({ task, proposal, history: steps, spentUsd, balanceUsd });
     const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source } };
     if (judgement.decision !== 'execute') {
       step.result = { skipped: true };

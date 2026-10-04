@@ -8,7 +8,7 @@ import { db } from './db.js';
 import { recordEvent } from './eventlog.js';
 import { enqueue } from './queue.js';
 import { budgetState, draw, settle } from './money.js';
-import { generatePlan, generateReport, generateReportLong, generateRoundReview, generateDirectData } from './llm/generate.js';
+import { generatePlan, generateReport, generateReportLong, generateRoundReview } from './llm/generate.js';
 import { resolveLength } from './length.js';
 import { searchEvidence } from './tools/evidence.js';
 import { runChoice, runNoul } from './jev/decisions.js';
@@ -431,33 +431,56 @@ async function dataStage(runId, run, queries) {
   // for paid sources and tip decisive creators, inside per-call ceilings and
   // the run's own balance. No key, no spend tools — the prompt says so too.
   if (isSpendConfigured()) available.push('tip_creator', 'unlock_content', 'pay_x402');
-  const out = await generateDirectData({ brief: run.brief, queries, tools: available });
-  if (!out.calls?.length) {
-    return {
-      skipped: true, why: 'No direct calls proposed — the evidence set stays as retrieval left it.',
-      calls: [], documents: [], source: out.source, model: out.model, llmError: out.llmError || null,
-    };
-  }
+  // The full loop, not a bare proposal: every call is schema-checked,
+  // JEV-judged (execute/skip/answer with reasons), executed, and observed —
+  // the same propose→judge→execute contract as the standalone agent.
+  const { budgetState: state } = await import('./money.js');
+  const { balance } = await state(runId);
+  const { runToolAgent } = await import('./agent/loop.js');
+  const agent = await runToolAgent({
+    task: `Gather primary evidence the web search missed for: ${run.brief?.topic || 'the brief'}\nThin queries were:\n${queries.map((q) => `- ${q}`).join('\n')}`,
+    tools: available,
+    maxSteps: 3,
+    runId,
+    policy: briefPolicy(run),
+    balanceUsd: balance,
+  });
   const calls = [];
   const documents = [];
   let costUsd = 0;
-  for (const [n, c] of out.calls.slice(0, 3).entries()) {
-    const called = await runTool(runId, c.tool, c.input, { policy: briefPolicy(run) });
-    costUsd += called.costUsd;
+  let n = 0;
+  for (const s of agent.steps) {
+    if (!s.proposal?.tool || !s.result || s.result.skipped) {
+      if (s.proposal?.tool) calls.push({ tool: s.proposal.tool, ok: false, why: s.proposal.why, error: `judged ${s.judgement.decision}`, judgement: s.judgement.decision });
+      continue;
+    }
+    n += 1;
+    costUsd += s.result.costUsd || 0;
     // Onchain spends keep their receipts on the step: the ledger records the
     // dollars via charge(), the tx hash lives here and in the tool.call event.
-    calls.push({ tool: c.tool, ok: called.ok, why: c.why, error: called.ok ? undefined : called.error, txHash: called.output?.txHash || undefined });
-    if (called.ok) {
-      const doc = toDirectDocument(n, c, called.output);
+    calls.push({
+      tool: s.proposal.tool, ok: s.result.ok, why: s.proposal.why,
+      error: s.result.ok ? undefined : s.result.error,
+      txHash: s.result.output?.txHash || undefined,
+      judgement: s.judgement.decision,
+    });
+    if (s.result.ok) {
+      const doc = toDirectDocument(n - 1, { tool: s.proposal.tool, input: s.proposal.input }, s.result.output);
       if (doc) documents.push(doc);
     }
+  }
+  if (!calls.length && !agent.stopped) {
+    return {
+      skipped: true, why: 'No direct calls proposed — the evidence set stays as retrieval left it.',
+      calls: [], documents: [],
+    };
   }
   return {
     why: documents.length
       ? 'Retrieval came back thin, so the run asked primary sources directly; every result below still faces JEV trust.'
       : 'Direct calls went out but returned nothing usable.',
     calls, documents, costUsd, attempted: true, fallback: false,
-    source: out.source, model: out.model,
+    source: 'agent-loop', steps: agent.steps.length,
   };
 }
 

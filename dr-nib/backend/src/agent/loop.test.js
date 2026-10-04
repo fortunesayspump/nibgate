@@ -32,7 +32,7 @@ describe('tool agent loop', () => {
   });
 
   it('a skip never executes', async () => {
-    vi.mocked(chatJson).mockResolvedValue({ data: { tool: 'tip_creator', input: {}, why: 'generous' } });
+    vi.mocked(chatJson).mockResolvedValue({ data: { tool: 'tip_creator', input: { contentUrl: 'https://x.example/a', amount: 1 }, why: 'generous' } });
     vi.mocked(decide).mockResolvedValue({ pick: 'skip', probabilities: { skip: 0.8 }, model: 't' });
     const out = await runToolAgent({ task: 'tip things', maxSteps: 1 });
     expect(vi.mocked(runTool)).not.toHaveBeenCalled();
@@ -42,7 +42,7 @@ describe('tool agent loop', () => {
 
   it('JEV outage degrades to skip, never blind execution', async () => {
     const { JevUnavailable } = await import('../jev/client.js');
-    vi.mocked(chatJson).mockResolvedValue({ data: { tool: 'web_search', input: {}, why: 'x' } });
+    vi.mocked(chatJson).mockResolvedValue({ data: { tool: 'web_search', input: { query: 'x' }, why: 'x' } });
     vi.mocked(decide).mockRejectedValue(new JevUnavailable('down'));
     const out = await runToolAgent({ task: 't', maxSteps: 1 });
     expect(vi.mocked(runTool)).not.toHaveBeenCalled();

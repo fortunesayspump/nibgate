@@ -24,11 +24,16 @@ export async function decideIntakeStop({ topic, answeredKeys = [], remainingKeys
         candidates: [
           { id: 'proceed', context: 'The brief is whole: the topic, intent, scope, and constraints needed to plan are all present. Plan now.' },
           { id: 'ask_more', context: 'Something material is still missing — an answer that would change the plan, the sources, or the report shape. Ask the next most valuable question.' },
+          { id: 'reframe', context: 'The questions so far chase the wrong angle: the answers do not converge on anything plannable. Drop this line entirely and open a different angle — continuing it wastes the user.' },
         ],
         questionId: 'intake-stop',
       },
     );
-    return { done: out.pick === 'proceed', source: 'jev', ...out };
+    // A reframe is not a stop: the transcript continues, but the next
+    // question must come from a different angle (the generator enforces
+    // that). The rejected direction stays in the decision row so the frame
+    // that failed is auditable, not just the winner.
+    return { done: out.pick === 'proceed', reframe: out.pick === 'reframe', source: 'jev', ...out };
   } catch (err) {
     if (!(err instanceof JevUnavailable)) throw err;
     return { done: null, source: 'fallback' };

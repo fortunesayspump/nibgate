@@ -91,7 +91,27 @@ export async function answerIntakeQuestion(run, seq, answer) {
     remainingKeys: remainingKeys(keys),
     lastAnswer: describeAnswer(question.question, answer),
   });
-  let done = stop.done;
+  // Frame reject: JEV judged the current line unproductive. Intake continues,
+  // but the next question is regenerated from a different angle — the LLM
+  // decides the new direction, JEV only vetoed the old one. The rejected
+  // prompts ride along so the generator cannot rephrase its way back.
+  const reframed = stop.source === 'jev' && stop.reframe === true;
+  let done = reframed ? false : stop.done;
+  if (reframed) {
+    try {
+      const rejected = (await db.researchDecision.findMany({
+        where: { runId: run.id, kind: 'question' },
+        orderBy: { seq: 'asc' },
+        select: { question: true },
+      })).map((r) => r.question?.prompt || r.question?.key).filter(Boolean).slice(-4);
+      const retry = await generateIntakeQuestion({
+        topic: updated.brief?.topic,
+        answered: [{ prompt: question.question?.prompt, answer: describeAnswer(question.question, answer) }],
+        reframe: { rejected, reason: 'answers do not converge on anything plannable' },
+      });
+      if (retry.question) next = { ...retry.question, source: 'llm' };
+    } catch {}
+  }
   if (done == null) done = !next;
   if (!done && !next) done = true; // bank exhausted: nothing left to ask
   if (next && !done) await createQuestion(run.id, Number(seq) + 1, next);
@@ -105,10 +125,10 @@ export async function answerIntakeQuestion(run, seq, answer) {
       type: stop.source === 'jev' ? 'choice' : 'noul',
       step: 'intake-stop',
       prompt: 'Leave intake?',
-      question: { options: { proceed: 'plan now', ask_more: 'ask another question' } },
-      answer: { picked: done ? 'proceed' : 'ask_more' },
+      question: { options: { proceed: 'plan now', ask_more: 'ask another question', reframe: 'drop this angle, open another' } },
+      answer: { picked: done ? 'proceed' : reframed ? 'reframe' : 'ask_more' },
       output: {
-        decision: done ? 'proceed' : 'ask_more',
+        decision: done ? 'proceed' : reframed ? 'reframe' : 'ask_more',
         source: stop.source,
         ...(stop.source === 'jev'
           ? { probabilities: stop.probabilities, model: stop.model, usage: stop.usage }

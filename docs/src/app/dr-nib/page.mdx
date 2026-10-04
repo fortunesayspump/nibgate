@@ -1,0 +1,22 @@
+# Dr. Nib research agent
+
+Dr. Nib is a research agent that turns a question into a cited report. You describe what you want to know, answer a few scoping questions, set a budget cap in USDC, approve the plan — and it searches the web, reads sources, scores them for relevance and trust, and writes the report. Whatever it doesn't spend comes back.
+
+Open it at **nibgate.xyz/dr-nib/research** (wallet sign-in required).
+
+## The flow
+
+1. **Ask** — type the research question. A project is created immediately so you can leave and resume later. Nothing spends yet.
+2. **Intake** — one scoping question at a time (choice, multi-select, or free text). Each answer sharpens the brief; a judgment layer (JEV) decides when the brief is whole, when to ask more, and when the current angle is unproductive — in which case the next question opens a different direction instead of narrowing a dead one.
+3. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length. Planning is free.
+4. **Review** — the plan shows sub-questions, uncertainties, and a cost estimate. Optionally fund an [onchain escrow](./escrow) first.
+5. **Approve & run** — stages execute: search → fetch → direct data gathering → scoring → review rounds → report. Pause anytime; resume picks up where it stopped.
+6. **Report** — versioned, cited, exportable (Markdown, JSON, BibTeX). Finished runs can run again with a new prompt; the original is kept.
+
+## What it costs
+
+Every run holds a [budget](./budgets): stages draw from it plus a 1% platform fee, the run pauses (never overspends) at the cap, and the remainder is refunded at settle. Estimates are shown before you approve.
+
+## Machine access
+
+The same runs are drivable by agents: signed USDC payments for tips, paid unlocks, and x402 resources come from the run budget inside per-call ceilings, and every tool call is logged with what it cost and what came back.

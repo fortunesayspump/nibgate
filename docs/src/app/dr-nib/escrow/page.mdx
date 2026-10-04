@@ -1,0 +1,31 @@
+# Onchain escrow
+
+For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using stock [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. Testnet first; mainnet follows audit and soak.
+
+## Roles
+
+| Role | Who |
+|---|---|
+| Client | your wallet — funds the job, receives refunds |
+| Provider | the run's splitter contract — receives the full cap on completion, then divides it |
+| Evaluator | the Nibgate keeper — attests completion against the run ledger |
+
+## Lifecycle
+
+1. **Open** — the backend opens the job (provider = splitter) after configure.
+2. **Fund** — at review you sign `setBudget` + `approve` + `fund`. The full cap locks in escrow.
+3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow.
+4. **Submit** — the worker submits `(reportHash, spentUsdc)` when the report lands.
+5. **Complete** — the keeper completes with the ledger-attested spend.
+6. **Split** — anyone executes the split: earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — atomically, in one transaction.
+
+Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund` is permissionless: anyone can trigger it, so funds are never hostage to a backend being alive.
+
+## Deployed addresses (Arc testnet)
+
+| Contract | Address |
+|---|---|
+| AgenticCommerce (stock ERC-8183) | `0x5135ae9be828be42b63f176848a7b720aedf4c58` |
+| NibgateRunSplitter (100 bps) | `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` |
+
+USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks.

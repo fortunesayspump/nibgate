@@ -253,18 +253,15 @@ Internal harness, run continuously — not vibes:
 
 ---
 
-## 10. Build plan (locked decisions)
+## 10. Build plan (locked decisions — all shipped unless noted)
 
-- Backend worker runs the loop (survives tab close).
-- Live web search + JEV scoring from v1 (no mocked corpus).
-- DB-backed runs/sources/reports (immutable versions).
-- Server-side exports to R2 (PDF/Word/Excel/PPT).
-- x402/USDC metering with pre-flight estimate, live ticker,
-  pause-and-top-up at 80/95/100%.
-
-UI shell exists against mock data; the worker fills the same contract.
-Next: schema → worker → `/hub/research` routes → live search wiring →
-export renderers → eval harness.
+- Backend worker runs the loop (survives tab close). ✓ BullMQ + leases + orphan/stalled sweeps.
+- Live web search + JEV scoring from v1 (no mocked corpus). ✓ 11-index free bench + keyed slots.
+- DB-backed runs/sources/reports (immutable versions). ✓
+- Server-side exports (Markdown/JSON/BibTeX downloads; PDF/Word/Excel/PowerPoint renderers not yet wired).
+- x402/USDC metering with pre-flight estimate, live ticker, pause-and-top-up. ✓ plus optional onchain escrow (testnet) and agent spending wallet.
+- Intake with JEV stop/reframe, configure, review, approve gates. ✓
+- Command-center run page: live reasoning feed, Q&A transcript, guidance + reprompt composers. ✓
 
 ---
 

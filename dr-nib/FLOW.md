@@ -361,29 +361,26 @@ one Dr. Nib first proposed.
 
 ## Deposit
 
-Money moves **once, up front**: the user funds the run with its cap, and the run draws that
-balance down stage by stage. Because the whole cap is prepaid, whatever the run doesn't use has
-to come back — an ended or finished run returns the remainder. And because a real balance is
-being held, stopping the run means something concrete happens to money, which is why pause,
-end, and the cap all have to say what they do with it.
+Money moves **once, up front, and only if the user opts in**: at review the
+run offers onchain escrow alongside the default ledger allowance. Either way
+the cap is both the amount funded and the point at which the run stops
+itself: the next stage would carry it past what's left, so it pauses and asks
+whether to raise the cap or end. Whatever the run doesn't use comes back —
+an ended or finished run returns the remainder, because a balance that is
+owed back should not sit in limbo.
 
-The money is **USDC on Arc**, moving through the same holding-box primitive the rest of Nibgate
-uses, and a run carries a **1% platform fee** taken as the budget draws down rather than as a
-separate charge. When the run ends, the remainder returns **immediately, in the same settlement**
-— not batched, not held for later, because a balance that is owed back should not sit in limbo.
-
-The cap is both the amount funded and the point at which the run stops itself: the next stage
-would carry it past what's left, so it pauses and asks whether to raise the cap or end.
+The money is **USDC on Arc**, and a funded run carries a **1% platform fee**
+taken as the budget draws down rather than as a separate charge.
 
 On-chain, this is **stock ERC-8183 (Agentic Commerce) escrow on Arc plus a
-drawdown hook** — designed in `dr-nib/ESCROW.md`, not yet deployed. A run's
-escrow holds the cap funded at approve; stages meter spend in the offchain
-ledger; at settle the keeper completes with the ledger-attested spend and the
-hook splits atomically (spent minus 1% to the operator, 1% to treasury,
-remainder to the payer). Arc's sub-second deterministic finality means the
-close-out is a single settled transaction, not a wait. Until the contract
-deploys, the ledger alone enforces budgets — real outflows are operator-funded
-and the 1% accrues uncollected.
+splitter-as-provider** — specified in `dr-nib/ESCROW.md`, deployed on Arc
+testnet. A run's escrow holds the cap funded at approve; stages meter spend
+in the offchain ledger; at settle the keeper completes with the
+ledger-attested spend and the splitter divides atomically (spent minus 1% to
+the operator, 1% to treasury, remainder to the payer). Arc's sub-second
+deterministic finality means the close-out is a single settled transaction,
+not a wait. Runs without escrow keep the ledger-only path: real outflows are
+operator-funded and the 1% accrues uncollected.
 
 ---
 
@@ -442,16 +439,17 @@ reached, that is a signal to raise it, not to ignore it.
 
 The agent is given real instruments, not a search box and a summarizer:
 
-- **Web search** to find candidates.
+- **Web search** to find candidates — 11 keyless indexes (news, encyclopedia, papers, filings, Q&A, prediction markets, preprints) plus keyed breadth when configured.
 - **Page fetch and readable-text extraction** to turn a URL into text.
-- **PDF and document parsing** for reports, filings, and papers.
-- **A headless browser** for pages that only exist after JavaScript runs.
-- **Academic APIs** (arXiv, PubMed, scholar) for structured scholarly search.
-- **Primary-source APIs** (SEC/EDGAR, government data, GitHub) when the answer lives in a filing
-  or a repository rather than an article about it.
-- **Code execution** for statistics, tables, and charts over what was collected.
-- **The user's own files**, treated as sources.
-- **Domain reputation lookup** as one more signal for trust.
+- **PDF and document parsing** for reports, filings, papers, Office docs — downloaded and read, never refused.
+- **Primary-source APIs** (SEC/EDGAR, government data, GitHub, CoinGecko) when the answer lives in a filing
+  or a repository rather than an article about it — including paid ones, via the run's own wallet.
+- **Paid unlocks and API payments** from the run budget (per-call ceilings, price previewed free first).
+- **Tips** to decisive creators, from the same budget.
+- **Code execution** for statistics, tables, and charts over what was collected, including onchain reads.
+- **Academic APIs** (arXiv, OpenAlex, Semantic Scholar, Crossref, PubMed) for structured scholarly search.
+- **Domain reputation lookup** as one more signal for trust (user-history priors today).
+- Not yet: **a headless browser** for pages that only exist after JavaScript runs; **the user's own files** as sources.
 
 Every tool is **Nibgate-provided and costed into the run — and so is the model itself.** There is
 no bring-your-own-key path anywhere: not for search, not for scraping, and not for the language
@@ -478,6 +476,7 @@ priced, and each one made the same way. The ones that matter:
   can.
 - **Whether a passage supports a claim** — and whether two passages contradict each other.
 - **Whether the search is done** — safe to stop, or is something still missing?
+- **Whether the intake angle is wrong** — JEV can reject the frame itself, and the next question opens a different angle instead of narrowing a dead one.
 - **The report's outline** — what each section argues.
 
 The model writes the options and the prose. The decisions come back as probabilities, and the

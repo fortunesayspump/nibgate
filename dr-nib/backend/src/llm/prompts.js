@@ -227,16 +227,19 @@ Rules for valid JSON: plain double-quoted strings only — no quotes inside valu
  * uncertainty about the brief. The model GENERATES the question; JEV still
  * decides whether intake continues at all. Return JSON only.
  */
-export function intakeQuestionMessages({ topic, answered = [] } = {}) {
+export function intakeQuestionMessages({ topic, answered = [], reframe = null } = {}) {
   const system = `${RESEARCH_SYSTEM} You are interviewing the user before researching. Return JSON only.`;
   const known = answered.length
     ? answered.map((a) => `- ${a.prompt || a.key}: ${a.answer}`).join('\n')
     : '(nothing asked yet)';
+  const reframeBlock = reframe?.rejected?.length
+    ? `\nThe judge rejected the current line of questioning as unproductive ("${String(reframe.reason || 'wrong angle').slice(0, 160)}"). Open a COMPLETELY different angle on the topic — do not repeat, rephrase, or narrow these rejected prompts:\n${reframe.rejected.map((p) => `- ${p}`).join('\n')}\n`
+    : '';
   const user = `Research topic: ${topic || '(unspecified)'}
 
 Already established:
 ${known}
-
+${reframeBlock}
 Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
 
 Propose the ONE next question that most reduces uncertainty about this specific topic. Reference the topic by name. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply, free when only a typed answer makes sense.

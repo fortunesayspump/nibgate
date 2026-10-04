@@ -12,6 +12,7 @@ export default {
   "agent-discovery": "Agent discovery",
   reputation: "Reputation",
   jev: "JEV judgment layer",
+  "dr-nib": "Dr. Nib research agent",
   "---platform": {
     type: "separator",
     title: "Creator Platform",

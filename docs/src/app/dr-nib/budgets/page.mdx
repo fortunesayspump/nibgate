@@ -1,0 +1,20 @@
+# Budgets & refunds
+
+Every Dr. Nib run holds its own budget in USDC. The rules are simple and absolute:
+
+- **Cap first.** You set the cap at configure time. Nothing executes until you approve the plan against it.
+- **Draw per stage.** Search, fetch, scoring, writing — each stage draws its cost plus a **1% platform fee**. The fee is taken as money moves, never up front.
+- **Never overspend.** If the next stage would pass the cap, the run **pauses** with the balance intact. Raise the cap or end the run — your call.
+- **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent is refunded immediately. There is no holding period.
+
+## The ledger
+
+The budget ledger is append-only and is the only source of truth for a balance: `deposit` (the cap), `spend` (stages and agent purchases, with transaction hashes for onchain ones), `fee` (the 1%), `refund` (the remainder). Nothing is ever edited or deleted — raises only add the difference, so the cap can never silently move.
+
+## Raising the cap
+
+Out of budget mid-run? Raise it (raise-only, always) and a paused run continues from the same stage. Stages that already finished are never charged twice.
+
+## Onchain escrow (optional)
+
+By default the budget is an offchain allowance. For real-money guarantees, fund an [onchain escrow](./escrow) at review: the full cap locks in a contract, and the remainder returns to your wallet automatically at settle.

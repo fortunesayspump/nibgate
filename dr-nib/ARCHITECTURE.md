@@ -28,17 +28,23 @@ hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hu
 
 | Method + path | Purpose |
 |---|---|
-| `POST /v1/runs` | Create run from brief (validates budget ≥ estimate floor) |
+| `POST /v1/runs` | Create run from topic (generates first intake question) |
 | `GET /v1/runs` | List runs (filter by status) |
-| `GET /v1/runs/:id` | Run + plan + cost summary |
-| `POST /v1/runs/:id/approve` | Approve plan → enqueue execution |
+| `GET /v1/runs/:id` | Run + plan + steps + sources + decisions + recent events + live budget |
+| `POST /v1/runs/:id/answers` | Answer intake question (advances transcript, may reframe) |
+| `POST /v1/runs/:id/configure` | Set depth/cap/formats → planning → plan |
+| `POST /v1/runs/:id/approve` | Approve plan → enqueue execution (gated on estimate + escrow Funded when escrowed) |
 | `POST /v1/runs/:id/pause` / `/resume` | Cooperative pause (durable, resumable) |
-| `GET /v1/runs/:id/events` | SSE: step started/finished, source scored, cost tick, paused, complete |
-| `POST /v1/runs/:id/revise` | Diff-scoped revision (new version, old immutable) |
+| `GET /v1/runs/:id/events` | SSE: steps, tool calls, status, questions (replayable by seq) |
+| `POST /v1/runs/:id/awaiting/answer` | Answer a mid-run parked question |
+| `POST /v1/runs/:id/guidance` | Steer a moving run (applies at stage boundary) |
+| `POST /v1/runs/:id/revise` | Reprompt: new version, full re-execution + prompt steering |
+| `POST /v1/runs/:id/escrow` | Open onchain job (provider=splitter, evaluator=keeper) |
+| `GET /v1/runs/:id/escrow` | Local record + live onchain job status |
+| `POST /v1/runs/:id/escrow/complete` | Keeper submit+complete with ledger spend, returns split signature |
 | `GET /v1/runs/:id/report` | Latest report version + citations |
-| `POST /v1/runs/:id/exports` | Enqueue render `{format}` → R2 |
-| `GET /v1/runs/:id/exports/:exportId` | Signed download URL |
-| `POST /v1/budgets/:id/topup` | x402 USDC top-up intent → receipt |
+| `POST /v1/runs/:id/exports` | Enqueue render `{md,json,bibtex}` |
+| `POST /v1/budgets/:id/topup` | Raise cap (raise-only) |
 | `GET /v1/budgets/:id` | Balance, holds, spend by category |
 
 Auth: wallet session (same SIWE pattern as hub) for UI; service key for
@@ -76,32 +82,38 @@ against on-chain receipts nightly.
   orphaned jobs. No silent stalls.
 - **Local dev:** same code, in-process queue adapter (no Redis needed).
 
-## 5. Pipeline execution detail
+## 5. Pipeline execution detail (as built)
 
-- **Plan:** brief → sub-question DAG (parallel/sequential marks) →
-  cost estimate from per-stage price table → persisted → awaits approve.
-- **Acquire (fan-out):** one job per sub-question (cap: 5 concurrent).
-  Each: generate queries → retrieve (multi-provider) → rerank → JEV
-  score (relevance + trust, separate calls) → keep top-k → emit events.
-- **Novelty gate:** track seen fact-hashes per sub-question; stop when
-  marginal novelty < threshold or caps hit (searches/fetches/iterations
-  per depth tier).
-- **Synthesize:** draft per section from evidence store only; claims
-  without passages marked Unknown at write time.
-- **Verify:** active fact-check over all claims; JEV noul per
-  claim × passage; unsupported claims dropped or flagged; report
-  versioned.
-- **Export:** markdown single-source → renderers (PDF/DOCX/XLSX/PPTX) →
-  R2 → signed URL.
+- **Intake:** topic → generated-or-banked questions, one at a time; each
+  answer sharpens the brief and records model thinking. JEV owns stop/go
+  (`proceed`/`ask_more`) and can veto the frame (`reframe` → next question
+  opens a different angle). Ends in `intake-done`.
+- **Plan:** brief → sub-questions + uncertainties + cost estimate (LLM with
+  deterministic fallback) → persists → awaits approve.
+- **Acquire (rounds):** per round: search (sub-questions keyword-ified,
+  fanned across all providers) → fetch (ranked pages opened, PDFs and
+  Office docs parsed) → data (model-directed http/sandbox/spend calls when
+  retrieval is thin) → score (relevance from ranking, trust from JEV per
+  source) → round review (learnings + follow-ups, JEV continue/write/stop).
+- **Write:** sections from scored evidence only, citations or `(unsupported)`;
+  advice notice on sensitive topics.
+- **Verify + claims:** claim extraction with JEV support judgements.
+- **Settle:** ledger settle + optional onchain escrow complete + split.
+- Every stage skips when already done (resume/reprompt safe), charges through
+  `draw()`, parks loudly on failure — never silent stalls.
+- **Export:** markdown/JSON/BibTeX renders for download (PDF/Word/Excel/PowerPoint renderers not yet wired).
 
-## 6. Retrieval layer (stolen, then owned)
+## 6. Retrieval layer (free-first, as built)
 
-Provider contract (from GPT Researcher): `{url, title, snippet|content,
-metadata}` + `requires_scraping` flag. Providers: Tavily (breadth),
-Exa (semantic/academic), Firecrawl/Jina (extraction). Provider-aware
-fetch policies; disagreements between providers surfaced, not averaged.
-Hub corpus + user uploads mount as additional providers. Every call
-metered into the run budget.
+Provider contract: `{url, title, snippet|content, score, provider}` + per-
+provider outcome rows `{name, ok, count|error}` surfaced, never averaged.
+Keyed pair (Tavily breadth, Exa semantic) joins only when configured; the
+free bench always runs: SearXNG (self-hosted, `SEARXNG_URL`), GDELT (news,
+paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR,
+Stack Exchange, Hacker News, Polymarket, arXiv. Direct extraction opens
+result URLs (robots + paywalls respected, PDFs/Office parsed, bot-blocks
+named). Every provider call is circuit-broken; every tool call metered
+into the run budget with its result on the event log.
 
 ## 7. JEV integration
 

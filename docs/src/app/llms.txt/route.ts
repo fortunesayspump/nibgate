@@ -7,6 +7,9 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/tipping", "Nib Tips: tip any page. Resolved creators settle instantly; unresolved/external creators are held in a no-key per-domain box, claimable by the owner and refundable by the payer."],
   ["https://docs.nibgate.xyz/tipping/agent-flow", "Agent flow for Nib Tips: resolve, challenge/verify (settled) or hold, and refund held tips over x402."],
   ["https://docs.nibgate.xyz/jev", "JEV judgment layer: deterministic decide/selectMany engine plus the real JEV decisions model behind hub endpoints, used by the extension and metadata enrichment."],
+  ["https://docs.nibgate.xyz/dr-nib", "Dr. Nib research agent: question to cited report, intake, budgets, escrow, reprompt."],
+  ["https://docs.nibgate.xyz/dr-nib/budgets", "Run budgets: caps, per-stage draws, 1% fee, pause-never-overspend, instant refunds."],
+  ["https://docs.nibgate.xyz/dr-nib/escrow", "Onchain escrow for runs: ERC-8183 jobs, keeper completion, splitter division, testnet addresses."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the public hub endpoints."],
 ];
 

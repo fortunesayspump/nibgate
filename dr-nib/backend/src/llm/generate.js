@@ -310,13 +310,13 @@ export async function generateThinking({ question, answer, fetchImpl } = {}) {
  * a bad question is worse than a generic one, and intake must never hard
  * fail on a model hiccup.
  */
-export async function generateIntakeQuestion({ topic, answered = [], fetchImpl } = {}) {
+export async function generateIntakeQuestion({ topic, answered = [], reframe = null, fetchImpl } = {}) {
   const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, question: null });
   if (!isLlmConfigured()) return fallback(null);
   try {
     const { data, usage, model } = await chatJson({
       effort: 'low',
-      messages: intakeQuestionMessages({ topic, answered }),
+      messages: intakeQuestionMessages({ topic, answered, reframe }),
       temperature: 0.4,
       maxTokens: 400,
       fetchImpl,

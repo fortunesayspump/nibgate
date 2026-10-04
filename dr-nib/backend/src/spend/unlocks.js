@@ -102,7 +102,7 @@ export async function payX402({ runId, url, fetchImpl } = {}) {
   const amount = await ensureExact(runId, 'x402', preview.price);
   const client = clientForCap(cap);
   await ensureGatewayFunded(client, amount);
-  const out = await client.pay(String(url), { headers: { 'x-nibgate-actor': 'agent' } });
+  const out = await client.pay(String(url), { headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' } });
   const paid = Number(out?.formattedAmount) || amount;
   return { data: out?.data ?? null, txHash: out?.transaction || null, amount: paid, raw: out };
 }
@@ -116,7 +116,7 @@ export async function unlockContent({ runId, url, fetchImpl } = {}) {
   const amount = await ensureExact(runId, 'unlock', preview.price);
   const client = clientForCap(cap);
   await ensureGatewayFunded(client, amount);
-  const out = await client.pay(String(url), { headers: { 'x-nibgate-actor': 'agent' } });
+  const out = await client.pay(String(url), { headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' } });
   const paid = Number(out?.formattedAmount) || amount;
   const body = out?.data;
   const text = typeof body === 'string' ? body : JSON.stringify(body ?? '');

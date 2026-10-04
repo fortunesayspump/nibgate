@@ -35,6 +35,14 @@ export async function createApp() {
   if (stalled.kicked.length) console.log(`[dr-nib] requeued ${stalled.kicked.length} stalled run(s): ${stalled.kicked.join(', ')}`);
   const app = express();
   app.set('trust proxy', true);
+  // Some x402 client libs send a doubled Content-Type on the paid retry
+  // ("application/json, application/json"); body-parser then skips the body
+  // entirely and handlers see {}. First value wins per RFC 7231 §3.1.1.1.
+  app.use((req, _res, next) => {
+    const ct = req.headers['content-type'];
+    if (typeof ct === 'string' && ct.includes(',')) req.headers['content-type'] = ct.split(',')[0].trim();
+    next();
+  });
   app.use(express.json({ limit: '1mb' }));
   // Same-origin by default (the frontend proxies /drnib/* here), so cookies
   // just work and CORS never comes up. Direct cross-origin calls need

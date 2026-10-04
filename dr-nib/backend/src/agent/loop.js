@@ -21,6 +21,17 @@ const SYS = [
 // (the classic miss is proposing a tip with no amount) and a failed call
 // teaches slower than a complete one.
 const REQUIRED_INPUTS = {
+  web_search: ['query'],
+  web_fetch: [['urls', 'url']],
+  http_request: ['url'],
+  run_code: [['command', 'code']],
+  search_sources: ['query'],
+  tip_creator: ['contentUrl', 'amount'],
+  unlock_content: ['url'],
+  pay_x402: ['url'],
+};
+
+const REQUIRED_LABELS = {
   web_search: 'query (full question or keywords)',
   web_fetch: 'urls (array of https URLs)',
   http_request: 'url (full https URL), method (GET default)',
@@ -31,13 +42,27 @@ const REQUIRED_INPUTS = {
   pay_x402: 'url (full https URL of the gated endpoint)',
 };
 
+/** Schema-check a proposal BEFORE it costs a judgement call or execution. */
+export function checkProposal(tool, input, allowed = null) {
+  const specs = toolSpecs().filter((t) => !allowed || allowed.includes(t.name));
+  if (!specs.some((t) => t.name === tool)) return { ok: false, error: `unknown tool: ${tool} (available: ${specs.map((t) => t.name).join(', ')})` };
+  const required = REQUIRED_INPUTS[tool] || [];
+  for (const field of required) {
+    const names = Array.isArray(field) ? field : [field];
+    if (!names.some((n) => input?.[n] !== undefined && input?.[n] !== null && input?.[n] !== '')) {
+      return { ok: false, error: `missing required input: ${names.join(' or ')}` };
+    }
+  }
+  return { ok: true };
+}
+
 export async function proposeTool({ task, history = [], tools = null, fetchImpl, final = false } = {}) {
   const specs = toolSpecs().filter((t) => !tools || tools.includes(t.name));
   const trail = history.length
     ? history.map((h, i) => `${i + 1}. ${h.tool}(${h.inputSummary}) → ${h.outcome}`).join('\n')
     : '(no calls yet)';
   const toolLines = specs.length
-    ? specs.map((t) => `- ${t.name} (${t.cost}): ${t.description} Input: ${REQUIRED_INPUTS[t.name] || 'see description'}`).join('\n')
+    ? specs.map((t) => `- ${t.name} (${t.cost}): ${t.description} Input: ${REQUIRED_LABELS[t.name] || 'see description'}`).join('\n')
     : '(no tools left — answer from history now, in one or two sentences, even if partial)';
   const { data } = await chatJson({
     effort: 'low',
@@ -96,6 +121,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
   if (!isLlmConfigured()) throw new Error('LLM is not configured');
   const steps = [];
   let spentUsd = 0;
+  const seen = new Set();
   const shape = (tool, input, out) => ({
     tool,
     inputSummary: JSON.stringify(input ?? {}).slice(0, 160),
@@ -107,6 +133,27 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
   for (let n = 0; n < maxSteps; n += 1) {
     const proposal = await proposeTool({ task, history: steps, tools, fetchImpl });
     if (proposal.done) return { answer: proposal.answer, steps, undecided: proposal.undecided };
+    // Pre-execution schema check: malformed proposals die here for free, with
+    // feedback the model can act on — never spend a judgement or a tool call.
+    const shape0 = checkProposal(proposal.tool, proposal.input, tools);
+    if (!shape0.ok) {
+      const step = { n, proposal, judgement: { decision: 'skip', source: 'schema' } };
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: shape0.error }));
+      steps.push(step);
+      await onStep?.(step);
+      continue;
+    }
+    // Identical proposal twice: the definition of a doom loop. Stop the run
+    // and synthesize instead of burning a third identical call.
+    const fingerprint = `${proposal.tool}:${JSON.stringify(proposal.input ?? {})}`;
+    if (seen.has(fingerprint)) {
+      const step = { n, proposal, judgement: { decision: 'skip', source: 'dedupe' } };
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical call already attempted' }));
+      steps.push(step);
+      await onStep?.(step);
+      break;
+    }
+    seen.add(fingerprint);
     const judgement = await judgeToolCall({ task, proposal, history: steps, spentUsd });
     const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source } };
     if (judgement.decision !== 'execute') {
@@ -126,7 +173,12 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
     await onStep?.(step);
   }
   // Out of steps is not an empty answer: force one final proposal with no
-  // tools left, so the model synthesizes from history instead of shrugging.
-  const finale = await proposeTool({ task, history: steps, tools: [], fetchImpl }).catch(() => null);
+  // tools left, the evidence pinned, and an explicit demand for one sentence.
+  const evidence = steps.filter((s) => s.result?.ok).slice(-2)
+    .map((s) => `${s.proposal.tool}: ${JSON.stringify(s.result.output ?? '').slice(0, 400)}`).join('\n');
+  const finale = await proposeTool({
+    task: `${task}\nNo more tool calls. Answer in one sentence from this evidence (never empty):\n${evidence || '(no successful calls)'}`,
+    history: steps, tools: [], fetchImpl,
+  }).catch(() => null);
   return { answer: finale?.answer || '', steps, stopped: 'max-steps' };
 }

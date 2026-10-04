@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2, Send, Square } from "lucide-react";
 import { drNibApi, type IntakeAnswer, type IntakeOption, type IntakeQuestion } from "@/lib/dr-nib-api";
 import { useNibgateConnect } from "@/lib/useNibgateConnect";
+import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
 
 const SAMPLES = [
   "Compare Arc vs Base for USDC micropayments, last 90 days",
@@ -47,6 +48,10 @@ export default function ResearchNewPage() {
   const [estimate, setEstimate] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // Onchain escrow is opt-in per run: the ledger path stays default, and a
+  // funded escrow becomes a hard gate at approve (backend enforces Funded).
+  const [escrowOptIn, setEscrowOptIn] = useState(false);
+  const [escrowFunded, setEscrowFunded] = useState(false);
   const stopRef = useRef<null | (() => void)>(null);
 
   const current = items[idx];
@@ -373,6 +378,9 @@ export default function ResearchNewPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} onChange={(e) => setLiveWeb(e.target.checked)} /> Live web search</label>
+            <label className="flex items-center gap-2" title="Lock the cap in an onchain escrow instead of a ledger allowance">
+              <input type="checkbox" checked={escrowOptIn} onChange={(e) => { setEscrowOptIn(e.target.checked); setEscrowFunded(false); }} /> Fund onchain escrow
+            </label>
             <span className="opacity-60">Outputs:</span>
             {["pdf", "word", "excel", "powerpoint"].map((f) => (
               <button key={f} onClick={() => setFormats((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]))} className={`border px-2.5 py-1 text-xs uppercase ${formats.includes(f) ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{f}</button>
@@ -418,9 +426,12 @@ export default function ResearchNewPage() {
             <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ~${Number(lengthWords || 0).toLocaleString()} words` : `${length} · ~${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"} words`}</p>
             <p className="mt-3 text-sm">Estimated cost: <strong>${(estimate ?? 0.2).toFixed(2)}</strong> · Run {project?.id?.slice(0, 8)}</p>
           </div>
+          {escrowOptIn && project && !escrowFunded && (
+            <EscrowDeposit runId={project.id} budgetCap={budgetCap} onFunded={() => setEscrowFunded(true)} />
+          )}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Starting…" : "Approve & run"}</button>
+            <button onClick={approve} disabled={busy || !project || (escrowOptIn && !escrowFunded)} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowOptIn && !escrowFunded ? "Fund the escrow first" : undefined}>{busy ? "Starting…" : "Approve & run"}</button>
           </div>
         </section>
       )}

@@ -84,7 +84,7 @@ const TOOLS = {
   },
 
   run_code: {
-    description: 'Run a shell command or a script in an isolated ephemeral Linux VM: install packages, parse documents, compute statistics and charts, run CLI tools. No access to platform secrets or the private network; the VM is discarded after the run.',
+    description: 'Run a shell command or a script in an isolated ephemeral Linux VM: install packages, parse documents, compute statistics and charts, query public RPC endpoints, run CLI tools. Keys never enter the sandbox: it fetches and crunches, while signing and spending stay in the backend process (unlock_content/pay_x402). No access to platform secrets or the private network; the VM is discarded after the run.',
     cost: 'metered',
     async run(input, ctx) {
       if (!sandboxConfigured()) throw new Error('run_code is unavailable: sandbox execution is not configured on this deployment');

@@ -12,6 +12,7 @@ import { generateIntakeQuestion } from '../llm/generate.js';
 import { answerIntakeQuestion, createQuestion } from '../answer-flow.js';
 import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
+import { createJob, jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
 
 export const runs = Router();
 
@@ -190,6 +191,24 @@ runs.post('/:id/approve', async (req, res) => {
     }
     if (balance < estimate) {
       return res.status(409).json({ error: `balance $${balance.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first` });
+    }
+    // Escrowed runs move real money: the onchain job must be Funded for at
+    // least the cap before anything executes. Runs without escrow keep the
+    // ledger-only path.
+    const escrow = escrowOf(run);
+    if (escrow?.jobId) {
+      const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
+      if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
+      if (chain.status !== 'Funded') {
+        return res.status(409).json({ error: `escrow job ${escrow.jobId} is ${chain.status} — fund it onchain first` });
+      }
+      if (!(chain.budget >= Number(run.budgetCap))) {
+        return res.status(409).json({ error: `escrow holds $${chain.budget} but the cap is $${Number(run.budgetCap)} — fund the difference first` });
+      }
+      await db.researchRun.update({
+        where: { id: run.id },
+        data: { metadata: { ...(run.metadata || {}), escrow: { ...escrow, status: 'Funded' } } },
+      });
     }
     await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
     await requestExecute(run.id);
@@ -386,6 +405,89 @@ runs.post('/:id/revise', async (req, res) => {
     await recordEvent(run.id, { type: 'status', status: 'running', version, reprompt: prompt ? true : undefined });
     await requestExecute(run.id);
     res.status(202).json({ id: run.id, version, status: 'running' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Research escrow (ERC-8183, see dr-nib/ESCROW.md). Optional per run: when a
+// run carries an escrow job, approve requires it Funded onchain and settle
+// completes it onchain. Runs without one keep the ledger-only path — nothing
+// already working changes.
+function escrowOf(run) {
+  return (run.metadata && run.metadata.escrow) || null;
+}
+
+runs.post('/:id/escrow', async (req, res) => {
+  try {
+    if (!isEscrowConfigured()) return res.status(501).json({ error: 'escrow is not configured on this deployment' });
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    if (!['planning', 'planned'].includes(run.status)) {
+      return res.status(409).json({ error: `escrow opens from planning/planned, not ${run.status}` });
+    }
+    if (escrowOf(run)?.jobId) return res.status(409).json({ error: 'this run already has an escrow job' });
+    const client = String(req.body?.client || req.user.walletAddress || '');
+    if (!/^0x[0-9a-fA-F]{40}$/.test(client)) return res.status(400).json({ error: 'client wallet address is required' });
+    const hours = Math.min(Math.max(Number(req.body?.expiryHours) || 72, 1), 720);
+    const out = await createJob({
+      client,
+      budget: Number(run.budgetCap),
+      description: `Dr. Nib run: ${run.title || run.brief?.topic || run.id}`.slice(0, 280),
+      expiredAt: Math.floor(Date.now() / 1000) + hours * 3600,
+    });
+    const updated = await db.researchRun.update({
+      where: { id: run.id },
+      data: { metadata: { ...(run.metadata || {}), escrow: { ...out, status: 'Open' } } },
+    });
+    await recordEvent(run.id, { type: 'escrow.created', jobId: out.jobId });
+    res.status(201).json(escrowOf(updated));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+runs.get('/:id/escrow', async (req, res) => {
+  try {
+    const run = await ownedRun(req, res, { allowDeleted: true });
+    if (!run) return;
+    const local = escrowOf(run);
+    if (!local?.jobId) return res.json({ configured: isEscrowConfigured(), job: null });
+    const chain = await jobStatus(local.jobId).catch((e) => ({ error: e.message }));
+    res.json({ configured: true, job: { ...local, chain } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+runs.post('/:id/escrow/complete', async (req, res) => {
+  try {
+    if (!isEscrowConfigured()) return res.status(501).json({ error: 'escrow is not configured on this deployment' });
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    const local = escrowOf(run);
+    if (!local?.jobId) return res.status(409).json({ error: 'this run has no escrow job' });
+    if (!['complete', 'failed', 'ended'].includes(run.status)) {
+      return res.status(409).json({ error: `settle the run first (status ${run.status})` });
+    }
+    const report = await db.researchReport.findFirst({ where: { runId: run.id }, orderBy: { version: 'desc' } });
+    const { keccak256, toHex } = await import('viem');
+    const reportHash = report ? keccak256(toHex(report.markdown)) : '0x';
+    const { spend } = await budgetState(run.id);
+    // The operator payee is server configuration, never request input: whoever
+    // calls this endpoint must not be able to redirect earned funds.
+    const operator = process.env.ESCROW_OPERATOR || '';
+    if (!/^0x[0-9a-fA-F]{40}$/.test(operator)) {
+      return res.status(501).json({ error: 'ESCROW_OPERATOR is not configured on this deployment' });
+    }
+    let out = null;
+    if (local.status !== 'Completed') {
+      out = await submitAndComplete({ jobId: local.jobId, reportHash, spentUsd: spend, operator });
+    }
+    // The client is read offchain-truthfully: the split pays job.client
+    // onchain no matter what is signed, so sign the true one.
+    const chain = await jobStatus(local.jobId);
+    const sig = await signSplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
+    const updated = await db.researchRun.update({
+      where: { id: run.id },
+      data: { metadata: { ...(run.metadata || {}), escrow: { ...local, status: 'Completed', completeTx: out?.completeTx || local.completeTx || null, splitSig: sig } } },
+    });
+    await recordEvent(run.id, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || local.completeTx || null });
+    res.json(escrowOf(updated));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

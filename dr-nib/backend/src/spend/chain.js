@@ -5,8 +5,8 @@
 import { NETWORKS } from '@nibgate/internal/networks.js';
 import { config } from '../env.js';
 
-export function spendChain() {
-  const net = NETWORKS[config.network] || NETWORKS.testnet;
+export function spendChain(name) {
+  const net = NETWORKS[name || config.network] || NETWORKS.testnet;
   return {
     name: net.name,
     chainId: net.chainId,

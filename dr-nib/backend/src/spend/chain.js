@@ -14,5 +14,6 @@ export function spendChain(name) {
     usdc: net.usdc,
     explorerUrl: net.explorerUrl,
     gatewayChain: net.isTestnet ? 'arcTestnet' : 'arc',
+    facilitatorUrl: net.facilitatorUrl,
   };
 }

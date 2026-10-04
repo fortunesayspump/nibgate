@@ -78,9 +78,24 @@ async function ensureGatewayFunded(client, price) {
   await client.deposit(String(price.toFixed(2)));
 }
 
+// Never buy from ourselves: the run paying its own backend is a money loop
+// that burns budget for nothing. Creator content on other nibgate.xyz hosts
+// stays fair game.
+function refuseSelf(url) {
+  const self = (process.env.DRNIB_SELF_HOST || 'drnib.nibgate.xyz').toLowerCase();
+  try {
+    const host = new URL(String(url)).hostname.toLowerCase();
+    if (host === self || host.endsWith(`.${self}`)) throw new Error('refusing to buy from our own backend');
+  } catch (e) {
+    if (e.message.startsWith('refusing')) throw e;
+    throw new Error('unparseable URL');
+  }
+}
+
 /** Pay an x402 resource and return its content. Returns { data, txHash, amount }. */
 export async function payX402({ runId, url, fetchImpl } = {}) {
   if (!url || !/^https:\/\//i.test(String(url))) throw new Error('pay_x402 needs a public https URL');
+  refuseSelf(url);
   const cap = Number(process.env.DRNIB_SPEND_MAX_X402 || 2);
   const preview = await previewPrice(url, fetchImpl);
   if (preview.unknown) throw new Error('no readable price on this 402 — refusing to sign blind');

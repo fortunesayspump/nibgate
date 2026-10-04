@@ -12,6 +12,7 @@ import { config } from './env.js';
 import { runs } from './routes/runs.js';
 import { budgets } from './routes/budgets.js';
 import { exports } from './routes/exports.js';
+import { x402 } from './routes/x402.js';
 import { mcp } from './mcp/routes.js';
 import { initQueue, queueMode } from './queue.js';
 import { requeueOrphans, requeueStalledRuns } from './worker.js';
@@ -45,6 +46,10 @@ export async function createApp() {
 
   app.use('/v1/runs', runs);
   app.use('/v1/budgets', budgets);
+  // x402 before exports: router middleware runs on mount-prefix match, so the
+  // exports router's auth would 401 these permissionless paid routes first.
+  // (x402 carries no router middleware, so nothing leaks the other way.)
+  app.use('/v1', x402);
   app.use('/v1', exports);
   app.use('/mcp', mcp);
   app.use((err, _req, res, _next) => res.status(500).json({ error: err?.message || 'internal' }));

@@ -11,6 +11,7 @@
 import { chatJson, isLlmConfigured } from '../llm/provider.js';
 import { decide, JevUnavailable } from '../jev/client.js';
 import { toolSpecs, runTool } from '../tools/executor.js';
+import { agentState, selfBlock } from './self.js';
 
 const SYS = [
   'You operate tools for a principal with a limited budget. You never spend what you cannot see quoted.',
@@ -56,7 +57,7 @@ export function checkProposal(tool, input, allowed = null) {
   return { ok: true };
 }
 
-export async function proposeTool({ task, history = [], tools = null, fetchImpl, final = false } = {}) {
+export async function proposeTool({ task, history = [], tools = null, fetchImpl, final = false, self = null } = {}) {
   const specs = toolSpecs().filter((t) => !tools || tools.includes(t.name));
   const trail = history.length
     ? history.map((h, i) => `${i + 1}. ${h.tool}(${h.inputSummary}) → ${h.outcome}`).join('\n')
@@ -64,13 +65,14 @@ export async function proposeTool({ task, history = [], tools = null, fetchImpl,
   const toolLines = specs.length
     ? specs.map((t) => `- ${t.name} (${t.cost}): ${t.description} Input: ${REQUIRED_LABELS[t.name] || 'see description'}`).join('\n')
     : '(no tools left — answer from history now, in one or two sentences, even if partial)';
+  const selfSection = self ? `\n\nWho you are right now:\n${self}\n` : '';
   const { data } = await chatJson({
     effort: 'low',
     messages: [
       { role: 'system', content: SYS },
       {
         role: 'user',
-        content: `Task: ${task}\n\nCalls so far (learn from failures — a failed call with the same input will fail again):\n${trail}\n\nAvailable tools:\n${toolLines}\n\nReply with the single next call, or done with the final answer synthesized from the calls above. Amounts and URLs must be complete and literal — never placeholders.`,
+        content: `Task: ${task}\n${selfSection}\nCalls so far (learn from failures — a failed call with the same input will fail again):\n${trail}\n\nAvailable tools:\n${toolLines}\n\nReply with the single next call, or done with the final answer synthesized from the calls above. Amounts and URLs must be complete and literal — never placeholders.`,
       },
     ],
     temperature: 0.2,
@@ -131,7 +133,14 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
       : `FAILED: ${String(out?.error || 'unknown').slice(0, 160)}`,
   });
   for (let n = 0; n < maxSteps; n += 1) {
-    const proposal = await proposeTool({ task, history: steps, tools, fetchImpl });
+    // Fresh self-model every turn: balances move, tools appear/disappear,
+    // budgets drain. Reasoning from a stale snapshot is how agents promise
+    // spends they cannot make.
+    let selfText = '';
+    try {
+      selfText = selfBlock(await agentState({ runId }), maxSteps - n);
+    } catch {}
+    const proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText });
     if (proposal.done) return { answer: proposal.answer, steps, undecided: proposal.undecided };
     // Pre-execution schema check: malformed proposals die here for free, with
     // feedback the model can act on — never spend a judgement or a tool call.
@@ -176,9 +185,13 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
   // tools left, the evidence pinned, and an explicit demand for one sentence.
   const evidence = steps.filter((s) => s.result?.ok).slice(-2)
     .map((s) => `${s.proposal.tool}: ${JSON.stringify(s.result.output ?? '').slice(0, 400)}`).join('\n');
+  let finaleSelf = '';
+  try {
+    finaleSelf = selfBlock(await agentState({ runId }), 0);
+  } catch {}
   const finale = await proposeTool({
     task: `${task}\nNo more tool calls. Answer in one sentence from this evidence (never empty):\n${evidence || '(no successful calls)'}`,
-    history: steps, tools: [], fetchImpl,
+    history: steps, tools: [], fetchImpl, self: finaleSelf,
   }).catch(() => null);
   return { answer: finale?.answer || '', steps, stopped: 'max-steps' };
 }

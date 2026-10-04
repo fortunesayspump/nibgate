@@ -125,7 +125,7 @@ const TOOLS = {
       needSpend();
       const contentUrl = input?.contentUrl ?? input?.url;
       need({ contentUrl, amount: input?.amount }, 'contentUrl', 'amount');
-      const out = await tipCreator({ runId: ctx.runId, contentUrl, amount: input.amount, title: input.title });
+      const out = await tipCreator({ runId: ctx.runId, contentUrl, amount: input.amount, title: input.title, recipient: input.recipient });
       return { output: out, costUsd: out.amount };
     },
   },
@@ -243,7 +243,7 @@ function summarizeResult(name, output) {
       return { searched: output.searched ?? null, hits: matches.length, items: matches.slice(0, 5).map((m) => ({ title: String(m?.title || m?.url || '').slice(0, 120), url: m?.url || null })) };
     }
     if (name === 'tip_creator') {
-      return { tipped: output?.amount ?? null, payee: output?.payee || null, tx: output?.txHash || null };
+      return { tipped: output?.amount ?? null, payee: output?.payee || null, tx: output?.txHash || null, held: output?.held === true ? 'in domain box (claimable)' : 'settled' };
     }
     if (name === 'unlock_content' || name === 'pay_x402') {
       const text = typeof output?.text === 'string' ? output.text : JSON.stringify(output?.data ?? '');

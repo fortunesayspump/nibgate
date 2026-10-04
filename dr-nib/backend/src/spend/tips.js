@@ -22,22 +22,44 @@ async function hub(path, body) {
 /**
  * Tip a page from the run's budget. Returns { receipt, txHash, amount }.
  * Throws on any failure; onchain sends happen only after every check passes.
+ *
+ * Resolved creators settle instantly (challenge → transfer → verify).
+ * External/unresolved pages fall back to the holding box (hold challenge →
+ * fund box → verify held): the domain owner claims later, the payer can
+ * refund until then. Same hub rails browsers use — the ledger cannot tell a
+ * machine tip from a human one.
  */
-export async function tipCreator({ runId, contentUrl, amount, title, fetchImpl } = {}) {
+export async function tipCreator({ runId, contentUrl, amount, title, recipient, fetchImpl } = {}) {
   if (!contentUrl || typeof contentUrl !== 'string') throw new Error('contentUrl is required');
   const gate = checkAmount('tip', amount);
   if (!gate.ok) throw new Error(gate.error);
   const { balance } = await budgetState(runId);
   if (!(balance >= gate.amount)) throw new Error(`run balance $${balance.toFixed(2)} cannot cover a $${gate.amount.toFixed(2)} tip`);
   const post = fetchImpl || hub;
-  const challenge = await post('/hub/tips/challenge', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer' });
-  const payee = challenge?.payee;
-  if (!payee) throw new Error('hub returned no payee for this tip');
-  const txHash = await sendUsdc(payee, gate.amount);
-  const verified = await post('/hub/tips/verify', {
+  let challenge = null;
+  try {
+    challenge = await post('/hub/tips/challenge', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer', ...(recipient ? { recipient } : {}) });
+  } catch (e) {
+    challenge = { error: e.message };
+  }
+  if (challenge?.payee) {
+    const txHash = await sendUsdc(challenge.payee, gate.amount);
+    const verified = await post('/hub/tips/verify', {
+      contentUrl, title, amount: String(gate.amount), currency: 'USDC',
+      paymentRail: 'transfer', txHash, ...(recipient ? { recipient } : {}),
+    });
+    if (!verified?.success) throw new Error(verified?.error || 'hub did not verify the tip transfer');
+    return { receipt: verified.receipt || verified, txHash, amount: gate.amount, payee: challenge.payee, held: false };
+  }
+  // No direct payee (external/unresolved creator): hold in the domain box.
+  const hold = await post('/hub/tips/hold', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer', ...(recipient ? { recipient } : {}) });
+  const box = hold?.box;
+  if (!box) throw new Error(hold?.error || 'hub returned no holding box for this tip');
+  const txHash = await sendUsdc(box, gate.amount);
+  const held = await post('/hub/tips/hold', {
     contentUrl, title, amount: String(gate.amount), currency: 'USDC',
-    paymentRail: 'transfer', txHash,
+    paymentRail: 'transfer', txHash, ...(recipient ? { recipient } : {}),
   });
-  if (!verified?.success) throw new Error(verified?.error || 'hub did not verify the tip transfer');
-  return { receipt: verified.receipt || verified, txHash, amount: gate.amount, payee };
+  if (held?.holdStatus !== 'held') throw new Error(held?.error || 'hub did not verify the held tip');
+  return { receipt: held.tip || held, txHash, amount: gate.amount, payee: box, held: true };
 }

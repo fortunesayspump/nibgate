@@ -12,6 +12,7 @@ import { chatJson, isLlmConfigured } from '../llm/provider.js';
 import { decide, JevUnavailable } from '../jev/client.js';
 import { toolSpecs, runTool } from '../tools/executor.js';
 import { agentState, selfBlock } from './self.js';
+import { fingerprint as canonicalPrint, similarity, extractChecklist, coverage } from './stops.js';
 
 const SYS = [
   'You operate tools for a principal with a limited budget. You never spend what you cannot see quoted.',
@@ -95,11 +96,11 @@ export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0
     repeats > 0 ? `WARNING: this exact tool already failed ${repeats}x — executing it again burns budget for a known outcome.` : '',
     successes >= 2 ? `NOTE: ${successes} calls already succeeded. Prefer answer unless this call measures something genuinely new.` : '',
   ].filter(Boolean).join('\n');
-  // One retry on transient JEV failure (no status or 5xx: dropped
-  // connection, model ramble inside the judge). 4xx is a real rejection —
-  // retrying it just burns time. After that the safe default is skip, never
-  // blind execution: money and side effects must not ride on an unjudged
-  // proposal.
+  // One retry on transient JEV failure: no HTTP response (connection refused,
+  // reset, timeout) or a 502/503/504 from the hub. Anything else — 4xx, 500,
+  // 501 (not enabled in this build) — is a real rejection; retrying it just
+  // burns time. After that the safe default is skip, never blind execution:
+  // money and side effects must not ride on an unjudged proposal.
   for (let attempt = 0; ; attempt += 1) {
     try {
       const out = await decide({
@@ -115,28 +116,43 @@ export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0
       return { decision: out.pick, source: 'jev', ...(attempt > 0 ? { retried: true } : {}), ...out };
     } catch (err) {
       if (!(err instanceof JevUnavailable)) throw err;
-      const transient = err.status == null || err.status >= 500;
-      if (transient && attempt === 0) continue;
-      return { decision: 'skip', source: 'fallback', reason: 'jev-unavailable' };
+      const status = err.status ?? null;
+      const retryable = status == null || status === 502 || status === 503 || status === 504;
+      if (retryable && attempt === 0) continue;
+      return { decision: 'skip', source: 'fallback', reason: 'jev-unavailable', status };
     }
   }
 }
 
 /**
- * Run one task to completion (or maxSteps). Returns { answer, steps } where
- * every step carries proposal + decision + result for the audit trail.
+ * Run one task to completion (or to a stop reason). Returns
+ * { answer, steps, stopped } where stopped is the FIRST triggering condition
+ * (max-steps, deadline, cost-budget, judge-unreachable, proposal-lost,
+ * executed-duplicate, skip-loop, failure-budget, evidence-covered,
+ * no-novelty, streak-exhausted, judge-answered, done-signal) — tune
+ * thresholds from this field, not from vibes.
+ *
+ * Every step carries proposal + decision + result for the audit trail.
  * History entries are shaped for the next proposal: tool, literal input,
  * and outcome — a retry loop can only learn from failures it can see.
  */
-export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = 'tool-agent', policy = { allow: [], deny: [] }, balanceUsd = null, fetchImpl, onStep } = {}) {
+export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = 'tool-agent', policy = { allow: [], deny: [] }, balanceUsd = null, fetchImpl, onStep, deadlineMs = 600_000, maxSpendUsd = 1, failBudget = 3 } = {}) {
   if (!isLlmConfigured()) throw new Error('LLM is not configured');
   const steps = [];
   let spentUsd = 0;
   let stopped = 'max-steps';
+  const startedAt = Date.now();
+  // The run's rubric: concrete facts that would answer the task, extracted
+  // once up front. Coverage against it is deterministic keyword matching —
+  // the model names the target, code decides when it is hit.
+  const checklist = await extractChecklist(task, { fetchImpl });
   const seen = new Set();
   let proposalFails = 0;
   let lastSkipped = null;
   let skippedRepeats = 0;
+  let judgedOk = false;
+  let failStreak = 0;
+  let redundantStreak = 0;
   const shape = (tool, input, out) => ({
     tool,
     inputSummary: JSON.stringify(input ?? {}).slice(0, 160),
@@ -146,6 +162,10 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
       : `FAILED: ${String(out?.error || 'unknown').slice(0, 160)}`,
   });
   for (let n = 0; n < maxSteps; n += 1) {
+    // Budgets are checked BEFORE the calls they bound — checking after the
+    // fact is how you accidentally double your spend right at the limit.
+    if (Date.now() - startedAt > deadlineMs) { stopped = 'deadline'; break; }
+    if (spentUsd >= maxSpendUsd) { stopped = 'cost-budget'; break; }
     // Fresh self-model every turn: balances move, tools appear/disappear,
     // budgets drain. Reasoning from a stale snapshot is how agents promise
     // spends they cannot make.
@@ -162,10 +182,10 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
     } catch (err) {
       proposalFails += 1;
       steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'malformed' }, result: null, ok: false, inputSummary: '', outcome: `FAILED TO PROPOSE: ${String(err?.message || err).slice(0, 140)}` });
-      if (proposalFails >= 2) break;
+      if (proposalFails >= 2) { stopped = 'proposal-lost'; break; }
       continue;
     }
-    if (proposal.done) return { answer: proposal.answer, steps, undecided: proposal.undecided };
+    if (proposal.done) return { answer: proposal.answer, steps, stopped: 'done-signal', undecided: proposal.undecided };
     // Pre-execution schema check: malformed proposals die here for free, with
     // feedback the model can act on — never spend a judgement or a tool call.
     const shape0 = checkProposal(proposal.tool, proposal.input, tools);
@@ -178,15 +198,17 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
     }
     // Identical proposal twice: the definition of a doom loop. Stop the run
     // and synthesize instead of burning a third identical call. Only
-    // *executed* calls poison the fingerprint — a proposal skipped by the
-    // judge or schema was never attempted, and blocking its retry would let
-    // one flaky judgement starve the whole run.
-    const fingerprint = `${proposal.tool}:${JSON.stringify(proposal.input ?? {})}`;
-    if (seen.has(fingerprint)) {
+    // *successful* executions poison the fingerprint — a failed or skipped
+    // call was never banked as evidence, and blocking its retry would let
+    // one transient error starve the whole run. (Repeated failures trip the
+    // failure budget instead.)
+    const fp = canonicalPrint(proposal.tool, proposal.input ?? {});
+    if (seen.has(fp)) {
       const step = { n, proposal, judgement: { decision: 'skip', source: 'dedupe' } };
-      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical call already executed' }));
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical call already succeeded — stopping' }));
       steps.push(step);
       await onStep?.(step);
+      stopped = 'executed-duplicate';
       break;
     }
     // Same tool succeeding over and over: the well is dry. Three consecutive
@@ -207,43 +229,111 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
       stopped = 'enough-evidence';
       break;
     }
-    const judgement = await judgeToolCall({ task, proposal, history: steps, spentUsd, balanceUsd });
-    if (judgement.decision === 'execute') {
-      seen.add(fingerprint);
-      lastSkipped = null;
-      skippedRepeats = 0;
+    if (streak >= 3) {
+      const step = { n, proposal, judgement: { decision: 'answer', source: 'streak' } };
+      step.result = { skipped: true };
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: `stopped after ${streak} consecutive ${proposal.tool} successes` }));
+      steps.push(step);
+      await onStep?.(step);
+      stopped = 'streak-exhausted';
+      break;
     }
+    // Already covered by evidence gathered so far: judging another call is
+    // wasted latency. Checked pre-judge so a satisfied checklist never pays
+    // for a verdict it does not need.
+    if (checklist?.length) {
+      const priorObs = steps.filter((s) => s.outputText).map((s) => s.outputText);
+      if (priorObs.length && !coverage(checklist, priorObs).missing.length) {
+        const step = { n, proposal, judgement: { decision: 'answer', source: 'coverage' } };
+        step.result = { skipped: true };
+        Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'checklist fully covered by prior observations — stopping' }));
+        steps.push(step);
+        await onStep?.(step);
+        stopped = 'evidence-covered';
+        break;
+      }
+    }
+    const judgement = await judgeToolCall({ task, proposal, history: steps, spentUsd, balanceUsd });
+    if (judgement.source === 'jev') judgedOk = true;
     const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source } };
     if (judgement.decision !== 'execute') {
       step.result = { skipped: true };
+      // No HTTP response on any judgement so far: the judge is unreachable
+      // (infra down), not voicing a verdict. Limping through maxSteps on
+      // fallback-skips burns time and teaches the proposer that good calls
+      // get skipped — stop and say so.
+      if (judgement.source === 'fallback' && (judgement.status ?? null) == null && !judgedOk) {
+        Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'judge unreachable (no HTTP response) — stopping instead of running judgeless' }));
+        steps.push(step);
+        await onStep?.(step);
+        stopped = 'judge-unreachable';
+        break;
+      }
       // Same skipped proposal again: the proposer is stuck, not learning.
       // Varying proposals after a skip is fine; repeating one is a doom loop.
-      if (fingerprint === lastSkipped) {
+      if (fp === lastSkipped) {
         skippedRepeats += 1;
         if (skippedRepeats >= 2) {
           Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical proposal skipped repeatedly — stopping' }));
           step.judgement = { decision: 'skip', source: 'dedupe' };
           steps.push(step);
           await onStep?.(step);
+          stopped = 'skip-loop';
           break;
         }
       } else {
-        lastSkipped = fingerprint;
+        lastSkipped = fp;
         skippedRepeats = 1;
       }
-      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: `judged ${judgement.decision}` }));
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: `SKIPPED BY JUDGE (never executed): ${judgement.decision}${judgement.reason ? ` — ${judgement.reason}` : ''}` }));
       steps.push(step);
-      if (judgement.decision === 'answer') return { answer: '', steps };
+      if (judgement.decision === 'answer') { stopped = 'judge-answered'; break; }
       await onStep?.(step);
       continue;
     }
     const t0 = Date.now();
     const out = await runTool(runId, proposal.tool, proposal.input, { policy });
     spentUsd += Number(out.costUsd) || 0;
+    const outputText = out.ok ? JSON.stringify(out.output ?? '').slice(0, 2000) : '';
     step.result = { ok: out.ok, costUsd: out.costUsd || 0, ms: Date.now() - t0, output: out.ok ? out.output : null, error: out.ok ? null : out.error };
+    step.outputText = outputText;
     Object.assign(step, shape(proposal.tool, proposal.input, { ...step.result, ms: step.result.ms }));
+    if (!out.ok) {
+      // Failures never poison the fingerprint (transients deserve retries),
+      // but K consecutive failures mean the plan is broken, not unlucky.
+      failStreak += 1;
+      redundantStreak = 0;
+      step.outcome = `FAILED IN EXECUTION: ${String(out.error || 'unknown').slice(0, 160)}`;
+      steps.push(step);
+      await onStep?.(step);
+      if (failStreak >= failBudget) { stopped = 'failure-budget'; break; }
+      continue;
+    }
+    seen.add(fp);
+    failStreak = 0;
+    lastSkipped = null;
+    skippedRepeats = 0;
+    // Novelty: an observation near-identical to a prior one from the same
+    // tool added no information. Two in a row and the run is re-reading.
+    const priors = steps.filter((s) => s.tool === proposal.tool && s.outputText).map((s) => s.outputText);
+    const redundant = priors.some((p) => similarity(outputText, p) > 0.85);
+    redundantStreak = redundant ? redundantStreak + 1 : 0;
+    let missingNote = '';
+    if (checklist?.length) {
+      const cov = coverage(checklist, steps.filter((s) => s.outputText).map((s) => s.outputText).concat(outputText));
+      step.coverage = cov;
+      if (!cov.missing.length) {
+        steps.push(step);
+        await onStep?.(step);
+        stopped = 'evidence-covered';
+        break;
+      }
+      missingNote = ` Still missing: ${cov.missing.join('; ')}.`;
+    }
+    step.outcome += missingNote;
     steps.push(step);
     await onStep?.(step);
+    if (redundantStreak >= 2) { stopped = 'no-novelty'; break; }
   }
   // Out of steps is not an empty answer: force one final proposal with no
   // tools left, the evidence pinned, and an explicit demand for one sentence.

@@ -72,7 +72,7 @@ export function checkProposal(tool, input, allowed = null) {
   return { ok: true };
 }
 
-export async function proposeTool({ task, history = [], tools = null, fetchImpl, final = false, self = null, plan = null, lesson = null } = {}) {
+export async function proposeTool({ task, history = [], tools = null, fetchImpl, final = false, self = null, plan = null, lesson = null, focus = null } = {}) {
   const specs = toolSpecs().filter((t) => !tools || tools.includes(t.name));
   // submit_answer is loop machinery, not a capability: always offered even
   // under a restricted tool allowlist.
@@ -86,19 +86,32 @@ export async function proposeTool({ task, history = [], tools = null, fetchImpl,
   const selfSection = self ? `\n\nWho you are right now:\n${self}\n` : '';
   const planSection = plan ? `\n\nCurrent plan (from re-planning — follow it unless evidence contradicts it):\n${plan}\n` : '';
   const lessonSection = lesson ? `\n\nLesson from a similar past task (do not repeat this mistake):\n${lesson}\n` : '';
-  const { data, usage } = await chatJson({
-    effort: 'low',
-    messages: [
+  const focusSection = focus ? `\n\nRight now, make ONE call toward this uncovered item: ${focus}\n` : '';
+  const fullPrompt = `Task: ${task}\n${selfSection}${planSection}${lessonSection}${focusSection}\nCalls so far (learn from failures — a failed call with the same input will fail again):\n${trail}\n\nAvailable tools:\n${toolLines}\n\nReply with the single next call, or done with the final answer synthesized from the calls above. Amounts and URLs must be complete and literal — never placeholders.`;
+  const attempt = (messages, maxTokens) => chatJson({ effort: 'low', messages, temperature: 0.2, maxTokens, fetchImpl });
+  const base = [
+    { role: 'system', content: SYS },
+    { role: 'user', content: fullPrompt },
+  ];
+  let res;
+  try {
+    res = await attempt(base, LIMITS.proposeMaxTokens);
+  } catch (err) {
+    // Minimal retry: long tasks make small models ramble prose instead of
+    // JSON. Strip everything but the immediate ask and tool names — a
+    // smaller context often complies where the full one did not.
+    const minimal = [
       { role: 'system', content: SYS },
-      {
-        role: 'user',
-        content: `Task: ${task}\n${selfSection}${planSection}${lessonSection}\nCalls so far (learn from failures — a failed call with the same input will fail again):\n${trail}\n\nAvailable tools:\n${toolLines}\n\nReply with the single next call, or done with the final answer synthesized from the calls above. Amounts and URLs must be complete and literal — never placeholders.`,
-      },
-    ],
-    temperature: 0.2,
-    maxTokens: LIMITS.proposeMaxTokens,
-    fetchImpl,
-  });
+      { role: 'user', content: `Task: ${task.slice(0, 300)}${focus ? `\nDo ONE call toward: ${focus}` : ''}\nTools: ${specs.map((t) => t.name).join(', ')}. Reply with ONLY the JSON object.` },
+    ];
+    try {
+      res = await attempt(minimal, 300);
+    } catch (err2) {
+      err2.replyPreview = [err?.replyPreview, err2?.replyPreview].filter(Boolean).join('\n---MINIMAL---\n');
+      throw err2;
+    }
+  }
+  const { data, usage } = res;
   if (data?.done) return { done: true, answer: String(data.answer || ''), usage };
   if (Array.isArray(data?.calls) && data.calls.length) {
     const calls = data.calls.slice(0, LIMITS.parallelMax).map((c) => ({
@@ -155,9 +168,10 @@ export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0
  * Run one task to completion (or to a stop reason). Returns
  * { answer, steps, stopped } where stopped is the FIRST triggering condition
  * (max-steps, deadline, cost-budget, token-budget, judge-unreachable,
- * proposal-lost, executed-duplicate, skip-loop, failure-budget,
- * evidence-covered, no-novelty, streak-exhausted, judge-answered,
- * finish-tool, done-signal) — tune thresholds from this field, not vibes.
+ * llm-unreachable, proposal-lost, executed-duplicate, skip-loop,
+ * failure-budget, evidence-covered, no-novelty, streak-exhausted,
+ * judge-answered, finish-tool, done-signal) — tune thresholds from this
+ * field, not vibes.
  *
  * Every step carries proposal + decision + result for the audit trail.
  * History entries are shaped for the next proposal: tool, literal input,
@@ -195,6 +209,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
   let plan = null;
   const seen = new Set();
   let proposalFails = 0;
+  let transportFails = 0;
   let lastSkipped = null;
   let skippedRepeats = 0;
   let judgedOk = false;
@@ -235,14 +250,31 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     } catch {}
     // A malformed proposal is a failed step, not a dead run: record it and
     // continue. Two in a row means the proposer is lost — stop and synthesize.
+    // The raw reply is preserved: unlogged rambles can't be tuned.
+    // Per-turn focus: the first uncovered checklist item (or the first item
+    // when nothing is banked yet) so multi-part tasks get ONE immediate ask
+    // instead of overwhelming the proposer.
+    const focusObs = steps.filter((s) => s.outputText).map((s) => s.outputText);
+    const focusMissing = checklist?.length ? coverage(checklist, focusObs).missing : [];
+    const focus = focusMissing[0] || checklist?.[0] || null;
     let proposal;
     try {
-      proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText, plan, lesson });
+      proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText, plan, lesson, focus });
       addUsage(proposal.usage);
       proposalFails = 0;
+      transportFails = 0;
     } catch (err) {
+      // Transport failures (HTTP 403/429/5xx from the model provider) are
+      // NOT rambles: the proposer never got to speak. Count them separately
+      // and stop fast — retrying into a revoked key is pure latency burn.
+      if (err?.code && err.code !== 'parse_error') {
+        transportFails += 1;
+        steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'transport' }, result: null, ok: false, inputSummary: '', outcome: `PROPOSER UNREACHABLE: ${String(err?.message || err).slice(0, 140)}` });
+        if (transportFails >= LIMITS.proposalFails) { stopped = 'llm-unreachable'; break; }
+        continue;
+      }
       proposalFails += 1;
-      steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'malformed' }, result: null, ok: false, inputSummary: '', outcome: `FAILED TO PROPOSE: ${String(err?.message || err).slice(0, 140)}` });
+      steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'malformed' }, result: null, ok: false, inputSummary: '', outcome: `FAILED TO PROPOSE: ${String(err?.message || err).slice(0, 140)}`, replyPreview: err?.replyPreview ? String(err.replyPreview).slice(0, 600) : null });
       if (proposalFails >= LIMITS.proposalFails) { stopped = 'proposal-lost'; break; }
       continue;
     }

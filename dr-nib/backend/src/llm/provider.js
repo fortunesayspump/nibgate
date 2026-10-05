@@ -248,7 +248,9 @@ export function parseJsonReply(text) {
   throw new LlmError('unbalanced JSON in reply', { code: 'parse_error' });
 }
 
-/** Run a completion that must return JSON, with one repair retry. */
+/** Run a completion that must return JSON, with one repair retry. Failures
+ * carry the raw replies (truncated) so callers can log WHAT the model said
+ * instead of just that parsing failed — unlogged rambles can't be tuned. */
 export async function chatJson(opts) {
   const first = await chat({ ...opts, json: true });
   try {
@@ -263,6 +265,11 @@ export async function chatJson(opts) {
         { role: 'user', content: 'That was not valid JSON. Reply with only the JSON object, no prose or code fences.' },
       ],
     });
-    return { data: parseJsonReply(repair.text), usage: repair.usage, model: repair.model, text: repair.text };
+    try {
+      return { data: parseJsonReply(repair.text), usage: repair.usage, model: repair.model, text: repair.text };
+    } catch (err) {
+      err.replyPreview = [first.text, repair.text].map((t) => String(t || '').slice(0, 300)).join('\n---RETRY---\n');
+      throw err;
+    }
   }
 }

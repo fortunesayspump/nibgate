@@ -243,4 +243,32 @@ describe('tool agent loop', () => {
     expect(out.steps[0].result.ok).toBe(false);
     expect(out.answer).toBe('recovered');
   });
+
+  it('a ramble followed by minimal-retry compliance still proposes', async () => {
+    vi.mocked(chatJson)
+      .mockRejectedValueOnce(Object.assign(new Error('no JSON found in reply'), { replyPreview: 'Some prose about research methods...' }))
+      .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'x' }, why: 'x' }, usage: null })
+      .mockResolvedValueOnce({ data: { done: true, answer: 'done' } });
+    vi.mocked(runTool).mockResolvedValue({ ok: true, output: 'r', costUsd: 0 });
+    const out = await runToolAgent({ task: 't', maxSteps: 4 });
+    expect(vi.mocked(chatJson)).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(runTool)).toHaveBeenCalledTimes(1);
+    expect(out.stopped).toBe('done-signal');
+  });
+
+  it('double ramble preserves the raw reply for tuning', async () => {
+    const err = Object.assign(new Error('no JSON found in reply'), { replyPreview: 'RAW-RAMBLE-TEXT' });
+    vi.mocked(chatJson).mockRejectedValue(err);
+    const out = await runToolAgent({ task: 't', maxSteps: 4 });
+    expect(out.stopped).toBe('proposal-lost');
+    expect(out.steps[0].replyPreview).toContain('RAW-RAMBLE-TEXT');
+  });
+
+  it('provider transport errors stop as llm-unreachable, not proposal-lost', async () => {
+    const err = Object.assign(new Error('LLM HTTP 403: age confirmation required'), { code: 'http_error', status: 403 });
+    vi.mocked(chatJson).mockRejectedValue(err);
+    const out = await runToolAgent({ task: 't', maxSteps: 4 });
+    expect(out.stopped).toBe('llm-unreachable');
+    expect(out.steps[0].judgement.source).toBe('transport');
+  });
 });

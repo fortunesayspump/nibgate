@@ -196,21 +196,56 @@ export async function chat(opts) {
   }
 }
 
-/** Extract the first JSON value from a model reply (fenced or bare). */
+/** Extract the first JSON value from a model reply (fenced or bare).
+ * Balanced-brace scan: finds the first complete JSON value starting at the
+ * first `{`/`[`, ignoring braces inside strings and any surrounding prose.
+ * If the reply was cut off mid-value (unbalanced), best-effort closes the
+ * open brackets and parses — a truncated-but-valid prefix beats a crash. */
 export function parseJsonReply(text) {
   const raw = String(text || '').trim();
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = (fenced ? fenced[1] : raw).trim();
   const start = candidate.search(/[[{]/);
   if (start === -1) throw new LlmError('no JSON found in reply', { code: 'parse_error' });
-  const close = candidate[start] === '{' ? '}' : ']';
-  const end = candidate.lastIndexOf(close);
-  if (end < start) throw new LlmError('unbalanced JSON in reply', { code: 'parse_error' });
-  try {
-    return JSON.parse(candidate.slice(start, end + 1));
-  } catch (e) {
-    throw new LlmError(`invalid JSON in reply: ${e.message}`, { code: 'parse_error' });
+  const open = candidate[start];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < candidate.length; i += 1) {
+    const ch = candidate[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === open) depth += 1;
+    else if (ch === close) {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(candidate.slice(start, i + 1));
+        } catch (e) {
+          throw new LlmError(`invalid JSON in reply: ${e.message}`, { code: 'parse_error' });
+        }
+      }
+    }
   }
+  // Unbalanced: reply cut off mid-value. Close what's open and try the prefix —
+  // first as-is (cut between values), then with the string closed (cut inside
+  // a string value). A truncated-but-valid prefix beats a crashed run.
+  const closers = depth > 0 ? close.repeat(Math.min(depth, 32)) : '';
+  const attempts = inStr
+    ? [candidate.slice(start) + '"' + closers, candidate.slice(start) + closers]
+    : [candidate.slice(start) + closers];
+  for (const attempt of attempts) {
+    try {
+      return JSON.parse(attempt);
+    } catch { /* try next */ }
+  }
+  throw new LlmError('unbalanced JSON in reply', { code: 'parse_error' });
 }
 
 /** Run a completion that must return JSON, with one repair retry. */

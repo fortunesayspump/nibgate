@@ -86,30 +86,39 @@ export async function proposeTool({ task, history = [], tools = null, fetchImpl,
 
 export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0, balanceUsd = null } = {}) {
   const repeats = history.filter((h) => h.tool === proposal.tool && !h.ok).length;
+  const successes = history.filter((h) => h.ok).length;
   const state = [
     `Task: ${task}`,
     `Proposed: ${proposal.tool} — ${proposal.why || '(no reason given)'}`,
     `Spent so far: $${Number(spentUsd).toFixed(4)}${balanceUsd == null ? '' : `, balance left: $${Number(balanceUsd).toFixed(2)}`}`,
     `Prior calls: ${history.length ? history.map((h) => `${h.tool}:${h.ok ? 'ok' : 'failed'}`).join(', ') : 'none'}`,
     repeats > 0 ? `WARNING: this exact tool already failed ${repeats}x — executing it again burns budget for a known outcome.` : '',
+    successes >= 2 ? `NOTE: ${successes} calls already succeeded. Prefer answer unless this call measures something genuinely new.` : '',
   ].filter(Boolean).join('\n');
-  try {
-    const out = await decide({
-      state,
-      instructions: 'Decide whether this tool call is worth executing. Execute when it plausibly advances the task at an acceptable cost; skip when it repeats prior work, costs more than it can return, or spends money the balance cannot cover; answer when the task is already resolved by history.',
-      candidates: [
-        { id: 'execute', context: 'Run the proposed call now.' },
-        { id: 'skip', context: 'Do not run it; tell the proposer to try a different tool or answer.' },
-        { id: 'answer', context: 'No more calls needed — answer from what is already known.' },
-      ],
-      questionId: 'tool-call',
-    });
-    return { decision: out.pick, source: 'jev', ...out };
-  } catch (err) {
-    if (!(err instanceof JevUnavailable)) throw err;
-    // JEV down: the safe default is skip, never blind execution. Money and
-    // side effects must not ride on an unjudged proposal.
-    return { decision: 'skip', source: 'fallback', reason: 'jev-unavailable' };
+  // One retry on transient JEV failure (no status or 5xx: dropped
+  // connection, model ramble inside the judge). 4xx is a real rejection —
+  // retrying it just burns time. After that the safe default is skip, never
+  // blind execution: money and side effects must not ride on an unjudged
+  // proposal.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const out = await decide({
+        state,
+        instructions: 'Decide whether this tool call is worth executing. Execute when it plausibly advances the task at an acceptable cost; skip when it repeats prior work, costs more than it can return, or spends money the balance cannot cover; answer when the task is already resolved by history.',
+        candidates: [
+          { id: 'execute', context: 'Run the proposed call now.' },
+          { id: 'skip', context: 'Do not run it; tell the proposer to try a different tool or answer.' },
+          { id: 'answer', context: 'No more calls needed — answer from what is already known.' },
+        ],
+        questionId: 'tool-call',
+      });
+      return { decision: out.pick, source: 'jev', ...(attempt > 0 ? { retried: true } : {}), ...out };
+    } catch (err) {
+      if (!(err instanceof JevUnavailable)) throw err;
+      const transient = err.status == null || err.status >= 500;
+      if (transient && attempt === 0) continue;
+      return { decision: 'skip', source: 'fallback', reason: 'jev-unavailable' };
+    }
   }
 }
 
@@ -123,7 +132,11 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
   if (!isLlmConfigured()) throw new Error('LLM is not configured');
   const steps = [];
   let spentUsd = 0;
+  let stopped = 'max-steps';
   const seen = new Set();
+  let proposalFails = 0;
+  let lastSkipped = null;
+  let skippedRepeats = 0;
   const shape = (tool, input, out) => ({
     tool,
     inputSummary: JSON.stringify(input ?? {}).slice(0, 160),
@@ -140,7 +153,18 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
     try {
       selfText = selfBlock(await agentState({ runId }), maxSteps - n);
     } catch {}
-    const proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText });
+    // A malformed proposal is a failed step, not a dead run: record it and
+    // continue. Two in a row means the proposer is lost — stop and synthesize.
+    let proposal;
+    try {
+      proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText });
+      proposalFails = 0;
+    } catch (err) {
+      proposalFails += 1;
+      steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'malformed' }, result: null, ok: false, inputSummary: '', outcome: `FAILED TO PROPOSE: ${String(err?.message || err).slice(0, 140)}` });
+      if (proposalFails >= 2) break;
+      continue;
+    }
     if (proposal.done) return { answer: proposal.answer, steps, undecided: proposal.undecided };
     // Pre-execution schema check: malformed proposals die here for free, with
     // feedback the model can act on — never spend a judgement or a tool call.
@@ -153,20 +177,60 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
       continue;
     }
     // Identical proposal twice: the definition of a doom loop. Stop the run
-    // and synthesize instead of burning a third identical call.
+    // and synthesize instead of burning a third identical call. Only
+    // *executed* calls poison the fingerprint — a proposal skipped by the
+    // judge or schema was never attempted, and blocking its retry would let
+    // one flaky judgement starve the whole run.
     const fingerprint = `${proposal.tool}:${JSON.stringify(proposal.input ?? {})}`;
     if (seen.has(fingerprint)) {
       const step = { n, proposal, judgement: { decision: 'skip', source: 'dedupe' } };
-      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical call already attempted' }));
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical call already executed' }));
       steps.push(step);
       await onStep?.(step);
       break;
     }
-    seen.add(fingerprint);
+    // Same tool succeeding over and over: the well is dry. Three consecutive
+    // successes with one tool means measure → cross-check → done; a fourth
+    // call re-measures what is already known. Stop deterministically instead
+    // of hoping the judge feels done — it demonstrably does not.
+    let streak = 0;
+    for (let i = steps.length - 1; i >= 0; i -= 1) {
+      if (steps[i].tool === proposal.tool && steps[i].ok) streak += 1;
+      else break;
+    }
+    if (streak >= 3) {
+      const step = { n, proposal, judgement: { decision: 'answer', source: 'streak' } };
+      step.result = { skipped: true };
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: `stopped after ${streak} consecutive ${proposal.tool} successes` }));
+      steps.push(step);
+      await onStep?.(step);
+      stopped = 'enough-evidence';
+      break;
+    }
     const judgement = await judgeToolCall({ task, proposal, history: steps, spentUsd, balanceUsd });
+    if (judgement.decision === 'execute') {
+      seen.add(fingerprint);
+      lastSkipped = null;
+      skippedRepeats = 0;
+    }
     const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source } };
     if (judgement.decision !== 'execute') {
       step.result = { skipped: true };
+      // Same skipped proposal again: the proposer is stuck, not learning.
+      // Varying proposals after a skip is fine; repeating one is a doom loop.
+      if (fingerprint === lastSkipped) {
+        skippedRepeats += 1;
+        if (skippedRepeats >= 2) {
+          Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: 'identical proposal skipped repeatedly — stopping' }));
+          step.judgement = { decision: 'skip', source: 'dedupe' };
+          steps.push(step);
+          await onStep?.(step);
+          break;
+        }
+      } else {
+        lastSkipped = fingerprint;
+        skippedRepeats = 1;
+      }
       Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: `judged ${judgement.decision}` }));
       steps.push(step);
       if (judgement.decision === 'answer') return { answer: '', steps };
@@ -183,7 +247,11 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
   }
   // Out of steps is not an empty answer: force one final proposal with no
   // tools left, the evidence pinned, and an explicit demand for one sentence.
-  const evidence = steps.filter((s) => s.result?.ok).slice(-2)
+  // If the model cannot even do that (non-JSON ramble), fall back to a
+  // deterministic extract — a run that gathered evidence must never report
+  // nothing.
+  const good = steps.filter((s) => s.result?.ok).slice(-2);
+  const evidence = good
     .map((s) => `${s.proposal.tool}: ${JSON.stringify(s.result.output ?? '').slice(0, 400)}`).join('\n');
   let finaleSelf = '';
   try {
@@ -193,5 +261,9 @@ export async function runToolAgent({ task, tools = null, maxSteps = 6, runId = '
     task: `${task}\nNo more tool calls. Answer in one sentence from this evidence (never empty):\n${evidence || '(no successful calls)'}`,
     history: steps, tools: [], fetchImpl, self: finaleSelf,
   }).catch(() => null);
-  return { answer: finale?.answer || '', steps, stopped: 'max-steps' };
+  const answer = finale?.answer?.trim()
+    || (good.length
+      ? `Measured ${good.map((s) => s.proposal.tool).join(' + ')}: ${evidence.slice(0, 500)}`
+      : 'No tool call succeeded; no evidence was gathered.');
+  return { answer, steps, stopped };
 }

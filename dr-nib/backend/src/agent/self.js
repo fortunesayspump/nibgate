@@ -20,6 +20,10 @@ export async function agentState({ runId = null } = {}) {
   const state = {
     identity: 'Dr. Nib research agent (machine payer, x-nibgate-actor: agent)',
     network: `${chain.name} (chain ${chain.chainId})`,
+    // Live chain access the agent can query directly (no key, no signup):
+    // gas price, base fee, block times, token balances, event logs.
+    chainRpc: chain.rpcUrl,
+    usdc: chain.usdc,
     tools: tools.map((t) => t.name),
     toolCosts: Object.fromEntries(tools.map((t) => [t.name, t.cost])),
     sandbox: sandboxConfigured() ? 'available' : 'unavailable',
@@ -50,6 +54,7 @@ export function selfBlock(state, stepBudget) {
   const lines = [
     `You are ${state.identity} on ${state.network}.`,
     `Tools wired RIGHT NOW: ${state.tools.join(', ')} (nothing else exists — never invent names).`,
+    `Chain RPC you can query directly (http_request POST or run_code curl): ${state.chainRpc} — eth_gasPrice, eth_feeHistory, eth_getBlockByNumber, eth_call. USDC: ${state.usdc}.`,
     `Sandbox compute: ${state.sandbox}.`,
   ];
   if (typeof state.walletBalanceUsd === 'number') {

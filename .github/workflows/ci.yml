@@ -31,7 +31,8 @@ jobs:
         run: |
           find packages/nibgate/src -name '*.js' -exec node --check {} + &&
           find backend/src -name '*.js' -exec node --check {} + &&
-          find subblogs/backend/src -name '*.js' -exec node --check {} +
+          find subblogs/backend/src -name '*.js' -exec node --check {} + &&
+          find dr-nib/backend/src -name '*.js' -exec node --check {} +
 
       # Catches a published @nibgate dep pinned behind npm latest. A stale pin
       # once shipped a direct-rail payment path that charged the user and then

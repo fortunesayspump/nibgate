@@ -17,7 +17,8 @@
     "db:generate": "npx prisma generate --schema=./prisma/schema.prisma",
     "db:sql": "npx prisma db execute --schema=./prisma/schema.prisma --stdin",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval:agent": "vitest run src/agent"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.2.0",

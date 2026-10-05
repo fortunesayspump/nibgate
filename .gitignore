@@ -72,3 +72,9 @@ session-*.md
 # Local foundry binaries (re-fetch: see dr-nib/ESCROW.md build notes)
 tools/foundry/
 contracts/lib/openzeppelin-contracts/
+
+# Agent episodic lessons (local Reflexion memory, never commit)
+dr-nib/backend/data/
+
+# Cloned reference implementations (re-fetch from upstream)
+dr-nib/references/smolagents/

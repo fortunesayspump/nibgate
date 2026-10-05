@@ -38,7 +38,7 @@ describe('stops helpers', () => {
   });
 
   it('annotated RPC output covers a bare-phrase checklist', () => {
-    const obs = annotateHex('{"result":"0x4a817c800"} baseFeePerGas latest block 0x3ea1919 timestamp 1791155723');
+    const obs = annotateHex('{"result":"0x4a817c800"} baseFeePerGas block number 0x3ea1919 timestamp 1791155723');
     const cov = coverage(['base fee gwei', 'latest block number'], [obs]);
     expect(cov.missing).toEqual([]);
     expect(itemKeywords('base fee gwei')).toContain('gwei');

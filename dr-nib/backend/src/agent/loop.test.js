@@ -95,7 +95,7 @@ describe('tool agent loop', () => {
     vi.mocked(decide).mockResolvedValue({ pick: 'execute', probabilities: { execute: 0.9 }, model: 't' });
     vi.mocked(runTool)
       .mockResolvedValueOnce({ ok: true, output: 'alpha and beta observed here', costUsd: 0 })
-      .mockResolvedValueOnce({ ok: true, output: 'epsilon confirmed', costUsd: 0 });
+      .mockResolvedValueOnce({ ok: true, output: 'epsilon zeta confirmed', costUsd: 0 });
     const out = await runToolAgent({ task: 't', maxSteps: 6, fastPath: false });
     expect(out.stopped).toBe('evidence-covered');
     expect(out.steps.filter((s) => s.result?.ok)).toHaveLength(2);
@@ -129,7 +129,7 @@ describe('tool agent loop', () => {
 
   it('similarity and coverage helpers behave', () => {    expect(similarity('the quick brown fox jumps', 'the quick brown fox jumps')).toBe(1);
     expect(similarity('alpha beta gamma delta', 'nothing shared here at all')).toBeLessThan(0.3);
-    const cov = coverage(['alpha beta gamma delta', 'epsilon zeta'], ['alpha beta observed', 'epsilon confirmed']);
+    const cov = coverage(['alpha beta gamma delta', 'epsilon zeta'], ['alpha beta gamma observed', 'epsilon zeta confirmed']);
     expect(cov.missing).toEqual([]);
   });
 

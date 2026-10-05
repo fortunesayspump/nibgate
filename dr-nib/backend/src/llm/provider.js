@@ -70,7 +70,25 @@ function withTimeout(timeoutMs, external) {
 async function readError(res) {
   let body = '';
   try { body = (await res.text()).slice(0, 300); } catch {}
-  return new LlmError(`LLM HTTP ${res.status}: ${body}`, { status: res.status, code: 'http_error' });
+  const err = new LlmError(`LLM HTTP ${res.status}: ${body}`, { status: res.status, code: 'http_error' });
+  err.guidance = httpGuidance(res.status, body);
+  return err;
+}
+
+/**
+ * Translate provider HTTP failures into the human action that fixes them.
+ * A raw JSON blob sends nobody anywhere; every known failure names its fix.
+ */
+export function httpGuidance(status, body = '') {
+  const b = String(body || '');
+  if (status === 403 && /18\+|age|confirm/i.test(b)) {
+    return 'OpenRouter gated this model behind 18+ age confirmation — confirm once on the OpenRouter account, or set LLM_FALLBACK_MODELS so gated picks fail over automatically.';
+  }
+  if (status === 401) return 'OpenRouter rejected the API key — check OPENROUTER_API_KEY.';
+  if (status === 402) return 'OpenRouter reports insufficient credits — top up or lower call volume.';
+  if (status === 429) return 'Rate limited by the provider — back off and retry; raise key limits if it persists.';
+  if (status >= 500) return 'Provider-side outage — fallback models engage automatically; nothing to fix locally.';
+  return '';
 }
 
 // Parse one SSE event block (`data: {...}` possibly split over lines).

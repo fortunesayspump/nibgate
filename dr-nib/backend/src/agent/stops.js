@@ -173,8 +173,10 @@ export function itemKeywords(item) {
 }
 
 /**
- * Deterministic coverage: item covered when at least half its keywords
- * (minimum 1) appear anywhere in the successful observations so far.
+ * Deterministic coverage: item covered when at least two-thirds of its
+ * keywords (minimum 1) appear anywhere in the successful observations.
+ * Strict enough that one lucky word can't close an item; lenient enough
+ * that paraphrase still matches (substring, not exact).
  */
 export function coverage(checklist, observations) {
   if (!checklist?.length) return { covered: [], missing: [] };
@@ -183,7 +185,7 @@ export function coverage(checklist, observations) {
   const missing = [];
   for (const item of checklist) {
     const kw = itemKeywords(item);
-    const need = Math.max(1, Math.floor(kw.length / 2));
+    const need = Math.max(1, Math.ceil(kw.length * 2 / 3));
     const hits = kw.filter((k) => hay.includes(k)).length;
     (hits >= need ? covered : missing).push(item);
   }

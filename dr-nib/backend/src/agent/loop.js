@@ -269,7 +269,8 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
       // and stop fast — retrying into a revoked key is pure latency burn.
       if (err?.code && err.code !== 'parse_error') {
         transportFails += 1;
-        steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'transport' }, result: null, ok: false, inputSummary: '', outcome: `PROPOSER UNREACHABLE: ${String(err?.message || err).slice(0, 140)}` });
+        const fix = err.guidance ? ` Fix: ${err.guidance}` : '';
+        steps.push({ n, proposal: null, judgement: { decision: 'skip', source: 'transport' }, result: null, ok: false, inputSummary: '', outcome: `PROPOSER UNREACHABLE: ${String(err?.message || err).slice(0, 140)}.${fix}` });
         if (transportFails >= LIMITS.proposalFails) { stopped = 'llm-unreachable'; break; }
         continue;
       }

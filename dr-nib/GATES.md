@@ -50,6 +50,17 @@ operate an agent wallet on a CDP-supported chain, this is the template.)
 
 ## Track C — Custom spend-limit contract (recommended near-term Gate 2)
 
+**STATUS: DEPLOYED ON ARC TESTNET (Oct 2026).** `NibgateSpender`
+`0x903b0606da40d99d78da9d9be6c435acacba5cf0` (tx
+`0x1bf713ce6d35a49d45ef48e96f3e0a90901d8da59730b5fd094ff60406e39e1f`):
+owner = keeper, agent = hot key, $2/day cap, 8/8 forge tests green.
+Deployer holds no privileges (constructor-assigned roles only).
+
+Remaining before enforcement is live: keeper funds it (operating float),
+allowlists creator recipients, and the backend tip path is switched from
+direct EOA transfer to `spend()`. Gateway EIP-3009 flows stay EOA-bound
+(contracts cannot sign) — direct transfers only, by design.
+
 - Minimal `NibgateSpender`: owner = keeper, agent key = spender, per-day USDC cap, recipient allowlist, forge-tested like the splitter. No vendor, no 4337, deployable on Arc today.
 - Agent hot wallet becomes the contract; EOA key can only spend through it.
 - Accepts the residual: owner/keeper key is still trusted (same as escrow keeper).

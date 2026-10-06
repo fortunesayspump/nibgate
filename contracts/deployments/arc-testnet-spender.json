@@ -1,0 +1,10 @@
+{
+  "network": "testnet",
+  "chainId": 5042002,
+  "spender": "0x903b0606da40d99d78da9d9be6c435acacba5cf0",
+  "deployTx": "0x1bf713ce6d35a49d45ef48e96f3e0a90901d8da59730b5fd094ff60406e39e1f",
+  "owner": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
+  "agent": "0xb5ba4424B02539F25395233cb9A9B56A83eBDe69",
+  "dailyCap": "2000000",
+  "deployedAt": "2026-10-06T18:20:43.016Z"
+}

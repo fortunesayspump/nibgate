@@ -80,6 +80,13 @@ const TOOLS = {
         { url: input.url, method: input.method || 'GET', headers: input.headers || {}, body: input.body ?? null },
         { fetchImpl: ctx.fetchImpl },
       );
+      // HTTP error statuses are tool failures, not observations: a 408/500
+      // body teaches nothing and must stay retryable (never poisons dedupe).
+      // 402 is the exception — a payment challenge IS the observation the
+      // loop acts on (pay_x402/unlock_content consume it).
+      if (out?.status >= 400 && out.status !== 402) {
+        throw new Error(`http-${out.status} from ${input.url}`);
+      }
       return { output: out, costUsd: 0 };
     },
   },
@@ -144,14 +151,14 @@ const TOOLS = {
   },
 
   pay_x402: {
-    description: 'Pay any x402-gated URL (max $2/call): public APIs, data feeds, paid tools. Price previewed free off the 402; refuses blind or over-budget. Returns the paid response.',
+    description: 'Pay any x402-gated URL (max $2/call): public APIs, data feeds, paid tools. Price previewed free off the 402; refuses blind or over-budget. Pass the endpoint\'s request body as `body` when it needs POST input (e.g. a search query). Returns the paid response.',
     cost: 'onchain',
     async run(input, ctx) {
       needSpend();
       need(input, 'url');
       const verdict = checkUrlPolicy(input.url, ctx.policy);
       if (!verdict.ok) throw new Error(`refused: ${verdict.reason}`);
-      const out = await payX402({ runId: ctx.runId, url: input.url });
+      const out = await payX402({ runId: ctx.runId, url: input.url, body: input.body });
       return { output: out, costUsd: out.amount };
     },
   },

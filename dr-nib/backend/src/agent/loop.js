@@ -45,7 +45,7 @@ const REQUIRED_LABELS = {
   search_sources: 'query',
   tip_creator: 'contentUrl (full https URL) + amount (number, USD)',
   unlock_content: 'url (full https URL of the gated page)',
-  pay_x402: 'url (full https URL of the gated endpoint)',
+  pay_x402: 'url (full public https URL of the paid endpoint) + body (object with the endpoint\'s POST input, e.g. a search query — price is read off its 402 challenge, never pass an amount)',
   submit_answer: 'answer (final answer text, must cover every checklist item)',
 };
 
@@ -256,7 +256,17 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     // instead of overwhelming the proposer.
     const focusObs = steps.filter((s) => s.outputText).map((s) => s.outputText);
     const focusMissing = checklist?.length ? coverage(checklist, focusObs).missing : [];
-    const focus = focusMissing[0] || checklist?.[0] || null;
+    let focus = focusMissing[0] || checklist?.[0] || null;
+    // Spend shyness override: the proposer researches around spending even
+    // holding the URL, recipient, and amount. When the task names a spend
+    // and free evidence is banked without any spend attempt, say the
+    // quiet part out loud.
+    const SPEND_TOOLS = new Set(['tip_creator', 'unlock_content', 'pay_x402']);
+    if (/tip|pay|unlock|\bbuy\b|purchase/i.test(task)
+      && steps.filter((s) => s.ok).length >= 2
+      && !steps.some((s) => SPEND_TOOLS.has(s.tool))) {
+      focus = 'call the spend tool NOW (tip_creator / pay_x402 / unlock_content) with the discovered URL, recipient, and amount — further researching adds nothing and the task explicitly requires spending';
+    }
     let proposal;
     try {
       proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText, plan, lesson, focus });

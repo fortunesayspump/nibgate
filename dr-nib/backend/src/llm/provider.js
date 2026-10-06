@@ -179,6 +179,7 @@ export async function chat(opts) {
         text: choice?.message?.content ?? '',
         model: served,
         effort,
+        finishReason: choice?.finish_reason || null,
         usage: normalizeUsage(data?.usage, served),
         raw: data,
       };
@@ -186,6 +187,7 @@ export async function chat(opts) {
 
     let text = '';
     let usage = {};
+    let finishReason = null;
     let resolvedModel = model;
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -205,10 +207,11 @@ export async function chat(opts) {
         if (chunk?.model) resolvedModel = String(chunk.model);
         const delta = chunk?.choices?.[0]?.delta?.content;
         if (delta) { text += delta; onToken(delta); }
+        if (chunk?.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
         if (chunk?.usage) usage = chunk.usage;
       }
     }
-    return { text, model: resolvedModel, effort, usage: normalizeUsage(usage, resolvedModel), raw: {} };
+    return { text, model: resolvedModel, effort, finishReason, usage: normalizeUsage(usage, resolvedModel), raw: {} };
   } finally {
     done();
   }

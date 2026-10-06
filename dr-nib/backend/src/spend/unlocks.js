@@ -93,7 +93,7 @@ function refuseSelf(url) {
 }
 
 /** Pay an x402 resource and return its content. Returns { data, txHash, amount }. */
-export async function payX402({ runId, url, fetchImpl } = {}) {
+export async function payX402({ runId, url, body, fetchImpl } = {}) {
   if (!url || !/^https:\/\//i.test(String(url))) throw new Error('pay_x402 needs a public https URL');
   refuseSelf(url);
   const cap = Number(process.env.DRNIB_SPEND_MAX_X402 || 2);
@@ -102,7 +102,11 @@ export async function payX402({ runId, url, fetchImpl } = {}) {
   const amount = await ensureExact(runId, 'x402', preview.price);
   const client = clientForCap(cap);
   await ensureGatewayFunded(client, amount);
-  const out = await client.pay(String(url), { headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' } });
+  const out = await client.pay(String(url), {
+    method: body ? 'POST' : 'GET',
+    headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' },
+    ...(body ? { body } : {}),
+  });
   const paid = Number(out?.formattedAmount) || amount;
   return { data: out?.data ?? null, txHash: out?.transaction || null, amount: paid, raw: out };
 }

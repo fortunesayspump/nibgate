@@ -31,6 +31,16 @@ async function hub(path, body) {
  */
 export async function tipCreator({ runId, contentUrl, amount, title, recipient, fetchImpl } = {}) {
   if (!contentUrl || typeof contentUrl !== 'string') throw new Error('contentUrl is required');
+  // A creator page, not an API endpoint: tipping an /api/ URL banks money
+  // against a JSON blob instead of someone's work. Fail fast with direction.
+  try {
+    if (new URL(contentUrl).pathname.startsWith('/api/')) {
+      throw new Error('contentUrl looks like an API endpoint, not a creator page — tip the page URL from the site, not the API that listed it');
+    }
+  } catch (e) {
+    if (e.message.startsWith('contentUrl looks like')) throw e;
+    throw new Error('contentUrl is not a valid URL');
+  }
   const gate = checkAmount('tip', amount);
   if (!gate.ok) throw new Error(gate.error);
   const { balance } = await budgetState(runId);

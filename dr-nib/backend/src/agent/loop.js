@@ -452,12 +452,21 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
       addUsage(judgement.usage);
     }
     if (judgement.source === 'jev') judgedOk = true;
+    // Confidence gate (cost-of-mistakes asymmetric): a hesitant execute on
+    // a free read costs nothing to honor; a hesitant execute on real money
+    // is refused. Confidence is concentration, not correctness — but below
+    // threshold on a spend, "torn" means "don't".
+    if (judgement.decision === 'execute' && judgement.source === 'jev'
+      && !FAST_TOOLS.has(proposal.tool)
+      && Number(judgement.confidence ?? 1) < LIMITS.minSpendConfidence) {
+      judgement = { ...judgement, decision: 'skip', reason: `low-confidence-spend (${judgement.confidence})` };
+    }
     // Provenance binding (Aomi Gate 0.5→1 handoff): the verdict is stapled
     // to the EXACT canonical bytes it approved. Re-checked immediately
     // before execution — a payload change after the verdict voids it instead
     // of executing on a stale approval.
     judgement.fp = fp;
-    const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source, fp } };
+    const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source, fp, confidence: judgement.confidence ?? null } };
     if (judgement.decision !== 'execute') {
       step.result = { skipped: true };
       // No HTTP response on any judgement so far: the judge is unreachable

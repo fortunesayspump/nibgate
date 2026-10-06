@@ -1,0 +1,35 @@
+import { Callout } from 'nextra/components'
+
+# Spending gates
+
+Where the agent's money is enforceable, by whom — and what remains trust-me. Modeled on the runtime → wallet → contract → builder gate taxonomy; this page records our coverage per gate.
+
+## Current coverage
+
+| Gate | Mechanism | Administrator | Status |
+|---|---|---|---|
+| Runtime construction | propose → judge → execute loop: schema, caps, JEV verdicts, dedupe, budgets, evidence checklist | Nibgate backend | Enforced (app boundary) |
+| Simulation | 402 price preview + over-ceiling abort hook at signing | backend | Enforced |
+| Verdict binding | judgements staple the canonical call fingerprint, re-checked pre-execution | backend | Enforced |
+| Injected state | dual-RPC cross-check before every spend | backend, active with `DRNIB_RPC_BACKUP` | Partial |
+| Wallet policy | — | — | **Missing** (hot key in env; see below) |
+| Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) | contract + keeper | Enforced (testnet) |
+| Spend mandate | `NibgateSpender`: $2/day, recipient allowlist, keeper pause | contract + keeper | **Deployed testnet** |
+
+## The spender mandate (testnet)
+
+`0x903b0606da40d99d78da9d9be6c435acacba5cf0` — the agent's operating float lives here, not in the hot EOA. The agent key can only move funds through `spend()`, bounded by the daily cap and the allowlist. A compromised agent key can spend at most the cap to allowlisted recipients: never drain, never exfiltrate elsewhere. The keeper funds, sets policy, pauses, and withdraws.
+
+<Callout type="info">
+Direct transfers (tips) route through the mandate when `DRNIB_SPENDER_ADDRESS` is set — with no silent fallback to the EOA. Gateway x402 flows stay EOA-bound: a contract cannot sign EIP-3009 authorizations, so that float stays small under the software caps by procedure.
+</Callout>
+
+## What's still trust-me
+
+- The hot key itself (env var): a full backend compromise signs freely within software caps. The mandate bounds damage; it doesn't remove the key.
+- Vendor wallets (CDP/Privy/Turnkey) were evaluated: CDP's network list excludes Arc, smart-account sessions need ERC-4337 infrastructure Arc lacks. Revisited if either changes.
+- Until then: hot-wallet float discipline (small balances only) plus ledger↔chain reconciliation on every spend.
+
+## Proving it
+
+Coverage is tested by attack, not asserted: spends without verdicts are refused, over-cap batches rejected whole, post-approval payload swaps voided, evaluator outage stops runs instead of running judgeless. The agent's own soak history includes two live testnet tips with hub receipts and onchain transactions.

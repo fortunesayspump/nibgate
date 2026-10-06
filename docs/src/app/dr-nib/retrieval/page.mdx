@@ -1,0 +1,30 @@
+import { Callout } from 'nextra/components'
+
+# Retrieval bench
+
+Where the agent's evidence comes from when it hasn't spent a cent: 11 keyless indexes plus keyed providers when configured, document parsing for the files the web is actually made of, and honest reporting when a door is closed.
+
+**Reference:** `dr-nib/backend/src/retrieval/`.
+
+## Free indexes (no key, no signup)
+
+GDELT (paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR, Stack Exchange, Hacker News, Polymarket, arXiv, plus a self-hosted SearXNG instance. Tavily/Exa slots accept keys when configured. Queries are keyword-ified per provider; provider failures are tagged by name so the trail shows *which* source failed, not just that something did.
+
+## Documents, not just pages
+
+Fetched files are routed by magic bytes (not extensions) through real parsers, 10MB cap, single download:
+
+| Format | Parser |
+|---|---|
+| PDF | text extraction |
+| DOCX | document conversion |
+| XLSX | spreadsheet parsing |
+| PPTX | slide XML extraction |
+
+## Bot-block honesty
+
+When a site blocks machine reading, the run records `blocked-bot-check` with the provider named — reported, never worked around with evasion tricks. A thin-retrieval warning is itself evidence: it tells the data stage to reach for primary APIs, sandbox compute, or paid sources instead.
+
+## How it feeds the loop
+
+Search fans each sub-question across the bench; fetch opens ranked pages; JEV scores every source for relevance and trust before it joins the scorable set. Paid content that clears scoring joins on equal footing — paying never buys credibility. When the bench comes back thin, the loop's data stage escalates: model-directed API calls, chain RPC reads, sandbox crunching, then spend tools in that order.

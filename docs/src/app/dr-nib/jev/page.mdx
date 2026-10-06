@@ -1,0 +1,51 @@
+import { Callout } from 'nextra/components'
+
+# How JEV decides
+
+Every judgement in Dr. Nib — stop asking or probe deeper, run this tool or skip it, trust this source or not — is made by JEV, TypeSafe's decision model. Not by the researching model grading its own homework. This page explains what JEV is, why that separation matters, and exactly where it sits in the flow.
+
+## A different kind of model
+
+Chat models generate text. JEV doesn't generate anything — it answers typed questions with calibrated probabilities. TypeSafe calls these *System One* models: fast, structured decisions software can branch on directly, with no prose to parse and no hallucinated strings.
+
+Three question shapes (primitives) exist:
+
+| Primitive | Question | Returns |
+|---|---|---|
+| Choice | which of these options? | winning option + probability per option + confidence |
+| Noul | does this hold? | probability of yes |
+| Score | where on this ordered scale? | probability-weighted position + per-level probabilities |
+
+JEV is trained for *calibrated* decisions: when it says 0.8, it's right about 80% of the time — like a weather forecast, not a vibe. And confidence means *concentration* (how torn it is between your options), not correctness. A confident wrong answer is possible, which is why thresholds come from the cost of mistakes, never round numbers.
+
+Practical consequences: decisions cost fractions of a cent (input tokens only, output free), arrive in milliseconds beside an LLM round-trip, and carry no reasoning trace to leak or parse. Criteria text is everything — the question id is never sent to the model, so each option is briefed like a new hire.
+
+**Reference:** TypeSafe docs via OpenRouter (`typesafe/jev-1.13`, alias `~typesafe/jev-latest`); our transport in `dr-nib/backend/src/jev/client.js`, audit in `decisions.js`.
+
+## Where JEV sits in a run
+
+| Decision point | Primitive | Options | What happens on silence |
+|---|---|---|---|
+| Intake stop | Choice | proceed / ask_more / reframe | deterministic bank decides, labeled fallback |
+| Tool call | Choice | execute / skip / answer | run stops — never judgeless |
+| Source trust | Noul | P(source is trustworthy) | run parks, nothing scored on guesses |
+| Claim verify | Batched Choice | supported / unsupported per claim | marked unverified, never guessed |
+| Round control | Choice | continue / write / stop | parks |
+
+Every verdict is persisted with its question, options, probabilities, pick, model, and cost — then published to the live feed next to the step it governed. The audit trail shows *why*, not just *what*.
+
+## Confidence policy
+
+Recorded always, acted on asymmetrically — because mistakes don't cost the same everywhere:
+
+- **Free reads** honor any `execute` verdict. A wrong extra search costs ~$0.
+- **Spends** require confidence ≥ 0.6. A hesitant `execute` on real money downgrades to skip with the reason on the record.
+- Thresholds tune from the decision+confidence rows, which every verdict writes. First version ships at 0.6; the logs decide where it lands.
+
+## Versioning
+
+We track `~typesafe/jev-latest` (currently resolving to `jev-1.13`). The alias drifts by design; thresholds tuned against one snapshot are re-checked when the dated suffix moves. Pin `typesafe/jev-1.13` when running evals so the judge doesn't move under the measurement.
+
+<Callout type="info">
+The model proposes, JEV disposes — and JEV never spends. Execution, budgets, and money movement stay in the runtime and wallet layers, each with its own gates. See [Spending gates](./gates).
+</Callout>

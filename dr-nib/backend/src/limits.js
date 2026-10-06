@@ -10,8 +10,12 @@ import { config } from './env.js';
 
 // Non-terminal, un-deleted statuses: work that is still in flight or waiting on
 // the user. `paused` and `awaiting` count — they are resumable and may hold
-// funds — while `ended`/`complete`/`failed` do not.
+// funds — while `ended`/`complete`/`failed` do not. Abandoned composers don't
+// count either: an intake/intake-done run untouched for 72h holds no money
+// (escrow can't open before planning) and is just a tab someone closed.
 export const ACTIVE_STATUSES = ['intake', 'intake-done', 'planning', 'planned', 'running', 'paused', 'awaiting'];
+
+const INTAKE_STALE_MS = 72 * 3600 * 1000;
 
 export function maxActiveRuns() {
   return config.maxActiveRuns;
@@ -19,9 +23,16 @@ export function maxActiveRuns() {
 
 export async function countActiveRuns(userId) {
   if (!userId) return 0;
-  return db.researchRun.count({
-    where: { userId, deletedAt: null, status: { in: ACTIVE_STATUSES } },
-  });
+  const staleBefore = new Date(Date.now() - INTAKE_STALE_MS);
+  const [total, staleIntake] = await Promise.all([
+    db.researchRun.count({
+      where: { userId, deletedAt: null, status: { in: ACTIVE_STATUSES } },
+    }),
+    db.researchRun.count({
+      where: { userId, deletedAt: null, status: { in: ['intake', 'intake-done'] }, updatedAt: { lt: staleBefore } },
+    }),
+  ]);
+  return total - staleIntake;
 }
 
 /**

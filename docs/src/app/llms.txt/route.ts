@@ -11,6 +11,11 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/dr-nib/budgets", "Run budgets: caps, per-stage draws, 1% fee, pause-never-overspend, instant refunds."],
   ["https://docs.nibgate.xyz/dr-nib/escrow", "Onchain escrow for runs: ERC-8183 jobs, keeper completion, splitter division, testnet addresses."],
   ["https://docs.nibgate.xyz/dr-nib/agent-spending", "Agent spending: tips, paid unlocks, x402 payments from the run budget with per-call ceilings."],
+  ["https://docs.nibgate.xyz/dr-nib/gates", "Spending gates: runtime, verdict, wallet, and onchain enforcement map plus the spender mandate."],
+  ["https://docs.nibgate.xyz/dr-nib/agent-loop", "Agent loop: propose-judge-execute, stop taxonomy, budgets, memory, and failure posture."],
+  ["https://docs.nibgate.xyz/dr-nib/tools", "Tool reference: research and spend tools with inputs, costs, and the x402 sell surfaces."],
+  ["https://docs.nibgate.xyz/dr-nib/retrieval", "Retrieval bench: free indexes, document parsing, and bot-block honesty."],
+  ["https://docs.nibgate.xyz/dr-nib/jev", "How JEV decides: TypeSafe decision model, primitives, confidence policy, and every decision point."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the public hub endpoints."],
 ];
 

@@ -1,0 +1,44 @@
+import { Callout } from 'nextra/components'
+
+# Tool reference
+
+Every instrument the agent can reach for, with exactly what each one needs. Required inputs are enforced *before* anything costs a judgement call or execution — a missing field fails free with the fix spelled out.
+
+**Reference:** `dr-nib/backend/src/tools/executor.js`, `dr-nib/backend/src/agent/loop.js` (`REQUIRED_INPUTS`), `dr-nib/backend/src/spend/`.
+
+## Research tools (free or metered, policy-approved)
+
+| Tool | Input | Cost | Returns as evidence |
+|---|---|---|---|
+| `web_search` | `query` (full question or keywords) | metered | ranked results |
+| `web_fetch` | `urls` (array of https URLs) | metered | extracted documents; paywalls/bot-checks reported, never worked around |
+| `search_sources` | `query` | metered | evidence-graded sources |
+| `http_request` | `url` + optional method/headers/body | $0 | status + headers + body; HTTP 4xx/5xx (except 402) count as failures, staying retryable |
+| `run_code` | `command` (one shell line) or `code`+`language` | metered | stdout in an isolated ephemeral VM — RPC reads, dataset crunching, parsing. Keys never enter the sandbox |
+
+Observations are formatted before anything reads them: short hex values gain decimal annotations (`0x4a817c800 (20000000000)`), KB-sized blobs collapse to placeholders, and injection patterns are quarantined as data-never-instructions with the banner kept in the audit trail.
+
+## Spend tools (JEV-judged, always)
+
+| Tool | Input | Ceiling | Settles |
+|---|---|---|---|
+| `tip_creator` | `contentUrl` + `amount` (USD) + optional `recipient` + `title` | $1 | hub tip rail: challenge → transfer → verify, receipt + tx hash. Unresolved creators fall back to the domain holding box (claimable later). API-endpoint URLs are rejected — tip creator pages, not the APIs that listed them. |
+| `unlock_content` | `url` of the gated page | $2 | same x402 pay, shaped as evidence (body joins the scorable set) |
+| `pay_x402` | `url` + `body` (the endpoint's POST input) | $2 | any x402-gated API. Price is read off the 402 challenge — never pass an amount; no readable price means refusing to sign blind |
+
+On spend tasks the loop funnels once free evidence is banked: first a nudge naming the spend tool, then turns restricted to spend-or-finish so research converges instead of polishing forever.
+
+<Callout type="info">
+Direct transfers route through the [spending mandate](./gates) when configured, with no silent EOA fallback. Gateway x402 flows stay EOA-bound (contracts can't sign authorizations) under the caps above.
+</Callout>
+
+## What the agent sells (for external agents)
+
+Dr. Nib meters its own retrieval to any agent with USDC — payment is the authentication, zero accounts:
+
+| Endpoint | Price | Does |
+|---|---|---|
+| `POST /v1/x402/search` | $0.01 | metered search over the free bench |
+| `POST /v1/x402/read` | $0.01 | fetch + extract one page (PDFs and Office docs included) |
+
+Both return a standard x402 challenge (402 + `payment-required`); Circle Gateway settles and the content comes back. Unconfigured deployments answer 501.

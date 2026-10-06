@@ -28,7 +28,11 @@ composer → intake (batches ≤5) → configure → review → approve → run 
 
 ## How a run spends
 
-Every stage draws from the run's [budget](./budgets) plus a 1% platform fee. The run pauses — never overspends — at the cap; raise it or end it. Search fans sub-questions (keyword-ified) across 11 free indexes plus keyed providers when configured; fetch opens ranked pages (PDFs and Office docs parsed, paywalls and bot-checks reported not worked around); a data stage reaches for primary APIs, sandbox compute, or paid sources when retrieval is thin; JEV scores every source and decides continue/write/stop per round.
+Every stage draws from the run's [budget](./budgets) plus a 1% platform fee. The run pauses — never overspends — at the cap; raise it or end it. Search fans sub-questions (keyword-ified) across 11 free indexes plus keyed providers when configured; fetch opens ranked pages (PDFs and Office docs parsed, paywalls and bot-checks reported not worked around); a data stage runs the full agent loop (model proposes, JEV judges, tools execute) reaching for primary APIs, sandbox compute, or paid sources when retrieval is thin; JEV scores every source and decides continue/write/stop per round.
+
+## How the agent decides
+
+The data stage is a propose → judge → execute loop with termination enforced in code, not in prompt prose: step/deadline/token/spend budgets, duplicate and stagnation detectors, an evidence checklist the run must cover, and a validated finish tool. Free reads run on deterministic policy; anything moving money always passes JEV, and a silent judge stops the run instead of running judgeless. Full ruleset: [Agent spending](./agent-spending). Enforcement map: [Spending gates](./gates).
 
 ## Machine access
 

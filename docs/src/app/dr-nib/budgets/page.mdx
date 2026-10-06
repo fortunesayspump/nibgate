@@ -32,7 +32,7 @@ Out of budget mid-run? Raise it (raise-only, always) and a paused run continues 
 
 ## Audit
 
-`reconcile_run` (MCP) checks both directions: every ledger-claimed transaction must resolve to a mined Transfer, and every agent-wallet outflow must resolve to a ledger row. Gateway deposits (still the agent's money) are reported separately so they never read as missing.
+`reconcile_run` (MCP) checks both directions: every ledger-claimed transaction must resolve to a mined Transfer, and every agent-wallet outflow — EOA and spender-mandate alike — must resolve to a ledger row. Gateway deposits (still the agent's money) are reported separately so they never read as missing.
 
 ## Onchain escrow (optional)
 

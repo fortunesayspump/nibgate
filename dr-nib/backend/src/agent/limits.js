@@ -37,6 +37,13 @@ export const LIMITS = {
   lessonsMax: 20, // [heuristic] Reflexion-style episodic store, bounded
   lessonSimMin: 0.3, // [heuristic] minimum task similarity before an old lesson is injected
 
+  // ——— decision confidence (TypeSafe's rule: thresholds come from the cost
+  // of mistakes, not round numbers. A wrong free search costs ~$0; a wrong
+  // spend costs money. So: free tools run on any execute verdict, spends
+  // require the judge to actually mean it. Tune from decision+confidence
+  // rows, which every verdict records.) ———
+  minSpendConfidence: 0.6, // [heuristic] execute verdicts below this on spend tools downgrade to skip
+
   // ——— parallelism ———
   parallelMax: 3, // [heuristic] max independent fast calls executed concurrently in one turn
 

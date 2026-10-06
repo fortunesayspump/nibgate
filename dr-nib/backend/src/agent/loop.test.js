@@ -291,8 +291,7 @@ describe('tool agent loop', () => {
     expect(out.steps[0].judgement.fp).toBe(fingerprint('web_search', { query: 'x' }));
   });
 
-  it('spend funnel narrows tools after repeated free-tool polishing', async () => {
-    vi.mocked(chatJson)
+  it('spend funnel narrows tools after repeated free-tool polishing', async () => {    vi.mocked(chatJson)
       .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q1' }, why: 'x' } })
       .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q2' }, why: 'x' } })
       .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q3' }, why: 'x' } })
@@ -306,5 +305,26 @@ describe('tool agent loop', () => {
     expect(vi.mocked(runTool)).toHaveBeenCalledTimes(3);
     expect(out.steps[3].judgement.source).toBe('schema');
     expect(out.steps[3].outcome).toMatch(/unknown tool/);
+  });
+
+  it('low-confidence spend verdicts downgrade to skip', async () => {
+    vi.mocked(chatJson)
+      .mockResolvedValueOnce({ data: { tool: 'tip_creator', input: { contentUrl: 'https://x.example/a', amount: 0.5 }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { done: true, answer: 'done' } });
+    vi.mocked(decide).mockResolvedValue({ pick: 'execute', confidence: 0.3, probabilities: { execute: 0.55, skip: 0.45 }, model: 't' });
+    const out = await runToolAgent({ task: 'tip x', maxSteps: 4 });
+    expect(vi.mocked(runTool)).not.toHaveBeenCalled();
+    expect(out.steps[0].judgement.decision).toBe('skip');
+    expect(out.steps[0].judgement.confidence).toBe(0.3);
+  });
+
+  it('confident spends execute', async () => {
+    vi.mocked(chatJson)
+      .mockResolvedValueOnce({ data: { tool: 'tip_creator', input: { contentUrl: 'https://x.example/a', amount: 0.5 }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { done: true, answer: 'done' } });
+    vi.mocked(decide).mockResolvedValue({ pick: 'execute', confidence: 0.85, probabilities: { execute: 0.9 }, model: 't' });
+    vi.mocked(runTool).mockResolvedValue({ ok: true, output: 'tipped', costUsd: 0.5 });
+    const out = await runToolAgent({ task: 'tip x', maxSteps: 4 });
+    expect(vi.mocked(runTool)).toHaveBeenCalledTimes(1);
   });
 });

@@ -264,7 +264,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     const SPEND_TOOLS = new Set(['tip_creator', 'unlock_content', 'pay_x402']);
     if (/tip|pay|unlock|\bbuy\b|purchase/i.test(task)
       && steps.filter((s) => s.ok).length >= 2
-      && !steps.some((s) => SPEND_TOOLS.has(s.tool))) {
+      && !steps.some((s) => SPEND_TOOLS.has(s.tool) && s.ok)) {
       focus = 'call the spend tool NOW (tip_creator / pay_x402 / unlock_content) with the discovered URL, recipient, and amount — further researching adds nothing and the task explicitly requires spending';
     }
     let proposal;

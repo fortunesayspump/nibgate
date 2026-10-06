@@ -24,10 +24,14 @@ only operating float (~$20 testnet). Balance discipline, not cryptography.
 
 ## Track A — CDP server wallet + Policy Engine (Gate 1 vendor)
 
-- Create CDP project + EVM account for the agent; key lives in CDP TEE, never in `.env`.
-- Account policy: `evmAddress` allowlist (USDC + hub/escrow contracts), `evmData` transfer-value caps mirroring `DRNIB_SPEND_MAX_*`, `evmNetwork` pinned to Arc, `signEvmHash` → reject. Fail-secure default (no match = reject) is built in.
-- Rework signing path: local viem key → CDP encode-sign-send. Gateway EIP-3009 flow must be re-proven after the swap (soak re-run).
-- **Open question (verify before building): does CDP support Arc (5042/5042002)?** If not, Track A is dead and Track C wins by default.
+**SPIKE VERDICT (Oct 2026): DEAD ON ARC.** CDP supports Base, Ethereum,
+Arbitrum, Polygon, Optimism, Solana (+ testnets) — Arc (5042/5042002) is not
+listed, `evmNetwork` identifiers are a closed set, and Smart Accounts are
+Base-only. Revisit only if Coinbase adds Arc; do not build.
+
+(Kept for the record: the mechanism itself is right — project/account
+policies, allowlist + `evmData` value caps, fail-secure default. If we ever
+operate an agent wallet on a CDP-supported chain, this is the template.)
 
 ## Track B — Smart sessions (Gate 2 vendor)
 
@@ -56,5 +60,12 @@ Tests 1–4 are implemented (`loop.test.js`, `executor.test.js`). Test 6 is impl
 ## Decision
 
 - Build now: verdict binding, bypass tests 1–4+6, dual-RPC guard (done, this repo).
-- Spec now, build on decision: Track A vs C — verify Arc support for CDP + 4337 infra first (one research spike, no code).
+- Track A: dead on Arc. Track B: blocked on 4337 infra (verify if ever needed).
+- **Track C wins by default** — custom `NibgateSpender` is the only Gate 2
+  deployable on Arc today. Next step when greenlit: forge contract (owner =
+  keeper, agent spender, per-day USDC cap, recipient allowlist) + tests +
+  testnet deploy, same pattern as the splitter.
 - Procedural now: hot-wallet float discipline + movement alerting.
+- Reconcile is Arc-decimal-safe: it reads logs only from the ERC-20 USDC
+  contract address, so the native-leg system event (18-dec) can never
+  double-count against the ERC-20 leg (6-dec).

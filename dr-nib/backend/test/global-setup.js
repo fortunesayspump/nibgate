@@ -18,9 +18,23 @@ export default function globalSetup() {
   const require = createRequire(import.meta.url);
   const prisma = require.resolve('prisma/build/index.js');
 
-  execFileSync(process.execPath, [prisma, 'db', 'push', '--skip-generate', '--accept-data-loss', `--schema=${path.join(root, 'prisma', 'schema.prisma')}`], {
-    cwd: root,
-    env: { ...process.env, DATABASE_URL: url, DRNIB_DATABASE_URL: url },
-    stdio: 'inherit',
-  });
+  // The Railway proxy flaps (P1001) several times a day. A single attempt
+  // turns a 10-second network blip into a fully red suite, so the setup —
+  // and only the setup — retries with backoff. Test bodies keep their own
+  // semantics: no retries there, ever.
+  const waits = [5000, 15000, 30000];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      execFileSync(process.execPath, [prisma, 'db', 'push', '--skip-generate', '--accept-data-loss', `--schema=${path.join(root, 'prisma', 'schema.prisma')}`], {
+        cwd: root,
+        env: { ...process.env, DATABASE_URL: url, DRNIB_DATABASE_URL: url },
+        stdio: 'inherit',
+      });
+      return;
+    } catch (err) {
+      if (attempt >= waits.length) throw err;
+      console.log(`[global-setup] db push failed (attempt ${attempt + 1}), retrying in ${waits[attempt] / 1000}s...`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waits[attempt]);
+    }
+  }
 }

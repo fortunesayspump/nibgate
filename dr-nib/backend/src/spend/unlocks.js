@@ -12,6 +12,7 @@ import { GatewayClient } from '@circle-fin/x402-batching/client';
 import { budgetState } from '../money.js';
 import { checkAmount, agentKey } from './policy.js';
 import { spendChain } from './chain.js';
+import { crossCheckRpc } from './guard.js';
 
 /** Read the price off a 402 challenge without paying. Returns dollars (0 = free). */
 export async function previewPrice(url, fetchImpl) {
@@ -102,6 +103,8 @@ export async function payX402({ runId, url, body, fetchImpl } = {}) {
   const amount = await ensureExact(runId, 'x402', preview.price);
   const client = clientForCap(cap);
   await ensureGatewayFunded(client, amount);
+  const chain = spendChain();
+  await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
   const out = await client.pay(String(url), {
     method: body ? 'POST' : 'GET',
     headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' },
@@ -120,6 +123,8 @@ export async function unlockContent({ runId, url, fetchImpl } = {}) {
   const amount = await ensureExact(runId, 'unlock', preview.price);
   const client = clientForCap(cap);
   await ensureGatewayFunded(client, amount);
+  const chain = spendChain();
+  await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
   const out = await client.pay(String(url), { headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' } });
   const paid = Number(out?.formattedAmount) || amount;
   const body = out?.data;

@@ -7,6 +7,8 @@ import { config } from '../env.js';
 import { budgetState } from '../money.js';
 import { checkAmount } from './policy.js';
 import { sendUsdc } from './wallet.js';
+import { spendChain } from './chain.js';
+import { crossCheckRpc } from './guard.js';
 
 async function hub(path, body) {
   const res = await fetch(`${config.hubApiUrl}${path}`, {
@@ -53,6 +55,8 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
     challenge = { error: e.message };
   }
   if (challenge?.payee) {
+    const chain = spendChain();
+    await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
     const txHash = await sendUsdc(challenge.payee, gate.amount);
     const verified = await post('/hub/tips/verify', {
       contentUrl, title, amount: String(gate.amount), currency: 'USDC',
@@ -65,6 +69,7 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
   const hold = await post('/hub/tips/hold', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer', ...(recipient ? { recipient } : {}) });
   const box = hold?.box;
   if (!box) throw new Error(hold?.error || 'hub returned no holding box for this tip');
+  await crossCheckRpc({ chainId: spendChain().chainId, rpcUrl: spendChain().rpcUrl });
   const txHash = await sendUsdc(box, gate.amount);
   const held = await post('/hub/tips/hold', {
     contentUrl, title, amount: String(gate.amount), currency: 'USDC',

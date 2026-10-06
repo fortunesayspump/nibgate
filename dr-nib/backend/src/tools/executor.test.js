@@ -106,4 +106,16 @@ describe('runTool', () => {
     expect(out.ok).toBe(false);
     expect(out.error).toMatch(/unknown tool: compute/);
   });
+
+  it('unjudged direct spends still hit tool-level caps (defense in depth)', async () => {
+    vi.stubEnv('DRNIB_AGENT_PRIVATE_KEY', '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+    // No loop, no verdict: caps enforced at the tool boundary anyway.
+    const over = await runTool(RUN, 'tip_creator', { contentUrl: 'https://x.example/a', amount: 9999 });
+    expect(over.ok).toBe(false);
+    expect(over.error).toMatch(/exceeds the \$1/);
+    const blind = await runTool(RUN, 'pay_x402', { url: 'http://localhost:9/x' });
+    expect(blind.ok).toBe(false);
+    expect(blind.error).toMatch(/public https|refused/);
+    vi.unstubAllEnvs();
+  });
 });

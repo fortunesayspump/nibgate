@@ -15,7 +15,7 @@ beforeEach(() => vi.clearAllMocks());
 import { chatJson, chat } from '../llm/provider.js';
 import { decide } from '../jev/client.js';
 import { runTool } from '../tools/executor.js';
-import { proposeTool, judgeToolCall, runToolAgent } from './loop.js';
+import { proposeTool, judgeToolCall, runToolAgent, verifyVerdict } from './loop.js';
 import { fingerprint, similarity, coverage } from './stops.js';
 
 // No evidence checklist unless a test opts in (extractor returns nothing).
@@ -234,8 +234,7 @@ describe('tool agent loop', () => {
     expect(out.steps[0].outputText.startsWith('[UNTRUSTED TOOL OUTPUT')).toBe(true);
   });
 
-  it('an executor throw becomes a failed step, not a dead run', async () => {
-    vi.mocked(chatJson)
+  it('an executor throw becomes a failed step, not a dead run', async () => {    vi.mocked(chatJson)
       .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'x' }, why: 'x' } })
       .mockResolvedValueOnce({ data: { done: true, answer: 'recovered' } });
     vi.mocked(runTool).mockRejectedValue(new Error('audit log db flap'));
@@ -270,5 +269,42 @@ describe('tool agent loop', () => {
     const out = await runToolAgent({ task: 't', maxSteps: 4 });
     expect(out.stopped).toBe('llm-unreachable');
     expect(out.steps[0].judgement.source).toBe('transport');
+  });
+
+  it('verdict binding: matching bytes pass, swapped payloads void', async () => {
+    const proposal = { tool: 'web_search', input: { query: 'x' } };
+    const fp = fingerprint('web_search', { query: 'x' });
+    expect(verifyVerdict(proposal, { decision: 'execute', source: 'jev', fp }).ok).toBe(true);
+    const swapped = { tool: 'web_search', input: { query: 'Y' } };
+    const voided = verifyVerdict(swapped, { decision: 'execute', source: 'jev', fp });
+    expect(voided.ok).toBe(false);
+    expect(voided.error).toMatch(/verdict void/);
+    expect(verifyVerdict(proposal, { decision: 'skip', source: 'jev', fp }).ok).toBe(false);
+  });
+  it('executed steps staple the approved fingerprint in the judgement row', async () => {
+    vi.mocked(chatJson)
+      .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'x' }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { done: true, answer: 'done' } });
+    vi.mocked(decide).mockResolvedValue({ pick: 'execute', probabilities: { execute: 0.9 }, model: 't' });
+    vi.mocked(runTool).mockResolvedValue({ ok: true, output: 'r', costUsd: 0 });
+    const out = await runToolAgent({ task: 't', maxSteps: 4, fastPath: false });
+    expect(out.steps[0].judgement.fp).toBe(fingerprint('web_search', { query: 'x' }));
+  });
+
+  it('spend funnel narrows tools after repeated free-tool polishing', async () => {
+    vi.mocked(chatJson)
+      .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q1' }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q2' }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q3' }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { tool: 'web_search', input: { query: 'q4' }, why: 'x' } })
+      .mockResolvedValueOnce({ data: { done: true, answer: 'done' } });
+    vi.mocked(runTool)
+      .mockResolvedValueOnce({ ok: true, output: 'first distinct result alpha', costUsd: 0 })
+      .mockResolvedValueOnce({ ok: true, output: 'second distinct result beta gamma', costUsd: 0 })
+      .mockResolvedValue({ ok: true, output: 'third distinct result delta epsilon zeta', costUsd: 0 });
+    const out = await runToolAgent({ task: 'tip the creator of x', maxSteps: 6 });
+    expect(vi.mocked(runTool)).toHaveBeenCalledTimes(3);
+    expect(out.steps[3].judgement.source).toBe('schema');
+    expect(out.steps[3].outcome).toMatch(/unknown tool/);
   });
 });

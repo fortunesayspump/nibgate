@@ -124,6 +124,18 @@ export async function proposeTool({ task, history = [], tools = null, fetchImpl,
   return { tool: data.tool, input: data.input && typeof data.input === 'object' ? data.input : {}, why: String(data.why || '').slice(0, 200), usage };
 }
 
+/** Re-verify a verdict against the exact bytes about to execute. A payload
+ * change after approval voids the verdict — the call is refused, never run
+ * on a stale approval. Pure function, unit-tested as the provenance lock. */
+export function verifyVerdict(proposal, judgement) {
+  if (!judgement || judgement.decision !== 'execute') return { ok: false, error: 'no execute verdict' };
+  const fp = canonicalPrint(proposal.tool, proposal.input ?? {});
+  if (judgement.fp && judgement.fp !== fp) {
+    return { ok: false, error: `verdict void: payload changed after approval (approved ${String(judgement.fp).slice(0, 60)}…)` };
+  }
+  return { ok: true };
+}
+
 export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0, balanceUsd = null, missing = [] } = {}) {
   const repeats = history.filter((h) => h.tool === proposal.tool && !h.ok).length;
   const successes = history.filter((h) => h.ok).length;
@@ -215,6 +227,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
   let judgedOk = false;
   let failStreak = 0;
   let redundantStreak = 0;
+  let spendNudges = 0;
   const shape = (tool, input, out) => ({
     tool,
     inputSummary: JSON.stringify(input ?? {}).slice(0, 160),
@@ -256,20 +269,30 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     // instead of overwhelming the proposer.
     const focusObs = steps.filter((s) => s.outputText).map((s) => s.outputText);
     const focusMissing = checklist?.length ? coverage(checklist, focusObs).missing : [];
-    let focus = focusMissing[0] || checklist?.[0] || null;
     // Spend shyness override: the proposer researches around spending even
     // holding the URL, recipient, and amount. When the task names a spend
     // and free evidence is banked without any spend attempt, say the
     // quiet part out loud.
     const SPEND_TOOLS = new Set(['tip_creator', 'unlock_content', 'pay_x402']);
-    if (/tip|pay|unlock|\bbuy\b|purchase/i.test(task)
-      && steps.filter((s) => s.ok).length >= 2
-      && !steps.some((s) => SPEND_TOOLS.has(s.tool) && s.ok)) {
+    const spendTask = /tip|pay|unlock|\bbuy\b|purchase/i.test(task);
+    const spendDone = steps.some((s) => SPEND_TOOLS.has(s.tool) && s.ok);
+    let focus = focusMissing[0] || checklist?.[0] || null;
+    let turnTools = tools;
+    if (spendTask && !spendDone && steps.filter((s) => s.ok).length >= 2) {
+      spendNudges += 1;
       focus = 'call the spend tool NOW (tip_creator / pay_x402 / unlock_content) with the discovered URL, recipient, and amount — further researching adds nothing and the task explicitly requires spending';
+      if (spendNudges >= 2) {
+        // Funnel: free tools had their chance (the model keeps polishing
+        // instead of spending). Narrow this turn to spend-or-finish so the
+        // run converges. submit_answer and done stay available.
+        turnTools = ['tip_creator', 'unlock_content', 'pay_x402'];
+      }
+    } else {
+      spendNudges = 0;
     }
     let proposal;
     try {
-      proposal = await proposeTool({ task, history: steps, tools, fetchImpl, self: selfText, plan, lesson, focus });
+      proposal = await proposeTool({ task, history: steps, tools: turnTools, fetchImpl, self: selfText, plan, lesson, focus });
       addUsage(proposal.usage);
       proposalFails = 0;
       transportFails = 0;
@@ -311,11 +334,13 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
         continue;
       }
       const started = Date.now();
-      // allSettled: one call's crash (sandbox blowup, DB flap in audit
-      // logging) must not nuke its siblings' results.
+      // Batch provenance: the approved fingerprints ride in the judgement
+      // row, so the audit trail shows exactly what was authorized. (No
+      // TOCTOU window exists here — verdict and execution are adjacent with
+      // no model call between, unlike the single path with its JEV call.)
       const settled = await Promise.allSettled(proposal.calls.map((c) => runTool(runId, c.tool, c.input, { policy })));
       const outs = settled.map((s) => (s.status === 'fulfilled' ? s.value : { ok: false, error: String(s.reason?.message || s.reason || 'threw').slice(0, 160), costUsd: 0 }));
-      const step = { n, proposal, judgement: { decision: 'execute', source: 'policy-fast' } };
+      const step = { n, proposal, judgement: { decision: 'execute', source: 'policy-fast', fps } };
       const parts = [];
       let allOk = true;
       proposal.calls.forEach((c, i) => {
@@ -344,7 +369,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     }
     // Pre-execution schema check: malformed proposals die here for free, with
     // feedback the model can act on — never spend a judgement or a tool call.
-    const shape0 = checkProposal(proposal.tool, proposal.input, tools);
+    const shape0 = checkProposal(proposal.tool, proposal.input, turnTools);
     if (!shape0.ok) {
       const step = { n, proposal, judgement: { decision: 'skip', source: 'schema' } };
       Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: shape0.error }));
@@ -427,7 +452,12 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
       addUsage(judgement.usage);
     }
     if (judgement.source === 'jev') judgedOk = true;
-    const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source } };
+    // Provenance binding (Aomi Gate 0.5→1 handoff): the verdict is stapled
+    // to the EXACT canonical bytes it approved. Re-checked immediately
+    // before execution — a payload change after the verdict voids it instead
+    // of executing on a stale approval.
+    judgement.fp = fp;
+    const step = { n, proposal, judgement: { decision: judgement.decision, source: judgement.source, fp } };
     if (judgement.decision !== 'execute') {
       step.result = { skipped: true };
       // No HTTP response on any judgement so far: the judge is unreachable
@@ -464,6 +494,15 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
       continue;
     }
     const t0 = Date.now();
+    const binding = verifyVerdict(proposal, step.judgement);
+    if (!binding.ok) {
+      step.result = { skipped: true };
+      Object.assign(step, shape(proposal.tool, proposal.input, { ok: false, error: binding.error }));
+      steps.push(step);
+      await onStep?.(step);
+      stopped = 'verdict-void';
+      break;
+    }
     // A throw from the executor (sandbox crash, audit-log DB flap) is a
     // failed step, not a dead run: telemetry must never kill the task.
     let out;

@@ -22,6 +22,15 @@ gate, the bypass analysis, and the build order for what is missing.
 Procedural boundary in force until Gate 1 lands: the agent hot wallet holds
 only operating float (~$20 testnet). Balance discipline, not cryptography.
 
+## What Aomi itself uses (verified Oct 2026)
+
+Not a vendor wallet: **"Aomi plans; you sign."** Their widget integrates
+Para + wagmi and hands every transaction to the user's local wallet. The
+agent never holds keys — their Gate 1 is the human. We cannot copy this:
+our product IS autonomous spending (data stage buys, tips, unlocks), a
+strictly harder problem than theirs. Their paper surveys the right
+mechanisms; their product sidesteps the custody question.
+
 ## Track A — CDP server wallet + Policy Engine (Gate 1 vendor)
 
 **SPIKE VERDICT (Oct 2026): DEAD ON ARC.** CDP supports Base, Ethereum,
@@ -65,6 +74,11 @@ Tests 1–4 are implemented (`loop.test.js`, `executor.test.js`). Test 6 is impl
   deployable on Arc today. Next step when greenlit: forge contract (owner =
   keeper, agent spender, per-day USDC cap, recipient allowlist) + tests +
   testnet deploy, same pattern as the splitter.
+- Unverified alternative (spike if float grows): Turnkey-style enclave +
+  policy (chain-agnostic signing is plausibly Arc-compatible, unlike CDP's
+  closed network list — but docs could not be verified, and it means vendor
+  key custody + signing-path rework + monthly cost). Track C first; vendor
+  Gate 1 only when the float justifies it.
 - Procedural now: hot-wallet float discipline + movement alerting.
 - Reconcile is Arc-decimal-safe: it reads logs only from the ERC-20 USDC
   contract address, so the native-leg system event (18-dec) can never

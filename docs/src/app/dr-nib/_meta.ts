@@ -1,5 +1,6 @@
 export default {
   index: "Dr. Nib research agent",
+  protocol: "Protocol & architecture",
   budgets: "Budgets & refunds",
   escrow: "Onchain escrow",
   "agent-spending": "Agent spending",

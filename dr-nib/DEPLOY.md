@@ -26,6 +26,24 @@ The start command runs `prisma generate` → `prisma migrate deploy` → serve, 
 the first deploy creates the `drnib` schema and later deploys apply new
 migrations. Migration history lives in the `drnib` schema.
 
+### Testnet mirror (full testnet flow)
+
+The testnet frontend (`testnet.nibgate.xyz/dr-nib`) renders the app and
+proxies `/drnib-api` to `https://drnib.testnet.nibgate.xyz` (unless
+`DRNIB_API_URL` overrides it). For the full testnet flow that host must serve
+a testnet dr-nib deployment:
+
+- **Railway service** in the testnet project (same repo/branch, root directory
+  = repo root): `pnpm --filter @nibgate/dr-nib-backend start:prod`.
+- **Env**: the §2 table, but `HUB_API_URL=https://testnet-api.nibgate.xyz`,
+  `CORS_ORIGIN=https://testnet.nibgate.xyz`, `DRNIB_NETWORK=testnet`,
+  `DRNIB_DATABASE_URL=…&schema=drnib` on the testnet cluster, and testnet keys.
+  Do NOT set `DRNIB_MAINNET_ONLY`. Do NOT copy mainnet keys.
+- **DNS**: `drnib.testnet.nibgate.xyz` CNAME → the Railway service (TLS by
+  Railway). Until this resolves to the service, the testnet UI renders but its
+  API calls fail.
+- **Verify**: `curl -s https://drnib.testnet.nibgate.xyz/health` → `{"ok":true,…}`.
+
 ## 2. Environment variables
 
 Set these on the service (never commit them):
@@ -48,6 +66,15 @@ Set these on the service (never commit them):
 | `RAILWAY_API_TOKEN` | optional; enables the `run_code` sandbox tool (isolated ephemeral VMs for parsing, stats, scripts) |
 | `RAILWAY_ENVIRONMENT_ID` | the environment sandboxes are created in (same project) |
 | `DRNIB_SANDBOX_IDLE_MINUTES` | optional; sandbox idle TTL, default 10 |
+| `DRNIB_DISABLED` | optional kill switch; `1`/`true` = answer 503 on every run route (health stays up). Flip per service to pull the backend off a stack without a code change |
+| `DRNIB_NETWORK` | `mainnet`; stated explicitly (otherwise inferred from `HUB_API_URL`) |
+| `DRNIB_SELLER_ADDRESS` | optional; receiver for direct x402 tips/unlocks |
+| `DRNIB_SPENDER_ADDRESS` | optional; route direct USDC tips through `NibgateSpender` (daily cap + fail-secure allowlist) instead of the raw EOA. Testnet `0x903b0606da40d99d78da9d9be6c435acacba5cf0`. Leave unset for the EOA path |
+| `ESCROW_CORE` / `ESCROW_SPLITTER` | escrow is not auto-enabled on mainnet: set both to the deployed ERC-8183 core + `NibgateRunSplitter` addresses. Testnet defaults are built in |
+| `ESCROW_KEEPER_KEY` | keeper hot key (escrow evaluator + `submit`/`complete` + split attestation). **Required for `isEscrowConfigured()`**; also read from `NIBGATE_KEEPER_PRIVATE_KEY`. Without it the escrow routes answer 501 |
+| `ESCROW_TREASURY` | optional; default `0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12` |
+| `ESCROW_FEE_BPS` | optional; default 100 (1%) |
+| `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_PUBLIC_URL` | optional; exports storage (same bucket conventions as hub media) |
 | `PORT` | leave unset; Railway injects it |
 
 Runtime knobs (optional, defaults are fine): `LLM_MODEL`, `LLM_FALLBACK_MODELS`,
@@ -61,6 +88,15 @@ Because the subdomain is under `.nibgate.xyz`, the browser sends the SIWE
 session cookie to it directly. `dr-nib-api.ts` defaults to that subdomain in
 production; `next.config.ts` also exposes a same-origin `/drnib-api` proxy as a
 fallback. Set `DRNIB_API_URL` only to point at a different deployment.
+
+Per-deployment UI toggle (Vercel, no code change):
+`NEXT_PUBLIC_DRNIB_ENABLED=false` renders an "unavailable" notice instead of
+the app; unset (or anything else) means on. Flip it on the mainnet and/or
+testnet frontend projects independently and redeploy — public `NEXT_` vars
+bake in at build time. The dr-nib backend the UI talks to follows the build
+network unless `DRNIB_API_URL` overrides it: mainnet builds →
+`drnib.nibgate.xyz`, testnet builds → `drnib.testnet.nibgate.xyz` (which must
+exist — see Testnet mirror above).
 
 ## 4. Verify after deploy
 

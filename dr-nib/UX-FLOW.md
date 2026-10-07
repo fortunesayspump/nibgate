@@ -63,13 +63,18 @@ Report                         cited doc + sources + exports + receipt
 
 ## Sidebar tabs (every tab earns its place)
 
-| Tab | Job |
-|---|---|
-| Research | Home: New + Active project cards; the flow above lives here |
-| Chat | Quick Q&A + interrogating results ("why trust source 4?"); one-click promote to a full run |
-| Runs | History with states (queued/running/paused/complete/failed); retry creates a new run, originals stay immutable |
-| Sources | Library collected across runs/chats; trust chips; click-through to claims |
-| Budget | Balance, per-run meters, top-up, provider (Hub / BYO), spend history |
+| Tab | Job | State |
+|---|---|---|
+| Research | Home: New + Active project cards; the flow above lives here | Shipped |
+| Projects | Active + ended runs; resume, inspect, delete | Shipped |
+| Sources | Library collected across runs; trust chips; click-through to claims | Shipped |
+| Settings | Budget + provider + defaults | Shipped |
+
+Not yet shipped (aspirational in earlier drafts): a dedicated **Chat** tab
+(quick Q&A / "why trust source 4?"), a separate **Runs** history tab
+(Projects covers this), and a **Budget** tab (budget controls live in Settings
+and per-run configure today). See the Status table in `README.md` for the
+authoritative list.
 
 ## States that must exist (no dead ends)
 

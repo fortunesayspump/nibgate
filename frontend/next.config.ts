@@ -7,7 +7,14 @@ if (!/^https?:\/\//.test(apiUrl)) apiUrl = 'https://' + apiUrl;
 // same-origin proxy so the `.nibgate.xyz` SIWE session cookie is sent — a
 // direct cross-origin call to a *.up.railway.app host would not carry a
 // .nibgate.xyz cookie and every authenticated request would 401.
-let drnibUrl = (process.env.DRNIB_API_URL || (process.env.NODE_ENV === "production" ? "https://drnib.nibgate.xyz" : "http://localhost:3100")).replace(/\/+$/, '');
+//
+// The backend is chosen by build network (overridable with DRNIB_API_URL):
+// mainnet builds talk to the mainnet service, testnet builds to the testnet
+// service (which must exist — see dr-nib/DEPLOY.md "Testnet service").
+const buildNetwork = (process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase();
+let drnibUrl = (process.env.DRNIB_API_URL || (process.env.NODE_ENV === "production"
+  ? (buildNetwork === "mainnet" ? "https://drnib.nibgate.xyz" : "https://drnib.testnet.nibgate.xyz")
+  : "http://localhost:3100")).replace(/\/+$/, '');
 if (!/^https?:\/\//.test(drnibUrl)) drnibUrl = 'https://' + drnibUrl;
 
 const nextConfig: NextConfig = {

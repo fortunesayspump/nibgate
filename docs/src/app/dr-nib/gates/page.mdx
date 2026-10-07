@@ -14,7 +14,7 @@ Where the agent's money is enforceable, by whom — and what remains trust-me. M
 | Injected state | dual-RPC cross-check before every spend | backend, active with `DRNIB_RPC_BACKUP` | Partial |
 | Wallet policy | — | — | **Missing** (hot key in env; see below) |
 | Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) | contract + keeper | Enforced (testnet) |
-| Spend mandate | `NibgateSpender`: $2/day, recipient allowlist, keeper pause | contract + keeper | **Deployed testnet** |
+| Spend mandate | `NibgateSpender`: $2/day, recipient allowlist, keeper pause | contract + keeper | **Deployed testnet** (inert until `DRNIB_SPENDER_ADDRESS` is set) |
 
 ## The spender mandate (testnet)
 

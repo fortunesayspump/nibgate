@@ -56,6 +56,13 @@ if (mainnetOnly && network !== 'mainnet') {
   throw new Error(`DRNIB_MAINNET_ONLY is set but this service is configured for ${network} (HUB_API_URL=${hubApiUrl}). Point it at the mainnet hub or unset the flag.`);
 }
 
+// Operational kill switch, per deployment: DRNIB_DISABLED=1 makes this
+// service answer 503 on every run route (health stays up) without a code
+// change. Flip it on the Railway service and restart to pull the backend off
+// a stack independently of the frontend flag.
+const disabled = /^(1|true|yes)$/i.test(String(process.env.DRNIB_DISABLED || ''));
+if (disabled) console.warn('[dr-nib] DRNIB_DISABLED is set — run routes will answer 503 (health stays up).');
+
 export const config = {
   root,
   port: Number(process.env.PORT || 3100),
@@ -64,6 +71,7 @@ export const config = {
   hubApiUrl,
   network,
   mainnetOnly,
+  disabled,
   // Per-user ceiling on simultaneously live runs. Each run holds a funded cap
   // and spends provider money; without a cap, many concurrent runs are a
   // denial-of-wallet on the operator. Raise deliberately, not accidentally.

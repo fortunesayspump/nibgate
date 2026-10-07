@@ -55,7 +55,8 @@ jev/           JEV decision layer — deterministic decide/selectMany engine plu
 tipping/       Nib Tip design record (DESIGN/SPEC/FEES/NON-NIBGATE-CREATORS) —
                protocol reference; implementation lives in packages/nibgate,
                backend tip routes, contracts, and the extension
-dr-nib/        Dr. Nib research agent — design only, no code yet
+dr-nib/        Dr. Nib research agent — backend service + hub UI + spend/escrow
+               rails (see dr-nib/README.md for the Done/Partial/Pending status)
 mcp-registry/ MCP registry record for the hub MCP server
 nibgate.config.json  Sample CLI config (routes to local demo content)
 ```

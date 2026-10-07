@@ -183,7 +183,20 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     setExportError("");
     try {
       const out = await drNibApi.createExport(id, format);
-      const blob = new Blob([out.content ?? ""], { type: out.contentType || "text/plain" });
+      // Binary deliverables are stored in R2: the server returns a URL and no
+      // inline bytes. Open it rather than fabricating an empty download.
+      if (out.url && out.content == null) {
+        window.open(out.url, "_blank", "noopener");
+        return;
+      }
+      let data: BlobPart = out.content ?? "";
+      if (out.encoding === "base64" && typeof out.content === "string") {
+        const bin = atob(out.content);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+        data = bytes;
+      }
+      const blob = new Blob([data], { type: out.contentType || "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -396,13 +409,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium">Report · v{report.version}</p>
                 <div className="flex flex-wrap items-center gap-2">
-                  {["md", "json", "bibtex"].map((f) => (
+                  {["md", "json", "bibtex", "pdf", "word", "excel", "powerpoint"].map((f) => (
                     <button key={f} onClick={() => downloadExport(f)} className="border border-dark-gray/60 px-2.5 py-1 text-[11px] font-medium uppercase">{f}</button>
                   ))}
                 </div>
               </div>
               {exportError ? <p className="mb-2 text-xs text-red-700">{exportError}</p> : null}
-              <p className="mb-3 text-[11px] opacity-60">PDF, Word, Excel, and PowerPoint renderers are not wired yet.</p>
               <article className="whitespace-pre-wrap text-sm leading-7">{report.markdown}</article>
             </section>
           )}

@@ -16,7 +16,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |
 | 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) | contract, keeper key | keeper key compromise | ENFORCED (testnet) |
-| 2 Spend mandate (agent wallet) | — | — | `$1 cap` is JavaScript; onchain the key is unlimited | **MISSING** |
+| 2 Spend mandate (agent wallet) | `NibgateSpender` (owner=keeper, agent=hot key, daily cap + allowlist + pause) | contract (testnet) | keeper-key compromise; unset env falls back to EOA path | PARTIAL (deployed; inert until `DRNIB_SPENDER_ADDRESS` is set + funded + allowlisted) |
 | 3 Builder | — | Arc sequencer (not ours) | out of scope | NONE |
 
 Procedural boundary in force until Gate 1 lands: the agent hot wallet holds
@@ -56,10 +56,14 @@ operate an agent wallet on a CDP-supported chain, this is the template.)
 owner = keeper, agent = hot key, $2/day cap, 8/8 forge tests green.
 Deployer holds no privileges (constructor-assigned roles only).
 
-Remaining before enforcement is live: keeper funds it (operating float),
-allowlists creator recipients, and the backend tip path is switched from
-direct EOA transfer to `spend()`. Gateway EIP-3009 flows stay EOA-bound
-(contracts cannot sign) — direct transfers only, by design.
+Remaining before enforcement is live is operational, not code: the keeper
+funds the contract (moving the operating float off the EOA), allowlists
+recipient addresses, and sets `DRNIB_SPENDER_ADDRESS=0x903b…` on the dr-nib
+service — `tips.js#moveFunds` already routes through `spend()` the moment that
+env is set (no silent fallback). The allowlist is fail-secure (empty =
+deny-all), so it suits a bounded recipient set; arbitrary creator tips need a
+policy decision on how recipients get allowlisted. Gateway EIP-3009 flows stay
+EOA-bound (contracts cannot sign) — direct transfers only, by design.
 
 - Minimal `NibgateSpender`: owner = keeper, agent key = spender, per-day USDC cap, recipient allowlist, forge-tested like the splitter. No vendor, no 4337, deployable on Arc today.
 - Agent hot wallet becomes the contract; EOA key can only spend through it.
@@ -81,10 +85,10 @@ Tests 1–4 are implemented (`loop.test.js`, `executor.test.js`). Test 6 is impl
 
 - Build now: verdict binding, bypass tests 1–4+6, dual-RPC guard (done, this repo).
 - Track A: dead on Arc. Track B: blocked on 4337 infra (verify if ever needed).
-- **Track C wins by default** — custom `NibgateSpender` is the only Gate 2
-  deployable on Arc today. Next step when greenlit: forge contract (owner =
-  keeper, agent spender, per-day USDC cap, recipient allowlist) + tests +
-  testnet deploy, same pattern as the splitter.
+- **Track C shipped** — `NibgateSpender` is deployed on Arc testnet
+  (`0x903b0606da40d99d78da9d9be6c435acacba5cf0`: owner = keeper, agent = hot
+  key, $2/day cap, 8/8 forge tests). Next step is operational, not code: fund
+  it, allowlist recipients, and set `DRNIB_SPENDER_ADDRESS` on the service.
 - Unverified alternative (spike if float grows): Turnkey-style enclave +
   policy (chain-agnostic signing is plausibly Arc-compatible, unlike CDP's
   closed network list — but docs could not be verified, and it means vendor

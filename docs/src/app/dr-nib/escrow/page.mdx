@@ -8,6 +8,10 @@ For runs where the budget must be enforceable by contract rather than by promise
 Escrow is opt-in per run. Runs without it keep the [ledger path](./budgets) — nothing about the default changes.
 </Callout>
 
+<Callout type="warning">
+**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`. The Arc testnet contract lifecycle is proven; an app-path soak (create → fund → run → complete → split through the UI) is still pending before mainnet.
+</Callout>
+
 ## Roles
 
 | Role | Who |

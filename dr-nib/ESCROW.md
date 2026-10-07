@@ -3,10 +3,17 @@
 How a Dr. Nib run holds the user's money and gives it back. Design note, not
 flow — the user-facing journey lives in `FLOW.md`.
 
-**Status (Oct 2026): designed, not deployed.** Supersedes the Sep 2026 draft
-below in one decision: we ship *stock* ERC-8183 plus a drawdown hook instead
-of extending a contract. Nothing onchain exists for runs yet; the ledger in
-`backend/src/money.js` is the only budget enforcement today.
+**Status (audited Oct 2026): deployed on Arc testnet and wired end-to-end in
+code.** We ship *stock* ERC-8183 plus a splitter-as-provider instead of
+extending a contract. The contracts are live (see Build status), the backend
+owns the job lifecycle (`backend/src/escrow/jobs.js` + `/v1/runs/:id/escrow*`
+routes), and the hub UI funds it
+(`frontend/src/components/dr-nib/EscrowDeposit.tsx`, opt-in in
+`frontend/src/app/dr-nib/research/page.tsx`). Locally the keeper key is wired
+(`ESCROW_KEEPER_KEY` in `dr-nib/backend/.env`), so `isEscrowConfigured()` is
+true and onchain job 10 reads `Completed`. Deployments must set the same key
+on the service (documented in `DEPLOY.md`); without it the escrow route answers
+501.
 
 ## Short version
 
@@ -147,10 +154,14 @@ the exact report bytes the money paid for, retrievable from Postgres/R2.
 - [x] `NibgateRunSplitter` written + 7 forge tests green (split math, zero-spend refund, submitJob relay + keeper gate, wrong-key/overspend/double-split/uncompleted rejections)
 - [x] Deployed on Arc testnet (Oct 2026): core `0x5135ae9be828be42b63f176848a7b720aedf4c58`, splitter `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` (keeper `0x796a…`, treasury `0x558e…`, 100 bps) — recorded in `contracts/deployments/arc-testnet.json:escrow`
 - [x] Full lifecycle proven onchain with real testnet USDC (job 10, tx `0xcb6a…74b8`): $0.05 funded → $0.03 spent → split 17820 operator / 180 treasury / 12000 client refund, all atomic
-- [ ] Backend job lifecycle: create/setBudget/fund-status/submit/complete/reject mirroring run status
-- [ ] Frontend configure→approve becomes deposit (`approve` + `fund`, then run)
-- [ ] Keeper completes with ledger-attested `(reportHash, spentUsdc)`
-- [ ] Testnet soak with real (testnet) USDC before any mainnet discussion
+- [x] Backend job lifecycle: `createJob` / `jobStatus` / `submitAndComplete` / `signSplit` (`backend/src/escrow/jobs.js`) + `POST|GET /v1/runs/:id/escrow`, `POST /v1/runs/:id/escrow/complete` (`backend/src/routes/runs.js`)
+- [x] Frontend configure→approve becomes deposit (`EscrowDeposit.tsx`: `createJob` → `setBudget` → `approve` → `fund`; approve is gated on `Funded`)
+- [x] Keeper completes with ledger-attested `(reportHash, spentUsdc)` (`submitAndComplete` + `signSplit`)
+- [x] Escrow keeper key wired locally (`ESCROW_KEEPER_KEY` in `dr-nib/backend/.env`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) and documented in `DEPLOY.md`; `isEscrowConfigured()` reads true
+- [ ] Escrow keeper key set on the deployed dr-nib service (ops/secret) — otherwise escrow answers 501 in that environment
+- [ ] `reject`/refund route parity with run status (only `complete` is routed today; the reject path is contract-side stock)
+- [ ] App-path testnet soak with real (testnet) USDC — the contract lifecycle was proven standalone via scripts; the create→fund→run→complete→split path has not been soaked through the UI
+- [ ] Unaudited code must not hold real money: no mainnet user funds before external review + soak
 
 ## Reproducing the deployment
 

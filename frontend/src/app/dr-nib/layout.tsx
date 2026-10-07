@@ -1,31 +1,33 @@
 import Header from "@/components/Header";
 import DrNibShell from "@/components/dr-nib/DrNibShell";
-import { activeNetworkName } from "@/lib/api";
 
-// Dr. Nib is mainnet-only on purpose. Every run spends real money — model
-// calls, JEV decisions, and source retrieval, all paid by Nibgate's own keys —
-// and the payer funds it in USDC. On testnet that USDC is free, so exposing
-// Dr. Nib there would be an open faucet for real compute. Testnet builds show
-// a clear notice instead of the app, never a broken page.
+// Availability is per-deployment, via env — no code change needed to pull the
+// app off a stack:
+//
+//   NEXT_PUBLIC_DRNIB_ENABLED=false  renders the notice below instead of the app.
+//   Unset (or any other value)      means on.
+//
+// Mainnet and testnet Vercel projects toggle independently: flip the value on
+// that project and redeploy. Testnet runs are testnet-funded staging; the
+// backend's own network is what moves money, and run budgets gate every run
+// on either stack.
+const enabled = (() => {
+  const raw = String(process.env.NEXT_PUBLIC_DRNIB_ENABLED ?? "").trim().toLowerCase();
+  return raw === "" || !["0", "false", "no", "off", "disabled"].includes(raw);
+})();
+
 export default function DrNibLayout({ children }: { children: React.ReactNode }) {
-  if (activeNetworkName() !== "mainnet") {
+  if (!enabled) {
     return (
       <>
         <Header />
         <main className="mx-auto flex min-h-[60vh] max-w-xl flex-col justify-center px-6 py-20 text-center">
           <p className="text-xs font-medium uppercase tracking-[0.18em] opacity-60">Dr. Nib</p>
-          <h1 className="mt-3 text-3xl font-medium md:text-4xl">Dr. Nib runs on mainnet</h1>
+          <h1 className="mt-3 text-3xl font-medium md:text-4xl">Dr. Nib is currently unavailable here</h1>
           <p className="mt-4 text-sm leading-7 opacity-70">
-            Every research run spends real money — model calls, decisions, and source retrieval — and
-            the payer funds it in USDC. Because testnet USDC is free, offering Dr. Nib here would be an
-            open faucet for real compute, so it lives on the mainnet hub only.
+            The app has been switched off on this network by its operators. Nothing
+            about your projects changed — they resume where they left off when it returns.
           </p>
-          <a
-            href="https://nibgate.xyz/dr-nib"
-            className="mx-auto mt-8 inline-block bg-black px-6 py-3 text-sm font-medium text-white"
-          >
-            Open Dr. Nib on mainnet
-          </a>
         </main>
       </>
     );

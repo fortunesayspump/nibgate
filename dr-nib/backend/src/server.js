@@ -52,6 +52,16 @@ export async function createApp() {
 
   app.get('/health', (_req, res) => res.json({ ok: true, queue: queueMode() }));
 
+  // Kill switch (DRNIB_DISABLED): refuse run/API traffic with an explicit
+  // 503, but keep /health live so the deployment reads as intentionally off
+  // rather than broken. Registered before the routers so it wins.
+  if (config.disabled) {
+    app.use((req, res, next) => {
+      if (req.path === '/health') return next();
+      return res.status(503).json({ error: 'Dr. Nib is disabled on this deployment (DRNIB_DISABLED).' });
+    });
+  }
+
   app.use('/v1/runs', runs);
   app.use('/v1/budgets', budgets);
   // x402 before exports: router middleware runs on mount-prefix match, so the

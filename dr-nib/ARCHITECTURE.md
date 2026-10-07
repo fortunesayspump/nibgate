@@ -101,7 +101,9 @@ against on-chain receipts nightly.
 - **Settle:** ledger settle + optional onchain escrow complete + split.
 - Every stage skips when already done (resume/reprompt safe), charges through
   `draw()`, parks loudly on failure — never silent stalls.
-- **Export:** markdown/JSON/BibTeX renders for download (PDF/Word/Excel/PowerPoint renderers not yet wired).
+- **Export:** markdown/JSON/BibTeX plus PDF/Word/Excel/PowerPoint renders for
+  download; binary formats are returned base64 (R2 object streaming is a later
+  optimization).
 
 ## 6. Retrieval layer (free-first, as built)
 
@@ -145,8 +147,8 @@ expiry; public links opt-in per run.
 
 SSE events: `plan.ready`, `step.started`, `step.finished`,
 `source.scored`, `cost.tick`, `paused`, `resumed`, `report.ready`,
-`export.ready`, `failed` (what/why/next). The hub UI shell already
-renders these against mock data; the worker fills the same contract.
+`export.ready`, `failed` (what/why/next). The hub UI (`frontend/src/app/dr-nib/`)
+consumes the live API — not mock data.
 
 ## 11. Eval harness (continuous, not vibes)
 
@@ -165,14 +167,22 @@ fail the build before quality regressions ship.
 - Secrets: provider keys, retrieval keys, x402 facilitator creds —
   env-only, never in DB or logs.
 
-## Build order
+## Build status
 
-1. Schema + migrations (`ResearchRun` → ledger last, money first in
-   review).
-2. API skeleton with mocked worker (UI already consumes it).
-3. Queue + plan/approve/pause lifecycle.
-4. Retrieval adapters + metering.
-5. JEV wiring per decision table.
-6. Synthesize + verify passes.
-7. Export renderers → R2.
-8. Eval harness + dashboards.
+Superseded by the audited Done/Partial/Pending table in `README.md` — this
+section is kept only as the original sequencing record.
+
+1. Schema + migrations — **done** (`prisma/schema.prisma`, `drnib` schema).
+2. API + worker (mocked → live) — **done**; UI consumes the live API.
+3. Queue + plan/approve/pause lifecycle — **done** (inline + BullMQ).
+4. Retrieval adapters + metering — **done** (11 free indexes + keyed pair).
+5. JEV wiring per decision table — **done** (`src/jev/`).
+6. Synthesize + verify passes — **done** (`src/verify.js`).
+7. Export renderers — **done**: md/json/bibtex + pdf/word/excel/powerpoint
+   (`src/exports/render.js`); R2 streaming is a later optimization (base64
+   today).
+8. Eval harness + gates — **done** (`src/evals/`, `GATES.md`).
+
+Escrow (ERC-8183 + splitter) is implemented beyond this original sequence:
+contracts deployed on Arc testnet, backend `src/escrow/jobs.js`, routes, and
+the hub deposit UI — see `ESCROW.md` (pending: keeper-key env wiring + app soak).

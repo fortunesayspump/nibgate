@@ -60,7 +60,7 @@ machinery doesn't.
 | Path | What | Hosted |
 |---|---|---|
 | `dr-nib/backend/` | Worker service: pipeline, budget engine, exports, eval | Separately (own Railway service) |
-| `frontend/src/app/dr-nib/` + `frontend/src/components/dr-nib/` | Hub UI shell (workspace, chat, budget) | Hub frontend |
+| `frontend/src/app/dr-nib/` + `frontend/src/components/dr-nib/` | Hub UI (research, projects, sources, settings, escrow deposit) | Hub frontend |
 | `dr-nib/references/` | Third-party implementations we learn from (gitignored, re-fetchable) | — |
 | `dr-nib/ANALYSIS.md` | Full analysis: pipeline, JEV sophistication, teardown, ICP | — |
 | `dr-nib/ARCHITECTURE.md` | Service design: API, DB, worker, budget, exports, eval | — |
@@ -80,6 +80,33 @@ the source of truth for spend.
 
 ## Status
 
-UI shell live on the hub (mock data). Backend: schema → worker →
-`/hub/research`-style routes → live retrieval → exporters → eval harness.
-See `ARCHITECTURE.md` for the build order.
+Last audited **2026-10-07** against the code on disk. Legend: **Done** =
+implemented and covered by tests; **Partial** = implemented but not
+wired/enforced end-to-end; **Pending** = not built. Code existing is *not*
+the same as a run having executed — runtime verification is a separate row.
+
+| Area | State | Where / notes |
+|---|---|---|
+| Backend service | Done | `dr-nib/backend/`: Express + Prisma (own `drnib` schema), worker + inline/BullMQ queue, `/v1` runs+budgets+exports+x402, `/mcp` |
+| Intake → plan → approve → pause/resume → revise | Done | JEV owns stop/go/reframe; cooperative pause; reprompt = new report version |
+| Agent loop (propose–judge–execute) | Done | `src/agent/`: stops, self-model, DB-backed lessons, limits, dedupe/streak guards |
+| JEV integration | Done | `src/jev/{client,decisions,intake}`; parks (never fabricates) when JEV is unreachable |
+| Retrieval | Done | SearXNG, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv + keyed Tavily/Exa/direct |
+| Tools | Done | `src/tools/`: http, web_fetch/search, run_code sandbox (Railway), compute, evidence, tip/unlock/x402 spend |
+| Budget engine | Done | `src/money.js`: append-only ledger, 1% fee on drawdown, raise-only caps, settle/refund |
+| Spend policy + guard | Done | per-call ceilings, run-balance gate, verdict binding, dual-RPC when configured |
+| Verify + claims | Done | `src/verify.js`: JEV support judgements; `unverified` when JEV/LLM absent |
+| Exports | Done | md / json / bibtex + pdf / word / excel / powerpoint (`src/exports/render.js`); binary formats returned base64 (R2 streaming is a later optimization) |
+| Evals + build gates | Done | `src/evals/`, `GATES.md`; gates fail the build |
+| MCP server | Done | tools call the same route code paths; service-key gated |
+| Escrow — contracts | Done (testnet) | stock ERC-8183 core + `NibgateRunSplitter`, deployed Arc testnet; job 10 lifecycle proven (`ESCROW.md`) |
+| Escrow — backend | Done | `src/escrow/jobs.js` create/status/submit+complete/signSplit; `/v1/runs/:id/escrow*` |
+| Escrow — frontend | Done | `frontend/src/components/dr-nib/EscrowDeposit.tsx`; opt-in in `research/page.tsx`; approve gated on `Funded` |
+| Escrow — env wiring | Done (local) | `ESCROW_KEEPER_KEY` wired in `dr-nib/backend/.env`; `isEscrowConfigured()` = true and onchain job 10 reads `Completed`. Deploys still set it on the service (see `DEPLOY.md`) |
+| Gate 1 — wallet policy | **Pending** | no vendor deployable on Arc (CDP dead); the `NibgateSpender` onchain cap is the practical substitute (`GATES.md`) |
+| Gate 2 — spend mandate (onchain cap) | Partial (ops) | `NibgateSpender` deployed testnet `0x903b0606…` ($2/day, not paused); code already routes tips via `spend()` — remaining work is fund + allowlist + set `DRNIB_SPENDER_ADDRESS` |
+| Frontend UI | Done | `/dr-nib` research / projects / sources / settings + detail; renders on mainnet (real spend) and testnet (testnet-funded staging) |
+| **Live end-to-end run** | **Unverified** | Not executed in this audit: the local stack was down (hub :3000, frontend :3001, API :3100, SearXNG :8888) and Docker was off. The Playwright harness `e2e/tests/dr-nib-research.spec.ts` (+ `e2e/playwright.drnib.config.ts`) exists but is **uncommitted** |
+
+`ARCHITECTURE.md` remains the design reference; the historical build order
+there is superseded by this table.

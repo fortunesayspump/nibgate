@@ -4,6 +4,12 @@ How a research run actually happens, from the first sentence a person types to t
 report sitting on their screen. This is the intended behaviour of the product, written down
 so the implementation can be checked against it.
 
+> **Status:** this is the design/behaviour spec, not a build report. For what
+> is actually done vs. pending, see the audited table in `README.md`. The code
+> implements the full pipeline; exports are md/json/bibtex only, Gate 1 wallet
+> policy is pending, and escrow is code-complete but needs `ESCROW_KEEPER_KEY`
+> wired on the service.
+
 ---
 
 ## The shape of it
@@ -718,12 +724,14 @@ so a regression is caught before it ships, and a red build says which metric mov
 
 ## Where it runs
 
-Dr. Nib is **mainnet-only**. Every run spends real money — model calls, JEV decisions, and source
-retrieval, paid by Nibgate's own provider keys — and the payer funds it in USDC. On testnet that
-USDC is free, so a public Dr. Nib there would be an open faucet for real compute; the economics
-only hold where payment is real. Testnet builds show a plain "runs on mainnet" notice instead of
-the app. The gate is the frontend build's network, independent of the backend's chain: tests and
-demos run the mainnet UI against a testnet-funded backend, so the flow is real without real spend.
+Real money lives on **mainnet**: every run spends real money — model calls, JEV decisions, and source
+retrieval, paid by Nibgate's own provider keys — and the payer funds it in USDC. The economics
+only hold where payment is real.
+
+The **testnet mirror also runs the app**, backed by a testnet-funded backend (free USDC), so the
+full flow can be tested end to end. Testnet exposure burns operator compute on free-USDC runs — an
+accepted cost of staging, not a product offer. The backend's own network is what moves money: a
+testnet-pointed backend can never move mainnet funds, and run budgets gate every run on either stack.
 
 ## What this borrows from
 

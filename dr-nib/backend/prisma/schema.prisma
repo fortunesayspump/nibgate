@@ -232,3 +232,16 @@ model ResearchEvent {
   @@unique([runId, seq])
   @@index([runId, seq])
 }
+
+/// Episodic agent memory (Reflexion-lite): one verbal lesson distilled per
+/// failed run. Retrieved by task similarity and injected into future runs.
+/// Bounded by application code (LIMITS.lessonsMax), not the schema.
+model AgentLesson {
+  id         String   @id @default(uuid())
+  task       String
+  lesson     String
+  stopReason String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

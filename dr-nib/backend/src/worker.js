@@ -11,7 +11,7 @@ import { budgetState, draw, settle } from './money.js';
 import { generatePlan, generateReport, generateReportLong, generateRoundReview } from './llm/generate.js';
 import { resolveLength } from './length.js';
 import { searchEvidence } from './tools/evidence.js';
-import { runChoice, runNoul } from './jev/decisions.js';
+import { runChoice, runNoul, runGrade } from './jev/decisions.js';
 import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
 import { isSpendConfigured } from './spend/policy.js';
@@ -579,8 +579,34 @@ async function scoreStage(runId, run) {
     });
     if (!trust) return { why: 'Parked: JEV is unreachable, so trust cannot be judged.', scored: scored.length, fallback: false, parked: true };
     jevCost += Number(trust.usage?.costUsd) || 0;
-    scored.push({ ...doc, trust: trust.probability });
+    // Evidence grade (Score primitive): where this source falls on the
+    // quality scale. Ranks, never gates — JEV down means ungraded, and the
+    // run proceeds on trust alone.
+    let gradeScore = null;
+    try {
+      const g = await runGrade(runId, {
+        step: 'source-grade',
+        prompt: `Grade this source's evidence quality for the question. ${doc.url}`,
+        state: `Topic: ${run.brief?.topic || ''}\nURL: ${doc.url}\nTitle: ${doc.title}\nExcerpt: ${String(doc.text || '').slice(0, 800)}`,
+        instructions: 'Grade the evidence quality of this source for the topic.',
+        levels: [
+          'Passing mention, directory listing, or SEO filler — no substantive content',
+          'Topical article with real content but secondary reporting',
+          'Substantive primary reporting, data, or analysis',
+          'Primary source: paper, filing, official docs, or direct measurement',
+        ],
+        questionId: 'source-grade',
+      });
+      if (g) {
+        gradeScore = g.score;
+        jevCost += Number(g.usage?.costUsd) || 0;
+      }
+    } catch {}
+    scored.push({ ...doc, trust: trust.probability, grade: gradeScore });
   }
+
+  // Primary sources first: grade ranks within equal trust.
+  scored.sort((a, b) => (Number(b.grade ?? -1) - Number(a.grade ?? -1)) || ((b.trust ?? 0) - (a.trust ?? 0)));
 
   await db.researchSource.createMany({
     data: scored.map((d) => ({

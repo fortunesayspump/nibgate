@@ -31,6 +31,7 @@ Practical consequences: decisions cost fractions of a cent (input tokens only, o
 | Source trust | Noul | P(source is trustworthy) | run parks, nothing scored on guesses |
 | Claim verify | Batched Choice | supported / unsupported per claim | marked unverified, never guessed |
 | Round control | Choice | continue / write / stop | parks |
+| Source grade | Score | 4 quality tiers (mention → primary) | ungraded — grades rank, never gate |
 
 Every verdict is persisted with its question, options, probabilities, pick, model, and cost — then published to the live feed next to the step it governed. The audit trail shows *why*, not just *what*.
 

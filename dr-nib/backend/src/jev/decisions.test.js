@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // decisions layer's `instanceof` park-path is exercised for real.
 vi.mock('./client.js', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, decide: vi.fn(), classify: vi.fn() };
+  return { ...actual, decide: vi.fn(), classify: vi.fn(), grade: vi.fn() };
 });
 
-const { decide, classify, JevUnavailable } = await import('./client.js');
-const { runChoice, runNoul } = await import('./decisions.js');
+const { decide, classify, grade, JevUnavailable } = await import('./client.js');
+const { runChoice, runNoul, runGrade } = await import('./decisions.js');
 const { db } = await import('../db.js');
 
 const RUN = 'aaaaaaaa-0000-4000-8000-0000000000d1';
@@ -71,5 +71,24 @@ describe('runNoul', () => {
     expect(out).toBeNull();
     const run = await db.researchRun.findUniqueOrThrow({ where: { id: RUN } });
     expect(run.pauseReason).toBe('jev');
+  });
+});
+
+describe('runGrade', () => {
+  it('records a score judgment without parking', async () => {
+    grade.mockResolvedValue({ score: 2.4, confidence: 0.7, probabilities: { 2: 0.6, 3: 0.4 }, model: 'm', usage: null });
+    const out = await runGrade(RUN, { step: 'grade', state: 's', instructions: 'grade it', levels: ['a', 'b', 'c', 'd'] });
+    expect(out.score).toBe(2.4);
+    const row = await db.researchDecision.findFirstOrThrow({ where: { runId: RUN, type: 'grade' } });
+    expect(row.output.score).toBeCloseTo(2.4, 6);
+  });
+
+  it('degrades to null without parking when JEV is unreachable (grades rank, never gate)', async () => {
+    grade.mockRejectedValue(new JevUnavailable('down'));
+    const out = await runGrade(RUN, { step: 'grade', state: 's', instructions: 'grade it', levels: ['a', 'b'] });
+    expect(out).toBeNull();
+    const run = await db.researchRun.findUniqueOrThrow({ where: { id: RUN } });
+    expect(run.pauseReason).not.toBe('jev');
+    expect(run.status).toBe('running');
   });
 });

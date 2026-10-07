@@ -216,7 +216,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
   // Episodic memory: a verbal lesson from the most similar past failure.
   let lesson = null;
   try {
-    lesson = findLesson(task)?.lesson || null;
+    lesson = (await findLesson(task).catch(() => null))?.lesson || null;
   } catch {}
   let plan = null;
   const seen = new Set();

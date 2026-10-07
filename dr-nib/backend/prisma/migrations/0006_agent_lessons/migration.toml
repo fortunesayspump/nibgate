@@ -1,0 +1,2 @@
+-- Episodic agent memory (see GATES/spec and agent lessons module).
+provider = "postgresql"

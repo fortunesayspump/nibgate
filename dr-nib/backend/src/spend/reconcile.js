@@ -22,7 +22,15 @@ export async function reconcileRun(runId, { publicClient } = {}) {
     transport: http(chain.rpcUrl),
   });
   const me = agentAddress().toLowerCase();
-  const logs = await pub.getLogs({ address: chain.usdc, event: TRANSFER, args: { from: me }, fromBlock: 0n, toBlock: 'latest' });
+  // All value-moving senders: the hot EOA plus the spender mandate when
+  // configured (contract-originated transfers come FROM the mandate, and a
+  // reconciler watching only the EOA would miss every mandated tip).
+  const { spenderAddress } = await import('./wallet.js');
+  const senders = [me, ...(spenderAddress() ? [spenderAddress().toLowerCase()] : [])];
+  const logs = [];
+  for (const from of senders) {
+    logs.push(...await pub.getLogs({ address: chain.usdc, event: TRANSFER, args: { from }, fromBlock: 0n, toBlock: 'latest' }));
+  }
   const onchain = logs.map((l) => ({ tx: String(l.transactionHash).toLowerCase(), to: String(l.args?.to).toLowerCase(), amount: Number(l.args?.value ?? 0n) / 1e6 }));
 
   // Ledger spend rows that claim an onchain hash (txRef), across all runs —

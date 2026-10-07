@@ -6,9 +6,15 @@
 import { config } from '../env.js';
 import { budgetState } from '../money.js';
 import { checkAmount } from './policy.js';
-import { sendUsdc } from './wallet.js';
+import { sendUsdc, spenderAddress, spendViaContract } from './wallet.js';
 import { spendChain } from './chain.js';
 import { crossCheckRpc } from './guard.js';
+
+/** Route a tip transfer: mandate contract when configured, raw EOA otherwise. */
+export async function moveFunds(payee, amount) {
+  if (spenderAddress()) return spendViaContract(payee, amount);
+  return sendUsdc(payee, amount);
+}
 
 async function hub(path, body) {
   const res = await fetch(`${config.hubApiUrl}${path}`, {
@@ -57,7 +63,7 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
   if (challenge?.payee) {
     const chain = spendChain();
     await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
-    const txHash = await sendUsdc(challenge.payee, gate.amount);
+    const txHash = await moveFunds(challenge.payee, gate.amount);
     const verified = await post('/hub/tips/verify', {
       contentUrl, title, amount: String(gate.amount), currency: 'USDC',
       paymentRail: 'transfer', txHash, ...(recipient ? { recipient } : {}),
@@ -70,7 +76,7 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
   const box = hold?.box;
   if (!box) throw new Error(hold?.error || 'hub returned no holding box for this tip');
   await crossCheckRpc({ chainId: spendChain().chainId, rpcUrl: spendChain().rpcUrl });
-  const txHash = await sendUsdc(box, gate.amount);
+  const txHash = await moveFunds(box, gate.amount);
   const held = await post('/hub/tips/hold', {
     contentUrl, title, amount: String(gate.amount), currency: 'USDC',
     paymentRail: 'transfer', txHash, ...(recipient ? { recipient } : {}),

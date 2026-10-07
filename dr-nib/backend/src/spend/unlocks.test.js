@@ -50,4 +50,19 @@ describe('payX402 buyer path', () => {
     await expect(payX402({ runId: 'probe', url: 'https://seller.example/x', fetchImpl: empty })).rejects.toThrow(/no readable price/);
     expect(vi.mocked(GatewayClient)).not.toHaveBeenCalled();
   });
+
+  it('funds the gateway with exactly the price, never a lump float', async () => {
+    const deposit = vi.fn(async () => ({}));
+    const pay = vi.fn(async () => ({ data: { results: ['r'] }, formattedAmount: '0.01', transaction: '0xabc', status: 200 }));
+    vi.mocked(GatewayClient).mockImplementation(() => ({
+      onBeforePaymentCreation: vi.fn(),
+      getBalances: async () => ({ gateway: { available: 0n }, wallet: { balance: 5000000n, formatted: '5' } }),
+      deposit,
+      pay,
+    }));
+    await payX402({ runId: 'probe', url: 'https://seller.example/x402/search', body: { query: 'x' }, fetchImpl: challengeFetch() });
+    // $0.01 price → exactly $0.01 deposited: gateway float is one payment by construction
+    expect(deposit).toHaveBeenCalledTimes(1);
+    expect(deposit).toHaveBeenCalledWith('0.01');
+  });
 });

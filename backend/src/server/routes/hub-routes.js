@@ -1756,6 +1756,42 @@ export function registerHubRoutes(app) {
     }
   });
 
+  // ── JEV grade (score primitive: ordered-scale placement) ─────────────────
+  // Where Choice picks and Noul gives P(yes), Score places input on an
+  // ordered scale the caller defines (e.g. evidence quality tiers) and
+  // returns the probability-weighted position plus per-level probabilities.
+  // Used for grading, never gating: a low grade reorders, it doesn't refuse.
+  app.post('/api/hub/jev/score', hubJevLimiter, async (req, res) => {
+    try {
+      const jev = await jevDecider();
+      if (!jev) return res.status(501).json({ error: 'JEV decisions not enabled in this build.' });
+      if (typeof jev.askScore !== 'function') return res.status(501).json({ error: 'JEV score not enabled in this build.' });
+      const { state, instructions, levels, questionId } = req.body || {};
+      if (typeof state !== 'string' || !state.trim() || state.length > 4000) {
+        return res.status(400).json({ error: 'state (1-4000 chars) is required.' });
+      }
+      if (typeof instructions !== 'string' || !instructions.trim() || instructions.length > 500) {
+        return res.status(400).json({ error: 'instructions (1-500 chars) are required.' });
+      }
+      if (!Array.isArray(levels) || levels.length < 2 || levels.length > 6) {
+        return res.status(400).json({ error: 'levels (2-6 ordered criteria) are required.' });
+      }
+      for (const l of levels) {
+        if (typeof l !== 'string' || !l.trim() || l.length > 200) {
+          return res.status(400).json({ error: 'Each level must be a short string.' });
+        }
+      }
+      if (questionId != null && (typeof questionId !== 'string' || !questionId || questionId.length > 40)) {
+        return res.status(400).json({ error: 'questionId must be a short string.' });
+      }
+      const out = await jev.askScore({ state: state.trim(), instructions: instructions.trim(), levels, questionId: questionId || 'grade' });
+      if (!out) return res.status(502).json({ error: 'No usable grade returned.' });
+      res.json({ success: true, score: out.score, confidence: out.confidence, probabilities: out.probabilities, model: out.model, usage: out.usage || null });
+    } catch (error) {
+      res.status(502).json({ error: `Score failed: ${error.message}` });
+    }
+  });
+
   // ── JEV tags (batch noul over candidate tags) ────────────────────────────
   // Tentative metadata for thin content: score a bounded candidate tag set in
   // ONE request and return the confident top-k. Callers decide whether to

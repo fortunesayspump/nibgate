@@ -90,6 +90,27 @@ export async function classify({ state, instructions }, opts) {
 }
 
 /**
+ * Ordered-scale grade (Score primitive): where the input falls on the
+ * caller's 2-6 levels. Returns the probability-weighted position plus
+ * per-level probabilities and confidence. Grades RANK, they never gate —
+ * a low grade reorders sources, it doesn't refuse them.
+ * @throws {JevUnavailable}
+ */
+export async function grade({ state, instructions, levels }, opts) {
+  const data = await post('/api/hub/jev/score', {
+    state: String(state || '').slice(0, 4000),
+    instructions: String(instructions || '').slice(0, 500),
+    levels: (levels || []).map((l) => String(l || '').slice(0, 200)).slice(0, 6),
+  }, opts);
+  const probs = {};
+  for (const [k, v] of Object.entries(data.probabilities || {})) {
+    const n = Number(v);
+    if (Number.isFinite(n)) probs[k] = Math.min(1, Math.max(0, n));
+  }
+  return { score: Number(data.score), confidence: Number(data.confidence) || 0, probabilities: probs, model: data.model || null, usage: data.usage || null };
+}
+
+/**
  * A batch of independent judgments in one model round trip: each entry is a
  * choice or noul question with a stable id. The hub answers every entry and
  * returns the model + usage once for the batch.

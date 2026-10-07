@@ -15,14 +15,23 @@ import { db } from '../db.js';
 
 const TEST_KEY = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-beforeEach(() => {
+beforeEach(() => { console.log("TRAP-BEFORE KEY_SET=" + Boolean(process.env.DRNIB_AGENT_PRIVATE_KEY));
   vi.unstubAllEnvs();
   vi.clearAllMocks();
 });
 
 describe('spend policy', () => {
   it('is off without an agent key', () => {
-    expect(isSpendConfigured()).toBe(false);
+    // Delete directly (not via stubs): the Prisma client loads the repo
+    // .env into process.env at import time, so hermetic tests must clear
+    // the real thing at the assertion site and restore after.
+    const savedKey = process.env.DRNIB_AGENT_PRIVATE_KEY;
+    delete process.env.DRNIB_AGENT_PRIVATE_KEY;
+    try {
+      expect(isSpendConfigured()).toBe(false);
+    } finally {
+      if (savedKey !== undefined) process.env.DRNIB_AGENT_PRIVATE_KEY = savedKey;
+    }
   });
 
   it('caps each kind independently', () => {

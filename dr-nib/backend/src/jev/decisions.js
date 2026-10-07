@@ -13,7 +13,7 @@
 // decision seat is back.
 import { db } from '../db.js';
 import { recordEvent } from '../eventlog.js';
-import { JevUnavailable, decide, classify } from './client.js';
+import { JevUnavailable, decide, classify, grade } from './client.js';
 
 async function nextSeq(runId) {
   const last = await db.researchDecision.findFirst({ where: { runId }, orderBy: { seq: 'desc' } });
@@ -86,8 +86,7 @@ export async function runChoice(runId, { step, state, instructions, options, que
 }
 
 /** Ask JEV for one calibrated probability. Same parking contract as runChoice. */
-export async function runNoul(runId, { step, state, instructions, questionId = 'noul', prompt }, opts) {
-  try {
+export async function runNoul(runId, { step, state, instructions, questionId = 'noul', prompt }, opts) {  try {
     const out = await classify({ state, instructions }, opts);
     await persist(runId, {
       type: 'noul',
@@ -101,6 +100,29 @@ export async function runNoul(runId, { step, state, instructions, questionId = '
   } catch (err) {
     if (!(err instanceof JevUnavailable)) throw err;
     await parkForJev(runId, step, err);
+    return null;
+  }
+}
+
+/**
+ * Ask JEV to grade input on an ordered scale. Unlike runChoice/runNoul, a
+ * grade NEVER parks: grades rank, they don't gate. JEV down means ungraded
+ * (grade null), and the caller proceeds on trust alone.
+ */
+export async function runGrade(runId, { step, state, instructions, levels, questionId = 'grade', prompt }, opts) {
+  try {
+    const out = await grade({ state, instructions, levels }, opts);
+    await persist(runId, {
+      type: 'grade',
+      step,
+      prompt: prompt || instructions,
+      question: { instructions, levels },
+      output: { score: out.score, probabilities: out.probabilities, model: out.model, usage: out.usage },
+      confidence: out.confidence,
+    });
+    return out;
+  } catch (err) {
+    if (!(err instanceof JevUnavailable)) throw err;
     return null;
   }
 }

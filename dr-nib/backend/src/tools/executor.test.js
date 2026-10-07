@@ -32,9 +32,20 @@ describe('tool registry', () => {
   });
 
   it('reports run_code unavailable when sandbox execution is not configured', async () => {
-    const out = await runTool(RUN, 'run_code', { command: 'echo hi' });
-    expect(out.ok).toBe(false);
-    expect(out.error).toMatch(/not configured|unavailable/);
+    // Same hermeticity rule as spend policy: clear the real vars at the
+    // assertion site (the Prisma client loads the repo .env at import).
+    const savedToken = process.env.RAILWAY_API_TOKEN;
+    const savedEnv = process.env.RAILWAY_ENVIRONMENT_ID;
+    delete process.env.RAILWAY_API_TOKEN;
+    delete process.env.RAILWAY_ENVIRONMENT_ID;
+    try {
+      const out = await runTool(RUN, 'run_code', { command: 'echo hi' });
+      expect(out.ok).toBe(false);
+      expect(out.error).toMatch(/not configured|unavailable/);
+    } finally {
+      if (savedToken !== undefined) process.env.RAILWAY_API_TOKEN = savedToken;
+      if (savedEnv !== undefined) process.env.RAILWAY_ENVIRONMENT_ID = savedEnv;
+    }
   });
 });
 

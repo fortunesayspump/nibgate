@@ -207,3 +207,39 @@ export async function askNoul(
   if (!out || !(qid in out.answers)) return null;
   return { probability: out.answers[qid], model: out.model, usage: out.usage };
 }
+
+export interface ScoreResult {
+  score: number;
+  confidence: number;
+  probabilities: Record<string, number>;
+  model: string;
+  usage?: DecisionsUsage;
+}
+
+/**
+ * Ask JEV to place input on an ordered scale (Score primitive). Levels are
+ * the ordered criteria (2-6); returns the probability-weighted position plus
+ * per-level probabilities and confidence. Null when the model gives nothing.
+ */
+export async function askScore(
+  input: { state: string | Record<string, unknown> | unknown[]; instructions: string; levels: string[]; questionId?: string; model?: string },
+  fetchFn?: FetchFn,
+): Promise<ScoreResult | null> {
+  const levels = (input.levels || []).map((l) => String(l || '').trim()).filter(Boolean).slice(0, 6);
+  if (levels.length < 2) return null;
+  const qid = input.questionId || 'grade';
+  const result = await decisions(
+    { state: input.state, model: input.model, questions: { [qid]: { type: 'score', instructions: String(input.instructions || '').slice(0, 500), criteria: levels } } },
+    fetchFn,
+  );
+  const a = result.answers?.[qid] as { score?: unknown; confidence?: unknown; probabilities?: unknown } | undefined;
+  const score = Number(a?.score);
+  if (!Number.isFinite(score)) return null;
+  const probs: Record<string, number> = {};
+  const raw = (a?.probabilities || {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(raw)) {
+    const n = Number(v);
+    if (Number.isFinite(n)) probs[k] = Math.min(1, Math.max(0, n));
+  }
+  return { score, confidence: Number(a?.confidence) || 0, probabilities: probs, model: result.model, usage: result.usage };
+}

@@ -1,6 +1,6 @@
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Testnet only.
-import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, decideSettleOrHold, classifyPage, CHAIN_ID } from '../lib/api-client';
+import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, decideSettleOrHold, classifyPage, CHAIN_ID, type TipResolution } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
 import {
@@ -17,13 +17,45 @@ import {
   ensureUnlocked,
 } from '../lib/embedded-wallet';
 import { payGateway } from '../lib/gateway-pay';
-
-const WATCH_KEY = 'nibgateWatchAddress';
 // Tabs that announced a live content script, keyed tabId -> url. Tabs that
 // finish loading without announcing missed the injection window (extension
 // still registering) and get one programmatic re-inject. The DOM dedupe in
 // renderCard makes repeats harmless.
 const announcedTabs = new Map<number, string>();
+
+// Open tips waiting on the extension window. The page holds only a trigger
+// button; amount, review, and approval all live in tip.html. Closing the
+// window cancels (the card polls TIP_RESULT and reports it).
+type PendingTip = {
+  id: string;
+  content: { url: string; canonicalUrl: string; title: string; author: string; siteName?: string };
+  pageWallet?: string;
+  candidateWallets?: Array<{ address: string; context?: string }>;
+  hasSdk?: boolean;
+  domain: string;
+  resolution: TipResolution;
+  rail: 'transfer' | 'gateway';
+  amount?: string;
+  windowId?: number;
+};
+const pendingTips = new Map<string, PendingTip>();
+const tipResults = new Map<string, unknown>();
+
+function forgetTip(id: string, result?: unknown) {
+  pendingTips.delete(id);
+  if (result !== undefined) {
+    tipResults.set(id, result);
+    setTimeout(() => tipResults.delete(id), 5 * 60_000);
+  } else {
+    tipResults.delete(id);
+  }
+}
+
+chrome.windows?.onRemoved?.addListener((windowId) => {
+  for (const [id, p] of pendingTips) {
+    if (p.windowId === windowId) forgetTip(id, { ok: false, error: 'Cancelled.' });
+  }
+});
 
 // Content scripts open a keepalive port for the duration of a tip so the
 // worker (and the unlocked session key) survives the multi-step flow.
@@ -45,14 +77,6 @@ chrome.tabs?.onRemoved?.addListener((tabId) => {
   announcedTabs.delete(tabId);
 });
 
-type TipStart = {
-  type: 'TIP_START';
-  amount: string;
-  content: { url: string; canonicalUrl: string; title: string; author: string };
-  pageWallet?: string;
-  hasSdk?: boolean;
-};
-
 type Assess = {
   type: 'ASSESS';
   content: { url: string; canonicalUrl: string; title: string; author: string };
@@ -69,10 +93,18 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
   if (msg?.type === 'BALANCES') {
     (async () => {
       try {
+        // Rehydrate first: a cold worker has empty memory even though the
+        // session persists in storage.session. Without this the popup shows
+        // "No wallet" with blank balances until something else unlocks.
+        await ensureUnlocked().catch(() => false);
+        // Explicit address wins; otherwise the live session account. No
+        // stored watch-address: it was write-only dead state, now removed.
         let address = String(msg.address || '');
         if (!address) {
-          const stored = await chrome.storage.local.get([WATCH_KEY]);
-          address = String(stored[WATCH_KEY] || '');
+          try {
+            const { unlockedAccountAddress } = await import('../lib/embedded-wallet.js');
+            address = unlockedAccountAddress();
+          } catch {}
         }
         if (!address) return respond({ ok: true, balances: { wallet: null, gateway: null }, address: '' });
         const balances = await fetchBalances(address);
@@ -80,13 +112,6 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
       }
-    })();
-    return true;
-  }
-  if (msg?.type === 'SET_WATCH') {
-    (async () => {
-      await chrome.storage.local.set({ [WATCH_KEY]: String(msg.address || '') });
-      respond({ ok: true });
     })();
     return true;
   }
@@ -175,21 +200,232 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
     })();
     return true;
   }
-  // Confirmed tip: resolve + challenge were already presented for review in
-  // the page (consequence design — nothing signs blind). Requires unlocked.
-  if (msg?.type === 'TIP_CONFIRM') {
+  // Gateway funding: wallet ↔ Gateway ledger via the Circle SDK.
+  // Deposit = approve + deposit (never a plain transfer — those lose funds).
+  // Withdraw = instant same-chain transfer flow (attestation + mint).
+  if (msg?.type === 'GATEWAY_DEPOSIT' || msg?.type === 'GATEWAY_WITHDRAW') {
     (async () => {
       try {
-        const { contentUrl, title, amount, recipient, rail, held, domain } = msg;
-        const { activeNetwork } = await import('../lib/network.js');
-        const net = await activeNetwork();
-        const out = await tipConfirmFlow({ contentUrl, title, amount, recipient, rail, held, domain }, net);
-        respond({ ok: true, ...out });
+        const amountUsdc = Number(msg.amountUsdc);
+        if (!(amountUsdc > 0)) throw new Error('Enter an amount above zero.');
+        const { depositToGateway, withdrawFromGateway } = await import('../lib/gateway-funds.js');
+        const out = msg.type === 'GATEWAY_DEPOSIT'
+          ? await depositToGateway(amountUsdc)
+          : await withdrawFromGateway(amountUsdc);
+        const txHash = (out as { depositTxHash?: string }).depositTxHash || (out as { txHash?: string }).txHash || '';
+        const receipt = {
+          type: msg.type === 'GATEWAY_DEPOSIT' ? 'gateway-deposit' : 'gateway-withdraw',
+          amount: amountUsdc,
+          txHash,
+          timestamp: new Date().toISOString(),
+          title: msg.type === 'GATEWAY_DEPOSIT' ? 'Gateway deposit' : 'Gateway withdraw',
+        };
+        await recordReceipt(receipt);
+        respond({ ok: true, ...out, txHash, receipt });
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
       }
     })();
     return true;
+  }
+  // Pre-confirm gas estimate for popup Send review. Fail-open by design.
+  if (msg?.type === 'ESTIMATE_SEND_FEE') {
+    (async () => {
+      try {
+        const to = String(msg.to || '');
+        const amountUsdc = Number(msg.amountUsdc);
+        if (!/^0x[a-fA-F0-9]{40}$/.test(to) || !(amountUsdc > 0)) return respond({ ok: true, feeUsdc: '' });
+        const { activeNetwork } = await import('../lib/network.js');
+        const net = await activeNetwork();
+        const { estimateTransferFee } = await import('../lib/embedded-wallet.js');
+        const est = await estimateTransferFee({ to, amountUsdc, rpcUrl: net.rpcUrl, chainId: net.chainId });
+        respond({ ok: true, feeUsdc: est?.feeUsdc || '' });
+      } catch {
+        respond({ ok: true, feeUsdc: '' });
+      }
+    })();
+    return true;
+  }
+  // Tip window protocol (tip.html): the page holds only a trigger button.
+  // TIP_OPEN resolves the creator (no amount yet) and opens the window.
+  // The window drives TIP_CHALLENGE (amount → review) then TIP_EXECUTE
+  // (user pressed Approve — the click IS the approval). The card polls
+  // TIP_RESULT for the receipt. Closing the window cancels.
+  if (msg?.type === 'TIP_OPEN') {
+    (async () => {
+      try {
+        const content = msg.content;
+        const target = content.canonicalUrl || content.url;
+        const rail = await activeRail(msg.rail);
+        const resolution = await resolveTip(target, {
+          pageWallet: msg.pageWallet,
+          hasSdk: msg.hasSdk,
+          candidateWallets: Array.isArray(msg.candidateWallets) ? msg.candidateWallets : [],
+          title: content.title,
+          author: content.author,
+          siteName: content.siteName,
+        });
+        const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        pendingTips.set(id, {
+          id,
+          content: {
+            url: content.url, canonicalUrl: content.canonicalUrl, title: content.title,
+            author: content.author, siteName: content.siteName,
+          },
+          pageWallet: msg.pageWallet,
+          candidateWallets: Array.isArray(msg.candidateWallets) ? msg.candidateWallets : [],
+          hasSdk: msg.hasSdk,
+          domain: resolution.domain,
+          resolution: resolution.resolution,
+          rail,
+        });
+        try {
+          const w = await chrome.windows.create({ url: chrome.runtime.getURL(`tip.html?id=${encodeURIComponent(id)}`), type: 'popup', width: 380, height: 600 });
+          const p = pendingTips.get(id);
+          if (p && w?.id != null) p.windowId = w.id;
+        } catch {
+          pendingTips.delete(id);
+          return respond({ ok: false, error: 'Could not open tip window.' });
+        }
+        respond({ ok: true, id });
+      } catch (e) {
+        respond({ ok: false, error: String((e as Error)?.message || e) });
+      }
+    })();
+    return true;
+  }
+  if (msg?.type === 'TIP_GET') {
+    const p = pendingTips.get(String(msg.id || ''));
+    if (!p) return respond({ ok: false, error: 'Unknown or expired tip.' });
+    (async () => {
+      const net = await activeNetwork();
+      const r = p.resolution;
+      respond({
+        ok: true,
+        tip: {
+          title: p.content.title,
+          siteName: p.content.siteName || '',
+          domain: p.domain,
+          held: r.state !== 'resolved',
+          recipient: r.state === 'resolved' ? r.wallet : '',
+          source: r.state === 'resolved' ? r.source : '',
+          rail: p.rail,
+        },
+        network: { label: net.label, chainId: net.chainId, explorer: net.explorer },
+      });
+    })();
+    return true;
+  }
+  if (msg?.type === 'TIP_CHALLENGE') {
+    (async () => {
+      try {
+        const p = pendingTips.get(String(msg.id || ''));
+        if (!p) return respond({ ok: false, error: 'Unknown or expired tip.' });
+        const amount = String(Number(msg.amount) || '');
+        if (!(Number(amount) > 0)) return respond({ ok: false, error: 'Enter an amount above zero.' });
+        await ensureUnlocked();
+        if (!isUnlocked()) return respond({ ok: true, needsUnlock: true });
+        const { activeNetwork } = await import('../lib/network.js');
+        const net = await activeNetwork();
+        const target = p.content.canonicalUrl || p.content.url;
+        const r = p.resolution;
+        p.amount = amount;
+        if (r.state !== 'resolved') {
+          const res = await fetch(`${net.hubApi}/hub/tips/hold`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ contentUrl: target, title: p.content.title, amount, domain: p.domain, paymentRail: p.rail }),
+          });
+          if (!res.ok) throw await notOk(res, 'tip hold challenge');
+          const chal = await res.json();
+          const box = String(chal?.box || chal?.accepts?.[0]?.payTo || '');
+          let gasFeeUsdc = '';
+          if (p.rail === 'transfer' && box) {
+            try {
+              const { estimateTransferFee } = await import('../lib/embedded-wallet.js');
+              const est = await estimateTransferFee({ to: box, amountUsdc: Number(amount), rpcUrl: net.rpcUrl, chainId: net.chainId });
+              if (est) gasFeeUsdc = est.feeUsdc;
+            } catch {}
+          }
+          return respond({
+            ok: true,
+            held: true,
+            review: { amount, recipient: '', payee: box, title: p.content.title, contentUrl: target, domain: p.domain, rail: p.rail, ...(gasFeeUsdc ? { gasFeeUsdc } : {}) },
+          });
+        }
+        const challenge = await challengeTip({
+          contentUrl: target,
+          title: p.content.title,
+          amount,
+          recipient: r.wallet,
+          paymentRail: p.rail,
+        });
+        const payTo = String(challenge?.payee || challenge?.payTo || challenge?.accepts?.[0]?.payTo || '');
+        if (!payTo) throw new Error('Challenge has no payee.');
+        // Pre-confirm gas estimate (transfer rail only — gateway pays via
+        // signature, no user tx). Fail-open: no row rather than a guess.
+        let gasFeeUsdc = '';
+        if (p.rail === 'transfer') {
+          try {
+            const { estimateTransferFee } = await import('../lib/embedded-wallet.js');
+            const est = await estimateTransferFee({ to: payTo, amountUsdc: Number(amount), rpcUrl: net.rpcUrl, chainId: net.chainId });
+            if (est) gasFeeUsdc = est.feeUsdc;
+          } catch {}
+        }
+        return respond({
+          ok: true,
+          review: {
+            amount, recipient: r.wallet, payee: payTo,
+            title: p.content.title, contentUrl: target, rail: p.rail, source: r.source || '',
+            ...(gasFeeUsdc ? { gasFeeUsdc } : {}),
+          },
+        });
+      } catch (e) {
+        respond({ ok: false, error: String((e as Error)?.message || e) });
+      }
+    })();
+    return true;
+  }
+  if (msg?.type === 'TIP_EXECUTE') {
+    (async () => {
+      try {
+        const p = pendingTips.get(String(msg.id || ''));
+        if (!p || !p.amount) return respond({ ok: false, error: 'Unknown or expired tip.' });
+        const { activeNetwork } = await import('../lib/network.js');
+        const net = await activeNetwork();
+        const r = p.resolution;
+        const target = p.content.canonicalUrl || p.content.url;
+        const out = await tipConfirmFlow({
+          contentUrl: target,
+          title: p.content.title,
+          amount: p.amount,
+          recipient: r.state === 'resolved' ? r.wallet : '',
+          rail: p.rail,
+          held: r.state !== 'resolved',
+          domain: p.domain,
+        }, net);
+        const result = { ok: true, ...out };
+        forgetTip(p.id, result);
+        respond(result as Record<string, unknown>);
+      } catch (e) {
+        const result = { ok: false, error: String((e as Error)?.message || e) };
+        try { forgetTip(String(msg.id || ''), result); } catch {}
+        respond(result);
+      }
+    })();
+    return true;
+  }
+  if (msg?.type === 'TIP_CANCEL') {
+    forgetTip(String(msg.id || ''), { ok: false, error: 'Cancelled.' });
+    respond({ ok: true });
+    return false;
+  }
+  if (msg?.type === 'TIP_RESULT') {
+    const done = tipResults.get(String(msg.id || ''));
+    if (done) return respond({ ok: true, done: true, ...(done as Record<string, unknown>) });
+    if (pendingTips.has(String(msg.id || ''))) return respond({ ok: true, done: false });
+    respond({ done: true, ok: false, error: 'Cancelled.' });
+    return false;
   }
   if (msg?.type === 'ASSESS') {
     (async () => {
@@ -239,113 +475,57 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
     })();
     return true;
   }
-  if (msg?.type !== 'TIP_START') return false;
-  (async () => {
-    try {
-      const amount = msg.amount === 'custom' ? await promptAmount() : msg.amount;
-      if (!amount) return respond({ ok: false, error: 'cancelled' });
-      const target = msg.content.canonicalUrl || msg.content.url;
-      const rail = await activeRail(msg.rail);
-      await ensureUnlocked();
-      let resolution = await resolveContent(target, { pageWallet: msg.pageWallet, hasSdk: msg.hasSdk });
-      if (resolution.resolution.state !== 'resolved' && Array.isArray(msg.candidateWallets) && msg.candidateWallets.length) {
-        // Hybrid JEV fallback: rules failed, so ask the hub's JEV decisions
-        // model (the real `~typesafe/jev-latest`) to choose among the DOM
-        // candidate wallets. A confident pick resolves like a declared page
-        // signal; anything less holds as before. Any failure → hold.
-        const inferred = await inferRecipient({
-          contentUrl: target,
-          title: msg.content.title,
-          author: msg.content.author,
-          siteName: msg.content.siteName,
-          candidates: msg.candidateWallets,
-        });
-        if (inferred) {
-          resolution = {
-            ...resolution,
-            resolution: { state: 'resolved', wallet: inferred.wallet, confidence: inferred.confidence, source: 'jev-model' },
-          };
-        }
-      }
-      if (resolution.resolution.state === 'resolved' && resolution.resolution.source === 'page-signal') {
-        // Settle-vs-hold gate: a declared-but-unverified wallet could be
-        // planted or unrelated, so the decisions model arbitrates. Settle only
-        // on a confident pick; otherwise fall through to the hold branch and
-        // the verified owner claims later. Hub-verified resolutions skip this.
-        const verdict = await decideSettleOrHold({
-          contentUrl: target,
-          title: msg.content.title,
-          author: msg.content.author,
-          siteName: msg.content.siteName,
-          wallet: resolution.resolution.wallet,
-          walletContext: 'declared page wallet, not hub-verified',
-        });
-        if (!verdict.settle) {
-          resolution = {
-            ...resolution,
-            resolution: { state: 'held', reason: 'unverified recipient held for verified owner' },
-          };
-        }
-      }
-      if (resolution.resolution.state !== 'resolved') {
-        // Unknown creator: fund a no-key holding box; the owner claims later.
-        let domain = resolution.domain;
-        if (!domain) { try { domain = new URL(target).hostname; } catch {} }
-        const { hubApi } = await activeNetwork();
-        const res = await fetch(`${hubApi}/hub/tips/hold`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contentUrl: target, title: msg.content.title, amount: String(amount), domain, paymentRail: rail }),
-        });
-        if (!res.ok) throw new Error(`tip hold failed: ${res.status}`);
-        const chal = await res.json();
-        const box = String(chal?.box || chal?.accepts?.[0]?.payTo || '');
-        return respond({
-          ok: true,
-          held: true,
-          needsUnlock: !isUnlocked(),
-          challenge: chal,
-          review: {
-            amount: String(amount),
-            recipient: '',
-            payee: box,
-            title: msg.content.title,
-            contentUrl: target,
-            domain: domain || '',
-            rail,
-          },
-        });
-      }
-      const challenge = await challengeTip({
-        contentUrl: target,
-        title: msg.content.title,
-        amount: String(amount),
-        recipient: resolution.resolution.wallet,
-        paymentRail: rail,
-      });
-      const payTo = String(challenge?.payee || challenge?.payTo || challenge?.accepts?.[0]?.payTo || '');
-      if (!payTo) throw new Error('Challenge has no payee.');
-      return respond({
-        ok: true,
-        pending: true,
-        needsUnlock: !isUnlocked(),
-        challenge,
-          review: {
-            amount: String(amount),
-            recipient: resolution.resolution.wallet,
-            payee: payTo,
-            title: msg.content.title,
-            contentUrl: target,
-            rail,
-            source: resolution.resolution.source || '',
-          },
-      });
-    } catch (e) {
-      respond({ ok: false, error: String((e as Error)?.message || e) });
-    }
-  })();
-  return true; // async respond
+  if (msg?.type === 'TIP_START' || msg?.type === 'TIP_CONFIRM') {
+    return respond({ ok: false, error: 'Outdated extension page — reload the extension and try again.' });
+  }
+  return false;
 });
+
+// Shared creator resolution for TIP_OPEN: hub index → page wallet → JEV
+// candidate inference → settle-vs-hold gate for unverified page wallets.
+// Anything but a confident resolution holds for the verified owner.
+async function resolveTip(
+  target: string,
+  opts: {
+    pageWallet?: string; hasSdk?: boolean;
+    candidateWallets?: Array<{ address: string; context?: string }>;
+    title?: string; author?: string; siteName?: string;
+  },
+): Promise<{ domain: string; resolution: TipResolution }> {
+  let resolution = await resolveContent(target, { pageWallet: opts.pageWallet, hasSdk: opts.hasSdk });
+  if (resolution.resolution.state !== 'resolved' && Array.isArray(opts.candidateWallets) && opts.candidateWallets.length) {
+    const inferred = await inferRecipient({
+      contentUrl: target,
+      title: opts.title,
+      author: opts.author,
+      siteName: opts.siteName,
+      candidates: opts.candidateWallets,
+    });
+    if (inferred) {
+      resolution = {
+        ...resolution,
+        resolution: { state: 'resolved', wallet: inferred.wallet, confidence: inferred.confidence, source: 'jev-model' },
+      };
+    }
+  }
+  if (resolution.resolution.state === 'resolved' && resolution.resolution.source === 'page-signal') {
+    const verdict = await decideSettleOrHold({
+      contentUrl: target,
+      title: opts.title,
+      author: opts.author,
+      siteName: opts.siteName,
+      wallet: resolution.resolution.wallet,
+      walletContext: 'declared page wallet, not hub-verified',
+    });
+    if (!verdict.settle) {
+      resolution = {
+        ...resolution,
+        resolution: { state: 'held', reason: 'unverified recipient held for verified owner' },
+      };
+    }
+  }
+  return resolution;
+}
 
 // Preferred rail: explicit message > stored setting > direct transfer.
 async function activeRail(requested?: string): Promise<'transfer' | 'gateway'> {
@@ -399,7 +579,7 @@ async function tipConfirmFlow(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ contentUrl: input.contentUrl, title: input.title, amount, domain, paymentRail: rail, walletAddress }),
     });
-    if (!chalRes.ok) throw new Error(`tip hold challenge failed: ${chalRes.status}`);
+    if (!chalRes.ok) throw await notOk(chalRes, 'tip hold challenge');
     const challenge = await chalRes.json();
     const proof = await payChallenge(challenge, rail, net);
     const verifyRes = await fetch(`${net.hubApi}/hub/tips/hold`, {
@@ -413,7 +593,7 @@ async function tipConfirmFlow(
         paymentRail: rail, txHash: proof.txHash,
       }),
     });
-    if (!verifyRes.ok) throw new Error(`tip hold failed: ${verifyRes.status} (tx ${proof.txHash || ''})`);
+    if (!verifyRes.ok) throw await notOk(verifyRes, 'tip hold verify');
     const held = await verifyRes.json();
     await recordReceipt({ ...(held?.tip || {}), amount, title: input.title });
     const stats = await heldTipsForDomain(domain).catch(() => ({ count: 0, total: 0 }));
@@ -426,7 +606,7 @@ async function tipConfirmFlow(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ contentUrl: input.contentUrl, title: input.title, amount, recipient: input.recipient, paymentRail: rail }),
   });
-  if (!challengeRes.ok) throw new Error(`tip challenge failed: ${challengeRes.status}`);
+  if (!challengeRes.ok) throw await notOk(challengeRes, 'tip challenge');
   const challenge = await challengeRes.json();
   const proof = await payChallenge(challenge, rail, net);
   const verifyRes = await fetch(`${net.hubApi}/hub/tips/verify`, {
@@ -440,15 +620,17 @@ async function tipConfirmFlow(
       paymentRail: rail, txHash: proof.txHash, walletAddress, paymentSignature: proof.paymentSignature,
     }),
   });
-  if (!verifyRes.ok) throw new Error(`tip verify failed: ${verifyRes.status} (tx ${proof.txHash || ''} still settled onchain)`);
+  if (!verifyRes.ok) throw await notOk(verifyRes, 'tip verify');
   const verified = await verifyRes.json();
   await recordReceipt({ ...(verified?.receipt || {}), txHash: proof.txHash, amount, title: input.title });
   return { receipt: verified?.receipt || { txHash: proof.txHash }, txHash: proof.txHash, paymentSignature: proof.paymentSignature };
 }
 
-async function promptAmount(): Promise<string | null> {
-  // TODO(hack): custom amount UI (popup input or inline field).
-  return null;
+async function notOk(res: Response, label: string): Promise<Error> {
+  // Always surface the hub's error body — a bare status is undebuggable.
+  const body = await res.text().catch(() => '');
+  const detail = body.slice(0, 300);
+  return new Error(`${label} failed: ${res.status}${detail ? ` — ${detail}` : ''}`);
 }
 
 // Persist tip history for the popup.

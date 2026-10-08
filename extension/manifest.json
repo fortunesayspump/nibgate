@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Nibgate",
-  "version": "0.1.0",
-  "description": "Tip & unlock creator content anywhere on the web. Starts on testnet (free faucet USDC); switch to mainnet in settings for real payments.",
+  "version": "1.0.0",
+  "description": "Tip creators anywhere on the web with USDC. Starts on testnet (free faucet funds); switch to mainnet in settings for real payments.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",

@@ -13,6 +13,7 @@ const esbuildOptions = {
     content: 'src/content/tip-card.ts',
     background: 'src/background/service-worker.ts',
     popup: 'src/popup/popup.ts',
+    tip: 'src/tip/tip.ts',
   },
   bundle: true,
   format: 'iife',
@@ -31,6 +32,7 @@ function copyStatic() {
   fs.mkdirSync(outdir, { recursive: true });
   fs.copyFileSync(path.join(root, 'manifest.json'), path.join(outdir, 'manifest.json'));
   fs.copyFileSync(path.join(root, 'src/popup/popup.html'), path.join(outdir, 'popup.html'));
+  fs.copyFileSync(path.join(root, 'src/tip/tip.html'), path.join(outdir, 'tip.html'));
   // Icons + brand assets (popup references icons/ relatively; manifest needs the PNGs).
   fs.rmSync(path.join(outdir, 'icons'), { recursive: true, force: true });
   fs.cpSync(path.join(root, 'icons'), path.join(outdir, 'icons'), { recursive: true });
@@ -65,6 +67,7 @@ async function watchAll() {
   for (const [label, target] of [
     ['manifest.json', path.join(root, 'manifest.json')],
     ['popup.html', path.join(root, 'src/popup/popup.html')],
+    ['tip.html', path.join(root, 'src/tip/tip.html')],
     ['icons/', path.join(root, 'icons')],
   ]) {
     try {

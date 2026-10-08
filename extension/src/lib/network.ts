@@ -5,7 +5,7 @@ export type NetworkName = 'testnet' | 'mainnet';
 
 export const NETWORKS: Record<
   NetworkName,
-  { label: string; hubApi: string; chainId: number; caip2: string; faucet: string | null; rpcUrl: string; gatewayApi: string; gatewayDomain: number }
+  { label: string; hubApi: string; chainId: number; caip2: string; faucet: string | null; rpcUrl: string; gatewayApi: string; gatewayDomain: number; explorer: string }
 > = {
   testnet: {
     label: 'Testnet',
@@ -16,6 +16,7 @@ export const NETWORKS: Record<
     rpcUrl: 'https://rpc.testnet.arc.io',
     gatewayApi: 'https://gateway-api-testnet.circle.com',
     gatewayDomain: 26,
+    explorer: 'https://testnet.arcscan.app',
   },
   mainnet: {
     label: 'Mainnet',
@@ -26,6 +27,7 @@ export const NETWORKS: Record<
     rpcUrl: 'https://rpc.mainnet.arc.io',
     gatewayApi: 'https://gateway-api.circle.com',
     gatewayDomain: 26,
+    explorer: 'https://explorer.arc.io',
   },
 };
 

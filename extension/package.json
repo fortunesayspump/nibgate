@@ -1,6 +1,6 @@
 {
   "name": "nibgate-extension",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Nibgate browser extension (testnet only).",
   "type": "module",
@@ -17,6 +17,8 @@
   "dependencies": {
     "@circle-fin/x402-batching": "3.2.0",
     "@mozilla/readability": "^0.6.0",
+    "@scure/bip32": "^1.7.0",
+    "@scure/bip39": "^1.6.0",
     "qrcode-generator": "^2.0.4",
     "viem": "^2.56.9"
   }

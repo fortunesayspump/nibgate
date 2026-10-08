@@ -702,7 +702,8 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   // the gateway withdrawal entirely and strand the credited ledger.
   const ledger = await gatewayBalanceFor(wallet, { domain, gatewayApi });
   const value = ledger.available - minFee;
-  if (value <= 0n) return { skipped: true, reason: 'below-threshold', available: ledger.available };
+  // Stringify: raw BigInts must never cross into Express res.json (it throws).
+  if (value <= 0n) return { skipped: true, reason: 'below-threshold', available: ledger.available.toString() };
 
   const intent = buildSelfBurnIntent({ wallet, value, domain, gatewayWallet, gatewayMinter, usdc, maxFee: minFee });
   const { attestation, operatorSig } = await submitGatewayWithdrawal(intent, { gatewayApi });
@@ -717,7 +718,7 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   if (receipt.status !== 'success') {
     throw new Error(`gatewayMint reverted (tx ${tx}): status=${receipt.status}`);
   }
-  return { minted: true, tx, value, transferId: null };
+  return { minted: true, tx, value: value.toString(), transferId: null };
 }
 
 // Call distribute() on a fee wallet (splits its on-chain USDC: feeBps →

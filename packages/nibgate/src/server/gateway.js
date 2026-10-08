@@ -123,8 +123,12 @@ export async function withdrawFromGateway(amount, options = {}) {
 // Network-aware Circle Gateway defaults. An unset var must never silently pick
 // the other stack: mainnet content verified/paid through the TESTNET facilitator
 // fails, which drops the receipt (and revenue) on the floor.
+// NOTE: testnet is checked first because 'eip155:5042002' contains '5042' —
+// a naive includes('5042') classifies the testnet CAIP as mainnet and sends
+// testnet payments to the mainnet facilitator (which rejects them).
 export function isMainnetNetwork(value = '') {
   const v = String(value || '').toLowerCase();
+  if (v.includes('testnet') || v.includes('5042002')) return false;
   return v === 'mainnet' || v.includes('5042');
 }
 export function activePaymentNetwork() {

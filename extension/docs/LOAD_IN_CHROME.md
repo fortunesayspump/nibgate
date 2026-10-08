@@ -1,7 +1,8 @@
 # Load Nibgate in Chrome (sideload — no store review needed)
 
-For the hackathon we ship **unpacked**. Reviewers and judges sideload in
-under a minute. Never submit this testnet build to the Chrome Web Store.
+Sideload `dist/` for dev and review. The same build is what goes to the
+Chrome Web Store (see `STORE_SUBMIT.md`) — testnet default, mainnet behind
+the Settings toggle.
 
 ## Steps
 
@@ -17,8 +18,9 @@ under a minute. Never submit this testnet build to the Chrome Web Store.
 5. Pin it: puzzle-piece icon → pin **Nibgate**.
 6. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
    already have native tipping). The tip card appears bottom-right.
-7. Fund a wallet with **testnet** USDC (Circle faucet:
-   `https://faucet.circle.com`) — never mainnet funds in this build.
+7. Fund the wallet: **testnet** USDC via the Circle faucet
+   (`https://faucet.circle.com`) for play-money tips, or flip to **mainnet**
+   in popup Settings (confirm-gated) for real USDC on Arc.
 
 ## Live editing (watch mode)
 
@@ -34,11 +36,11 @@ needed — but you never re-run the build by hand.
 ## What reviewers verify
 
 - Card appears on ordinary articles, stays hidden on non-content pages.
-- Tip buttons fire the challenge → wallet sign → verify flow against
-  `https://testnet-api.nibgate.xyz`.
-- Popup shows tip history for the session.
-- No mainnet hosts anywhere: `grep -r "api.nibgate.xyz\|eip155:5042" dist/`
-  must return nothing (testnet-only build).
+- Tip buttons fire the challenge → wallet sign → verify flow against the
+  active network (`testnet-api.nibgate.xyz` by default, `api.nibgate.xyz`
+  on mainnet).
+- Popup shows wallet shell: onboarding, send/receive, tip history, Settings
+  network toggle (testnet default, mainnet confirm-gated).
 
 ## Local dev loop
 
@@ -53,5 +55,5 @@ needed — but you never re-run the build by hand.
 
 ## Icons
 
-`icons/` holds the SVG master only. Before any store submission (post-hackathon),
-export PNGs at 16/48/128px. Unpacked sideload works without them.
+`icons/` holds the SVG masters plus the store-ready PNG set
+(`icon16/48/128.png`). No export step left.

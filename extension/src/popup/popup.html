@@ -98,6 +98,7 @@
       -webkit-font-smoothing: antialiased; font-size: 13px; line-height: 1.45;
     }
     button { font-family: inherit; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     [hidden] { display: none !important; }
     .muted { color: var(--muted); }
     .err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 14px; }
@@ -110,8 +111,6 @@
     button.ghost:hover { border-color: var(--muted); }
     input, textarea { width: 100%; background: var(--surface-raised, var(--surface)); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-action); padding: 11px 12px; font-size: 13px; outline: none; font-family: inherit; }
     input:focus, textarea:focus { border-color: var(--accent); }
-    .iconbtn { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 6px; border-radius: var(--radius-xs); }
-    .iconbtn:hover { color: var(--fg); background: var(--surface); }
 
     /* ── onboarding / lock ───────────────────────────────────────────── */
     .fullscreen { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; padding: 28px 24px; z-index: 20; }
@@ -132,13 +131,40 @@
     .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--bg); z-index: 5; }
     .acctchip { display: flex; align-items: center; gap: 10px; background: none; border: 0; cursor: pointer; padding: 4px; border-radius: var(--radius-action); color: var(--fg); }
     .acctchip:hover { background: var(--surface); }
-    .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
+    .avatar { width: 30px; height: 30px; flex: none; display: block; object-fit: contain; }
+    /* Dark tile in light mode (white bird stays visible); bare mark in dark. */
+    .avatar-dark { display: none; }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]) .avatar-light { display: none; }
+      html:not([data-theme="light"]) .avatar-dark { display: block; }
+    }
+    html[data-theme="dark"] .avatar-light { display: none; }
+    html[data-theme="dark"] .avatar-dark { display: block; }
     .acctmeta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
     .acctname { font-size: 12px; font-weight: 700; }
     .acctaddr { font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
     .topactions { display: flex; align-items: center; gap: 6px; }
-    .pill { font-size: 10px; font-weight: 700; letter-spacing: .08em; background: var(--gold); color: #1a1a1a; border: 0; border-radius: var(--radius-pill); padding: 4px 10px; cursor: pointer; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .08em; background: var(--gold); color: #1a1a1a; border: 0; border-radius: var(--radius-pill); padding: 4px 10px; cursor: pointer; }
     .pill.main { background: var(--accent); color: var(--accent-ink); }
+    .pill img.chainlogo { width: 13px; height: 13px; display: block; }
+    /* Theme-aware artwork: light variant by default, dark variant on dark. */
+    .themed-dark { display: none; }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]) .themed-light { display: none; }
+      html:not([data-theme="light"]) .themed-dark { display: block; }
+    }
+    html[data-theme="dark"] .themed-light { display: none; }
+    html[data-theme="dark"] .themed-dark { display: block; }
+    /* ── network dropdown ────────────────────────────────────────── */
+    .netwrap { position: relative; }
+    .netmenu { position: absolute; right: 0; top: calc(100% + 8px); width: 230px; background: var(--surface-raised, var(--surface)); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(0,0,0,.22); padding: 6px; z-index: 30; }
+    .netmenu button { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "t check" "d check"; column-gap: 8px; align-items: center; width: 100%; background: none; border: 0; border-radius: var(--radius-sm); padding: 9px 10px; cursor: pointer; color: var(--fg); text-align: left; }
+    .netmenu button:hover { background: var(--surface-2); }
+    .netmenu .nm-t { grid-area: t; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; }
+    .netmenu .nm-t img.chainlogo { width: 15px; height: 15px; }
+    .netmenu .nm-d { grid-area: d; font-size: 11px; color: var(--muted); }
+    .netmenu .nm-check { grid-area: check; font-weight: 700; color: var(--accent); visibility: hidden; }
+    .netmenu button.sel .nm-check { visibility: visible; }
     #screens { flex: 1; overflow-y: auto; }
     .screen { padding: 0 0 20px; }
     .tabbar { display: flex; border-top: 1px solid var(--border); background: var(--bg); }
@@ -160,7 +186,7 @@
     .act.secondary .bubble { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
     .card { margin: 16px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
     .asset-row { display: flex; align-items: center; gap: 10px; padding: 14px; }
-    .token { width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+    .token { width: 32px; height: 32px; border-radius: 50%; flex: none; display: block; }
     .token-meta { flex: 1; }
     .token-name { font-weight: 700; font-size: 13px; }
     .token-sub { color: var(--muted); font-size: 11px; }
@@ -210,6 +236,10 @@
 
     .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: var(--radius-sm); color: transparent !important; }
     @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* ── toast ───────────────────────────────────────────────────────── */
+    #toast { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%) translateY(8px); background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: var(--radius-pill); opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; z-index: 50; white-space: nowrap; }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
@@ -269,16 +299,30 @@
   <!-- APP -->
   <div id="app" hidden>
     <header class="topbar">
-      <button class="acctchip" id="acct-chip">
-        <span class="avatar" id="acct-avatar">N</span>
+      <button class="acctchip" id="acct-chip" title="Click to copy address">
+        <img class="avatar avatar-light" src="icons/icon48.png" alt="Nibgate" />
+        <img class="avatar avatar-dark" src="icons/nibgate.svg" alt="" aria-hidden="true" />
         <span class="acctmeta">
           <span class="acctname">Nibgate Account</span>
           <span class="acctaddr" id="acctaddr">No wallet</span>
         </span>
       </button>
       <div class="topactions">
-        <button class="pill" id="netpill" title="Network">TESTNET</button>
-        <button class="iconbtn" id="to-settings" title="Settings" aria-label="Settings">&#9881;</button>
+        <div class="netwrap" id="netwrap">
+          <button class="pill" id="netpill" title="Switch network" aria-haspopup="true" aria-expanded="false"><img class="chainlogo" src="icons/arc-mark-light.svg" alt="" /><span id="netpill-txt">TESTNET</span></button>
+          <div class="netmenu" id="netmenu" hidden role="menu" aria-label="Network">
+            <button id="netopt-testnet" role="menuitemradio" aria-checked="true">
+              <span class="nm-t"><img class="chainlogo themed-light" src="icons/arc-mark-light.svg" alt="" /><img class="chainlogo themed-dark" src="icons/arc-mark-dark.svg" alt="" />Testnet</span>
+              <span class="nm-d" id="netopt-testnet-d">Play money · Arc Testnet</span>
+              <span class="nm-check">✓</span>
+            </button>
+            <button id="netopt-mainnet" role="menuitemradio" aria-checked="false">
+              <span class="nm-t"><img class="chainlogo themed-light" src="icons/arc-mark-light.svg" alt="" /><img class="chainlogo themed-dark" src="icons/arc-mark-dark.svg" alt="" />Mainnet</span>
+              <span class="nm-d" id="netopt-mainnet-d">Real USDC · Arc</span>
+              <span class="nm-check">✓</span>
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -292,21 +336,22 @@
             <button id="tab-wallet" class="on">Wallet</button>
             <button id="tab-gateway">Gateway</button>
           </div>
+          <div class="hint" style="text-align:center;margin-top:8px" id="rail-hint">Tips pay from your wallet.</div>
         </div>
         <div class="actions">
           <button class="act" id="btn-send">
             <span class="bubble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="m6 11 6-6 6 6"/></svg></span>
-            Send
+            <span id="btn-send-label">Send</span>
           </button>
           <button class="act secondary" id="btn-receive">
             <span class="bubble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="m6 13 6 6 6-6"/></svg></span>
-            Receive
+            <span id="btn-receive-label">Receive</span>
           </button>
         </div>
         <div class="card">
           <div class="asset-row">
-            <span class="token">$</span>
-            <div class="token-meta"><div class="token-name">USDC</div><div class="token-sub">Arc testnet dollar</div></div>
+            <img class="token" src="icons/usdc.svg" alt="USDC" />
+            <div class="token-meta"><div class="token-name">USDC</div><div class="token-sub" id="token-sub">Arc testnet dollar</div></div>
             <span class="asset-amt" id="asset-amt">—</span>
           </div>
         </div>
@@ -350,6 +395,40 @@
         </div>
       </section>
 
+      <section class="screen" id="screen-deposit" hidden>
+        <button class="backbtn" id="deposit-back">&lsaquo; Back</button>
+        <div class="form">
+          <label for="deposit-amount">Amount (USDC)</label>
+          <div class="amtwrap">
+            <input id="deposit-amount" inputmode="decimal" placeholder="0.00" />
+            <button id="deposit-max">MAX</button>
+          </div>
+          <div class="hint" id="deposit-avail">Available (wallet): —</div>
+          <div class="review" id="deposit-review" hidden></div>
+          <button class="primary" id="deposit-review-btn" style="margin-top:10px">Review</button>
+          <button class="primary" id="deposit-confirm" hidden>Confirm &amp; deposit</button>
+          <div class="err" id="deposit-error"></div>
+          <div class="note">Moves wallet USDC into your Gateway ledger (approve + deposit, two transactions). Gateway tips spend from here.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-withdraw" hidden>
+        <button class="backbtn" id="withdraw-back">&lsaquo; Back</button>
+        <div class="form">
+          <label for="withdraw-amount">Amount (USDC)</label>
+          <div class="amtwrap">
+            <input id="withdraw-amount" inputmode="decimal" placeholder="0.00" />
+            <button id="withdraw-max">MAX</button>
+          </div>
+          <div class="hint" id="withdraw-avail">Available (gateway): —</div>
+          <div class="review" id="withdraw-review" hidden></div>
+          <button class="primary" id="withdraw-review-btn" style="margin-top:10px">Review</button>
+          <button class="primary" id="withdraw-confirm" hidden>Confirm &amp; withdraw</button>
+          <div class="err" id="withdraw-error"></div>
+          <div class="note">Instant same-chain withdrawal — Gateway USDC mints straight back to your wallet.</div>
+        </div>
+      </section>
+
       <section class="screen" id="screen-settings" hidden>
         <div class="sect"><span>Settings</span></div>
         <div class="setrow">
@@ -358,12 +437,6 @@
           <button id="theme-system">System</button>
           <button id="theme-light">Light</button>
           <button id="theme-dark">Dark</button>
-        </div>
-        <div class="setrow">
-          <div class="t">Network</div>
-          <div class="d" id="netsub">Play money only.</div>
-          <button id="net-testnet">Testnet</button>
-          <button id="net-mainnet">Mainnet</button>
         </div>
         <div class="setrow">
           <div class="t">Security</div>
@@ -378,7 +451,7 @@
         </div>
         <div class="setrow">
           <div class="t">About</div>
-          <div class="d">Nibgate extension · testnet build</div>
+          <div class="d" id="about-line">Nibgate extension · testnet default</div>
         </div>
       </section>
 
@@ -405,5 +478,6 @@
   </div>
 
   <script src="popup.js"></script>
+  <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

@@ -266,7 +266,7 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
 
 // Compact inline tip control: "Tip me" button + amount, no chrome.
 export function NibgateTipInline({ resource, challenge, recipient, amount, amounts, minAmount, apiBase, onPaid, style }) {
-  const { tip, status, error } = useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid })
+  const { tip, status, error, receipt } = useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid })
   const min = Number(minAmount ?? 0.1);
   const presets = (Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]).filter((a) => Number(a) >= min);
   const busy = status === 'switching' || status === 'signing'
@@ -286,7 +286,7 @@ export function NibgateTipInline({ resource, challenge, recipient, amount, amoun
           ${a}
         </button>
       ))}
-      {status === 'done' ? <span style={{ fontSize: 12 }}>✓</span> : null}
+      {status === 'done' ? <span style={{ fontSize: 12 }} title={receipt?.txHash || 'Tipped'}>✓{receipt?.amount ? ` $${receipt.amount}` : ''}</span> : null}
       {error ? <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span> : null}
     </span>
   )
@@ -333,7 +333,15 @@ export function NibgateTipCard({ resource, challenge, recipient, amount, amounts
   const min = Number(minAmount ?? 0.1);
   const presets = (Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]).filter((a) => Number(a) >= min);
   const busy = status === 'switching' || status === 'signing'
-  const label = error || (status === 'switching' ? 'Switching network…' : status === 'signing' ? 'Confirm in your wallet…' : status === 'done' ? 'Tipped ✓' : 'Tip the creator')
+  // Success states like the rating component's "You rated N ★★★": prominent,
+  // with the amount — and held vs settled called out, since the money sits in
+  // different places. Payment receipts persist (never auto-clear like ratings).
+  const doneLabel = receipt?.held
+    ? `Held ✓ $${receipt.amount ?? ''} · the creator claims it`
+    : receipt
+      ? `Tipped ✓ $${receipt.amount ?? ''} USDC`
+      : 'Tipped ✓'
+  const label = error || (status === 'switching' ? 'Switching network…' : status === 'signing' ? 'Confirm in your wallet…' : status === 'done' ? doneLabel : 'Tip the creator')
   const amountBtn = (a) => ({
     background: 'none',
     border: 'none',

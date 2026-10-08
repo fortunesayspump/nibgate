@@ -314,6 +314,11 @@ export async function withdrawHoldingBoxGateway(domain, options = {}) {
     rpcUrl: options.rpcUrl,
     skipEnsureDeploy: true,
   });
+  // Propagate a skip honestly: nothing was withdrawn, so withdrew stays false
+  // (callers 202 on it). Never let a nested BigInt reach Express res.json.
+  if (out?.skipped) {
+    return { box, withdrew: false, skipped: true, available: available.toString(), reason: out.reason };
+  }
   return { box, withdrew: true, available: available.toString(), ...out };
 }
 

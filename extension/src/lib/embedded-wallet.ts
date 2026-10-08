@@ -14,8 +14,11 @@ import {
   createPublicClient,
   http,
   encodeFunctionData,
+  toHex,
   type Hex,
 } from 'viem';
+import { mnemonicToSeedSync } from '@scure/bip39';
+import { HDKey } from '@scure/bip32';
 
 const VAULT_KEY = 'nibgateVault';
 const SESSION_KEY = 'nibgateUnlocked';
@@ -117,6 +120,18 @@ export function isUnlocked(): boolean {
 
 export function unlockedAccountAddress(): string {
   return unlockedAddress;
+}
+
+// Raw session key for SDK flows that need it (Gateway deposit/withdraw).
+// Same trust boundary as the session mnemonic: worker memory only, unlocked
+// only. Derived on the standard path viem's mnemonicToAccount uses, so the
+// address always matches unlockedAccountAddress() — callers MUST verify that.
+export function sessionPrivateKey(): Hex | null {
+  if (!sessionMnemonic) return null;
+  const seed = mnemonicToSeedSync(sessionMnemonic);
+  const child = HDKey.fromMasterSeed(seed).derive(`m/44'/60'/0'/0/0`);
+  if (!child.privateKey) return null;
+  return toHex(child.privateKey);
 }
 
 // Signer for the Circle Gateway rail. Key stays inside this module; callers
@@ -303,6 +318,50 @@ export async function sendUsdcTransfer({
   }
   touchActivity();
   return { txHash };
+}
+
+// Pre-confirm gas estimate for a plain USDC transfer (send + direct tips).
+// Arc charges gas in USDC, so the fee reads in the same currency. Returns
+// null on any failure — callers omit the row rather than guess.
+export async function estimateTransferFee({
+  to,
+  amountUsdc,
+  rpcUrl,
+  chainId,
+}: {
+  to: string;
+  amountUsdc: number;
+  rpcUrl: string;
+  chainId: number;
+}): Promise<{ feeUsdc: string } | null> {
+  try {
+    await ensureUnlocked();
+    if (!sessionMnemonic || !unlockedAddress) return null;
+    const account = mnemonicToAccount(sessionMnemonic);
+    const chain = {
+      id: chainId,
+      name: 'arc',
+      nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } },
+    } as const;
+    const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+    const data = encodeFunctionData({
+      abi: TRANSFER_ABI,
+      functionName: 'transfer',
+      args: [to as Hex, BigInt(Math.round(amountUsdc * 1e6))],
+    });
+    const [gas, gasPrice] = await Promise.all([
+      publicClient.estimateGas({ account: account.address, to: USDC as Hex, data }),
+      publicClient.getGasPrice(),
+    ]);
+    const fee = gas * gasPrice;
+    // 18dp native → trim to a readable 6dp estimate.
+    const raw = fee.toString().padStart(19, '0');
+    const trimmed = `${raw.slice(0, -18)}.${raw.slice(-18, -12)}`.replace(/\.?0+$/, '');
+    return { feeUsdc: trimmed === '' ? '0' : trimmed };
+  } catch {
+    return null;
+  }
 }
 
 export { USDC };

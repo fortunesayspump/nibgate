@@ -11,9 +11,8 @@ import { isTippableUrl } from './guard';
 const CARD_ID = 'nibgate-card';
 const HOST_ATTR = 'data-nibgate-widget';
 
-// Research-backed presets: impulse / highlighted default / fan.
-const PRESETS = ['1', '5', '10'];
-const HIGHLIGHTED = '5';
+// Module ref into the shadow tree (document.getElementById can't see into it).
+let statusEl: HTMLElement | null = null;
 
 type CardInput = {
   content: { url: string; canonicalUrl: string; title: string; author: string; siteName: string; excerptTail?: string };
@@ -24,9 +23,6 @@ type CardInput = {
   end?: Element | null;
   kind?: string;
 };
-
-// Module ref into the shadow tree (document.getElementById can't see into it).
-let statusEl: HTMLElement | null = null;
 
 function fontUrl(file: string): string {
   try {
@@ -156,43 +152,24 @@ function shadowStyles(): string {
     @media (prefers-color-scheme: dark) {
       :host { --bg:#171813; --surface:#20221c; --surface-2:#242820; --border:#f3efe729; --fg:#f4f4f0; --muted:#b9b2a6; --accent:#a9c69a; --danger:#ff5b4d; }
     }
-    .card { box-sizing:border-box; background:var(--wc-bg, var(--surface)); color:var(--wc-fg, var(--fg)); border:1px solid var(--wc-border, var(--border)); border-left:3px solid var(--accent); border-radius:8px; padding:14px 16px; margin:24px 0; max-width:640px;
-      font-family:var(--wc-font, 'Kumbh Sans','ABC Favorit',system-ui,sans-serif); font-size:var(--wc-size, 14px); font-weight:400; line-height:1.45; box-shadow:0 1px 2px rgba(0,0,0,.06); }
-    .brand { font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--wc-muted, var(--muted)); text-transform:uppercase; }
-    .brand b { color:var(--accent); }
-    .line { font-size:1em; font-weight:600; margin:6px 0 2px; }
-    .site { font-size:.86em; color:var(--wc-muted, var(--muted)); margin-bottom:12px; }
-    .row { display:flex; gap:8px; flex-wrap:wrap; }
-    .row button { flex:1 1 0; min-width:56px; cursor:pointer; font-family:var(--wc-font, 'Kumbh Sans',system-ui,sans-serif); font-size:var(--wc-size, 14px); font-weight:700;
-      border:1px solid var(--wc-border, var(--border)); background:transparent; color:var(--wc-fg, var(--fg)); border-radius:6px; padding:9px 8px; }
-    .row button:hover { border-color:var(--wc-fg, var(--muted)); }
-    .row button.hi { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
-    .foot { font-size:.79em; color:var(--wc-muted, var(--muted)); margin-top:9px; }
-    [data-tip-status] { font-size:.86em; color:var(--accent); margin-top:6px; min-height:1.2em; }
+    /* Slim coffee trigger: the only thing that renders in-page. Everything
+       about money lives in the extension window. */
+    .tipbtn { display:inline-flex; align-items:center; gap:8px; box-sizing:border-box; cursor:pointer; margin:24px 0; max-width:640px;
+      font-family:var(--wc-font, 'Kumbh Sans','ABC Favorit',system-ui,sans-serif); font-size:var(--wc-size, 14px); font-weight:700;
+      background:var(--accent); color:var(--accent-ink); border:0; border-radius:999px; padding:10px 18px; }
+    .tipbtn:hover { filter:brightness(1.05); }
+    .tipbtn svg { flex:none; display:block; }
+    .tipbtn:disabled { opacity:.6; cursor:default; filter:none; }
+    [data-tip-status] { font-size:.86em; color:var(--accent); margin:8px 0 24px; min-height:1.2em; max-width:640px;
+      font-family:var(--wc-font, 'Kumbh Sans','ABC Favorit',system-ui,sans-serif); }
   `;
 }
 
 function cardMarkup(input: CardInput): string {
-  const { content, state, isMainnet } = input;
-  const stateLine =
-    state === 'resolved'
-      ? `Tip the creator of “${escapeHtml(content.title)}”`
-      : state === 'held'
-        ? `Creator not on Nibgate yet — your tip is held for them`
-        : `Looking up this content…`;
-  const net = isMainnet ? 'MAINNET' : 'TESTNET';
-  const foot = isMainnet ? 'real USDC' : 'play money (testnet)';
   return `
     <style>${shadowStyles()}</style>
-    <div id="${CARD_ID}" class="card" data-state="${state}">
-      <div class="brand">Nibgate · <b>${net}</b></div>
-      <div class="line">${stateLine}</div>
-      <div class="site">${escapeHtml(content.siteName)}</div>
-      <div class="row">
-        ${PRESETS.map((a) => `<button data-tip="${a}" class="${a === HIGHLIGHTED ? 'hi' : ''}">$${a}</button>`).join('')}
-        <button data-tip="custom">Custom</button>
-      </div>
-      <div class="foot">Suggested: $${HIGHLIGHTED} · ${foot}</div>
+    <div id="${CARD_ID}">
+      <button class="tipbtn" data-open-tip aria-label="Tip the creator"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h13v5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 7c0-1.2.9-1.2.9-2.4M12 7c0-1.2.9-1.2.9-2.4"/></svg>Tip the creator</button>
       <div data-tip-status></div>
     </div>`;
 }
@@ -368,6 +345,10 @@ function renderCard(input: CardInput, runId: string): void {
   if (card) card.setAttribute('data-run', runId);
   statusEl = shadow.querySelector('[data-tip-status]');
 
+  shadow.querySelector('[data-open-tip]')?.addEventListener('click', () => {
+    openTipWindow(input.content, input.pageWallet);
+  });
+
   // Embed inside the detected content container (native placement), falling
   // back to body only when there is no content element.
   const container = input.end?.parentElement ?? contentContainer();
@@ -414,102 +395,74 @@ function renderCard(input: CardInput, runId: string): void {
     }
   }
 
-  shadow.querySelectorAll('[data-tip]').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      startTipFlow((btn as HTMLElement).dataset.tip || '', input.content, input.pageWallet);
-    }),
-  );
+  shadow.querySelector('[data-open-tip]')?.addEventListener('click', () => {
+    openTipWindow(input.content, input.pageWallet);
+  });
   watchPageVisual(host, container);
 }
 
-// Consequence design: amount/recipient/network are shown for review BEFORE
-// anything signs. Confirm sends TIP_CONFIRM (worker signs + settles).
-async function startTipFlow(amount: string, content: CardInput['content'], pageWallet: string) {
+// The button opens the extension tip window (all money UI lives there).
+// Afterwards the card polls for the receipt so the page shows the outcome.
+async function openTipWindow(content: CardInput['content'], pageWallet: string) {
   const say = (text: string) => {
     if (statusEl) statusEl.textContent = text;
   };
-  let tipAmount = amount;
-  if (amount === 'custom') {
-    const entered = window.prompt('Tip amount in USDC', '5');
-    if (entered === null) {
-      say('Cancelled.');
-      return;
-    }
-    const value = Number(entered);
-    if (!(value > 0)) {
-      say('Enter a positive amount.');
-      return;
-    }
-    tipAmount = String(value);
+  // Extension reloaded or page frozen (bfcache): the message channel is gone.
+  // Bail quietly instead of throwing unchecked lastError noise.
+  if (!chrome.runtime?.id) {
+    say('Extension reloaded — refresh the page and try again.');
+    return;
   }
-  say('Preparing tip…');
-  let started: any;
-  // DOM candidate wallets for the worker's JEV fallback: when nothing
-  // resolves locally, the hub model scores these (rules first, LLM only here).
   let candidateWallets: PageWalletCandidate[] = [];
   try { candidateWallets = recipientWalletsFromPage(); } catch { candidateWallets = []; }
+  let opened: any;
   try {
-    started = await chrome.runtime.sendMessage({ type: 'TIP_START', amount: tipAmount, content, pageWallet, candidateWallets, hasSdk: hasNibgateSdk() });
+    opened = await chrome.runtime.sendMessage({ type: 'TIP_OPEN', content, pageWallet, candidateWallets, hasSdk: hasNibgateSdk() });
   } catch {
     say('Extension error — reopen the popup and try again.');
     return;
   }
-  if (!started?.ok) {
-    say(started?.error || 'Tip failed to start.');
+  if (!opened?.ok) {
+    say(opened?.error || 'Tip failed to start.');
     return;
   }
-  if (started.needsUnlock) {
+  const id = String(opened.id || '');
+  say('Continue in the extension window…');
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    if (!chrome.runtime?.id) return;
+    let res: any = null;
     try {
-      chrome.runtime.sendMessage({ type: 'OPEN_UNLOCK' }).catch(() => {});
-    } catch {}
-    say('Unlock the extension, then tap a preset again.');
-    return;
-  }
-  const review = started.review || {};
-  const heldNote = started.held
-    ? '\nThis creator is not on Nibgate yet — the tip is held in a no-key onchain box for them to claim.'
-    : '';
-  const inferredNote = !started.held && review.source === 'jev-model'
-    ? '\nRecipient was inferred by the model from page signals — double-check it.'
-    : '';
-  const ok = window.confirm(
-    `Tip $${review.amount || amount} USDC?\nTo: ${review.recipient || 'creator'}\nPay to: ${review.payee || ''}\nRail: ${review.rail || 'transfer'}${heldNote}${inferredNote}`,
-  );
-  if (!ok) {
-    say('Cancelled.');
-    return;
-  }
-  say('Paying… confirm in the extension if asked.');
-  try {
-    const done = await chrome.runtime.sendMessage({
-      type: 'TIP_CONFIRM',
-      contentUrl: review.contentUrl || content.canonicalUrl || content.url,
-      title: review.title || content.title,
-      amount: review.amount || amount,
-      recipient: review.recipient,
-      rail: review.rail,
-      held: Boolean(started.held),
-      domain: review.domain,
-    });
-    if (done?.ok) {
-      if (done.held) {
-        const waiting = done.heldCount ? ` (${done.heldCount} waiting · $${Number(done.heldTotal || 0).toFixed(2)})` : '';
-        say(`Held for the creator ✓ ${String(done.txHash || '').slice(0, 10)}…${waiting}`);
+      res = await chrome.runtime.sendMessage({ type: 'TIP_RESULT', id });
+    } catch {
+      return;
+    }
+    if (!res || !res.done) continue;
+    if (res.ok) {
+      if (res.held) {
+        const waiting = res.heldCount ? ` (${res.heldCount} waiting · $${Number(res.heldTotal || 0).toFixed(2)})` : '';
+        say(`Held for the creator ✓ ${String(res.txHash || '').slice(0, 10)}…${waiting}`);
       } else {
-        say(`Tipped ✓ ${String(done.txHash || '').slice(0, 10)}…`);
+        say(`Tipped ✓ ${String(res.txHash || '').slice(0, 10)}…`);
       }
     } else {
-      say(done?.error || 'Payment failed.');
+      say(res.error || 'Cancelled.');
     }
-  } catch {
-    say('Payment failed — no money moved unless a tx hash shows.');
+    return;
   }
+  say('Still waiting — reopen the extension window or check popup history.');
 }
 
 async function main() {
-  // Keep the MV3 worker alive across the multi-step tip flow.
+  // Keep the MV3 worker alive across the multi-step tip flow. Released on
+  // pagehide so bfcache doesn't hold a dead port (unchecked lastError noise).
+  let keepalive: chrome.runtime.Port | null = null;
   try {
-    chrome.runtime.connect({ name: 'nibgate-keepalive' });
+    keepalive = chrome.runtime.connect({ name: 'nibgate-keepalive' });
+    document.addEventListener('pagehide', () => {
+      try { keepalive?.disconnect(); } catch {}
+      keepalive = null;
+    });
   } catch {}
   // Single-winner claim: concurrent injections race here; only the latest
   // proceeds past assessment. Host dedupe in renderCard backs it up.

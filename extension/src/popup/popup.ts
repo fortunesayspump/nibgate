@@ -3,7 +3,7 @@
 //   The app has a fixed top bar (account chip + network + settings), a
 //   scrollable body, and a Home/Activity/Settings tab bar.
 import qrcode from 'qrcode-generator';
-import { getNetwork, setNetwork, type NetworkName } from '../lib/network';
+import { getNetwork, setNetwork, NETWORKS, type NetworkName } from '../lib/network';
 
 let rail: 'wallet' | 'gateway' = 'wallet';
 let lastBalances: { wallet: number | null; gateway: number | null } = { wallet: null, gateway: null };
@@ -42,7 +42,7 @@ function timeAgo(iso?: string): string {
 }
 
 // ── screen routing ────────────────────────────────────────────────────────
-type AppScreen = 'home' | 'activity' | 'send' | 'receive' | 'settings' | 'detail';
+type AppScreen = 'home' | 'activity' | 'send' | 'receive' | 'deposit' | 'withdraw' | 'settings' | 'detail';
 
 function showOnboarding(step: 'welcome' | 'create' | 'import' | 'backup' = 'welcome') {
   $('screen-onboard')!.hidden = false;
@@ -70,7 +70,7 @@ function showApp(screen: AppScreen = 'home') {
 }
 
 function showScreen(name: AppScreen) {
-  const names: AppScreen[] = ['home', 'activity', 'send', 'receive', 'settings', 'detail'];
+  const names: AppScreen[] = ['home', 'activity', 'send', 'receive', 'deposit', 'withdraw', 'settings', 'detail'];
   for (const s of names) {
     const el = $(`screen-${s}`);
     if (el) el.classList.toggle('on', s === name);
@@ -89,22 +89,82 @@ function showScreen(name: AppScreen) {
 function paintAccount() {
   const addr = $('acctaddr');
   if (addr) addr.textContent = shortAddress(watchAddress);
-  const avatar = $('acct-avatar');
-  if (avatar) avatar.textContent = watchAddress ? watchAddress.slice(2, 3).toUpperCase() : 'N';
+}
+
+// ── toast ───────────────────────────────────────────────────────────────────
+let toastTimer: number | undefined;
+function toast(msg: string) {
+  const el = $('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+function copyAddress(silent: string) {
+  if (!watchAddress) return;
+  const done = () => toast(silent);
+  try {
+    const p = navigator.clipboard?.writeText(watchAddress) as unknown as Promise<void> | undefined;
+    if (p && typeof p.then === 'function') p.then(done).catch(() => {});
+    else done();
+  } catch {
+    // Clipboard unavailable — no-op, address is visible on screen.
+  }
 }
 
 async function paintNetwork() {
   const net = await getNetwork();
   currentNetwork = net;
+  const main = net === 'mainnet';
   const pill = $('netpill');
-  if (pill) {
-    pill.textContent = net === 'mainnet' ? 'MAINNET' : 'TESTNET';
-    pill.classList.toggle('main', net === 'mainnet');
+  const pillTxt = $('netpill-txt');
+  if (pillTxt) {
+    pillTxt.textContent = main ? 'MAINNET' : 'TESTNET';
+  } else if (pill) {
+    pill.textContent = main ? 'MAINNET' : 'TESTNET';
   }
-  const sub = $('netsub');
-  if (sub) sub.textContent = net === 'mainnet' ? 'Real USDC on Arc.' : 'Play money only.';
+  if (pill) pill.classList.toggle('main', main);
   const balnet = $('balnet');
-  if (balnet) balnet.textContent = net === 'mainnet' ? 'Arc' : 'Arc Testnet';
+  if (balnet) balnet.textContent = main ? 'Arc' : 'Arc Testnet';
+  const tokenSub = $('token-sub');
+  if (tokenSub) tokenSub.textContent = main ? 'Arc dollar' : 'Arc testnet dollar';
+  const about = $('about-line');
+  if (about) about.textContent = main ? 'Nibgate extension · mainnet (real USDC)' : 'Nibgate extension · testnet default';
+  $('netopt-testnet')?.classList.toggle('sel', !main);
+  $('netopt-mainnet')?.classList.toggle('sel', main);
+  ($('netopt-testnet') as HTMLElement | null)?.setAttribute('aria-checked', String(!main));
+  ($('netopt-mainnet') as HTMLElement | null)?.setAttribute('aria-checked', String(main));
+}
+
+// ── network dropdown (header pill) ──────────────────────────────────────────
+// The switcher lives here, not in Settings. Mainnet stays confirm-gated via
+// inline two-tap — never a native confirm(), which steals focus and gets the
+// popup killed before the switch runs.
+let armMainnet = false;
+let armTimer: number | undefined;
+
+function setNetMenu(open: boolean) {
+  const menu = $('netmenu');
+  if (menu) menu.hidden = !open;
+  const pill = $('netpill');
+  if (pill) pill.setAttribute('aria-expanded', String(open));
+  if (!open) disarmMainnet();
+}
+
+function disarmMainnet() {
+  armMainnet = false;
+  window.clearTimeout(armTimer);
+  const d = $('netopt-mainnet-d');
+  if (d) d.textContent = 'Real USDC · Arc';
+}
+
+async function switchNetwork(name: NetworkName) {
+  await setNetwork(name);
+  await paintNetwork();
+  await paintBalances();
+  toast(name === 'mainnet' ? 'Switched to Mainnet' : 'Switched to Testnet');
 }
 
 // ── balances ──────────────────────────────────────────────────────────────
@@ -119,6 +179,19 @@ function paintBalance() {
   if (asset) asset.textContent = `${fmt(lastBalances.wallet)} USDC`;
   $('tab-wallet')?.classList.toggle('on', rail === 'wallet');
   $('tab-gateway')?.classList.toggle('on', rail === 'gateway');
+  const hint = $('rail-hint');
+  if (hint) hint.textContent = rail === 'wallet' ? 'Tips pay from your wallet.' : 'Tips pay via Circle Gateway.';
+  paintRailMode();
+}
+
+// Home actions follow the active rail: wallet moves plain USDC
+// (Send/Receive), Gateway moves ledger funds (Deposit/Withdraw).
+function paintRailMode() {
+  const gw = rail === 'gateway';
+  const sendLabel = $('btn-send-label');
+  if (sendLabel) sendLabel.textContent = gw ? 'Deposit' : 'Send';
+  const receiveLabel = $('btn-receive-label');
+  if (receiveLabel) receiveLabel.textContent = gw ? 'Withdraw' : 'Receive';
 }
 
 async function paintBalances() {
@@ -139,7 +212,7 @@ async function paintBalances() {
   }
   paintBalance();
   const avail = $('send-avail');
-  if (avail) avail.textContent = `Available: ${fmt(lastBalances.wallet)} USDC`;
+  if (avail) avail.textContent = `Available (wallet): ${fmt(lastBalances.wallet)} USDC`;
 }
 
 // ── activity ──────────────────────────────────────────────────────────────
@@ -157,12 +230,13 @@ function paintHistory(items: HistoryItem[], elId: string, limit?: number) {
   el.innerHTML = '';
   for (const h of shown) {
     const outgoing = h.type !== 'receive';
+    const held = h.status === 'held';
     const row = document.createElement('div');
     row.className = 'row';
     row.innerHTML = `
       <span class="dir ${outgoing ? 'out' : 'in'}">${outgoing ? '↑' : '↓'}</span>
       <div class="main">
-        <div class="amt">${outgoing ? '−' : '+'}$${h.amount || '?'} USDC</div>
+        <div class="amt">${outgoing ? '−' : '+'}$${h.amount || '?'} USDC${held ? ' · held' : ''}</div>
         <div class="sub">${h.title || (outgoing ? 'Sent' : 'Received')}${h.txHash ? ` · ${String(h.txHash).slice(0, 10)}…` : ' · pending'}</div>
       </div>
       <span class="when">${timeAgo(h.timestamp)}</span>`;
@@ -174,21 +248,32 @@ function paintHistory(items: HistoryItem[], elId: string, limit?: number) {
 function openDetail(item: HistoryItem) {
   const body = $('detail-body');
   if (body) {
-    const rows: Array<[string, string]> = [
-      ['Amount', item.amount ? `$${item.amount} USDC` : '—'],
-      ['Type', item.title || item.type || 'payment'],
-      ['Transaction', item.txHash || 'pending…'],
-      ['Counterparty', item.recipientWallet || item.payerWallet || '—'],
-      ['Time', item.timestamp ? new Date(item.timestamp).toLocaleString() : '—'],
+    const explorer = NETWORKS[currentNetwork]?.explorer || '';
+    const tx = item.txHash || '';
+    const rows: Array<[string, string, boolean]> = [
+      ['Amount', item.amount ? `$${item.amount} USDC` : '—', false],
+      ['Type', item.title || item.type || 'payment', false],
+      ['Transaction', tx || 'pending…', Boolean(tx && explorer)],
+      ['Counterparty', item.recipientWallet || item.payerWallet || '—', false],
+      ['Time', item.timestamp ? new Date(item.timestamp).toLocaleString() : '—', false],
     ];
     body.innerHTML = '';
-    for (const [k, v] of rows) {
+    for (const [k, v, link] of rows) {
       const key = document.createElement('div');
       key.className = 'k2';
       key.textContent = k;
       const val = document.createElement('div');
       val.className = 'v2';
-      val.textContent = v;
+      if (link) {
+        const a = document.createElement('a');
+        a.href = `${explorer.replace(/\/+$/, '')}/tx/${tx}`;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = v;
+        val.append(a);
+      } else {
+        val.textContent = v;
+      }
       body.append(key, val);
     }
   }
@@ -314,10 +399,10 @@ async function init() {
     if (!res?.ok) return onboardError(res?.error || 'Create failed.');
     watchAddress = res.address;
     paintMnemonic('ob-mnemonic', res.mnemonic || '');
-    ($('ob-saved') as HTMLInputElement | null)?.addEventListener('change', (e) => {
-      const btn = $('ob-done') as HTMLButtonElement | null;
-      if (btn) btn.disabled = !(e.target as HTMLInputElement).checked;
-    });
+    const saved = $('ob-saved') as HTMLInputElement | null;
+    const doneBtn = $('ob-done') as HTMLButtonElement | null;
+    if (saved) saved.checked = false;
+    if (doneBtn) doneBtn.disabled = true;
     showOnboarding('backup');
   });
   $('ob-copy-phrase')?.addEventListener('click', () => {
@@ -358,15 +443,47 @@ async function init() {
   });
 
   // ── top bar ──
-  $('netpill')?.addEventListener('click', () => showScreen('settings'));
-  $('to-settings')?.addEventListener('click', () => showScreen('settings'));
-  $('acct-chip')?.addEventListener('click', () => {
-    navigator.clipboard?.writeText(watchAddress).catch(() => {});
+  // The network pill toggles the switcher dropdown (the switch lives here,
+  // not in Settings). The bottom tab bar remains the way into Settings.
+  $('netpill')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setNetMenu(!!$('netmenu')?.hidden);
+  });
+  document.addEventListener('click', (e) => {
+    if ($('netmenu')?.hidden) return;
+    if ((e.target as HTMLElement | null)?.closest?.('#netwrap')) return;
+    setNetMenu(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Escape') setNetMenu(false);
+  });
+  $('netopt-testnet')?.addEventListener('click', async () => {
+    setNetMenu(false);
+    await switchNetwork('testnet');
+  });
+  $('netopt-mainnet')?.addEventListener('click', async () => {
+    if (!armMainnet) {
+      armMainnet = true;
+      const d = $('netopt-mainnet-d');
+      if (d) d.textContent = 'Tap again — spends real USDC!';
+      toast('Mainnet spends real USDC. Tap again to confirm.');
+      window.clearTimeout(armTimer);
+      armTimer = window.setTimeout(disarmMainnet, 5000);
+      return;
+    }
+    setNetMenu(false);
+    await switchNetwork('mainnet');
+  });
+  $('acct-chip')?.addEventListener('click', () => copyAddress('Address copied'));
+  // Backup checkbox: wired once here (never inside the create handler).
+  ($('ob-saved') as HTMLInputElement | null)?.addEventListener('change', (e) => {
+    const btn = $('ob-done') as HTMLButtonElement | null;
+    if (btn) btn.disabled = !(e.target as HTMLInputElement).checked;
   });
 
-  // ── home actions ──
-  $('btn-send')?.addEventListener('click', () => openSend());
-  $('btn-receive')?.addEventListener('click', () => openReceive());
+  // ── home actions (rail-aware: wallet = Send/Receive, gateway = Deposit/Withdraw) ──
+  $('btn-send')?.addEventListener('click', () => { rail === 'gateway' ? openDeposit() : openSend(); });
+  $('btn-receive')?.addEventListener('click', () => { rail === 'gateway' ? openWithdraw() : openReceive(); });
   $('tab-wallet')?.addEventListener('click', () => { rail = 'wallet'; chrome.storage.local.set({ nibgateRail: 'transfer' }); paintBalance(); });
   $('tab-gateway')?.addEventListener('click', () => { rail = 'gateway'; chrome.storage.local.set({ nibgateRail: 'gateway' }); paintBalance(); });
   $('view-all-activity')?.addEventListener('click', () => showScreen('activity'));
@@ -380,11 +497,11 @@ async function init() {
   $('detail-back')?.addEventListener('click', () => showScreen('activity'));
   $('send-back')?.addEventListener('click', () => showScreen('home'));
   $('receive-back')?.addEventListener('click', () => showScreen('home'));
+  $('deposit-back')?.addEventListener('click', () => showScreen('home'));
+  $('withdraw-back')?.addEventListener('click', () => showScreen('home'));
 
   // ── receive ──
-  $('receive-copy')?.addEventListener('click', () => {
-    if (watchAddress) navigator.clipboard?.writeText(watchAddress).catch(() => {});
-  });
+  $('receive-copy')?.addEventListener('click', () => copyAddress('Address copied'));
 
   // ── send ──
   $('send-max')?.addEventListener('click', () => {
@@ -394,14 +511,23 @@ async function init() {
   $('send-review-btn')?.addEventListener('click', reviewSend);
   $('send-confirm')?.addEventListener('click', confirmSend);
 
-  // ── settings ──
-  $('net-testnet')?.addEventListener('click', async () => { await setNetwork('testnet' as NetworkName); await paintNetwork(); await paintBalances(); });
-  $('net-mainnet')?.addEventListener('click', async () => {
-    if (!confirm('Switch to MAINNET? Tips will spend real USDC.')) return;
-    await setNetwork('mainnet' as NetworkName);
-    await paintNetwork();
-    await paintBalances();
+  // ── gateway funding ──
+  $('deposit-max')?.addEventListener('click', () => {
+    const amt = $('deposit-amount') as HTMLInputElement | null;
+    if (amt && lastBalances.wallet != null) amt.value = String(Math.max(0, lastBalances.wallet - 0.01));
   });
+  $('withdraw-max')?.addEventListener('click', () => {
+    // Gas for the mint is paid from the wallet balance, so the full gateway
+    // balance is withdrawable.
+    const amt = $('withdraw-amount') as HTMLInputElement | null;
+    if (amt && lastBalances.gateway != null) amt.value = String(Math.max(0, lastBalances.gateway));
+  });
+  $('deposit-review-btn')?.addEventListener('click', () => reviewFunding('deposit'));
+  $('deposit-confirm')?.addEventListener('click', confirmFunding);
+  $('withdraw-review-btn')?.addEventListener('click', () => reviewFunding('withdraw'));
+  $('withdraw-confirm')?.addEventListener('click', confirmFunding);
+
+  // ── settings ──
   $('sec-lock')?.addEventListener('click', async () => {
     await chrome.runtime.sendMessage({ type: 'VAULT_LOCK' });
     watchAddress = '';
@@ -433,6 +559,16 @@ async function init() {
     const confirm = $('send-confirm');
     if (confirm && !confirm.hidden) confirm.click();
     else $('send-review-btn')?.click();
+  });
+  onEnter(['deposit-amount'], () => {
+    const confirm = $('deposit-confirm');
+    if (confirm && !confirm.hidden) confirm.click();
+    else $('deposit-review-btn')?.click();
+  });
+  onEnter(['withdraw-amount'], () => {
+    const confirm = $('withdraw-confirm');
+    if (confirm && !confirm.hidden) confirm.click();
+    else $('withdraw-review-btn')?.click();
   });
 
   // ── history ──
@@ -469,11 +605,11 @@ async function openSend() {
   const conf = $('send-confirm'); if (conf) conf.hidden = true;
   const revbtn = $('send-review-btn'); if (revbtn) revbtn.hidden = false;
   const err = $('send-error'); if (err) err.textContent = '';
-  const avail = $('send-avail'); if (avail) avail.textContent = `Available: ${fmt(lastBalances.wallet)} USDC`;
+  const avail = $('send-avail'); if (avail) avail.textContent = `Available (wallet): ${fmt(lastBalances.wallet)} USDC`;
   showScreen('send');
 }
 
-function reviewSend() {
+async function reviewSend() {
   const err = $('send-error');
   const to = ($('send-to') as HTMLInputElement | null)?.value.trim() || '';
   const amount = ($('send-amount') as HTMLInputElement | null)?.value.trim() || '';
@@ -483,12 +619,18 @@ function reviewSend() {
   if (lastBalances.wallet != null && Number(amount) > lastBalances.wallet) return setErr('Amount exceeds your balance.');
   setErr('');
   pendingSend = { to, amount };
+  let feeRow = '';
+  try {
+    const est = await chrome.runtime.sendMessage({ type: 'ESTIMATE_SEND_FEE', to, amountUsdc: Number(amount) });
+    if (est?.feeUsdc) feeRow = `<div class="line"><span class="k">Network fee (est.)</span><span class="v">~$${est.feeUsdc} USDC</span></div>`;
+  } catch {}
   const rev = $('send-review');
   if (rev) {
     rev.hidden = false;
     rev.innerHTML = `
       <div class="line"><span class="k">To</span><span class="v">${to}</span></div>
       <div class="line"><span class="k">Amount</span><span class="v">${Number(amount).toFixed(6)} USDC</span></div>
+      ${feeRow}
       <div class="line"><span class="k">Network</span><span class="v">${currentNetwork === 'mainnet' ? 'Arc' : 'Arc Testnet'}</span></div>`;
   }
   const conf = $('send-confirm'); if (conf) conf.hidden = false;
@@ -526,6 +668,85 @@ async function openReceive() {
   if (netLabel) netLabel.textContent = net === 'mainnet' ? 'Arc · eip155:5042' : 'Arc Testnet · eip155:5042002';
   paintQr(watchAddress);
   showScreen('receive');
+}
+
+// ── gateway funding flows ───────────────────────────────────────────────────
+let pendingFunding: { kind: 'deposit' | 'withdraw'; amount: string } | null = null;
+
+function fundingIds(kind: 'deposit' | 'withdraw') {
+  return {
+    amount: `${kind}-amount`, max: `${kind}-max`, avail: `${kind}-avail`,
+    review: `${kind}-review`, reviewBtn: `${kind}-review-btn`,
+    confirm: `${kind}-confirm`, error: `${kind}-error`,
+  };
+}
+
+function openFunding(kind: 'deposit' | 'withdraw') {
+  pendingFunding = null;
+  const ids = fundingIds(kind);
+  ($('deposit-amount') as HTMLInputElement | null) && ((($('deposit-amount') as HTMLInputElement).value = ''));
+  ($('withdraw-amount') as HTMLInputElement | null) && ((($('withdraw-amount') as HTMLInputElement).value = ''));
+  const bal = kind === 'deposit' ? lastBalances.wallet : lastBalances.gateway;
+  const rev = $(ids.review); if (rev) rev.hidden = true;
+  const conf = $(ids.confirm); if (conf) conf.hidden = true;
+  const revbtn = $(ids.reviewBtn); if (revbtn) revbtn.hidden = false;
+  const err = $(ids.error); if (err) err.textContent = '';
+  const avail = $(ids.avail);
+  if (avail) avail.textContent = `Available (${kind === 'deposit' ? 'wallet' : 'gateway'}): ${fmt(bal)} USDC`;
+  showScreen(kind);
+}
+
+function openDeposit() { openFunding('deposit'); }
+function openWithdraw() { openFunding('withdraw'); }
+
+function reviewFunding(kind: 'deposit' | 'withdraw') {
+  const ids = fundingIds(kind);
+  const err = $(ids.error);
+  const amount = (($(ids.amount) as HTMLInputElement | null)?.value.trim() || '');
+  const setErr = (m: string) => { if (err) err.textContent = m; };
+  if (!(Number(amount) > 0)) return setErr('Enter an amount above zero.');
+  const bal = kind === 'deposit' ? lastBalances.wallet : lastBalances.gateway;
+  if (bal != null && Number(amount) > bal) return setErr(`Amount exceeds your ${kind === 'deposit' ? 'wallet' : 'gateway'} balance.`);
+  setErr('');
+  pendingFunding = { kind, amount };
+  const rev = $(ids.review);
+  if (rev) {
+    rev.hidden = false;
+    rev.innerHTML = `
+      <div class="line"><span class="k">Action</span><span class="v">${kind === 'deposit' ? 'Wallet → Gateway' : 'Gateway → Wallet'}</span></div>
+      <div class="line"><span class="k">Amount</span><span class="v">${Number(amount).toFixed(6)} USDC</span></div>
+      <div class="line"><span class="k">Network</span><span class="v">${currentNetwork === 'mainnet' ? 'Arc' : 'Arc Testnet'}</span></div>`;
+  }
+  const conf = $(ids.confirm); if (conf) conf.hidden = false;
+  const revbtn = $(ids.reviewBtn); if (revbtn) revbtn.hidden = true;
+}
+
+async function confirmFunding() {
+  if (!pendingFunding) return;
+  const { kind, amount } = pendingFunding;
+  const ids = fundingIds(kind);
+  const err = $(ids.error);
+  const conf = ($(ids.confirm)) as HTMLButtonElement | null;
+  if (conf) { conf.disabled = true; conf.textContent = kind === 'deposit' ? 'Depositing…' : 'Withdrawing…'; }
+  const res = await chrome.runtime.sendMessage({
+    type: kind === 'deposit' ? 'GATEWAY_DEPOSIT' : 'GATEWAY_WITHDRAW',
+    amountUsdc: Number(amount),
+  });
+  const doneLabel = kind === 'deposit' ? 'Confirm & deposit' : 'Confirm & withdraw';
+  if (!res?.ok) {
+    if (err) err.textContent = res?.error || (kind === 'deposit' ? 'Deposit failed.' : 'Withdraw failed.');
+    if (conf) { conf.disabled = false; conf.textContent = doneLabel; }
+    return;
+  }
+  toast(kind === 'deposit' ? 'Deposited to Gateway' : 'Withdrew to wallet');
+  try {
+    const { history = [] } = await chrome.storage.local.get('history');
+    historyItems = history;
+    paintHistory(historyItems, 'history', 3);
+    paintHistory(historyItems, 'history-full');
+  } catch {}
+  await paintBalances();
+  showScreen('home');
 }
 
 init();

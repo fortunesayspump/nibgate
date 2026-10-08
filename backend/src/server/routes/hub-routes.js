@@ -1490,6 +1490,7 @@ export function registerHubRoutes(app) {
       });
       res.json({ success: true, holdStatus: 'held', box: reqd.box, tip: row });
     } catch (error) {
+      console.error(`[hub] POST /api/hub/tips/hold failed: ${error?.message || error}`);
       res.status(400).json({ error: error.message });
     }
   });
@@ -1573,7 +1574,7 @@ export function registerHubRoutes(app) {
           const gw = await holding.withdrawHoldingBoxGateway(domain, {
             privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0,
           });
-          if (gw?.withdrew === false) {
+          if (gw?.withdrew === false || gw?.skipped) {
             return res.status(202).json({
               success: false, status: 'pending-settlement', domain,
               box: gw.box, available: gw.available,
@@ -1581,6 +1582,7 @@ export function registerHubRoutes(app) {
             });
           }
         } catch (gwError) {
+          console.error(`[hub] claim gateway collection failed: ${gwError?.message || gwError}`);
           return res.status(502).json({ error: `Gateway collection failed: ${gwError.message}` });
         }
       }
@@ -1656,7 +1658,7 @@ export function registerHubRoutes(app) {
           const gw = await holding.withdrawHoldingBoxGateway(canon, {
             privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0, factoryAddress,
           });
-          if (gw?.withdrew === false) {
+          if (gw?.withdrew === false || gw?.skipped) {
             return res.status(202).json({
               success: false, status: 'pending-settlement', domain: canon,
               message: 'Circle Gateway is still settling this tip; retry the refund shortly.',

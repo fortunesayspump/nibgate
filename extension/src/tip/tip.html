@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; }
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; }
+    @font-face { font-family: 'Kumbh Sans'; src: url('fonts/KumbhSans-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; }
+    @font-face { font-family: 'ABC Favorit'; src: url('fonts/ABCFavorit-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+    @font-face { font-family: 'ABC Favorit'; src: url('fonts/ABCFavorit-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; }
+
+    /* Same hub tokens as popup.html — keep the two in sync. */
+    :root {
+      color-scheme: light;
+      --nib-page-bg: #f4f4f0;
+      --nib-page-fg: #0a0a0a;
+      --nib-page-muted: #44423d;
+      --nib-surface: #ffffff;
+      --nib-surface-soft: #f0eee6;
+      --nib-surface-raised: #ffffff;
+      --nib-border-soft: #11111124;
+      --nib-olive: #7c9a6d;
+      --nib-yellow: #ffc900;
+      --nib-red: #ff3e30;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --nib-page-bg: #171813; --nib-page-fg: #f4f4f0; --nib-page-muted: #b9b2a6;
+        --nib-surface: #20221c; --nib-surface-soft: #242820; --nib-surface-raised: #282b24;
+        --nib-border-soft: #f3efe729; --nib-olive: #a9c69a; --nib-red: #ff5b4d;
+      }
+    }
+    :root {
+      --bg: var(--nib-page-bg);
+      --surface: var(--nib-surface);
+      --surface-2: var(--nib-surface-soft);
+      --border: var(--nib-border-soft);
+      --fg: var(--nib-page-fg);
+      --muted: var(--nib-page-muted);
+      --accent: var(--nib-olive);
+      --accent-ink: #10110e;
+      --danger: var(--nib-red);
+      --font-ui: 'Kumbh Sans', 'ABC Favorit', Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      width: 100%; min-height: 100vh;
+      font-family: var(--font-ui);
+      background: var(--bg); color: var(--fg);
+      -webkit-font-smoothing: antialiased; font-size: 13px; line-height: 1.45;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 28px 24px;
+    }
+    button { font-family: inherit; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+
+    .wrap { width: 100%; max-width: 332px; display: flex; flex-direction: column; gap: 14px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand img { width: 30px; height: 30px; object-fit: contain; }
+    .brand .mark-dark { display: none; }
+    @media (prefers-color-scheme: dark) {
+      .brand .mark-light { display: none; }
+      .brand .mark-dark { display: block; }
+    }
+    .brand span { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase; }
+    h1 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; margin: 0; }
+    .sub { font-size: 12px; color: var(--muted); margin: 4px 0 2px; }
+    .row { display: flex; gap: 8px; }
+    .row button { flex: 1 1 0; cursor: pointer; font-size: 14px; font-weight: 700; border: 1px solid var(--border); background: transparent; color: var(--fg); border-radius: 6px; padding: 10px 8px; }
+    .row button:hover { border-color: var(--muted); }
+    .row button.hi { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .amtrow { display: flex; gap: 8px; }
+    .amtrow input { flex: 1 1 0; min-width: 0; font-family: inherit; font-size: 14px; color: var(--fg); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 10px; outline: none; }
+    .amtrow input:focus { border-color: var(--accent); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+    .line { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 12px; }
+    .k { color: var(--muted); flex: none; }
+    .v { font-family: ui-monospace, Menlo, monospace; word-break: break-all; text-align: right; }
+    .note { font-size: 12px; color: var(--muted); line-height: 1.5; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .actions { display: flex; gap: 10px; margin-top: 4px; }
+    button.primary { flex: 1; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 6px; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    button.primary:hover { filter: brightness(1.05); }
+    button.primary:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; filter: none; }
+    button.ghost { flex: 1; background: transparent; color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button.ghost:hover { border-color: var(--muted); }
+    .err { color: var(--danger); font-size: 12px; min-height: 14px; }
+    .ok { font-size: 12px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img class="mark-light" src="icons/icon48.png" alt="Nibgate" />
+      <img class="mark-dark" src="icons/nibgate.svg" alt="" aria-hidden="true" />
+      <span>Tip the creator</span>
+    </div>
+    <div id="loading">Loading…</div>
+    <div id="main" hidden>
+      <h1 id="t-title">Tip the creator</h1>
+      <div class="sub" id="t-sub"></div>
+      <div id="step-amount">
+        <div class="row" id="t-presets">
+          <button data-amt="1">$1</button>
+          <button data-amt="5" class="hi">$5</button>
+          <button data-amt="10">$10</button>
+        </div>
+        <div style="height:8px"></div>
+        <div class="amtrow">
+          <input id="t-custom" inputmode="decimal" placeholder="Custom amount in USDC" aria-label="Custom tip amount in USDC" />
+        </div>
+      </div>
+      <div class="card" id="t-review" hidden></div>
+      <div class="note" id="t-note" hidden></div>
+      <div class="err" id="t-error"></div>
+      <div class="ok" id="t-ok"></div>
+      <div class="actions" id="t-actions">
+        <button class="ghost" id="t-cancel">Cancel</button>
+        <button class="primary" id="t-continue">Continue</button>
+      </div>
+      <div class="actions" id="t-close-wrap" hidden>
+        <button class="primary" id="t-close">Close</button>
+      </div>
+    </div>
+  </div>
+  <script src="tip.js"></script>
+</body>
+</html>

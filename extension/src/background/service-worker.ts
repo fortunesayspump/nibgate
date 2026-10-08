@@ -468,7 +468,16 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
         const message = `Nibgate tip refund\nDomain: ${domain}\nWallet: ${signer.address.toLowerCase()}\nIssued: ${new Date().toISOString()}`;
         const signature = await signer.signMessage(message);
         const out = await refundHeldTip({ domain, payer: signer.address, message, signature, amount: msg.amount });
-        respond({ ok: true, ...out });
+        const receipt = {
+          type: 'refund',
+          amount: out?.amount ?? msg.amount ?? '',
+          txHash: out?.refundTx || '',
+          timestamp: new Date().toISOString(),
+          title: 'Tip refund',
+          domain,
+        };
+        await recordReceipt(receipt);
+        respond({ ok: true, ...out, receipt });
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
       }

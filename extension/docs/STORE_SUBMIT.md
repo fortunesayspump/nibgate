@@ -59,14 +59,14 @@ confirmation, so it never happens by accident.
 Support: hello@nibgate.xyz · Privacy: https://nibgate.xyz/extension-privacy
 ```
 
-Screenshots (1280×800, in `e2e/screenshots/` — composed feature frames, dark
-canvas + headline left + product crop right; regenerate raws with
-`node e2e/store-shots.mjs`, compose with `node e2e/promo/frames-shots.mjs`):
+Screenshots (1280×800 composed feature frames, dark canvas + headline left +
+product crop right, in `e2e/screenshots/` — regenerate raws then compose;
+see `e2e/promo/frames.html` + `frames-shots.mjs`):
 `store-01-home.png` (Tip every creator), `store-02-article.png` (One tap),
 `store-03-review.png` (Review before signing), `store-04-activity.png`
 (Held safe), `store-05-receive.png` (Get tipped back).
 Promo: `promo-small-440x280.png` (required), `promo-marquee-1400x560.png`
-(`node e2e/promo-shots.mjs`).
+(`node e2e/promo-shots.mjs`; brand mark + wordmark on dark).
 
 ## Network policy
 

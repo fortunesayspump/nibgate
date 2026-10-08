@@ -1,2 +1,75 @@
+﻿node_modules/
+.next/
+dist/
+/cache/
+/out/
+.astro/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+.npmrc
+*.tsbuildinfo
+*.db
+*.db-*
+.nibgate/
+
+docs/.next/
+
+# hackathon media assets (not for git)
+HACKATHON_VIDEO_*
+*.mp3
+/video/
+packages/nibgate/.npmrc
+
+# v2 labs (unmaintained experiment)
+/v2-labs/
+*.tgz
+writeskill.md
+/local-ops/
+
+# Playwright/vitest local artifacts
+/test-results/
+
+# Google service account keys
+/.gsc/
+
+# revenue model research (kept local, not committed)
+/revenue-model/
+# dr-nib reference implementations (third-party, re-fetchable ΓÇö see dr-nib/references/README.md)
+dr-nib/references/gpt-researcher/
+dr-nib/references/open-deep-research/
+dr-nib/references/storm/
+dr-nib/references/agentkit/
+dr-nib/references/x402/
+dr-nib/references/circle-nanopayment-sample/
+dr-nib/references/erc8183-reference/
+dr-nib/references/local-only/
+# e2e harness is local-only test tooling — never committed
 /e2e/
-node_modules
+
+# circle agent stack sandbox (local only)
+/agent-lab/
+
+# binary litter
+*.mp4
+
+# build artifacts & local junk
+contracts/broadcast/
+contracts/cache/
+contracts/out/
+packages/cli/generated/
+subblogs/backend/prisma/generated/
+logs/
+session-*.md
+
+# Local foundry binaries (re-fetch: see dr-nib/ESCROW.md build notes)
+tools/foundry/
+contracts/lib/openzeppelin-contracts/
+
+# Agent episodic lessons (local Reflexion memory, never commit)
+dr-nib/backend/data/
+
+# Cloned reference implementations (re-fetch from upstream)
+dr-nib/references/smolagents/

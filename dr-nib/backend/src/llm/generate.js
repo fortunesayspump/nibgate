@@ -120,7 +120,14 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
  * One section of a long report, from that section's own evidence.
  * Bounded by targetWords so a comprehensive report is many small calls, never
  * one call asked to write a book.
+ *
+ * A single empty model response must not ship a placeholder section: retry a
+ * bounded number of times (cooler temperature on the last attempt) and only
+ * then fall back. Empty-text is the common transient failure (seen live), not
+ * a verdict on the evidence.
  */
+const SECTION_ATTEMPTS = 3;
+
 export async function generateSection({ brief, section, index, of, sources = [], targetWords = 800, guidance, fetchImpl } = {}) {
   const fallback = (llmError) => ({
     ok: true,
@@ -130,24 +137,39 @@ export async function generateSection({ brief, section, index, of, sources = [],
     llmError: llmError || null,
     markdown: `## ${section}\n\n[Section pending: the model could not write this section${llmError ? ` (${llmError})` : ''}.]\n`,
   });
-  if (isLlmConfigured()) {
+  if (!isLlmConfigured()) return fallback(null);
+  let lastError = null;
+  let lastUsage = null;
+  let lastModel = null;
+  for (let attempt = 1; attempt <= SECTION_ATTEMPTS; attempt += 1) {
     try {
       const { text, usage, model } = await chat({
         effort: 'high',
         messages: sectionMessages({ brief, section, index, of, sources, targetWords, guidance }),
         fetchImpl,
-        temperature: 0.4,
+        // Cooler on the final attempt: determinism over flair when the
+        // evidence is thin and earlier attempts came back empty.
+        temperature: attempt < SECTION_ATTEMPTS ? 0.4 : 0.1,
         maxTokens: maxTokensForWords(targetWords),
       });
+      lastUsage = usage || lastUsage;
+      lastModel = model || lastModel;
       if (text && text.trim()) {
         return { ok: true, source: 'llm', model, usage, markdown: text.trim() };
       }
-      return fallback('model returned empty text');
+      lastError = `model returned empty text (attempt ${attempt}/${SECTION_ATTEMPTS})`;
     } catch (err) {
-      return fallback(err?.message || String(err));
+      lastError = err?.message || String(err);
+    }
+    if (attempt < SECTION_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
     }
   }
-  return fallback(null);
+  const out = fallback(lastError);
+  // Preserve any usage accounting from attempts that consumed tokens.
+  if (lastUsage) out.usage = lastUsage;
+  if (lastModel) out.model = lastModel;
+  return out;
 }
 
 function addUsage(total, usage) {

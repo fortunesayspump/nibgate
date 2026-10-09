@@ -24,6 +24,7 @@ export default {
   "discovery-seo": "Discovery & SEO",
   nibshare: "Nibshare (quick-share)",
   tipping: "Nib Tips",
+  extension: "Browser extension",
   "access-control": "Whitelists & access control",
   "---setup": {
     type: "separator",

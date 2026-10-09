@@ -1,4 +1,4 @@
-// Testnet + mainnet API surface (network chosen in popup settings).
+// Testnet + mainnet API surface (network chosen via the popup header pill).
 // Content scripts must NOT import this (it uses chrome.storage via network.ts
 // in worker/popup contexts only) — they message the background worker.
 import { activeNetwork } from './network';

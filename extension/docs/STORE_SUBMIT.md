@@ -1,7 +1,7 @@
 # Chrome Web Store submission
 
-Two tracks: **sideload for dev/review** (`LOAD_IN_CHROME.md`), **store
-submission in parallel now** so review runs while we build. Do NOT gate
+**Status: v1.0.1 (`nibgate-1.0.1.zip`) SUBMITTED — awaiting review.**
+Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
 
 ## Review reality (checked Sep 2026)
@@ -18,19 +18,29 @@ building on store approval.
 - Updates to an already-approved item review faster than first submissions.
 - Never cancel + resubmit while pending — it rejoins the back of the queue.
 
-## Pre-submit checklist
+## Pre-submit checklist (v1.0.1 — all done)
 
-- [x] `npm run build` clean, `dist/` contains manifest + 3 bundles + icons
+- [x] `npm run build` clean, `dist/` contains manifest + bundles + icons/fonts
 - [x] Icons present: `icons/icon16|48|128.png` (store requires all three)
-- [x] No `console.log` in `src/`; dual-network copy (testnet default, mainnet toggle)
+- [x] No `console.log` in `src/`; dual-network copy (testnet default, mainnet pill)
 - [x] Privacy policy page — hosted at `https://nibgate.xyz/extension-privacy`
   (`frontend/src/app/extension-privacy/page.tsx`). Extension requests
   `activeTab` (current page only), `storage` (tip history + network pref), and
   optional site access the user grants at runtime so the tip button can read
   page content for extraction. No analytics, no remote code, no data sale.
-- [ ] Store description + 1280×800 screenshots (record the killer demo).
+- [x] Store description + 1280×800 screenshots + promo tiles (see below).
 
-## Steps
+## What happens next
+
+1. **Wait.** Never cancel + resubmit while pending — it rejoins the back of
+   the queue.
+2. When live, use **staged rollout** (e.g. 20% → 100%) for subsequent builds
+   so a bad build doesn't hit every user at once.
+3. Future versions: bump `manifest.json` + `package.json` together, clean
+   `npm run build`, zip `dist/` as `nibgate-<version>.zip`, upload as a new
+   version of the same item (review is faster for updates).
+
+## Steps (record — used for v1.0.1)
 
 1. Pay the one-time $5 Chrome Web Store developer fee (Google account).
    New accounts may face identity verification — do it immediately, it gates everything.
@@ -38,12 +48,12 @@ building on store approval.
 3. Fill listing (copy below): name `Nibgate`, category Productivity,
    privacy policy URL `https://nibgate.xyz/extension-privacy`,
    support email `hello@nibgate.xyz`.
-4. Submit the **testnet-default** build first (honest description: testnet play
+4. Submitted the **testnet-default** build (honest description: testnet play
    money). Do NOT wait for approval to continue building.
-5. When live, use **staged rollout** (e.g. 20% → 100%) for the mainnet-default
-   flip so a bad build doesn't hit every user at once.
+5. (When live) use **staged rollout** (e.g. 20% → 100%) for the
+   mainnet-default flip so a bad build doesn't hit every user at once.
 
-## Listing copy
+## Listing copy (as submitted in v1.0.1)
 
 Short description (132 chars):
 `Tip any creator on the web with USDC. Play money on testnet; flip to mainnet in settings for real tips.`
@@ -64,6 +74,10 @@ confirmation, so it never happens by accident.
 
 Support: hello@nibgate.xyz · Privacy: https://nibgate.xyz/extension-privacy
 ```
+
+> Copy debt for the next update: the submitted text says "flip to mainnet
+> in settings" but the UI ships a confirm-gated **header pill**. Fix the
+> wording on v1.0.2.
 
 Screenshots (1280×800 composed feature frames, dark canvas + headline left +
 product crop right, in `e2e/screenshots/` — regenerate raws then compose;

@@ -1,0 +1,102 @@
+import { Callout } from 'nextra/components'
+
+# Browser extension
+
+The Nibgate extension puts a tip button on every article, tutorial, paper, and video you read — on any site, not just Nibgate's. It is the human interface to [Nib Tips](/tipping): agents use the API route instead.
+
+<Callout type="info">
+v1.0.1 is submitted to the Chrome Web Store and awaiting review. Until it clears, sideload the build (takes a minute — see below). Starts on Arc testnet with free faucet USDC.
+</Callout>
+
+## Install
+
+- **Chrome Web Store** (once review clears): install, pin, done. Works in any Chromium browser (Chrome, Edge, Brave).
+- **Sideload today**: build from source (`cd extension && npm install && npm run build`), then `chrome://extensions` → Developer mode → Load unpacked → select `dist/`. Same code that was submitted.
+
+After installing, pin it (puzzle-piece icon → pin **Nibgate**) and tap **Enable on all sites** on Home (or Settings → Tip button on web pages → Enable). Site access is optional and granted by you at runtime — install itself asks for almost nothing (see [Permissions](#permissions)).
+
+## Your wallet
+
+First open: **create** a wallet (recovery phrase shown once — write it down) or **import** one. The wallet is encrypted on-device (PBKDF2 + AES-256-GCM); keys live in the background worker's memory only and never touch web pages. Lock anytime from Settings → Security; reveal the recovery phrase there too (password required).
+
+<Callout type="important">
+Lose your password *and* your recovery phrase and the wallet is gone — nobody, not even Nibgate, can recover it. There is no account, no email reset. Write the phrase down.
+</Callout>
+
+## Networks
+
+One build, two networks, switched from the **header pill** (TESTNET by default). Tapping the pill offers Mainnet behind an explicit confirmation, so real money never happens by accident.
+
+| | Testnet | Mainnet |
+|---|---|---|
+| Chain | Arc Testnet `5042002` | Arc `5042` |
+| Money | Free faucet USDC ([faucet.circle.com](https://faucet.circle.com)) | Real USDC |
+| Switch | default | pill → confirm-gated |
+
+Balances, history, and tips are per-network — testnet play money can never touch mainnet content. See [Networks](/networks).
+
+## Tipping on any page
+
+1. Open an article. A **coffee button** appears near the content — the only thing the extension ever renders inside the page, so pages can't spoof money UI. (Nibgate's own sites are excluded; they tip natively.)
+2. Tap it: the Nibgate tip window opens. Pick $1 / $5 / $10 or custom, review exactly who gets paid and the fee, then **Approve** — nothing signs without your tap.
+3. The receipt lands in **Activity** and counts in Explore/ledger/earnings like any tip.
+
+### Fees
+
+| Path | Fee |
+|---|---|
+| Creator resolved (settles instantly) | 1% |
+| Creator unknown (held, claimed later) | 5% on claim |
+| Refund to payer (held, unclaimed) | **0 — full amount, no fee** |
+
+### Two outcomes, both safe
+
+- **Creator resolved** — settles over x402 (direct transfer or Circle Gateway).
+- **Creator unknown** — nothing pays blind. Funds wait in the domain's deterministic holding box (owner claims later); **refund yourself in full, anytime**, from Activity. Holdings never expire.
+
+Full mechanics: [Nib Tips](/tipping).
+
+## Also inside: send, receive, gateway
+
+- **Receive**: address + QR per network. **Send**: USDC transfers with a fee estimate before confirm.
+- **Gateway Deposit / Withdraw**: move USDC between wallet and Circle Gateway balance (used by paywalls and instant unlocks).
+
+## For site owners — getting tipped
+
+You don't need the extension and you don't need an account. If readers tip your pages before you've joined:
+
+1. [Verify your site](/verify-site) to prove ownership.
+2. Claim everything waiting in your domain's holding box in one go.
+3. Optional: add a `data-nibgate-recipient="0xYourWallet"` marker to your pages and future tips settle instantly at 1% instead of holding.
+
+## Permissions
+
+| Permission | Why |
+|---|---|
+| `activeTab` | Read the current page only, to find tippable content |
+| `storage` | Tip history + network preference, on-device |
+| Optional site access | Granted by you at runtime so the button can appear on pages you visit |
+
+No analytics, no remote code, no data sale. Full policy: [nibgate.xyz/extension-privacy](https://nibgate.xyz/extension-privacy).
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| No button on a page | Reload the tab (especially right after enabling access); check the page isn't `*.nibgate.xyz` (excluded by design) or a non-content page (feeds, apps, logins stay button-free) |
+| Button says funds will be held | Creator unresolved — expected. Tip holds safely, refundable in full |
+| Wrong network showing | Tap the header pill; balances/history follow the active network |
+| Popup closed mid-tip | Reopen from Activity — held and settled states are recoverable, nothing signs twice |
+| Sideloaded build misbehaving after an edit | `npm run build`, then ↻ the card at `chrome://extensions`, then hard-refresh the page |
+
+## FAQ
+
+**Is this real money?** Only on mainnet, behind an explicit confirmation. Testnet is faucet play money.
+
+**Can a site fake the tip button to steal?** No. Money UI renders only in the extension window, never in the page — and nothing signs without your Approve tap.
+
+**Do tips expire?** Never. Unclaimed holdings sit until claimed or refunded.
+
+**Which browsers?** Any Chromium (Chrome, Edge, Brave). Firefox/Safari are not packaged.
+
+**I'm a developer — where's the code?** `extension/` in the [repo](https://github.com/fortunesayspump/nibgate): `README.md` is the full manual (architecture, resolution flow, JEV page model, build/dev/test, store notes), `docs/` holds the sideload, submission, and marker-convention guides. One paragraph version: content script (single trigger button, no secrets) → background worker (keys, signing, hub calls) → popup wallet shell + tip window (all money UI). No `confirm()`/`prompt()` anywhere; one build serves both networks.

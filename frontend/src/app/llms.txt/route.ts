@@ -21,6 +21,7 @@ const HUB_PAGES: Array<[string, string]> = [
   [`${siteOrigin()}/.well-known/agent-skills/index.json`, "Machine-readable index of Nibgate agent skills (payer discovery + creator SDK)."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the Nibgate hub endpoints."],
   ["https://docs.nibgate.xyz/agent-discovery", "Agent discovery documentation for machine-readable content cards and x402 purchasing."],
+  ["https://docs.nibgate.xyz/extension", "Browser extension: one-tap USDC tipping on any page, self-custodial wallet, held-tip refunds."],
 ];
 
 const API_ENDPOINTS: Array<[string, string]> = [

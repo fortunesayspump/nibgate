@@ -6,9 +6,10 @@ so the implementation can be checked against it.
 
 > **Status:** this is the design/behaviour spec, not a build report. For what
 > is actually done vs. pending, see the audited table in `README.md`. The code
-> implements the full pipeline; exports are md/json/bibtex only, Gate 1 wallet
-> policy is pending, and escrow is code-complete but needs `ESCROW_KEEPER_KEY`
-> wired on the service.
+> implements the full pipeline; exports cover md/json/bibtex plus
+> pdf/word/excel/powerpoint, Gate 1 wallet policy is pending, and escrow is
+> wired locally (keeper key set, onchain job reads `Completed`) with only the
+> deployed-service env remaining.
 
 ---
 
@@ -455,7 +456,7 @@ The agent is given real instruments, not a search box and a summarizer:
 - **Code execution** for statistics, tables, and charts over what was collected, including onchain reads.
 - **Academic APIs** (arXiv, OpenAlex, Semantic Scholar, Crossref, PubMed) for structured scholarly search.
 - **Domain reputation lookup** as one more signal for trust (user-history priors today).
-- Not yet: **a headless browser** for pages that only exist after JavaScript runs; **the user's own files** as sources.
+- Not yet: **a headless browser** for pages that only exist after JavaScript runs.
 
 Every tool is **Nibgate-provided and costed into the run — and so is the model itself.** There is
 no bring-your-own-key path anywhere: not for search, not for scraping, and not for the language
@@ -811,9 +812,8 @@ outlives a request, Postgres for recoverable state, and the existing SSE feed ma
 replayable. Worth deciding before the run layer is written, because it is hard to swap later.
 
 **Where does the language model actually come from?** With all bring-your-own-key paths removed,
-the hub is the only road to a model, and it has no LLM upstream configured yet. That is not a
-nicety; it is the one dependency the whole product stands on, and it has to be settled before the
-run layer can do anything real.
+the hub is the only road to a model — and the OpenRouter upstream is now wired (runs execute;
+see `TESTS.md` run `80bf1397`).
 
 **The research escrow contract.** Designed — see `dr-nib/ESCROW.md`. It is not an
 invented escrow: ERC-8183 (Agentic Commerce) is a Draft ERC for exactly this shape
@@ -830,9 +830,9 @@ private to their owner. Letting someone hand over a whole project — re-run it,
 continue it — means deciding what the recipient may do and who pays for it. The report link is
 the deliberate exception to privacy, and it is one-way: read, never continue.
 
-**Accounts.** Sign-in is the wallet, but user-scoped projects do not exist yet: the trash, the
-purge, and the per-user concurrency limit all hang off an account that nothing currently creates.
-The run layer has to assume it rather than invent it.
+**Accounts.** Sign-in is the wallet, and wallet-namespaced signed-in projects
+(including trash) have shipped — see `README.md` / `TESTS.md`. Still open:
+the per-user concurrency limit and the scheduled purge.
 
 **Concurrency and the trash.** Two things the backend has to own regardless of framework: the
 seven-day purge is a scheduled job, not something a page load happens to trigger, and running

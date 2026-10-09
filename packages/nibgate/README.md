@@ -91,7 +91,7 @@ import { createCircleGatewayBrowserAdapter, createWalletCheckout } from '@nibgat
 const walletClient = createWalletClient({ transport: custom(window.ethereum) });
 const [address] = await walletClient.getAddresses();
 const circle = await createCircleGatewayBrowserAdapter({
-  chainId: 5042002,
+  chainId: 5042002, // testnet — 5042 for Arc mainnet
   signer: {
     address,
     signTypedData: (params) => walletClient.signTypedData({
@@ -119,7 +119,7 @@ import { createCircleGatewayServer } from '@nibgate/sdk/server';
 const nibgateServer = createCircleGatewayServer({
   origin: 'https://creator.example',
   secret: process.env.NIBGATE_SECRET,
-  network: 'eip155:5042002'
+  network: 'eip155:5042002' // testnet — 'eip155:5042' for mainnet
 });
 
 export function GET(request) {
@@ -132,7 +132,7 @@ Equivalent manual config:
 ```js
 createNibgateServer({
   paymentMode: 'circle-gateway',
-  network: 'eip155:5042002'
+  network: 'eip155:5042002' // testnet — 'eip155:5042' for mainnet
 });
 ```
 
@@ -168,7 +168,8 @@ const premiumGuide = {
 let lastPayment = null;
 
 const rating = createOnchainRating(premiumGuide, {
-  // Optional on Arc Testnet. The SDK defaults to NIBGATE_REPUTATION_CONTRACT.
+  // Optional: override the testnet-default reputation deployment
+  // (mainnet proxy: 0xbe8e49f6b60024c95124e723c4c487874873d7f1).
   contractAddress: process.env.NEXT_PUBLIC_NIBGATE_REPUTATION_CONTRACT,
   siteId: process.env.NEXT_PUBLIC_NIBGATE_SITE_ID,
   token: process.env.NEXT_PUBLIC_NIBGATE_SITE_TOKEN,
@@ -197,7 +198,7 @@ createEvmGatewayUnlock(premiumGuide, {
 
 The lower-level `rateContentOnchain(resource, options)` function is also exported for custom UIs.
 
-The SDK exports the current Arc Testnet reputation deployment as `NIBGATE_REPUTATION_CONTRACT`, plus `NIBGATE_REPUTATION_CHAIN_ID`, `NIBGATE_REPUTATION_CHAIN_NAME`, and `NIBGATE_REPUTATION_RPC_URL`. Pass `contractAddress` only when overriding the default deployment.
+The SDK exports the Arc Testnet reputation deployment as `NIBGATE_REPUTATION_CONTRACT`, plus `NIBGATE_REPUTATION_CHAIN_ID`, `NIBGATE_REPUTATION_CHAIN_NAME`, and `NIBGATE_REPUTATION_RPC_URL`. Pass `contractAddress` to point at mainnet (`0xbe8e49f6b60024c95124e723c4c487874873d7f1`) or any other deployment.
 
 Ratings are proof-gated. Page views, time spent, scroll depth, and referrers are analytics signals; they should not become trust by themselves. Reputation-critical inputs use indexed onchain rating proofs. Signed ratings remain available only for local tests and migration tooling.
 
@@ -260,13 +261,13 @@ The package includes lightweight controller UIs for common integration patterns:
 
 `createEvmGatewayUnlock(resource, options)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility for EVM-compatible wallets.
 
-`createTransferCheckout(resource, options)` supports direct Arc testnet transfer-style unlocks where Gateway is not used.
+`createTransferCheckout(resource, options)` supports direct Arc transfer-style unlocks where Gateway is not used (testnet 5042002 / mainnet 5042).
 
 ```js
 import { createWalletCheckout, createCircleGatewayBrowserAdapter } from '@nibgate/sdk';
 
 const circle = await createCircleGatewayBrowserAdapter({
-  chainId: 5042002,
+  chainId: 5042002, // testnet — 5042 for Arc mainnet
   signer: { address, signTypedData }
 });
 
@@ -752,11 +753,11 @@ Payments are non-custodial in the Nibgate model. The receiving address belongs t
 Nibgate supports two receipt paths today:
 
 - `circle-gateway`: store the Circle payment id and a `receiptUrl` only when Circle or your gateway layer returns a real public/internal receipt URL.
-- `arc-testnet`: store the Arc transaction hash and optional `chainExplorerUrl`, usually an Arcscan transaction URL.
+- `arc-mainnet` / `arc-testnet`: store the Arc transaction hash and optional `chainExplorerUrl`, usually an Arcscan transaction URL.
 
 Do not fabricate gateway receipt URLs. If no provider receipt URL exists, send the payment id/hash and Nibgate will show the recorded payment with the best available explorer link.
 
-On Arc testnet, Gateway payments carry a signed authorization payload rather than a simple transfer hash for every unlock. Nibgate stores that signed payment payload as the payment id/receipt metadata. If your provider exposes a memo, transaction hash, or explorer URL, pass it as `memo`, `txHash`, or `chainExplorerUrl`; the hub will keep it with the payment event.
+On Arc, Gateway payments carry a signed authorization payload rather than a simple transfer hash for every unlock. Nibgate stores that signed payment payload as the payment id/receipt metadata. If your provider exposes a memo, transaction hash, or explorer URL, pass it as `memo`, `txHash`, or `chainExplorerUrl`; the hub will keep it with the payment event.
 
 ## End-to-end product flow
 

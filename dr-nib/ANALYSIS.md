@@ -129,7 +129,7 @@ it in chain-of-thought; we surface it as a first-class artifact.
 ## 4. The Dr. Nib pipeline (concrete)
 
 ```
-0. Intake      brief form + budget cap + provider (hub / BYO)
+0. Intake      brief form + budget cap + provider (hub)
                → pre-flight validation (budget ≥ estimate floor)
 1. Triage      JEV choice: lookup / run / clarify
 2. Clarify     (if needed) 2–3 questions → enriched brief
@@ -258,7 +258,7 @@ Internal harness, run continuously — not vibes:
 - Backend worker runs the loop (survives tab close). ✓ BullMQ + leases + orphan/stalled sweeps.
 - Live web search + JEV scoring from v1 (no mocked corpus). ✓ 11-index free bench + keyed slots.
 - DB-backed runs/sources/reports (immutable versions). ✓
-- Server-side exports (Markdown/JSON/BibTeX downloads; PDF/Word/Excel/PowerPoint renderers not yet wired).
+- Server-side exports (all seven formats: Markdown/JSON/BibTeX + PDF/Word/Excel/PowerPoint; R2 streaming is the later optimization).
 - x402/USDC metering with pre-flight estimate, live ticker, pause-and-top-up. ✓ plus optional onchain escrow (testnet) and agent spending wallet.
 - Intake with JEV stop/reframe, configure, review, approve gates. ✓
 - Command-center run page: live reasoning feed, Q&A transcript, guidance + reprompt composers. ✓

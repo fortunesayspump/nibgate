@@ -1,6 +1,6 @@
 # @nibgate/wallet
 
-Single Nibgate wallet standard for React apps: one shared Reown AppKit + wagmi stack, chain guard for Arc Testnet, human-readable error mapping, SIWE sign-in, Gateway balance UI, paid-content unlocking, and onchain rating — all importable from one package so AppKit modal state and WagmiProvider context are never duplicated.
+Single Nibgate wallet standard for React apps: one shared Reown AppKit + wagmi stack, chain guard for Arc mainnet + testnet, human-readable error mapping, SIWE sign-in, Gateway balance UI, paid-content unlocking, and onchain rating — all importable from one package so AppKit modal state and WagmiProvider context are never duplicated.
 
 ## Install
 

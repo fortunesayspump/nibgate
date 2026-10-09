@@ -318,7 +318,7 @@ For real blogs and CMS-backed sites, gating fields should live beside the creato
 
 This works across Next.js, React plus an API backend, Express, NestJS, Remix, SvelteKit, Astro SSR, MDX server rendering, headless CMS apps, and traditional CMS/plugin environments. Plain static HTML can use the widget for verification and events, but protected content still needs a server, edge function, API route, or signed URL.
 
-For the hackathon MVP, unlocks should be simple and real:
+Live production path — pay once, read forever:
 
 ```txt
 pay once -> verify receipt/proof -> issue unlock token -> serve content -> report receipt to Nibgate
@@ -327,14 +327,14 @@ pay once -> verify receipt/proof -> issue unlock token -> serve content -> repor
 The package keeps an `unlock` policy field so future versions can add richer modes without changing the creator integration shape:
 
 ```js
-unlock: { mode: 'one_time' }       // MVP
+unlock: { mode: 'one_time' }       // live in production (Arc mainnet + testnet)
 unlock: { mode: 'metered_stream' } // later: pay by watched seconds/minutes
 unlock: { mode: 'metered_read' }   // later: pay by section/paragraph/token window
 unlock: { mode: 'time_pass' }      // later: pay for time-limited access
 unlock: { mode: 'agent_quota' }    // later: pay for agent reads/crawls
 ```
 
-Only `one_time` should be treated as production-ready for the first release.
+Only `one_time` is production-ready today; the rest are future modes.
 
 The Hub widget is responsible for:
 
@@ -365,7 +365,7 @@ The hub can rank and filter content using:
 2. content type: `music`, `video`, `article`, `image`, or `document`
 3. creator profile and username
 4. page views, content views, unlock attempts, and paid unlocks
-5. direct x402 or Arc testnet receipt metadata
+5. direct x402 / Arc mainnet+testnet receipt metadata
 6. freshness, tags, source routes, and referral signals
 7. future human and agent feedback tied to real interactions
 
@@ -432,9 +432,9 @@ await premiumGuide.unlock(async () => {
   // Run payment and server-side verification here.
   return {
     paymentId: "payment_123",
-    paymentProvider: "arc-testnet",
+    paymentProvider: "arc-mainnet",
     txHash: "0x...",
-    chainExplorerUrl: "https://testnet.arcscan.app/tx/0x...",
+    chainExplorerUrl: "https://arcscan.app/tx/0x...",
     revenue: 0.01,
     currency: "USDC"
   };
@@ -484,7 +484,7 @@ Earnings are non-custodial. The package/server flow should send payment to the r
 Receipt handling is provider-aware:
 
 - Circle Gateway payments should store `paymentProvider: "circle-gateway"`, `paymentId`, and `receiptUrl` only if Circle or the gateway integration returns a real receipt URL.
-- Arc testnet payments should store `paymentProvider: "arc-testnet"`, `txHash`, `chainId`, and optionally `chainExplorerUrl` for the Arcscan transaction page.
+- Arc payments should store `paymentProvider: "arc-mainnet"` (or `"arc-testnet"` on testnet), `txHash`, `chainId`, and optionally `chainExplorerUrl` for the Arcscan transaction page (`https://arcscan.app/tx/0x...`, testnet: `https://testnet.arcscan.app/tx/0x...`).
 - If neither a Circle receipt URL nor an Arc explorer URL exists, the hub shows the internal recorded payment id/hash instead of inventing a fake receipt.
 
 Or declared in markup:
@@ -533,7 +533,7 @@ The hub store is PostgreSQL through Prisma:
 ## Payments
 
 
-For browser wallet checkout, the creator access route must return Circle Gateway's real `PAYMENT-REQUIRED` batching challenge. The simplest safe setup is `createCircleGatewayServer(...)`; the manual equivalent is `createNibgateServer({ paymentMode: 'circle-gateway', network: 'eip155:5042002' })`.
+For browser wallet checkout, the creator access route must return Circle Gateway's real `PAYMENT-REQUIRED` batching challenge. The simplest safe setup is `createCircleGatewayServer(...)`; the manual equivalent is `createNibgateServer({ paymentMode: 'circle-gateway', network: 'eip155:5042' })` (mainnet) or `network: 'eip155:5042002'` (testnet).
 
 ### Revenue model (fee wallets + protocol fee)
 

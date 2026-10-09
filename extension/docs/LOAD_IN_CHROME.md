@@ -1,8 +1,8 @@
 # Load Nibgate in Chrome (sideload — no store review needed)
 
-Sideload `dist/` for dev and review. The same build is what goes to the
-Chrome Web Store (see `STORE_SUBMIT.md`) — testnet default, mainnet behind
-the Settings toggle.
+Sideload `dist/` for dev and review. The same build was submitted to the
+Chrome Web Store as v1.0.1 (awaiting review — see `STORE_SUBMIT.md`).
+Testnet default, mainnet behind the confirm-gated header pill.
 
 ## Steps
 
@@ -16,16 +16,16 @@ the Settings toggle.
 3. Enable **Developer mode** (top-right toggle).
 4. Click **Load unpacked** → select the `extension/dist/` folder.
 5. Pin it: puzzle-piece icon → pin **Nibgate**.
-6. Enable site access: click the Nibgate icon → on Home tap **Enable on all
-   sites** (or Settings → **Tip button on web pages**). This grants the
-   optional access that lets the tip button appear; an already-open tab picks
-   it up immediately (otherwise reload the tab).
+6. Enable site access: on Home tap **Enable on all sites** (or Settings →
+   **Tip button on web pages** → Enable). This grants the optional access
+   that lets the tip button appear; an already-open tab picks it up
+   immediately (otherwise reload the tab).
 7. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
-   already have native tipping). The tip button appears at the end of the
-   content.
+   already have native tipping). The coffee-button tip trigger appears near
+   the content.
 8. Fund the wallet: **testnet** USDC via the Circle faucet
-   (`https://faucet.circle.com`) for play-money tips, or flip to **mainnet**
-   in popup Settings (confirm-gated) for real USDC on Arc.
+   (`https://faucet.circle.com`) for play-money tips, or tap the header
+   network pill → **Mainnet** (confirm-gated) for real USDC on Arc.
 
 ## Live editing (watch mode)
 
@@ -46,19 +46,22 @@ needed — but you never re-run the build by hand.
 - Tip buttons fire the challenge → wallet sign → verify flow against the
   active network (`testnet-api.nibgate.xyz` by default, `api.nibgate.xyz`
   on mainnet).
-- Popup shows wallet shell: onboarding, send/receive, tip history, Settings
-  network toggle (testnet default, mainnet confirm-gated).
+- Popup shows the wallet shell: onboarding, lock, home, activity, send,
+  receive, gateway deposit/withdraw, settings. Network switches via the
+  header pill (testnet default, mainnet confirm-gated).
 
 ## Local dev loop
 
 1. Run the hub locally (`PORT=3005`, local Postgres per `e2e/` setup).
-2. Popup → Settings → dev hub override: `http://localhost:3005` → Save.
-   All hub calls (resolve, challenge, verify, holds, balances read the
-   active network) now hit local. Blank the field to return to prod hosts.
+2. Point the extension at it with a build-time override
+   (`NIBGATE_HUB_API=http://localhost:3005 npm run build`) — there is no
+   popup UI for this; the override is stored on-device and blanked by
+   rebuilding without it. All hub calls (resolve, challenge, verify, holds,
+   balances read the active network) now hit local.
 3. `npm run build` after any `src/` change, then hit reload on
    `chrome://extensions`. Popup onboarding (create/import/unlock) and the
-   E2E suite (`pnpm exec playwright test --config=e2e/extension.config.ts`)
-   cover the rest.
+   E2E suite (`e2e/extension.config.ts`, `e2e/wallet.config.ts` — local-only,
+   gitignored) cover the rest.
 
 ## Icons
 

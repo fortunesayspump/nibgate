@@ -106,7 +106,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Gate 1 — wallet policy | **Pending** | no vendor deployable on Arc (CDP dead); the `NibgateSpender` onchain cap is the practical substitute (`GATES.md`) |
 | Gate 2 — spend mandate (onchain cap) | Partial (ops) | `NibgateSpender` deployed testnet `0x903b0606…` ($2/day, not paused); code already routes tips via `spend()` — remaining work is fund + allowlist + set `DRNIB_SPENDER_ADDRESS` |
 | Frontend UI | Done | `/dr-nib` research / projects / sources / settings + detail; renders on mainnet (real spend) and testnet (testnet-funded staging) |
-| **Live end-to-end run** | **Unverified** | Not executed in this audit: the local stack was down (hub :3000, frontend :3001, API :3100, SearXNG :8888) and Docker was off. The Playwright harness `e2e/tests/dr-nib-research.spec.ts` (+ `e2e/playwright.drnib.config.ts`) exists but is **uncommitted** |
+| **Live end-to-end run** | **Partial** | Executed 2026-10-07 (run `80bf1397` complete, `afd319f4` browser partial — see `TESTS.md`). Harness lives in gitignored local-only `e2e/` |
 
 `ARCHITECTURE.md` remains the design reference; the historical build order
 there is superseded by this table.

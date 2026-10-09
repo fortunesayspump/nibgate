@@ -185,4 +185,4 @@ section is kept only as the original sequencing record.
 
 Escrow (ERC-8183 + splitter) is implemented beyond this original sequence:
 contracts deployed on Arc testnet, backend `src/escrow/jobs.js`, routes, and
-the hub deposit UI — see `ESCROW.md` (pending: keeper-key env wiring + app soak).
+the hub deposit UI — see `ESCROW.md` (keeper key wired locally; pending: service env + app soak).

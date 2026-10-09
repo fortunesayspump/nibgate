@@ -1,38 +1,43 @@
 # Marking content in HTML
 
 How tippable content is identified in a page — by the extension on arbitrary
-sites, and by Nibgate surfaces natively. One convention everywhere so JEV,
-the API, and agents agree on what "this content" means.
+sites, and by Nibgate surfaces natively. One convention everywhere so the
+content script, the hub API, and agents agree on what "this content" means.
 
-## The marker set
+## The two marker kinds
+
+**1. Page-declared slots** (read by `content/extract.ts`, routing only):
 
 ```html
-<article
-  data-nibgate-content="a1b2c3d4"
-  data-nibgate-title="Why tipping beats ads"
-  data-nibgate-creator="0xCreator…"
-  data-nibgate-tip="0.25"
-  data-nibgate-confidence="0.92">
+<div data-nibgate-recipient="0xCreator…"></div>
+<div data-nibgate-site="example.com" data-nibgate-resource="/posts/123"></div>
 ```
 
 | Attribute | Meaning | Who sets it |
 |---|---|---|
-| `data-nibgate-content` | content fingerprint (FNV-1a hex; backend re-hashes authoritatively) | extractor / SDK render |
-| `data-nibgate-title` | extracted title | extractor |
-| `data-nibgate-creator` | resolved wallet, empty when unresolved | JEV identity decision |
-| `data-nibgate-tip` | suggested amount USDC | JEV amount decision |
-| `data-nibgate-confidence` | resolution confidence 0..1 | JEV identity decision |
+| `data-nibgate-recipient` | explicit payout wallet for this content | page / SDK render |
+| `data-nibgate-site` / `data-nibgate-resource` | site + resource identity | page / SDK render |
+
+**2. Assessment verdicts** (written by `content/tip-card.ts` onto
+`document.documentElement` after the page model + hub resolution run):
+
+| Attribute | Meaning |
+|---|---|
+| `data-nibgate-widget` | mount point of the coffee-button trigger |
+| `data-nibgate-kind` | page kind: `content`, `feed`, `landing`, `app`, `brand`, `unknown` (`platform` on Nibgate-owned hosts) |
+| `data-nibgate-type` | content type: `article`, `video`, `audio`, `gallery`, `paper`, `code`, `discussion`, `product`, `unknown` |
+| `data-nibgate-eligible` | `1` = tip trigger renders, `0` = hold/skip with a visible reason |
+| `data-nibgate-reason` | first human-readable reason from the JEV verdict |
+| `data-nibgate-jev` | resolution probability (0..1) |
+| `data-nibgate-assessed` | `1` = assessment ran (prevents double evaluation) |
 
 ## Rules
 
 1. Markers are **advisory, never trust roots**. The backend re-extracts,
    re-resolves, and re-decides from the canonical URL. A forged marker buys
    nothing.
-2. Missing `data-nibgate-creator` (or confidence below threshold) means
-   hold-don't-pay — the card must say so visibly.
-3. Nibgate-owned surfaces (subblogs, hub, nibshare) emit the same markers
-   server-side with confidence `1.0` — the extension treats them as
-   pre-resolved and skips extraction.
-4. Fingerprints match if either side's normalized hash agrees; on mismatch
-   the backend copy wins and the marker is ignored for identity (kept for
-   display).
+2. Missing recipient (or confidence below threshold) means hold-don't-pay —
+   the trigger must say funds will be held, visibly.
+3. Nibgate-owned hosts are treated as pre-resolved (`kind=platform`) and skip
+   extraction — they already tip natively, so the extension stays out of the
+   way there too.

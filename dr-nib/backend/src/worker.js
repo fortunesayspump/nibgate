@@ -350,7 +350,14 @@ async function fetchStage(runId, run) {
       fallback: !attempted,
     };
   }
-  const thin = results.slice(0, limits.fetchDocs).filter((r) => (r.content || '').trim().length < 500);
+  // Read in score order, not bench order: provider scores exist to rank, and
+  // the bench emits academic indexes before web search. Slicing pre-sort
+  // starves high-signal web hits (searxng 0.6) behind low-signal papers
+  // (academic 0.5) — seen live: 6 on-topic web hits unfetched while 4
+  // irrelevant papers became the whole evidence set. Stable sort keeps
+  // ties in bench order.
+  const ranked = [...results].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+  const thin = ranked.slice(0, limits.fetchDocs).filter((r) => (r.content || '').trim().length < 500);
   const enriched = new Map();
   let extractCost = 0;
   if (thin.length) {
@@ -358,7 +365,7 @@ async function fetchStage(runId, run) {
     extractCost = fetched.costUsd;
     for (const d of fetched.output?.documents || []) enriched.set(d.url, d);
   }
-  const documents = results.slice(0, limits.fetchDocs).map((r) => {
+  const documents = ranked.slice(0, limits.fetchDocs).map((r) => {
     const full = (r.content || '').trim().length >= 500 ? r.content : (enriched.get(r.url)?.text || r.content || r.snippet || '');
     return {
       url: r.url,

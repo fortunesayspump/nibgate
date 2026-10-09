@@ -197,7 +197,11 @@ runs.post('/:id/configure', async (req, res) => {
     if (!(Number(budgetCap) > 0)) return res.status(400).json({ error: 'budgetCap must be > 0' });
     const run = await ownedRun(req, res);
     if (!run) return;
-    if (run.status !== 'intake-done' && run.status !== 'planning') {
+    // Re-planning from review is a supported loop: bounds changed, plan
+    // again. Safe pre-approval (nothing spent; the deposit row below is
+    // idempotent). The UI's Back-to-configure depends on this — without it
+    // the second Plan click 409s and strands the user.
+    if (!['intake-done', 'planning', 'planned'].includes(run.status)) {
       return res.status(409).json({ error: `cannot configure from ${run.status}` });
     }
     const resolvedLength = resolveLength({ length, lengthWords });

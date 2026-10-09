@@ -1231,7 +1231,7 @@ body[data-theme="dark"] .nibgate-header-mobile-cta {
 }
 .nibgate-hero-shell {
   isolation: isolate;
-  --nibgate-hero-actions-width: min(100%, 420px);
+  --nibgate-hero-actions-width: min(100%, 560px);
   background: var(--nib-page-bg);
   color: var(--nib-page-fg);
   padding: 28px 0 34px;
@@ -1353,6 +1353,8 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
   color: inherit;
   white-space: nowrap;
   margin: 0 15px 0 0;
+  flex: 1;
+  text-align: center;
   font-family:
     Courier New,
     monospace;

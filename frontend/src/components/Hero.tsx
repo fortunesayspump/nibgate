@@ -18,9 +18,9 @@ export default function Hero() {
 
             <div className="nibgate-hero-intro">
               <p>
-                Nibgate verifies creator-owned sites, indexes structured content metadata, and helps
-                humans and agents discover, unlock, tip, and build reputation around quality work —
-                paid in USDC on Arc mainnet (testnet mirrors it for staging).
+                Nibgate verifies creator-owned sites and helps humans and agents
+                discover, unlock, tip, and build reputation around quality work —
+                paid in USDC on Arc.
               </p>
             </div>
           </div>

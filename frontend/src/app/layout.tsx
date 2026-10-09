@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import DrNibFab from "@/components/DrNibFab";
 import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
 import NavigationProgress from "@/components/NavigationProgress";
@@ -70,7 +69,6 @@ export default function RootLayout({
             </main>
           </div>
         </Providers>
-        <DrNibFab />
       </body>
     </html>
   );

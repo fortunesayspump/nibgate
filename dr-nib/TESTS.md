@@ -141,6 +141,14 @@ is a mock; every number above is from real services.
 
 ## Open
 
+- **OpenRouter credits are empty (2026-10-09).** The prod-testnet full run
+  parked at its first JEV gate (`paused`/`jev`, step `midrun-ask`) with
+  `JEV /api/hub/jev/decide HTTP 502 ... HTTP 402: Insufficient credits`.
+  The hub's OpenRouter account (not the local dr-nib key) needs a top-up at
+  `https://openrouter.ai/settings/credits`. Parked runs are resumable
+  (`POST /v1/runs/:id/resume`); the e2e poll loop now resumes `paused` runs
+  instead of timing out on them.
+
 - Stand up SearXNG locally (or set `SEARXNG_URL`) and re-run — retrieval is
   the difference between the report above and a useful one.
 - Add per-section writer retry/fallback so an empty model response degrades a

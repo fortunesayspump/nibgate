@@ -71,7 +71,7 @@ export default function Hero() {
 
           <Link href="/explore" className="nibgate-hero-button nibgate-hero-button-secondary nibgate-button-align-item">
             <p className="nibgate-button-text">Explore</p>
-            <svg className="nibgate-hero-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
+            <svg className="nibgate-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8.7 1.3 15.4 8l-6.7 6.7-1.4-1.4L11.6 9H.5V7h11.1L7.3 2.7l1.4-1.4Z"></path>
             </svg>
           </Link>
@@ -79,7 +79,7 @@ export default function Hero() {
           <a href="https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf" className="nibgate-hero-button nibgate-hero-button-secondary nibgate-hero-button--icon nibgate-button-align-item">
             <img src="/chrome.svg" width="18" height="18" alt="" aria-hidden="true" className="nibgate-hero-button-icon" />
             <p className="nibgate-button-text">Extension</p>
-            <svg className="nibgate-hero-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
+            <svg className="nibgate-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8.7 1.3 15.4 8l-6.7 6.7-1.4-1.4L11.6 9H.5V7h11.1L7.3 2.7l1.4-1.4Z"></path>
             </svg>
           </a>

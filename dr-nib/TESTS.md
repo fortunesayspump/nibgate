@@ -32,6 +32,25 @@ npx playwright test -c e2e/playwright.drnib-ui.config.ts
 
 ## Results
 
+### 2026-10-09 — production testnet, all green
+
+- API suite (`e2e/playwright.drnib.config.ts`, `DRNIB_E2E_FULL=1`): **6/6** —
+  auth gating, validation, escrow reads, a fresh full run (intake → cited
+  report in ~1.5 min), reprompt v2. Targets overridable via `DRNIB_E2E_HUB` /
+  `DRNIB_E2E_API` (SIWE domain follows the hub).
+- Browser suite (`e2e/playwright.drnib-ui.config.ts`): **1/1** — full
+  click-through on `testnet.nibgate.xyz` (compose → intake → configure →
+  plan → approve → report → exports) in ~45s.
+- Unit: `src/llm/` 32/32 (incl. 4 new section-retry tests), hub
+  `helpers.test.js` 30/30.
+- Path here: the run first parked on empty OpenRouter credits (see Open
+  below), then froze mid-fetch when a Railway redeploy (variable sets)
+  replaced the process running its inline queue — ended cleanly ($0.05
+  spent, $1.95 refunded) and re-fired fresh. The e2e poll loop now resumes
+  `paused` runs instead of timing out on them.
+
+### 2026-10-07 — local stack (history)
+
 | Check | Result | Notes |
 |---|---|---|
 | API suite, free tier | **4 passed, 2 skipped** | auth gating, validation, escrow-reads — no spend |

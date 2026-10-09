@@ -29,7 +29,14 @@ async function req(path: string, opts: RequestInit = {}) {
     throw err;
   }
   if (!res.ok) {
-    const err = new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}`);
+    // Surface the server's reason (cap-hit counts, validation detail) — a
+    // bare status leaves users staring at a dead screen with no next step.
+    let detail = "";
+    try {
+      const data = await res.clone().json();
+      if (data && typeof data.error === "string" && data.error) detail = `: ${data.error}`;
+    } catch {}
+    const err = new Error(`dr-nib ${opts.method || "GET"} ${path}: ${res.status}${detail}`);
     (err as any).status = res.status;
     throw err;
   }

@@ -317,15 +317,21 @@ export default function ResearchNewPage() {
         depth, budgetCap, formats, liveWeb,
         length, ...(length === "custom" ? { lengthWords } : {}),
       });
-      for (let i = 0; i < 20; i++) {
-        await new Promise((r) => setTimeout(r, 800));
+      // Planning is an LLM call away — replans especially can take a minute.
+      // Never leave the user on a dead configure screen: either land review
+      // or say so out loud.
+      let landed = false;
+      for (let i = 0; i < 90; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
         const full: any = await drNibApi.getRun(project.id);
         if (full.status === "planned" || full.status === "running" || full.status === "complete") {
           setEstimate(Number(full.plan?.estimate ?? 0.2));
           setPhase("review");
+          landed = true;
           break;
         }
       }
+      if (!landed) fail(new Error("still planning"), "Planning is taking longer than expected — the run may still land. Check Projects in a minute.");
     } catch (e: any) {
       fail(e, "Planning failed");
     } finally {

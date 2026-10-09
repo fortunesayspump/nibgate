@@ -1430,7 +1430,8 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
   color: var(--nib-page-fg);
   font-family: var(--font-ui, "ABC Favorit", Arial, sans-serif);
   border-radius: var(--nib-radius-action);
-  justify-content: space-between;
+  justify-content: center;
+  gap: 14px;
   align-items: center;
   padding: 15px 30px;
   font-size: 18px;
@@ -1477,7 +1478,8 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
   fill: #5f7f51;
   width: 16px;
   height: 16px;
-  margin: 0 0 0 15px;
+  margin: 0;
+  flex: none;
   transition:
     fill 0.3s,
     transform 0.3s;

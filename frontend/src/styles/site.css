@@ -1503,6 +1503,11 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
   background: #fff;
   border-radius: 50%;
   flex: none;
+  transition: transform 0.6s ease;
+}
+.nibgate-hero-button:hover .nibgate-hero-button-icon,
+.nibgate-hero-button:focus-visible .nibgate-hero-button-icon {
+  transform: rotate(360deg);
 }
 .nibgate-soft-cta {
   border: 1px solid var(--nib-border-soft);

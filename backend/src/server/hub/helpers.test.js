@@ -485,7 +485,7 @@ describe('tip + nibshare money attribution', () => {
   });
 
   it('resolveTipContent resolves hub ids, site external ids, absolute URLs, and relative paths', async () => {
-    const row = { id: 'hub-content-1', externalId: 'post-uuid', websiteId: 'w1', url: 'https://medlocal-ops.nibgate.xyz/writing/bp', path: '/writing/bp', imageUrl: 'https://img/c.png', website: { id: 'w1', domain: 'medlocal-ops.nibgate.xyz' } };
+    const row = { id: 'hub-content-1', externalId: 'post-uuid', websiteId: 'w1', url: 'https://medblog.nibgate.xyz/writing/bp', path: '/writing/bp', imageUrl: 'https://img/c.png', website: { id: 'w1', domain: 'medblog.nibgate.xyz' } };
     dbMock.content.findFirst.mockResolvedValue(row);
 
     expect(await resolveTipContent({ contentId: 'post-uuid' })).toBe(row);
@@ -504,10 +504,10 @@ describe('tip + nibshare money attribution', () => {
     dbMock.content.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(row);
-    expect(await resolveTipContent({ contentUrl: 'https://medlocal-ops.nibgate.xyz/writing/bp', websiteId: 'w1' })).toBe(row);
+    expect(await resolveTipContent({ contentUrl: 'https://medblog.nibgate.xyz/writing/bp', websiteId: 'w1' })).toBe(row);
     const calls = dbMock.content.findFirst.mock.calls.map((c) => c[0].where);
     expect(calls[0]).toEqual({ websiteId: 'w1', path: '/writing/bp', deletedAt: null });
-    expect(calls[1]).toEqual({ url: 'https://medlocal-ops.nibgate.xyz/writing/bp', deletedAt: null });
+    expect(calls[1]).toEqual({ url: 'https://medblog.nibgate.xyz/writing/bp', deletedAt: null });
   });
 
   it('resolveTipContent returns null when there is nothing to resolve', async () => {

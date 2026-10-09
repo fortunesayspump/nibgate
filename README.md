@@ -61,7 +61,7 @@ mcp-registry/ MCP registry record for the hub MCP server
 nibgate.config.json  Sample CLI config (routes to local demo content)
 ```
 
-Local-only, not tracked: `local-ops/` (agent wallets), `video/`, `v2-labs/`, `revenue-model/` (research/poc), e2e run outputs (`e2e/screenshots/`, `e2e/random-blog-results/`). See `.gitignore`. The e2e harness code itself (configs, specs, helpers) IS tracked.
+Local-only, not tracked: `video/`, `v2-labs/`, `revenue-model/` (research/poc), e2e tooling and run outputs (`e2e/`). See `.gitignore`.
 
 ## Workspace Shape
 

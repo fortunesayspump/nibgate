@@ -1,7 +1,8 @@
 # JEV — decision layer
 
-Status: live on mainnet + testnet. Part of the Tameion trio's shared core — see
-`../tameionhack.md`. Consumers: the wallet extension (recipient inference,
+Status: live on mainnet + testnet. Shared decision core for the trio (tipping
+protocol, extension, Dr. Nib). Consumers: the wallet extension (recipient
+inference,
 settle-vs-hold, page classification), hub metadata enrichment, hub ranking.
 
 ## Rule

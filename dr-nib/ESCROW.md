@@ -177,8 +177,6 @@ git -C contracts/lib/openzeppelin-contracts sparse-checkout set contracts
 # build + test
 ./tools/foundry/forge build --root contracts
 ./tools/foundry/forge test --root contracts --match-contract NibgateRunSplitterTest
-# deploy (local-ops/ scripts are local-only, not committed)
-DEPLOYER_KEY=0x... KEEPER_ADDRESS=0x... node local-ops/deploy-escrow.mjs testnet
 ```
 
 ## Open (unchanged)

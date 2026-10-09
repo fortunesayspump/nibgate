@@ -35,14 +35,14 @@ export default function Hero() {
       <div className="nibgate-hero-grid">
         <div className="code-snippet" data-code-snippet>
           <pre data-code-to-copy>
-            <p>npm install @nibgate/sdk@0.4.34 @nibgate/wallet@0.4.19</p>
+            <p>npm install @nibgate/sdk</p>
           </pre>
           <button
             className="code-snippet__button"
             type="button"
-            aria-label="Copy the command npm install @nibgate/sdk@0.4.34 @nibgate/wallet@0.4.19"
+            aria-label="Copy the command npm install @nibgate/sdk"
             onClick={async (e) => {
-              const didCopy = await copyToClipboard("npm install @nibgate/sdk@0.4.34 @nibgate/wallet@0.4.19");
+              const didCopy = await copyToClipboard("npm install @nibgate/sdk");
               const target = e.currentTarget.parentElement;
               if (didCopy) {
                 target?.classList.add("has-copied");
@@ -77,6 +77,14 @@ export default function Hero() {
           </Link>
 
           <a href="https://docs.nibgate.xyz/extension" className="nibgate-hero-button nibgate-hero-button-secondary nibgate-button-align-item">
+            <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+              <circle cx="24" cy="24" r="21" fill="#fff" />
+              <circle cx="24" cy="24" r="15" fill="none" stroke="#EA4335" strokeWidth="9" strokeDasharray="29 65.3" transform="rotate(-90 24 24)" />
+              <circle cx="24" cy="24" r="15" fill="none" stroke="#FBBC05" strokeWidth="9" strokeDasharray="29 65.3" transform="rotate(30 24 24)" />
+              <circle cx="24" cy="24" r="15" fill="none" stroke="#34A853" strokeWidth="9" strokeDasharray="29 65.3" transform="rotate(150 24 24)" />
+              <circle cx="24" cy="24" r="9.5" fill="#fff" />
+              <circle cx="24" cy="24" r="7" fill="#4285F4" />
+            </svg>
             <p className="nibgate-button-text">Extension</p>
             <svg className="nibgate-hero-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8.7 1.3 15.4 8l-6.7 6.7-1.4-1.4L11.6 9H.5V7h11.1L7.3 2.7l1.4-1.4Z"></path>

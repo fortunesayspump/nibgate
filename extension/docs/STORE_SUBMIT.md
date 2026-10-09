@@ -1,6 +1,7 @@
 # Chrome Web Store submission
 
-**Status: v1.0.1 (`nibgate-1.0.1.zip`) SUBMITTED — awaiting review.**
+**Status: v1.0.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
+Repo is at v1.0.1 — ships as the first update (rebubmit flow below).
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
 
@@ -32,28 +33,25 @@ building on store approval.
 
 ## What happens next
 
-1. **Wait.** Never cancel + resubmit while pending — it rejoins the back of
-   the queue.
-2. When live, use **staged rollout** (e.g. 20% → 100%) for subsequent builds
+1. **Updates re-enter review** — never cancel + resubmit while pending; it rejoins the back of the queue.
+2. Use **staged rollout** (e.g. 20% → 100%) for subsequent builds
    so a bad build doesn't hit every user at once.
-3. Future versions: bump `manifest.json` + `package.json` together, clean
-   `npm run build`, zip `dist/` as `nibgate-<version>.zip`, upload as a new
-   version of the same item (review is faster for updates).
+3. v1.0.1 is built (`nibgate-1.0.1.zip`) and next in line — upload as a new
+   version of the same item (review is faster for updates). It also carries
+   the listing-copy fix below.
 
-## Steps (record — used for v1.0.1)
+## Steps (record — used for the v1.0.0 submission)
 
 1. Pay the one-time $5 Chrome Web Store developer fee (Google account).
    New accounts may face identity verification — do it immediately, it gates everything.
-2. Developer Dashboard → New item → upload `extension/nibgate-1.0.1.zip` (built from a clean `npm run build`).
+2. Developer Dashboard → New item → upload the built zip (built from a clean `npm run build`).
 3. Fill listing (copy below): name `Nibgate`, category Productivity,
    privacy policy URL `https://nibgate.xyz/extension-privacy`,
    support email `hello@nibgate.xyz`.
-4. Submitted the **testnet-default** build (honest description: testnet play
+4. Submit the **testnet-default** build (honest description: testnet play
    money). Do NOT wait for approval to continue building.
-5. (When live) use **staged rollout** (e.g. 20% → 100%) for the
-   mainnet-default flip so a bad build doesn't hit every user at once.
 
-## Listing copy (as submitted in v1.0.1)
+## Listing copy (as submitted — v1.0.0 live)
 
 Short description (132 chars):
 `Tip any creator on the web with USDC. Play money on testnet; flip to mainnet in settings for real tips.`

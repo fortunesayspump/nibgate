@@ -11,7 +11,7 @@ const footerMenus = [
       ["Get started", "/get-started"],
       ["Payments", "/payments"],
       ["Nib Tips", "https://docs.nibgate.xyz/tipping"],
-      ["Browser extension", "https://docs.nibgate.xyz/extension"],
+      ["Browser extension", "https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf"],
       ["Discovery", "/discovery"],
       ["Security", "/security"],
       ["Widget", "/widget.js"],

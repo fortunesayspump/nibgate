@@ -1,8 +1,9 @@
 # Nibgate Extension — tip any creator on the web with USDC
 
-**Status: v1.0.1 submitted to the Chrome Web Store, awaiting review.**
-Until approval lands, sideload `dist/` (takes a minute — see
-`docs/LOAD_IN_CHROME.md`). Submission process: `docs/STORE_SUBMIT.md`.
+**Status: v1.0.0 LIVE on the Chrome Web Store**
+([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
+Repo is at v1.0.1 (next update, unsubmitted). Sideload guide:
+`docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
 
 Part of the trio: `tipping/` = protocol, `extension/` = humans, `dr-nib/` =
 agents. Bots and agents never touch the extension — they use the skill.md API

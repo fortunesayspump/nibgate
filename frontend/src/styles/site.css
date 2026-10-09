@@ -1485,6 +1485,21 @@ body[data-theme="dark"] .nibgate-hero-flower-outline {
   fill: currentColor;
   transform: translateX(6px) scale(1.05);
 }
+/* Icon-leading hero buttons (e.g. the extension CTA): center the
+   icon + label as a unit instead of space-between, and seat dark
+   monochrome marks on a white disc so they read on dark buttons. */
+.nibgate-hero-button--icon {
+  justify-content: center;
+  gap: 12px;
+}
+.nibgate-hero-button-icon {
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  background: #fff;
+  border-radius: 50%;
+  flex: none;
+}
 .nibgate-soft-cta {
   border: 1px solid var(--nib-border-soft);
   background: var(--nib-code-bg);

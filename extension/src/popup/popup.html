@@ -237,6 +237,11 @@
     .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: var(--radius-sm); color: transparent !important; }
     @keyframes shimmer { to { background-position: -200% 0; } }
 
+    /* ── site access (optional permission) ───────────────────────────── */
+    .sitebanner { margin: 14px 16px 0; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .sitebanner .sb-t { font-weight: 700; font-size: 13px; }
+    .sitebanner .sb-d { color: var(--muted); font-size: 12px; margin: 3px 0 10px; }
+
     /* ── toast ───────────────────────────────────────────────────────── */
     #toast { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%) translateY(8px); background: var(--fg); color: var(--bg); font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: var(--radius-pill); opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; z-index: 50; white-space: nowrap; }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -328,6 +333,11 @@
 
     <main id="screens" class="scroll">
       <section class="screen on" id="screen-home">
+        <div class="sitebanner" id="site-access-banner" hidden>
+          <div class="sb-t">Turn on the Tip button</div>
+          <div class="sb-d">Let Nibgate show a Tip button on the pages you read.</div>
+          <button class="primary" id="site-access-enable">Enable on all sites</button>
+        </div>
         <div class="balance-card">
           <div class="eyebrow">Total balance</div>
           <div class="amount" id="balance">—</div>
@@ -437,6 +447,11 @@
           <button id="theme-system">System</button>
           <button id="theme-light">Light</button>
           <button id="theme-dark">Dark</button>
+        </div>
+        <div class="setrow">
+          <div class="t">Tip button on web pages</div>
+          <div class="d" id="site-access-desc">Show the inline Tip button on pages you visit.</div>
+          <button id="site-access-toggle">Enable</button>
         </div>
         <div class="setrow">
           <div class="t">Security</div>

@@ -174,4 +174,6 @@ export function verifySignature(parameters: {
   message: string;
   signature: Hex;
   address: Address;
+  rpcUrl?: string;
+  chain?: { id: number; name: string; nativeCurrency: { decimals: number; name: string; symbol: string }; rpcUrl: string };
 }): Promise<boolean>;

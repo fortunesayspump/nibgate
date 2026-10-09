@@ -649,6 +649,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
       // to specific copy ("nothing was charged"). getWalletErrorMessage would
       // overwrite it with the generic wallet default, so check it first.
       const message = isWalletRejection(err) ? 'Request cancelled.'
+        : err?.code === 'ACCOUNT_MISMATCH' ? (err.message || 'Account changed in your wallet. Reconnect and try again.')
         : err?.nibgateReason ? getPaymentErrorMessage({ reason: err.nibgateReason })
         : getWalletErrorMessage(err) || 'Unlock failed.'
       setError(message)

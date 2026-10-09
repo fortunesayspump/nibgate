@@ -69,6 +69,9 @@ export function registerAuthRoutes(app) {
 
       res.json({ success: true, user });
     } catch (error) {
+      // Burn the nonce on failure: a failed attempt must not leave a live
+      // nonce lying around for replay within its cookie TTL.
+      res.clearCookie(nonceCookieName(), { ...cookieOpts });
       res.status(401).json({ error: 'Authentication failed', details: error.message });
     }
   });

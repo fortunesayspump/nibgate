@@ -23,6 +23,65 @@ import { payGateway } from '../lib/gateway-pay';
 // renderCard makes repeats harmless.
 const announcedTabs = new Map<number, string>();
 
+// Site access is optional (Chrome Web Store review hygiene): declared under
+// `optional_host_permissions`, requested by the popup on a user gesture, then
+// registered here as a dynamic content script. This keeps the extension off
+// the broad-host-permissions review path while still letting the tip button
+// appear on any page the user allows.
+const SITE_ACCESS_ORIGINS = ['http://*/*', 'https://*/*'];
+const CONTENT_SCRIPT_ID = 'nibgate-content';
+const CONTENT_SCRIPT_EXCLUDES = [
+  '*://nibgate.xyz/*',
+  '*://*.nibgate.xyz/*',
+  '*://localhost/*',
+  '*://127.0.0.1/*',
+];
+
+async function siteAccessGranted(): Promise<boolean> {
+  try {
+    return await chrome.permissions.contains({ origins: SITE_ACCESS_ORIGINS });
+  } catch {
+    return false;
+  }
+}
+
+// Reconcile the dynamic content script with the current permission grant.
+// Registered scripts do not survive extension updates, and the user can revoke
+// site access from chrome://extensions at any time — so re-check on every
+// worker start and again after the popup requests or drops the grant.
+let syncing: Promise<boolean> | null = null;
+function syncContentScript(): Promise<boolean> {
+  if (syncing) return syncing;
+  syncing = (async () => {
+    const granted = await siteAccessGranted();
+    try {
+      const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [CONTENT_SCRIPT_ID] });
+      if (granted && !registered.length) {
+        await chrome.scripting.registerContentScripts([{
+          id: CONTENT_SCRIPT_ID,
+          matches: SITE_ACCESS_ORIGINS,
+          excludeMatches: CONTENT_SCRIPT_EXCLUDES,
+          js: ['content.js'],
+          runAt: 'document_idle',
+          persistAcrossSessions: true,
+        }]);
+      } else if (!granted && registered.length) {
+        await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_SCRIPT_ID] });
+      }
+    } catch {}
+    return granted;
+  })().finally(() => { syncing = null; });
+  return syncing;
+}
+
+chrome.runtime.onInstalled?.addListener(() => { syncContentScript(); });
+chrome.runtime.onStartup?.addListener(() => { syncContentScript(); });
+// Keep registration in step with the grant even if the popup closes during the
+// permission dialog (the popup message below also injects into the active tab).
+chrome.permissions?.onAdded?.addListener(() => { syncContentScript(); });
+chrome.permissions?.onRemoved?.addListener(() => { syncContentScript(); });
+syncContentScript();
+
 // Open tips waiting on the extension window. The page holds only a trigger
 // button; amount, review, and approval all live in tip.html. Closing the
 // window cancels (the card polls TIP_RESULT and reports it).
@@ -69,6 +128,7 @@ chrome.tabs?.onUpdated?.addListener((tabId, info, tab) => {
   setTimeout(async () => {
     try {
       if (announcedTabs.get(tabId) === tab.url) return;
+      if (!(await siteAccessGranted())) return;
       await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
     } catch {}
   }, 3000);
@@ -89,6 +149,24 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
     if (sender?.tab?.id != null) announcedTabs.set(sender.tab.id, String(msg.url || ''));
     respond({ ok: true });
     return false;
+  }
+  // Popup owns the user gesture for chrome.permissions.request/remove, then
+  // asks us to (un)register the content script. On grant, inject into the tab
+  // the user is looking at so the tip button appears without a reload.
+  if (msg?.type === 'SYNC_CONTENT_SCRIPT') {
+    (async () => {
+      const granted = await syncContentScript();
+      if (granted) {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab?.id != null && /^https?:/.test(tab.url || '')) {
+            await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+          }
+        } catch {}
+      }
+      respond({ ok: true, granted });
+    })();
+    return true;
   }
   if (msg?.type === 'BALANCES') {
     (async () => {

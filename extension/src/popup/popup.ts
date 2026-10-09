@@ -67,6 +67,7 @@ function showApp(screen: AppScreen = 'home') {
   $('screen-lock')!.hidden = true;
   $('app')!.hidden = false;
   showScreen(screen);
+  void paintSiteAccess();
 }
 
 function showScreen(name: AppScreen) {
@@ -167,6 +168,56 @@ async function switchNetwork(name: NetworkName) {
   toast(name === 'mainnet' ? 'Switched to Mainnet' : 'Switched to Testnet');
 }
 
+// ── site access (optional host permission + dynamic content script) ─────────
+// The popup owns the user gesture: chrome.permissions.request() must run
+// synchronously inside a click handler. After a grant we ask the worker to
+// register the content script and inject into the current tab.
+const SITE_ACCESS_ORIGINS = ['http://*/*', 'https://*/*'];
+
+async function siteAccessGranted(): Promise<boolean> {
+  try {
+    return await chrome.permissions.contains({ origins: SITE_ACCESS_ORIGINS });
+  } catch {
+    return false;
+  }
+}
+
+async function paintSiteAccess(): Promise<boolean> {
+  const granted = await siteAccessGranted();
+  const banner = $('site-access-banner');
+  if (banner) banner.hidden = granted;
+  const toggle = $('site-access-toggle');
+  if (toggle) {
+    toggle.textContent = granted ? 'Disable' : 'Enable';
+    toggle.classList.toggle('sel', granted);
+  }
+  const desc = $('site-access-desc');
+  if (desc) desc.textContent = granted ? 'On — the Tip button appears on pages you visit.' : 'Show the inline Tip button on pages you visit.';
+  return granted;
+}
+
+function enableSiteAccess() {
+  // chrome.permissions.request MUST be the first call in the gesture.
+  return chrome.permissions.request({ origins: SITE_ACCESS_ORIGINS })
+    .then(async (granted) => {
+      await chrome.runtime.sendMessage({ type: 'SYNC_CONTENT_SCRIPT' }).catch(() => {});
+      await paintSiteAccess();
+      if (granted) toast('Tip button enabled');
+    })
+    .catch(() => toast('Could not enable'));
+}
+
+async function disableSiteAccess() {
+  try {
+    await chrome.permissions.remove({ origins: SITE_ACCESS_ORIGINS });
+    await chrome.runtime.sendMessage({ type: 'SYNC_CONTENT_SCRIPT' }).catch(() => {});
+    await paintSiteAccess();
+    toast('Tip button disabled');
+  } catch {
+    toast('Could not disable');
+  }
+}
+
 // ── balances ──────────────────────────────────────────────────────────────
 function paintBalance() {
   const v = rail === 'wallet' ? lastBalances.wallet : lastBalances.gateway;
@@ -229,7 +280,9 @@ function paintHistory(items: HistoryItem[], elId: string, limit?: number) {
   }
   el.innerHTML = '';
   for (const h of shown) {
-    const outgoing = h.type !== 'receive';
+    // Inbound: receives + refunds (money back to the wallet). Everything
+    // else (tips, sends, deposits, withdrawals) leaves the wallet.
+    const outgoing = h.type !== 'receive' && h.type !== 'refund';
     const held = h.status === 'held';
     const row = document.createElement('div');
     row.className = 'row';
@@ -475,6 +528,12 @@ async function init() {
     await switchNetwork('mainnet');
   });
   $('acct-chip')?.addEventListener('click', () => copyAddress('Address copied'));
+  // Site access (optional host permission) — enable/disable the tip button.
+  $('site-access-enable')?.addEventListener('click', () => { enableSiteAccess(); });
+  $('site-access-toggle')?.addEventListener('click', async () => {
+    if (await siteAccessGranted()) await disableSiteAccess();
+    else enableSiteAccess();
+  });
   // Backup checkbox: wired once here (never inside the create handler).
   ($('ob-saved') as HTMLInputElement | null)?.addEventListener('change', (e) => {
     const btn = $('ob-done') as HTMLButtonElement | null;

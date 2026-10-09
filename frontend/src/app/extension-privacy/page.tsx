@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 const SECTIONS: Array<[string, string]> = [
   [
     "What the extension accesses",
-    "Active tab and page content: title, author, canonical URL, and on-page wallet signals, used only to identify the content and resolve the creator. Storage: tip history, network preference (testnet/mainnet), and theme. Host access is limited to Nibgate API hosts (testnet-api.nibgate.xyz, api.nibgate.xyz) plus the page you are viewing.",
+    "Active tab and page content: title, author, canonical URL, and on-page wallet signals, used only to identify the content and resolve the creator. Site access is optional and granted at runtime when you tap 'Enable on all sites' — you can revoke it any time from chrome://extensions. Storage: tip history, network preference (testnet/mainnet), and theme. API host access is limited to Nibgate hosts (testnet-api.nibgate.xyz, api.nibgate.xyz).",
   ],
   [
     "What stays on your device",

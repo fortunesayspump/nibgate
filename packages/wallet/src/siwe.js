@@ -1,5 +1,5 @@
 import { createSiweMessage, generateSiweNonce, parseSiweMessage, validateSiweMessage } from 'viem/siwe';
-import { hashMessage, recoverAddress } from 'viem';
+import { createPublicClient, hashMessage, http, recoverAddress } from 'viem';
 import { activeChain } from './chain.js';
 
 export const SIGN_IN_STATEMENT = 'Sign in to Nibgate to verify your wallet.';
@@ -44,8 +44,46 @@ export function validateSignInMessage({ message, expected = {} }) {
   return true;
 }
 
-export async function verifySignature({ message, signature, address }) {
+const ERC1271_MAGICVALUE = '0x1626ba7e';
+const ERC1271_ABI = [
+  {
+    type: 'function',
+    name: 'isValidSignature',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'hash', type: 'bytes32' },
+      { name: 'signature', type: 'bytes' },
+    ],
+    outputs: [{ name: '', type: 'bytes4' }],
+  },
+];
+
+export async function verifySignature({ message, signature, address, rpcUrl, chain = activeChain() }) {
   const hash = hashMessage(message);
   const recoveredAddress = await recoverAddress({ hash, signature });
-  return recoveredAddress.toLowerCase() === address.toLowerCase();
+  if (recoveredAddress.toLowerCase() === address.toLowerCase()) return true;
+  // Smart-contract wallets (Safe, Coinbase Smart Wallet, …) can't be
+  // recovered — fall back to EIP-1271. Reads only; fails closed.
+  try {
+    const client = createPublicClient({
+      chain: {
+        id: chain.id,
+        name: chain.name,
+        nativeCurrency: chain.nativeCurrency,
+        rpcUrls: { default: { http: [rpcUrl || chain.rpcUrl] } },
+      },
+      transport: http(rpcUrl || chain.rpcUrl),
+    });
+    const code = await client.getBytecode({ address });
+    if (!code || code === '0x') return false;
+    const result = await client.readContract({
+      address,
+      abi: ERC1271_ABI,
+      functionName: 'isValidSignature',
+      args: [hash, signature],
+    });
+    return String(result).toLowerCase() === ERC1271_MAGICVALUE;
+  } catch {
+    return false;
+  }
 }

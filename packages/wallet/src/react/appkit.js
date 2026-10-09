@@ -3,7 +3,7 @@
 import { createAppKit } from '@reown/appkit/react'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { http } from 'wagmi'
-import { injected, walletConnect } from 'wagmi/connectors'
+import { injected } from 'wagmi/connectors'
 import { activeArcChain, appRpcUrlFor } from '../chain.js'
 
 export const NIBGATE_APPKIT_PROJECT_ID = '09580756f3c5f13c5f1aeb2faa9b1696'
@@ -133,14 +133,16 @@ export function createNibgateWallet(options = {}) {
   const chains = options.chains && options.chains.length ? options.chains : [activeArcChain()]
   const appKitNetworks = chains
 
-  const connectors = options.connectors || (isInAppBrowser()
-    ? [injected(INJECTED_OPTS)]
-    : [
-        injected(INJECTED_OPTS),
-        injected({ target: 'metaMask', ...INJECTED_OPTS }),
-        injected({ target: 'rabby', ...INJECTED_OPTS }),
-        walletConnect({ projectId }),
-      ])
+  // Connector policy: exactly ONE generic injected connector, nothing
+  // per-wallet. AppKit provides EIP-6963 discovery (MetaMask, Rabby,
+  // Coinbase, Phantom, …) and WalletConnect out of the box; per-wallet
+  // `target:` entries fight that discovery (e.g. `target: 'rabby'` never
+  // matches RDNS `io.rabby`, silently killing exactly one wallet). The bare
+  // injected connector falls back to legacy `window.ethereum`, which is the
+  // only path for pre-EIP-6963 extensions — without it the modal degrades to
+  // QR-only and old wallets cannot connect at all. The shim tuning stays:
+  // in-app browsers inject late and have unreliable storage.
+  const connectors = options.connectors || [injected(INJECTED_OPTS)]
 
   const transports = Object.fromEntries(chains.map((chain) => [chain.id, http(rpcUrl)]))
 
@@ -170,6 +172,11 @@ export function createNibgateWallet(options = {}) {
     themeMode: options.themeMode || 'light',
     themeVariables: options.themeVariables || DEFAULT_THEME_VARIABLES,
     features: { ...DEFAULT_FEATURES, ...(options.features || {}) },
+    // NOTE: AppKit's managed one-click SIWE (siweConfig) was evaluated and
+    // reverted: in 1.8.21 it never auto-fires for injected EOA connectors
+    // (verified live — no nonce/message/signature calls post-connect), so
+    // the hook below drives SIWE explicitly instead. Revisit with Reown
+    // support or a version where one-click works for injected wallets.
   })
 
   cached = {
@@ -178,4 +185,10 @@ export function createNibgateWallet(options = {}) {
     projectId,
   }
   return cached
+}
+
+// Live wagmi config for flows that must bypass the modal (legacy direct
+// connect). Null until createNibgateWallet runs (NibgateWalletProvider).
+export function getNibgateWagmiConfig() {
+  return cached?.wagmiConfig || null
 }

@@ -30,7 +30,15 @@ const esbuildOptions = {
 
 function copyStatic() {
   fs.mkdirSync(outdir, { recursive: true });
-  fs.copyFileSync(path.join(root, 'manifest.json'), path.join(outdir, 'manifest.json'));
+  // Production zip ships without localhost dev hosts (review hygiene): the
+  // in-app hub override still exists, but the manifest no longer requests
+  // loopback access. Keep them for local dev with KEEP_LOCAL_HOSTS=1.
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+  if (!process.env.KEEP_LOCAL_HOSTS) {
+    const isLoopback = (h) => /localhost|127\.0\.0\.1/i.test(h);
+    manifest.host_permissions = (manifest.host_permissions || []).filter((h) => !isLoopback(h));
+  }
+  fs.writeFileSync(path.join(outdir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   fs.copyFileSync(path.join(root, 'src/popup/popup.html'), path.join(outdir, 'popup.html'));
   fs.copyFileSync(path.join(root, 'src/tip/tip.html'), path.join(outdir, 'tip.html'));
   // Icons + brand assets (popup references icons/ relatively; manifest needs the PNGs).

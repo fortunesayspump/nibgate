@@ -6,10 +6,15 @@ building on store approval.
 
 ## Review reality (checked Sep 2026)
 
-- **Not instant.** New developer account + new extension + broad host
-  permissions (`http(s)://*/*` content scripts) + payment-adjacent behavior =
-  every "closer inspection" signal. Expect **days to weeks**; Google gives no
-  SLA (support escalation only after 3+ weeks stuck).
+- **Not instant.** New developer account + new extension + payment-adjacent
+  behavior = every "closer inspection" signal. Expect **days to weeks**; Google
+  gives no SLA (support escalation only after 3+ weeks stuck).
+- **Site access is optional, not install-time.** The extension no longer
+  declares broad host permissions or a site-wide `content_scripts` entry. It
+  requests `http(s)://*/*` at runtime via `optional_host_permissions` only when
+  the user taps "Enable on all sites", then registers `content.js` with
+  `chrome.scripting.registerContentScripts`. This keeps it off the
+  "broad host permissions" in-depth-review path.
 - Updates to an already-approved item review faster than first submissions.
 - Never cancel + resubmit while pending — it rejoins the back of the queue.
 
@@ -20,7 +25,8 @@ building on store approval.
 - [x] No `console.log` in `src/`; dual-network copy (testnet default, mainnet toggle)
 - [x] Privacy policy page — hosted at `https://nibgate.xyz/extension-privacy`
   (`frontend/src/app/extension-privacy/page.tsx`). Extension requests
-  `activeTab` (current page only), `storage` (tip history + network pref),
+  `activeTab` (current page only), `storage` (tip history + network pref), and
+  optional site access the user grants at runtime so the tip button can read
   page content for extraction. No analytics, no remote code, no data sale.
 - [ ] Store description + 1280×800 screenshots (record the killer demo).
 
@@ -28,7 +34,7 @@ building on store approval.
 
 1. Pay the one-time $5 Chrome Web Store developer fee (Google account).
    New accounts may face identity verification — do it immediately, it gates everything.
-2. Developer Dashboard → New item → upload `extension/nibgate-1.0.0.zip` (built from a clean `npm run build`).
+2. Developer Dashboard → New item → upload `extension/nibgate-1.0.1.zip` (built from a clean `npm run build`).
 3. Fill listing (copy below): name `Nibgate`, category Productivity,
    privacy policy URL `https://nibgate.xyz/extension-privacy`,
    support email `hello@nibgate.xyz`.

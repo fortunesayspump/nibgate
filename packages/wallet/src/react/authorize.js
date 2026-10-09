@@ -19,8 +19,10 @@ export async function ensureWalletAuthorized(address, { walletProvider } = {}) {
   if (granted && granted.toLowerCase() !== address.toLowerCase()) {
     // Wrong account approved — AppKit will reconcile on next event; surface so
     // the caller doesn't silently sign the SIWE message with the wrong key.
-    const err = new Error(`Connected account mismatch: ${granted}`)
-    err.code = 4001
+    // Distinct code (NOT 4001): this is a race, not a user cancellation, and
+    // must never be worded as "cancelled".
+    const err = new Error(`Wallet is on ${granted} but this session is for ${address}. Sign in again to continue.`)
+    err.code = 'ACCOUNT_MISMATCH'
     throw err
   }
 }

@@ -50,13 +50,14 @@ See `src/lib/network.ts`.
 
 Content extractor → resolution client → tip UI → receipt display. Wallet +
 rails come from the existing packages; this folder holds only the extension
-shell, content scripts, and JEV prompt schemas (JEV core itself lives in `jev/`).
+shell, the injected content script, and JEV prompt schemas (JEV core itself
+lives in `jev/`).
 
 ## Structure
 
 ```text
 extension/
-  manifest.json            # MV3: content scripts, worker, popup, dual-network hosts
+  manifest.json            # MV3: worker, popup, dual-network hosts, optional site access
   package.json / tsconfig  # TS + esbuild, no framework
   src/
     content/extract.ts     # article identification (title/author/canonical/fingerprint)

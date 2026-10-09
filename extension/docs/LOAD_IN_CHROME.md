@@ -16,9 +16,14 @@ the Settings toggle.
 3. Enable **Developer mode** (top-right toggle).
 4. Click **Load unpacked** → select the `extension/dist/` folder.
 5. Pin it: puzzle-piece icon → pin **Nibgate**.
-6. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
-   already have native tipping). The tip card appears bottom-right.
-7. Fund the wallet: **testnet** USDC via the Circle faucet
+6. Enable site access: click the Nibgate icon → on Home tap **Enable on all
+   sites** (or Settings → **Tip button on web pages**). This grants the
+   optional access that lets the tip button appear; an already-open tab picks
+   it up immediately (otherwise reload the tab).
+7. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
+   already have native tipping). The tip button appears at the end of the
+   content.
+8. Fund the wallet: **testnet** USDC via the Circle faucet
    (`https://faucet.circle.com`) for play-money tips, or flip to **mainnet**
    in popup Settings (confirm-gated) for real USDC on Arc.
 
@@ -35,6 +40,8 @@ needed — but you never re-run the build by hand.
 
 ## What reviewers verify
 
+- The **Enable on all sites** prompt grants optional site access; the content
+  script registers only after the user taps it (no install-time broad access).
 - Card appears on ordinary articles, stays hidden on non-content pages.
 - Tip buttons fire the challenge → wallet sign → verify flow against the
   active network (`testnet-api.nibgate.xyz` by default, `api.nibgate.xyz`

@@ -12,6 +12,12 @@ import {
 import { generateThinking, generateIntakeQuestion, generateIntakeBatch } from './llm/generate.js';
 import { decideIntakeStop } from './jev/intake.js';
 
+// Hard bound on intake rounds (single + batch paths share it). Healthy
+// intakes converge in 2-4 questions; past the cap the brief is planned
+// as-is. Without this, a generator that never converges (or a stop
+// decision that never fires) loops forever — seen live at 15+ rounds.
+export const MAX_INTAKE_QUESTIONS = 8;
+
 export async function answeredKeys(runId) {
   const rows = await db.researchDecision.findMany({ where: { runId, kind: 'question' }, orderBy: { seq: 'asc' } });
   return rows.filter((r) => r.answer != null).map((r) => r.question?.key).filter(Boolean);
@@ -141,6 +147,14 @@ export async function answerIntakeQuestion(run, seq, answer) {
   }
   if (done == null) done = !next;
   if (!done && !next) done = true; // bank exhausted: nothing left to ask
+  // Hard bound: an intake that never converges must still end. Healthy
+  // intakes land in 2-4 rounds; past the cap the brief is planned as-is and
+  // the cap is recorded on the decision row — never silently looped.
+  let capped = false;
+  if (!done) {
+    const asked = await db.researchDecision.count({ where: { runId: run.id, kind: 'question' } });
+    if (asked >= MAX_INTAKE_QUESTIONS) { done = true; capped = true; }
+  }
   if (next && !done) await createQuestion(run.id, Number(seq) + 1, next);
   else await db.researchRun.update({ where: { id: run.id }, data: { status: 'intake-done' } });
 
@@ -157,6 +171,7 @@ export async function answerIntakeQuestion(run, seq, answer) {
       output: {
         decision: done ? 'proceed' : reframed ? 'reframe' : 'ask_more',
         source: stop.source,
+        ...(capped ? { capped: true, cap: MAX_INTAKE_QUESTIONS } : {}),
         ...(stop.source === 'jev'
           ? { probabilities: stop.probabilities, model: stop.model, usage: stop.usage }
           : { confidence: done ? 0.9 : 0.8 }),
@@ -264,6 +279,12 @@ export async function answerIntakeBatch(run, answers) {
   let done = reframed ? false : stop.done;
   if (done == null) done = !nextBatch.length;
   if (!done && !nextBatch.length) done = true;
+  // Same hard bound as the single-answer path (see above): never loop intake.
+  let capped = false;
+  if (!done) {
+    const asked = await db.researchDecision.count({ where: { runId: run.id, kind: 'question' } });
+    if (asked >= MAX_INTAKE_QUESTIONS) { done = true; capped = true; }
+  }
   if (!done) {
     const top = await db.researchDecision.findFirst({ where: { runId: run.id, kind: 'question' }, orderBy: { seq: 'desc' }, select: { seq: true } });
     let seq = Number(top?.seq ?? -1);
@@ -292,6 +313,7 @@ export async function answerIntakeBatch(run, answers) {
         decision: done ? 'proceed' : reframed ? 'reframe' : 'ask_more',
         source: stop.source,
         batchSize: rows.length,
+        ...(capped ? { capped: true, cap: MAX_INTAKE_QUESTIONS } : {}),
         ...(stop.source === 'jev'
           ? { probabilities: stop.probabilities, model: stop.model, usage: stop.usage }
           : { confidence: done ? 0.9 : 0.8 }),

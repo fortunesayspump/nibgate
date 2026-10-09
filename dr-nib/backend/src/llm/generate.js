@@ -6,6 +6,7 @@
 // SSE contract keep working. The caller decides what to do with the result; the
 // fallback never pretends the model spoke.
 import { chat, chatJson, isLlmConfigured } from './provider.js';
+import { smartModel } from './pricing.js';
 import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages, directDataMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
 
@@ -22,6 +23,7 @@ export async function generatePlan({ brief, guidance, fetchImpl } = {}) {
   if (isLlmConfigured()) {
     try {
       const { data, usage, model } = await chatJson({
+        model: smartModel(),
         effort: 'high',
         messages: planMessages({ brief, guidance }), fetchImpl,
         temperature: 0.3,
@@ -285,6 +287,7 @@ export async function generateRoundReview({ brief, round, sources = [], fetchImp
   if (isLlmConfigured()) {
     try {
       const { data, usage, model } = await chatJson({
+        model: smartModel(),
         effort: 'low',
         messages: roundReviewMessages({ brief, round, sources }),
         temperature: 0.3,
@@ -337,6 +340,7 @@ export async function generateIntakeQuestion({ topic, answered = [], reframe = n
   if (!isLlmConfigured()) return fallback(null);
   try {
     const { data, usage, model } = await chatJson({
+      model: smartModel(),
       effort: 'low',
       messages: intakeQuestionMessages({ topic, answered, reframe }),
       temperature: 0.4,
@@ -435,6 +439,7 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
   if (!isLlmConfigured()) return fallback(null);
   try {
     const { data, usage, model } = await chatJson({
+      model: smartModel(),
       effort: 'low',
       messages: intakeBatchMessages({ topic, answered, count: n, reframe }),
       temperature: 0.4,

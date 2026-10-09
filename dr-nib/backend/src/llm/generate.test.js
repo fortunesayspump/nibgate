@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateSection } from './generate.js';
+import { routerModel, smartModel } from './pricing.js';
 
 const KEY = 'OPENROUTER_API_KEY';
 
@@ -62,5 +63,36 @@ describe('generateSection retry', () => {
     const out = await generateSection({ ...ARGS, fetchImpl });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(out.source).toBe('fallback');
+  });
+});
+
+describe('model split (cheap bulk, smart judgement)', () => {
+  it('defaults bulk writing to LLM_MODEL and judgement to the router', async () => {
+    expect(routerModel()).toBe('typesafe/jev-router');
+    expect(smartModel()).toBe('typesafe/jev-router');
+    vi.stubEnv('LLM_MODEL', '~google/gemini-flash-latest');
+    vi.stubEnv('LLM_SMART_MODEL', 'typesafe/jev-router');
+    expect(routerModel()).toBe('~google/gemini-flash-latest');
+    expect(smartModel()).toBe('typesafe/jev-router');
+  });
+
+  it('routes intake questions to the smart model, sections to the cheap one', async () => {
+    vi.stubEnv(KEY, 'test-key');
+    vi.stubEnv('LLM_MODEL', '~google/gemini-flash-latest');
+    const { generateIntakeQuestion } = await import('./generate.js');
+    const qFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ type: 'pick_one', prompt: 'Which depth fits this question best?', key: 'depth', options: [{ id: 'a', label: 'Quick' }] }) } }] }),
+      text: async () => '', body: null,
+    });
+    await generateIntakeQuestion({ topic: 'fees', fetchImpl: qFetch });
+    expect(JSON.parse(qFetch.mock.calls[0][1].body).model).toBe('typesafe/jev-router');
+    const sFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ choices: [{ message: { content: 'body text' } }], usage: {} }),
+      text: async () => '', body: null,
+    });
+    await generateSection({ ...ARGS, fetchImpl: sFetch });
+    expect(JSON.parse(sFetch.mock.calls[0][1].body).model).toBe('~google/gemini-flash-latest');
   });
 });

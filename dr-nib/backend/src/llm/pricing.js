@@ -23,6 +23,17 @@ export function routerModel() {
 }
 
 /**
+ * The model for judgement-heavy generation: intake questions, plans, round
+ * reviews. These shape everything downstream, so they stay on the router
+ * even when bulk writing moves to a cheap pinned model — a looping cheap
+ * intake burns more (endless rounds, no convergence) than a converging
+ * smart one. Override with LLM_SMART_MODEL for a full swap.
+ */
+export function smartModel() {
+  return process.env.LLM_SMART_MODEL || DEFAULT_ROUTER_MODEL;
+}
+
+/**
  * Explicit fallback models, tried in order when the router itself errors
  * (rate-limit, downtime, moderation, context length). The router already
  * carries its own internal fallbacks, so this is normally empty — set it when

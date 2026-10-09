@@ -76,7 +76,7 @@ export default function Features() {
             <div className="space-y-4">
               <h3 className="text-3xl font-medium text-white lg:text-4xl xl:text-5xl">Verify real receipts</h3>
               <p className="text-lg lg:text-xl xl:text-2xl">
-                Use x402-friendly payment challenges with Circle Gateway or Arc receipt metadata for MVP one-time unlocks.
+                Use x402-friendly payment challenges with Circle Gateway or Arc receipt metadata for live one-time unlocks — real USDC on Arc mainnet, play money on testnet.
               </p>
             </div>
             <div className="space-y-4">
@@ -89,6 +89,12 @@ export default function Features() {
               <h3 className="text-3xl font-medium text-white lg:text-4xl xl:text-5xl">Grow into the app</h3>
               <p className="text-lg lg:text-xl xl:text-2xl">
                 Creators can view verified sites, content performance, payment records, and reputation signals in the hub.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <h3 className="text-3xl font-medium text-white lg:text-4xl xl:text-5xl">Accept tips anywhere</h3>
+              <p className="text-lg lg:text-xl xl:text-2xl">
+                Nib Tips pay you for any page: settled instantly at 1% when resolved, held safely for claiming at 5% when not — plus one-tap tipping from the browser extension.
               </p>
             </div>
           </div>
@@ -106,6 +112,9 @@ export default function Features() {
           <Link className="nibgate-soft-cta" href="/get-started">
             Get started
           </Link>
+          <a className="nibgate-soft-cta" href="https://docs.nibgate.xyz/extension">
+            Browser extension
+          </a>
         </div>
       </div>
     </section>

@@ -10,6 +10,8 @@ const footerMenus = [
       ["Why Nibgate?", "/about"],
       ["Get started", "/get-started"],
       ["Payments", "/payments"],
+      ["Nib Tips", "https://docs.nibgate.xyz/tipping"],
+      ["Browser extension", "https://docs.nibgate.xyz/extension"],
       ["Discovery", "/discovery"],
       ["Security", "/security"],
       ["Widget", "/widget.js"],
@@ -30,6 +32,7 @@ const footerMenus = [
       ["Best sellers", "/explore?sort=best-sellers"],
       ["Hot & new", "/explore?sort=hot-new"],
       ["Agent discovery", "/explore?category=agent-routes"],
+      ["Dr. Nib agent", "/dr-nib/research"],
     ],
   },
   {
@@ -41,6 +44,8 @@ const footerMenus = [
       ["GitHub", "https://github.com/fortunesayspump/nibgate"],
       ["Install package", "https://docs.nibgate.xyz/install-package"],
       ["Hub widget", "https://docs.nibgate.xyz/widget"],
+      ["MCP server", "https://api.nibgate.xyz/mcp"],
+      ["OpenAPI", "https://api.nibgate.xyz/openapi.json"],
       ["Status API", "/api/nibgate/status"],
     ],
   },
@@ -173,7 +178,7 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
               <div className="sign-up-form__inner">
                 <h2 className="sign-up-form__heading heading-three">This Week in Nibgate</h2>
                 <p className="sign-up-form__sub-heading">
-                  Sign up for product notes, creator examples, and launch updates.
+                  Sign up for product notes, creator examples, and mainnet / Nib Tip / extension updates.
                 </p>
                 <NewsletterForm />
               </div>

@@ -13,13 +13,14 @@ export default function Hero() {
               <h1 className="nibgate-hero-heading">
                 Create content worth<br />discovering
               </h1>
-              <p className="nibgate-hero-subheading">Verified paid content, on your site.</p>
+              <p className="nibgate-hero-subheading">Verified paid content, on your site. Live on Arc mainnet.</p>
             </hgroup>
 
             <div className="nibgate-hero-intro">
               <p>
                 Nibgate verifies creator-owned sites, indexes structured content metadata, and helps
-                humans and agents discover, unlock, and build reputation around quality work.
+                humans and agents discover, unlock, tip, and build reputation around quality work —
+                paid in USDC on Arc mainnet (testnet mirrors it for staging).
               </p>
             </div>
           </div>
@@ -34,14 +35,14 @@ export default function Hero() {
       <div className="nibgate-hero-grid">
         <div className="code-snippet" data-code-snippet>
           <pre data-code-to-copy>
-            <p>npm install @nibgate/sdk</p>
+            <p>npm install @nibgate/sdk@0.4.34 @nibgate/wallet@0.4.19</p>
           </pre>
           <button
             className="code-snippet__button"
             type="button"
-            aria-label="Copy the command npm install @nibgate/sdk"
+            aria-label="Copy the command npm install @nibgate/sdk@0.4.34 @nibgate/wallet@0.4.19"
             onClick={async (e) => {
-              const didCopy = await copyToClipboard("npm install @nibgate/sdk");
+              const didCopy = await copyToClipboard("npm install @nibgate/sdk@0.4.34 @nibgate/wallet@0.4.19");
               const target = e.currentTarget.parentElement;
               if (didCopy) {
                 target?.classList.add("has-copied");
@@ -70,10 +71,17 @@ export default function Hero() {
 
           <Link href="/explore" className="nibgate-hero-button nibgate-hero-button-secondary nibgate-button-align-item">
             <p className="nibgate-button-text">Explore</p>
-            <svg className="nibgate-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
+            <svg className="nibgate-hero-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M8.7 1.3 15.4 8l-6.7 6.7-1.4-1.4L11.6 9H.5V7h11.1L7.3 2.7l1.4-1.4Z"></path>
             </svg>
           </Link>
+
+          <a href="https://docs.nibgate.xyz/extension" className="nibgate-hero-button nibgate-hero-button-secondary nibgate-button-align-item">
+            <p className="nibgate-button-text">Extension</p>
+            <svg className="nibgate-hero-button-arrow" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M8.7 1.3 15.4 8l-6.7 6.7-1.4-1.4L11.6 9H.5V7h11.1L7.3 2.7l1.4-1.4Z"></path>
+            </svg>
+          </a>
         </div>
       </div>
     </section>

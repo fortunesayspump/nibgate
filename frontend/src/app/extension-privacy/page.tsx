@@ -18,7 +18,7 @@ const SECTIONS: Array<[string, string]> = [
   ],
   [
     "Networks",
-    "Testnet is the default and uses play money (faucet USDC). Mainnet is an explicit confirm-gated toggle in Settings and spends real USDC. You can switch back at any time.",
+    "Testnet is the default and uses play money (faucet USDC). Mainnet is an explicit confirm-gated switch from the header network pill and spends real USDC. You can switch back at any time.",
   ],
   [
     "Questions or deletion",
@@ -50,6 +50,12 @@ export default function ExtensionPrivacyPage() {
           ))}
           <hr className="my-10 border-dark-gray/30" />
           <div className="flex flex-wrap gap-4 text-lg">
+            <a
+              href="https://docs.nibgate.xyz/extension"
+              className="underline underline-offset-4"
+            >
+              Extension guide
+            </a>
             <a href="mailto:hello@nibgate.xyz" className="underline underline-offset-4">
               Contact us
             </a>

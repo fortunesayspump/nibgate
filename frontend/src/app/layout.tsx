@@ -11,7 +11,7 @@ import "../styles/styles.css";
 export const metadata: Metadata = {
   title: "Nibgate - verified content discovery",
   description:
-    "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
+    "Nibgate helps creators publish wallet-unlocked content from their own websites, get tipped on any page, and make quality content discoverable to humans and AI agents — paid in USDC on Arc mainnet.",
   metadataBase: new URL("https://nibgate.xyz"),
   alternates: { canonical: "/" },
   // Testnet builds must never be indexed (staging mirror of the main site).

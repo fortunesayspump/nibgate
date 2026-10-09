@@ -18,6 +18,7 @@ export default function Header() {
     { label: "Share", href: "/share" },
     { label: "Leaderboards", href: "/leaderboards" },
     { label: "Ledger", href: "/ledger" },
+    { label: "Dr. Nib", href: "/dr-nib/research" },
     { label: "About", href: "/about" },
   ];
 

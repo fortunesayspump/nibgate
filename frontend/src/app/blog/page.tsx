@@ -60,7 +60,7 @@ export default async function BlogPage() {
               <div className="border border-dark-gray/50 bg-white p-8 md:p-12">
                 <p className="text-xl font-medium">No posts yet.</p>
                 <p className="mt-4 max-w-2xl text-lg leading-8">
-                  Product updates, creator notes, and discovery essays will show up here soon.
+                  Product updates, creator notes, and discovery essays will show up here — mainnet, Nib Tips, and extension news first.
                 </p>
               </div>
             ) : (

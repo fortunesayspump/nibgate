@@ -169,13 +169,43 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const [awaitingText, setAwaitingText] = useState("");
   const [awaitingBusy, setAwaitingBusy] = useState(false);
   const [awaitingError, setAwaitingError] = useState("");
+  const [reportVersion, setReportVersion] = useState<number | null>(null);
+  const [endArmed, setEndArmed] = useState(false);
+  const [endBusy, setEndBusy] = useState(false);
+  const [raiseAmt, setRaiseAmt] = useState("");
+  const [raiseBusy, setRaiseBusy] = useState(false);
+  const [raiseError, setRaiseError] = useState("");
 
   async function load() {
     try {
       const r = await drNibApi.getRun(id);
       setRun(r);
-      try { setReport(await drNibApi.getReport(id)); } catch { setReport(null); }
+      try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); } catch { setReport(null); }
     } catch (e: any) { setError(e.message); }
+  }
+
+  async function endRun() {
+    if (!endArmed) { setEndArmed(true); return; }
+    setEndBusy(true);
+    try {
+      await drNibApi.endRun(id);
+      setEndArmed(false);
+      await load();
+    } catch (e: any) { setError(e?.message || "End failed."); }
+    finally { setEndBusy(false); }
+  }
+
+  async function raiseCap() {
+    const amount = Number(raiseAmt);
+    if (!(amount > 0)) { setRaiseError("Enter an amount above 0."); return; }
+    setRaiseBusy(true);
+    setRaiseError("");
+    try {
+      await drNibApi.topUp(id, amount);
+      setRaiseAmt("");
+      await load();
+    } catch (e: any) { setRaiseError(e?.message || "Raise failed."); }
+    finally { setRaiseBusy(false); }
   }
 
   // Exports render on demand from the finished report and download directly.
@@ -375,6 +405,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               )}
             </div>
           )}
+          {(run.status === "running" || run.status === "paused" || run.status === "awaiting") && (
+            <div className="mt-3">
+              <button onClick={endRun} disabled={endBusy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{endBusy ? "Ending…" : endArmed ? "Click again to end + refund" : "End run"}</button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -407,7 +442,24 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           {report && (
             <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium">Report · v{report.version}</p>
+                <p className="flex items-center gap-2 text-sm font-medium">
+                  Report · v{report.version}
+                  {Number(run.versions) > 1 && (
+                    <select
+                      aria-label="Report version"
+                      value={reportVersion ?? report.version}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setReportVersion(v >= Number(run.versions) ? null : v);
+                      }}
+                      className="border border-dark-gray/50 bg-white px-2 py-1 text-xs"
+                    >
+                      {Array.from({ length: Number(run.versions) }, (_, i) => i + 1).reverse().map((v) => (
+                        <option key={v} value={v}>v{v}{v === Number(run.versions) ? " (latest)" : ""}</option>
+                      ))}
+                    </select>
+                  )}
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {["md", "json", "bibtex", "pdf", "word", "excel", "powerpoint"].map((f) => (
                     <button key={f} onClick={() => downloadExport(f)} className="border border-dark-gray/60 px-2.5 py-1 text-[11px] font-medium uppercase">{f}</button>
@@ -444,6 +496,21 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <p className="text-xs opacity-60">${spent.toFixed(2)} of ${cap.toFixed(2)}</p>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>
+            {(run.status === "running" || run.status === "paused" || run.status === "awaiting") && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="number" min={0.1} step={0.1} value={raiseAmt}
+                  onChange={(e) => setRaiseAmt(e.target.value)}
+                  placeholder={`New cap total (now $${cap.toFixed(2)})`}
+                  aria-label="New cap total in USDC"
+                  className="w-52 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm"
+                />
+                <button onClick={raiseCap} disabled={raiseBusy} className="border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">
+                  {raiseBusy ? "Raising…" : "Raise cap"}
+                </button>
+              </div>
+            )}
+            {raiseError ? <p className="mt-2 text-xs text-red-700">{raiseError}</p> : null}
           </section>
         </div>
 

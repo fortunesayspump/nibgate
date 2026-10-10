@@ -71,9 +71,11 @@ export const drNibApi = {
   approveRun: (id: string) => req(`/v1/runs/${id}/approve`, { method: "POST" }),
   pauseRun: (id: string) => req(`/v1/runs/${id}/pause`, { method: "POST" }),
   resumeRun: (id: string) => req(`/v1/runs/${id}/resume`, { method: "POST" }),
+  endRun: (id: string) => req(`/v1/runs/${id}/end`, { method: "POST" }),
   deleteRun: (id: string) => req(`/v1/runs/${id}`, { method: "DELETE" }),
   restoreRun: (id: string) => req(`/v1/runs/${id}/restore`, { method: "POST" }),
-  getReport: (id: string) => req(`/v1/runs/${id}/report`),
+  getReport: (id: string, version?: number) =>
+    req(`/v1/runs/${id}/report${version ? `?version=${version}` : ""}`),
   answerAwaiting: (id: string, text: string) =>
     req(`/v1/runs/${id}/awaiting/answer`, { method: "POST", body: JSON.stringify({ text }) }),
   sendGuidance: (id: string, text: string) =>

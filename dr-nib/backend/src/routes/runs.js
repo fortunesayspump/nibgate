@@ -545,7 +545,12 @@ runs.post('/:id/escrow/complete', async (req, res) => {
 runs.get('/:id/report', async (req, res) => {
   const run = await ownedRun(req, res);
   if (!run) return;
-  const report = await db.researchReport.findFirst({ where: { runId: run.id }, orderBy: { version: 'desc' } });
+  // ?version=N reads an older reprompt version; default is latest.
+  const v = Number(req.query.version);
+  const report = await db.researchReport.findFirst({
+    where: { runId: run.id, ...(Number.isInteger(v) && v > 0 ? { version: v } : {}) },
+    orderBy: { version: 'desc' },
+  });
   if (!report) return res.status(404).json({ error: 'no report yet' });
   res.json(report);
 });

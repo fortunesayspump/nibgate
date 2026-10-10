@@ -448,7 +448,7 @@ export default function ResearchNewPage() {
 
   return (
     <div>
-      {notice && <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button></div>}
+      {notice && <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}{/live run/i.test(notice) && (<> — <button onClick={() => router.push("/dr-nib/projects")} className="underline">review them in Projects</button></>)}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button></div>}
       {needsSignIn && (
         <div className="mb-4">
           <button onClick={() => { setNeedsSignIn(false); connect(); }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white">

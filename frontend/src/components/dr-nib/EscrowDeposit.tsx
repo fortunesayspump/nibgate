@@ -8,7 +8,8 @@
 // starts once the job reads Funded for at least the cap.
 
 import { useState } from "react";
-import { useAppKitAccount, useAppKitProvider } from "@reown/appkit/react";
+import type { Eip1193Provider } from "@nibgate/wallet";
+import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
 import { createWalletClient, custom, encodeFunctionData } from "viem";
 import { activeArcChain } from "@nibgate/wallet/chain";
 import { ensureArcNetwork } from "@nibgate/wallet/network";
@@ -28,7 +29,7 @@ type Step = "idle" | "creating" | "budget" | "approving" | "funding" | "confirmi
 
 export function EscrowDeposit({ runId, budgetCap, onFunded }: { runId: string; budgetCap: number; onFunded: () => void }) {
   const { address } = useAppKitAccount();
-  const { walletProvider } = useAppKitProvider("eip155") as any;
+  const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState("");
   const [tx, setTx] = useState("");

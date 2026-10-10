@@ -219,8 +219,13 @@ runs.post('/:id/configure', async (req, res) => {
       where: { id: run.id },
       data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null },
     });
-    const holds = await db.budgetLedger.findFirst({ where: { runId: run.id, kind: 'deposit' } });
-    if (!holds) await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(budgetCap) } });
+    // The ledger deposit mirrors verified money, never intent: on escrow
+    // deployments it is written at approve from the onchain Funded budget
+    // (see approve). Only the ledger-only path books the cap here.
+    if (!isEscrowConfigured()) {
+      const holds = await db.budgetLedger.findFirst({ where: { runId: run.id, kind: 'deposit' } });
+      if (!holds) await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(budgetCap) } });
+    }
     await requestPlan(run.id);
     res.status(202).json({ id: run.id, status: 'planning', length: resolvedLength });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -249,8 +254,36 @@ runs.post('/:id/approve', async (req, res) => {
     // Escrowed runs move real money: the onchain job must be Funded for at
     // least the cap before anything executes. Runs without escrow keep the
     // ledger-only path.
+    //
+    // Where escrow is configured it is mandatory, not opt-in: approve verifies
+    // the deposit onchain and books the ledger from the verified budget, so
+    // the offchain balance always trails real money. Unfunded runs stop here
+    // with the funding step named.
     const escrow = escrowOf(run);
-    if (escrow?.jobId) {
+    if (isEscrowConfigured()) {
+      if (!escrow?.jobId) {
+        return res.status(409).json({ error: 'no onchain deposit yet — fund the run escrow first, then approve' });
+      }
+      const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
+      if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
+      if (chain.status !== 'Funded') {
+        return res.status(409).json({ error: `escrow job ${escrow.jobId} is ${chain.status} — fund it onchain first` });
+      }
+      if (!(chain.budget >= Number(run.budgetCap))) {
+        return res.status(409).json({ error: `escrow holds $${chain.budget} but the cap is $${Number(run.budgetCap)} — fund the difference first` });
+      }
+      await db.researchRun.update({
+        where: { id: run.id },
+        data: { metadata: { ...(run.metadata || {}), escrow: { ...escrow, status: 'Funded' } } },
+      });
+      // Book the verified budget, not the requested cap: the ledger trails
+      // the chain. Idempotent top-up (re-approvals, re-funds).
+      const have = await db.budgetLedger.findMany({ where: { runId: run.id, kind: 'deposit' } });
+      const haveTotal = have.reduce((s, r) => s + Number(r.amount), 0);
+      if (chain.budget > haveTotal) {
+        await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(chain.budget - haveTotal) } });
+      }
+    } else if (escrow?.jobId) {
       const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
       if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
       if (chain.status !== 'Funded') {
@@ -344,6 +377,10 @@ runs.post('/:id/end', async (req, res) => {
     });
     await recordEvent(run.id, { type: 'status', status: 'ended', pauseReason: 'user' });
     const money = await settle(run.id, 'ended');
+    try {
+      const { settleEscrowRun } = await import('../escrow/settle.js');
+      await settleEscrowRun(run.id, 'ended');
+    } catch {}
     res.json({ id: run.id, status: 'ended', ...money });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -407,11 +444,22 @@ runs.post('/:id/guidance', async (req, res) => {
 });
 
 // Raise the cap. If the run was parked at the cap, this is what lets it go on.
+// On escrow runs the raise trails the chain too: the onchain budget must
+// cover the new cap first (top up in the wallet), otherwise the ledger would
+// authorize spend the contract does not hold.
 runs.post('/:id/budget', async (req, res) => {
   try {
     const { amount, txRef } = req.body || {};
     const run = await ownedRun(req, res);
     if (!run) return;
+    const escrow = escrowOf(run);
+    if (escrow?.jobId && isEscrowConfigured()) {
+      const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
+      if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
+      if (!(chain.budget >= Number(amount))) {
+        return res.status(409).json({ error: `escrow holds $${chain.budget} — top up onchain to $${Number(amount)} first` });
+      }
+    }
     const result = await raiseCap(run.id, Number(amount), txRef || null);
     if (!result.ok) return res.status(400).json({ error: result.error });
     await recordEvent(run.id, { type: 'budget.raised', cap: result.budgetCap, balance: result.balance });

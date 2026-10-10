@@ -206,6 +206,10 @@ export const TOOLS = [
       });
       await recordEvent(run.id, { type: 'status', status: 'ended', pauseReason: 'user' });
       const money = await settle(run.id, 'ended');
+      try {
+        const { settleEscrowRun } = await import('../escrow/settle.js');
+        await settleEscrowRun(run.id, 'ended');
+      } catch {}
       return { id: run.id, status: 'ended', ...money };
     },
   },

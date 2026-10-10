@@ -76,9 +76,10 @@ export default function ResearchNewPage() {
   const [busy, setBusy] = useState(false);
   // Echo of the sent topic, shown on the creating screen as the confirmation.
   const [topicEcho, setTopicEcho] = useState("");
-  // Onchain escrow is opt-in per run: the ledger path stays default, and a
-  // funded escrow becomes a hard gate at approve (backend enforces Funded).
-  const [escrowOptIn, setEscrowOptIn] = useState(false);
+  // Onchain escrow funds every run where the deployment supports it: the
+  // deposit is verified before approve, stages draw from it, and the
+  // remainder returns automatically at settle. No opt-in — money is the gate.
+  const [escrowConfigured, setEscrowConfigured] = useState<boolean | null>(null);
   const [escrowFunded, setEscrowFunded] = useState(false);
   const stopRef = useRef<null | (() => void)>(null);
 
@@ -343,6 +344,31 @@ export default function ResearchNewPage() {
     setPhase("composer");
   }
 
+  // Escrow funding state for the review gate: configured means this
+  // deployment verifies deposits onchain and approve stays locked until the
+  // job reads Funded. The job opens here (one less click — Fund only funds);
+  // a failed read leaves the gate open and the backend enforces it anyway.
+  // Polls while review is open: funding can land from another tab/wallet.
+  useEffect(() => {
+    if (phase !== "review" || escrowConfigured !== true || escrowFunded || !project) return;
+    const t = setInterval(() => { void loadEscrow(project.id); }, 5000);
+    return () => clearInterval(t);
+  }, [phase, escrowConfigured, escrowFunded, project]);
+  async function loadEscrow(runId: string) {
+    setEscrowFunded(false);
+    try {
+      let st: any = await drNibApi.getEscrow(runId);
+      if (st?.configured === true && !st?.job) {
+        try { await drNibApi.createEscrow(runId, {}); } catch { /* already open, or create failed — re-read */ }
+        st = await drNibApi.getEscrow(runId);
+      }
+      setEscrowConfigured(st?.configured === true);
+      setEscrowFunded(st?.job?.chain?.status === "Funded");
+    } catch {
+      setEscrowConfigured(null);
+    }
+  }
+
   async function savePlan(next: string[]) {
     if (!project) return;
     setBusy(true);
@@ -379,6 +405,7 @@ export default function ResearchNewPage() {
           setSubQuestions(Array.isArray(full.plan?.sub_questions) ? full.plan.sub_questions.map(String) : []);
           setPhase("review");
           landed = true;
+          await loadEscrow(project.id);
           break;
         }
       }
@@ -654,9 +681,7 @@ export default function ResearchNewPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} onChange={(e) => setLiveWeb(e.target.checked)} /> Live web search</label>
-            <label className="flex items-center gap-2" title="Lock the cap in an onchain escrow instead of a ledger allowance">
-              <input type="checkbox" checked={escrowOptIn} onChange={(e) => { setEscrowOptIn(e.target.checked); setEscrowFunded(false); }} /> Fund onchain escrow
-            </label>
+            <span className="opacity-60">Runs are funded by an onchain escrow deposit — approve stays locked until it lands.</span>
             <span className="opacity-60">Outputs:</span>
             {["pdf", "word", "excel", "powerpoint"].map((f) => (
               <button key={f} onClick={() => setFormats((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]))} className={`border px-2.5 py-1 text-xs uppercase ${formats.includes(f) ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{f}</button>
@@ -773,15 +798,20 @@ export default function ResearchNewPage() {
               </ul>
             </div>
           )}
-          {escrowOptIn && project && !escrowFunded && (
+          {escrowConfigured === true && project && !escrowFunded && (
             <EscrowDeposit runId={project.id} budgetCap={budgetCap} onFunded={() => setEscrowFunded(true)} />
           )}
+          {escrowConfigured === true && escrowFunded && (
+            <p className="mt-4 border-2 border-black bg-white p-4 text-sm">✓ Escrow funded — approving starts the run against your deposit. Unspent money returns to your wallet automatically at settle.</p>
+          )}
           <p className="mt-4 text-xs leading-5 opacity-60">
-            No wallet signature needed here — the ${budgetCap.toFixed(2)} cap is a spending allowance on Nibgate&apos;s metered providers, and whatever isn&apos;t spent is released when the run settles. Real money moves only if you fund the onchain escrow above.
+            {escrowConfigured === true
+              ? `Approving starts the run against your $${budgetCap.toFixed(2)} onchain deposit — this is the spend authorization, signed when you funded. Stages draw from it; whatever isn't spent returns to your wallet at settle.`
+              : "Onchain escrow isn't available on this network yet, so runs draw from a ledger allowance. Real money moves only where escrow is configured."}
           </p>
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project || (escrowOptIn && !escrowFunded)} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowOptIn && !escrowFunded ? "Fund the escrow first" : undefined}>{busy ? "Starting…" : "Approve & run"}</button>
+            <button onClick={approve} disabled={busy || !project || (escrowConfigured === true && !escrowFunded)} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy ? "Starting…" : "Approve & run"}</button>
           </div>
         </section>
       )}

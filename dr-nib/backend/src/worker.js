@@ -987,6 +987,12 @@ export async function runExecute(runId) {
 
   await park(runId, 'complete');
   await settle(runId, 'complete');
+  // Escrowed runs release the remainder onchain here (submit + complete +
+  // split attestation); never throws, so the run stays complete regardless.
+  try {
+    const { settleEscrowRun } = await import('./escrow/settle.js');
+    await settleEscrowRun(runId, 'complete');
+  } catch {}
   // The run is over: its sandbox has no more work and must not keep billing.
   await destroySandbox(runId);
 }

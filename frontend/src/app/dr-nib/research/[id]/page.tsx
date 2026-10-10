@@ -3,28 +3,10 @@
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Pause, Play, Send } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { subscribeRunEvents } from "@/lib/dr-nib-events";
 import { TrustChip } from "@/components/dr-nib/common";
-
-// Report body as formatted prose, not source text: headings, lists, quotes,
-// and citations render; raw markdown never shows.
-const mdComponents = {
-  h1: ({ children }: any) => <h1 className="text-xl font-medium leading-snug md:text-2xl">{children}</h1>,
-  h2: ({ children }: any) => <h2 className="mt-5 text-lg font-medium leading-snug">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="mt-4 text-[15px] font-medium leading-snug">{children}</h3>,
-  p: ({ children }: any) => <p className="mt-2.5 leading-7">{children}</p>,
-  ul: ({ children }: any) => <ul className="mt-2.5 list-disc space-y-1 pl-5 leading-7">{children}</ul>,
-  ol: ({ children }: any) => <ol className="mt-2.5 list-decimal space-y-1 pl-5 leading-7">{children}</ol>,
-  li: ({ children }: any) => <li>{children}</li>,
-  a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="break-all underline underline-offset-2">{children}</a>,
-  blockquote: ({ children }: any) => <blockquote className="mt-2.5 border-l-2 border-black/60 pl-3 opacity-80">{children}</blockquote>,
-  strong: ({ children }: any) => <strong className="font-semibold">{children}</strong>,
-  code: ({ children }: any) => <code className="break-all font-mono text-[12px] opacity-80">{children}</code>,
-  pre: ({ children }: any) => <pre className="mt-2.5 overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-black/[0.04] p-3 font-mono text-[12px] leading-6">{children}</pre>,
-  hr: () => <hr className="my-4 border-black/20" />,
-};
+import { ReportArticle } from "@/components/dr-nib/ReportMarkdown";
 
 // One chronological feed from three sources: the agent's reads (intake
 // thinking), the steps with their full outputs, and the tool calls with
@@ -496,7 +478,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 </div>
               </div>
               {exportError ? <p className="mb-2 text-xs text-red-700">{exportError}</p> : null}
-              <article className="text-sm"><ReactMarkdown components={mdComponents}>{report.markdown}</ReactMarkdown></article>
+              <ReportArticle markdown={report.markdown} />
             </section>
           )}
 

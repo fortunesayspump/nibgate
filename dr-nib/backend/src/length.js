@@ -49,5 +49,9 @@ export function wordsPerSection(length) {
 }
 
 export function maxTokensForWords(words) {
-  return Math.ceil(words * 1.5);
+  // 2 tokens/word: markdown, citations, and list markup ride on top of
+  // prose, and a tight budget clips the final sentence mid-clause (seen
+  // live: "...the trailing clause \"that hard pay\"," — end of section).
+  // max_tokens is a ceiling, not spend: unneeded headroom costs nothing.
+  return Math.ceil(words * 2);
 }

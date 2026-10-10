@@ -13,6 +13,7 @@ import { extractText as extractPdfText } from 'unpdf';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { mapLimit } from '../util.js';
 
 const UA = 'DrNibResearch/1.0 (+https://nibgate.xyz; research agent, respects robots.txt)';
 
@@ -21,18 +22,23 @@ const UA = 'DrNibResearch/1.0 (+https://nibgate.xyz; research agent, respects ro
 // would blacklist half the web over transient network blips.
 const robotsCache = new Map();
 
-async function robotsAllows(url, fetchImpl) {
+async function robotsAllows(url, fetchImpl, timeoutMs = 8000) {
   let origin;
   try { origin = new URL(url).origin; } catch { return false; }
   if (!robotsCache.has(origin)) {
     robotsCache.set(origin, (async () => {
+      // robots.txt must never hang a slot: a dead origin fails open fast.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(new Error('robots timed out')), timeoutMs);
       try {
-        const res = await fetchImpl(`${origin}/robots.txt`, { headers: { 'user-agent': UA } });
+        const res = await fetchImpl(`${origin}/robots.txt`, { headers: { 'user-agent': UA }, signal: controller.signal });
         if (!res.ok) return [];
         const text = await res.text();
         return parseRobots(text);
       } catch {
         return [];
+      } finally {
+        clearTimeout(timer);
       }
     })());
   }
@@ -197,73 +203,81 @@ function looksBlocked(html) {
  * Extract readable text from URLs directly. Free; metered at zero.
  * @returns {Promise<{documents:Array, skipped:Array, costUsd:0}>}
  */
-export async function directExtract({ urls, maxChars = 20000, timeoutMs = 20000 } = {}, { fetchImpl = fetch } = {}) {
+export async function directExtract({ urls, maxChars = 20000, timeoutMs = 12000 } = {}, { fetchImpl = fetch } = {}) {
   const list = Array.isArray(urls) ? urls.filter(Boolean).slice(0, 20) : [];
+  // Pages are independent: fetch up to 6 at once instead of one by one.
+  // The old serial loop turned 12 slow pages into minutes; the per-URL
+  // timeout still bounds the worst case.
+  const settled = await mapLimit(list, 6, (url) => extractOne(url, { maxChars, timeoutMs, fetchImpl }));
   const documents = [];
   const skipped = [];
-  for (const url of list) {
-    try {
-      const allowed = await robotsAllows(url, fetchImpl);
-      if (!allowed) { skipped.push({ url, reason: 'robots-disallow' }); continue; }
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(new Error('fetch timed out')), timeoutMs);
-      let res;
-      try {
-        res = await fetchImpl(url, { headers: { 'user-agent': UA, accept: 'text/html' }, signal: controller.signal });
-      } finally {
-        clearTimeout(timer);
-      }
-      if (res.status === 401 || res.status === 403) { skipped.push({ url, reason: `http-${res.status}` }); continue; }
-      if (!res.ok) { skipped.push({ url, reason: `http-${res.status}` }); continue; }
-      const contentType = res.headers?.get ? res.headers.get('content-type') : null;
-      // One download, every path: bytes serve the document parsers and decode
-      // once for the text paths. Anything over 10MB is not a readable page.
-      // Test doubles that only implement text() still work: decode from text.
-      const buf = typeof res.arrayBuffer === 'function'
-        ? Buffer.from(await res.arrayBuffer())
-        : Buffer.from(await res.text(), 'utf8');
-      if (buf.length > 10 * 1024 * 1024) { skipped.push({ url, reason: 'file-too-large' }); continue; }
-      const office = officeKind(contentType, url);
-      const pdfMagic = buf.subarray(0, 5).toString('latin1') === '%PDF-';
-      if (office || looksPdf(contentType, url) || pdfMagic) {
-        const isOffice = Boolean(office);
-        try {
-          let text;
-          let pages = null;
-          if (isOffice) {
-            text = String(await extractOffice(office, buf) || '').replace(/\r\n/g, '\n').trim().slice(0, maxChars);
-          } else {
-            const { text: pages_text, totalPages } = await extractPdfText(new Uint8Array(buf));
-            pages = totalPages || null;
-            text = (Array.isArray(pages_text) ? pages_text.join('\n\n') : String(pages_text || '')).replace(/\r\n/g, '\n').trim().slice(0, maxChars);
-          }
-          if (text.length < 50) { skipped.push({ url, reason: pages ? 'pdf-scanned-no-text' : 'no-readable-text' }); continue; }
-          documents.push({ url, title: decodeURIComponent(String(url).split('/').pop()?.split('?')[0] || url).slice(0, 200), text, pages, provider: 'direct', costUsd: 0 });
-        } catch {
-          skipped.push({ url, reason: isOffice ? 'office-parse-failed' : 'unsupported-type' });
-        }
-        continue;
-      }
-      const raw = buf.toString('utf8');
-      const kind = classifyBody(contentType, url, raw);
-      if (kind === 'unsupported') { skipped.push({ url, reason: 'unsupported-type' }); continue; }
-      if (kind === 'text') {
-        const text = raw.replace(/\r\n/g, '\n').trim().slice(0, maxChars);
-        if (text.length < 50) { skipped.push({ url, reason: 'no-readable-text' }); continue; }
-        documents.push({ url, title: titleOf(url), text, provider: 'direct', costUsd: 0 });
-        continue;
-      }
-      const html = raw;
-      if (looksPaywalled(html)) { skipped.push({ url, reason: 'paywalled' }); continue; }
-      if (looksBlocked(html)) { skipped.push({ url, reason: 'blocked-bot-check' }); continue; }
-      const text = htmlToText(html).slice(0, maxChars);
-      if (text.length < 200) { skipped.push({ url, reason: 'no-readable-text' }); continue; }
-      documents.push({ url, title: titleOf(html), text, provider: 'direct', costUsd: 0 });
-    } catch (err) {
-      skipped.push({ url, reason: `fetch-error: ${String(err?.message || err).slice(0, 80)}` });
-    }
+  for (const r of settled) {
+    if (r.document) documents.push(r.document);
+    else skipped.push({ url: r.url, reason: r.reason });
   }
   return { documents, skipped, costUsd: 0 };
+}
+
+async function extractOne(url, { maxChars, timeoutMs, fetchImpl }) {
+  const skip = (reason) => ({ url, reason });
+  try {
+    const allowed = await robotsAllows(url, fetchImpl);
+    if (!allowed) return skip('robots-disallow');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error('fetch timed out')), timeoutMs);
+    let res;
+    try {
+      res = await fetchImpl(url, { headers: { 'user-agent': UA, accept: 'text/html' }, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.status === 401 || res.status === 403) return skip(`http-${res.status}`);
+    if (!res.ok) return skip(`http-${res.status}`);
+    const contentType = res.headers?.get ? res.headers.get('content-type') : null;
+    // One download, every path: bytes serve the document parsers and decode
+    // once for the text paths. Anything over 10MB is not a readable page.
+    // Test doubles that only implement text() still work: decode from text.
+    const buf = typeof res.arrayBuffer === 'function'
+      ? Buffer.from(await res.arrayBuffer())
+      : Buffer.from(await res.text(), 'utf8');
+    if (buf.length > 10 * 1024 * 1024) return skip('file-too-large');
+    const office = officeKind(contentType, url);
+    const pdfMagic = buf.subarray(0, 5).toString('latin1') === '%PDF-';
+    if (office || looksPdf(contentType, url) || pdfMagic) {
+      const isOffice = Boolean(office);
+      try {
+        let text;
+        let pages = null;
+        if (isOffice) {
+          text = String(await extractOffice(office, buf) || '').replace(/\r\n/g, '\n').trim().slice(0, maxChars);
+        } else {
+          const { text: pages_text, totalPages } = await extractPdfText(new Uint8Array(buf));
+          pages = totalPages || null;
+          text = (Array.isArray(pages_text) ? pages_text.join('\n\n') : String(pages_text || '')).replace(/\r\n/g, '\n').trim().slice(0, maxChars);
+        }
+        if (text.length < 50) return skip(pages ? 'pdf-scanned-no-text' : 'no-readable-text');
+        return { url, document: { url, title: decodeURIComponent(String(url).split('/').pop()?.split('?')[0] || url).slice(0, 200), text, pages, provider: 'direct', costUsd: 0 } };
+      } catch {
+        return skip(isOffice ? 'office-parse-failed' : 'unsupported-type');
+      }
+    }
+    const raw = buf.toString('utf8');
+    const kind = classifyBody(contentType, url, raw);
+    if (kind === 'unsupported') return skip('unsupported-type');
+    if (kind === 'text') {
+      const text = raw.replace(/\r\n/g, '\n').trim().slice(0, maxChars);
+      if (text.length < 50) return skip('no-readable-text');
+      return { url, document: { url, title: titleOf(url), text, provider: 'direct', costUsd: 0 } };
+    }
+    const html = raw;
+    if (looksPaywalled(html)) return skip('paywalled');
+    if (looksBlocked(html)) return skip('blocked-bot-check');
+    const text = htmlToText(html).slice(0, maxChars);
+    if (text.length < 200) return skip('no-readable-text');
+    return { url, document: { url, title: titleOf(html), text, provider: 'direct', costUsd: 0 } };
+  } catch (err) {
+    return skip(`fetch-error: ${String(err?.message || err).slice(0, 80)}`);
+  }
 }
 
 export function __clearRobotsCache() { robotsCache.clear(); }

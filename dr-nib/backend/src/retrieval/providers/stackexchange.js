@@ -15,7 +15,7 @@ export async function stackexchangeSearch({ query, maxResults = 5 } = {}, { fetc
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?order=desc&sort=relevance&q=${encodeURIComponent(query)}&site=stackoverflow&pagesize=${n}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('stackexchange timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('stackexchange timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

@@ -14,7 +14,7 @@ export async function semanticscholarSearch({ query, maxResults = 5 } = {}, { fe
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?query=${encodeURIComponent(query)}&limit=${n}&fields=title,abstract,url,openAccessPdf,year,authors,citationCount,venue`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('semanticscholar timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('semanticscholar timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

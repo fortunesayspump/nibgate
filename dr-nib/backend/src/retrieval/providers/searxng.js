@@ -4,7 +4,7 @@
 // Google/Bing-grade results with no API key and no per-query price.
 // Absent URL, this provider simply does not exist — nothing configured,
 // nothing called.
-const TIMEOUT_MS = 20000;
+const TIMEOUT_MS = 10000;
 
 export function searxngUrl() {
   return process.env.SEARXNG_URL || '';

@@ -28,7 +28,7 @@ import { searxngSearch, isSearxngConfigured } from './providers/searxng.js';
 import { directExtract } from './providers/direct.js';
 import { circuitAllows, circuitFailure, circuitSuccess } from './circuit.js';
 
-export { RetrievalUnavailable, dedupeByUrl } from './util.js';
+export { RetrievalUnavailable, dedupeByUrl, mapLimit } from './util.js';
 export { isTavilyConfigured } from './providers/tavily.js';
 export { isExaConfigured } from './providers/exa.js';
 export { normalizeUrl } from './util.js';

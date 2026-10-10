@@ -14,7 +14,7 @@ export async function wikipediaSearch({ query, maxResults = 5 } = {}, { fetchImp
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=${n}&srprop=size&format=json&formatversion=2`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('wikipedia timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('wikipedia timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

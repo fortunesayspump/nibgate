@@ -28,7 +28,7 @@ export async function gdeltSearch({ query, maxResults = 6 } = {}, { fetchImpl } 
   // must not inherit a 5-second gate.
   if (!fetchImpl) await pace();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('gdelt timed out')), 40000);
+  const timer = setTimeout(() => controller.abort(new Error('gdelt timed out')), 15000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

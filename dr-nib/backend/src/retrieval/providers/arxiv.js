@@ -33,7 +33,7 @@ export async function arxivSearch({ query, maxResults = 5 } = {}, { fetchImpl } 
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 20);
   const url = `${BASE}?search_query=all:${encodeURIComponent(query)}&start=0&max_results=${n}&sortBy=relevance&sortOrder=descending`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('arXiv timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('arXiv timed out')), 10000);
   let xml;
   try {
     const fetchFn = fetchImpl || fetch;

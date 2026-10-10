@@ -15,7 +15,7 @@ export async function edgarSearch({ query, maxResults = 5 } = {}, { fetchImpl } 
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?q=${encodeURIComponent(`"${query}"`)}&dateRange=custom&startdt=2000-01-01&enddt=${new Date().toISOString().slice(0, 10)}&forms=10-K,10-Q,8-K,S-1,20-F,40-F`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('edgar timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('edgar timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

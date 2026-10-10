@@ -12,7 +12,7 @@ import { generatePlan, generateReport, generateReportLong, generateRoundReview }
 import { resolveLength } from './length.js';
 import { searchEvidence } from './tools/evidence.js';
 import { runChoice, runNoul, runGrade } from './jev/decisions.js';
-import { dedupeByUrl } from './retrieval/index.js';
+import { dedupeByUrl, mapLimit } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
 import { isSpendConfigured } from './spend/policy.js';
 import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/sandbox.js';
@@ -126,7 +126,10 @@ async function stage(runId, kind, version, fn) {
     }).catch(() => {});
   }, HEARTBEAT_MS);
   try {
+    const started = Date.now();
     const out = await fn();
+    const elapsedMs = Date.now() - started;
+    console.log(`[dr-nib] stage=${kind} run=${runId} elapsed=${elapsedMs}ms`);
     await db.researchStep.update({
       where: { id: row.id },
       data: { status: 'done', output: out ?? {}, endedAt: new Date() },
@@ -287,13 +290,15 @@ async function searchStage(runId, run, queries) {
   let costUsd = 0;
   const providers = [];
   let attempted = false;
-  for (const query of list) {
-    const called = await runTool(runId, 'web_search', {
-      query,
-      maxResults: 6,
-      searchDepth: brief.depth === 'deep' ? 'advanced' : 'basic',
-      includeContent: true,
-    }, { policy: briefPolicy(run) });
+  // Queries are independent: fan them out together. The old serial loop
+  // multiplied every slow provider by the query count (standard = 4x).
+  const perQuery = await Promise.all(list.map((query) => runTool(runId, 'web_search', {
+    query,
+    maxResults: 6,
+    searchDepth: brief.depth === 'deep' ? 'advanced' : 'basic',
+    includeContent: true,
+  }, { policy: briefPolicy(run) })));
+  for (const called of perQuery) {
     const out = called.output || {};
     if (!out.fallback) attempted = true;
     settled.push(...(out.results || []));
@@ -571,11 +576,11 @@ async function scoreStage(runId, run) {
   }
 
   const top = documents.slice(0, limits.scoreTop);
-  const scored = [];
-  let jevCost = 0;
   const criteria = await trustCriteria(run);
   const priors = await memoryPriors(run.userId, top.map((d) => domainOf(d.url)));
-  for (const doc of top) {
+  // Sources are independent: judge up to 4 at once. The old serial loop did
+  // 2 hub round-trips per source back to back (standard = 16 in a row).
+  const judged = await mapLimit(top, 4, async (doc) => {
     const prior = priors[domainOf(doc.url)];
     const history = prior ? ` User history: cited in ${prior.cites} of ${prior.reads} past runs.` : '';
     const trust = await runNoul(runId, {
@@ -584,12 +589,12 @@ async function scoreStage(runId, run) {
       state: `Topic: ${run.brief?.topic || ''}\nURL: ${doc.url}\nTitle: ${doc.title}\nExcerpt: ${String(doc.text || '').slice(0, 800)}`,
       instructions: `Probability (0..1) that this source is credible evidence for the topic. Trust a source that meets these criteria: ${criteria}${history}`,
     });
-    if (!trust) return { why: 'Parked: JEV is unreachable, so trust cannot be judged.', scored: scored.length, fallback: false, parked: true };
-    jevCost += Number(trust.usage?.costUsd) || 0;
+    if (!trust) return { parked: true };
     // Evidence grade (Score primitive): where this source falls on the
     // quality scale. Ranks, never gates — JEV down means ungraded, and the
     // run proceeds on trust alone.
     let gradeScore = null;
+    let gradeCost = 0;
     try {
       const g = await runGrade(runId, {
         step: 'source-grade',
@@ -606,10 +611,17 @@ async function scoreStage(runId, run) {
       });
       if (g) {
         gradeScore = g.score;
-        jevCost += Number(g.usage?.costUsd) || 0;
+        gradeCost = Number(g.usage?.costUsd) || 0;
       }
     } catch {}
-    scored.push({ ...doc, trust: trust.probability, grade: gradeScore });
+    return { doc, trust: trust.probability, grade: gradeScore, cost: (Number(trust.usage?.costUsd) || 0) + gradeCost };
+  });
+  const scored = [];
+  let jevCost = 0;
+  for (const j of judged) {
+    if (j.parked) return { why: 'Parked: JEV is unreachable, so trust cannot be judged.', scored: scored.length, fallback: false, parked: true };
+    jevCost += j.cost;
+    scored.push({ ...j.doc, trust: j.trust, grade: j.grade });
   }
 
   // Primary sources first: grade ranks within equal trust.

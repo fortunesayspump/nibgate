@@ -12,7 +12,7 @@ export async function hnSearch({ query, maxResults = 5 } = {}, { fetchImpl } = {
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${n}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('hn timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('hn timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

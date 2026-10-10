@@ -24,7 +24,7 @@ export async function openalexSearch({ query, maxResults = 5 } = {}, { fetchImpl
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?search=${encodeURIComponent(query)}&per-page=${n}&select=id,title,abstract_inverted_index,publication_date,primary_location,authorships,cited_by_count`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('openalex timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('openalex timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

@@ -13,7 +13,7 @@ export async function crossrefSearch({ query, maxResults = 5 } = {}, { fetchImpl
   const n = Math.min(Math.max(Number(maxResults) || 5, 1), 10);
   const url = `${BASE}?query.bibliographic=${encodeURIComponent(query)}&rows=${n}&select=DOI,title,author,published,container-title,URL,abstract`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('crossref timed out')), 20000);
+  const timer = setTimeout(() => controller.abort(new Error('crossref timed out')), 10000);
   let data;
   try {
     const fetchFn = fetchImpl || fetch;

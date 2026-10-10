@@ -65,3 +65,22 @@ export function dedupeByUrl(items) {
   }
   return [...seen.values()];
 }
+
+/** Bounded-parallel map: runs `fn` over `list` with at most `limit` in flight.
+ * Order of results matches order of input. A rejection in one item does not
+ * cancel the others; it rejects the whole call with the first error. */
+export async function mapLimit(list, limit, fn) {
+  const items = Array.isArray(list) ? list : [];
+  const n = Math.max(1, Math.floor(Number(limit) || 1));
+  const out = new Array(items.length);
+  let next = 0;
+  const workers = new Array(Math.min(n, items.length)).fill(0).map(async () => {
+    while (next < items.length) {
+      const i = next;
+      next += 1;
+      out[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}

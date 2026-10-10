@@ -405,7 +405,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               )}
             </div>
           )}
-          {(run.status === "running" || run.status === "paused" || run.status === "awaiting") && (
+          {(["intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"] as string[]).includes(run.status) && (
             <div className="mt-3">
               <button onClick={endRun} disabled={endBusy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{endBusy ? "Ending…" : endArmed ? "Click again to end + refund" : "End run"}</button>
             </div>
@@ -496,7 +496,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <p className="text-xs opacity-60">${spent.toFixed(2)} of ${cap.toFixed(2)}</p>
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>
-            {(run.status === "running" || run.status === "paused" || run.status === "awaiting") && (
+            {(["intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"] as string[]).includes(run.status) && (
               <div className="mt-3 flex items-center gap-2">
                 <input
                   type="number" min={0.1} step={0.1} value={raiseAmt}

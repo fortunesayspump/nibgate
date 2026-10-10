@@ -5,7 +5,7 @@ import { recordEvent, replayEvents } from '../eventlog.js';
 import { idempotency } from '../idempotency.js';
 import { requestExecute, requestPlan, estimatePlanCost } from '../worker.js';
 import * as auth from '../auth.js';
-import { budgetState, raiseCap, settle } from '../money.js';
+import { budgetState, raiseCap, settle, spendable } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
 import { deriveDescription, deriveTitle, nextQuestions, TRASH_TTL_MS } from '../intake.js';
 import { generateIntakeBatch } from '../llm/generate.js';
@@ -232,13 +232,16 @@ runs.post('/:id/approve', async (req, res) => {
     // estimate, or the run would pause almost immediately with nothing learned.
     // A plan with no estimate has not finished planning — approving it would be
     // accepting an unknown spend, so wait instead.
-    const { balance } = await budgetState(run.id);
+    const { used } = await budgetState(run.id);
     const estimate = Number(run.plan?.estimate);
     if (!Number.isFinite(estimate)) {
       return res.status(409).json({ error: 'plan has no estimate yet — wait for planning to finish' });
     }
-    if (balance < estimate) {
-      return res.status(409).json({ error: `balance $${balance.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first` });
+    // Spendable, not ledger balance: a revised-then-settled run reads
+    // negative balance while its cap still authorizes spend (see money.js).
+    const left = spendable(run.budgetCap, used);
+    if (left < estimate) {
+      return res.status(409).json({ error: `balance $${left.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first` });
     }
     // Escrowed runs move real money: the onchain job must be Funded for at
     // least the cap before anything executes. Runs without escrow keep the
@@ -440,8 +443,8 @@ runs.post('/:id/revise', async (req, res) => {
       return res.status(409).json({ error: `reprompt from ${run.status} — finish, fail, end, or pause the run first` });
     }
     const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 2000) : '';
-    const { balance } = await budgetState(run.id);
-    if (!(balance > 0)) return res.status(409).json({ error: 'out of budget — raise the cap first' });
+    const { used } = await budgetState(run.id);
+    if (!(spendable(run.budgetCap, used) > 0)) return res.status(409).json({ error: 'out of budget — raise the cap first' });
     const version = run.versions + 1;
     await db.researchRun.update({
       where: { id: run.id },

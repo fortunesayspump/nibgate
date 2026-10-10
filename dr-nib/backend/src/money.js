@@ -47,6 +47,17 @@ export async function draw(runId, amount, kind = 'spend') {
   return { ok: true, fee: toNum(feeDb), ...(await budgetState(runId)) };
 }
 
+// Spendable under the cap, independent of settle history. budgetState's
+// `balance` (deposited − used − refunded) goes negative when a settled run
+// is revised and spends again — the refund already left, but the original
+// cap still authorizes spend up to its ceiling (draw() enforces that).
+// Gates that answer "can this run spend $X more" must use spendable, never
+// balance, or settled runs wrongly read as broke. (Seen live: spent 0.27
+// on a $2 cap showing −0.128 after an early settle + reprompt.)
+export function spendable(budgetCap, used) {
+  return toNum(toDb(budgetCap ?? 0).minus(toDb(used ?? 0)));
+}
+
 // Hold more against the cap. Raise-only, always: the ledger records the
 // *difference* between the new cap and the old one, so deposited always equals
 // the cap and a raise can never double-count money already held. A cap that

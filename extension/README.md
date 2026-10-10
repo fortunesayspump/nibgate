@@ -48,8 +48,9 @@ an explicit confirmation, so real money never happens by accident.
 3. Tapping it opens the Nibgate **tip window**: amount presets ($1 / $5 / $10)
    or custom, a review step showing exactly who gets paid and the fee, then
    **Approve** signs with your wallet. Nothing signs without your tap.
-4. Receipt lands in **Activity**, and counts in hub Explore/ledger/earnings
-   like any other tip (`type: 'tip'`).
+4. Receipt lands in **Activity**. Funded holds also appear as pending `held`
+   entries in the public hub ledger; they are not completed-tip totals. Refunds
+   create a separate negative ledger entry.
 
 Two outcomes, both safe:
 
@@ -59,6 +60,12 @@ Two outcomes, both safe:
   deterministic holding box keyed to the domain (owner claims later at 5%),
   and you can **refund yourself in full, in one tap**, anytime. Holdings never
   expire.
+
+Creators can check waiting tips for any domain, including external sites, at
+`https://nibgate.xyz/pending-tips` (mainnet) or
+`https://testnet.nibgate.xyz/pending-tips` (testnet). The checker uses the
+current network's records; page metadata depends on what the tipper supplied or
+what matching indexed content provides.
 
 ### Money in, money out
 

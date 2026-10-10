@@ -14,6 +14,7 @@ import { ReportArticle } from "@/components/dr-nib/ReportMarkdown";
 // asked AND what came back — a call without its result is a cliffhanger.
 function buildFeed(run: any): any[] {
   const items: any[] = [];
+  if (!run) return items;
   for (const d of run.decisions || []) {
     if (d.kind === "thinking" && d.output?.text) items.push({ t: "thinking", at: d.createdAt, text: d.output.text });
     // Every question asked and every answer given, intake and mid-run alike:

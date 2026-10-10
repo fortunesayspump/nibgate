@@ -70,10 +70,17 @@ takes the hosted cut. Same pattern as hub-hosted unlocks (`hub/pay`).
 POST /hub/tips/challenge  { contentUrl, title?, amount }
 POST /hub/tips/verify     { payment proof... } → { ok, proof, receipt }
 POST /hub/tips/refund     { domain, payer, message, signature } → full-amount refund of unclaimed holds
-GET  /hub/tips/held?domain=X          (creator view of waiting tips)
+GET  /hub/tips/held?domain=X          (public exact-domain pending-tip check; any site)
 POST /hub/tips/claim     { siteId, token } (release on verification)
 GET  /hub/resolve?url=...             (creator resolution lookup)
 ```
+
+The public held-tip lookup accepts a domain or page URL, normalizes `www`, and
+matches the exact host (subdomains are distinct). It returns the latest 100
+matching rows with the total count and amount across all matches. Mainnet and
+testnet are separate; the API host selects the network. External sites do not
+need to register, though metadata depends on tipper-supplied fields or matching
+indexed content.
 
 ## Creator resolution
 

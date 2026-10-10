@@ -14,7 +14,8 @@ type ExploreContent = {
 
 const HUB_PAGES: Array<[string, string]> = [
   [`${siteOrigin()}/explore`, "Content discovery feed indexing verified creator content from connected sites."],
-  [`${siteOrigin()}/ledger`, "Public activity ledger of every view, unlock, payment, tip, onchain rating, and nibshare across sites (nibshare links stay private)."],
+  [`${siteOrigin()}/ledger`, "Public activity ledger of every view, unlock, payment, tip (including pending funded holds and negative refunds), onchain rating, and nibshare across sites (nibshare links stay private)."],
+  [`${siteOrigin()}/pending-tips`, "Check funded, unclaimed tips for any site domain, including external pages; lookup uses this deployment's mainnet or testnet API."],
   [`${siteOrigin()}/leaderboards`, "Reputation leaderboards for creators, sites, and content."],
   [`${siteOrigin()}/discovery.md`, "Plain-language agent guidance: endpoints, x402 payment flow (Circle Agent Stack one-liner or raw Gateway), nibshare links, and rating flow."],
   [`${siteOrigin()}/skill.md`, "Integration guide for @nibgate/sdk covering widget install, gating, payments, and admin."],
@@ -28,8 +29,8 @@ const API_ENDPOINTS: Array<[string, string]> = [
   [`${apiBaseUrl()}/hub/pay`, "x402 unlock endpoint for hub-tracked content: POST bare for a 402 challenge, then retry with the payment header."],
   [`${apiBaseUrl()}/hub/preflight`, "Optional free dry run for the direct-USDC rail: verifies price, recipient, and payer balance BEFORE an irreversible transfer. Never charges."],
   [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Explore feed of verified content with title, type, price, domain, and reputation signals."],
-  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips, ratings, and nibshares (privacy-safe: no share links)."],
-  [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Tips waiting in a domain's no-key holding box (creator not yet on Nibgate); claimable by the site owner, refundable by the payer."],
+  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips (including pending funded holds; refunds are negative entries), ratings, and nibshares (privacy-safe: no share links)."],
+  [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Public exact-domain lookup for funded, unclaimed tips, including tips to external sites; claimable by the site owner and refundable by the payer. API host selects mainnet or testnet."],
   [`${apiBaseUrl()}/hub/tips/refund`, "Payer-signed refund of unclaimed held tips (full amount, no fee)."],
   [`${apiBaseUrl()}/hub/stats`, "Platform totals for creators, sites, content, views, unlocks, revenue (unlocks + tips + nibshares), and protocol fees."],
   [`${apiBaseUrl()}/ns/{slug}`, "Unlock a nibshare link — free shares return the body; paid shares return a 402 x402 challenge, pay and retry to read."],

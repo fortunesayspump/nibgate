@@ -59,6 +59,7 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 
 - ${site}/explore — Content discovery feed.
 - ${site}/ledger — Public activity ledger.
+- ${site}/pending-tips — Check funded, unclaimed tips for any site domain, including external pages.
 - ${site}/leaderboards — Reputation leaderboards.
 - ${site}/.well-known/agent-skills/index.json — Machine-readable index of Nibgate agent skills.
 - https://docs.nibgate.xyz/api-reference — API reference.
@@ -67,8 +68,8 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 ## API endpoints
 
 - ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
-- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips, ratings, nibshares — no share links).
-- ${api}/hub/tips/held?domain={domain} — Tips waiting in a domain's no-key holding box; claimable by the site owner, refundable by the payer.
+- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips including pending funded holds, ratings, nibshares; refunds are negative entries; no share links).
+- ${api}/hub/tips/held?domain={domain} — Exact-domain lookup for funded, unclaimed tips (including external sites); claimable by the site owner, refundable by the payer. Results are specific to this API deployment's network.
 - ${api}/hub/tips/refund — Payer-signed refund of unclaimed held tips (full amount, no fee).
 - ${api}/hub/stats — Platform totals (revenue incl. tips + nibshares, protocol fees).
 - ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.

@@ -803,7 +803,7 @@ app.get('/nibgate/access', async (req, res) => {
 
 ## 18. Nib Tips (tips, holding, refunds)
 
-Nib Tip lets anyone tip the creator of a page. Tips are additive revenue — no
+Nib Tip lets anyone tip the creator of a page. Tips are additive revenue ï¿½ no
 locked content, the receipt is the product.
 
 - **Creator already on Nibgate (resolved):** the tip settles instantly to your
@@ -843,6 +843,17 @@ Hub endpoints (canonical bare form): `POST /hub/tips/challenge`,
 `POST /hub/tips/verify`, `POST /hub/tips/hold`, `GET /hub/tips/held`,
 `POST /hub/tips/claim`, `POST /hub/tips/refund`. See
 https://nibgate.xyz/discovery.md for the payer/agent view.
+
+Funded held tips appear in the public ledger with `status: "held"` while
+awaiting a claim. They do not count as completed tips; a payer refund appears as
+a negative tip entry so the refunded amount nets out.
+
+Creators can check pending tips for any domain, including an external site that
+is not registered with Nibgate, using `GET /hub/tips/held?domain=<domain>`.
+Use the API host for the intended network: the mainnet API and testnet API have
+separate tip records. The public ledger links to the Pending tip checker page.
+Metadata depends on caller-supplied fields and matching indexed content; JEV is
+not a guaranteed metadata or cover-image generator for arbitrary external pages.
 
 Fee policy: resolved/self-hosted member tips 100 bps (1%); non-member tips that
 are held then claimed 500 bps (5%). Payer refunds of unclaimed holds are always

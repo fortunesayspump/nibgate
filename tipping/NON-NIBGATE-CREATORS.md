@@ -30,7 +30,10 @@ the right human, eventually, without the payer doing homework.
    canonical domain, indexed in the backend ledger. The payer pays now; the
    creator claims later. No hub custody, no shell address, no expiry.
 5. **Discovery.** Creator learns about held tips via: extension badge on their
-   own site ("you have N tips waiting"), hub lookup by domain, or word of mouth.
+   own site ("you have N tips waiting"), the public pending-tip checker
+   (`https://nibgate.xyz/pending-tips`, or the testnet equivalent), the exact
+   domain API lookup, or word of mouth. No Nibgate registration is needed to
+   check; mainnet and testnet results remain separate.
 6. **Claim.** Creator verifies site ownership (widget / DNS / terminal flow —
    same as hub site verification) and proves wallet control; the hub keeper
    then releases the domain box (net minus the held-tier cut) to their wallet.

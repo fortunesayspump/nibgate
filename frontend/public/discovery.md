@@ -23,7 +23,7 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 | Endpoint | Description |
 |---|---|
 | `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
-| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips, ratings, and nibshares (`type=nibshare`). Nibshare entries show titles, wallets, and amounts but never the private share link |
+| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips (including pending funded holds with `status: held`), ratings, and nibshares (`type=nibshare`). Held tips do not count toward completed-tip totals; refunds appear as negative entries. Nibshare entries show titles, wallets, and amounts but never the private share link |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/preflight` | Free dry run for the direct-USDC rail — check price, recipient, and payer balance **before** sending an irreversible transfer. Never charges. |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
@@ -63,14 +63,21 @@ the creator is already on Nibgate:
 | Creator resolved (on Nibgate) | `POST https://api.nibgate.xyz/hub/tips/challenge` → pay → `POST .../hub/tips/verify` | `settled` — USDC goes straight to the creator's payee |
 | Creator unresolved / external | `POST .../hub/tips/hold` (challenge) → fund box → `POST .../hub/tips/hold` (with `txHash`) | `held` — USDC sits in the domain's no-key box |
 
-Held funds are claimable by the verified site owner (`POST .../hub/tips/held`
-to inspect, `.../hub/tips/claim` with the site's `verifyToken` to release) and
+Held funds are claimable by the verified site owner (`GET .../hub/tips/held?domain=<d>`
+to inspect, `POST .../hub/tips/claim` with the site's `verifyToken` to release) and
 **refundable by the payer** until claimed:
 
 | Endpoint | Purpose |
 |---|---|
 | `POST https://api.nibgate.xyz/hub/tips/refund` | Payer-signed refund of unclaimed held tips (full amount, no fee) |
-| `GET https://api.nibgate.xyz/hub/tips/held?domain=<d>` | Public list of tips waiting in a domain's box |
+| `GET https://api.nibgate.xyz/hub/tips/held?domain=<d>` | Public exact-domain lookup of tips waiting in a domain's box; works for external sites too |
+
+Creators can also use the site's **Pending tip checker** page linked from the public
+ledger. The checker follows the current deployment: `testnet.nibgate.xyz` checks
+testnet, while `nibgate.xyz` checks mainnet. Tip title and other metadata depend on
+what the payer/extension supplied or whether matching content is indexed; JEV can
+enrich eligible indexed content but does not guarantee complete metadata for every
+external page.
 
 A refund body is `{ domain, payer, message, signature }`; `signature` is an
 EIP-191 `personal_sign` of `message` by `payer`. The hub recovers the signer,

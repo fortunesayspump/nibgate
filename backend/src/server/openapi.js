@@ -41,7 +41,7 @@ const contentSchema = {
 const activitySchema = {
   type: "object",
   properties: {
-    type: { type: "string", enum: ["view", "unlock", "payment", "rating"] },
+    type: { type: "string", enum: ["view", "unlock", "payment", "tip", "rating", "nibshare_view", "nibshare_unlock"] },
     id: { type: "string" },
     websiteId: { type: "string" },
     actor: { type: "string" },
@@ -56,6 +56,12 @@ const activitySchema = {
     currency: { type: "string" },
     txHash: { type: "string", nullable: true },
     paymentProvider: { type: "string", nullable: true },
+    status: {
+      type: "string",
+      enum: ["held", "settled", "released", "refunded"],
+      description: "Tip payment status; held means funded but pending creator claim and is excluded from completed-tip totals",
+      nullable: true,
+    },
     receiptUrl: { type: "string", nullable: true },
     payerWallet: { type: "string", nullable: true },
     recipientWallet: { type: "string", nullable: true },
@@ -75,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.9",
+    version: "0.2.11",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -86,7 +92,7 @@ export const openApiSpec = {
     { name: "Unlocks", description: "x402 paid unlocks: pay USDC, receive content" },
     { name: "Tips", description: "Nib Tip: pay the creator of any page. Resolved creators are settled instantly; unresolved/external creators are held in a no-key per-domain box, claimable by them and refundable by the payer until claimed" },
     { name: "JEV", description: "JEV decision-layer helpers: LLM-scored options for deterministic decide(). Server-side only; provider keys never leave the hub." },
-    { name: "Ledger", description: "Public activity feed of views, unlocks, payments, tips, and ratings" },
+    { name: "Ledger", description: "Public activity feed of views, unlocks, payments, tips (including pending funded holds), and ratings" },
     { name: "Reputation", description: "Onchain reputation and leaderboards" },
     { name: "Platform", description: "Platform-wide stats and site indexes" },
   ],
@@ -342,7 +348,7 @@ export const openApiSpec = {
         tags: ["Ledger"],
         summary: "Public activity ledger",
         description:
-          "Returns a live feed of views, unlocks, payments, tips, onchain ratings, and privacy-safe nibshare views/unlocks across verified sites, sorted by timestamp. Nibshare entries carry titles, wallets, amounts, and tx hashes but never the private share link. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
+          "Returns a live feed of views, unlocks, payments, tips (including funded held tips marked status=held, from verified or external pages), onchain ratings, and privacy-safe nibshare views/unlocks across verified sites, sorted by timestamp. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Nibshare entries carry titles, wallets, amounts, and tx hashes but never the private share link. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
         parameters: [
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
@@ -817,13 +823,13 @@ export const openApiSpec = {
       get: {
         tags: ["Tips"],
         summary: "List unclaimed held tips for a domain",
-        description: "Public view of tips waiting in a domain's holding box. Used to show creators a 'you have $X waiting to claim' nudge. No website-verification gate.",
+        description: "Public checker for funded, unclaimed tips by exact creator domain, whether or not the creator is registered with Nibgate. Accepts a domain or page URL and works for external sites; metadata is limited to what the payer/extension supplied or matching indexed content. No website-verification gate. The active API deployment determines whether the lookup is mainnet or testnet.",
         parameters: [
           { name: "domain", in: "query", required: true, schema: { type: "string" } },
           { name: "limit", in: "query", schema: { type: "integer", default: 50, maximum: 100 } },
         ],
         responses: {
-          "200": { description: "Held tips + total", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, tips: { type: "array", items: { type: "object" } }, total: { type: "number" } } } } } },
+          "200": { description: "Latest held tips, count, and total pending amount for the domain", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, domain: { type: "string" }, tips: { type: "array", items: { type: "object" } }, count: { type: "integer" }, total: { type: "number" } } } } } },
         },
       },
     },

@@ -217,7 +217,7 @@ Nib Tips pay the creator of any page. A resolved creator settles instantly; an u
 POST /hub/tips/challenge     # tip challenge for a resolved creator (x402 envelope, payTo)
 POST /hub/tips/verify        # record a settled tip after paying the challenge
 POST /hub/tips/hold          # no proof → box challenge; with txHash → record a held tip
-GET  /hub/tips/held?domain=  # public list of tips waiting in a domain's box
+GET  /hub/tips/held?domain=  # exact-domain lookup; accepts a domain or page URL, including external sites
 POST /hub/tips/claim         # creator releases a domain's box (siteId + verifyToken)
 POST /hub/tips/refund        # payer refunds unclaimed held tips (signed control message)
 ```
@@ -227,11 +227,20 @@ POST /hub/tips/refund        # payer refunds unclaimed held tips (signed control
 | `challenge` | `contentUrl` (req), `amount` (req), `recipient` (req unless the hub index resolves the URL), `paymentRail` (`transfer` / `gateway`) → `accepts[0].payTo`, `payee`, `feeBps`, `protocolFee` |
 | `verify` | same + `txHash` (transfer) or `paymentSignature` (gateway) + `walletAddress` → receipt, `status: settled` |
 | `hold` | `contentUrl`, `amount`, `domain` (defaults to hostname); second call adds `txHash`, `walletAddress` → `holdStatus: held`, `box` |
-| `held` | `domain` (req), `limit` → `tips`, `total` |
+| `held` | `domain` (req; domain or URL), `limit` (max 100 rows) → `domain`, latest `tips`, all-match `count` and `total` |
 | `claim` | `siteId`, `token` (verifyToken) req; `creatorWallet`/`claimToken` when claiming to a non-owner wallet → `releaseTx`, `feeBps: 500`, `protocolFee` |
 | `refund` | `domain`, `payer`, `message`, `signature` req (EIP-191, signer must equal payer); optional `amount` cap → `refundTx`; `202` while Gateway credit settles, `404` when nothing is held |
 
 Refunds only ever touch `held` rows and only ever return funds to the signing payer, full amount, no fee. See [Nib Tips](/tipping) and the [holding contracts](/tipping/contracts) for the on-chain mechanics.
+
+The held-tip lookup is public and does not require site registration. It matches
+the exact normalized host (`www` is treated as an alias; subdomains are distinct)
+and is scoped to the API network used. External pages can be checked even when
+not indexed by Nibgate, but returned title/image metadata is only available when
+the tipper supplied it or matching indexed content can provide it. The browser
+checker is linked from the [public ledger](https://nibgate.xyz/ledger) and is
+available at `https://nibgate.xyz/pending-tips` (mainnet) and
+`https://testnet.nibgate.xyz/pending-tips` (testnet).
 
 ## Reputation & ratings
 

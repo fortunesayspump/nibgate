@@ -485,15 +485,17 @@ export function registerHubRoutes(app) {
         }
       }
 
-      // 5. Recent tips (Tip — settled + released + refunded, any content indexed
-      // or not). Refunded rows (negative amounts) net out refunded holds.
+      // 5. Recent tips (Tip — held, settled, released + refunded, any content
+      // indexed or not). Held rows are visible as pending activity; only
+      // settled/released tips contribute to the completed-tip total above.
+      // Refunded rows (negative amounts) net out refunded holds.
       // Deliberately NO website verification gate: a tip to an unverified
       // page is still real money with a real receipt. Domain filter matches
       // the raw contentUrl substring.
       if (!type || type === 'tips') {
         const tips = await db.tip.findMany({
           where: {
-            status: { in: ['settled', 'released', 'refunded'] },
+            status: { in: ['held', 'settled', 'released', 'refunded'] },
             ...(domain ? { OR: [{ contentUrl: { contains: domain } }, { domain }] } : {}),
           },
           orderBy: { createdAt: 'desc' },
@@ -1497,14 +1499,48 @@ export function registerHubRoutes(app) {
 
   app.get('/api/hub/tips/held', async (req, res) => {
     try {
-      const domain = String(req.query?.domain || '');
-      if (!domain) return res.status(400).json({ error: 'domain is required.' });
-      const tips = await db.tip.findMany({
-        where: { status: 'held', OR: [{ domain }, { contentUrl: { contains: domain } }] },
-        orderBy: { createdAt: 'desc' }, take: Math.min(Number(req.query?.limit || 50) || 50, 100),
+      const input = String(req.query?.domain || '').trim();
+      if (!input) return res.status(400).json({ error: 'domain is required.' });
+      let domain;
+      try {
+        const parsed = new URL(input.includes('://') ? input : `https://${input}`);
+        if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
+        domain = parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+      } catch {
+        return res.status(400).json({ error: 'Enter a valid domain or page URL.' });
+      }
+      if (!isValidDomain(domain)) return res.status(400).json({ error: 'Enter a valid domain or page URL.' });
+
+      const aliases = [domain, `www.${domain}`];
+      const urlPrefixes = aliases.flatMap((host) => [`https://${host}`, `http://${host}`]);
+      const candidates = await db.tip.findMany({
+        where: {
+          status: 'held',
+          OR: [
+            { domain: { in: aliases } },
+            ...urlPrefixes.map((prefix) => ({ contentUrl: { startsWith: prefix } })),
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
       });
-      const total = tips.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-      res.json({ success: true, tips, total });
+      const tips = candidates.filter((tip) => {
+        const storedDomain = String(tip.domain || '').trim();
+        let host = '';
+        if (storedDomain) {
+          try {
+            host = new URL(storedDomain.includes('://') ? storedDomain : `https://${storedDomain}`).hostname;
+          } catch {
+            host = storedDomain.split('/')[0];
+          }
+        }
+        if (!host) {
+          try { host = new URL(tip.contentUrl).hostname; } catch { return false; }
+        }
+        return host.toLowerCase().replace(/^www\./, '').replace(/\.$/, '') === domain;
+      });
+      const limit = Math.min(Math.max(Number.parseInt(String(req.query?.limit || '50'), 10) || 50, 1), 100);
+      const total = tips.reduce((sum, tip) => sum + (Number(tip.amount) || 0), 0);
+      res.json({ success: true, domain, tips: tips.slice(0, limit), count: tips.length, total });
     } catch (error) {
       res.status(500).json({ error: 'Failed to list held tips', details: error.message });
     }

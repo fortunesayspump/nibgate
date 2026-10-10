@@ -4,6 +4,11 @@ const dbMock = vi.hoisted(() => ({
   website: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
   user: { findUnique: vi.fn(), create: vi.fn() },
   wallet: { findUnique: vi.fn() },
+  metric: { count: vi.fn(), findMany: vi.fn() },
+  unlockReceipt: { count: vi.fn(), findMany: vi.fn() },
+  contentRating: { count: vi.fn(), findMany: vi.fn() },
+  tip: { count: vi.fn(), findMany: vi.fn() },
+  content: { findMany: vi.fn() },
   publisherIdentity: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
   blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
@@ -66,6 +71,70 @@ describe('hub routes: cross-stack identity surface', () => {
     expect(typeof handlers['GET /api/hub/site/verify-status']).toBe('function');
     expect(typeof handlers['GET /api/hub/site/verified-identities']).toBe('function');
     expect(typeof handlers['POST /api/hub/site/sync-from-peer']).toBe('function');
+  });
+
+  it('includes funded held tips in the ledger without counting them as completed tips', async () => {
+    dbMock.metric.count.mockResolvedValue(0);
+    dbMock.unlockReceipt.count.mockResolvedValue(0);
+    dbMock.contentRating.count.mockResolvedValue(0);
+    dbMock.tip.count.mockResolvedValue(1);
+    dbMock.tip.findMany.mockResolvedValue([
+      {
+        id: 'held-tip', status: 'held', contentUrl: 'https://creator.example/post',
+        title: 'A public post', domain: 'creator.example', amount: 2, currency: 'USDC',
+        createdAt: new Date('2026-10-10T10:00:00Z'), payerWallet: '0xpayer',
+      },
+      {
+        id: 'refund-tip', status: 'refunded', contentUrl: 'https://creator.example/post',
+        title: 'A public post', domain: 'creator.example', amount: -2, currency: 'USDC',
+        createdAt: new Date('2026-10-10T11:00:00Z'), payerWallet: '0xpayer',
+      },
+    ]);
+    dbMock.content.findMany.mockResolvedValue([]);
+
+    const res = mockRes();
+    await handlers['GET /api/hub/ledger']({ query: { type: 'tips' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.activities.map((activity) => [activity.id, activity.status, activity.amount])).toEqual([
+      ['refund-tip', 'refunded', -2],
+      ['held-tip', 'held', 2],
+    ]);
+    expect(res.body.totals.tips).toBe(1);
+    expect(dbMock.tip.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: { status: { in: ['settled', 'released'] } },
+    }));
+    expect(dbMock.tip.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: { in: ['held', 'settled', 'released', 'refunded'] } }),
+    }));
+  });
+
+  it('checks pending tips by exact site host, including non-Nibgate pages', async () => {
+    dbMock.tip.findMany.mockResolvedValue([
+      { id: 'match', domain: 'creator.example', contentUrl: 'https://creator.example/post', amount: 2, status: 'held' },
+      { id: 'www-match', domain: 'www.creator.example', contentUrl: 'https://www.creator.example/another-post', amount: 1, status: 'held' },
+      { id: 'subdomain', domain: 'blog.creator.example', contentUrl: 'https://blog.creator.example/post', amount: 9, status: 'held' },
+      { id: 'suffix-attack', domain: 'creator.example.evil', contentUrl: 'https://creator.example.evil/post', amount: 9, status: 'held' },
+    ]);
+
+    const res = mockRes();
+    await handlers['GET /api/hub/tips/held']({ query: { domain: 'https://www.creator.example/about' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ success: true, domain: 'creator.example', count: 2, total: 3 });
+    expect(res.body.tips.map((tip) => tip.id)).toEqual(['match', 'www-match']);
+    expect(dbMock.tip.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'held' }),
+      orderBy: { createdAt: 'desc' },
+    }));
+  });
+
+  it('rejects invalid pending-tip checker domains', async () => {
+    const res = mockRes();
+    await handlers['GET /api/hub/tips/held']({ query: { domain: 'not a domain' } }, res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/valid domain/i);
+    expect(dbMock.tip.findMany).not.toHaveBeenCalled();
   });
 
   it('verify-status returns identity for verified sites', async () => {

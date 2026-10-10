@@ -81,7 +81,7 @@ Canonical bare routes on the hub host — mainnet `https://api.nibgate.xyz`, tes
 | `POST` | `/hub/tips/challenge` | payer | Tip challenge for a resolved creator (x402 envelope, `payTo`) |
 | `POST` | `/hub/tips/verify` | payer | Record a settled tip after paying the challenge |
 | `POST` | `/hub/tips/hold` | payer | Challenge (returns `box`) then record a held tip (with `txHash`) |
-| `GET` | `/hub/tips/held?domain=` | anyone | Public list of tips waiting in a domain's box |
+| `GET` | `/hub/tips/held?domain=` | anyone | Public exact-domain lookup of pending tips; works for external sites too |
 | `POST` | `/hub/tips/claim` | creator | Release a domain's box to the verified owner |
 | `POST` | `/hub/tips/refund` | payer | Refund unclaimed held tips to the payer |
 
@@ -203,9 +203,26 @@ await submitHoldingRefund(refund, { privateKey, rpcUrl, chainId: dep.chainId })
 
 React (`@nibgate/wallet`): `useNibgateTip()` returns `{ tip, refund, status, receipt }`; `NibgateTipCard` / `NibgateTipInline` render the UI. The wallet extension detects whether the page's creator is resolved and either settles or holds, and exposes a **Refund** action on held receipts in its activity detail.
 
-## Ledger and analytics
+## Ledger, pending-tip checker, and analytics
 
-Tips are first-class ledger rows (`type: "tip"`). Refunds write a negative `refunded` row so totals net out. Filter with `GET /hub/ledger?type=tips`. Because funds flow at the payment layer, machine payers are recorded exactly like browser users.
+Tips are first-class ledger rows (`type: "tip"`). Funded holds appear immediately
+with `status: "held"` and are pending, not completed-tip revenue. Refunds write a
+negative `refunded` row so totals net out. Filter with
+`GET /hub/ledger?type=tips`; use the public pending-tip checker or
+`GET /hub/tips/held?domain=<domain>` to look up waiting tips. Because funds flow
+at the payment layer, machine payers are recorded exactly like browser users.
+
+The public [Pending tip checker](https://nibgate.xyz/pending-tips) lets anyone
+check a domain or page URL without a Nibgate account. The equivalent testnet page
+is [testnet.nibgate.xyz/pending-tips](https://testnet.nibgate.xyz/pending-tips);
+each page only checks its own network. The API normalizes `www` but does not
+include subdomains when checking a parent domain. It returns the latest 100 rows,
+plus a total count and pending amount for all matched held tips.
+
+External-page metadata is not guaranteed to be complete. The checker displays
+fields supplied by the tipper/extension and metadata recoverable from matching
+indexed content. JEV can enrich eligible indexed content; it is not a universal
+metadata or cover-image generator.
 
 ## Coverage record: deployed · tested · documented
 
@@ -213,7 +230,7 @@ Tips are first-class ledger rows (`type: "tip"`). Refunds write a negative `refu
 
 - Testnet `TipHoldingFactory` `0xf127a645d7c02a12e0a93b135f8acf9c3332e518` (owner `0x796a…`, keeper hub key) on Arc testnet.
 - Mainnet `TipHoldingFactory` `0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87` (owner treasury `0x558e…`, keeper hub hot key) on Arc mainnet.
-- Hub `POST /hub/tips/challenge`, `/hub/tips/verify`, `/hub/tips/hold`, `GET /hub/tips/held`, `POST /hub/tips/claim`, `POST /hub/tips/refund` live on both hubs.
+- Hub `POST /hub/tips/challenge`, `/hub/tips/verify`, `/hub/tips/hold`, `GET /hub/tips/held`, `POST /hub/tips/claim`, and `POST /hub/tips/refund` are deployed on both hubs. The exact-host checker response changes and ledger-held visibility described here are source updates awaiting deployment.
 - `@nibgate/sdk@0.4.34` published with `tipContent`/`holdTipContent`/`refundTip` (browser) and holding/refund calldata builders (server). The extension holds on unresolved pages and refunds from activity detail; `useNibgateTip()` does both in React.
 
 ### Tested
@@ -225,8 +242,8 @@ Tips are first-class ledger rows (`type: "tip"`). Refunds write a negative `refu
 
 ### Documented
 
-- This page (flows, fees, claiming, refunds, SDK, ledger), the [agent flow](/tipping/agent-flow) page, and the [holding contracts](/tipping/contracts) page on the docs site.
-- Agent surfaces kept in sync per the repo registry: `openapi.js` (Tips tag, v0.2.9), `discovery.md`, `skill.md`, `llms.txt` / `llms-full.txt`, the agent-skills index, and the MCP server (v0.2.9).
+- This page (flows, fees, claiming, refunds, SDK, ledger, and pending-tip checker), the [agent flow](/tipping/agent-flow) page, and the [holding contracts](/tipping/contracts) page on the docs site.
+- Agent surfaces in source are aligned to OpenAPI/MCP v0.2.11. Publish/deploy together: production currently reports v0.2.9, so do not publish the registry record as v0.2.11 until the updated API/MCP service is deployed.
 
 ## Trust model
 

@@ -9,7 +9,7 @@ import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.9';
+const SERVER_VERSION = '0.2.11';
 
 // Per-stack settlement facts for tool instructions (Circle CLI chain flag,
 // API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
@@ -137,7 +137,7 @@ async function getLedger(args = {}) {
   if (!type || type === 'tips') {
     const tips = await db.tip.findMany({
       where: {
-        status: { in: ['settled', 'released', 'refunded'] },
+        status: { in: ['held', 'settled', 'released', 'refunded'] },
         ...(domain ? { contentUrl: { contains: domain } } : {}),
       },
       orderBy: { createdAt: 'desc' }, take: limit, skip,
@@ -364,7 +364,7 @@ const TOOLS = [
   },
   {
     name: 'get_ledger',
-    description: 'Get the public Nibgate activity ledger: recent views, unlocks, payments, tips, onchain ratings, and privacy-safe nibshare views/unlocks (titles, wallets, amounts, tx — never the private share link) across verified sites. Includes wallet addresses, tx hashes, and receipts where available.',
+    description: 'Get the public Nibgate activity ledger: recent views, unlocks, payments, tips (including funded pending holds marked status=held), onchain ratings, and privacy-safe nibshare views/unlocks (titles, wallets, amounts, tx — never the private share link) across verified sites. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Use GET /hub/tips/held?domain={domain} to check pending tips for any exact domain, including external sites. Includes wallet addresses, tx hashes, and receipts where available.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -415,7 +415,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      `Nibgate MCP server: verified content discovery, unlock/payment/tip/nibshare ledger (nibshare entries are privacy-safe: no share links), platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge (resolved creator settles instantly) or /hub/tips/hold (unresolved/external creator is held in a no-key per-domain box, claimable by the owner and refundable by the payer until claimed). Full guide: https://nibgate.xyz/discovery.md`,
+      `Nibgate MCP server: verified content discovery, unlock/payment/tip/nibshare ledger (funded held tips appear as pending entries; refunds appear as negative entries; nibshare entries are privacy-safe: no share links), platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge (resolved creator settles instantly) or /hub/tips/hold (unresolved/external creator is held in a no-key per-domain box, claimable by the owner and refundable by the payer until claimed). Full guide: https://nibgate.xyz/discovery.md`,
   };
 }
 

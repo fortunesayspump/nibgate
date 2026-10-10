@@ -70,11 +70,13 @@ Local-only, not tracked: `video/`, `v2-labs/`, `revenue-model/` (research/poc), 
 The Hub is the main Nibgate app and API surface. It acts as the creator dashboard, public site, and discovery directory:
 
 - `/explore` The discovery masonry grid indexing all creator content.
-- `/ledger` Public activity feed — every unlock, payment, and onchain rating across all sites, searchable and filterable. New entries slide in live.
+- `/ledger` Public activity feed — unlocks, payments, tips (including pending funded holds), ratings, and nibshares across all sites, searchable and filterable. Refunds appear as negative tip entries.
+- `/pending-tips` Public checker for funded, unclaimed tips for any exact domain, including external sites not registered with Nibgate. It follows the deployment's network: mainnet on `nibgate.xyz`, testnet on `testnet.nibgate.xyz`.
 - `/discovery.md` Agent guidance — plain-language description of Nibgate endpoints, payment flow, and rating flow for AI agents.
 - `/auth/*` Sign-In with Ethereum (SIWE) authentication.
 - `/hub/*` Hub connection, sync, verification, and event ingestion.
 - `/hub/ledger?domain=X` Public ledger endpoint with optional domain filter for per-site activity.
+- `/hub/tips/held?domain=X` Public exact-domain lookup for unclaimed tips; use the mainnet or testnet API host for the corresponding network.
 
 ### `subblogs/` (Subblogs — Creator Blog Platform)
 

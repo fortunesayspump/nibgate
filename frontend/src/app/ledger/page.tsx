@@ -261,7 +261,14 @@ export default function LedgerPage() {
                             <td className="px-5 py-5 whitespace-nowrap text-sm max-w-[120px] truncate font-mono" title={a.actor}>{sn(a.actor)}</td>
                             <td className="px-5 py-5 whitespace-nowrap text-sm font-mono">
                               {a.type === "payment" && <span>{a.amount} {a.currency}</span>}
-                              {a.type === "tip" && <span>{a.amount} {a.currency}</span>}
+                              {a.type === "tip" && (
+                                <span className="inline-flex items-center gap-2">
+                                  <span>{a.amount} {a.currency}</span>
+                                  {a.status === "held" && (
+                                    <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Held</span>
+                                  )}
+                                </span>
+                              )}
                               {a.type === "nibshare_unlock" && <span>{a.amount} {a.currency}</span>}
                               {a.type === "unlock" && a.revenue ? <span>{a.revenue} {a.currency}</span> : null}
                               {a.type === "rating" && a.score ? <span className="text-yellow-500">{"★".repeat(a.score)}</span> : null}
@@ -344,6 +351,16 @@ export default function LedgerPage() {
           <p className="mt-6 text-sm opacity-60 text-center max-w-lg mx-auto leading-relaxed">
             Click <strong>+</strong> to expand row details. On-chain tx hashes link to the Arc explorer. Gateway payments show reference IDs (not on-chain). Search by title, ID, domain, wallet, or tx hash. Auto-refreshes every 30s.
           </p>
+
+          <aside className="mt-12 flex flex-col gap-4 rounded-3xl border p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8" style={{ borderColor: 'var(--nib-border-soft)', backgroundColor: 'var(--nib-surface)' }}>
+            <div>
+              <h2 className="text-xl font-medium">Do you have tips waiting for your site?</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 opacity-70">Check funded, unclaimed tips for any domain, including sites that are not registered with Nibgate.</p>
+            </div>
+            <Link href="/pending-tips" className="inline-flex shrink-0 items-center justify-center rounded-full bg-black px-5 py-3 text-sm font-medium text-white no-underline hover:bg-black/80">
+              Check pending tips
+            </Link>
+          </aside>
         </section>
       </main>
       <Footer showThemeToggle />

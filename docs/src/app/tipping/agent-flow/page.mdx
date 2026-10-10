@@ -112,6 +112,27 @@ curl -s 'https://testnet-api.nibgate.xyz/hub/ledger?type=tips&limit=50'
 
 `type: "tip"` rows carry `amount`, `payerWallet`, `payeeWallet`, `txHash`, `status`. Refunds appear as negative `refunded` rows so totals net out. Machine payers are recorded identically to browser users.
 
+## Check pending tips for a domain
+
+The public lookup works for any site, whether or not it is registered with
+Nibgate. Use the API host for the network you want to inspect:
+
+```bash
+curl -s 'https://testnet-api.nibgate.xyz/hub/tips/held?domain=https%3A%2F%2Fext.example%2Fpost'
+# → { "success": true, "domain": "ext.example", "tips": [], "count": 0, "total": 0 }
+```
+
+The endpoint normalizes `www`, matches the exact host (subdomains are distinct),
+and returns at most the latest 100 tip rows alongside a count and amount across
+all matching pending tips. Mainnet data is at
+`https://api.nibgate.xyz/hub/tips/held?domain=<domain>`. The browser checker is
+available at `https://nibgate.xyz/pending-tips` and
+`https://testnet.nibgate.xyz/pending-tips`.
+
+Titles and images are only as complete as the payer/extension payload or
+matching indexed content. JEV enrichment does not guarantee metadata for every
+external page.
+
 ## Machine-readable indexes
 
 - `https://api.nibgate.xyz/openapi.json` — the tip routes with schemas (tag **Tips**)

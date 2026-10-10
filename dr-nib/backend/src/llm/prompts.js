@@ -65,7 +65,7 @@ ${evidence || '(no sources were collected)'}
 Write the report. Rules:
 - Every factual claim must cite its source as [n].
 - If a claim has no supporting source above, mark it "(unsupported)" rather than asserting it.
-- If the evidence does not answer part of the brief, say so plainly.
+- If the evidence does not answer part of the brief, say so plainly in plain words — one short paragraph on what IS covered and what IS missing. No meta-labels, no process narration.
 - Keep it readable: a short summary, then the sections the sub-questions imply.
 ${brief.perspective && brief.perspective !== 'neutral' ? `- Write from a ${brief.perspective} perspective.` : ''}`;
   return [
@@ -98,7 +98,7 @@ ${formatEvidence(sources) || '(no sources were collected)'}
 Write this section in about ${targetWords} words. Rules:
 - Every factual claim must cite its source as [n], using the numbers above.
 - If a claim has no supporting source above, mark it "(unsupported)".
-- If the evidence does not cover this section, say so in one paragraph instead of inventing coverage.
+- If the evidence does not cover this section: one short paragraph in plain words saying what IS covered and what IS missing. No meta-labels ("non-coverage", "finding", "scope gap"), no narration of your own process — the reader wants the gap, not the audit trail.
 - Do not write an introduction or conclusion for the whole report — only this section.
 ${brief.perspective && brief.perspective !== 'neutral' ? `- Write from a ${brief.perspective} perspective.` : ''}`;
   return [

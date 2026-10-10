@@ -389,12 +389,11 @@ runs.post('/:id/end', async (req, res) => {
 // up from the stage boundary it stopped at.
 runs.post('/:id/awaiting/answer', async (req, res) => {
   try {
-    const { text } = req.body || {};
+    const { text, optionId } = req.body || {};
     const run = await ownedRun(req, res);
     if (!run) return;
     if (run.status !== 'awaiting') return res.status(409).json({ error: 'the run is not waiting on you' });
     const question = run.pendingQuestion;
-    const { text, optionId } = req.body || {};
     const options = Array.isArray(question?.options) ? question.options : [];
     const picked = optionId ? options.find((o) => o?.id === optionId) : null;
     if (optionId && !picked) return res.status(400).json({ error: 'unknown option for this question' });

@@ -227,12 +227,13 @@ Open / suggested:
 
 - **Intermittent creation 500 via the frontend proxy** (`POST
   /drnib-api/v1/runs` → `500 {"error":"Expected property name or '}' in
-  JSON at position 1 (line 1 column 2)"}`), while direct-to-service calls
-  behave (201 or clean 429). The run row IS created server-side, so the UI
-  sits on the composer while a zombie row piles into the live-run cap.
-  Local creation never reproduces it. Suspect: body mangling somewhere in
-  the Vercel rewrite path — needs a proxied-vs-direct differential with
-  request logging, not more guessing.
+  JSON at position 1"}`). Rare (3–4 sightings in a night of hammering),
+  never in browser traces, never reproduced on demand (3/3 clean 201s
+  minutes later), never local or direct-to-service. The run row IS
+  created server-side, so the UI strands on composer while a zombie piles
+  into the cap. Prime suspect remains body mangling in the Vercel rewrite
+  path. Mitigations shipped meanwhile: server-side stack log on creation
+  failure, sticky actionable notices, cap link to Projects.
 - **Un-endable runs.** One ghost row (`0289bbb4`, intake-done, $0):
   listed for the wallet with a verified-complete ID yet 404 on
   GET/end/DELETE. (An earlier batch of 404s turned out to be truncated

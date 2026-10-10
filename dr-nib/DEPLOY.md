@@ -43,6 +43,20 @@ a testnet dr-nib deployment:
   Railway). Until this resolves to the service, the testnet UI renders but its
   API calls fail.
 - **Verify**: `curl -s https://drnib.testnet.nibgate.xyz/health` → `{"ok":true,…}`.
+- **Deploy trigger (known gap):** pushes to `main` do NOT auto-build the
+  testnet service (mainnet auto-builds fine). After pushing, trigger
+  manually: `railway service source connect --repo
+  fortunesayspump/nibgate --branch main --service nibgate-drnib-testnet`
+  from a directory linked to the testnet project — the reconnect kicks a
+  fresh build of current `main`. Verify in `railway deployment list`.
+- **SearXNG (testnet):** service `nibgate-searxng-testnet`
+  (`searxng/searxng:latest`, private-only, no public domain) with a volume
+  mounted at `/etc/searxng` holding a `settings.yml` that enables the JSON
+  API (`search.formats: [html, json]` — stock defaults 403
+  `?format=json`). Wire via `SEARXNG_URL=http://nibgate-searxng-testnet.railway.internal:8080`
+  on the drnib service. (There is no `ops/searxng/settings.yml` in the
+  repo — the live file lives in that volume; back it up before re-creating
+  the service.)
 
 ## 2. Environment variables
 
@@ -51,6 +65,9 @@ Set these on the service (never commit them):
 | Variable | Value |
 |---|---|
 | `OPENROUTER_API_KEY` | the OpenRouter key — Dr. Nib's router **and** JEV decisions both use it |
+| `LLM_MODEL` | generation model (bulk writing). Pinned cheap, e.g. `~google/gemini-flash-latest`. JEV decisions are separate and unaffected |
+| `LLM_SMART_MODEL` | judgement-heavy generation (intake questions, plans, round reviews). Defaults to the `typesafe/jev-router`; override for a full swap |
+| `LLM_FALLBACK_MODELS` | comma-separated failover models, e.g. `~openai/gpt-mini-latest,openai/gpt-4o-mini` |
 | `HUB_DATABASE_URL` | the hub Postgres connection string (SIWE session lookups) |
 | `DRNIB_DATABASE_URL` | same cluster, `...&schema=drnib` |
 | `HUB_API_URL` | the deployed hub API origin, e.g. `https://api.nibgate.xyz` |
@@ -58,7 +75,7 @@ Set these on the service (never commit them):
 | `DRNIB_SERVICE_KEY` | random string; gates the MCP server. If unset the MCP surface runs open (dev only) |
 | `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the 11-index free layer (SearXNG when configured, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv) + direct fetch |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
-| `SEARXNG_URL` | optional; a self-hosted SearXNG instance (see `ops/searxng/settings.yml`) joins the free search bench — no key, Google-grade breadth |
+| `SEARXNG_URL` | optional; a self-hosted SearXNG instance joins the free search bench — no key, Google-grade breadth. Must serve `?format=json` (stock images 403 it; see Testnet mirror above for the volume procedure) |
 | `SEMANTICSCHOLAR_API_KEY` | optional free key; lifts the anonymous rate limit on paper search |
 | `DRNIB_AGENT_PRIVATE_KEY` | optional; funds the agent spending wallet (tips, paid unlocks, x402). Without it the spend tools do not exist. Fund the derived address with USDC on the active network |
 | `DRNIB_SPEND_MAX_TIP` | optional; per-tip ceiling in USD, default 1 |

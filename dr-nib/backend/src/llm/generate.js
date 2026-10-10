@@ -9,6 +9,7 @@ import { chat, chatJson, isLlmConfigured } from './provider.js';
 import { smartModel } from './pricing.js';
 import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages, directDataMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
+import { mapLimit } from '../retrieval/util.js';
 
 const cleanStrings = (v, cap = 12) =>
   (Array.isArray(v) ? v : []).map((s) => String(s || '').trim()).filter(Boolean).slice(0, cap);
@@ -220,14 +221,18 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
     }
   }
 
-  let i = 0;
-  for (const section of capped) {
-    i += 1;
+  // Sections are independent: write up to 3 at once. The old serial loop
+  // paid a full model round-trip per section back to back (5 sections ≈ 50s).
+  const sectionOuts = await mapLimit(capped, 3, async (section, idx) => {
+    const i = idx + 1;
     const evidence = getEvidence ? await getEvidence(section) : [];
     const out = await generateSection({
       brief, section, index: i, of: capped.length,
       sources: evidence, targetWords: perSection, guidance, fetchImpl,
     });
+    return { i, section, out };
+  });
+  for (const { i, section, out } of sectionOuts) {
     parts.push(out.markdown);
     usage = addUsage(usage, out.usage);
     if (out.model) models.add(out.model);

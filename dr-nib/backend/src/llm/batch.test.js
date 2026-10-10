@@ -34,7 +34,7 @@ describe('generateIntakeBatch', () => {
         questions: [
           { key: 'a', type: 'pick_one', prompt: 'Which single outcome decides it?', options: [{ id: 'x', label: 'Conversion' }, { id: 'y', label: 'Retention' }] },
           { key: 'b', type: 'pick_one', prompt: 'Which single outcome decides the winner?', options: [{ id: 'x', label: 'Conversion' }, { id: 'y', label: 'Retention' }] },
-          { key: 'c', type: 'free', prompt: 'What budget range are we in?', options: [] },
+          { key: 'c', type: 'pick_one', prompt: 'What budget range are we in?', options: [{ id: 's', label: 'Small' }, { id: 'l', label: 'Large' }] },
         ],
       },
       usage: null, model: 'test',

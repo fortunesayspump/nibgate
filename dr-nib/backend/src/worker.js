@@ -754,12 +754,35 @@ async function maybeAsk(runId, run) {
   });
   if (!decision) return false; // JEV unavailable; run parked.
   if (decision.pick === 'ask') {
-    await parkForQuestion(runId, {
-      id: 'scope-check',
-      type: 'free',
-      prompt: 'I have mapped the space and found a fork in the evidence. Narrow me to one branch, or say "either".',
-      why: 'The top sources disagree on the core claim, and going both ways doubles the remaining cost.',
+    // The fork must name its branches: pull what round 0 actually found
+    // (queries + top hit titles) and let the model phrase it as one pick.
+    // A branchless "narrow me down" gets "i dont understand" answers.
+    const search = await db.researchStep.findFirst({
+      where: { runId, kind: 'search' },
+      orderBy: { createdAt: 'desc' },
     });
+    const out = search?.output || {};
+    const titles = (out.results || []).filter((r) => r && r.title).map((r) => `${r.title}${r.provider ? ` [${r.provider}]` : ''}`);
+    const branches = [
+      `First direction in the hits: ${titles.slice(0, 3).join(' / ') || 'no usable hits'}`,
+      `Second direction in the hits: ${titles.slice(3, 6).join(' / ') || 'no usable hits'}`,
+      `Asked as: ${(out.queries || []).slice(0, 4).join(' / ')}`,
+    ];
+    const { generateForkQuestion } = await import('./llm/generate.js');
+    const fork = await generateForkQuestion({ topic: run.brief?.topic, branches });
+    if (fork) {
+      await parkForQuestion(runId, {
+        ...fork,
+        why: 'The top sources disagree on the core claim, and going both ways doubles the remaining cost.',
+      });
+    } else {
+      // No phrasing, no question: asking blind is worse than proceeding.
+      // The assumption rides the report instead.
+      await recordEvent(runId, {
+        type: 'thinking', phase: 'midrun-fork',
+        text: 'Search came back split but the fork could not be phrased as a clean choice, so the run proceeds on both branches and flags the split in the report.',
+      });
+    }
   }
   return true;
 }

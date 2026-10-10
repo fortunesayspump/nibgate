@@ -821,3 +821,42 @@ body[data-theme="dark"] .dashboard-box:hover {
   letter-spacing: var(--nib-title-letter-spacing, -0.055em);
   line-height: var(--nib-title-line-height, 0.92);
 }
+
+/* Dr. Nib live-activity shimmer: an indeterminate sweep inside active step
+   cards and the streaming thinking line, so "working" reads as motion, not
+   a frozen dot. Respects reduced-motion. */
+@keyframes drnib-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+
+.drnib-shimmer-track {
+  position: relative;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.drnib-shimmer-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.22), transparent);
+  animation: drnib-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes drnib-caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.drnib-stream-caret::after {
+  content: "▍";
+  margin-left: 1px;
+  animation: drnib-caret-blink 0.9s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drnib-shimmer-track::after { animation: none; }
+  .drnib-stream-caret::after { animation: none; }
+}

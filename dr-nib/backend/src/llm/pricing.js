@@ -24,13 +24,18 @@ export function routerModel() {
 
 /**
  * The model for judgement-heavy generation: intake questions, plans, round
- * reviews. These shape everything downstream, so they stay on the router
+ * reviews. These shape everything downstream, so they stay on the chat router
  * even when bulk writing moves to a cheap pinned model — a looping cheap
  * intake burns more (endless rounds, no convergence) than a converging
  * smart one. Override with LLM_SMART_MODEL for a full swap.
+ *
+ * NOTE: this must be a chat-completions model. `typesafe/jev-router` is a
+ * decisions router: sent with the `models` fallback array OpenRouter 400s
+ * the whole request ("cannot be combined with another router model"), which
+ * silently banked every intake and plan on prod. Never default back to it.
  */
 export function smartModel() {
-  return process.env.LLM_SMART_MODEL || DEFAULT_ROUTER_MODEL;
+  return process.env.LLM_SMART_MODEL || routerModel();
 }
 
 /**

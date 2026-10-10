@@ -33,20 +33,34 @@ async function withRetry(fn, attempts = 4) {
 /**
  * Persist then broadcast one event. Returns the stored row (with its seq).
  * Called with `await` everywhere so events cannot be reordered or lost.
+ *
+ * seq is read-max-then-insert, so concurrent writers (parallel trust/grade,
+ * parallel sections) can collide on the same seq. The loser gets P2002 and
+ * retries with a fresh max — a few milliseconds of jitter, never a failure.
  */
 export async function recordEvent(runId, event) {
   // Stamp the clock into the stored payload too, not just the live broadcast
   // — replay readers (run detail, reconnects) must see the same time.
   const stamped = { ...(event ?? {}), at: event?.at || new Date().toISOString() };
-  const row = await withRetry(() => db.$transaction(async (tx) => {
-    const last = await tx.researchEvent.findFirst({ where: { runId }, orderBy: { seq: 'desc' }, select: { seq: true } });
-    const seq = (last?.seq ?? -1) + 1;
-    return tx.researchEvent.create({
-      data: { runId, seq, type: String(stamped.type || 'event'), payload: stamped },
-    });
-  }, { maxWait: 20_000, timeout: 30_000 }));
-  publish(runId, { ...stamped, seq: row.seq });
-  return row;
+  let last;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const row = await withRetry(() => db.$transaction(async (tx) => {
+        const lastRow = await tx.researchEvent.findFirst({ where: { runId }, orderBy: { seq: 'desc' }, select: { seq: true } });
+        const seq = (lastRow?.seq ?? -1) + 1;
+        return tx.researchEvent.create({
+          data: { runId, seq, type: String(stamped.type || 'event'), payload: stamped },
+        });
+      }, { maxWait: 20_000, timeout: 30_000 }));
+      publish(runId, { ...stamped, seq: row.seq });
+      return row;
+    } catch (err) {
+      last = err;
+      if (err?.code !== 'P2002') throw err;
+      await new Promise((r) => setTimeout(r, 10 + Math.random() * 40));
+    }
+  }
+  throw last;
 }
 
 /** Replay stored events with seq greater than `afterSeq`, oldest first. */

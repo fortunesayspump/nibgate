@@ -67,18 +67,25 @@ describe('generateSection retry', () => {
 });
 
 describe('model split (cheap bulk, smart judgement)', () => {
-  it('defaults bulk writing to LLM_MODEL and judgement to the router', async () => {
+  it('defaults judgement to the chat router, never the decisions router', async () => {
+    // typesafe/jev-router is a decisions router: sent with the `models`
+    // fallback array OpenRouter 400s the whole request, which silently
+    // banked every intake and plan on prod. The smart default must be a
+    // chat-completions model.
     expect(routerModel()).toBe('typesafe/jev-router');
     expect(smartModel()).toBe('typesafe/jev-router');
     vi.stubEnv('LLM_MODEL', '~google/gemini-flash-latest');
     vi.stubEnv('LLM_SMART_MODEL', 'typesafe/jev-router');
     expect(routerModel()).toBe('~google/gemini-flash-latest');
     expect(smartModel()).toBe('typesafe/jev-router');
+    vi.stubEnv('LLM_SMART_MODEL', '');
+    expect(smartModel()).toBe('~google/gemini-flash-latest');
   });
 
   it('routes intake questions to the smart model, sections to the cheap one', async () => {
     vi.stubEnv(KEY, 'test-key');
     vi.stubEnv('LLM_MODEL', '~google/gemini-flash-latest');
+    vi.stubEnv('LLM_SMART_MODEL', '');
     const { generateIntakeQuestion } = await import('./generate.js');
     const qFetch = vi.fn().mockResolvedValue({
       ok: true, status: 200,
@@ -86,7 +93,7 @@ describe('model split (cheap bulk, smart judgement)', () => {
       text: async () => '', body: null,
     });
     await generateIntakeQuestion({ topic: 'fees', fetchImpl: qFetch });
-    expect(JSON.parse(qFetch.mock.calls[0][1].body).model).toBe('typesafe/jev-router');
+    expect(JSON.parse(qFetch.mock.calls[0][1].body).model).toBe('~google/gemini-flash-latest');
     const sFetch = vi.fn().mockResolvedValue({
       ok: true, status: 200,
       json: async () => ({ choices: [{ message: { content: 'body text' } }], usage: {} }),

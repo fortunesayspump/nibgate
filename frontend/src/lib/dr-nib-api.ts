@@ -76,8 +76,8 @@ export const drNibApi = {
   restoreRun: (id: string) => req(`/v1/runs/${id}/restore`, { method: "POST" }),
   getReport: (id: string, version?: number) =>
     req(`/v1/runs/${id}/report${version ? `?version=${version}` : ""}`),
-  answerAwaiting: (id: string, text: string) =>
-    req(`/v1/runs/${id}/awaiting/answer`, { method: "POST", body: JSON.stringify({ text }) }),
+  answerAwaiting: (id: string, answer: string | { text?: string; optionId?: string }) =>
+    req(`/v1/runs/${id}/awaiting/answer`, { method: "POST", body: JSON.stringify(typeof answer === "string" ? { text: answer } : answer) }),
   sendGuidance: (id: string, text: string) =>
     req(`/v1/runs/${id}/guidance`, { method: "POST", body: JSON.stringify({ text }) }),
   repromptRun: (id: string, prompt: string) =>

@@ -20,8 +20,9 @@ export function deriveDescription(topic) {
   return `Research opened from: "${String(topic || "").trim()}"`;
 }
 
-// Each entry is a question shape Dr. Nib can ask. `type` is one of
-// pick_one / pick_any / free; `allowOther` adds the "another answer" exit.
+// Each entry is a question shape Dr. Nib can ask. `type` is pick_one or
+// pick_any only (free-text was removed: open fields confused and stalled);
+// `allowOther` adds the "another answer" exit.
 const BANK = [
   {
     key: "intent",
@@ -60,10 +61,15 @@ const BANK = [
   },
   {
     key: "exclude",
-    type: "free",
-    prompt: "Anything to leave out, or sources to avoid?",
-    options: [],
-    allowOther: false,
+    type: "pick_any",
+    prompt: "Anything to leave out of this research?",
+    options: [
+      { id: "nothing", label: "Nothing — search everything" },
+      { id: "paywalled", label: "Skip paywalled sources" },
+      { id: "opinion", label: "Skip opinion and social chatter" },
+      { id: "old", label: "Skip anything outdated" },
+    ],
+    allowOther: true,
   },
 ];
 

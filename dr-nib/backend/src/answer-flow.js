@@ -55,6 +55,22 @@ export async function thinkOne(runId, seq, questionObj, answer) {
 }
 
 /**
+ * An answer with no selection and no text is not an answer: accepting it
+ * records "(no answer)" rows that the thinker then writes reads about.
+ * Every answer endpoint rejects these; skipping is the intake/finish door,
+ * not an empty post.
+ */
+export function isEmptyAnswer(answer) {
+  if (answer == null) return true;
+  if (typeof answer === 'string') return !answer.trim();
+  if (typeof answer !== 'object') return true;
+  const ids = Array.isArray(answer.optionIds) ? answer.optionIds : [];
+  const picked = Array.isArray(answer.picked) ? answer.picked : (typeof answer.picked === 'string' ? [answer.picked] : []);
+  const text = typeof answer.text === 'string' ? answer.text.trim() : '';
+  return ids.length === 0 && picked.length === 0 && !text;
+}
+
+/**
  * Record one answer: validate, save, think, sharpen the brief. Shared by the
  * single-answer and batch endpoints so both doors advance the same
  * transcript. Returns null-ok when the question does not exist.
@@ -64,6 +80,7 @@ export async function recordAnswer(run, seq, answer, { reanswer = false } = {}) 
     where: { runId: run.id, kind: 'question', seq: Number(seq), step: 'intake' },
   });
   if (!question) return { ok: false };
+  if (isEmptyAnswer(answer)) return { ok: false, error: 'answer is empty: pick an option or write text' };
   // Re-answering is a single-answer affordance (Back button, MCP retry): the
   // requester invalidates the transcript after it first. Batches are
   // answered once, together — a batch containing an answered question is a
@@ -91,7 +108,9 @@ export async function recordAnswer(run, seq, answer, { reanswer = false } = {}) 
  */
 export async function answerIntakeQuestion(run, seq, answer) {
   const recorded = await recordAnswer(run, seq, answer, { reanswer: true });
-  if (!recorded.ok) return { status: 404, body: { error: 'question not found' } };
+  if (!recorded.ok) {
+    return { status: recorded.error ? 400 : 404, body: { error: recorded.error || 'question not found' } };
+  }
   const { question, thinkingText, thinkingSource, updated } = recorded;
 
   const keys = await answeredKeys(run.id);
@@ -112,6 +131,8 @@ export async function answerIntakeQuestion(run, seq, answer) {
     });
     if (live.question && !keys.includes(live.question.key)) {
       next = { ...live.question, source: 'llm' };
+    } else {
+      console.log(`[dr-nib] intake single fell back to bank for run=${run.id}: ${live?.llmError || 'no usable question'}`);
     }
   } catch {}
   // The stop decision belongs to JEV. When it cannot be reached, the bank
@@ -212,6 +233,7 @@ export async function answerIntakeBatch(run, answers) {
     });
     if (!q) return { status: 404, body: { error: `question ${seq} not found` } };
     if (q.answer != null) return { status: 409, body: { error: `question ${seq} already answered` } };
+    if (isEmptyAnswer(item?.answer)) return { status: 400, body: { error: `question ${seq}: pick an option or write text` } };
     rows.push({ seq, answer: item?.answer ?? {}, q });
   }
 
@@ -249,6 +271,8 @@ export async function answerIntakeBatch(run, answers) {
     if (live.questions.length) {
       nextBatch = live.questions.filter((q) => !keys.includes(q.key)).map((q) => ({ ...q, source: 'llm' }));
       if (!nextBatch.length) nextBatch = nextQuestions(keys, 5);
+    } else {
+      console.log(`[dr-nib] intake batch fell back to bank for run=${run.id}: ${live?.llmError || 'no usable questions'}`);
     }
   } catch {}
 

@@ -50,7 +50,9 @@ export default function ResearchNewPage() {
   const [idx, setIdx] = useState(0);
   const [drafts, setDrafts] = useState<Record<number, IntakeAnswer>>({});
   const [otherOpen, setOtherOpen] = useState<Record<number, boolean>>({});
-  const [thinking, setThinking] = useState<{ shown: string } | null>(null);
+  // Streaming reads accumulate: finished thinkings stay on screen in order
+  // and the next streams in below — nothing is ever wiped for the next line.
+  const [thinking, setThinking] = useState<{ history: string[]; shown: string } | null>(null);
   // The batch whose answers just landed: thinking streams first, then the UI
   // waits on Next (see advanceBatch). Nothing auto-advances.
   const [pendingBatch, setPendingBatch] = useState<null | { answers: { seq: number; answer: IntakeAnswer }[]; res: any }>(null);
@@ -187,16 +189,17 @@ export default function ResearchNewPage() {
     }
   }
 
-  function streamThinking(text: string) {
+  function streamThinking(text: string, history: string[]) {
     return new Promise<void>((resolve) => {
       const full = String(text || "");
       let i = 0;
-      setThinking({ shown: "" });
+      setThinking({ history, shown: "" });
       setStreamDone(false);
       const stepChars = Math.max(1, Math.round(full.length / 110));
       const timer = setInterval(() => {
         i += stepChars;
-        setThinking({ shown: full.slice(0, i) });
+        const slice = full.slice(0, i);
+        setThinking({ history, shown: slice });
         if (i >= full.length) {
           clearInterval(timer);
           stopRef.current = null;
@@ -209,7 +212,7 @@ export default function ResearchNewPage() {
       stopRef.current = () => {
         clearInterval(timer);
         stopRef.current = null;
-        setThinking({ shown: full });
+        setThinking({ history, shown: full });
         setStreamDone(true);
         resolve();
       };
@@ -221,11 +224,15 @@ export default function ResearchNewPage() {
   // (Batch version below; single-question state kept for resume compat.)
   const [streamDone, setStreamDone] = useState(false);
 
-  // Stream several thinkings back to back, each getting full screen time.
+  // Stream several thinkings back to back, each appended below the last —
+  // the screen is a growing list, never a wipe.
   async function streamThinkings(texts: string[]) {
+    const done: string[] = [];
     for (const text of texts) {
-      await streamThinking(text);
+      await streamThinking(text, [...done]);
+      done.push(text);
     }
+    setThinking({ history: done, shown: "" });
   }
 
   // Rebuild items from the server transcript — the self-heal for a 409
@@ -265,7 +272,7 @@ export default function ResearchNewPage() {
     setNotice("");
     // Optimistic: move to the loading screen on click, not on response. The
     // AI streams into this same screen when it lands, then waits on Next.
-    setThinking({ shown: "" });
+    setThinking({ history: [], shown: "" });
     setStreamDone(false);
     setLoadingAnswer(true);
     try {
@@ -530,7 +537,19 @@ export default function ResearchNewPage() {
           {(!streamDone || loadingAnswer) && <Loader2 className="mb-5 animate-pulse opacity-70" size={28} />}
           {loadingAnswer && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Sending answers…</p>}
           {!loadingAnswer && streamDone && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Noted — read it, then continue</p>}
-          {!loadingAnswer && <p className="min-h-[3rem] max-w-xl text-sm italic leading-6 opacity-80">{thinking.shown}</p>}
+          {!loadingAnswer && (
+            <div className="w-full max-w-xl space-y-4 text-left">
+              {thinking.history.map((h, n) => (
+                <p key={n} className="border-l-2 border-black/40 pl-3 text-sm italic leading-6 opacity-80">{h}</p>
+              ))}
+              {(thinking.shown || !streamDone) && (
+                <div>
+                  <div className="drnib-shimmer-track mb-2 h-1 w-32 rounded-full" aria-hidden="true" />
+                  <p className="min-h-[3rem] text-sm italic leading-6 opacity-80"><span className="drnib-stream-caret">{thinking.shown}</span></p>
+                </div>
+              )}
+            </div>
+          )}
           {streamDone ? (
             <button onClick={advanceBatch} className="mt-8 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white">
               Next <ArrowRight size={14} />
@@ -741,9 +760,25 @@ export default function ResearchNewPage() {
               </ol>
             </div>
           )}
+          {items.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5 text-left">
+              <p className="text-xs font-medium uppercase tracking-wider opacity-60">Your answers — what the plan is built on</p>
+              <ul className="mt-2 space-y-2">
+                {items.map((it) => (
+                  <li key={it.seq} className="text-sm">
+                    <span className="font-medium leading-6">{it.question.prompt}</span>
+                    <span className="block text-xs opacity-60">→ {it.answer ? answerLabel(it) : "Skipped"}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {escrowOptIn && project && !escrowFunded && (
             <EscrowDeposit runId={project.id} budgetCap={budgetCap} onFunded={() => setEscrowFunded(true)} />
           )}
+          <p className="mt-4 text-xs leading-5 opacity-60">
+            No wallet signature needed here — the ${budgetCap.toFixed(2)} cap is a spending allowance on Nibgate&apos;s metered providers, and whatever isn&apos;t spent is released when the run settles. Real money moves only if you fund the onchain escrow above.
+          </p>
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
             <button onClick={approve} disabled={busy || !project || (escrowOptIn && !escrowFunded)} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowOptIn && !escrowFunded ? "Fund the escrow first" : undefined}>{busy ? "Starting…" : "Approve & run"}</button>

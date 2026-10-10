@@ -288,3 +288,52 @@ choreography; presence asserted at Review only).
 - Re-run the browser suite (now park-aware) to a green report + a real export
   click, once the DB is stable.
 - Gate 1 (vendor wallet policy) is deliberately out of scope — no Arc vendor.
+
+## Owner live run 2026-10-10 (prod testnet) — findings + fixes
+
+One real run, watched click by click ("which creator paywall models convert
+best in 2026"). Every complaint below is verified against code;
+each ships with the e2e gap that let it through, because the suite answered
+whatever it was given and never checked quality.
+
+1. **Intake asked hardcoded bank questions, not LLM ones.** Root cause:
+   `smartModel()` defaults to `typesafe/jev-router`, a decisions router, and
+   sends it with the `models` fallback array — OpenRouter 400s the whole
+   request: "The decisions router cannot be combined with another router
+   model" (reproduced locally in 2.7s). Every smart call (intake batch,
+   plan, round review) failed; bank filled in silently. Fix: smart default
+   follows `routerModel()`; intake fallback reasons are logged server-side.
+   E2E gap: full run asserted completion, never question `source`.
+2. **Plan was fallback too ("(angle 1)" queries → junk hits).** Same root
+   cause as 1: `fallbackQuestions()` emits "What does the evidence say
+   about: \<topic\> (angle 1/2)", and `keywordQuery` fed that raw to
+   providers ("2018 in American television" hits). Fixed by 1.
+3. **Thinking screen clears per message.** `streamThinkings()` gives each
+   thinking full-screen time, wiping the last. Fix: appended history, each
+   streams in below the previous; active steps get a shimmer/pulse affordance
+   (opencode/Claude/ChatGPT-style), not just a dot.
+4. **Empty answers in the transcript ("You: (empty answer)").** Answer
+   endpoints accept `{}`; unanswered-vs-skipped is indistinguishable downstream
+   and `think()` writes reads about nothing. Fix: 400 empty answers on all
+   three answer endpoints unless explicit skip; unanswered renders "Skipped".
+5. **Review shows plan takes, not the answered Q&A.** The configure/review
+   screen surfaces plan attempts; the answered transcript is what the owner
+   needs to audit before approving. Fix: review leads with the answered
+   transcript.
+6. **Mid-run fork question names no branches.** `maybeAsk` parks with a
+   hardcoded `free`-text "Narrow me to one branch" — the two branches are
+   never stated. Fix: LLM drafts the fork as `pick_one` with the actual
+   disagreeing claims as options (+ Other exit).
+7. **`free` question type removed.** Only `pick_one` / `pick_any` may be
+   asked (prompts forbid `free`, validator rejects it, bank `exclude`
+   converted). `allowOther` stays the nuance exit.
+8. **Approve runs with no wallet signature.** Runs spend from the
+   keeper-funded agent wallet; testnet never asks the owner to sign.
+   Fix (min): review states plainly who pays and why no signature appears.
+9. **Score crashed: `researchEvent` P2002 (`runId`,`seq`).** The new parallel
+   trust/grade made concurrent `recordEvent` collide on read-max-then-insert.
+   Fix: P2002 retry loop with jitter in `recordEvent` + a concurrent-writers
+   unit test (the e2e passed twice by timing luck).
+10. **429s from semanticscholar/gdelt.** Upstream keyless rate limits under
+    parallel fan-out, not our timeouts — verified zero `timed out` errors in
+    the measured run, so the 20s→10s cut dropped nothing. Watch item, not a fix.

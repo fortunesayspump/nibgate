@@ -85,6 +85,7 @@ runs.post('/', async (req, res) => {
         new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
       ]);
       if (live?.questions?.length) questions = live.questions.map((q) => ({ ...q, source: 'llm' }));
+      else console.log(`[dr-nib] intake batch fell back to bank for run=${run.id}: ${live?.llmError || 'race timed out / no usable questions'}`);
     } catch {}
     for (let i = 0; i < questions.length; i += 1) {
       await createQuestion(run.id, i, questions[i]);
@@ -356,22 +357,28 @@ runs.post('/:id/awaiting/answer', async (req, res) => {
     if (!run) return;
     if (run.status !== 'awaiting') return res.status(409).json({ error: 'the run is not waiting on you' });
     const question = run.pendingQuestion;
+    const { text, optionId } = req.body || {};
+    const options = Array.isArray(question?.options) ? question.options : [];
+    const picked = optionId ? options.find((o) => o?.id === optionId) : null;
+    if (optionId && !picked) return res.status(400).json({ error: 'unknown option for this question' });
+    const answerText = picked ? (picked.label || picked.id) : String(text ?? '').trim();
+    if (!answerText) return res.status(400).json({ error: 'answer the parked question or say "either" — empty answers do not resume the run' });
     await db.researchDecision.create({
       data: {
         runId: run.id,
         seq: await nextSeq(run.id),
         kind: 'question',
-        type: question?.type || 'free',
+        type: question?.type || 'pick_one',
         step: 'midrun',
         prompt: question?.prompt || null,
         question: question || {},
-        answer: { text: text ?? '' },
+        answer: picked ? { optionIds: [picked.id], text: answerText } : { text: answerText },
         answeredAt: new Date(),
       },
     });
     await db.researchRun.update({
       where: { id: run.id },
-      data: { status: 'running', pauseReason: null, pendingQuestion: null, brief: { ...(run.brief || {}), guidance: text ?? '' } },
+      data: { status: 'running', pauseReason: null, pendingQuestion: null, brief: { ...(run.brief || {}), guidance: answerText } },
     });
     await recordEvent(run.id, { type: 'status', status: 'running', answered: question?.id ?? null });
     await requestExecute(run.id);

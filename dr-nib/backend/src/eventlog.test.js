@@ -40,8 +40,7 @@ describe('durable event log', () => {
     expect(replayed.map((e) => e.type)).toEqual(['b', 'c']);
   });
 
-  it('scopes sequence numbers per run', async () => {
-    const OTHER = 'aaaaaaaa-0000-4000-8000-0000000000e2';
+  it('scopes sequence numbers per run', async () => {    const OTHER = 'aaaaaaaa-0000-4000-8000-0000000000e2';
     await db.researchRun.create({ data: { id: OTHER, userId: 'user-1', brief: {}, status: 'running' } });
     await recordEvent(RUN, { type: 'a' });
     await recordEvent(OTHER, { type: 'x' });
@@ -50,5 +49,17 @@ describe('durable event log', () => {
     expect(rows[0].seq).toBe(0);
     await db.researchEvent.deleteMany({ where: { runId: OTHER } });
     await db.researchRun.deleteMany({ where: { id: OTHER } });
+  });
+
+  // Parallel stages (trust/grade, sections) record events concurrently: the
+  // losers of a seq collision must retry, never throw P2002. Seen live as a
+  // failed score stage on prod testnet.
+  it('survives concurrent writers with distinct seqs', async () => {
+    await Promise.all(
+      Array.from({ length: 12 }, (_, i) => recordEvent(RUN, { type: 'concurrent', i })),
+    );
+    const rows = await db.researchEvent.findMany({ where: { runId: RUN }, orderBy: { seq: 'asc' } });
+    expect(rows).toHaveLength(12);
+    expect(rows.map((r) => r.seq)).toEqual(Array.from({ length: 12 }, (_, i) => i));
   });
 });

@@ -245,7 +245,7 @@ ${known}
 ${reframeBlock}
 Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
 
-Propose the ${n} next questions that most reduce uncertainty about this specific topic, ordered easiest-first: pick_one (2-4 short options) before pick_any (several can apply) before free (typed answer only).
+Propose the ${n} next questions that most reduce uncertainty about this specific topic, ordered easiest-first: pick_one (2-4 short options) before pick_any (several can apply). Only choice questions — NEVER free-text: open fields confuse and stall. Every question carries 2-4 concrete options plus the Other exit.
 
 Who answers: a busy non-expert who knows what they WANT, not how research
 works. Ask ONLY what they can answer from their own head — intent, scope,
@@ -264,10 +264,10 @@ Hard rules for every prompt:
 Return JSON with exactly this shape:
 {
   "questions": [
-    {"key": "short-snake-key", "type": "pick_one" | "pick_any" | "free", "prompt": "...", "options": [{"id": "a", "label": "..."}], "allowOther": true}
-  ]
-}
-options: 2-4 items for pick types (ids short, labels under 40 chars), [] for free. No prose outside the JSON.`;
+   {"key": "short-snake-key", "type": "pick_one" | "pick_any", "prompt": "...", "options": [{"id": "a", "label": "..."}], "allowOther": true}
+   ]
+ }
+options: 2-4 items, ids short, labels under 40 chars. No prose outside the JSON.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },
@@ -288,7 +288,7 @@ ${known}
 ${reframeBlock}
 Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
 
-Propose the ONE next question that most reduces uncertainty about this specific topic. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply, free when only a typed answer makes sense.
+Propose the ONE next question that most reduces uncertainty about this specific topic. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply. Only choice questions — NEVER free-text.
 
 Who answers: a busy non-expert who knows what they WANT, not how research
 works. Ask ONLY what they can answer from their own head — intent, scope,
@@ -305,12 +305,45 @@ Hard rules for the prompt text:
 Return JSON with exactly this shape:
 {
   "key": "short-snake-key",
-  "type": "pick_one" | "pick_any" | "free",
+  "type": "pick_one" | "pick_any",
   "prompt": "one concrete question naming the topic",
   "options": [{"id": "a", "label": "..."}],
   "allowOther": true
 }
-options: 2-4 items for pick types (ids short, labels under 40 chars), [] for free. No prose outside the JSON.`;
+options: 2-4 items (ids short, labels under 40 chars). No prose outside the JSON.`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
+/**
+ * Mid-run fork: the first search round came back split. Phrase it as ONE
+ * pick_one with the actual disagreeing directions as options — a branchless
+ * "narrow me down" names nothing and gets confused answers.
+ */
+export function forkMessages({ topic, branches = [] } = {}) {
+  const system = `${RESEARCH_SYSTEM} Return JSON only.`;
+  const brief = branches
+    .slice(0, 6)
+    .map((b, i) => `Branch ${i + 1} evidence: ${String(b || '').slice(0, 220)}`)
+    .join('\n');
+  const user = `Research topic: ${topic || '(unspecified)'}
+
+The first search round came back split — the evidence supports more than one direction:
+${brief}
+
+Phrase the fork as ONE pick_one question a busy non-expert can answer from their own head. Name the two concrete directions in the prompt (two-word handles, never the full topic). Options: direction A, direction B, and "either — cover both briefly". 2-4 options, labels under 40 chars, allowOther true.
+
+Return JSON with exactly this shape:
+{
+  "key": "fork",
+  "type": "pick_one",
+  "prompt": "...",
+  "options": [{"id": "a", "label": "..."}],
+  "allowOther": true
+}
+No prose outside the JSON.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

@@ -77,14 +77,24 @@ function formatAnswer(d: any): string {
 
 function StepDetail({ step, open }: { step: any; open: boolean }) {
   const out = step.output || {};
+  const active = step.status === "active";
+  const activity: Record<string, string> = {
+    plan: "Breaking the brief into questions…",
+    search: "Searching providers…",
+    fetch: "Reading pages…",
+    data: "Calling primary sources…",
+    score: "Judging sources…",
+    write: "Writing the report…",
+  };
   return (
     <div className="rounded-xl border border-dark-gray/40 bg-gray p-3">
       <p className="flex flex-wrap items-center gap-2 text-[13px]">
-        <span className={`h-1.5 w-1.5 rounded-full ${step.status === "done" ? "" : step.status === "active" ? "animate-pulse bg-black" : "bg-black/25"}`} style={step.status === "done" ? { background: "var(--nib-teal)" } : undefined} />
+        <span className={`h-1.5 w-1.5 rounded-full ${step.status === "done" ? "" : active ? "animate-pulse bg-black" : "bg-black/25"}`} style={step.status === "done" ? { background: "var(--nib-teal)" } : undefined} />
         <span className="font-medium capitalize">{step.kind}</span>
-        <span className="opacity-50">{step.status}</span>
+        <span className="opacity-50">{active ? <span className="drnib-stream-caret">{activity[step.kind] || "Working…"}</span> : step.status}</span>
         {Number(out.costUsd) > 0 ? <span className="font-mono text-[11px] opacity-50">${Number(out.costUsd).toFixed(3)}</span> : null}
       </p>
+      {active && <div className="drnib-shimmer-track mt-2 h-1 w-full rounded-full" aria-hidden="true" />}
       {out.why ? <p className="mt-1.5 text-[13px] leading-6 opacity-80">{out.why}</p> : null}
       {out.error ? <p className="mt-1.5 text-[13px] text-red-700">{out.error}</p> : null}
       {(out.providers || []).length > 0 || out.fallback === true || out.attempted === false ? (
@@ -242,13 +252,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
   // Answer the mid-run question a parked run is waiting on. Nothing moves
   // until this lands — it is the whole unblock.
-  async function answerAwaiting() {
+  async function answerAwaiting(optionId?: string) {
     const text = awaitingText.trim();
-    if (!text || awaitingBusy) return;
+    if ((!text && !optionId) || awaitingBusy) return;
     setAwaitingBusy(true);
     setAwaitingError("");
     try {
-      await drNibApi.answerAwaiting(id, text);
+      await drNibApi.answerAwaiting(id, optionId ? { optionId } : text);
       setAwaitingText("");
       await load();
     } catch (e: any) {
@@ -540,14 +550,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   }
                   if (item.t === "qa") {
                     const ans = formatAnswer(item.d);
+                    const skipped = item.d.answer != null && !ans;
                     return (
                       <div key={`qa-${i}`} className="rounded-xl border-2 border-black bg-white p-3">
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
-                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : ""}
+                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : skipped ? " · skipped" : ""}
                         </p>
                         <p className="mt-1 text-[13px] font-medium leading-6">{item.d.prompt || item.d.question?.prompt}</p>
                         {item.d.answer != null ? (
-                          <p className="mt-1.5 border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">You: {ans || "(empty answer)"}</p>
+                          <p className="mt-1.5 border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">{skipped ? <span className="opacity-50">Skipped — no answer recorded</span> : `You: ${ans}`}</p>
                         ) : null}
                       </div>
                     );
@@ -601,12 +612,23 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   <p className="text-xs font-medium uppercase tracking-wider opacity-60">△ Waiting on you</p>
                   <p className="mt-1 text-[15px] font-medium leading-7">{run.pendingQuestion.prompt}</p>
                   {run.pendingQuestion.why && <p className="mt-0.5 text-xs opacity-70">{run.pendingQuestion.why}</p>}
+                  {Array.isArray(run.pendingQuestion.options) && run.pendingQuestion.options.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {run.pendingQuestion.options.map((o: any) => (
+                        <button key={o.id || o.label} onClick={() => answerAwaiting(o.id)} disabled={awaitingBusy} data-testid="awaiting-option"
+                          className="flex w-full items-center gap-3 border border-dark-gray/50 bg-white px-4 py-2.5 text-left text-sm hover:border-black disabled:opacity-50">
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-dark-gray/60" />
+                          {o.label || o.id}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="relative mt-2">
                     <textarea value={awaitingText} onChange={(e) => setAwaitingText(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); answerAwaiting(); } }}
                       rows={2} placeholder='Answer, or type "either"'
                       className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2.5 pb-10 text-sm outline-none" />
-                    <button onClick={answerAwaiting} disabled={awaitingBusy || !awaitingText.trim()} aria-label="Send answer"
+                      <button onClick={() => answerAwaiting()} disabled={awaitingBusy || !awaitingText.trim()} aria-label="Send answer"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
                       <Send size={14} aria-hidden="true" />
                     </button>

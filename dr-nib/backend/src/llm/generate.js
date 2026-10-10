@@ -7,7 +7,9 @@
 // fallback never pretends the model spoke.
 import { chat, chatJson, isLlmConfigured } from './provider.js';
 import { smartModel } from './pricing.js';
-import { introMessages, conclusionMessages, planMessages, reportMessages, roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages, directDataMessages } from './prompts.js';
+import { introMessages, conclusionMessages, planMessages, reportMessages,
+roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages,
+directDataMessages, forkMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
 import { mapLimit } from '../retrieval/util.js';
 
@@ -472,7 +474,10 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
 function cleanIntakeQuestion(data) {
   if (!data || typeof data !== 'object') return null;
   const type = data.type;
-  if (!['pick_one', 'pick_any', 'free'].includes(type)) return null;
+  // Only choice questions may be asked: free-text prompts confuse (seen
+  // live — "tf?" answers to open fields) and stall convergence. The
+  // `allowOther` exit preserves nuance without an open field.
+  if (!['pick_one', 'pick_any'].includes(type)) return null;
   const prompt = String(data.prompt || '').trim().slice(0, 280);
   if (prompt.length < 12) return null;
   const key = String(data.key || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'q';
@@ -486,4 +491,31 @@ function cleanIntakeQuestion(data) {
     if (options.length < 2) return null;
   }
   return { key, type, prompt, options, allowOther: data.allowOther !== false };
+}
+
+/**
+ * Mid-run fork: the search came back split and JEV wants the owner to pick
+ * a branch. The model phrases the fork as ONE pick_one with the actual
+ * disagreeing claims as options — a branchless "narrow me down" free-text
+ * names nothing and gets "i dont understand" answers (seen live). Null when
+ * the model cannot phrase it; the caller proceeds and flags the assumption
+ * rather than asking a bad question.
+ */
+export async function generateForkQuestion({ topic, branches = [], fetchImpl } = {}) {
+  if (!isLlmConfigured()) return null;
+  if (!branches.filter(Boolean).length) return null;
+  try {
+    const { data } = await chatJson({
+      effort: 'low',
+      messages: forkMessages({ topic, branches }),
+      temperature: 0.3,
+      maxTokens: 500,
+      fetchImpl,
+    });
+    const q = cleanIntakeQuestion(data);
+    if (!q || q.type !== 'pick_one') return null;
+    return { ...q, key: 'fork', id: 'scope-check' };
+  } catch {
+    return null;
+  }
 }

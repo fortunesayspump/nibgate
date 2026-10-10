@@ -49,6 +49,17 @@ silently matches nothing (use per-card count()), batch Submit gating,
 duplicate probe titles, answered-transcript blank screen (product fix),
 deploy-churn reload guard.
 
+**Round 6 green (all seven export downloads).** Attaches to a completed
+run ($0): md/json/bibtex/pdf/word/excel/powerpoint all fire real
+downloads, not just visible buttons.
+
+**Decision-trail audit (latest complete run).** JEV `jev-1.13` deciding
+throughout on the funded key: midrun-ask 0.93/0.07 with a real scoping
+question, source-trust calibrated low (0.09–0.14) on thin academic
+sources, source-grades spread (not degenerate). The machinery judges
+honestly; recall (finding numbers/docs) is the remaining quality gap,
+not judgment.
+
 **Round 2 (browser journey) green.** Rich intake (sample chip, Enter
 submit, option-button answer, Back both ways), full configure matrix
 (live-web, escrow opt-in surfaced at Review, pdf/excel toggles, length
@@ -219,9 +230,20 @@ Open / suggested:
   found"). Ending should work from every non-terminal state, or the
   404 should say which states are endable.
 - **Live-run cap (3) fills with real-titled debris during testing.**
-  The suite self-cleans e2e-titled runs only. For campaign velocity we
-  end stale runs by hand; a `DRNIB_E2E_CLEAN=1` pre-suite sweep would
-  automate it.
+  The suite self-cleans e2e-titled runs only. Sweeps now run per-test
+  (verifying clear); a `DRNIB_E2E_CLEAN=1` flag was considered but per-test
+  sweeps proved enough.
+
+## Missing UI (confirmed absent — feature decisions, not bugs)
+
+- Objectives editing, version-history selector, raise-cap/topup button,
+  end-run button: no controls exist (revise/reprompt and trash cover
+  parts). Recommend: end-run button on detail (cheap, closes the
+  pause/resume loop), raise-cap inline on the budget bar (the 409 message
+  already tells users to do it).
+- Escrow full onchain fund flow (3 wallet confirms with real USDC): never
+  e2e'd — needs a connected browser wallet + funded key choreography.
+  Presence asserted at Review only.
 
 ## Open backend warts (found hammering prod testnet 2026-10-09, all need a fresh-eyes pass)
 

@@ -109,9 +109,24 @@ export default function ResearchNewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Notices from fail() are errors: they persist until dismissed or the next
+  // action clears them. A 3-second flash is fine for hints ("type first"),
+  // but an error that vanishes leaves users staring at a dead screen with
+  // no idea what happened — seen live on flaky composer submits.
+  const [noticeSticky, setNoticeSticky] = useState(false);
   function flash(msg: string) {
+    setNoticeSticky(false);
     setNotice(msg);
-    setTimeout(() => setNotice(""), 3000);
+    setTimeout(() => {
+      setNoticeSticky((sticky) => {
+        if (!sticky) setNotice("");
+        return sticky;
+      });
+    }, 3000);
+  }
+  function stick(msg: string) {
+    setNoticeSticky(true);
+    setNotice(msg);
   }
 
   // One place for failed calls: a 401 means there is no hub session for this
@@ -122,15 +137,15 @@ export default function ResearchNewPage() {
   function fail(e: any, label: string) {
     if (e?.code === "unauthenticated") {
       setNeedsSignIn(true);
-      flash("Sign in to Nibgate to use Dr. Nib, then retry.");
+      stick("Sign in to Nibgate to use Dr. Nib, then retry.");
       return;
     }
     if (e?.code === "unavailable") {
       // Outage, not logged-out: retrying is the fix, signing in changes nothing.
-      flash("Dr. Nib couldn't reach accounts just now — retry in a moment.");
+      stick("Dr. Nib couldn't reach accounts just now — retry in a moment.");
       return;
     }
-    flash(`${label} (${e?.message || e}).`);
+    stick(`${label} (${e?.message || e}).`);
   }
 
   async function send() {
@@ -148,6 +163,13 @@ export default function ResearchNewPage() {
       const first = Array.isArray(run.questions) && run.questions.length
         ? run.questions
         : run.question ? [{ ...run.question, seq: 0 }] : [];
+      if (!first.length) {
+        // A run with no questions is a dead questions screen (blank, no
+        // recovery). Send the user back with the reason on screen.
+        setPhase("composer");
+        stick("Dr. Nib started without questions — retry in a moment.");
+        return;
+      }
       setItems(first.map((q: any, i: number) => ({ seq: typeof q.seq === "number" ? q.seq : i, question: q })));
       setDrafts({});
       setOtherOpen({});
@@ -426,7 +448,7 @@ export default function ResearchNewPage() {
 
   return (
     <div>
-      {notice && <div className="mb-4 border border-dark-gray/50 bg-white px-4 py-2 text-sm">{notice}</div>}
+      {notice && <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button></div>}
       {needsSignIn && (
         <div className="mb-4">
           <button onClick={() => { setNeedsSignIn(false); connect(); }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white">

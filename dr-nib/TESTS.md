@@ -205,11 +205,11 @@ Open / suggested:
   Local creation never reproduces it. Suspect: body mangling somewhere in
   the Vercel rewrite path — needs a proxied-vs-direct differential with
   request logging, not more guessing.
-- **Un-endable, un-deletable runs.** `0289bbb4` and `468ea0b2` return 404
-  "project not found" on GET/end/DELETE yet appear in list-runs for the
-  same wallet. They squat the live-run cap until the 72h stale rule ages
-  them out. Theories exhausted (ownership, soft-delete, idempotency
-  replay); needs DB-level inspection of those rows.
+- **Un-endable runs.** One ghost row (`0289bbb4`, intake-done, $0):
+  listed for the wallet with a verified-complete ID yet 404 on
+  GET/end/DELETE. (An earlier batch of 404s turned out to be truncated
+  IDs in my own tooling — always use full IDs from a compact list.)
+  Needs DB-level inspection of that row.
 - **Negative run balances** (e.g. spent 0.27 on a $2 cap showing −0.128).
   Beyond float dust — settle/refund arithmetic needs an audit before
   mainnet spend grows.

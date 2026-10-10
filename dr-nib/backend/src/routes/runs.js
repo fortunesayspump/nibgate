@@ -89,7 +89,13 @@ runs.post('/', async (req, res) => {
       questions[i] = { ...questions[i], seq: i };
     }
     res.status(201).json({ id: run.id, title: run.title, description: run.description, status: run.status, question: questions[0] || null, questions });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    // Log the stack server-side: several live incidents returned this 500
+    // with the run row already created (question-less zombies that then
+    // pile into the live-run cap), and the message alone never says where.
+    try { console.error('[runs:create] failed', e?.stack || e?.message || e); } catch {}
+    res.status(500).json({ error: e.message });
+  }
 });
 
 runs.get('/', async (req, res) => {

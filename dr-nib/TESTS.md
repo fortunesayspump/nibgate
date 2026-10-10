@@ -34,6 +34,29 @@ npx playwright test -c e2e/playwright.drnib-ui.config.ts
 
 ### 2026-10-09 — production testnet, all green
 
+**Round 3 (browser journey) green.** Rich intake (sample chip, Enter
+submit, option-button answer, Back both ways), full configure matrix
+(live-web, escrow opt-in surfaced at Review, pdf/excel toggles, length
+radios, Back-replan loop), detail actions (breadcrumb, expanders,
+guidance, reprompt, real md download), all on `testnet.nibgate.xyz`.
+Fixed en route: vague `Back` labels, plan() silent dead-end, error text
+swallowed, breadcrumb selector, per-click timeouts.
+
+**Rounds 4–5 green.** Batch answering (per-card drafts, Next loop),
+custom length, answered-transcript Back view, project delete/restore
+cycle ($0). Fixed en route: Playwright `has:`-with-scoped-locator
+silently matches nothing (use per-card count()), batch Submit gating,
+duplicate probe titles, answered-transcript blank screen (product fix),
+deploy-churn reload guard.
+
+**Round 2 (browser journey) green.** Rich intake (sample chip, Enter
+submit, option-button answer, Back both ways), full configure matrix
+(live-web, escrow opt-in surfaced at Review, pdf/excel toggles, length
+radios, Back-replan loop), detail actions (breadcrumb, expanders,
+guidance, reprompt, real md download), all on `testnet.nibgate.xyz`.
+Fixed en route: vague `Back` labels, plan() silent dead-end, error text
+swallowed, breadcrumb selector, per-click timeouts.
+
 **Round 3 (final): real report with web citations.** After the score-order
 fix deployed, run `edb3b94f` completed with sources from SearXNG web hits
 (Kiln Arc explainer, crypto.news Arc mainnet piece) cited as [1] (Arc = L1
@@ -183,7 +206,12 @@ Open / suggested:
   configure" / "Back to questions" would orient. Cheap copy fix.
 - **Disabled Approve under escrow opt-in has no inline reason on the
   button.** The escrow box above explains, but a `title`/hint on the
-  disabled button itself would close the loop.
+  disabled button itself would close the loop. (Approve already carries
+  one — verified in review UI.)
+- **Answered-transcript blank screen.** Back-to-questions with a fully
+  answered intake rendered header + void (no transcript, no message).
+  Fixed: "All answered" transcript + Continue; plus an empty-state with
+  Reload. Caught by round-4 e2e.
 - **Negative run balances observed** (e.g. spent 0.27 on $2 cap showing
   −0.128). Looks like a settle/refund arithmetic wart, not just float
   dust. Needs a ledger audit before mainnet spend grows.

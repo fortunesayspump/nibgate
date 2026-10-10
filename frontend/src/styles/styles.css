@@ -859,4 +859,22 @@ body[data-theme="dark"] .dashboard-box:hover {
 @media (prefers-reduced-motion: reduce) {
   .drnib-shimmer-track::after { animation: none; }
   .drnib-stream-caret::after { animation: none; }
+  .drnib-feed-enter { animation: none; }
+}
+
+/* Report preview fade: gradient out of the card surface itself, so it melts
+   in light and dark alike. Never hardcode white — the surface is themed. */
+.drnib-fade-mask {
+  background: linear-gradient(to top, var(--nib-surface, #ffffff) 15%, transparent);
+}
+
+/* New feed items slide up as they land. Applied only to items the client
+   has not rendered before (tracked per key) so a refetch never replays. */
+@keyframes drnib-feed-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.drnib-feed-enter {
+  animation: drnib-feed-in 0.28s ease-out both;
 }

@@ -318,11 +318,23 @@ options: 2-4 items (ids short, labels under 40 chars). No prose outside the JSON
 }
 
 /**
+ * Stage narration: one voiced line when a step lands — what was found and
+ * what happens next. Voice only: facts ride in, the model phrases them.
+ */
+export function stageNoteMessages({ kind, facts = '', next = '' } = {}) {
+  const system = `${RESEARCH_SYSTEM} You are narrating your own progress in one sentence. Plain words, no preamble, no bullet points, no JSON, no meta-labels.`;
+  const user = `You just finished the ${kind} step of a research run. Facts: ${String(facts).slice(0, 500) || '(no numbers reported)'}. Next: ${next || 'the next step'}. In ONE sentence (under 40 words), say what you found and what you are doing next. Never restate these instructions.`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
+/**
  * Mid-run fork: the first search round came back split. Phrase it as ONE
  * pick_one with the actual disagreeing directions as options — a branchless
  * "narrow me down" names nothing and gets confused answers.
- */
-export function forkMessages({ topic, branches = [] } = {}) {
+ */export function forkMessages({ topic, branches = [] } = {}) {
   const system = `${RESEARCH_SYSTEM} Return JSON only.`;
   const brief = branches
     .slice(0, 6)

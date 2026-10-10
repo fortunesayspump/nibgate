@@ -337,7 +337,6 @@ whatever it was given and never checked quality.
 10. **429s from semanticscholar/gdelt.** Upstream keyless rate limits under
     parallel fan-out, not our timeouts — verified zero `timed out` errors in
     the measured run, so the 20s→10s cut dropped nothing. Watch item, not a fix.
-
 ## Deposit model live 2026-10-10 (prod testnet) — verified fund → run → refund
 
 Approve now requires a Funded onchain escrow where configured and books the
@@ -348,3 +347,30 @@ job 11 funded $2 (keeper), approved, completed, `escrow.completed`
 testnet is the keeper (test loop closed); mainnet needs a real operator
 before escrow configures there. UI suite re-runs once Vercel's 100/day
 window resets (frontend carries the review gate + rendered report).
+
+## Chat-first run visibility (unpushed, local)
+
+JEV probed healthy on prod (`64b973b4`: intake-stop ask_more 0.99→proceed,
+midrun-ask 0.96, per-source trust + grade distributions, all
+`typesafe/jev-1.13`) — but judgements never reached the chat. Now they do:
+- **Decision rows**: every JEV call renders with pick + probabilities +
+  model + cost and a prompt+output expander; round reviews show
+  learnings/follow-ups.
+- **Stage narration**: one LLM-voiced line per finished stage (found +
+  next), fire-and-forget from `stage()` — `generateStageNote`, never
+  blocking, `thinking` events with `phase: stage-<kind>`.
+- **Live writing tokens**: write-stage deltas stream over SSE
+  (`type: token`, batched 250ms, per-section streams) into a "Writing now"
+  preview; ephemeral, the persisted report stays the record.
+- **Feed motion**: theme-aware fade (`--nib-surface`, no hardcoded white),
+  slide-in only for unseen items, shimmer + caret on live text.
+- **Report article page** (`research/[id]/report`): full prose, no clamp,
+  sources with thumbnails; `[n]` chips jump to `#drnib-sources`.
+- **Source images**: `og:image` captured at extract → fetch-step documents
+  → thumbnails (no migration, joined by URL at render).
+- **Gratitude stage**: opt-in `tipCreators` at configure → post-score agent
+  loop tips decisive creator pages (model proposes, JEV judges, $1/call +
+  balance gates). Agent wallet holds ~19.27 USDC testnet; previously
+  unreachable (dataStage skips when retrieval suffices).
+- **Export chat**: full transcript download (Q&A, reads, judgements with
+  costs, steps, tools, sources) from the activity header.

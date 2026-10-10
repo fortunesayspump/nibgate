@@ -19,6 +19,9 @@ function buildFeed(run: any): any[] {
     // Every question asked and every answer given, intake and mid-run alike:
     // the transcript is the run's memory and the owner should see all of it.
     if (d.kind === "question") items.push({ t: "qa", at: d.answeredAt || d.createdAt, d });
+    // Every judgement: JEV's pick, its probabilities, and what it read.
+    // Technical by design — this is the audit trail, not a summary.
+    if (d.kind === "decision" || d.kind === "round-review") items.push({ t: "judge", at: d.createdAt, d });
   }
   for (const s of run.steps || []) items.push({ t: "step", at: s.createdAt, step: s });
   for (const e of run.events || []) {
@@ -59,6 +62,137 @@ function ToolResult({ e }: { e: any }) {
       </ul>
     </details>
   );
+}
+
+// A JEV judgement as a first-class row: what was decided, the probabilities
+// behind it, and the full prompt + output one expand away. Technical on
+// purpose — owners audit the decision seat here, not in a log file.
+function JudgeRow({ d, enter }: { d: any; enter: string }) {
+  const out = d.output || {};
+  const label: Record<string, string> = {
+    "intake-stop": "Intake call",
+    "midrun-ask": "Branch call",
+    "source-trust": "Trust call",
+    "source-grade": "Grade call",
+    "round-continue": "Round call",
+  };
+  if (d.kind === "round-review") {
+    const learnings: string[] = out.learnings || [];
+    const followUps: string[] = out.followUps || [];
+    return (
+      <div className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
+        <p className="font-mono text-[12px]"><span className="opacity-70">◈ Round review</span>
+          {out.source ? <span className="opacity-50"> · {String(out.source)}{out.model ? ` · ${String(out.model).split("/").pop()}` : ""}</span> : null}
+        </p>
+        {learnings.length > 0 && (
+          <ul className="mt-1.5 space-y-0.5">
+            {learnings.slice(0, 6).map((l: string, n: number) => (<li key={n} className="text-[12px] leading-5">✓ {l}</li>))}
+          </ul>
+        )}
+        {followUps.length > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {followUps.slice(0, 4).map((l: string, n: number) => (<li key={n} className="font-mono text-[11px] opacity-60">→ next: {l}</li>))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+  const pick = out.decision || d.answer?.picked || "";
+  const probs = out.probabilities ?? out.probability ?? null;
+  const probText = probs == null ? "" : typeof probs === "object"
+    ? Object.entries(probs).map(([k, v]) => `${k} ${typeof v === "number" ? v.toFixed(2) : v}`).join(" · ")
+    : `p=${Number(probs).toFixed(2)}`;
+  return (
+    <div className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
+      <p className="font-mono text-[12px]">
+        <span className="opacity-70">◈ {label[d.step] || d.step || "Judgement"}</span>
+        {pick ? <span className="font-medium"> → {String(pick)}</span> : null}
+      </p>
+      {probText ? <p className="mt-0.5 font-mono text-[11px] opacity-60">{probText}</p> : null}
+      {out.model ? <p className="font-mono text-[11px] opacity-50">{String(out.model)}{out.source && out.source !== out.model ? ` · ${out.source}` : ""}{Number(out.usage?.costUsd) > 0 ? ` · $${Number(out.usage.costUsd).toFixed(4)}` : ""}</p> : null}
+      <details className="mt-1">
+        <summary className="cursor-pointer font-mono text-[11px] opacity-60">prompt + output</summary>
+        {d.prompt ? <p className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{String(d.prompt).slice(0, 800)}</p> : null}
+        <pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{JSON.stringify(out, null, 1).slice(0, 2000)}</pre>
+      </details>
+    </div>
+  );
+}
+
+// Lead image for a source, joined from the fetch step's documents by URL
+// (no schema change: images ride step output, sources join at render).
+function sourceImage(run: any, url: string): string | null {
+  if (!url) return null;
+  for (const s of run.steps || []) {
+    for (const d of s.output?.documents || []) {
+      if (d.url === url && d.image) return d.image;
+    }
+  }
+  return null;
+}
+
+// Full chat transcript as markdown: every question, answer, read,
+// judgement, step, and tool call with its costs. The ops audit in one file.
+function chatTranscript(run: any): string {
+  const L: string[] = [];
+  const money = (v: any) => (Number(v) > 0 ? ` $${Number(v).toFixed(4)}` : "");
+  L.push(`# Dr. Nib run: ${run.brief?.topic || run.title || run.id}`);
+  L.push(`- status: ${run.status} · spent $${Number(run.spent || 0).toFixed(2)} of $${Number(run.budgetCap || 0).toFixed(2)} · report v${run.versions || 0}`);
+  L.push(`- run: ${run.id}`);
+  const decisions: any[] = run.decisions || [];
+  const qa = decisions.filter((d: any) => d.kind === "question");
+  if (qa.length) {
+    L.push(`\n## Questions & answers`);
+    for (const d of qa) {
+      L.push(`\n### [${d.step === "midrun" ? "mid-run" : "intake"}] ${d.prompt || d.question?.prompt || ""}`);
+      L.push(d.answer != null ? `You: ${formatAnswer(d) || "(skipped)"}` : `(unanswered)`);
+    }
+  }
+  const reads = decisions.filter((d: any) => d.kind === "thinking" && d.output?.text);
+  if (reads.length) {
+    L.push(`\n## Reads`);
+    for (const d of reads) L.push(`- (${d.output?.model || d.step || "note"}) ${d.output.text}`);
+  }
+  const judges = decisions.filter((d: any) => d.kind === "decision" || d.kind === "round-review");
+  if (judges.length) {
+    L.push(`\n## Judgements`);
+    for (const d of judges) {
+      const out = d.output || {};
+      if (d.kind === "round-review") {
+        L.push(`- round review [${d.step}]: ${(out.learnings || []).join(" / ")}${(out.followUps || []).length ? ` → next: ${out.followUps.join(" / ")}` : ""}`);
+      } else {
+        const probs = out.probabilities ?? out.probability;
+        L.push(`- ${d.step}: ${out.decision || d.answer?.picked || "?"}${probs != null ? ` (${JSON.stringify(probs)})` : ""}${out.model ? ` · ${out.model}` : ""}${money(out.usage?.costUsd)}`);
+      }
+    }
+  }
+  const steps: any[] = run.steps || [];
+  if (steps.length) {
+    L.push(`\n## Steps`);
+    for (const s of steps) {
+      const out = s.output || {};
+      L.push(`\n### ${s.kind} (${s.status}${money(out.costUsd)})`);
+      if (out.why) L.push(out.why);
+      if (out.queries?.length) L.push(`queries: ${out.queries.join(" / ")}`);
+      if (out.providers?.length) L.push(`via: ${out.providers.map((p: any) => (typeof p === "string" ? p : `${p.name}${p.ok === false ? " (failed: " + p.error + ")" : ` · ${p.count ?? ""}`}`)).join(" + ")}`);
+      if (out.tips?.length) L.push(`tips: ${out.tips.map((t: any) => `${t.ok ? "✓" : "✗"} ${t.why || t.tool}${t.txHash ? ` (${t.txHash})` : ""}${t.error ? ` — ${t.error}` : ""}`).join(" / ")}`);
+    }
+  }
+  const events: any[] = run.events || [];
+  const tools = events.filter((e: any) => e.type === "tool.call");
+  if (tools.length) {
+    L.push(`\n## Tool calls`);
+    for (const e of tools) {
+      L.push(`- ${e.ok === false ? "✗" : "→"} ${e.tool}${e.detail ? ` — ${e.detail}` : ""}${money(e.costUsd)}${e.ok === false && e.error ? ` — ${e.error}` : ""}`);
+    }
+  }
+  if ((run.sources || []).length) {
+    L.push(`\n## Sources`);
+    for (const [n, s] of (run.sources as any[]).entries()) {
+      L.push(`[${n + 1}] ${s.title || s.url} — ${s.url}${typeof s.trust === "number" ? ` (trust ${s.trust})` : ""}`);
+    }
+  }
+  return L.join("\n");
 }
 
 // An answer is one of several shapes (typed text, picked options, checked
@@ -320,6 +454,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   // only if the reader is already there, so reading back never yanks.
   const feedRef = useRef<HTMLDivElement>(null);
   const tailRef = useRef(true);
+  // New arrivals slide in; refetches never replay. Keys are chronological, so
+  // anything past the previous count is new.
+  const feedItems = buildFeed(run);
+  const seenFeedCount = useRef(0);
+  useEffect(() => {
+    seenFeedCount.current = feedItems.length;
+  }, [feedItems.length]);
   useEffect(() => {
     const el = feedRef.current;
     if (el && tailRef.current) el.scrollTop = el.scrollHeight;
@@ -328,12 +469,29 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   // Live first, polling never: the run page follows the run's event log over
   // SSE, and the server replays anything a reconnect missed. Only if the
   // stream itself fails does the page degrade to slow polling.
+  // Token deltas ride the same stream (ephemeral, never persisted): they
+  // accumulate into the "writing now" preview, everything else reloads.
+  const [writingNow, setWritingNow] = useState<{ section: number; of: number; text: string } | null>(null);
+  useEffect(() => {
+    setWritingNow(null);
+  }, [report?.version]);
   useEffect(() => {
     load();
     let poll: ReturnType<typeof setInterval> | null = null;
     const unsub = subscribeRunEvents(
       id,
-      () => { load(); },
+      (e: any) => {
+        if (e?.type === "token" && typeof e?.delta === "string") {
+          const section = Number(e.section) || 0;
+          const of = Number(e.of) || 0;
+          setWritingNow((prev) => ({
+            section, of,
+            text: (prev && prev.section === section ? prev.text : "") + e.delta,
+          }));
+          return;
+        }
+        load();
+      },
       () => {
         setStreamLive(false);
         if (!poll) poll = setInterval(load, 5000);
@@ -426,13 +584,26 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
           {!report && (run.status === "running" || run.status === "paused") && !nothingFound && (
             <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
-              <p className="text-sm font-medium">Report</p>
-              <div className="mt-3 space-y-2" aria-hidden="true">
-                <div className="h-3 w-3/4 animate-pulse rounded bg-black/10" />
-                <div className="h-3 w-full animate-pulse rounded bg-black/10" />
-                <div className="h-3 w-5/6 animate-pulse rounded bg-black/10" />
-              </div>
-              <p className="mt-3 text-xs opacity-60">Research is still moving — sections land here as steps complete.</p>
+              <p className="text-sm font-medium">
+                {writingNow ? `Writing now${writingNow.of ? ` — section ${writingNow.section} of ${writingNow.of}` : ""}` : "Report"}
+              </p>
+              {writingNow ? (
+                <div>
+                  <div className="drnib-shimmer-track mb-2 mt-3 h-1 w-full rounded-full" aria-hidden="true" />
+                  <p className="mt-1 max-h-48 overflow-hidden whitespace-pre-wrap text-[13px] leading-6 opacity-80">
+                    <span className="drnib-stream-caret">…{writingNow.text.slice(-800)}</span>
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-3 space-y-2" aria-hidden="true">
+                    <div className="h-3 w-3/4 animate-pulse rounded bg-black/10" />
+                    <div className="h-3 w-full animate-pulse rounded bg-black/10" />
+                    <div className="h-3 w-5/6 animate-pulse rounded bg-black/10" />
+                  </div>
+                  <p className="mt-3 text-xs opacity-60">Research is still moving — sections land here as steps complete.</p>
+                </>
+              )}
             </section>
           )}
 
@@ -455,6 +626,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   Report · v{report.version}
+                  <Link href={`/dr-nib/research/${id}/report`} className="text-xs font-normal underline opacity-60 hover:opacity-100">Open as article ↗</Link>
                   {Number(run.versions) > 1 && (
                     <select
                       aria-label="Report version"
@@ -482,18 +654,27 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             </section>
           )}
 
-          <section className="mt-4 border border-dark-gray/50 bg-white p-4">
+          <section id="drnib-sources" className="mt-4 scroll-mt-4 border border-dark-gray/50 bg-white p-4">
             <p className="mb-3 text-sm font-medium">Sources ({(run.sources || []).length})</p>
             {(run.sources || []).length === 0 ? (
               <p className="text-xs opacity-60">{searchDone ? "Search finished with no candidates — nothing to score." : "Sources appear here as the run finds and scores them."}</p>
             ) : (
               <ul className="space-y-2">
                 {run.sources.map((s: any, i: number) => (
-                  <li key={s.id} className="rounded-xl border border-dark-gray/40 bg-gray p-2.5">
-                    <p className="text-[13px] font-medium leading-snug">[{i + 1}] {s.title || s.url}</p>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="break-all text-[11px] opacity-60">{s.domain || s.url}</span>
-                      {typeof s.trust === "number" ? <TrustChip trust={s.trust >= 0.7 ? "high" : s.trust >= 0.4 ? "medium" : "low"} /> : null}
+                  <li key={s.id} className="flex gap-2.5 rounded-xl border border-dark-gray/40 bg-gray p-2.5">
+                    {(() => {
+                      const img = sourceImage(run, s.url);
+                      return img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-lg border border-dark-gray/40 object-cover" />
+                      ) : null;
+                    })()}
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium leading-snug">[{i + 1}] {s.title || s.url}</p>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <span className="break-all text-[11px] opacity-60">{s.domain || s.url}</span>
+                        {typeof s.trust === "number" ? <TrustChip trust={s.trust >= 0.7 ? "high" : s.trust >= 0.4 ? "medium" : "low"} /> : null}
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -529,31 +710,51 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <section className="flex min-h-[60vh] flex-col border border-dark-gray/50 bg-white xl:h-[calc(100vh-9rem)]">
             <div className="flex items-center justify-between gap-2 border-b border-dark-gray/40 px-4 py-3">
               <p className="text-sm font-medium">Agent activity</p>
-              <span className="flex items-center gap-1.5 text-[11px] opacity-60">
-                <span className={`h-1.5 w-1.5 rounded-full ${streamLive ? "animate-pulse bg-black" : "bg-black/30"}`} />
-                {streamLive ? "Live" : "Polling"}
+              <span className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const blob = new Blob([chatTranscript(run)], { type: "text/markdown" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `drnib-chat-${String(id).slice(0, 8)}.md`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+                  }}
+                  className="text-[11px] font-medium uppercase tracking-wider opacity-60 hover:opacity-100"
+                  title="Download the full chat transcript as markdown"
+                >
+                  Export chat
+                </button>
+                <span className="flex items-center gap-1.5 text-[11px] opacity-60">
+                  <span className={`h-1.5 w-1.5 rounded-full ${streamLive ? "animate-pulse bg-black" : "bg-black/30"}`} />
+                  {streamLive ? "Live" : "Polling"}
+                </span>
               </span>
             </div>
             <div ref={feedRef} onScroll={(e) => { const el = e.currentTarget; tailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {(() => {
-                const items = buildFeed(run);
+                const items = feedItems;
                 if (!items.length) return <p className="text-sm opacity-60">{run.status === "awaiting" ? "Parked — the question in the box below unblocks it." : "No steps yet — approve the plan to start."}</p>;
                 return items.map((item: any, i: number) => {
                   const last = i === items.length - 1;
-                  if (item.t === "thinking") {
+                  // Fresh arrivals slide in; everything already seen renders static.
+                  const enter = i >= seenFeedCount.current ? " drnib-feed-enter" : "";
+                    if (item.t === "thinking") {
                     return (
-                      <div key={`th-${i}`} className="border-l-2 border-black/40 pl-3">
+                      <div key={`th-${i}`} className={`border-l-2 border-black/40 pl-3${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Dr. Nib&apos;s read</p>
                         <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.text}</p>
                       </div>
                     );
                   }
-                  if (item.t === "qa") {
-                    const ans = formatAnswer(item.d);
+                  if (item.t === "judge") {
+                    return <JudgeRow key={`jg-${i}`} d={item.d} enter={enter} />;
+                  }
+                  if (item.t === "qa") {                    const ans = formatAnswer(item.d);
                     const skipped = item.d.answer != null && !ans;
                     return (
-                      <div key={`qa-${i}`} className="rounded-xl border-2 border-black bg-white p-3">
+                      <div key={`qa-${i}`} className={`rounded-xl border-2 border-black bg-white p-3${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
                           {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : skipped ? " · skipped" : ""}
                         </p>
@@ -566,7 +767,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   }
                   if (item.t === "tool") {
                     return (
-                      <div key={`tool-${i}`} className="rounded-xl border border-dark-gray/40 bg-white p-2.5">
+                      <div key={`tool-${i}`} className={`rounded-xl border border-dark-gray/40 bg-white p-2.5${enter}`}>
                         <p className="flex flex-wrap items-baseline gap-x-2 font-mono text-[12px]">
                           <span className={item.e.ok ? "opacity-70" : "text-red-700"}>{item.e.ok ? "→" : "✗"} {item.e.tool}</span>
                           {item.e.detail ? <span className="break-all opacity-60">{item.e.detail}</span> : null}
@@ -579,15 +780,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   }
                   if (item.t === "parked") {
                     return (
-                      <div key={`park-${i}`} className="rounded-xl border-2 border-black bg-white p-2.5">
+                      <div key={`park-${i}`} className={`rounded-xl border-2 border-black bg-white p-2.5${enter}`}>
                         <p className="text-[12px] font-medium">△ Parked with a question — answer it in the box below.</p>
                       </div>
                     );
                   }
                   if (item.t === "marker") {
-                    return <p key={`mk-${i}`} className="text-center text-[11px] uppercase tracking-wider opacity-50">— {item.e.type} —</p>;
+                    return <p key={`mk-${i}`} className={`text-center text-[11px] uppercase tracking-wider opacity-50${enter}`}>— {item.e.type} —</p>;
                   }
-                  return <StepDetail key={item.step.id} step={item.step} open={last && item.step.status !== "done"} />;
+                  return <div key={item.step.id} className={enter ? "drnib-feed-enter" : undefined}><StepDetail step={item.step} open={last && item.step.status !== "done"} /></div>;
                 });
               })()}
             </div>

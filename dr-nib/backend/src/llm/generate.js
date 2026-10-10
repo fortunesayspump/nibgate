@@ -9,7 +9,7 @@ import { chat, chatJson, isLlmConfigured } from './provider.js';
 import { smartModel } from './pricing.js';
 import { introMessages, conclusionMessages, planMessages, reportMessages,
 roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages,
-directDataMessages, forkMessages } from './prompts.js';
+directDataMessages, forkMessages, stageNoteMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
 import { mapLimit } from '../retrieval/util.js';
 
@@ -93,7 +93,7 @@ function fallbackQuestions(brief) {
  * Write the report from the run's own scored sources. High intensity, and bound
  * by the evidence: the prompt above refuses claims the sources do not carry.
  */
-export async function generateReport({ brief, sources = [], guidance, runId, version, fetchImpl } = {}) {
+export async function generateReport({ brief, sources = [], guidance, runId, version, fetchImpl, onToken } = {}) {
   const fallback = (llmError) => ({
     ok: true,
     source: 'fallback',
@@ -109,6 +109,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         messages: reportMessages({ brief, sources, guidance }), fetchImpl,
         temperature: 0.4,
         maxTokens: 4000,
+        ...(typeof onToken === 'function' ? { onToken } : {}),
       });
       if (text && text.trim()) {
         return { ok: true, source: 'llm', model, usage, markdown: text.trim() };
@@ -133,7 +134,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
  */
 const SECTION_ATTEMPTS = 3;
 
-export async function generateSection({ brief, section, index, of, sources = [], targetWords = 800, guidance, fetchImpl } = {}) {
+export async function generateSection({ brief, section, index, of, sources = [], targetWords = 800, guidance, fetchImpl, onToken } = {}) {
   const fallback = (llmError) => ({
     ok: true,
     source: 'fallback',
@@ -156,6 +157,7 @@ export async function generateSection({ brief, section, index, of, sources = [],
         // evidence is thin and earlier attempts came back empty.
         temperature: attempt < SECTION_ATTEMPTS ? 0.4 : 0.1,
         maxTokens: maxTokensForWords(targetWords),
+        ...(typeof onToken === 'function' ? { onToken } : {}),
       });
       lastUsage = usage || lastUsage;
       lastModel = model || lastModel;
@@ -193,7 +195,7 @@ function addUsage(total, usage) {
  * the sections actually found. `getEvidence` maps a section argument to that
  * section's sources; the worker supplies it from the run's collected docs.
  */
-export async function generateReportLong({ brief, sections = [], getEvidence, guidance, runId, version, fetchImpl } = {}) {
+export async function generateReportLong({ brief, sections = [], getEvidence, guidance, runId, version, fetchImpl, onToken } = {}) {
   const resolved = resolveLength({ length: brief?.length, lengthWords: brief?.lengthWords });
   const capped = sections.slice(0, resolved.sections);
   const perSection = Math.round(resolved.words / Math.max(1, capped.length));
@@ -231,6 +233,7 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
     const out = await generateSection({
       brief, section, index: i, of: capped.length,
       sources: evidence, targetWords: perSection, guidance, fetchImpl,
+      ...(typeof onToken === 'function' ? { onToken: (delta) => onToken(delta, { section: i, of: capped.length }) } : {}),
     });
     return { i, section, out };
   });
@@ -491,6 +494,29 @@ function cleanIntakeQuestion(data) {
     if (options.length < 2) return null;
   }
   return { key, type, prompt, options, allowOther: data.allowOther !== false };
+}
+
+/**
+ * Stage narration: one plain-words line when a stage lands — what was found
+ * and what happens next — so the owner follows the run like a chat, not a
+ * progress bar. Voice only, never decisions: the facts ride in, the model
+ * phrases them. Fire-and-forget from stage(): a missing line must never slow
+ * the pipeline, so callers never await this.
+ */
+export async function generateStageNote({ kind, facts = '', next = '' } = {}) {
+  if (!isLlmConfigured()) return null;
+  try {
+    const { text } = await chat({
+      effort: 'low',
+      messages: stageNoteMessages({ kind, facts, next }),
+      temperature: 0.4,
+      maxTokens: 120,
+    });
+    const line = String(text || '').trim().replace(/\s+/g, ' ');
+    return line || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -61,6 +61,7 @@ export default function ResearchNewPage() {
   const [loadingAnswer, setLoadingAnswer] = useState(false);
   const [depth, setDepth] = useState("standard");
   const [liveWeb, setLiveWeb] = useState(true);
+  const [tipCreators, setTipCreators] = useState(false);
   const [formats, setFormats] = useState<string[]>(["pdf"]);
   const [budgetCap, setBudgetCap] = useState(2.5);
   const [length, setLength] = useState("standard");
@@ -390,7 +391,7 @@ export default function ResearchNewPage() {
     setNotice("");
     try {
       await drNibApi.configureRun(project.id, {
-        depth, budgetCap, formats, liveWeb,
+        depth, budgetCap, formats, liveWeb, tipCreators,
         length, ...(length === "custom" ? { lengthWords } : {}),
       });
       // Planning is an LLM call away — replans especially can take a minute.
@@ -681,6 +682,9 @@ export default function ResearchNewPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} onChange={(e) => setLiveWeb(e.target.checked)} /> Live web search</label>
+            <label className="flex items-center gap-2" title="Tip the decisive sources up to $1 each after scoring — proposed by the model, judged before signing">
+              <input type="checkbox" checked={tipCreators} onChange={(e) => setTipCreators(e.target.checked)} /> Tip decisive creators
+            </label>
             <span className="opacity-60">Runs are funded by an onchain escrow deposit — approve stays locked until it lands.</span>
             <span className="opacity-60">Outputs:</span>
             {["pdf", "word", "excel", "powerpoint"].map((f) => (

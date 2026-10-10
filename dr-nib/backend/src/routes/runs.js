@@ -201,7 +201,7 @@ runs.post('/:id/configure', async (req, res) => {
     const {
       depth = 'standard', budgetCap, liveWeb = true,
       language = 'en', perspective = 'neutral', formats = ['pdf'],
-      length = 'standard', lengthWords = null,
+      length = 'standard', lengthWords = null, tipCreators = false,
     } = req.body || {};
     if (!(Number(budgetCap) > 0)) return res.status(400).json({ error: 'budgetCap must be > 0' });
     const run = await ownedRun(req, res);
@@ -214,7 +214,7 @@ runs.post('/:id/configure', async (req, res) => {
       return res.status(409).json({ error: `cannot configure from ${run.status}` });
     }
     const resolvedLength = resolveLength({ length, lengthWords });
-    const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats, length: resolvedLength.preset, lengthWords: resolvedLength.words };
+    const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats, length: resolvedLength.preset, lengthWords: resolvedLength.words, tipCreators: tipCreators === true };
     await db.researchRun.update({
       where: { id: run.id },
       data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null },

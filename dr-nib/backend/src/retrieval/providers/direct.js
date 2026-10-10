@@ -168,6 +168,23 @@ function titleOf(html) {
   return m ? m[1].replace(/\s+/g, ' ').trim().slice(0, 200) : '';
 }
 
+// Lead image for thumbnails: og:image, then twitter:image, resolved against
+// the page URL. Skips data URIs and tiny tracking pixels by extension.
+function leadImage(html, url) {
+  const m = String(html || '').match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+    || String(html || '').match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    || String(html || '').match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+  const src = (m && m[1] || '').trim();
+  if (!src || src.startsWith('data:')) return null;
+  try {
+    const abs = new URL(src, url).toString();
+    if (!/\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(abs)) return null;
+    return abs.slice(0, 500);
+  } catch {
+    return null;
+  }
+}
+
 // Basic readability: drop scripts, styles, and chrome; keep headings,
 // paragraphs, and list items in document order.
 function htmlToText(html) {
@@ -274,7 +291,10 @@ async function extractOne(url, { maxChars, timeoutMs, fetchImpl }) {
     if (looksBlocked(html)) return skip('blocked-bot-check');
     const text = htmlToText(html).slice(0, maxChars);
     if (text.length < 200) return skip('no-readable-text');
-    return { url, document: { url, title: titleOf(html), text, provider: 'direct', costUsd: 0 } };
+    const doc = { url, title: titleOf(html), text, provider: 'direct', costUsd: 0 };
+    const image = leadImage(html, url);
+    if (image) doc.image = image;
+    return { url, document: doc };
   } catch (err) {
     return skip(`fetch-error: ${String(err?.message || err).slice(0, 80)}`);
   }

@@ -130,6 +130,8 @@ async function stage(runId, kind, version, fn) {
     const out = await fn();
     const elapsedMs = Date.now() - started;
     console.log(`[dr-nib] stage=${kind} run=${runId} elapsed=${elapsedMs}ms`);
+    // Narrate, never block: one voiced line lands in the feed seconds later.
+    announce(runId, kind, out);
     await db.researchStep.update({
       where: { id: row.id },
       data: { status: 'done', output: out ?? {}, endedAt: new Date() },
@@ -148,6 +150,45 @@ async function stage(runId, kind, version, fn) {
     clearInterval(heartbeat);
     inFlight -= 1;
   }
+}
+
+// ── Stage narration ─────────────────────────────────────────────────────────
+// The run talks while it works: one plain-words line per finished stage —
+// what it found, what happens next — so the owner follows along like a chat.
+// Voice only (facts ride in, the model phrases); fire-and-forget so a missing
+// line never slows the pipeline.
+const STAGE_NEXT = {
+  plan: 'searching the web for each question',
+  search: 'opening the best hits and reading them',
+  fetch: 'judging which sources to trust',
+  data: 'judging which sources to trust',
+  score: 'writing the report from the trusted sources',
+  write: 'settling the budget and releasing the remainder',
+};
+
+function factsFor(kind, out = {}) {
+  const o = out || {};
+  if (kind === 'plan') {
+    const n = (o.sub_questions || []).length;
+    return `${n} research question${n === 1 ? '' : 's'} planned`;
+  }
+  if (kind === 'search') {
+    const failed = (o.providers || []).filter((p) => p && p.ok === false).map((p) => p.name).join(', ');
+    return `${o.hits ?? 0} hits across ${(o.queries || []).length} searches${failed ? ` (${failed} unreachable)` : ''}`;
+  }
+  if (kind === 'fetch') return `${o.pages ?? 0} pages read`;
+  if (kind === 'data') return `${(o.documents || []).length} direct documents, ${(o.calls || []).length} calls`;
+  if (kind === 'score') return `${o.scored ?? 0} sources scored for trust`;
+  if (kind === 'write') return `report v${o.version ?? 1} written`;
+  return '';
+}
+
+async function announce(runId, kind, out) {
+  try {
+    const { generateStageNote } = await import('./llm/generate.js');
+    const text = await generateStageNote({ kind, facts: factsFor(kind, out), next: STAGE_NEXT[kind] });
+    if (text) await recordEvent(runId, { type: 'thinking', phase: `stage-${kind}`, text });
+  } catch {}
 }
 
 // ── Orphan sweep ─────────────────────────────────────────────────────────────
@@ -378,6 +419,7 @@ async function fetchStage(runId, run) {
       text: full,
       relevance: Number(r.score) || 0,
       provider: r.provider,
+      image: enriched.get(r.url)?.image || r.image || null,
     };
   });
   return {
@@ -686,9 +728,30 @@ async function writeStage(runId, run, guidance) {
   }));
   // Brief length stays a single bounded call; anything longer is written
   // section by section, each from its own evidence, then assembled.
+  //
+  // Live writing: section tokens stream to the feed batched every ~250ms
+  // (per-section streams, so parallel sections never garble). Ephemeral —
+  // the persisted report is the record; tokens are the show.
+  const { publish } = await import('./events.js');
+  const stream = `write-v${run.versions}`;
+  const tokenBuf = new Map();
+  const flushTokens = () => {
+    for (const [key, buf] of tokenBuf) {
+      if (!buf.text) continue;
+      publish(runId, { type: 'token', stream, section: buf.section, of: buf.of, delta: buf.text });
+      buf.text = '';
+    }
+  };
+  let tokenTimer = null;
+  const emitToken = (delta, { section = 0, of = 0 } = {}) => {
+    const key = `${section}/${of}`;
+    if (!tokenBuf.has(key)) tokenBuf.set(key, { section, of, text: '' });
+    tokenBuf.get(key).text += String(delta || '');
+    if (!tokenTimer) tokenTimer = setTimeout(() => { tokenTimer = null; flushTokens(); }, 250);
+  };
   const resolved = resolveLength({ length: brief.length, lengthWords: brief.lengthWords });
   const generated = resolved.preset === 'brief'
-    ? await generateReport({ brief, sources: evidence, guidance, runId, version: run.versions })
+    ? await generateReport({ brief, sources: evidence, guidance, runId, version: run.versions, onToken: (d) => emitToken(d) })
     : await generateReportLong({
         brief,
         sections: (run.plan?.sub_questions?.length ? run.plan.sub_questions : [`Report on: ${brief.topic || 'the brief'}`]),
@@ -702,7 +765,10 @@ async function writeStage(runId, run, guidance) {
         guidance,
         runId,
         version: run.versions,
+        onToken: (d, meta) => emitToken(d, meta),
       });
+  if (tokenTimer) { clearTimeout(tokenTimer); tokenTimer = null; }
+  flushTokens();
   await recordEvent(runId, {
     type: generated.source === 'llm' ? 'thinking' : 'thinking.fallback',
     phase: 'write',
@@ -730,8 +796,58 @@ async function writeStage(runId, run, guidance) {
   };
 }
 
-// ── Decisions (JEV's seat) ────────────────────────────────────────────────────
-// The language model proposes; JEV decides. These are the run's branch points,
+// Gratitude stage: tip the decisive sources, when the owner opted in at
+// configure. The tip_creator rail resolves any creator page to a payee; the
+// agent loop proposes, JEV judges every call (money always goes to JEV), and
+// the existing per-call ceiling + run-balance gates bound it. Skipped unless
+// opted in — spending the owner's money without consent is never a default.
+async function gratitudeStage(runId, run) {
+  if (!run.brief?.tipCreators) {
+    return { skipped: true, why: 'Creator tips not opted in: the report cites, it does not pay.', tips: [] };
+  }
+  if (!isSpendConfigured()) {
+    return { skipped: true, why: 'No agent wallet on this deployment: nothing to tip with.', tips: [] };
+  }
+  const top = await db.researchSource.findMany({
+    where: { runId },
+    orderBy: [{ trust: 'desc' }, { relevance: 'desc' }],
+    take: 3,
+  });
+  if (!top.length) {
+    return { skipped: true, why: 'No scored sources to thank.', tips: [] };
+  }
+  const { budgetState: state } = await import('./money.js');
+  const { balance } = await state(runId);
+  const { runToolAgent } = await import('./agent/loop.js');
+  const agent = await runToolAgent({
+    task: `Tip the sources that were decisive for this research (up to $1 each). Candidates, most trusted first:\n${top.map((s, i) => `${i + 1}. ${s.title || s.url} — ${s.url} (trust ${s.trust ?? '?'})`).join('\n')}\nTip only pages that read as someone's creative work (articles, posts, videos, tools). Skip indexes, aggregators, and anything you cannot attribute. Do not tip when nothing qualifies — saying so is the correct output.`,
+    tools: ['tip_creator'],
+    maxSteps: 3,
+    runId,
+    policy: briefPolicy(run),
+    balanceUsd: balance,
+  });
+  const tips = [];
+  let costUsd = 0;
+  for (const s of agent.steps) {
+    if (!s.proposal?.tool || !s.result || s.result.skipped) continue;
+    costUsd += s.result.costUsd || 0;
+    tips.push({
+      tool: s.proposal.tool, ok: s.result.ok, why: s.proposal.why,
+      error: s.result.ok ? undefined : s.result.error,
+      txHash: s.result.output?.txHash || s.result.output?.tx || undefined,
+      judgement: s.judgement?.decision,
+    });
+  }
+  return {
+    why: tips.length
+      ? 'The decisive sources got paid, not just cited — every tip proposed by the model and judged before signing.'
+      : 'Nothing qualified for a tip: the report cites, it does not pay.',
+    tips, costUsd, attempted: true, fallback: false,
+  };
+}
+
+// ── Decisions (JEV's seat) ────────────────────────────────────────────────────// The language model proposes; JEV decides. These are the run's branch points,
 // and each one is logged and streamed in full (question, options, probabilities,
 // pick) by runChoice. When JEV is unreachable the run parks — the pipeline must
 // never quietly let the model decide.
@@ -982,6 +1098,8 @@ export async function runExecute(runId) {
 
   run = await loadRun(runId);
   const guidance = await takeGuidance(runId);
+  const tipped = await stage(runId, 'tips', run.versions, () => gratitudeStage(runId, run));
+  if (!tipped?.skipped && !(await charge(runId, 'tips', tipped?.costUsd))) return;
   const written = await stage(runId, 'write', run.versions, () => writeStage(runId, run, guidance));
   if (!written?.skipped && !(await charge(runId, 'write', written?.llmCost))) return;
 

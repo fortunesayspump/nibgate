@@ -71,10 +71,18 @@ const mdComponents = {
   th: ({ children }: any) => <th className="border-b border-dark-gray/40 px-3 py-1.5 text-left font-semibold">{children}</th>,
   td: ({ children }: any) => <td className="border-b border-dark-gray/20 px-3 py-1.5 align-top">{children}</td>,
   input: ({ checked }: any) => <input type="checkbox" checked={!!checked} readOnly className="mr-1.5 align-middle" />,
+  img: ({ src, alt }: any) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt || "Report image"} loading="lazy" className="mt-2.5 max-h-80 w-auto rounded-xl border border-dark-gray/40" />
+  ),
+  // Citations jump to the sources list on the same page — every report view
+  // carries a #drnib-sources anchor for this.
   cite: ({ children }: any) => (
-    <sup className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 font-mono text-[10px] font-medium not-italic text-white">
-      {children}
-    </sup>
+    <a href="#drnib-sources" className="no-underline">
+      <sup className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 font-mono text-[10px] font-medium not-italic text-white">
+        {children}
+      </sup>
+    </a>
   ),
 };
 
@@ -90,7 +98,7 @@ export function ReportArticle({ markdown }: { markdown: string }) {
           </ReactMarkdown>
         </div>
         {!open && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white to-transparent" aria-hidden="true" />
+          <div className="drnib-fade-mask pointer-events-none absolute inset-x-0 bottom-0 h-28" aria-hidden="true" />
         )}
       </article>
       <button

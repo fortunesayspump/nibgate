@@ -23,10 +23,12 @@ export function sumDb(values) {
 }
 
 // Route-boundary guard: a Decimal reaching res.json serialises as a string,
-// which would quietly change the API's number contract. Walk the payload and
-// hand back numbers.
+// which would quietly change the API's number contract, and a BigInt
+// reaching it throws ("Do not know how to serialize a BigInt") — a 500 on
+// run detail with no useful message. Walk the payload and hand back numbers.
 export function jsonSafe(value) {
   if (value == null) return value;
+  if (typeof value === 'bigint') return Number(value);
   if (value instanceof Prisma.Decimal) return value.toNumber();
   if (value instanceof Date) return value;
   if (Array.isArray(value)) return value.map(jsonSafe);

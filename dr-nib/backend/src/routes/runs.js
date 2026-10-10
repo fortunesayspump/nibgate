@@ -147,7 +147,10 @@ runs.get('/:id', async (req, res) => {
     // from one fetch — the SSE stream then only nudges it to reload.
     const events = await replayEvents(run.id, -1, 300);
     res.json(jsonSafe({ ...(await withBudget(full)), events }));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    try { console.error(`[runs:get] ${req.params?.id} failed`, e?.stack || e?.message || e); } catch {}
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Skip the rest of intake: the user said "just plan it". Only from intake —

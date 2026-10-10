@@ -53,6 +53,9 @@ deploy-churn reload guard.
 run ($0): md/json/bibtex/pdf/word/excel/powerpoint all fire real
 downloads, not just visible buttons.
 
+**Round 7 green (run controls).** End button (two-tap), raise-cap
+inline, report version selector across reprompt versions ($0).
+
 **Decision-trail audit (latest complete run).** JEV `jev-1.13` deciding
 throughout on the funded key: midrun-ask 0.93/0.07 with a real scoping
 question, source-trust calibrated low (0.09–0.14) on thin academic
@@ -236,14 +239,14 @@ Open / suggested:
 
 ## Missing UI (confirmed absent — feature decisions, not bugs)
 
-- Objectives editing, version-history selector, raise-cap/topup button,
-  end-run button: no controls exist (revise/reprompt and trash cover
-  parts). Recommend: end-run button on detail (cheap, closes the
-  pause/resume loop), raise-cap inline on the budget bar (the 409 message
-  already tells users to do it).
-- Escrow full onchain fund flow (3 wallet confirms with real USDC): never
-  e2e'd — needs a connected browser wallet + funded key choreography.
-  Presence asserted at Review only.
+Built this round: end-run button (two-tap, all active states), raise-cap
+inline on the budget bar (existing topup endpoint), report version
+selector (added backend `?version=`). All e2e'd in round 7.
+
+Still open: objectives editing (no such entity — needs design: which
+brief fields are editable post-hoc and what it invalidates), escrow full
+onchain fund flow e2e (needs connected browser wallet + funded key
+choreography; presence asserted at Review only).
 
 ## Open backend warts (found hammering prod testnet 2026-10-09, all need a fresh-eyes pass)
 

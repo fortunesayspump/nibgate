@@ -247,10 +247,19 @@ Already-covered ground (do NOT ask about these again): intent/purpose, time rang
 
 Propose the ${n} next questions that most reduce uncertainty about this specific topic, ordered easiest-first: pick_one (2-4 short options) before pick_any (several can apply) before free (typed answer only).
 
+Who answers: a busy non-expert who knows what they WANT, not how research
+works. Ask ONLY what they can answer from their own head — intent, scope,
+constraints, audience, exclusions, what decision this informs. NEVER ask
+about research methodology: no sample sizes, timestamps, data sources,
+verification criteria, statistical choices, or metric definitions. Those
+are the researcher's job; the user cannot meaningfully answer them, and
+each such question spawns another instead of converging.
+
 Hard rules for every prompt:
 - NEVER restate the research topic — use a two-word handle at most, never the full topic sentence.
 - No two questions may share their first six words. Vary openings.
 - Name the concrete trade-off, window, or scope each answer would settle.
+- Each question must CLOSE a gap toward planning, not open a new field of inquiry. When in doubt between a scoping question and a methodology question, ask neither — fewer, sharper questions beat more.
 
 Return JSON with exactly this shape:
 {
@@ -281,10 +290,17 @@ Already-covered ground (do NOT ask about these again): intent/purpose, time rang
 
 Propose the ONE next question that most reduces uncertainty about this specific topic. Prefer pick_one (2-4 short options) when the answer is a choice, pick_any when several can apply, free when only a typed answer makes sense.
 
+Who answers: a busy non-expert who knows what they WANT, not how research
+works. Ask ONLY what they can answer from their own head — intent, scope,
+constraints, audience, exclusions. NEVER ask about research methodology:
+no sample sizes, timestamps, data sources, verification criteria, or
+metric definitions. Those are the researcher's job.
+
 Hard rules for the prompt text:
 - NEVER restate the research topic — the user already sees it above every question. If you must anchor, use a two-word handle ("the paywall question"), never the full topic sentence.
 - Two questions in a row may not share their first six words. Vary your openings.
 - Name the concrete trade-off, window, or scope the answer would settle — not the topic area in general.
+- The question must CLOSE a gap toward planning, not open a new field. When nothing material remains, do not invent methodology filler.
 
 Return JSON with exactly this shape:
 {

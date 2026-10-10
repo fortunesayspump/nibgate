@@ -72,15 +72,23 @@ runs.post('/', async (req, res) => {
     // The opener is a BATCH: up to 5 questions generated for the topic in one
     // call when a model is configured — a generic first question is where
     // "this feels canned" comes from. Bank fallback keeps creation instant
-    // and infallible either way. The live call races an 8s clock: creation
-    // is the consumer's first impression and must never hang behind a slow
-    // model (proxies and clients time out long before users do — an empty
-    // 500 from a dropped socket is worse than bank questions).
+    // and infallible either way. The live call races a 15s clock: long enough
+    // for the router to answer most of the time (LLM-first is the point —
+    // bank is the fallback, not the product), short enough that creation
+    // never hangs behind a slow model (proxies and clients time out long
+    // before users do — an empty 500 from a dropped socket is worse than
+    // bank questions).
     let questions = nextQuestions([], 5);
     try {
       const live = await Promise.race([
         generateIntakeBatch({ topic: topic.trim(), answered: [], count: 5 }),
-        new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
+        new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
+      ]);
+    let questions = nextQuestions([], 5);
+    try {
+      const live = await Promise.race([
+        generateIntakeBatch({ topic: topic.trim(), answered: [], count: 5 }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
       ]);
       if (live?.questions?.length) questions = live.questions.map((q) => ({ ...q, source: 'llm' }));
     } catch {}

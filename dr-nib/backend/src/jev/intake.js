@@ -20,7 +20,9 @@ export async function decideIntakeStop({ topic, answeredKeys = [], remainingKeys
       {
         state,
         instructions:
-          'Decide whether the brief is whole enough to leave intake and plan the research, or whether another question is still worth asking. Leaving early with a thin brief wastes the run; asking on when nothing is missing wastes the user.',
+          'Decide whether the brief is whole enough to leave intake and plan the research, or whether another question is still worth asking. Leaving early with a thin brief wastes the run; asking on when nothing is missing wastes the user. '
+          + 'Diminishing returns are real: bank items left open do NOT by themselves justify another round — if 5+ questions are already answered and topic, intent, and scope are covered, proceed. '
+          + 'Methodology detail (sample sizes, timestamps, sources, metrics) is never a reason to keep asking; that is the researcher\u2019s job.',
         candidates: [
           { id: 'proceed', context: 'The brief is whole: the topic, intent, scope, and constraints needed to plan are all present. Plan now.' },
           { id: 'ask_more', context: 'Something material is still missing — an answer that would change the plan, the sources, or the report shape. Ask the next most valuable question.' },

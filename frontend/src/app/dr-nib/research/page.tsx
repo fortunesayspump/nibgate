@@ -557,6 +557,42 @@ export default function ResearchNewPage() {
         </section>
       )}
 
+      {phase === "questions" && !thinking && openBatch.length === 0 && items.some((it) => it.answer) && (
+        <section className="mx-auto max-w-2xl py-6">
+          <p className="text-xs font-medium uppercase tracking-wider opacity-50">
+            All answered
+          </p>
+          {items.filter((it) => it.answer).map((it) => (
+            <div key={it.seq} className="mb-3 border border-dark-gray/40 bg-white px-4 py-3">
+              <p className="text-sm font-medium leading-6">{it.question.prompt}</p>
+              <p className="mt-1 text-xs opacity-60">✓ {answerLabel(it)}</p>
+            </div>
+          ))}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <button onClick={goComposer} disabled={busy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">
+              <ArrowLeft size={14} /> Back
+            </button>
+            <button onClick={() => setPhase("configure")} disabled={busy} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">
+              Continue <ArrowRight size={14} />
+            </button>
+          </div>
+        </section>
+      )}
+
+      {phase === "questions" && !thinking && openBatch.length === 0 && !items.some((it) => it.answer) && (
+        <section className="mx-auto max-w-2xl py-6 text-center">
+          <p className="text-sm opacity-60">No questions loaded for this run.</p>
+          <div className="mt-4 flex justify-center gap-2">
+            <button onClick={() => reloadItems()} disabled={busy} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">
+              Reload questions
+            </button>
+            <button onClick={goComposer} disabled={busy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">
+              <ArrowLeft size={14} /> Back
+            </button>
+          </div>
+        </section>
+      )}
+
       {phase === "configure" && (
         <section className="mx-auto max-w-2xl py-6">
           <h2 className="nibgate-display-title text-2xl font-medium md:text-3xl">Configure the run</h2>
@@ -609,7 +645,7 @@ export default function ResearchNewPage() {
             ) : null}
           </div>
           <div className="mt-5 flex gap-2">
-            <button onClick={() => setPhase("questions")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
+            <button onClick={async () => { await reloadItems(); setPhase("questions"); }} disabled={busy} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium disabled:opacity-50">Back</button>
             <button onClick={plan} disabled={busy} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Planning…" : "Plan run"}</button>
           </div>
         </section>

@@ -34,6 +34,14 @@ npx playwright test -c e2e/playwright.drnib-ui.config.ts
 
 ### 2026-10-09 — production testnet, all green
 
+**Round 3 (final): real report with web citations.** After the score-order
+fix deployed, run `edb3b94f` completed with sources from SearXNG web hits
+(Kiln Arc explainer, crypto.news Arc mainnet piece) cited as [1] (Arc = L1
+by Circle), [2] (dollar-denominated fees, governance reversibility), [4]
+(USDC on 32 chains, 1:1 backing). No placeholders, no truncation. Honest
+gap remains: no numerical fee/finality figures and zero Base coverage —
+needs deeper extraction (fee tables) and broader queries next.
+
 - API suite (`e2e/playwright.drnib.config.ts`, `DRNIB_E2E_FULL=1`): **6/6** —
   auth gating, validation, escrow reads, a fresh full run (intake → cited
   report in ~1.5 min), reprompt v2. Targets overridable via `DRNIB_E2E_HUB` /
@@ -158,7 +166,57 @@ report persisted. The **research quality** does not, on this run, and the
 **shared testnet DB** is too unstable for a repeatable live run. Nothing here
 is a mock; every number above is from real services.
 
-## Open
+## UX findings (browser e2e rounds, prod testnet)
+
+Fixed during the campaign:
+
+- **Plan() stranded users on configure.** The poll loop was 20×800ms with no
+  timeout error — a slow replan left the configure screen silently dead.
+  Now 90×2s with a loud timeout notice. (Round-2 e2e caught it.)
+- **Failure notices hid the reason.** `drNibApi.req()` threw bare statuses,
+  so cap-hits surfaced as "Could not reach Dr. Nib". Server error text is
+  now appended (e.g. the live-run cap message with counts).
+
+Open / suggested:
+
+- **Back buttons say only "Back".** On review/configure, "Back to
+  configure" / "Back to questions" would orient. Cheap copy fix.
+- **Disabled Approve under escrow opt-in has no inline reason on the
+  button.** The escrow box above explains, but a `title`/hint on the
+  disabled button itself would close the loop.
+- **Negative run balances observed** (e.g. spent 0.27 on $2 cap showing
+  −0.128). Looks like a settle/refund arithmetic wart, not just float
+  dust. Needs a ledger audit before mainnet spend grows.
+- **`POST /v1/runs/:id/end` on `intake-done` runs 404s** ("project not
+  found"). Ending should work from every non-terminal state, or the
+  404 should say which states are endable.
+- **Live-run cap (3) fills with real-titled debris during testing.**
+  The suite self-cleans e2e-titled runs only. For campaign velocity we
+  end stale runs by hand; a `DRNIB_E2E_CLEAN=1` pre-suite sweep would
+  automate it.
+
+## Open backend warts (found hammering prod testnet 2026-10-09, all need a fresh-eyes pass)
+
+- **Intermittent creation 500 via the frontend proxy** (`POST
+  /drnib-api/v1/runs` → `500 {"error":"Expected property name or '}' in
+  JSON at position 1 (line 1 column 2)"}`), while direct-to-service calls
+  behave (201 or clean 429). The run row IS created server-side, so the UI
+  sits on the composer while a zombie row piles into the live-run cap.
+  Local creation never reproduces it. Suspect: body mangling somewhere in
+  the Vercel rewrite path — needs a proxied-vs-direct differential with
+  request logging, not more guessing.
+- **Un-endable, un-deletable runs.** `0289bbb4` and `468ea0b2` return 404
+  "project not found" on GET/end/DELETE yet appear in list-runs for the
+  same wallet. They squat the live-run cap until the 72h stale rule ages
+  them out. Theories exhausted (ownership, soft-delete, idempotency
+  replay); needs DB-level inspection of those rows.
+- **Negative run balances** (e.g. spent 0.27 on a $2 cap showing −0.128).
+  Beyond float dust — settle/refund arithmetic needs an audit before
+  mainnet spend grows.
+- **Provider failures are invisible.** SearXNG misconfig (json disabled)
+  and ENOTFOUND-class errors never surface in events, logs, or the UI —
+  runs just come back thin. The search-step `providers` array exists in
+  step output; it should be logged server-side and shown in the run UI.
 
 - **OpenRouter credits are empty (2026-10-09).** The prod-testnet full run
   parked at its first JEV gate (`paused`/`jev`, step `midrun-ask`) with

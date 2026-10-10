@@ -82,6 +82,8 @@ export const drNibApi = {
     req(`/v1/runs/${id}/guidance`, { method: "POST", body: JSON.stringify({ text }) }),
   repromptRun: (id: string, prompt: string) =>
     req(`/v1/runs/${id}/revise`, { method: "POST", body: JSON.stringify({ prompt }) }),
+  editPlan: (id: string, sub_questions: string[]) =>
+    req(`/v1/runs/${id}/plan`, { method: "PATCH", body: JSON.stringify({ sub_questions }) }),
   createEscrow: (id: string, body: { client?: string; expiryHours?: number }) =>
     req(`/v1/runs/${id}/escrow`, { method: "POST", body: JSON.stringify(body) }),
   getEscrow: (id: string) => req(`/v1/runs/${id}/escrow`),

@@ -84,12 +84,6 @@ runs.post('/', async (req, res) => {
         generateIntakeBatch({ topic: topic.trim(), answered: [], count: 5 }),
         new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
       ]);
-    let questions = nextQuestions([], 5);
-    try {
-      const live = await Promise.race([
-        generateIntakeBatch({ topic: topic.trim(), answered: [], count: 5 }),
-        new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
-      ]);
       if (live?.questions?.length) questions = live.questions.map((q) => ({ ...q, source: 'llm' }));
     } catch {}
     for (let i = 0; i < questions.length; i += 1) {

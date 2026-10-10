@@ -64,6 +64,12 @@ export default function ResearchNewPage() {
   const [length, setLength] = useState("standard");
   const [lengthWords, setLengthWords] = useState(4000);
   const [estimate, setEstimate] = useState<number | null>(null);
+  // Editable plan steps (review screen): fetched on landing, PATCHed back
+  // with live repricing. Research consensus: approving a visible, editable
+  // plan beats approving blind.
+  const [subQuestions, setSubQuestions] = useState<string[]>([]);
+  const [editingSq, setEditingSq] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   // Echo of the sent topic, shown on the creating screen as the confirmation.
@@ -330,6 +336,21 @@ export default function ResearchNewPage() {
     setPhase("composer");
   }
 
+  async function savePlan(next: string[]) {
+    if (!project) return;
+    setBusy(true);
+    try {
+      const res: any = await drNibApi.editPlan(project.id, next);
+      setSubQuestions(Array.isArray(res?.plan?.sub_questions) ? res.plan.sub_questions.map(String) : next);
+      if (Number.isFinite(Number(res?.plan?.estimate))) setEstimate(Number(res.plan.estimate));
+      setEditingSq(null);
+    } catch (e: any) {
+      fail(e, "Plan edit failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function plan() {
     if (!project) return;
     setBusy(true);
@@ -348,6 +369,7 @@ export default function ResearchNewPage() {
         const full: any = await drNibApi.getRun(project.id);
         if (full.status === "planned" || full.status === "running" || full.status === "complete") {
           setEstimate(Number(full.plan?.estimate ?? 0.2));
+          setSubQuestions(Array.isArray(full.plan?.sub_questions) ? full.plan.sub_questions.map(String) : []);
           setPhase("review");
           landed = true;
           break;
@@ -661,6 +683,64 @@ export default function ResearchNewPage() {
             <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ~${Number(lengthWords || 0).toLocaleString()} words` : `${length} · ~${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"} words`}</p>
             <p className="mt-3 text-sm">Estimated cost: <strong>${(estimate ?? 0.2).toFixed(2)}</strong> · Run {project?.id?.slice(0, 8)}</p>
           </div>
+          {subQuestions.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5 text-left">
+              <p className="text-xs font-medium uppercase tracking-wider opacity-60">Plan steps — edit or drop any line before approving</p>
+              <ol className="mt-2 space-y-2">
+                {subQuestions.map((sq, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="mt-0.5 opacity-50">{i + 1}.</span>
+                    {editingSq === i ? (
+                      <span className="flex flex-1 items-center gap-2">
+                        <input
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          aria-label={`Edit step ${i + 1}`}
+                          className="flex-1 border border-dark-gray/50 bg-white px-2 py-1 text-sm"
+                        />
+                        <button
+                          onClick={() => {
+                            const t = editText.trim();
+                            if (!t || subQuestions.length <= 1) { setEditingSq(null); return; }
+                            const next = subQuestions.map((x, j) => (j === i ? t : x));
+                            void savePlan(next);
+                          }}
+                          disabled={busy}
+                          className="border border-black bg-black px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                        <button onClick={() => setEditingSq(null)} className="px-2 py-1 text-xs opacity-60 hover:opacity-100">Cancel</button>
+                      </span>
+                    ) : (
+                      <span className="flex flex-1 items-start justify-between gap-2">
+                        <span className="leading-6">{sq}</span>
+                        <span className="flex shrink-0 gap-1">
+                          <button
+                            onClick={() => { setEditingSq(i); setEditText(sq); }}
+                            aria-label={`Edit step ${i + 1}`}
+                            className="px-1.5 py-0.5 text-xs opacity-60 hover:opacity-100 hover:underline"
+                          >
+                            Edit
+                          </button>
+                          {subQuestions.length > 1 && (
+                            <button
+                              onClick={() => { void savePlan(subQuestions.filter((_, j) => j !== i)); }}
+                              disabled={busy}
+                              aria-label={`Drop step ${i + 1}`}
+                              className="px-1.5 py-0.5 text-xs opacity-60 hover:text-red-700 hover:opacity-100 disabled:opacity-50"
+                            >
+                              Drop
+                            </button>
+                          )}
+                        </span>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
           {escrowOptIn && project && !escrowFunded && (
             <EscrowDeposit runId={project.id} budgetCap={budgetCap} onFunded={() => setEscrowFunded(true)} />
           )}

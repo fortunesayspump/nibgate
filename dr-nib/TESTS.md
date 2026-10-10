@@ -337,3 +337,14 @@ whatever it was given and never checked quality.
 10. **429s from semanticscholar/gdelt.** Upstream keyless rate limits under
     parallel fan-out, not our timeouts — verified zero `timed out` errors in
     the measured run, so the 20s→10s cut dropped nothing. Watch item, not a fix.
+
+## Deposit model live 2026-10-10 (prod testnet) — verified fund → run → refund
+
+Approve now requires a Funded onchain escrow where configured and books the
+ledger from the verified budget; settle completes the job onchain
+(submit + complete + split attestation) automatically. E2E run `64b973b4`:
+job 11 funded $2 (keeper), approved, completed, `escrow.completed`
+`0xc041d2…` — remainder enforceable by contract. `ESCROW_OPERATOR` on
+testnet is the keeper (test loop closed); mainnet needs a real operator
+before escrow configures there. UI suite re-runs once Vercel's 100/day
+window resets (frontend carries the review gate + rendered report).

@@ -81,10 +81,11 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       // GET returns { configured, job: { jobId, core, …, chain } }.
       if (job?.jobId) {
         // Defensive: a job cliented to someone else is unusable — surface it
-        // instead of burning three txs into reverts.
+        // instead of burning three txs into reverts. (Jobs opened by the old
+        // relay flow are keeper-cliented; no user wallet can ever fund those.)
         const owner = String(address).toLowerCase();
         if (job.chain?.client && String(job.chain.client).toLowerCase() !== owner) {
-          throw new Error("This run's escrow job belongs to a different wallet — start a fresh run from yours.");
+          throw new Error("This run's escrow job can't be funded from your wallet (it was opened by another wallet or the old flow). Duplicate the run from Projects to start fresh with your own job.");
         }
       } else {
         const params: any = await drNibApi.createEscrow(runId, {});

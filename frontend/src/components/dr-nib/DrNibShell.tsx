@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Library, ListChecks, Menu, Microscope, CircleHelp, X } from "lucide-react";
+import { Library, ListChecks, Menu, Microscope, CircleHelp, X, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 const ITEMS = [
   { href: "/dr-nib/research", label: "Research", desc: "Start something new", icon: Microscope, match: (p: string) => p === "/dr-nib/research" || p.startsWith("/dr-nib/research/") },
@@ -45,11 +45,16 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
   const pathname = usePathname() || "";
   const mainRef = useRef<HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Rail expansion is button-driven, never hover-driven: on touch screens a
+  // tap sticks :hover with no un-hover, so the panel covered content with no
+  // close. (CSS hover-open only applies on hover-capable devices.)
+  const [railOpen, setRailOpen] = useState(false);
   const isDetail = /^\/dr-nib\/research\/.+/.test(pathname);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
     setMobileOpen(false);
+    setRailOpen(false);
   }, [pathname]);
 
   const shellStyle = { background: 'var(--nib-page-bg)', color: 'var(--nib-page-fg)', borderColor: 'var(--nib-border-soft)' } as const;
@@ -66,8 +71,12 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
           <nav aria-label="Dr. Nib" className="flex w-full shrink-0 flex-col border-b lg:hidden" style={railStyle}>
             <Boxes pathname={pathname} onNavigate={() => setMobileOpen(false)} />
           </nav>
-          <div className="drnib-rail">
+          <div className={`drnib-rail${railOpen ? " open" : ""}`}>
             <div className="drnib-rail-mini">
+              <button className="drnib-rail-toggle" onClick={() => setRailOpen((v) => !v)}
+                aria-label={railOpen ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={railOpen}>
+                {railOpen ? <ChevronsLeft size={20} /> : <ChevronsRight size={20} />}
+              </button>
               {ITEMS.map((item, index) => {
                 const Icon = item.icon;
                 const active = item.match(pathname);
@@ -87,7 +96,10 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
               })}
             </div>
             <nav aria-label="Dr. Nib" className="drnib-rail-panel" style={railStyle}>
-              <Boxes pathname={pathname} />
+              <button className="drnib-rail-toggle" onClick={() => setRailOpen(false)} aria-label="Collapse sidebar">
+                <ChevronsLeft size={20} />
+              </button>
+              <Boxes pathname={pathname} onNavigate={() => setRailOpen(false)} />
             </nav>
           </div>
         </>

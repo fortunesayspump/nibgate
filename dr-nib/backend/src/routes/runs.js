@@ -601,7 +601,7 @@ runs.post('/:id/escrow/register', async (req, res) => {
     }
     const owner = String(run.walletAddress || '').toLowerCase();
     if (!owner || String(chain.client || '').toLowerCase() !== owner) {
-      return res.status(409).json({ error: `job ${jobId} is cliented to another wallet — create it from the run owner's wallet` });
+      return res.status(409).json({ error: `job ${jobId} can't be funded from this run's wallet (opened by another wallet or the old relay flow) — duplicate the run to start fresh with your own job` });
     }
     const { escrowConfig } = await import('../escrow/jobs.js');
     const cfg = escrowConfig();

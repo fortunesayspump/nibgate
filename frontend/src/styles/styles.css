@@ -675,8 +675,37 @@ td {
   overflow: hidden;
   transition: width 0.3s ease;
 }
-.drnib-rail:hover .drnib-rail-panel {
+/* Hover-open only where hover is real (mouse/trackpad). On touch screens a
+   tap sticks :hover with no way to un-hover, so the panel covered content
+   with no close — the toggle button below is the only opener there. */
+@media (hover: hover) and (min-width: 1024px) {
+  .drnib-rail:hover .drnib-rail-panel {
+    width: 248px;
+  }
+  .drnib-rail:hover .drnib-rail-panel .dashboard-box-text {
+    opacity: 1;
+  }
+}
+.drnib-rail.open .drnib-rail-panel {
   width: 248px;
+}
+.drnib-rail.open .drnib-rail-panel .dashboard-box-text {
+  opacity: 1;
+}
+.drnib-rail-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  background: transparent;
+  color: var(--nib-ink);
+  cursor: pointer;
+  opacity: 0.6;
+}
+.drnib-rail-toggle:hover {
+  opacity: 1;
 }
 .drnib-rail-panel .dashboard-box {
   width: 248px;
@@ -685,9 +714,6 @@ td {
 .drnib-rail-panel .dashboard-box-text {
   opacity: 0;
   transition: opacity 0.2s ease 0.05s;
-}
-.drnib-rail:hover .drnib-rail-panel .dashboard-box-text {
-  opacity: 1;
 }
 
 .dashboard-box-description {

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Nibgate",
   "version": "1.0.1",
-  "description": "Tip creators anywhere on the web with USDC. Starts on testnet (free faucet funds); switch to mainnet from the header network pill for real payments.",
+  "description": "Tip creators anywhere with USDC. Testnet by default; switch to mainnet for real tips.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",

@@ -68,7 +68,14 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       };
 
       setStep("creating");
-      const job: any = await drNibApi.createEscrow(runId, { client: address });
+      // Reuse, don't re-create: the review screen opens the job on landing,
+      // so a second create 409s "already has an escrow job" and the click
+      // looks dead (seen live). Create only when no job exists yet.
+      // GET returns { configured, job: { jobId, core, …, chain } }.
+      let job: any = (await drNibApi.getEscrow(runId))?.job;
+      if (!job?.jobId) {
+        job = await drNibApi.createEscrow(runId, { client: address });
+      }
       const jobId = BigInt(job.jobId);
       const core = job.core as `0x${string}`;
 

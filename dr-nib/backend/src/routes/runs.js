@@ -12,7 +12,7 @@ import { generateIntakeBatch } from '../llm/generate.js';
 import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answer-flow.js';
 import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
-import { createJob, jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
+import { jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
 
 export const runs = Router();
 
@@ -567,20 +567,52 @@ runs.post('/:id/escrow', async (req, res) => {
       return res.status(409).json({ error: `escrow opens from planning/planned, not ${run.status}` });
     }
     if (escrowOf(run)?.jobId) return res.status(409).json({ error: 'this run already has an escrow job' });
-    const client = String(req.body?.client || req.user.walletAddress || '');
-    if (!/^0x[0-9a-fA-F]{40}$/.test(client)) return res.status(400).json({ error: 'client wallet address is required' });
-    const hours = Math.min(Math.max(Number(req.body?.expiryHours) || 72, 1), 720);
-    const out = await createJob({
-      client,
-      budget: Number(run.budgetCap),
-      description: `Dr. Nib run: ${run.title || run.brief?.topic || run.id}`.slice(0, 280),
-      expiredAt: Math.floor(Date.now() / 1000) + hours * 3600,
+    // The USER's wallet sends createJob (the stock core sets client =
+    // msg.sender — a relayed create would make an unfundable keeper-cliented
+    // job). The backend only hands out the exact call parameters; the job
+    // lands on-chain via POST /:id/escrow/register below.
+    const { createParams } = await import('../escrow/jobs.js');
+    const params = createParams({
+      description: `Dr. Nib run: ${run.title || run.brief?.topic || run.id}`,
+      expiryHours: req.body?.expiryHours,
     });
+    res.status(200).json({ runId: run.id, ...params });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Register a user-created job: verify onchain that it is real, Open, owned
+// by this run's wallet, and pointed at our splitter + evaluator — then store
+// it. Trusts the chain, never the request body.
+runs.post('/:id/escrow/register', async (req, res) => {
+  try {
+    if (!isEscrowConfigured()) return res.status(501).json({ error: 'escrow is not configured on this deployment' });
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    if (!['planning', 'planned'].includes(run.status)) {
+      return res.status(409).json({ error: `escrow opens from planning/planned, not ${run.status}` });
+    }
+    if (escrowOf(run)?.jobId) return res.status(409).json({ error: 'this run already has an escrow job' });
+    const jobId = String(req.body?.jobId || '').trim();
+    if (!/^\d+$/.test(jobId)) return res.status(400).json({ error: 'jobId is required' });
+    const chain = await jobStatus(jobId).catch((e) => ({ error: e.message }));
+    if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
+    if (chain.status !== 'Open') {
+      return res.status(409).json({ error: `job ${jobId} is ${chain.status} — register it while it is still Open` });
+    }
+    const owner = String(run.walletAddress || '').toLowerCase();
+    if (!owner || String(chain.client || '').toLowerCase() !== owner) {
+      return res.status(409).json({ error: `job ${jobId} is cliented to another wallet — create it from the run owner's wallet` });
+    }
+    const { escrowConfig } = await import('../escrow/jobs.js');
+    const cfg = escrowConfig();
+    if (String(chain.provider || '').toLowerCase() !== String(cfg.splitter || '').toLowerCase()) {
+      return res.status(409).json({ error: `job ${jobId} does not point at this run's splitter` });
+    }
     const updated = await db.researchRun.update({
       where: { id: run.id },
-      data: { metadata: { ...(run.metadata || {}), escrow: { ...out, status: 'Open' } } },
+      data: { metadata: { ...(run.metadata || {}), escrow: { jobId, core: cfg.core, splitter: cfg.splitter, status: 'Open' } } },
     });
-    await recordEvent(run.id, { type: 'escrow.created', jobId: out.jobId });
+    await recordEvent(run.id, { type: 'escrow.created', jobId });
     res.status(201).json(escrowOf(updated));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

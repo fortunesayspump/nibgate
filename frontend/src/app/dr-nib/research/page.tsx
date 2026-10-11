@@ -413,11 +413,9 @@ export default function ResearchNewPage() {
     setEscrowFunded(false);
     setEscrowBudget(0);
     try {
-      let st: any = await drNibApi.getEscrow(runId);
-      if (st?.configured === true && !st?.job) {
-        try { await drNibApi.createEscrow(runId, {}); } catch { /* already open, or create failed — re-read */ }
-        st = await drNibApi.getEscrow(runId);
-      }
+      // Read-only: the job opens from the user's own Fund click (their
+      // wallet must be the onchain client), never implicitly from a read.
+      const st: any = await drNibApi.getEscrow(runId);
       setEscrowConfigured(st?.configured === true);
       // Funded means spendable: status Funded AND at least the plan estimate
       // onchain (approve enforces the same minimum — deposits are one-shot).

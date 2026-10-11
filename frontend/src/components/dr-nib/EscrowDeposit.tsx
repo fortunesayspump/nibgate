@@ -18,7 +18,11 @@ import { getWalletErrorMessage, WALLET_ERRORS } from "@nibgate/wallet/errors";
 import { drNibApi } from "@/lib/dr-nib-api";
 
 const USDC = "0x3600000000000000000000000000000000000000";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const CORE_ABI = [
+  { name: "createJob", type: "function", stateMutability: "nonpayable", inputs: [{ name: "provider", type: "address" }, { name: "evaluator", type: "address" }, { name: "expiredAt", type: "uint256" }, { name: "description", type: "string" }, { name: "hook", type: "address" }], outputs: [{ name: "jobId", type: "uint256" }] },
+  { name: "jobCount", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { name: "getJob", type: "function", stateMutability: "view", inputs: [{ name: "jobId", type: "uint256" }], outputs: [{ name: "client", type: "address" }, { name: "provider", type: "address" }, { name: "evaluator", type: "address" }, { name: "hook", type: "address" }, { name: "token", type: "address" }, { name: "budget", type: "uint256" }, { name: "expiredAt", type: "uint256" }, { name: "status", type: "uint8" }] },
   { name: "setBudget", type: "function", stateMutability: "nonpayable", inputs: [{ name: "jobId", type: "uint256" }, { name: "amount", type: "uint256" }, { name: "optParams", type: "bytes" }], outputs: [] },
   { name: "fund", type: "function", stateMutability: "nonpayable", inputs: [{ name: "jobId", type: "uint256" }, { name: "expectedBudget", type: "uint256" }, { name: "optParams", type: "bytes" }], outputs: [] },
 ] as const;
@@ -68,13 +72,49 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       };
 
       setStep("creating");
-      // Reuse, don't re-create: the review screen opens the job on landing,
-      // so a second create 409s "already has an escrow job" and the click
-      // looks dead (seen live). Create only when no job exists yet.
-      // GET returns { configured, job: { jobId, core, …, chain } }.
+      // The USER's wallet opens the job: the stock core sets client =
+      // msg.sender, so a backend-relayed create makes a keeper-cliented job
+      // no user can ever fund (every relayed job failed exactly this way —
+      // setBudget reverts "only client or provider"). Reuse an existing job
+      // if the review already registered one.
       let job: any = (await drNibApi.getEscrow(runId))?.job;
-      if (!job?.jobId) {
-        job = await drNibApi.createEscrow(runId, { client: address });
+      // GET returns { configured, job: { jobId, core, …, chain } }.
+      if (job?.jobId) {
+        // Defensive: a job cliented to someone else is unusable — surface it
+        // instead of burning three txs into reverts.
+        const owner = String(address).toLowerCase();
+        if (job.chain?.client && String(job.chain.client).toLowerCase() !== owner) {
+          throw new Error("This run's escrow job belongs to a different wallet — start a fresh run from yours.");
+        }
+      } else {
+        const params: any = await drNibApi.createEscrow(runId, {});
+        const before: bigint = await public_.readContract({
+          address: params.core as `0x${string}`, abi: CORE_ABI, functionName: "jobCount",
+        }) as bigint;
+        await sendAndMine(
+          params.core as `0x${string}`,
+          encodeFunctionData({
+            abi: CORE_ABI, functionName: "createJob",
+            args: [params.splitter as `0x${string}`, params.evaluator as `0x${string}`, BigInt(params.expiredAt), String(params.description || ""), ZERO_ADDRESS as `0x${string}`],
+          }),
+        );
+        // Find ours by client address, newest first: race-safe where a bare
+        // jobCount+1 is not (concurrent creates from anywhere).
+        const after: bigint = await public_.readContract({
+          address: params.core as `0x${string}`, abi: CORE_ABI, functionName: "jobCount",
+        }) as bigint;
+        let found: bigint | null = null;
+        for (let id = after; id > before; id -= BigInt(1)) {
+          const j: any = await public_.readContract({
+            address: params.core as `0x${string}`, abi: CORE_ABI, functionName: "getJob", args: [id],
+          });
+          const client = (j?.client || j?.[0]) as string | undefined;
+          if (client && String(client).toLowerCase() === String(address).toLowerCase()) { found = id; break; }
+        }
+        if (found == null) throw new Error("Job created but not found onchain — retry in a moment.");
+        await drNibApi.registerEscrow(runId, found.toString());
+        job = (await drNibApi.getEscrow(runId))?.job;
+        if (!job?.jobId) throw new Error("Job registration failed — retry in a moment.");
       }
       const jobId = BigInt(job.jobId);
       const core = job.core as `0x${string}`;
@@ -136,10 +176,10 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   const labels: Record<Step, string> = {
     idle: `Fund $${chosen.toFixed(2)} escrow`,
     switching: "Confirm the network in your wallet…",
-    creating: "Opening the onchain job…",
-    budget: "1/3 Confirm budget in wallet…",
-    approving: "2/3 Confirm USDC approval…",
-    funding: "3/3 Confirm deposit…",
+    creating: "1/4 Open the job in your wallet…",
+    budget: "2/4 Confirm budget in wallet…",
+    approving: "3/4 Confirm USDC approval…",
+    funding: "4/4 Confirm deposit…",
     confirming: "Confirming onchain…",
     funded: "Funded",
   };
@@ -148,7 +188,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     <div className="mt-4 border-2 border-black bg-white p-4">
       <p className="text-xs font-medium uppercase tracking-wider opacity-60">Onchain escrow</p>
       <p className="mt-1 text-sm leading-6">
-        Lock <strong>${chosen.toFixed(2)} USDC</strong> in the run&apos;s escrow (3 wallet confirmations).
+        Lock <strong>${chosen.toFixed(2)} USDC</strong> in the run&apos;s escrow (4 wallet confirmations: open job, budget, approval, deposit).
         Stages draw from it; whatever is unspent returns to you at settle — enforced by contract, not promise.
         One-shot deposit (no top-ups): the run works against what you lock now and pauses when it runs out.
       </p>

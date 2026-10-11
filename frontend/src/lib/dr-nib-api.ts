@@ -93,6 +93,10 @@ export const drNibApi = {
     req(`/v1/runs/${id}/plan`, { method: "PATCH", body: JSON.stringify({ sub_questions }) }),
   createEscrow: (id: string, body: { client?: string; expiryHours?: number }) =>
     req(`/v1/runs/${id}/escrow`, { method: "POST", body: JSON.stringify(body) }),
+  // Register a user-created job: the wallet sends createJob itself (the core
+  // sets client = signer), then the backend verifies and stores it.
+  registerEscrow: (id: string, jobId: string) =>
+    req(`/v1/runs/${id}/escrow/register`, { method: "POST", body: JSON.stringify({ jobId }) }),
   getEscrow: (id: string) => req(`/v1/runs/${id}/escrow`),
   createExport: (id: string, format: string) =>
     req(`/v1/runs/${id}/exports`, { method: "POST", body: JSON.stringify({ format }) }),

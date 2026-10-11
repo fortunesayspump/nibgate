@@ -61,7 +61,37 @@ function clients(cfg, make = null) {
   };
 }
 
-/** Create the onchain job. Anyone may call; the client is the user's wallet. */
+/** Parameters for the USER's wallet to create the job itself.
+ *
+ * The stock core sets `client = msg.sender`, so a keeper-relayed createJob
+ * makes an unfundable job (only the client can setBudget/fund — seen live:
+ * every relayed job was keeper-cliented and user funds reverted). The user
+ * signs createJob, becoming client; the keeper never creates for others.
+ * Returns everything the wallet needs to send the exact call, plus what
+ * register needs to verify afterwards.
+ */
+export function createParams({ description, expiryHours = 72 } = {}, opts = {}) {
+  const cfg = escrowConfig(opts.env, opts.network);
+  if (!cfg.core || !cfg.splitter) throw new Error('escrow is not deployed on this network');
+  if (!cfg.keeperKey) throw new Error('escrow keeper key is not configured');
+  const hours = Math.min(Math.max(Number(expiryHours) || 72, 1), 720);
+  const account = privateKeyToAccount(cfg.keeperKey);
+  return {
+    core: cfg.core,
+    splitter: cfg.splitter,
+    evaluator: account.address,
+    expiredAt: Math.floor(Date.now() / 1000) + hours * 3600,
+    description: String(description || '').slice(0, 280),
+    hook: '0x0000000000000000000000000000000000000000',
+  };
+}
+
+/**
+ * Create the onchain job with the SERVER key. The signer becomes the client,
+ * so this is only correct when the signer IS the intended funder (keeper
+ * scripts, tests) — never as a relay for a user's run. For user runs the
+ * wallet calls createJob itself (see createParams + POST /:id/escrow/register).
+ */
 export async function createJob({ client, budget, description, expiredAt, hook }, opts = {}) {
   const cfg = escrowConfig(opts.env, opts.network);
   if (!cfg.core || !cfg.splitter) throw new Error('escrow is not deployed on this network');

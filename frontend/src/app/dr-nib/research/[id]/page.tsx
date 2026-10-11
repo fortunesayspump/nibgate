@@ -486,11 +486,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const [approveError, setApproveError] = useState("");
   async function loadEscrow(forRun?: any) {
     try {
-      let st: any = await drNibApi.getEscrow(id);
-      if (st?.configured === true && !st?.job) {
-        try { await drNibApi.createEscrow(id, {}); } catch { /* already open — re-read */ }
-        st = await drNibApi.getEscrow(id);
-      }
+      // Read-only: the job opens from the user's own Fund click (their
+      // wallet must be the onchain client), never implicitly from a read.
+      const st: any = await drNibApi.getEscrow(id);
       setEscrowConfigured(st?.configured === true);
       const src = forRun || run;
       const need = Number(src?.plan?.estimate ?? src?.budgetCap ?? 0);

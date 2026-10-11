@@ -15,7 +15,8 @@ type ExploreContent = {
 const HUB_PAGES: Array<[string, string]> = [
   [`${siteOrigin()}/explore`, "Content discovery feed indexing verified creator content from connected sites."],
   [`${siteOrigin()}/ledger`, "Public activity ledger of every view, unlock, payment, tip (including pending funded holds and negative refunds), onchain rating, and nibshare across sites (nibshare links stay private)."],
-  [`${siteOrigin()}/pending-tips`, "Check funded, unclaimed tips for any site domain, including external pages; lookup uses this deployment's mainnet or testnet API."],
+  [`${siteOrigin()}/pending-tips`, "Check funded, unclaimed tips for any site domain across mainnet and testnet; the checker identifies the network and links to claiming guidance."],
+  [`${siteOrigin()}/pending-tips/claim`, "Guide to connecting and verifying a site, then claiming its pending held tips from the creator dashboard."],
   [`${siteOrigin()}/leaderboards`, "Reputation leaderboards for creators, sites, and content."],
   [`${siteOrigin()}/discovery.md`, "Plain-language agent guidance: endpoints, x402 payment flow (Circle Agent Stack one-liner or raw Gateway), nibshare links, and rating flow."],
   [`${siteOrigin()}/skill.md`, "Integration guide for @nibgate/sdk covering widget install, gating, payments, and admin."],

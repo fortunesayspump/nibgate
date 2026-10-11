@@ -73,10 +73,12 @@ to inspect, `POST .../hub/tips/claim` with the site's `verifyToken` to release) 
 | `GET https://api.nibgate.xyz/hub/tips/held?domain=<d>` | Public exact-domain lookup of tips waiting in a domain's box; works for external sites too |
 
 Creators can also use the site's **Pending tip checker** page linked from the public
-ledger. The checker follows the current deployment: `testnet.nibgate.xyz` checks
-testnet, while `nibgate.xyz` checks mainnet. Tip title and other metadata depend on
-what the payer/extension supplied or whether matching content is indexed; JEV can
-enrich eligible indexed content but does not guarantee complete metadata for every
+ledger. It checks both networks and identifies tips on the other network; use the
+matching network's checker and creator dashboard to claim them. Claiming requires
+a connected, verified site. The step-by-step guide is at
+`https://nibgate.xyz/pending-tips/claim`. Tip title and other metadata depend on what the
+payer/extension supplied or whether matching content is indexed; JEV can enrich
+eligible indexed content but does not guarantee complete metadata for every
 external page.
 
 A refund body is `{ domain, payer, message, signature }`; `signature` is an

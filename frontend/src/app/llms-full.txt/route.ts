@@ -59,7 +59,8 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 
 - ${site}/explore — Content discovery feed.
 - ${site}/ledger — Public activity ledger.
-- ${site}/pending-tips — Check funded, unclaimed tips for any site domain, including external pages.
+- ${site}/pending-tips — Check funded, unclaimed tips for any site domain across mainnet and testnet; the checker identifies the network and links to claiming guidance.
+- ${site}/pending-tips/claim — Guide to connecting and verifying a site, then claiming its pending held tips from the creator dashboard.
 - ${site}/leaderboards — Reputation leaderboards.
 - ${site}/.well-known/agent-skills/index.json — Machine-readable index of Nibgate agent skills.
 - https://docs.nibgate.xyz/api-reference — API reference.

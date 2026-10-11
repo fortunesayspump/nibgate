@@ -851,7 +851,10 @@ a negative tip entry so the refunded amount nets out.
 Creators can check pending tips for any domain, including an external site that
 is not registered with Nibgate, using `GET /hub/tips/held?domain=<domain>`.
 Use the API host for the intended network: the mainnet API and testnet API have
-separate tip records. The public ledger links to the Pending tip checker page.
+separate tip records. The public Pending tip checker searches both networks and
+links to the matching network; claiming requires a connected, verified site and
+is available from its creator-dashboard site card. The checker also links to a
+claim guide at https://nibgate.xyz/pending-tips/claim.
 Metadata depends on caller-supplied fields and matching indexed content; JEV is
 not a guaranteed metadata or cover-image generator for arbitrary external pages.
 

@@ -4,7 +4,8 @@ import { FormEvent, useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Image from "next/image";
-import { activeNetworkName, apiUrl } from "@/lib/api";
+import Link from "next/link";
+import { activeNetworkName, apiBaseUrl } from "@/lib/api";
 
 type HeldTip = {
   id: string;
@@ -30,10 +31,33 @@ type HeldTipsResult = {
 };
 
 const NETWORK = activeNetworkName();
+const OTHER_NETWORK = NETWORK === "mainnet" ? "testnet" : "mainnet";
+const NETWORK_API: Record<"mainnet" | "testnet", string> = {
+  mainnet: "https://api.nibgate.xyz",
+  testnet: "https://testnet-api.nibgate.xyz",
+};
+
+async function fetchHeldTips(apiBase: string, domain: string): Promise<HeldTipsResult> {
+  const query = new URLSearchParams({ domain, limit: "100" });
+  const response = await fetch(`${apiBase}/hub/tips/held?${query.toString()}`, { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || `Tip lookup failed (${response.status}).`);
+  }
+  const tips: HeldTip[] = Array.isArray(data.tips) ? data.tips : [];
+  return {
+    domain: data.domain || domain,
+    tips,
+    count: Number.isFinite(data.count) ? data.count : tips.length,
+    total: Number.isFinite(data.total) ? data.total : tips.reduce((sum, tip) => sum + (Number(tip.amount) || 0), 0),
+  };
+}
 
 export default function PendingTipsPage() {
   const [domain, setDomain] = useState("");
   const [result, setResult] = useState<HeldTipsResult | null>(null);
+  const [otherNetworkResult, setOtherNetworkResult] = useState<HeldTipsResult | null>(null);
+  const [otherNetworkError, setOtherNetworkError] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -42,24 +66,24 @@ export default function PendingTipsPage() {
     setLoading(true);
     setError("");
     setResult(null);
+    setOtherNetworkResult(null);
+    setOtherNetworkError("");
 
     try {
-      const query = new URLSearchParams({ domain: domain.trim(), limit: "100" });
-      const response = await fetch(apiUrl(`/hub/tips/held?${query.toString()}`), { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || `Tip lookup failed (${response.status}).`);
-      }
-      const tips: HeldTip[] = Array.isArray(data.tips) ? data.tips : [];
       const normalizedInput = domain.trim();
       const fallbackDomain = new URL(normalizedInput.includes("://") ? normalizedInput : `https://${normalizedInput}`)
         .hostname.toLowerCase().replace(/^www\./, "");
-      setResult({
-        domain: data.domain || fallbackDomain,
-        tips,
-        count: Number.isFinite(data.count) ? data.count : tips.length,
-        total: Number.isFinite(data.total) ? data.total : tips.reduce((sum, tip) => sum + (Number(tip.amount) || 0), 0),
-      });
+      const [currentLookup, otherLookup] = await Promise.allSettled([
+        fetchHeldTips(apiBaseUrl(), normalizedInput),
+        fetchHeldTips(NETWORK_API[OTHER_NETWORK], normalizedInput),
+      ]);
+      if (currentLookup.status === "rejected") throw currentLookup.reason;
+      setResult({ ...currentLookup.value, domain: currentLookup.value.domain || fallbackDomain });
+      if (otherLookup.status === "fulfilled") {
+        setOtherNetworkResult(otherLookup.value);
+      } else {
+        setOtherNetworkError(otherLookup.reason instanceof Error ? otherLookup.reason.message : "Could not check the other network.");
+      }
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "Could not check pending tips.");
     } finally {
@@ -78,13 +102,18 @@ export default function PendingTipsPage() {
             Look up funded tips waiting to be claimed for your site. Any public domain can be checked, including external sites that are not registered with Nibgate.
           </p>
 
-          <div className="mt-8 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm" style={{ borderColor: "var(--nib-border-soft)", backgroundColor: "var(--nib-surface)" }}>
-            <span className={`h-2 w-2 rounded-full ${NETWORK === "mainnet" ? "bg-emerald-500" : "bg-amber-500"}`} />
-            Checking {NETWORK === "mainnet" ? "Arc mainnet" : "testnet"} tips
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm" style={{ borderColor: "var(--nib-border-soft)", backgroundColor: "var(--nib-surface)" }}>
+              <span className={`h-2 w-2 rounded-full ${NETWORK === "mainnet" ? "bg-emerald-500" : "bg-amber-500"}`} />
+              Checking {NETWORK === "mainnet" ? "Arc mainnet" : "testnet"} tips
+            </div>
+            <Link href="/pending-tips/claim" className="text-sm font-medium underline underline-offset-4">
+              How to claim
+            </Link>
           </div>
-          {NETWORK === "testnet" && (
-            <p className="mt-3 text-sm opacity-65">This is testnet data and test USDC only. Mainnet tips are checked on nibgate.xyz.</p>
-          )}
+          <p className="mt-3 text-sm opacity-65">
+            This checker also looks for tips on the other network. Testnet tips use test USDC.
+          </p>
 
           <form onSubmit={checkTips} className="mt-8 flex flex-col gap-3 rounded-3xl border p-5 sm:flex-row sm:p-6" style={{ borderColor: "var(--nib-border-soft)", backgroundColor: "var(--nib-surface)" }}>
             <label className="sr-only" htmlFor="tip-check-domain">Your site domain or page URL</label>
@@ -170,6 +199,25 @@ export default function PendingTipsPage() {
                   {result.count > result.tips.length && (
                     <p className="text-sm opacity-60">Showing the latest {result.tips.length} of {result.count} pending tips.</p>
                   )}
+                </div>
+              )}
+              {otherNetworkResult && otherNetworkResult.count > 0 && (
+                <div role="status" className="mt-5 rounded-2xl border border-amber-400/50 bg-amber-50 p-5 text-sm text-amber-950">
+                  This site also has {otherNetworkResult.count} tip{otherNetworkResult.count === 1 ? "" : "s"} awaiting on {OTHER_NETWORK === "mainnet" ? "mainnet" : "testnet"} ({otherNetworkResult.total.toFixed(2)} USDC).
+                  {" "}<a className="font-medium underline underline-offset-2" href={`${OTHER_NETWORK === "mainnet" ? "https://nibgate.xyz" : "https://testnet.nibgate.xyz"}/pending-tips`}>Open the {OTHER_NETWORK} checker</a> to review and claim them.
+                </div>
+              )}
+              {otherNetworkError && (
+                <p role="status" className="mt-5 rounded-2xl border p-4 text-sm opacity-70" style={{ borderColor: "var(--nib-border-soft)", backgroundColor: "var(--nib-surface)" }}>
+                  Could not check {OTHER_NETWORK} tips: {otherNetworkError}
+                </p>
+              )}
+              {result.count > 0 && (
+                <div className="mt-5 flex flex-wrap items-center gap-4">
+                  <Link href={`/dashboard/sites?claimDomain=${encodeURIComponent(result.domain)}`} className="inline-flex rounded-full bg-black px-6 py-3 text-sm font-medium text-white no-underline hover:bg-black/80">
+                    Claim now
+                  </Link>
+                  <p className="text-sm opacity-65">Site ownership must be verified before funds can be released.</p>
                 </div>
               )}
               <p className="mt-5 text-sm leading-6 opacity-60">

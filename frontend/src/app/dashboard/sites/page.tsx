@@ -32,6 +32,7 @@ type DashboardSite = {
 };
 
 type DrawerTab = "setup" | "health" | "tracking" | "danger";
+type HeldTipSummary = { count: number; total: number };
 
 function statusCopy(site: DashboardSite) {
   if (site.verificationStatus === "missing_widget") return "Widget missing. Re-add the script to resume tracking.";
@@ -140,6 +141,9 @@ export default function SitesPage() {
   const [linkCodeDisplay, setLinkCodeDisplay] = useState("");
   const [linkError, setLinkError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [heldTips, setHeldTips] = useState<Record<string, HeldTipSummary>>({});
+  const [heldTipsLookupError, setHeldTipsLookupError] = useState("");
+  const [claimingTipsId, setClaimingTipsId] = useState("");
 
   const visibleSites = sites;
   const selectedSite = visibleSites.find((site) => site.id === selectedSiteId) || null;
@@ -148,6 +152,27 @@ export default function SitesPage() {
   const openSiteDrawer = (site: DashboardSite, tab?: DrawerTab) => {
     setDrawerTab(tab || (site.isVerified ? "health" : "setup"));
     setSelectedSiteId(site.id);
+  };
+
+  const refreshHeldTips = async (siteList: DashboardSite[]) => {
+    const results = await Promise.all(siteList.map(async (site) => {
+      try {
+        const query = new URLSearchParams({ domain: site.domain, limit: "100" });
+        const res = await fetch(`${apiBaseUrl()}/hub/tips/held?${query.toString()}`, { cache: "no-store" });
+        const data = await readApiJson(res);
+        if (!res.ok || !data.success) throw new Error(data.error || `Tip lookup failed (${res.status}).`);
+        return { id: site.id, summary: { count: Number(data.count) || 0, total: Number(data.total) || 0 } };
+      } catch (err) {
+        return { id: site.id, error: err instanceof Error ? err.message : "Tip lookup failed." };
+      }
+    }));
+    const summaries: Record<string, HeldTipSummary> = {};
+    for (const result of results) {
+      if ("summary" in result && result.summary) summaries[result.id] = result.summary;
+    }
+    setHeldTips(summaries);
+    const failedCount = results.filter((result) => "error" in result).length;
+    setHeldTipsLookupError(failedCount ? `Could not check pending tips for ${failedCount} connected site${failedCount === 1 ? "" : "s"}.` : "");
   };
 
   const loadSites = async ({ showLoading = true } = {}) => {
@@ -159,6 +184,10 @@ export default function SitesPage() {
       if (!data.success) throw new Error(data.error || "Failed to load sites");
       const nextSites = data.websites || [];
       setSites(nextSites);
+      await refreshHeldTips(nextSites);
+      const claimDomain = new URLSearchParams(window.location.search).get("claimDomain");
+      const matchingSite = claimDomain && nextSites.find((site: DashboardSite) => cleanDomain(site.domain) === cleanDomain(claimDomain));
+      if (matchingSite) setSelectedSiteId(matchingSite.id);
       return nextSites as DashboardSite[];
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sites");
@@ -171,6 +200,29 @@ export default function SitesPage() {
   useEffect(() => {
     void loadSites({ showLoading: false });
   }, []);
+
+  const handleClaimTips = async (site: DashboardSite) => {
+    setError("");
+    setMessage("");
+    setClaimingTipsId(site.id);
+    try {
+      const res = await fetch(`${apiBaseUrl()}/hub/tips/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteId: site.id, token: site.verifyToken }),
+      });
+      const data = await readApiJson(res);
+      if (res.status === 202 || !res.ok || !data.success) {
+        throw new Error(data.message || data.error || `Tip claim failed (${res.status}).`);
+      }
+      setHeldTips((current) => ({ ...current, [site.id]: { count: 0, total: 0 } }));
+      setMessage(`Claim submitted for ${site.domain}. Funds are being released to your linked creator wallet.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Tip claim failed.");
+    } finally {
+      setClaimingTipsId("");
+    }
+  };
 
   const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -350,6 +402,11 @@ export default function SitesPage() {
           {error || message}
         </div>
       ) : null}
+      {heldTipsLookupError ? (
+        <p role="status" className="rounded-2xl border p-4 text-sm opacity-70" style={{ borderColor: "var(--nib-border-soft)" }}>
+          {heldTipsLookupError}
+        </p>
+      ) : null}
 
       <section className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="rounded-[24px] border p-5 shadow-1 md:p-6" style={{ background: "var(--nib-surface)", borderColor: "var(--nib-border-soft)" }}>
@@ -449,8 +506,20 @@ export default function SitesPage() {
                 </div>
 
                 <div className="mt-5 flex items-center justify-between gap-3">
-                  <p className="text-sm opacity-60">{statusCopy(site)}</p>
+                  <div>
+                    <p className="text-sm opacity-60">{statusCopy(site)}</p>
+                    {(heldTips[site.id]?.count || 0) > 0 && (
+                      <p className="mt-2 text-sm font-medium">
+                        {heldTips[site.id].count} pending tip{heldTips[site.id].count === 1 ? "" : "s"} · {heldTips[site.id].total.toFixed(2)} USDC
+                      </p>
+                    )}
+                  </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {(heldTips[site.id]?.count || 0) > 0 && site.isVerified ? (
+                      <button onClick={() => handleClaimTips(site)} disabled={claimingTipsId === site.id} className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:-translate-y-0.5 disabled:opacity-60">
+                        {claimingTipsId === site.id ? "Claiming..." : "Claim tips"}
+                      </button>
+                    ) : null}
                     {!site.isVerified ? (
                       <button onClick={() => setRemoveSiteId(site.id)} className="rounded-full border px-4 py-2 text-sm font-medium text-red-800 transition hover:-translate-y-0.5 hover:bg-red-50" style={{ borderColor: "rgba(185, 28, 28, 0.28)" }}>
                         Remove

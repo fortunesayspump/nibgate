@@ -8,6 +8,7 @@ import { isSpendConfigured, MAX_TIP_USD, MAX_UNLOCK_USD, MAX_X402_USD } from '..
 import { spendChain } from '../spend/chain.js';
 import { sandboxConfigured } from '../tools/sandbox.js';
 import { budgetState } from '../money.js';
+import { db } from '../db.js';
 
 /**
  * Snapshot of the agent's own operational state. Cheap parts (tools, caps)
@@ -41,7 +42,19 @@ export async function agentState({ runId = null } = {}) {
   if (runId) {
     try {
       const b = await budgetState(runId);
-      state.runBudget = { balance: b.balance, spent: b.spend, cap: null };
+      const run = await db.researchRun.findUnique({ where: { id: runId } });
+      const elapsedMin = run?.createdAt ? Math.max(0, Math.round((Date.now() - new Date(run.createdAt).getTime()) / 60000)) : null;
+      // Everything the run has: balance AND the ceiling, the plan's own
+      // estimate, and how long it has been alive — a judge that cannot see
+      // the cap, the estimate, or elapsed time cannot pace its spend.
+      state.runBudget = {
+        balance: b.balance,
+        spent: b.spend,
+        cap: run?.budgetCap != null ? Number(run.budgetCap) : null,
+        estimate: Number.isFinite(Number(run?.plan?.estimate)) ? Number(run.plan.estimate) : null,
+        elapsedMin,
+        status: run?.status || null,
+      };
     } catch {
       state.runBudget = 'unknown';
     }
@@ -63,7 +76,13 @@ export function selfBlock(state, stepBudget) {
     lines.push(`Spending: ${state.spend}.`);
   }
   if (state.runBudget && typeof state.runBudget === 'object') {
-    lines.push(`This run's budget: $${Number(state.runBudget.balance).toFixed(2)} left, $${Number(state.runBudget.spent).toFixed(2)} spent.`);
+    const rb = state.runBudget;
+    const bits = [`This run's budget: $${Number(rb.balance).toFixed(2)} left, $${Number(rb.spent).toFixed(2)} spent`];
+    if (rb.cap != null) bits.push(`cap $${Number(rb.cap).toFixed(2)}`);
+    if (rb.estimate != null) bits.push(`plan estimate $${Number(rb.estimate).toFixed(2)}`);
+    if (rb.elapsedMin != null) bits.push(`live ${rb.elapsedMin} min`);
+    if (rb.status) bits.push(`status ${rb.status}`);
+    lines.push(bits.join(' · ') + '.');
   }
   if (stepBudget) lines.push(`Steps remaining incl. this one: ${stepBudget}. Spend them on evidence, not loops.`);
   return lines.join('\n');

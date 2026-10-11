@@ -17,7 +17,7 @@ Escrow is opt-in per run. Runs without it keep the [ledger path](./budgets) — 
 | Role | Who |
 |---|---|
 | Client | your wallet — funds the job, receives refunds |
-| Provider | the run's splitter contract — receives the full cap on completion, then divides it |
+| Provider | the run's splitter contract — receives the deposited budget on completion, then divides it |
 | Evaluator | the Nibgate keeper — attests completion against the run ledger (a JEV-gated evaluator contract is the planned successor) |
 
 ## Lifecycle
@@ -33,9 +33,9 @@ Open → Funded → Submitted → Completed → split
   └─ backend createJob(provider=splitter)
 ```
 
-1. **Open** — the backend opens the job after configure (provider = splitter, evaluator = keeper).
-2. **Fund** — at review you sign `setBudget` + `approve` + `fund`. The full cap locks in escrow. Approve is then gated: the run only starts once the job reads Funded for at least the cap.
-3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow.
+ 1. **Open** — the backend opens the job after configure (provider = splitter, evaluator = keeper).
+ 2. **Fund** — at review you sign `setBudget` + `approve` + `fund`, picking any amount from the plan estimate up. The deposit is one-shot (the core flips Open→Funded; no top-ups ever). Approve is then gated: the run only starts once the job reads Funded for at least the estimate, and the working cap aligns down to what landed.
+ 3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow. Pause at cap on an exhausted deposit ends (report kept) or restarts bigger as a new run — raising past the deposit is rejected everywhere.
 4. **Submit** — the worker submits `(reportHash, spentUsdc)` through the splitter (the provider is a contract and cannot sign, so the keeper relays).
 5. **Complete** — the keeper completes with the ledger-attested spend.
 6. **Split** — anyone executes the keeper-signed attestation: earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — one atomic transaction.
@@ -59,4 +59,4 @@ Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund`
 | AgenticCommerce (stock ERC-8183) | `0x5135ae9be828be42b63f176848a7b720aedf4c58` |
 | NibgateRunSplitter (100 bps) | `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` |
 
-USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. Full lifecycle proven onchain: $0.05 funded → $0.03 spent → 17820 operator / 180 treasury / 12000 client, atomic.
+USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. Full lifecycle proven onchain: $0.05 funded → $0.03 spent → 17820 operator / 180 treasury / 12000 client, atomic. Partial funding proven too: $0.20 (= estimate on a $2 cap) → approve with cap aligned down → spent $0.158 → paused at cap → second fund reverted (one-shot) → settled with $0.0399 refunded.

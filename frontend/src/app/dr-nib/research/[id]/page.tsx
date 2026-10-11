@@ -2,11 +2,13 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Pause, Play, Send } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { subscribeRunEvents } from "@/lib/dr-nib-events";
+import { explorerTxUrl } from "@nibgate/wallet";
 import { TrustChip } from "@/components/dr-nib/common";
-import { ReportArticle } from "@/components/dr-nib/ReportMarkdown";
+import { ReportArticle, ReportEvidence, ReportQA } from "@/components/dr-nib/ReportMarkdown";
 
 // One chronological feed from three sources: the agent's reads (intake
 // thinking), the steps with their full outputs, and the tool calls with
@@ -108,6 +110,12 @@ function JudgeRow({ d, enter }: { d: any; enter: string }) {
       <p className="font-mono text-[12px]">
         <span className="opacity-70">◈ {label[d.step] || d.step || "Judgement"}</span>
         {pick ? <span className="font-medium"> → {String(pick)}</span> : null}
+        {/* A cap override is not a judgement: JEV said ask_more and the
+            question budget said stop. Without this the owner sees
+            "ask_more 0.70 → proceed" and reads it as the judge being
+            ignored — seen live after batch 5. */}
+        {out.capped ? <span className="opacity-60"> · cap hit ({out.cap} questions)</span> : null}
+        <FeedTime at={d.createdAt} />
       </p>
       {probText ? <p className="mt-0.5 font-mono text-[11px] opacity-60">{probText}</p> : null}
       {out.model ? <p className="font-mono text-[11px] opacity-50">{String(out.model)}{out.source && out.source !== out.model ? ` · ${out.source}` : ""}{Number(out.usage?.costUsd) > 0 ? ` · $${Number(out.usage.costUsd).toFixed(4)}` : ""}</p> : null}
@@ -193,15 +201,36 @@ function chatTranscript(run: any): string {
       L.push(`[${n + 1}] ${s.title || s.url} — ${s.url}${typeof s.trust === "number" ? ` (trust ${s.trust})` : ""}`);
     }
   }
+  // Settlement is part of the audit: what landed, what was spent, what came
+  // back, and the onchain proof. A transcript without the money is half one.
+  {
+    const deposited = Number(run.deposited ?? 0);
+    const spent = Number(run.spend ?? run.spent ?? 0);
+    const fee = Number(run.fee ?? 0);
+    const refunded = Number(run.refunded ?? 0);
+    const esc = (run.metadata && run.metadata.escrow) || null;
+    if (deposited > 0 || refunded > 0 || esc?.jobId) {
+      L.push(`\n## Settlement`);
+      L.push(`- deposited $${deposited.toFixed(2)} · spent $${spent.toFixed(2)}${fee > 0 ? ` (+$${fee.toFixed(4)} fee)` : ""} · refunded $${refunded.toFixed(2)}`);
+      if (esc?.jobId) L.push(`- escrow job ${esc.jobId} · ${esc.status || "unknown"}${esc.completeTx ? ` · settle tx ${esc.completeTx}` : ""}`);
+    }
+  }
   return L.join("\n");
 }
 
 // An answer is one of several shapes (typed text, picked options, checked
-// options) — render what the owner actually said, not the JSON.
+// options) — render what the owner actually said, not the JSON. optionIds
+// is the shape the intake UI posts; ignoring it rendered real answers as
+// "(empty answer)".
 function formatAnswer(d: any): string {
   const a = d.answer;
   if (a == null) return "";
-  if (typeof a.text === "string" && a.text.trim()) return a.text.trim();
+  if (typeof a.text === "string" && a.text.trim()) {
+    const ids = optionLabels(d, a.optionIds);
+    return [...ids, `"${a.text.trim()}"`].filter(Boolean).join(", ");
+  }
+  const ids = optionLabels(d, a.optionIds);
+  if (ids.length) return ids.join(", ");
   const q = d.question || {};
   const opts: any[] = Array.isArray(q.options) ? q.options : [];
   const label = (id: string) => opts.find((o) => o.id === id)?.label || id;
@@ -209,6 +238,12 @@ function formatAnswer(d: any): string {
   if (Array.isArray(a.picked)) return a.picked.map(label).join(", ");
   if (typeof a === "string") return a;
   return "";
+}
+
+function optionLabels(d: any, ids: any): string[] {
+  if (!Array.isArray(ids)) return [];
+  const opts: any[] = Array.isArray(d.question?.options) ? d.question.options : [];
+  return ids.map((id: string) => opts.find((o) => o.id === id)?.label || id).filter(Boolean);
 }
 
 function StepDetail({ step, open }: { step: any; open: boolean }) {
@@ -299,25 +334,143 @@ function StepDetail({ step, open }: { step: any; open: boolean }) {
         <ul className="mt-2 space-y-1">{out.learnings.map((l: string, n: number) => (<li key={n} className="text-[12px] leading-5 opacity-80">✓ {l}</li>))}</ul>
       ) : null}
       {(out.followUps || []).length > 0 ? (
-        <ul className="mt-1 space-y-1">{out.followUps.map((l: string, n: number) => (<li key={n} className="text-[12px] leading-5 opacity-60">→ next: {l}</li>))}</ul>
+        <ul className="mt-1 space-y-1">{out.followUps.map((l: string, n: number) => (<li key={n} className="font-mono text-[11px] opacity-60">→ next: {l}</li>))}</ul>
       ) : null}
     </div>
   );
 }
 
+// Relative clock for feed rows: absolute on hover. Owners audit WHEN things
+// happened (did intake stall? how long did search take?) — a feed without
+// times is a story without a clock.
+function ago(ts: any): string {
+  const t = new Date(ts || 0).getTime();
+  if (!Number.isFinite(t) || t <= 0) return "";
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return new Date(t).toLocaleDateString();
+}
+
+function FeedTime({ at }: { at: any }) {
+  const label = ago(at);
+  if (!label) return null;
+  return <span title={new Date(at).toLocaleString()} className="opacity-50"> · {label}</span>;
+}
+
+// Settlement receipt: what the run cost and where the remainder went. The
+// header shows spend-vs-cap; this shows the money truth after the fact —
+// deposit, spend + fee, refund, and the onchain completion proof. A run that
+// took money must end with a receipt, not silence.
+function SettlementReceipt({ run }: { run: any }) {
+  const esc = (run.metadata && run.metadata.escrow) || null;
+  const deposited = Number(run.deposited ?? 0);
+  const spent = Number(run.spend ?? run.spent ?? 0);
+  const fee = Number(run.fee ?? 0);
+  const refunded = Number(run.refunded ?? 0);
+  const tx = esc?.completeTx as string | undefined;
+  return (
+    <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
+      <p className="text-sm font-medium">Receipt</p>
+      <p className="mt-2 text-[13px] leading-6">
+        Deposited ${deposited.toFixed(2)}
+        {" · "}spent ${spent.toFixed(2)}{fee > 0 ? ` (+$${fee.toFixed(3)} fee)` : ""}
+        {" · "}refunded ${refunded.toFixed(2)}
+      </p>
+      {esc?.jobId ? (
+        <p className="mt-1.5 text-xs leading-5 opacity-60">
+          Escrow job {String(esc.jobId).slice(0, 12)}{esc.jobId?.length > 12 ? "…" : ""} · {esc.status || "settled"}
+          {Number(run.budgetCap) > 0 && Number(esc.targetCap) > Number(run.budgetCap)
+            ? ` · funded $${Number(run.budgetCap).toFixed(2)} of $${Number(esc.targetCap).toFixed(2)} cap` : ""}
+          {tx ? <> · <a href={explorerTxUrl(tx)} target="_blank" rel="noreferrer" className="underline">settle tx ↗</a></> : null}
+        </p>
+      ) : (
+        <p className="mt-1.5 text-xs leading-5 opacity-60">Ledger run — no onchain escrow.</p>
+      )}
+    </section>
+  );
+}
+
 export default function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [run, setRun] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState("");
   const [streamLive, setStreamLive] = useState(true);
+  // Whether any successful load has landed. A ref, not state: the SSE
+  // subscription captures the first render's load(), whose state snapshot
+  // is permanently stale — only a ref tells the truth in there.
+  const loadedOnce = useRef(false);
+  // Background refetch failed while good content is on screen (SSE fires
+  // load() on every event — one blip must not wipe the page). Banner, not
+  // a wipe; clears on the next successful read.
+  const [staleWarn, setStaleWarn] = useState(false);
   const [exportError, setExportError] = useState("");
   const [awaitingText, setAwaitingText] = useState("");
   const [awaitingBusy, setAwaitingBusy] = useState(false);
   const [awaitingError, setAwaitingError] = useState("");
   const [reportVersion, setReportVersion] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [shareFallback, setShareFallback] = useState("");
+  // Version-pinned permalink: the URL names the exact report version, so a
+  // shared link always shows what the sender saw even after a reprompt.
+  function shareReport() {
+    if (!report) return;
+    const url = `${window.location.origin}/dr-nib/research/${id}/report?version=${report.version}`;
+    (async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareFallback("");
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      } catch {
+        // Clipboard blocked: show the URL selectable instead of pretending.
+        setShareFallback(url);
+      }
+    })();
+  }
+  async function copyReport() {
+    if (!report?.markdown) return;
+    try {
+      await navigator.clipboard.writeText(report.markdown);
+    } catch {
+      // Clipboard blocked (permissions, old browser): download instead of
+      // pretending the copy worked.
+      const blob = new Blob([report.markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `report-v${report.version}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
   const [endArmed, setEndArmed] = useState(false);
   const [endBusy, setEndBusy] = useState(false);
+  const [dupBusy, setDupBusy] = useState(false);
+  // Duplicate: fresh intake on the same topic. One click, straight into the
+  // new run — the escape hatch when this run's escrow is exhausted.
+  async function duplicateRun() {
+    const topic = String(run?.brief?.topic || run?.title || "").trim();
+    if (!topic || dupBusy) return;
+    setDupBusy(true);
+    try {
+      const created: any = await drNibApi.createProject(topic);
+      router.push(`/dr-nib/research?project=${created.id}`);
+    } catch {
+      setDupBusy(false);
+    }
+  }
   const [raiseAmt, setRaiseAmt] = useState("");
   const [raiseBusy, setRaiseBusy] = useState(false);
   const [raiseError, setRaiseError] = useState("");
@@ -326,8 +479,21 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     try {
       const r = await drNibApi.getRun(id);
       setRun(r);
+      loadedOnce.current = true;
+      // A successful read clears both the first-load error and any
+      // background stale banner — the page is fresh again.
+      setError("");
+      setStaleWarn(false);
       try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); } catch { setReport(null); }
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) {
+      // A background refetch (every SSE event calls load) must never wipe a
+      // loaded page: a network blip showed "Could not load run" over good
+      // content with no recovery (seen live). Only the very first load —
+      // when there is nothing to show — is a hard error. A ref (not state:
+      // the SSE subscription holds the first render's load) tracks that.
+      if (!loadedOnce.current) setError(e.message);
+      else setStaleWarn(true);
+    }
   }
 
   async function endRun() {
@@ -386,6 +552,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     }
   }
 
+  // Autogrown chat boxes keep their height after a programmatic clear
+  // (no input event fires) — collapse them back to one row on send.
+  function collapseComposer(id: string) {
+    try { (document.getElementById(id) as HTMLTextAreaElement | null)?.style.setProperty("height", "auto"); } catch { /* noop */ }
+  }
+
   // Answer the mid-run question a parked run is waiting on. Nothing moves
   // until this lands — it is the whole unblock.
   async function answerAwaiting(optionId?: string) {
@@ -396,6 +568,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     try {
       await drNibApi.answerAwaiting(id, optionId ? { optionId } : text);
       setAwaitingText("");
+      collapseComposer("drnib-awaiting-box");
       await load();
     } catch (e: any) {
       setAwaitingError(e?.message || "That didn't go through — retry.");
@@ -420,6 +593,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     try {
       await drNibApi.sendGuidance(id, text);
       setGuidance("");
+      collapseComposer("drnib-guidance-box");
       setGuidanceNote("Noted — applies at the next stage boundary.");
       await load();
     } catch (e: any) {
@@ -443,6 +617,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     try {
       await drNibApi.repromptRun(id, text);
       setReprompt("");
+      collapseComposer("drnib-reprompt-box");
       await load();
     } catch (e: any) {
       setRepromptError(e?.message || "That didn't go through — retry.");
@@ -455,6 +630,18 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   // only if the reader is already there, so reading back never yanks.
   const feedRef = useRef<HTMLDivElement>(null);
   const tailRef = useRef(true);
+  // Jump-to-latest needs a render; the tail ref alone doesn't re-render.
+  const [atTail, setAtTail] = useState(true);
+  function onFeedScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const tail = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    tailRef.current = tail;
+    setAtTail(tail);
+  }
+  function jumpToLatest() {
+    const el = feedRef.current;
+    if (el) { el.scrollTop = el.scrollHeight; tailRef.current = true; setAtTail(true); }
+  }
   // New arrivals slide in; refetches never replay. Keys are chronological, so
   // anything past the previous count is new.
   const feedItems = buildFeed(run);
@@ -502,8 +689,37 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (error) return <p className="text-sm text-red-700">Could not load run: {error}</p>;
-  if (!run) return <p className="text-sm opacity-60">Loading run…</p>;
+  if (error) return (
+    <div className="mx-auto max-w-2xl py-10 text-center">
+      <p className="text-sm font-medium">Couldn&apos;t load this run</p>
+      <p className="mx-auto mt-2 max-w-md text-sm opacity-60">{error}</p>
+      <div className="mt-4 flex justify-center gap-2">
+        <button onClick={() => { setError(""); void load(); }} className="bg-black px-6 py-2 text-sm font-medium text-white">Retry</button>
+        <Link href="/dr-nib/projects" className="border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">Projects</Link>
+      </div>
+    </div>
+  );
+  // Skeleton mirrors the command-center layout so first paint isn't a bare
+  // top-left line (seen live: "Loading run…" unstyled while compiling).
+  if (!run) return (
+    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]" aria-hidden="true">
+      <div className="border border-dark-gray/50 bg-white px-4 py-4">
+        <div className="h-6 w-3/4 animate-pulse rounded bg-black/10" />
+        <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-black/10" />
+        <div className="mt-3 h-3 w-full animate-pulse rounded bg-black/10" />
+        <div className="mt-2 h-3 w-5/6 animate-pulse rounded bg-black/10" />
+      </div>
+      <div className="border border-dark-gray/50 bg-white p-4">
+        <div className="h-3 w-1/3 animate-pulse rounded bg-black/10" />
+        <div className="mt-3 space-y-2">
+          <div className="h-3 w-full animate-pulse rounded bg-black/10" />
+          <div className="h-3 w-11/12 animate-pulse rounded bg-black/10" />
+          <div className="h-3 w-4/6 animate-pulse rounded bg-black/10" />
+        </div>
+        <p className="mt-4 text-xs opacity-60">Loading run…</p>
+      </div>
+    </div>
+  );
 
   const topic = run.brief?.topic || "Untitled run";
   const spent = Number(run.spent || 0);
@@ -541,6 +757,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
   return (
     <div>
+      {staleWarn && (
+        <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm">
+          <span>Connection hiccup — showing the last loaded state. It refreshes on its own.</span>
+          <span className="flex shrink-0 gap-2">
+            <button onClick={() => void load()} className="underline">Retry now</button>
+            <button onClick={() => setStaleWarn(false)} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button>
+          </span>
+        </div>
+      )}
       {/* Command-center layout: the left column is the run — header, work
           product, budget — kept deliberately narrow; the right column is the
           agent, the wider panel, fixed in place with its own scroll and the
@@ -580,8 +805,17 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <button onClick={endRun} disabled={endBusy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{endBusy ? "Ending…" : endArmed ? "Click again to end + refund" : "End run"}</button>
             </div>
           )}
+          {(["complete", "ended", "failed"] as string[]).includes(run.status) && (
+            <div className="mt-3">
+              <button onClick={duplicateRun} disabled={dupBusy} title="Start a fresh run on the same topic" className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{dupBusy ? "Duplicating…" : "Duplicate run"}</button>
+            </div>
+          )}
         </div>
       </header>
+
+          {["complete", "ended", "failed"].includes(run.status) && (
+            <SettlementReceipt run={run} />
+          )}
 
           {!report && (run.status === "running" || run.status === "paused") && !nothingFound && (
             <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
@@ -628,6 +862,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 <p className="flex items-center gap-2 text-sm font-medium">
                   Report · v{report.version}
                   <Link href={`/dr-nib/research/${id}/report`} className="text-xs font-normal underline opacity-60 hover:opacity-100">Open as article ↗</Link>
+                  <button onClick={copyReport} className="text-xs font-normal underline opacity-60 hover:opacity-100">{copied ? "✓ Copied" : "Copy"}</button>
+                  <button onClick={shareReport} className="text-xs font-normal underline opacity-60 hover:opacity-100" title="Copy a link to this exact report version">{linkCopied ? "✓ Link copied" : "Share"}</button>
                   {Number(run.versions) > 1 && (
                     <select
                       aria-label="Report version"
@@ -651,7 +887,14 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 </div>
               </div>
               {exportError ? <p className="mb-2 text-xs text-red-700">{exportError}</p> : null}
-              <ReportArticle markdown={report.markdown} />
+              {shareFallback ? <p className="mb-2 break-all text-xs opacity-70">Copy this link: {shareFallback}</p> : null}
+              {(() => {
+                const steer = (run.metadata?.versionPrompts || {})[report.version];
+                return steer ? <p className="mb-2 text-xs opacity-60">v{report.version} steered by: “{String(steer).slice(0, 160)}”</p> : null;
+              })()}
+              <ReportArticle markdown={report.markdown} sources={run.sources || []} />
+              <ReportEvidence claims={run.claims} sources={run.sources || []} />
+              <ReportQA claims={run.claims} sources={run.sources || []} />
             </section>
           )}
 
@@ -732,8 +975,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 </span>
               </span>
             </div>
-            <div ref={feedRef} onScroll={(e) => { const el = e.currentTarget; tailRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+            <div ref={feedRef} onScroll={onFeedScroll}
+              className="relative min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {(() => {
                 const items = feedItems;
                 if (!items.length) return <p className="text-sm opacity-60">{run.status === "awaiting" ? "Parked — the question in the box below unblocks it." : "No steps yet — approve the plan to start."}</p>;
@@ -744,7 +987,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     if (item.t === "thinking") {
                     return (
                       <div key={`th-${i}`} className={`border-l-2 border-black/40 pl-3${enter}`}>
-                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Dr. Nib&apos;s read</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Dr. Nib&apos;s read<FeedTime at={item.at} /></p>
                         <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.text}</p>
                       </div>
                     );
@@ -752,20 +995,21 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   if (item.t === "judge") {
                     return <JudgeRow key={`jg-${i}`} d={item.d} enter={enter} />;
                   }
-                  if (item.t === "qa") {                    const ans = formatAnswer(item.d);
-                    const skipped = item.d.answer != null && !ans;
-                    return (
-                      <div key={`qa-${i}`} className={`rounded-xl border-2 border-black bg-white p-3${enter}`}>
+                  if (item.t === "qa") {
+                     const ans = formatAnswer(item.d);
+                     const skipped = item.d.answer != null && !ans;
+                     return (
+                       <div key={`qa-${i}`} className={`rounded-xl border-2 border-black bg-white p-3${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
-                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : skipped ? " · skipped" : ""}
+                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : skipped ? " · skipped" : ""}<FeedTime at={item.at} />
                         </p>
-                        <p className="mt-1 text-[13px] font-medium leading-6">{item.d.prompt || item.d.question?.prompt}</p>
-                        {item.d.answer != null ? (
-                          <p className="mt-1.5 border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">{skipped ? <span className="opacity-50">Skipped — no answer recorded</span> : `You: ${ans}`}</p>
-                        ) : null}
-                      </div>
-                    );
-                  }
+                         <p className="mt-1 text-[13px] font-medium leading-6">{item.d.prompt || item.d.question?.prompt}</p>
+                         {item.d.answer != null ? (
+                           <p className="mt-1.5 border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">{skipped ? <span className="opacity-50">Skipped — no answer recorded</span> : `You: ${ans}`}</p>
+                         ) : null}
+                       </div>
+                     );
+                   }
                   if (item.t === "tool") {
                     return (
                       <div key={`tool-${i}`} className={`rounded-xl border border-dark-gray/40 bg-white p-2.5${enter}`}>
@@ -792,6 +1036,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   return <div key={item.step.id} className={enter ? "drnib-feed-enter" : undefined}><StepDetail step={item.step} open={last && item.step.status !== "done"} /></div>;
                 });
               })()}
+              {!atTail && feedItems.length > 0 && (
+                <div className="sticky bottom-1 flex justify-center">
+                  <button onClick={jumpToLatest} className="rounded-full border border-dark-gray/60 bg-white px-4 py-1.5 text-xs font-medium shadow hover:bg-black hover:text-white">
+                    ↓ Latest activity
+                  </button>
+                </div>
+              )}
             </div>
             <div className="border-t border-dark-gray/40 p-3">
               {["ended", "complete", "failed"].includes(run.status) ? (
@@ -799,10 +1050,19 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   <p className="text-xs font-medium uppercase tracking-wider opacity-60">↻ Run it again, with a steer</p>
                   <p className="mt-1 text-xs opacity-60">New version — every stage re-executes and your prompt steers the pass. Needs balance.</p>
                   <div className="relative mt-2">
-                    <textarea value={reprompt} onChange={(e) => setReprompt(e.target.value)}
+                    <textarea id="drnib-reprompt-box" value={reprompt} onChange={(e) => setReprompt(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReprompt(); } }}
-                      rows={2} placeholder='e.g. "redo the search with shorter queries, then hit public APIs"'
-                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2.5 pb-10 text-sm outline-none" />
+                      onInput={(e) => {
+                        // Single-row chat box that grows with text (capped):
+                        // the fixed two-row + deep button padding ate the
+                        // panel (seen live). Same treatment on all three
+                        // composers in this panel.
+                        const el = e.currentTarget;
+                        el.style.height = "auto";
+                        el.style.height = `${Math.min(el.scrollHeight, 130)}px`;
+                      }}
+                      rows={1} placeholder='e.g. "redo the search with shorter queries, then hit public APIs"'
+                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2 pb-9 text-sm outline-none" />
                     <button onClick={sendReprompt} disabled={repromptBusy || !reprompt.trim()} aria-label="Send reprompt"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
                       <Send size={14} aria-hidden="true" />
@@ -827,10 +1087,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     </div>
                   )}
                   <div className="relative mt-2">
-                    <textarea value={awaitingText} onChange={(e) => setAwaitingText(e.target.value)}
+                    <textarea id="drnib-awaiting-box" value={awaitingText} onChange={(e) => setAwaitingText(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); answerAwaiting(); } }}
-                      rows={2} placeholder='Answer, or type "either"'
-                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2.5 pb-10 text-sm outline-none" />
+                      onInput={(e) => {
+                        const el = e.currentTarget;
+                        el.style.height = "auto";
+                        el.style.height = `${Math.min(el.scrollHeight, 130)}px`;
+                      }}
+                      rows={1} placeholder='Answer, or type "either"'
+                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2 pb-9 text-sm outline-none" />
                       <button onClick={() => answerAwaiting()} disabled={awaitingBusy || !awaitingText.trim()} aria-label="Send answer"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
                       <Send size={14} aria-hidden="true" />
@@ -841,10 +1106,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               ) : (
                 <>
                   <div className="relative">
-                    <textarea value={guidance} onChange={(e) => setGuidance(e.target.value)}
+                    <textarea id="drnib-guidance-box" value={guidance} onChange={(e) => setGuidance(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendGuidance(); } }}
-                      rows={2} placeholder="Steer the run — applies at the next stage boundary…"
-                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2.5 pb-10 text-sm outline-none" />
+                      onInput={(e) => {
+                        const el = e.currentTarget;
+                        el.style.height = "auto";
+                        el.style.height = `${Math.min(el.scrollHeight, 130)}px`;
+                      }}
+                      rows={1} placeholder="Steer the run — applies at the next stage boundary…"
+                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2 pb-9 text-sm outline-none" />
                     <button onClick={sendGuidance} disabled={guidanceBusy || !guidance.trim()} aria-label="Send guidance"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
                       <Send size={14} aria-hidden="true" />

@@ -325,12 +325,17 @@ export async function generateThinking({ question, answer, fetchImpl } = {}) {
         effort: 'low',
         messages: thinkingMessages({ question, answer }), fetchImpl,
         temperature: 0.5,
-        maxTokens: 160,
+        maxTokens: 220,
       });
-      if (text && text.trim()) {
-        return { ok: true, source: 'llm', model, usage, text: text.trim() };
+      const line = String(text || '').trim();
+      // A clipped read is worse than a plain one: the model front-loads
+      // setup clauses, so a token cut lands mid-sentence ("I understand
+      // that your decision depends" — seen live). Fall back to the
+      // deterministic read, which is complete by construction.
+      if (line && /[.!?…]["']?\s*$/.test(line)) {
+        return { ok: true, source: 'llm', model, usage, text: line };
       }
-      return { ok: true, source: 'fallback', model: null, usage: null, llmError: 'model returned empty text', text: null };
+      return { ok: true, source: 'fallback', model: null, usage: null, llmError: line ? 'model read clipped mid-sentence' : 'model returned empty text', text: null };
     } catch (err) {
       return { ok: true, source: 'fallback', model: null, usage: null, llmError: err?.message || String(err), text: null };
     }

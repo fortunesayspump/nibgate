@@ -5,9 +5,9 @@ import { Callout } from 'nextra/components'
 Every Dr. Nib run holds its own budget in USDC. The rules are simple and absolute:
 
 - **Cap first.** You set the cap at configure time. Nothing executes until you approve the plan against it.
-- **Draw per stage.** Search, fetch, scoring, writing — each stage draws its cost plus a **1% platform fee**. The fee is taken as money moves, never up front. Agent purchases (tips, paid unlocks, x402 calls) draw the same way with their transaction hashes on the record.
-- **Never overspend.** If the next stage would pass the cap, the run **pauses** with the balance intact. Raise the cap or end the run — your call.
-- **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent is refunded immediately. There is no holding period.
+- **Draw per stage.** Search, fetch, scoring, writing, verify — each stage draws its cost plus a **1% platform fee**. The fee is taken as money moves, never up front. Agent purchases (tips, paid unlocks, x402 calls) draw the same way with their transaction hashes on the record.
+- **Never overspend.** If the next stage would pass the cap, the run **pauses** with the balance intact. On ledger runs raise the cap or end it — your call. On one-shot escrow deposits raising past the deposit is impossible, so an exhausted run ends (report kept) or restarts bigger as a new run.
+- **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent is refunded immediately. There is no holding period. Terminal runs show a settlement receipt (deposited / spent / refunded + settle tx).
 
 <Callout type="info">
 Estimates are shown before you approve, and the run pauses instead of guessing when a plan has no estimate yet.
@@ -19,7 +19,7 @@ The budget ledger is append-only and is the only source of truth for a balance:
 
 | Kind | Meaning |
 |---|---|
-| `deposit` | the cap (raises record only the delta, so the cap can never silently move) |
+| `deposit` | the cap (on escrowed runs: the deposited amount — approve aligns the cap down to it; raises record only the delta, so the cap can never silently move) |
 | `spend` | stages and agent purchases (`txRef` carries the onchain hash when there is one) |
 | `fee` | the 1% platform cut on every draw |
 | `refund` | the remainder, written once at settle |
@@ -28,7 +28,7 @@ Nothing is ever edited or deleted. Balance = deposited − spent − fee − ref
 
 ## Raising the cap
 
-Out of budget mid-run? Raise it (raise-only, always) and a paused run continues from the same stage — finished stages are never charged twice. The approve step also refuses a plan whose estimate exceeds the balance, so a run can't start already broke.
+Out of budget mid-run? On ledger runs, raise it (raise-only, always) and a paused run continues from the same stage — finished stages are never charged twice. On escrowed runs the deposit is one-shot, so raising past it is refused outright. The approve step also refuses a plan whose estimate exceeds the balance, so a run can't start already broke.
 
 ## Audit
 
@@ -36,4 +36,4 @@ Out of budget mid-run? Raise it (raise-only, always) and a paused run continues 
 
 ## Onchain escrow (optional)
 
-By default the budget is an offchain allowance. For real-money guarantees, fund an [onchain escrow](./escrow) at review: the full cap locks in a contract, and the remainder returns to your wallet automatically at settle.
+By default the budget is an offchain allowance. For real-money guarantees, fund an [onchain escrow](./escrow) at review: any amount from the plan estimate up locks in a contract (one-shot, no top-ups), the working cap aligns down to what landed, and the remainder returns to your wallet automatically at settle.

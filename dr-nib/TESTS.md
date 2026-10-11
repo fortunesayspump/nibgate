@@ -108,7 +108,8 @@ needs deeper extraction (fee tables) and broader queries next.
 
 - Status: `complete`. Created 10:25:47Z, finished 10:40:41Z (~15 min).
 - Steps: `plan, search, fetch, data, score, search, fetch, data, score, write`.
-- Sources scored: 5. Claims: 0. Report: v1, 6,583 chars.
+- Sources scored: 5. Claims: 0 (verify pass was not wired yet — it is now, and
+  estimates include its $0.03 stage). Report: v1, 6,583 chars.
 - Ledger: deposit 2.00 → spends 0.2279 + fees 0.0023 → **refund 1.7712**. The
   pause-at-cap / settle / refund path worked.
 
@@ -227,8 +228,11 @@ Open / suggested:
   Fixed: "All answered" transcript + Continue; plus an empty-state with
   Reload. Caught by round-4 e2e.
 - **Negative run balances observed** (e.g. spent 0.27 on $2 cap showing
-  −0.128). Looks like a settle/refund arithmetic wart, not just float
-  dust. Needs a ledger audit before mainnet spend grows.
+  −0.128). Explained, not a wart: `money.js` documents that `balance`
+  (deposited − used − refunded) goes negative when a settled run is revised
+  and spends again — the refund already left but the cap still authorizes.
+  Gates use `spendable(cap, used)`, never `balance`. Keep the explanation
+  next to any UI that shows a negative number.
 - **`POST /v1/runs/:id/end` on `intake-done` runs 404s** ("project not
   found"). Ending should work from every non-terminal state, or the
   404 should say which states are endable.
@@ -267,10 +271,11 @@ choreography; presence asserted at Review only).
 - **Negative run balances** (e.g. spent 0.27 on a $2 cap showing −0.128).
   Beyond float dust — settle/refund arithmetic needs an audit before
   mainnet spend grows.
-- **Provider failures are invisible.** SearXNG misconfig (json disabled)
-  and ENOTFOUND-class errors never surface in events, logs, or the UI —
-  runs just come back thin. The search-step `providers` array exists in
-  step output; it should be logged server-side and shown in the run UI.
+- **Provider failures are visible.** SearXNG misconfig and ENOTFOUND-class
+  errors surface per-provider in the search step output, in the run UI
+  step detail (failed providers named with errors), and in the chat
+  transcript (`via:` line). Runs still come back thin when providers fail —
+  that is honest reporting, not invisibility.
 
 - **OpenRouter credits are empty (2026-10-09).** The prod-testnet full run
   parked at its first JEV gate (`paused`/`jev`, step `midrun-ask`) with
@@ -365,7 +370,8 @@ midrun-ask 0.96, per-source trust + grade distributions, all
 - **Feed motion**: theme-aware fade (`--nib-surface`, no hardcoded white),
   slide-in only for unseen items, shimmer + caret on live text.
 - **Report article page** (`research/[id]/report`): full prose, no clamp,
-  sources with thumbnails; `[n]` chips jump to `#drnib-sources`.
+  sources with thumbnails; `[n]`/`[1, 2]` chips link straight to the cited
+  source URL (trust-ranked order matches the writer's numbering).
 - **Source images**: `og:image` captured at extract → fetch-step documents
   → thumbnails (no migration, joined by URL at render).
 - **Gratitude stage**: opt-in `tipCreators` at configure → post-score agent
@@ -374,3 +380,28 @@ midrun-ask 0.96, per-source trust + grade distributions, all
   unreachable (dataStage skips when retrieval suffices).
 - **Export chat**: full transcript download (Q&A, reads, judgements with
   costs, steps, tools, sources) from the activity header.
+
+## Partial-escrow + UX pass live 2026-10-11 (local stack, testnet USDC)
+
+- **Fund ≥ estimate, not the full cap** (job 17): $0.20 funded (= estimate on
+  a $2 cap) → approve 200 with working cap aligned to $0.20 → spent $0.158 →
+  paused at cap → second fund reverted onchain (one-shot) → raise/resume
+  refused with explicit errors → end → ledger refund $0.0399 → job Completed
+  with split attestation. Funding floor, pause-on-empty, no-top-up, and
+  settle all proven with real money.
+- **Verify wired**: was dead (wrong import + never called); now runs after
+  every write, claims cleared per report, +$0.03 in estimates. Live probe on
+  a completed run: 4 claims, 2 supported / 2 unknown, $0.0007.
+- **OpenRouter web_search provider**: model-picked queries, Exa engine,
+  annotation-only results, ~$0.007 + tokens, circuit-broken. Live probe
+  returned real page URLs (native engine gave redirect URLs — forced Exa).
+- **UI**: settlement receipt, coverage badge + claim×source matrix (browser-
+  proven), version-pinned share links, version steer display, deterministic
+  report Q&A, duplicate runs, feed timestamps + jump-to-latest, copy buttons,
+  single-row autogrow composers, intake/configure resume + auto-resume,
+  load-failure banners/skeletons/retry, escrow amount selector, 429 handling,
+  projects focus-refresh, Settings→Help, agent self-model (+cap/estimate/
+  elapsed/status).
+- **E2E repairs**: UI spec syntax error (comment fused into a function);
+  round-4 Next-clicks fired during the batch POST — now waits for settle text.
+  API 5/5 + UI rounds 4–7 green locally.

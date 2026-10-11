@@ -8,7 +8,8 @@ code.** We ship *stock* ERC-8183 plus a splitter-as-provider instead of
 extending a contract. The contracts are live (see Build status), the backend
 owns the job lifecycle (`backend/src/escrow/jobs.js` + `/v1/runs/:id/escrow*`
 routes), and the hub UI funds it
-(`frontend/src/components/dr-nib/EscrowDeposit.tsx`, opt-in in
+(`frontend/src/components/dr-nib/EscrowDeposit.tsx`, mandatory where escrow
+is configured in
 `frontend/src/app/dr-nib/research/page.tsx`). Locally the keeper key is wired
 (`ESCROW_KEEPER_KEY` in `dr-nib/backend/.env`), so `isEscrowConfigured()` is
 true and onchain job 10 reads `Completed`. Deployments must set the same key
@@ -63,8 +64,8 @@ user, stranger) can run `split()` once the signature exists.
 | `provider` | the operator wallet (does the research, receives spent) |
 | `evaluator` | keeper EOA today (same key that relays tips/holding); JEV-gated evaluator contract later |
 | `createJob(provider, evaluator, expiredAt, description)` | a new research run (backend creates at configure) |
-| `setBudget(jobId, amount)` | the cap chosen at configure, before any funds move |
-| `fund(jobId, expectedBudget)` | the deposit at approve: `approve(USDC)` + `fund()` from the user wallet (front-running protection included) |
+| `setBudget(jobId, amount)` | the deposit chosen at review: any amount from the plan estimate up to the cap (minimum is the estimate, not the full cap) |
+| `fund(jobId, expectedBudget)` | the deposit at approve: `approve(USDC)` + `fund()` from the user wallet (front-running protection included). One-shot: the core flips Open→Funded and can never be topped up |
 | `submit(jobId, deliverable)` | worker submits `abi.encode(reportHash, spentUsdc)` when the report lands |
 | `complete(jobId, reason)` | keeper completes with `reason = reportHash`; hook splits (below) |
 | `reject(jobId, reason)` | run fails/ends early; escrow refunded to the client |
@@ -74,11 +75,18 @@ Run-status correspondence: `intake/configure` → Open, `approve+fund` →
 Funded, `running` → Funded, report written → Submitted, `complete/failed/
 ended` → Completed/Rejected (+ `settle()`), expired → Expired.
 
+Funding floor: approve requires the job Funded for at least the plan
+estimate. The working cap then aligns DOWN to the deposited amount (the
+configured cap is kept as display-only `targetCap`), preserving the
+deposited==cap invariant the ledger relies on. Raising past the deposit is
+rejected everywhere (HTTP + MCP) with an explicit one-shot error — end the
+run and start a new one for a bigger budget.
+
 ## The one gap, solved with a splitter-as-provider: NibgateRunSplitter
 
 ERC-8183 settles all-or-nothing — `complete` releases the whole budget.
-A research run prepaies a cap, stages draw it down, and the remainder comes
-back. So `complete` parks the full cap in the splitter, and a permissionless
+A research run prepaies a deposit, stages draw it down, and the remainder comes
+back. So `complete` parks the deposited budget in the splitter, and a permissionless
 `split()` divides it afterwards:
 
 1. Reads `(reportHash, spentUsdc)` from the submitted deliverable (already
@@ -155,12 +163,13 @@ the exact report bytes the money paid for, retrievable from Postgres/R2.
 - [x] Deployed on Arc testnet (Oct 2026): core `0x5135ae9be828be42b63f176848a7b720aedf4c58`, splitter `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` (keeper `0x796a…`, treasury `0x558e…`, 100 bps) — recorded in `contracts/deployments/arc-testnet.json:escrow`
 - [x] Full lifecycle proven onchain with real testnet USDC (job 10, tx `0xcb6a…74b8`): $0.05 funded → $0.03 spent → split 17820 operator / 180 treasury / 12000 client refund, all atomic
 - [x] Backend job lifecycle: `createJob` / `jobStatus` / `submitAndComplete` / `signSplit` (`backend/src/escrow/jobs.js`) + `POST|GET /v1/runs/:id/escrow`, `POST /v1/runs/:id/escrow/complete` (`backend/src/routes/runs.js`)
-- [x] Frontend configure→approve becomes deposit (`EscrowDeposit.tsx`: `createJob` → `setBudget` → `approve` → `fund`; approve is gated on `Funded`)
+- [x] Frontend configure→approve becomes deposit (`EscrowDeposit.tsx`: `createJob` → `setBudget` → `approve` → `fund` with sequential receipts; amount selectable from the plan estimate up to the cap; approve is gated on `Funded` ≥ estimate with the working cap aligned down to the deposit)
 - [x] Keeper completes with ledger-attested `(reportHash, spentUsdc)` (`submitAndComplete` + `signSplit`)
 - [x] Escrow keeper key wired locally (`ESCROW_KEEPER_KEY` in `dr-nib/backend/.env`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) and documented in `DEPLOY.md`; `isEscrowConfigured()` reads true
 - [ ] Escrow keeper key set on the deployed dr-nib service (ops/secret) — otherwise escrow answers 501 in that environment
 - [ ] `reject`/refund route parity with run status (only `complete` is routed today; the reject path is contract-side stock)
-- [ ] App-path testnet soak with real (testnet) USDC — the contract lifecycle was proven standalone via scripts; the create→fund→run→complete→split path has not been soaked through the UI
+- [x] Partial-fund lifecycle proven onchain with real testnet USDC (job 17): $0.20 funded (= plan estimate on a $2 cap) → approve 200 with cap aligned to $0.20 → spent $0.158 → paused at cap → second fund reverted (one-shot) → raise/resume refused honestly → end → ledger refund $0.0399 → job Completed with split attestation
+- [ ] App-path testnet soak of the Fund *button* itself (3 wallet confirmations in-browser); the contract lifecycle and API+script path are proven, the in-browser click path is not
 - [ ] Unaudited code must not hold real money: no mainnet user funds before external review + soak
 
 ## Reproducing the deployment

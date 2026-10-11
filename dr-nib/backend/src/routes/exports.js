@@ -36,6 +36,7 @@ exports.post('/runs/:id/exports', async (req, res) => {
   const rendered = await renderExport(format, {
     report, sources, claims,
     ledger: await budgetState(run.id),
+    escrow: (run.metadata && run.metadata.escrow) || null,
     slug: `drnib-${run.id.slice(0, 8)}-v${report.version}`,
   });
   // Prefer the hub R2 bucket for binary deliverables: upload, store the key,

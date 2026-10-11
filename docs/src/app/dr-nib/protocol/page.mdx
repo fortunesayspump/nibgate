@@ -18,7 +18,7 @@ flowchart LR
     API -->|SIWE lookup| HUBAUTH[Hub auth/DB]
 ```
 
-- **Hub frontend** — the `/dr-nib` UI (research, projects, sources, settings). It talks to the service through a same-origin proxy so the hub's session cookie just works.
+- **Hub frontend** — the `/dr-nib` UI (research, projects, sources, help). It talks to the service through a same-origin proxy so the hub's session cookie just works.
 - **Dr. Nib service** — the Express API plus the worker that runs pipeline stages. It has no accounts of its own: identity is the hub's wallet session.
 - **Hub API** — the decision seat (JEV), and the rails the agent spends through (tip challenge/verify, x402).
 - **Postgres** — runs, evidence, claims, reports, and the append-only ledger, in the service's own `drnib` schema.
@@ -57,7 +57,7 @@ Stages are durable: state checkpoints to Postgres, the worker is stateless and s
 
 ## The two loops
 
-1. **Intake loop** — one question at a time, each answer folded into a living brief. JEV owns the stop rule (`proceed` / `ask_more` / `reframe`); the loop has no counter.
+1. **Intake loop** — batched questions (5 per screen, 8 total), each answer folded into a living brief. JEV owns the stop rule (`proceed` / `ask_more` / `reframe`); the 8-question cap can override with a visible `cap hit` label.
 2. **Research loop** — per round: search → fetch → score → review. The data stage adds a propose → judge → execute loop (model proposes tools, JEV decides, tools execute). Termination is enforced in code with explicit budgets and stop reasons, never requested in prompt prose. See [Agent loop](./agent-loop).
 
 ## Money, and where it's enforced
@@ -66,17 +66,17 @@ The ledger is the source of truth; contracts are the guarantee:
 
 | Layer | Enforces | Where |
 |---|---|---|
-| Ledger | per-stage drawdown, 1% fee, raise-only caps, settle/refund | `dr-nib/backend/src/money.js`, `budgets` |
+| Ledger | per-stage drawdown, 1% fee, raise-only caps (never past the onchain deposit), settle/refund | `dr-nib/backend/src/money.js`, `budgets` |
 | Software caps | per-call ceilings, run-balance gate, verdict binding, dual-RPC | `spend/policy.js`, `spend/guard.js` |
 | Spend mandate | onchain daily cap + recipient allowlist for direct transfers | `NibgateSpender` (Arc testnet) |
-| Run escrow | the whole cap locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (Arc testnet) |
+| Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (Arc testnet) |
 
-A run never overspends — it pauses at the cap and asks. The remainder returns at settle. Escrow is opt-in per run; the ledger path is the default. See [Budgets & refunds](./budgets), [Onchain escrow](./escrow), and [Spending gates](./gates).
+A run never overspends — it pauses at the cap and asks. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. Escrow is opt-in per run; the ledger path is the default. See [Budgets & refunds](./budgets), [Onchain escrow](./escrow), and [Spending gates](./gates).
 
 ## Machine parity
 
-Dr. Nib is agent-facing as well as people-facing. An MCP server exposes the same run flows as tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) that call the same code paths as the HTTP routes — including the same ownership rule. A service key gates the surface; with none set the server runs open for local development and says so, never silently. Agent callers pay in USDC (tips, paid unlocks, x402) from the run budget, inside the same per-call ceilings as the browser flow.
+Dr. Nib is agent-facing as well as people-facing. An MCP server exposes the same run flows as tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) enforcing the same gates as the HTTP routes — including escrow funding minimums and the deposit ceiling on raises — plus the same ownership rule. A service key gates the surface; with none set the server runs open for local development and says so, never silently. Agent callers pay in USDC (tips, paid unlocks, x402) from the run budget, inside the same per-call ceilings as the browser flow.
 
 ## Deliverables
 
-A finished run keeps its research as raw markdown and generates deliverables from it, never by re-running: **Markdown, JSON, BibTeX, PDF, Word, Excel, PowerPoint**. Binary formats are rendered by the service and stored in the shared R2 bucket, returning a URL; text formats come back inline. The format is chosen *after* the research exists — choosing a format before there is anything to export is guessing.
+A finished run keeps its research as raw markdown and generates deliverables from it, never by re-running: **Markdown, JSON (+escrow receipt block), BibTeX, PDF, Word, Excel (+escrow columns on Ledger), PowerPoint**. Binary formats are rendered by the service and stored in the shared R2 bucket, returning a URL; text formats come back inline. The format is chosen *after* the research exists — choosing a format before there is anything to export is guessing. Reports carry a coverage badge + claim×source matrix from the verify pass, and share by version-pinned link.

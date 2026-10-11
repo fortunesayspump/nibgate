@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Library, ListChecks, Menu, Microscope, Settings, X } from "lucide-react";
+import { Library, ListChecks, Menu, Microscope, CircleHelp, X } from "lucide-react";
 
 const ITEMS = [
   { href: "/dr-nib/research", label: "Research", desc: "Start something new", icon: Microscope, match: (p: string) => p === "/dr-nib/research" || p.startsWith("/dr-nib/research/") },
   { href: "/dr-nib/projects", label: "Projects", desc: "Active + ended", icon: ListChecks, match: (p: string) => p.startsWith("/dr-nib/projects") },
   { href: "/dr-nib/sources", label: "Sources", desc: "Library", icon: Library, match: (p: string) => p.startsWith("/dr-nib/sources") },
-  { href: "/dr-nib/settings", label: "Settings", desc: "Budget + provider", icon: Settings, match: (p: string) => p.startsWith("/dr-nib/settings") || p.startsWith("/dr-nib/budget") },
+  { href: "/dr-nib/settings", label: "Help", desc: "Guide + budgets", icon: CircleHelp, match: (p: string) => p.startsWith("/dr-nib/settings") || p.startsWith("/dr-nib/budget") },
 ];
 
 function Boxes({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

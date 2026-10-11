@@ -7,20 +7,24 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
-import { ReportArticle } from "@/components/dr-nib/ReportMarkdown";
+import { ReportArticle, ReportEvidence, ReportQA } from "@/components/dr-nib/ReportMarkdown";
 import { TrustChip } from "@/components/dr-nib/common";
+import { explorerTxUrl } from "@nibgate/wallet";
 
 export default function RunReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [run, setRun] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const r: any = await drNibApi.getRun(id);
         setRun(r);
+        setError("");
         if (r.status === "complete" || (r.reports || []).length) {
           try {
             setReport(await drNibApi.getReport(id));
@@ -32,14 +36,46 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
         setError(e?.message || "Could not load report.");
       }
     })();
-  }, [id]);
+  }, [id, attempt]);
 
-  if (error) return <p className="text-sm text-red-700">Could not load report: {error}</p>;
-  if (!run) return <p className="text-sm opacity-60">Loading report…</p>;
+  if (error) return (
+    <div className="mx-auto max-w-2xl py-10 text-center">
+      <p className="text-sm font-medium">Couldn&apos;t load this report</p>
+      <p className="mx-auto mt-2 max-w-md text-sm opacity-60">{error}</p>
+      <div className="mt-4 flex justify-center gap-2">
+        <button onClick={() => { setError(""); setAttempt((a) => a + 1); }} className="bg-black px-6 py-2 text-sm font-medium text-white">Retry</button>
+        <Link href={`/dr-nib/research/${id}`} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium hover:bg-black hover:text-white">Run activity</Link>
+      </div>
+    </div>
+  );
+  if (!run) return (
+    <div className="mx-auto max-w-2xl py-6" aria-hidden="true">
+      <div className="h-8 w-3/4 animate-pulse rounded bg-black/10" />
+      <div className="mt-5 rounded-2xl border border-dark-gray/50 bg-white p-5">
+        <div className="h-3 w-full animate-pulse rounded bg-black/10" />
+        <div className="mt-2 h-3 w-11/12 animate-pulse rounded bg-black/10" />
+        <div className="mt-2 h-3 w-4/6 animate-pulse rounded bg-black/10" />
+        <p className="mt-4 text-xs opacity-60">Loading report…</p>
+      </div>
+    </div>
+  );
 
   const topic = run.brief?.topic || run.title || "Untitled run";
   const spent = Number(run.spent || 0);
   const sources: any[] = run.sources || [];
+  const esc = (run.metadata && run.metadata.escrow) || null;
+  const steer = report ? (run.metadata?.versionPrompts || {})[report.version] : null;
+  function shareLink() {
+    if (!report) return;
+    const url = `${window.location.origin}/dr-nib/research/${id}/report?version=${report.version}`;
+    (async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      } catch { /* clipboard blocked — the URL bar already holds it */ }
+    })();
+  }
   const imageFor = (url: string) => {
     for (const s of run.steps || []) {
       for (const d of s.output?.documents || []) {
@@ -60,7 +96,25 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
       <h1 className="nibgate-display-title mt-1 text-3xl font-medium md:text-4xl">{topic}</h1>
       <div className="mt-5 rounded-2xl border border-dark-gray/50 bg-white p-5 md:p-7">
         {report ? (
-          <ReportArticle markdown={report.markdown} />
+          <>
+            {steer ? <p className="mb-3 text-xs opacity-60">v{report.version} steered by: “{String(steer).slice(0, 160)}”</p> : null}
+            <ReportArticle markdown={report.markdown} sources={sources} />
+            <ReportEvidence claims={run.claims} sources={sources} />
+            <ReportQA claims={run.claims} sources={sources} />
+            <div className="mt-4 flex items-center gap-3 border-t border-dark-gray/30 pt-3">
+              <button onClick={shareLink} className="text-xs font-medium underline opacity-60 hover:opacity-100" title="Copy a link to this exact report version">
+                {linkCopied ? "✓ Link copied" : "Share this version"}
+              </button>
+              {esc?.completeTx ? (
+                <a href={explorerTxUrl(esc.completeTx)} target="_blank" rel="noreferrer" className="text-xs font-medium underline opacity-60 hover:opacity-100">
+                  Settle tx ↗
+                </a>
+              ) : null}
+              {Number(run.refunded ?? 0) > 0 ? (
+                <span className="text-xs opacity-60">${Number(run.refunded).toFixed(2)} refunded</span>
+              ) : null}
+            </div>
+          </>
         ) : (
           <p className="text-sm opacity-60">No report yet — it lands here once the run produces one.</p>
         )}

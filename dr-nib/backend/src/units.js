@@ -4,8 +4,6 @@ import { Prisma } from '@prisma/client';
 // a float, because a ledger that accumulates 0.1 + 0.2 error is not a ledger.
 // Numbers cross the API as plain numbers (that is what the UI speaks) and are
 // converted at the edge; the arithmetic in between is decimal.
-export const USDC_SCALE = 6;
-
 export function toDb(value) {
   if (value == null) return new Prisma.Decimal(0);
   if (value instanceof Prisma.Decimal) return value;

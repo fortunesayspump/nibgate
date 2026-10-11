@@ -26,7 +26,7 @@ flowchart TD
 ## One turn, precisely
 
 1. **Budgets first.** Deadline, spend cap, and token budget are checked *before* any call — checking after the fact is how you overspend at the limit.
-2. **Self-model.** Every turn injects a fresh snapshot: identity, network, exactly which tools are wired right now, chain RPC + USDC address, wallet balance, run budget left, steps left. Reasoning from a stale snapshot is how agents promise spends they cannot make.
+2. **Self-model.** Every turn injects a fresh snapshot: identity, network, exactly which tools are wired right now, chain RPC + USDC address, wallet balance, run budget left *plus its cap, the plan estimate, elapsed minutes, and run status*, steps left. Reasoning from a stale snapshot is how agents promise spends they cannot make.
 3. **Checklist focus.** One LLM call per run extracts up to 5 bare measurable facts the task needs ("base fee gwei", not "current testnet fee"). Each turn aims at the first uncovered item, so multi-part tasks get one immediate ask instead of overwhelm.
 4. **Propose.** The model returns one tool call, up to 3 independent free calls as a batch, `submit_answer` with a validated final answer, or `done`. Malformed JSON gets one minimal-context retry, then counts as a failed step — two in a row stops the run.
 5. **Schema + duplicate gates.** Unknown tools and missing inputs die free with actionable feedback. Only *successful* executions poison the fingerprint (canonical key order, so reordered args can't dodge it); failures stay retryable.

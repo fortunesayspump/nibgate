@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { PageHeader, ProjectCard } from "@/components/dr-nib/common";
 
@@ -18,6 +19,7 @@ const daysLeft = (deletedAt: string) =>
   Math.max(0, Math.ceil((new Date(deletedAt).getTime() + 7 * 864e5 - Date.now()) / 864e5));
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [runs, setRuns] = useState<any[] | null>(null);
   const [trash, setTrash] = useState<any[]>([]);
   const [showTrash, setShowTrash] = useState(false);
@@ -36,6 +38,18 @@ export default function ProjectsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Runs move in other tabs (and on this one's timers): refresh when the tab
+  // regains focus so a completed run doesn't sit stale as "running".
+  useEffect(() => {
+    const onFocus = () => { load(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [load]);
+
   async function remove(id: string) {
     setBusyId(id);
     try { await drNibApi.deleteRun(id); await load(); } catch { /* surfaced by reload */ }
@@ -46,6 +60,21 @@ export default function ProjectsPage() {
     setBusyId(id);
     try { await drNibApi.restoreRun(id); await load(); } catch { /* surfaced by reload */ }
     finally { setBusyId(null); }
+  }
+
+  // Duplicate: a fresh run on the same topic, straight into intake. One
+  // click, no confirm — the new run is cheap until approved, and this is
+  // the only path to a bigger budget once an escrow is exhausted.
+  async function duplicate(r: any) {
+    const topic = String(r.brief?.topic || r.title || "").trim();
+    if (!topic) return;
+    setBusyId(r.id + ":dup");
+    try {
+      const created: any = await drNibApi.createProject(topic);
+      router.push(`/dr-nib/research?project=${created.id}`);
+    } catch {
+      setBusyId(null);
+    }
   }
 
   const q = query.trim().toLowerCase();
@@ -102,40 +131,50 @@ export default function ProjectsPage() {
           {active.length === 0 ? (
             <p className="mb-5 text-sm opacity-60">{q ? "No active matches." : "Nothing running. Start one from Research."}</p>
           ) : (
-            <div className="mb-6 grid gap-4 sm:grid-cols-2">
-              {active.map((r) => <ProjectRow key={r.id} r={r} busy={busyId === r.id} onDelete={remove} />)}
-            </div>
-          )}
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider opacity-60">Ended ({ended.length})</p>
-          {ended.length === 0 ? (
-            <p className="text-sm opacity-60">{q ? "No ended matches." : "No finished runs yet."}</p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {ended.map((r) => <ProjectRow key={r.id} r={r} busy={busyId === r.id} onDelete={remove} />)}
-            </div>
-          )}
+          <div className="mb-6 grid gap-4 sm:grid-cols-2">
+            {active.map((r) => <ProjectRow key={r.id} r={r} busy={busyId === r.id} dupBusy={busyId === r.id + ":dup"} onDelete={remove} onDuplicate={duplicate} />)}
+          </div>
+        )}
+        <p className="mb-2 text-xs font-medium uppercase tracking-wider opacity-60">Ended ({ended.length})</p>
+        {ended.length === 0 ? (
+          <p className="text-sm opacity-60">{q ? "No ended matches." : "No finished runs yet."}</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {ended.map((r) => <ProjectRow key={r.id} r={r} busy={busyId === r.id} dupBusy={busyId === r.id + ":dup"} onDelete={remove} onDuplicate={duplicate} />)}
+          </div>
+        )}
         </>
       )}
     </div>
   );
 }
 
-function ProjectRow({ r, busy, onDelete }: { r: any; busy: boolean; onDelete: (id: string) => void }) {
+function ProjectRow({ r, busy, dupBusy, onDelete, onDuplicate }: { r: any; busy: boolean; dupBusy: boolean; onDelete: (id: string) => void; onDuplicate: (r: any) => void }) {
   const deletable = DELETABLE.includes(r.status);
+  // Duplicate only where there is no live work or money to confuse: finished
+  // history and untouched drafts. Live runs duplicate from their own page.
+  const duplicable = ["ended", "complete", "failed", "draft", "intake", "intake-done"].includes(r.status);
   return (
     <div>
       <Link href={hrefFor(r)} className="no-underline"><ProjectCard r={r} /></Link>
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between gap-2">
         <Link href={hrefFor(r)} className="text-sm opacity-70 hover:opacity-100">
           {["intake", "intake-done", "draft"].includes(r.status) ? "Continue intake →" : "Open →"}
         </Link>
-        {deletable ? (
-          <button onClick={() => onDelete(r.id)} disabled={busy} className="border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-[#a33b2e] hover:text-white disabled:opacity-50">
-            {busy ? "Deleting…" : "Delete"}
-          </button>
-        ) : (
-          <span className="text-xs opacity-50">{r.status === "awaiting" ? "Answer or end it to delete" : "End it to delete"}</span>
-        )}
+        <span className="flex items-center gap-2">
+          {duplicable && (
+            <button onClick={() => onDuplicate(r)} disabled={busy || dupBusy} className="border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">
+              {dupBusy ? "Duplicating…" : "Duplicate"}
+            </button>
+          )}
+          {deletable ? (
+            <button onClick={() => onDelete(r.id)} disabled={busy} className="border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-[#a33b2e] hover:text-white disabled:opacity-50">
+              {busy ? "Deleting…" : "Delete"}
+            </button>
+          ) : (
+            <span className="text-xs opacity-50">{r.status === "awaiting" ? "Answer or end it to delete" : "End it to delete"}</span>
+          )}
+        </span>
       </div>
     </div>
   );

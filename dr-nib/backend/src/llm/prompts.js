@@ -176,11 +176,11 @@ No prose outside the JSON. If nothing was collected, return empty arrays — nev
   ];
 }
 export function thinkingMessages({ question, answer } = {}) {
-  const system = `${RESEARCH_SYSTEM} You are showing your reasoning in one or two sentences. No preamble, no bullet points, no JSON.`;
+  const system = `${RESEARCH_SYSTEM} You are showing your reasoning in one sentence. No preamble, no bullet points, no JSON.`;
   const user = `Question asked: ${question?.prompt || '(unknown)'}
 User answered: ${answer || '(no answer)'}
 
-In one or two sentences, say what you took from that answer and what it changes about the research. Be concrete. If the answer is too thin to act on, say what you still need.`;
+In ONE sentence, say what you took from that answer and what it changes about the research. Start with the substance — never with setup ("I understand that…", "I take that…", "Noted that…", "Given that…"). Be concrete. If the answer is too thin to act on, say what you still need.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

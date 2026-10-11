@@ -20,7 +20,7 @@ import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
 import { chat, isLlmConfigured } from './llm/provider.js';
 
-const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, data: 0.04, score: 0.02, write: 0.09 };
+const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, data: 0.04, score: 0.02, write: 0.09, verify: 0.03 };
 
 // Plan pricing. An estimate is a promise about money, so the formula is
 // stated, not hidden: one full pipeline pass at table rates, scaled by depth
@@ -31,7 +31,7 @@ const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, data: 0.04, score: 
 const DEPTH_COST_FACTOR = { quick: 0.5, standard: 1, deep: 2 };
 
 export function estimatePlanCost({ subQuestions = [], depth = 'standard', lengthWords = 4000 } = {}) {
-  const pass = STAGE_COSTS.plan + STAGE_COSTS.search + STAGE_COSTS.fetch + STAGE_COSTS.score + STAGE_COSTS.write;
+  const pass = STAGE_COSTS.plan + STAGE_COSTS.search + STAGE_COSTS.fetch + STAGE_COSTS.score + STAGE_COSTS.write + STAGE_COSTS.verify;
   const depthFactor = DEPTH_COST_FACTOR[depth] ?? 1;
   const extraQuestions = Math.max(0, subQuestions.length - 2);
   const lengthFactor = Math.max(0.5, (Number(lengthWords) || 4000) / 4000);
@@ -779,6 +779,19 @@ async function writeStage(runId, run, guidance) {
   await db.researchReport.create({
     data: { runId, version: run.versions, markdown: ensureAdviceNotice(generated.markdown, run.brief?.topic), citations: [] },
   });
+  // Verify pass: extract the report's claims and score each against the
+  // run's own passages (JEV, one batch). This is what the coverage badge
+  // and evidence matrix read — without it claims stay empty and the report
+  // ships unaudited. Metered like any stage; a failure here degrades to
+  // unverified, never fails the run.
+  let verifyOut = null;
+  try {
+    const { verifyReport } = await import('./verify.js');
+    verifyOut = await verifyReport(runId, { brief: run.brief });
+    if (Number(verifyOut?.costUsd) > 0) await charge(runId, 'verify', verifyOut.costUsd);
+  } catch (err) {
+    await recordEvent(runId, { type: 'verify.failed', reason: 'pipeline-error', error: String(err?.message || err).slice(0, 200) });
+  }
   // Memory is a side record, never load-bearing: a failure here must not fail
   // the run it is trying to learn from.
   try {

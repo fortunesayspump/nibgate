@@ -22,16 +22,19 @@ Configure                      depth · sources · output format · budget cap
   ▼
 Plan (FREE)                    JEV builds the step plan + cost estimate.
                                User reviews, edits, approves.
-  │  [Approve & run]
+  │  [Fund escrow → Approve & run]
   ▼
-Deposit                        fund/top-up the run budget (USDC, x402).
-                               Only now does money move.
+Deposit + approve              fund the run budget (USDC escrow, any amount
+                               from the plan estimate up; one-shot, no top-ups),
+                               then approve. Only now does money move.
   │
   ▼
 Run                            activity feed, live cost ticker, pause/resume.
-                               Pause on 80/95/100% → top up → resume.
+                               Pause at cap → end (report kept, remainder
+                               refunded) or duplicate bigger — no top-ups.
   ▼
-Report                         cited doc + sources + exports + receipt
+Report                         cited doc + sources + coverage badge + claim×source
+                               matrix + report Q&A + exports + receipt
 ```
 
 ## Why this order (research-backed)
@@ -66,23 +69,27 @@ Report                         cited doc + sources + exports + receipt
 | Tab | Job | State |
 |---|---|---|
 | Research | Home: New + Active project cards; the flow above lives here | Shipped |
-| Projects | Active + ended runs; resume, inspect, delete | Shipped |
+| Projects | Active + ended runs; resume, inspect, delete, duplicate | Shipped |
 | Sources | Library collected across runs; trust chips; click-through to claims | Shipped |
-| Settings | Budget + provider + defaults | Shipped |
+| Help | Full guide: lifecycle, budgets, escrow, stuck-states (was Settings) | Shipped |
 
 Not yet shipped (aspirational in earlier drafts): a dedicated **Chat** tab
-(quick Q&A / "why trust source 4?"), a separate **Runs** history tab
-(Projects covers this), and a **Budget** tab (budget controls live in Settings
-and per-run configure today). See the Status table in `README.md` for the
-authoritative list.
+(quick Q&A / "why trust source 4?") — shipped instead as report Q&A chips on
+the report itself (deterministic, from the verify pass, no separate balance);
+a separate **Runs** history tab (Projects covers this); and a **Budget** tab
+(budget controls live in Help and per-run configure today). See the Status
+table in `README.md` for the authoritative list.
 
 ## States that must exist (no dead ends)
 
 - Empty (samples + "what you get"), drafting, planned (estimate shown),
-  awaiting funds, running (live steps + ticker), paused (reason + resume),
-  complete (summary of what changed), failed (what/why/next + retry).
-- Stale detection: "updated Xs ago" + refresh, never a frozen spinner.
+  awaiting funds (amount selector, min estimate), running (live steps + ticker +
+  timestamps + jump-to-latest), paused (reason + resume), complete (coverage
+  badge, matrix, Q&A, receipt), failed (what/why/next + retry).
+- Stale detection: banners + skeletons + retry, "updated Xs ago" + refresh,
+  never a frozen spinner or a full-page wipe on a blip.
 - Cancel = "stop after this step"; partial results kept and labeled.
+- Load failures name the recovery (Retry / Projects), never a bare error line.
 
 ## Open (for discussion, not decided)
 

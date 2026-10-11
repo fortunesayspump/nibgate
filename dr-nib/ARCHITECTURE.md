@@ -13,7 +13,7 @@ hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hu
         │                              ▼            ▼
         │                        Postgres      Redis (BullMQ)
         │                              │            │
-        └────────────── R2 (exports) ◀──┴── retrieval APIs ──▶ Tavily / Exa / Firecrawl
+        └────────────── R2 (exports) ◀──┴── retrieval APIs ──▶ Tavily / Exa / OpenRouter web_search / free bench
 ```
 
 - **API process**: Express, stateless, serves UI + enqueues jobs.
@@ -30,10 +30,10 @@ hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hu
 |---|---|
 | `POST /v1/runs` | Create run from topic (generates first intake question) |
 | `GET /v1/runs` | List runs (filter by status) |
-| `GET /v1/runs/:id` | Run + plan + steps + sources + decisions + recent events + live budget |
+| `GET /v1/runs/:id` | Run + plan + steps + sources (trust-desc, matching writer `[n]`) + decisions + recent events + live budget |
 | `POST /v1/runs/:id/answers` | Answer intake question (advances transcript, may reframe) |
 | `POST /v1/runs/:id/configure` | Set depth/cap/formats → planning → plan |
-| `POST /v1/runs/:id/approve` | Approve plan → enqueue execution (gated on estimate + escrow Funded when escrowed) |
+| `POST /v1/runs/:id/approve` | Approve plan → enqueue execution (gated on estimate + escrow Funded ≥ estimate; working cap aligns down to deposit) |
 | `POST /v1/runs/:id/pause` / `/resume` | Cooperative pause (durable, resumable) |
 | `GET /v1/runs/:id/events` | SSE: steps, tool calls, status, questions (replayable by seq) |
 | `POST /v1/runs/:id/awaiting/answer` | Answer a mid-run parked question |
@@ -44,7 +44,7 @@ hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hu
 | `POST /v1/runs/:id/escrow/complete` | Keeper submit+complete with ledger spend, returns split signature |
 | `GET /v1/runs/:id/report` | Latest report version + citations |
 | `POST /v1/runs/:id/exports` | Enqueue render `{md,json,bibtex}` |
-| `POST /v1/budgets/:id/topup` | Raise cap (raise-only) |
+| `POST /v1/budgets/:id/topup` | Raise cap (raise-only; cannot pass the onchain deposit on escrowed runs) |
 | `GET /v1/budgets/:id` | Balance, holds, spend by category |
 
 Auth: wallet session (same SIWE pattern as hub) for UI; service key for
@@ -57,7 +57,7 @@ agent callers. Every mutating route is idempotency-keyed.
 | `research_run` | id, brief JSON, plan JSON, depth, status, budget_cap, provider, versions | draft → planned → running → paused → complete/failed |
 | `research_step` | run_id, kind, status, input/output refs, cost, started/finished | append-only per run |
 | `research_source` | run_id, url, title, domain, passage refs, relevance, trust, cost | deduped by normalized URL |
-| `research_claim` | run_id, text, status (supported/contradicted/unknown), passage refs | append-only; never rewritten |
+| `research_claim` | run_id, text, status (supported/unknown), passage refs | cleared + rewritten per report (always latest) |
 | `research_report` | run_id, version, markdown, citations JSON | immutable versions; revise creates n+1 |
 | `research_export` | run_id, report_version, format, r2_key, status | async render jobs |
 | `budget_ledger` | run_id, kind (deposit/spend/fee/refund), amount, txRef | append-only; source of truth |
@@ -112,7 +112,10 @@ provider outcome rows `{name, ok, count|error}` surfaced, never averaged.
 Keyed pair (Tavily breadth, Exa semantic) joins only when configured; the
 free bench always runs: SearXNG (self-hosted, `SEARXNG_URL`), GDELT (news,
 paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR,
-Stack Exchange, Hacker News, Polymarket, arXiv. Direct extraction opens
+Stack Exchange, Hacker News, Polymarket, arXiv. Model-driven web search
+(OpenRouter `web_search` server tool, Exa engine, annotation-only results,
+~$0.007 + tokens) rides the existing LLM key with no separate key.
+Direct extraction opens
 result URLs (robots + paywalls respected, PDFs/Office parsed, bot-blocks
 named). Every provider call is circuit-broken; every tool call metered
 into the run budget with its result on the event log.
@@ -129,26 +132,32 @@ Criteria versions pinned per run; all inputs/outputs logged to
 ## 8. Budget engine
 
 - Price table per stage (search call, fetch, score call, write tokens,
-  export render) versioned in config.
-- Pre-flight estimate from plan; approve requires balance ≥ estimate.
+  verify pass, export render) versioned in config.
+- Pre-flight estimate from plan; approve requires balance ≥ estimate and,
+  where escrowed, a Funded job ≥ estimate with the working cap aligned down
+  to the deposit.
 - Per-step metering with hold-and-settle (hold estimate, settle actual,
   release difference).
-- Pause at 80/95/100% with top-up intent (x402); resume continues.
+- Pause at cap with honest outs (end-or-new-run on one-shot escrow, raise on
+  ledger); resume continues.
 - Unit reported everywhere: cost per supported claim.
 
 ## 9. Exports
 
 Markdown single source → format renderers → R2 (`research/{run}/...`)
-with immutable content hashes. Formats: PDF, DOCX, XLSX (data appendix),
-PPTX (deck outline), MD, JSON evidence packet, BibTeX. Signed URLs with
-expiry; public links opt-in per run.
+with immutable content hashes. Formats: PDF, DOCX, XLSX (data appendix +
+escrow columns on Ledger), MD, JSON evidence packet (+escrow receipt block),
+BibTeX. Signed URLs with expiry; share links are version-pinned owner links
+(`?version=N`), not public URLs.
 
 ## 10. Streaming + UX contract
 
 SSE events: `plan.ready`, `step.started`, `step.finished`,
 `source.scored`, `cost.tick`, `paused`, `resumed`, `report.ready`,
 `export.ready`, `failed` (what/why/next). The hub UI (`frontend/src/app/dr-nib/`)
-consumes the live API — not mock data.
+consumes the live API — not mock data — with settlement receipts, coverage
+badges, evidence matrices, feed timestamps, banners/skeletons/retry, and
+load paths that never wipe loaded content on a blip.
 
 ## 11. Eval harness (continuous, not vibes)
 
@@ -175,7 +184,7 @@ section is kept only as the original sequencing record.
 1. Schema + migrations — **done** (`prisma/schema.prisma`, `drnib` schema).
 2. API + worker (mocked → live) — **done**; UI consumes the live API.
 3. Queue + plan/approve/pause lifecycle — **done** (inline + BullMQ).
-4. Retrieval adapters + metering — **done** (11 free indexes + keyed pair).
+4. Retrieval adapters + metering — **done** (11 free indexes + keyed pair + OpenRouter web_search).
 5. JEV wiring per decision table — **done** (`src/jev/`).
 6. Synthesize + verify passes — **done** (`src/verify.js`).
 7. Export renderers — **done**: md/json/bibtex + pdf/word/excel/powerpoint
@@ -185,4 +194,4 @@ section is kept only as the original sequencing record.
 
 Escrow (ERC-8183 + splitter) is implemented beyond this original sequence:
 contracts deployed on Arc testnet, backend `src/escrow/jobs.js`, routes, and
-the hub deposit UI — see `ESCROW.md` (keeper key wired locally; pending: service env + app soak).
+the hub deposit UI — see `ESCROW.md` (keeper key wired locally; pending: service env + Fund-button browser soak).

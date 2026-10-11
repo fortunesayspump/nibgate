@@ -39,7 +39,7 @@ export function resolveLength({ length, lengthWords } = {}) {
   return { preset, words: LENGTHS[preset].words, sections: LENGTHS[preset].sections, clamped: false };
 }
 
-export function lengthPlan(length) {
+function lengthPlan(length) {
   return LENGTHS[LENGTH_PRESETS.includes(length) ? length : 'standard'];
 }
 

@@ -12,9 +12,10 @@
 import { db } from '../db.js';
 import { applyAnswer, deriveDescription, deriveTitle, nextQuestions } from '../intake.js';
 import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answer-flow.js';
-import { budgetState, raiseCap, settle } from '../money.js';
+import { budgetState, raiseCap, settle, spendable } from '../money.js';
 import { jsonSafe, toDb } from '../units.js';
 import { requestExecute, requestPlan } from '../worker.js';
+import { isEscrowConfigured, jobStatus } from '../escrow/jobs.js';
 import { recordEvent } from '../eventlog.js';
 import { assertCanCreateRun } from '../limits.js';
 
@@ -37,7 +38,9 @@ async function ownedRun(runId, wallet) {
 async function withBudget(run) {
   const full = await db.researchRun.findUnique({
     where: { id: run.id },
-    include: { steps: { orderBy: { createdAt: 'asc' } }, sources: true, claims: true, reports: { orderBy: { version: 'desc' }, take: 1 } },
+    // Same trust-desc order as GET /v1/runs/:id: chip [n] is sources[n-1]
+    // on every surface, including this one.
+    include: { steps: { orderBy: { createdAt: 'asc' } }, sources: { orderBy: [{ trust: 'desc' }, { relevance: 'desc' }, { createdAt: 'asc' }] }, claims: true, reports: { orderBy: { version: 'desc' }, take: 1 } },
   });
   const { ledger, ...rest } = full;
   return jsonSafe({ ...rest, ...(await budgetState(run.id)) });
@@ -140,7 +143,7 @@ export const TOOLS = [
   },
   {
     name: 'approve_plan',
-    description: 'Approve the plan and start execution. Refuses when the balance is below the plan estimate.',
+    description: 'Approve the plan and start execution. Refuses when the balance is below the plan estimate; on escrowed runs requires a Funded onchain deposit of at least the estimate (the working cap aligns to the deposit).',
     input: { ownerWallet: '0x…', runId: 'uuid' },
     async run({ ownerWallet, runId }) {
       const bad = checkWallet(ownerWallet);
@@ -148,10 +151,34 @@ export const TOOLS = [
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
       if (run.status !== 'planned') throw new Error(`cannot approve from ${run.status}`);
-      const { balance } = await budgetState(run.id);
+      const { balance, used } = await budgetState(run.id);
       const estimate = Number(run.plan?.estimate);
       if (!Number.isFinite(estimate)) throw new Error('plan has no estimate yet — wait for planning to finish');
-      if (balance < estimate) throw new Error(`balance $${balance.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first`);
+      if (spendable(run.budgetCap, used) < estimate) throw new Error(`balance is below the plan estimate $${estimate.toFixed(2)} — raise the cap first`);
+      // Same escrow gate as POST /:id/approve: Funded for at least the
+      // estimate, working cap aligned to the deposit. An MCP approve that
+      // skipped this would start an unfunded escrowed run.
+      const escrow = (run.metadata && run.metadata.escrow) || null;
+      if (isEscrowConfigured() && escrow?.jobId) {
+        const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
+        if (chain.error) throw new Error(`cannot read escrow job: ${chain.error}`);
+        if (chain.status !== 'Funded') throw new Error(`escrow job ${escrow.jobId} is ${chain.status} — fund it onchain first`);
+        if (!(chain.budget >= estimate)) throw new Error(`escrow holds $${chain.budget} but the plan needs $${estimate.toFixed(2)} — fund at least the estimate first`);
+        await db.researchRun.update({
+          where: { id: run.id },
+          data: {
+            budgetCap: toDb(chain.budget),
+            metadata: { ...(run.metadata || {}), escrow: { ...escrow, status: 'Funded', targetCap: Number(run.budgetCap) } },
+          },
+        });
+        const have = await db.budgetLedger.findMany({ where: { runId: run.id, kind: 'deposit' } });
+        const haveTotal = have.reduce((s, r) => s + Number(r.amount), 0);
+        if (chain.budget > haveTotal) {
+          await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(chain.budget - haveTotal) } });
+        }
+      } else if (balance < estimate) {
+        throw new Error(`balance $${balance.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first`);
+      }
       await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
       await requestExecute(run.id);
       return { id: run.id, status: 'running' };
@@ -215,13 +242,23 @@ export const TOOLS = [
   },
   {
     name: 'raise_budget',
-    description: 'Raise the cap (raise-only). Restarts a run parked at the cap when the balance is positive again.',
+    description: 'Raise the cap (raise-only). Restarts a run parked at the cap when the balance is positive again. On escrowed runs the cap cannot pass the onchain deposit (deposits are one-shot).',
     input: { ownerWallet: '0x…', runId: 'uuid', amount: 5 },
     async run({ ownerWallet, runId, amount }) {
       const bad = checkWallet(ownerWallet);
       if (bad) throw new Error(bad.error);
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
+      // Same escrow gate as POST /:id/budget: raising past the deposit
+      // would book money the chain never saw.
+      const escrow = (run.metadata && run.metadata.escrow) || null;
+      if (escrow?.jobId && isEscrowConfigured()) {
+        const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
+        if (chain.error) throw new Error(`cannot read escrow job: ${chain.error}`);
+        if (!(chain.budget >= Number(amount))) {
+          throw new Error(`escrow holds $${chain.budget} on a Funded job — deposits are one-shot, so the cap cannot pass $${chain.budget} on this run. End it and start a new run for a bigger budget`);
+        }
+      }
       const result = await raiseCap(run.id, Number(amount), null);
       if (!result.ok) throw new Error(result.error);
       await recordEvent(run.id, { type: 'budget.raised', cap: result.budgetCap, balance: result.balance });
@@ -247,9 +284,11 @@ export const TOOLS = [
       const { balance } = await budgetState(run.id);
       if (!(balance > 0)) throw new Error('out of budget — raise the cap first');
       const version = run.versions + 1;
+      const versionPrompts = { ...((run.metadata || {}).versionPrompts || {}) };
+      if (text) versionPrompts[version] = text;
       await db.researchRun.update({
         where: { id: run.id },
-        data: { versions: version, status: 'running', pauseReason: null, ...(text ? { pendingGuidance: { text } } : {}) },
+        data: { versions: version, status: 'running', pauseReason: null, metadata: { ...(run.metadata || {}), versionPrompts }, ...(text ? { pendingGuidance: { text } } : {}) },
       });
       await recordEvent(run.id, { type: 'status', status: 'running', version, reprompt: text ? true : undefined });
       await requestExecute(run.id);

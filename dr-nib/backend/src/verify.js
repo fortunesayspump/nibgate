@@ -12,7 +12,7 @@
 // than the evidence is worth.
 import { db } from './db.js';
 import { recordEvent } from './eventlog.js';
-import { chatJson, isLlmConfigured } from './llm/generate.js';
+import { chatJson, isLlmConfigured } from './llm/provider.js';
 import { batch, JevUnavailable } from './jev/client.js';
 import { searchEvidence } from './tools/evidence.js';
 import { depthLimits } from './depth.js';
@@ -30,6 +30,10 @@ export async function verifyReport(runId, { brief } = {}) {
   const maxClaims = depthLimits(brief?.depth).claims;
   const report = await db.researchReport.findFirst({ where: { runId }, orderBy: { version: 'desc' } });
   if (!report) return { claims: 0, supported: 0, unknown: 0, costUsd: 0, verified: false, reason: 'no-report' };
+  // Claims always describe the latest report: a reprompted v2 replaces v1's
+  // verdicts rather than appending to them, or the coverage badge would mix
+  // two reports' claims.
+  await db.researchClaim.deleteMany({ where: { runId } });
 
   // 1. Extract claims. Without a model there is nothing honest to extract from
   // — heuristic sentence-splitting would fabricate "claims", so offline means

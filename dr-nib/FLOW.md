@@ -331,7 +331,8 @@ research exists is guessing.
 
 Every one of these stays editable in the project's **settings** — before the run starts, and
 again once it has ended. Between those points they are what a live run is made of: language,
-depth, and source policy lock, and the cap can only be raised. Configure is where the settings are
+depth, and source policy lock, and the cap can only be raised — and on escrowed runs, never
+past what is actually deposited (deposits are one-shot). Configure is where the settings are
 first shown, not the only place they can be touched, but a running project is not the place to
 redefine what it is.
 
@@ -355,8 +356,8 @@ That last item is the one that earns the rest. A plan that admits where it's wea
 correction, and a correction here costs a conversation. The same disclosure makes the run
 below more trustworthy, because the user already knows which parts to hold loosely.
 
-Approve, or edit it. The plan is not take-it-or-leave-it: the user can add, drop, or reorder the
-sub-questions directly — drag for order — and write a line of instruction for anything that needs
+Approve, or edit it. The plan is not take-it-or-leave-it: the user can edit or drop
+sub-questions directly, and write a line of instruction for anything that needs
 rewording, which Dr. Nib applies. They can say which steps matter most. What they cannot edit here
 is the cap — that lives in configure, and is money rather than a step.
 
@@ -368,20 +369,24 @@ one Dr. Nib first proposed.
 
 ## Deposit
 
-Money moves **once, up front, and only if the user opts in**: at review the
-run offers onchain escrow alongside the default ledger allowance. Either way
-the cap is both the amount funded and the point at which the run stops
-itself: the next stage would carry it past what's left, so it pauses and asks
-whether to raise the cap or end. Whatever the run doesn't use comes back —
-an ended or finished run returns the remainder, because a balance that is
-owed back should not sit in limbo.
+Money moves **once, up front**: at review the run offers onchain escrow
+alongside the default ledger allowance. Either way the deposit is the amount
+funded and the point at which the run stops itself: the next stage would
+carry it past what's left, so it pauses. On escrowed runs the deposit is
+**one-shot** — any amount from the plan estimate up to the cap, no top-ups —
+so a paused run cannot be raised past what landed; it ends (report kept,
+remainder refunded) or a new run starts bigger. Whatever the run doesn't use
+comes back — an ended or finished run returns the remainder, because a
+balance that is owed back should not sit in limbo.
 
 The money is **USDC on Arc**, and a funded run carries a **1% platform fee**
 taken as the budget draws down rather than as a separate charge.
 
 On-chain, this is **stock ERC-8183 (Agentic Commerce) escrow on Arc plus a
 splitter-as-provider** — specified in `dr-nib/ESCROW.md`, deployed on Arc
-testnet. A run's escrow holds the cap funded at approve; stages meter spend
+testnet. A run's escrow holds the deposit funded at approve (at least the
+plan estimate — approve aligns the working cap down to what landed);
+stages meter spend
 in the offchain ledger; at settle the keeper completes with the
 ledger-attested spend and the splitter divides atomically (spent minus 1% to
 the operator, 1% to treasury, remainder to the payer). Arc's sub-second
@@ -408,9 +413,10 @@ to a passage that was scored, or it's marked as unsupported rather than quietly 
 the evidence doesn't cover something, the report says the evidence doesn't cover it.
 
 Each stage costs something and the running total is always visible — "$0.42 of $2.50" with a
-bar. The run **pauses at the cap rather than overshooting**, and pausing says why and offers
-to raise the limit or stop. Pause and resume are ordinary buttons throughout, not emergency
-controls.
+bar. The run **pauses at the cap rather than overshooting**, and pausing says why. On escrowed
+runs the deposit is one-shot, so an exhausted pause offers end (report kept, remainder refunded)
+rather than a raise that the chain could never accept. Pause and resume are ordinary buttons
+throughout, not emergency controls.
 
 Every judgement appears in the feed in full — **the question JEV was asked, the options it was
 given, the probabilities it returned, and the pick** — so the run can be read and audited, not
@@ -446,7 +452,7 @@ reached, that is a signal to raise it, not to ignore it.
 
 The agent is given real instruments, not a search box and a summarizer:
 
-- **Web search** to find candidates — 11 keyless indexes (news, encyclopedia, papers, filings, Q&A, prediction markets, preprints) plus keyed breadth when configured.
+- **Web search** to find candidates — 11 keyless indexes (news, encyclopedia, papers, filings, Q&A, prediction markets, preprints) plus keyed breadth when configured, plus model-driven web search over the run's own LLM key (the model picks its own queries; only cited annotations become results).
 - **Page fetch and readable-text extraction** to turn a URL into text.
 - **PDF and document parsing** for reports, filings, papers, Office docs — downloaded and read, never refused.
 - **Primary-source APIs** (SEC/EDGAR, government data, GitHub, CoinGecko) when the answer lives in a filing
@@ -516,17 +522,17 @@ from under work that still exists.
 
 **Ending** halts the run and returns whatever it has not spent. The work already done is kept —
 sources fetched, passages scored, the plan — but the unspent balance goes back, because holding
-funds for a project that isn't running is a bug, not a feature. An ended project is not dead:
-adding budget back and starting it again continues from the stage it stopped at. What it cannot
-do is start over from nothing. To reset, make a new project — a run's history is a record, not a
-draft.
+funds for a project that isn't running is a bug, not a feature. An ended ledger project is not
+dead: adding budget back and starting it again continues from the stage it stopped at. (An ended
+*escrowed* project cannot take new money — deposits are one-shot — so continuing means a new run;
+reprompt it and the history carries over as context.) What it cannot do is start over from
+nothing. To reset, make a new project — a run's history is a record, not a draft.
 
 So the verbs are distinct:
 
 - **Pause** — stop, keep the money, **Resume** later.
-- **End** — stop, return the money, **Add budget & Start** later to continue.
-- **Stop at the cap** — the run pauses itself and asks you to raise the limit or end. The same
-  pause-or-end choice, triggered by the budget instead of the user.
+- **End** — stop, return the money, and on escrowed runs complete the onchain job (remainder to the payer). To continue past an exhausted one-shot deposit, start a new run — the old report stays as history to build on.
+- **Stop at the cap** — the run pauses itself. On ledger runs it asks you to raise the limit or end; on escrowed runs raising past the deposit is impossible, so it asks you to end (report kept) or start a new run.
 - **Delete** — only once it has **ended or finished**. A paused run is mid-work and resumable, so
   it has to be ended first — which settles it even when there is nothing left to return. Deleted
   projects go to the trash for seven days.
@@ -549,7 +555,8 @@ What *is* frozen is the small set of settings that define what the run fundament
 means a report that mixes languages, a plan that no longer matches the breadth it was priced for,
 or sources that were never citable. The **budget cap can be raised at any time but never lowered
 below what has already been spent** — the money is gone, so lowering the cap can't un-spend it,
-it can only lie about the balance.
+it can only lie about the balance. (On escrowed runs the cap additionally cannot pass the
+onchain deposit — raising past it is rejected outright.)
 
 Most input is non-blocking. The user types a fact they forgot, a source to ignore, a steer, and
 Dr. Nib reads it at its next loop boundary and folds it into the work from there. But the user
@@ -573,8 +580,11 @@ because something weighed the pause as worth more than proceeding on an assumpti
 The report is the product, and it's read in the same surface the run happened in — sections
 appearing as they're written, not all at the end.
 
-Citations are clickable and land on the actual passage, not just the domain. Trust chips sit
-next to sources so a reader can see the grading that produced the report.
+Citations are clickable chips that land on the cited source URL — numbering follows the
+trust-ranked source order, so chip [n] is always sources[n-1]. Multi-citations render as
+separate chips. Trust chips sit next to sources so a reader can see the grading that
+produced the report. A verify pass then scores every extracted claim against the run's own
+passages (supported/unknown), shown as a coverage badge with a claim×source matrix.
 
 **The format is chosen here, not at configure.** Throughout the run Dr. Nib keeps everything in a
 raw form — the research as it stands, in markdown, whatever the facts are. Once it is done, the
@@ -582,25 +592,11 @@ user picks the deliverables they want — pdf, word, excel, powerpoint, the raw 
 **several at once** — and each is generated from the same finished work. Changing the set
 re-generates; it never means re-running the research.
 
-Below it, a chat box. Follow-up questions — "which claim is weakest?", "why do you trust this
-source over that one?" — are answered from **this run's sources only**. If they can't support an
-answer, they say so instead of filling the gap from general knowledge. And if a follow-up
-turns into a bigger question, it can be promoted into a full run, seeded with everything
-already learned.
-
-Follow-up chat burns tokens like any other model call, so it runs on a **small separate balance**
-the user tops up for it — deliberately distinct from the research budget, which is settled when
-the run ends. Talking to a finished report should never quietly reopen a closed run's books.
-
-**The report is not editable.** It is the agent's account of what the evidence supports, so the
-user can **annotate** it — notes and comments on top — but never rewrite the generated text.
-What gets shared is still the thing the evidence produced; changing the substance means a new run
-or a follow-up, not a quiet edit.
-
-A finished report can also be **shared**: a read-only link, no account needed for the recipient,
-exposing the report and its sources with citations intact and a **set expiry**. Sharing is a view,
-not a collaboration — the recipient reads it, they do not continue the run — and the owner can
-revoke the link early.
+Below it, a steer box. Follow-up steering — "redo the search with shorter queries" — runs
+the whole pipeline again as a new report version, with the steer recorded on that version so
+the selector says what each version was asked to do differently. Mid-run, the same box sends
+guidance the run applies at the next stage boundary, and a parked run answers its question
+there.
 
 Reports on **finance, medicine, or law** carry a short notice that this is research and not advice.
 Ordinary reports do not wear boilerplate they do not need.
@@ -616,10 +612,10 @@ Plans and reports are **versioned**. Every revision of a plan is kept, and so is
 that shipped, so editing a plan or re-generating a report never destroys the version that was
 approved or the one that went out. Any of them can be restored.
 
-And the whole run is inspectable. A **run audit tab** shows every JEV decision in order — the
+And the whole run is inspectable. Every JEV decision appears in the feed in order — the
 question, the options, the probabilities, and the pick — alongside each stage, its tool calls,
-and its spend. The feed shows each decision where it happened; the audit tab is the same record
-end to end, for anyone who would rather check the reasoning than watch it.
+and its spend, for anyone who would rather check the reasoning than watch it. The feed is the
+audit trail; there is no separate tab to lose it in.
 
 ---
 
@@ -658,9 +654,8 @@ the thing that lets the report say *why* it did what it did.
 ## Managing projects
 
 Projects are meant to be lived in, so the list does more than show them: **search** by name or
-topic, **sort** by recency, cost, or status, **archive** to hide something without deleting it,
-**duplicate** a project to start a new run from the same brief, and **tag** related work together.
-Deleted projects leave this list for the trash below; nothing else here is destructive.
+topic, a live budget meter per project, and a trash view with seven-day restore. Deleted projects
+leave this list for the trash below; nothing else here is destructive.
 
 ---
 

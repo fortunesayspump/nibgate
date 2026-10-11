@@ -42,7 +42,7 @@ function bibtex(sources) {
   return entries.join('\n\n') + (entries.length ? '\n' : '');
 }
 
-function packet({ report, sources, claims, ledger }) {
+function packet({ report, sources, claims, ledger, escrow }) {
   return {
     version: report?.version ?? null,
     markdown: report?.markdown ?? null,
@@ -53,6 +53,15 @@ function packet({ report, sources, claims, ledger }) {
     })),
     claims: (claims || []).map((c) => ({ text: c.text, status: c.status })),
     ledger: ledger || null,
+    // Settlement receipt: what was deposited, what came back, and the
+    // onchain proof. A money-moving run must export its receipt, not just
+    // its prose.
+    escrow: escrow ? {
+      jobId: escrow.jobId || null,
+      status: escrow.status || null,
+      completeTx: escrow.completeTx || null,
+      targetCap: escrow.targetCap ?? null,
+    } : null,
     exportedAt: new Date().toISOString(),
   };
 }
@@ -139,7 +148,7 @@ async function buildDocx(lines) {
 }
 
 // ── Excel (.xlsx) ────────────────────────────────────────────────────────
-function buildXlsx({ report, sources, claims, ledger }) {
+function buildXlsx({ report, sources, claims, ledger, escrow }) {
   const wb = XLSX.utils.book_new();
   const reportSheet = XLSX.utils.aoa_to_sheet([
     ['Dr. Nib report', `v${report?.version ?? ''}`],
@@ -156,7 +165,12 @@ function buildXlsx({ report, sources, claims, ledger }) {
     (sources || []).map((s) => ({ title: s.title, url: s.url, domain: s.domain, relevance: s.relevance ?? '', trust: s.trust ?? '' })),
   );
   XLSX.utils.book_append_sheet(wb, sourceSheet, 'Sources');
-  const ledgerSheet = XLSX.utils.json_to_sheet([ledger || {}]);
+  const ledgerSheet = XLSX.utils.json_to_sheet([{
+    ...(ledger || {}),
+    escrowJob: escrow?.jobId || '',
+    escrowStatus: escrow?.status || '',
+    settleTx: escrow?.completeTx || '',
+  }]);
   XLSX.utils.book_append_sheet(wb, ledgerSheet, 'Ledger');
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
@@ -319,7 +333,7 @@ async function buildPptx(title, lines) {
  * @returns {{contentType:string, filename:string, content:string, encoding?:string, bytes:number}}
  */
 export async function renderExport(format, ctx) {
-  const { report, sources, claims, ledger, slug = 'report' } = ctx;
+  const { report, sources, claims, ledger, escrow, slug = 'report' } = ctx;
   if (format === 'md') {
     const content = report?.markdown || '';
     return { contentType: 'text/markdown', filename: `${slug}.md`, content, bytes: Buffer.byteLength(content) };

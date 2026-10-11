@@ -11,23 +11,28 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 
-/** [12] in text becomes a superscript citation chip. */
-function remarkCitations() {
+/** [12] and [1, 2] in text become superscript citation chips. When `sources`
+ *  are provided the chip links straight to the cited source URL; otherwise it
+ *  jumps to the sources list. Numbering is global per run (see writeStage),
+ *  so chip n is sources[n-1]. */
+export function remarkCitations() {
   return (tree: any) => {
     visit(tree, "text", (node: any, index: number | undefined, parent: any) => {
       if (!parent || typeof index !== "number") return;
-      const parts = String(node.value ?? "").split(/\[(\d{1,3})\]/g);
+      const parts = String(node.value ?? "").split(/\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\]/g);
       if (parts.length < 3) return;
       const nodes: any[] = [];
       for (let i = 0; i < parts.length; i++) {
         if (i % 2 === 0) {
           if (parts[i]) nodes.push({ type: "text", value: parts[i] });
         } else {
-          nodes.push({
-            type: "cite",
-            data: { hName: "cite", hProperties: { "data-n": parts[i] } },
-            children: [{ type: "text", value: parts[i] }],
-          });
+          for (const n of parts[i].split(",").map((s: string) => s.trim()).filter(Boolean)) {
+            nodes.push({
+              type: "cite",
+              data: { hName: "cite", hProperties: { "data-n": n } },
+              children: [{ type: "text", value: n }],
+            });
+          }
         }
       }
       parent.children.splice(index, 1, ...nodes);
@@ -75,25 +80,44 @@ const mdComponents = {
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt || "Report image"} loading="lazy" className="mt-2.5 max-h-80 w-auto rounded-xl border border-dark-gray/40" />
   ),
-  // Citations jump to the sources list on the same page — every report view
-  // carries a #drnib-sources anchor for this.
-  cite: ({ children }: any) => (
-    <a href="#drnib-sources" className="no-underline">
+  cite: undefined as any,
+};
+
+function citeFor(sources: { url?: string }[]) {
+  return ({ children, ...props }: any) => {
+    const n = Number(props?.["data-n"] ?? children);
+    const url = sources[n - 1]?.url;
+    const chip = (
       <sup className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 font-mono text-[10px] font-medium not-italic text-white">
         {children}
       </sup>
-    </a>
-  ),
-};
+    );
+    if (url) {
+      return (
+        <a href={url} target="_blank" rel="noreferrer" className="no-underline" title={url}>
+          {chip}
+        </a>
+      );
+    }
+    return (
+      <a href="#drnib-sources" className="no-underline">
+        {chip}
+      </a>
+    );
+  };
+}
 
-export function ReportArticle({ markdown }: { markdown: string }) {
-  const [open, setOpen] = useState(false);
+export function ReportArticle({ markdown, sources }: { markdown: string; sources?: { url?: string }[] }) {  const [open, setOpen] = useState(false);
   const normalized = useMemo(() => normalizeReportMd(markdown), [markdown]);
+  const components = useMemo(
+    () => ({ ...mdComponents, cite: citeFor(Array.isArray(sources) ? sources : []) }),
+    [sources],
+  );
   return (
     <div>
       <article className="relative text-sm">
         <div className={open ? undefined : "max-h-[340px] overflow-hidden"}>
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations]} components={mdComponents}>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations]} components={components}>
             {normalized}
           </ReactMarkdown>
         </div>
@@ -107,6 +131,152 @@ export function ReportArticle({ markdown }: { markdown: string }) {
       >
         {open ? "Show less ↑" : "Read full report ↓"}
       </button>
+    </div>
+  );
+}
+
+// Coverage badge + claim×source matrix, read straight from the run's verify
+// pass (claims with JEV-scored statuses and their best passages). No new
+// pipeline, no borrowed chrome: supported/total answers "how much of this
+// held up", and each claim names the source that carried it.
+export function ReportEvidence({ claims, sources }: { claims?: any[]; sources?: { url?: string; title?: string }[] }) {
+  const list: any[] = Array.isArray(claims) ? claims : [];
+  const srcs: any[] = Array.isArray(sources) ? sources : [];
+  if (!list.length) return null;
+  const supported = list.filter((c) => c.status === "supported").length;
+  const withEv = list.filter((c) => Array.isArray(c.passages) && c.passages.length > 0).length;
+  const pct = Math.round((supported / list.length) * 100);
+  const srcIndex = (url: string) => {
+    const i = srcs.findIndex((s) => s?.url === url);
+    return i >= 0 ? i + 1 : null;
+  };
+  return (
+    <div className="mt-4">
+      <p className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-full bg-black px-2.5 py-0.5 font-medium text-white">{supported}/{list.length} supported</span>
+        <span className="opacity-60">evidence on {withEv}/{list.length} · {pct}% held up under verification</span>
+      </p>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs font-medium underline opacity-70 hover:opacity-100">
+          Claim × source matrix ({list.length})
+        </summary>
+        <div className="mt-2 overflow-x-auto rounded-xl border border-dark-gray/40">
+          <table className="w-full border-collapse text-[12px] leading-5">
+            <thead className="bg-black/[0.04]">
+              <tr>
+                <th className="px-3 py-1.5 text-left font-semibold">Claim</th>
+                <th className="px-3 py-1.5 text-left font-semibold">Verdict</th>
+                <th className="px-3 py-1.5 text-left font-semibold">Carried by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((c: any, i: number) => {
+                const p = (Array.isArray(c.passages) ? c.passages : [])[0];
+                const n = p?.url ? srcIndex(String(p.url)) : null;
+                return (
+                  <tr key={i} className="border-t border-dark-gray/20 align-top">
+                    <td className="px-3 py-1.5">{String(c.text || "").slice(0, 160)}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5">
+                      <span className={c.status === "supported" ? "font-medium text-emerald-800" : "opacity-60"}>
+                        {c.status === "supported" ? "✓ supported" : "? unknown"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {p?.url ? (
+                        <a href={String(p.url)} target="_blank" rel="noreferrer" title={String(p.title || p.url)} className="underline">
+                          {n != null ? `[${n}] ` : ""}{String(p.title || p.url).slice(0, 60)}
+                        </a>
+                      ) : (
+                        <span className="opacity-50">no passage</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// Ask-about-this-report, answered deterministically from the run's own
+// verify pass — no model call, no new balance, no reopened books. "Weakest
+// claim?" is a min over scored support, not a judgement; "why trust X?" is
+// the source's own trust row. Anything the tables cannot answer, the panel
+// says so instead of guessing.
+export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?: string; title?: string; domain?: string; trust?: number; relevance?: number }[] }) {
+  const list: any[] = Array.isArray(claims) ? claims : [];
+  const srcs: any[] = Array.isArray(sources) ? sources : [];
+  const [history, setHistory] = useState<{ q: string; a: string }[]>([]);
+  if (!list.length) return null;
+  const withEv = list.filter((c) => Array.isArray(c.passages) && c.passages.length > 0);
+  const scored = withEv
+    .map((c) => ({ c, s: Number(c.passages[0]?.support ?? 0) }))
+    .sort((a, b) => a.s - b.s);
+  const unknown = list.filter((c) => c.status !== "supported");
+  const byUrl = new Map<string, number>();
+  for (const c of list) {
+    for (const p of (Array.isArray(c.passages) ? c.passages : [])) {
+      if (p?.url) byUrl.set(String(p.url), (byUrl.get(String(p.url)) || 0) + 1);
+    }
+  }
+  const topEntry = [...byUrl.entries()].sort((a, b) => b[1] - a[1])[0];
+  const topSrc = topEntry ? srcs.find((s) => s?.url === topEntry[0]) : null;
+  const fmt = (c: any) => `“${String(c.text || "").slice(0, 140)}”`;
+  const presets: { q: string; a: () => string }[] = [
+    {
+      q: "Weakest claim?",
+      a: () => scored.length
+        ? `${fmt(scored[0].c)} — support ${(scored[0].s * 100).toFixed(0)}%${scored[0].c.status !== "supported" ? " (marked unknown, not asserted)" : ""}.`
+        : "No scored passages on this report — nothing to rank.",
+    },
+    {
+      q: "Strongest support?",
+      a: () => scored.length
+        ? `${fmt(scored[scored.length - 1].c)} — support ${(scored[scored.length - 1].s * 100).toFixed(0)}%.`
+        : "No scored passages on this report — nothing to rank.",
+    },
+    {
+      q: "What's unsupported?",
+      a: () => unknown.length === 0
+        ? "Everything extracted held up — no unknown claims."
+        : unknown.slice(0, 3).map((c) => `• ${fmt(c)}`).join("\n") + (unknown.length > 3 ? `\n…plus ${unknown.length - 3} more.` : ""),
+    },
+    {
+      q: "Which source carried most?",
+      a: () => {
+        if (!topEntry) return "No claim passages recorded — nothing carried anything.";
+        const t = topSrc;
+        return `${t?.title || topEntry[0]} — ${topEntry[1]} claim${topEntry[1] === 1 ? "" : "s"}${typeof t?.trust === "number" ? `, trust ${(t.trust * 100).toFixed(0)}%` : ""}${typeof t?.relevance === "number" ? `, relevance ${(t.relevance * 100).toFixed(0)}%` : ""}${t?.domain ? ` (${t.domain})` : ""}.`;
+      },
+    },
+  ];
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-medium uppercase tracking-wider opacity-60">Ask about this report</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {presets.map((p) => (
+          <button
+            key={p.q}
+            onClick={() => setHistory((h) => [...h, { q: p.q, a: p.a() }])}
+            className="border border-dark-gray/50 bg-white px-3 py-1.5 text-xs hover:border-black"
+          >
+            {p.q}
+          </button>
+        ))}
+      </div>
+      {history.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {history.map((h, i) => (
+            <li key={i} className="border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">
+              <p className="text-xs font-medium opacity-60">{h.q}</p>
+              <p className="whitespace-pre-line">{h.a}</p>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

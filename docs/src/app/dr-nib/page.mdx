@@ -13,22 +13,22 @@ Dr. Nib is mainnet-presented: the UI renders under the mainnet network flag whil
 ## The flow, end to end
 
 ```txt
-composer → intake (batches ≤5) → configure → review → approve → run → report
-  topic      scoping Q&A          depth/cap    plan +     escrow?    stages     cited,
-  sent       JEV stop/reframe     formats      estimate   then run   SSE live   exports
+composer → intake (batches ≤5, 8 questions max) → configure → review → approve → run → report
+  topic      scoping Q&A + cap-hit label   depth/cap    plan +     escrow?    stages     cited + badge,
+  sent       JEV stop/reframe              formats      estimate   then run   SSE live   matrix + receipt
 ```
 
-1. **Ask** — type the research question and hit Send. The thinking screen opens instantly with your message shown as sent; questions stream in when generated. A project is created straight away, so you can leave and resume later (`?project=`). Nothing spends yet.
-2. **Intake, in batches** — up to 5 questions per screen (easy choices first), progress shown ("3 of 5 done"), prior batches collapsed with your answers labeled. Answer everything, submit once: one thinking per answer streams back, then you press Next when you've read. **Just plan it** skips the rest any time — unanswered questions stay unanswered, nothing is fabricated.
-3. **JEV runs the stop rule** — after each batch a calibrated decision picks `proceed` (brief is whole), `ask_more` (another batch, max 5), or `reframe` (the angle is dead — the next batch opens a different one, and the rejected direction stays on the record). The model proposes, JEV disposes; fallbacks are labeled, never silent.
-4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length. Planning is free.
-5. **Review** — sub-questions, uncertainties, cost estimate. Optionally fund an [onchain escrow](./escrow) first; approve is then gated on it being Funded.
-6. **Run** — the command-center page: report and sources on the left, the live reasoning feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript), guidance box or mid-run question card pinned at the bottom. Pause/resume any time.
-7. **Report** — versioned, cited, exportable (Markdown, JSON, BibTeX, PDF, Word, Excel, PowerPoint). Finished runs can **run again with a new prompt** (reprompt creates version N+1, original kept).
+ 1. **Ask** — type the research question and hit Send. The thinking screen opens instantly with your message shown as sent; questions stream in when generated. A project is created straight away, so you can leave and resume later (`?project=`, or automatic for the last touched run). Nothing spends yet.
+ 2. **Intake, in batches** — up to 5 questions per screen (easy choices first), progress shown ("3 of 5 done"), prior batches collapsed with your answers labeled. Answer everything, submit once: one thinking per answer streams back, then you press Next when you've read. Intake caps at 8 questions total — if the judge still wants more, the cap wins and the transcript says `cap hit`. **Just plan it** skips the rest any time — unanswered questions stay unanswered, nothing is fabricated.
+ 3. **JEV runs the stop rule** — after each batch a calibrated decision picks `proceed` (brief is whole), `ask_more` (another batch), or `reframe` (the angle is dead — the next batch opens a different one, and the rejected direction stays on the record). The model proposes, JEV disposes; fallbacks are labeled, never silent.
+ 4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length. Planning is free.
+ 5. **Review** — sub-questions (editable), uncertainties, cost estimate. Optionally fund an [onchain escrow](./escrow) first — any amount from the estimate up; approve is then gated on it being Funded for at least the estimate.
+ 6. **Run** — the command-center page: report and sources on the left, the live reasoning feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript, timestamps, jump-to-latest), guidance box or mid-run question card pinned at the bottom. Pause/resume any time. Blips never wipe the page (stale banner + retry).
+ 7. **Report** — versioned, cited (chips link to source URLs in trust order), coverage badge + claim×source matrix, report Q&A, version-pinned share links, exportable (Markdown, JSON, BibTeX, PDF, Word, Excel, PowerPoint), settlement receipt. Finished runs can **run again with a new prompt** (reprompt creates version N+1 with the steer recorded, original kept) or be **duplicated** into a fresh run on the same topic.
 
 ## How a run spends
 
-Every stage draws from the run's [budget](./budgets) plus a 1% platform fee. The run pauses — never overspends — at the cap; raise it or end it. Search fans sub-questions (keyword-ified) across 11 free indexes plus keyed providers when configured; fetch opens ranked pages (PDFs and Office docs parsed, paywalls and bot-checks reported not worked around); a data stage runs the full agent loop (model proposes, JEV judges, tools execute) reaching for primary APIs, sandbox compute, or paid sources when retrieval is thin; JEV scores every source and decides continue/write/stop per round.
+Every stage draws from the run's [budget](./budgets) plus a 1% platform fee. The run pauses — never overspends — at the cap; on ledger runs raise it or end it, on one-shot escrow deposits end it (report kept) or start a new run. Search fans sub-questions (keyword-ified) across 11 free indexes plus keyed providers when configured plus model-driven web search over the run's own LLM key; fetch opens ranked pages (PDFs and Office docs parsed, paywalls and bot-checks reported not worked around); a data stage runs the full agent loop (model proposes, JEV judges, tools execute) reaching for primary APIs, sandbox compute, or paid sources when retrieval is thin; JEV scores every source and decides continue/write/stop per round. After writing, a verify pass scores every claim (supported/unknown) for the coverage badge.
 
 ## How the agent decides
 

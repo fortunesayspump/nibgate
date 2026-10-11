@@ -25,12 +25,19 @@ describe('URL normalization and dedupe', () => {
 
 describe('retrieval status', () => {
   it('reports the free bench always available, keyed pair by key', () => {
-    expect(retrievalStatus()).toEqual({ tavily: false, exa: false, searxng: false, free: true, any: true });
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    expect(retrievalStatus()).toEqual({ tavily: false, exa: false, searxng: false, openrouter: false, free: true, any: true });
   });
 
   it('reports each provider independently', () => {
     vi.stubEnv('TAVILY_API_KEY', 'tvly-x');
-    expect(retrievalStatus()).toEqual({ tavily: true, exa: false, searxng: false, free: true, any: true });
+    vi.stubEnv('OPENROUTER_API_KEY', '');
+    expect(retrievalStatus()).toEqual({ tavily: true, exa: false, searxng: false, openrouter: false, free: true, any: true });
+  });
+
+  it('reports openrouter search off the LLM key', () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'sk-or-x');
+    expect(retrievalStatus().openrouter).toBe(true);
   });
 
   it('reports a configured searxng instance', () => {

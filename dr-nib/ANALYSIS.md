@@ -142,14 +142,17 @@ it in chain-of-thought; we surface it as a first-class artifact.
 6. Synthesize  draft per section from evidence ONLY
                unverified claim ⇒ marked Unknown, never written as fact
 7. Verify      active fact-check over ALL claims (cited and uncited)
-               JEV noul per claim; drop or flag unsupported
+               JEV noul per claim; drop or flag unsupported. Runs after
+               every report write; claims cleared per report; support bar
+               VERIFY_SUPPORT_THRESHOLD (0.6); coverage badge + matrix read it
 8. Deliver     report + sources + decision trace + exports (R2)
                full audit log; versions immutable
 ```
 
-Budget gates at 0 (pre-flight), 3 (approve estimate), 4 (pause on
-projected overrun → top up in real USDC), and 8 (final metered receipt).
-Cost per *supported claim* is the unit of account, not cost per token.
+Budget gates at 0 (pre-flight), 3 (approve needs escrow ≥ estimate), 4 (pause
+at cap — end or start-new on escrowed runs, top-up only on ledger runs), and
+8 (final metered receipt). Cost per *supported claim* is the unit of account,
+not cost per token.
 
 ---
 
@@ -168,7 +171,8 @@ Three structural moats, not vibes:
 1. **Decisions are auditable by construction** (Section 3). Nobody else
    ships the trace.
 2. **Budget is a control plane**, not a bill afterward: estimate before,
-   meter during, pause/top-up at 80/95/100%, receipt after.
+   meter during, pause at cap with an honest out (end-or-new-run on one-shot
+   escrow), receipt after.
 3. **It can buy what others can't read**: paid sources unlock mid-run
    from the run budget (our own rails), turning the paywall from a dead
    end into a line item.
@@ -186,7 +190,8 @@ Three structural moats, not vibes:
   chips separated from truth verdicts, Unknown marked instead of
   hallucinated.
 - **No subscription trap.** No quota rationing (10/mo), no seat licenses.
-  Set a budget, spend it, top up.
+  Set a budget, spend it; on escrowed runs the deposit is one-shot, so a
+  bigger question means a new run, not a top-up.
 - **Agent-readable.** The report ships with a machine evidence packet on
   the same rails agents already use (MCP/API) — an agent can verify,
   extend, or re-run any claim programmatically.
@@ -259,7 +264,8 @@ Internal harness, run continuously — not vibes:
 - Live web search + JEV scoring from v1 (no mocked corpus). ✓ 11-index free bench + keyed slots.
 - DB-backed runs/sources/reports (immutable versions). ✓
 - Server-side exports (all seven formats: Markdown/JSON/BibTeX + PDF/Word/Excel/PowerPoint; R2 streaming is the later optimization).
-- x402/USDC metering with pre-flight estimate, live ticker, pause-and-top-up. ✓ plus optional onchain escrow (testnet) and agent spending wallet.
+- x402/USDC metering with pre-flight estimate, live ticker, pause-at-cap with
+  honest outs (end-or-new-run on one-shot escrow). ✓ plus optional onchain escrow (testnet) and agent spending wallet.
 - Intake with JEV stop/reframe, configure, review, approve gates. ✓
 - Command-center run page: live reasoning feed, Q&A transcript, guidance + reprompt composers. ✓
 
@@ -339,7 +345,10 @@ mechanical span checks exist precisely for this.
 
 **Retrieval decision for Dr. Nib:** multi-provider from day one (Tavily
 for breadth, Exa for semantic/academic, Firecrawl/Jina for extraction),
-metered per call into the run budget. Never marry one index.
+metered per call into the run budget. Never marry one index. Newest member:
+model-driven web search over the existing LLM key (no separate key): the
+model picks its own queries server-side, only cited annotations become
+results (~$0.007 + tokens, circuit-broken like the rest).
 
 ### Output formats (user's call: "up to the prompter")
 
@@ -368,7 +377,8 @@ source. These are implementation patterns, not ideas.
   scrape worker pool with rate limiting, deep mode with
   breadth/depth/concurrency caps. → Our caps per depth tier.
 - **ChiefEditor graph with a fact_checker node and bounded revisions.**
-  → Our verify pass, with revision caps.
+  → Our verify pass, wired to run after every report write (claims cleared
+  per report, JEV batch-scored, surfaced as coverage badge + matrix).
 - **Context compression as an explicit stage** (recursive split +
   embeddings filter, fast path under threshold). → Our compress step.
 - **Single markdown source → PDF/DOCX converters**
@@ -469,8 +479,10 @@ panes; jobs as durable objects with lifecycle states
    manual refresh instead of pretending a dead run is alive.
 3. **Completion path.** Notify on finish; runs stay discoverable in
    Runs; success states summarize what changed (sources, claims, spend).
-4. **Cross-view linkage.** Click a citation → highlight the source;
-   click a source → show the claims it supports (backtrace pattern).
+4. **Cross-view linkage.** Click a citation → the cited source (trust-ranked
+   numbering keeps chips honest); the claim×source matrix shows which source
+   carried each claim. (Source→claims backtrace not built — matrix covers the
+   audit direction that matters.)
 5. **Mid-run steer.** Inject an instruction or skip a step without
    restarting (takeover pattern).
 6. **SSE vocabulary, product language.** Small stable event names

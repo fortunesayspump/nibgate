@@ -73,7 +73,7 @@ Set these on the service (never commit them):
 | `HUB_API_URL` | the deployed hub API origin, e.g. `https://api.nibgate.xyz` |
 | `CORS_ORIGIN` | the deployed hub frontend origin, e.g. `https://nibgate.xyz` |
 | `DRNIB_SERVICE_KEY` | random string; gates the MCP server. If unset the MCP surface runs open (dev only) |
-| `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the 11-index free layer (SearXNG when configured, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv) + direct fetch |
+| `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the 11-index free layer (SearXNG when configured, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv) + direct fetch + OpenRouter web search over the existing LLM key |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
 | `SEARXNG_URL` | optional; a self-hosted SearXNG instance joins the free search bench — no key, Google-grade breadth. Must serve `?format=json` (stock images 403 it; see Testnet mirror above for the volume procedure) |
 | `SEMANTICSCHOLAR_API_KEY` | optional free key; lifts the anonymous rate limit on paper search |
@@ -90,12 +90,18 @@ Set these on the service (never commit them):
 | `ESCROW_CORE` / `ESCROW_SPLITTER` | escrow is not auto-enabled on mainnet: set both to the deployed ERC-8183 core + `NibgateRunSplitter` addresses. Testnet defaults are built in |
 | `ESCROW_KEEPER_KEY` | keeper hot key (escrow evaluator + `submit`/`complete` + split attestation). **Required for `isEscrowConfigured()`**; also read from `NIBGATE_KEEPER_PRIVATE_KEY`. Without it the escrow routes answer 501 |
 | `ESCROW_TREASURY` | optional; default `0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12` |
+| `OPENROUTER_SEARCH_ENGINE` | optional; web-search engine override, default `exa` (forced because native provider search annotates redirect URLs, not real pages). Single-model call, no `models[]` failover; ~$0.007 + tokens per search, circuit-broken like other providers |
 | `ESCROW_FEE_BPS` | optional; default 100 (1%) |
+| `ESCROW_OPERATOR` | operator payee for the split (receives ledger-attested spend). Required for onchain settle — without it settle skips with an event and funds wait for manual `POST /:id/escrow/complete` |
 | `R2_ENDPOINT` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_PUBLIC_URL` | optional; exports storage (same bucket conventions as hub media) |
 | `PORT` | leave unset; Railway injects it |
 
 Runtime knobs (optional, defaults are fine): `LLM_MODEL`, `LLM_FALLBACK_MODELS`,
-`LLM_REASONING_EFFORT`, `VERIFY_SUPPORT_THRESHOLD`, `DRNIB_STAGE_LEASE_MS`.
+`LLM_REASONING_EFFORT`, `VERIFY_SUPPORT_THRESHOLD` (default 0.6 — claim support bar), `DRNIB_STAGE_LEASE_MS`.
+
+Escrow funding rule (enforced, not configurable): approve needs the job Funded
+for at least the plan estimate; deposits are one-shot (no top-ups); the
+working cap aligns down to the deposit. Estimates include a $0.03 verify stage.
 
 ## 3. Frontend
 

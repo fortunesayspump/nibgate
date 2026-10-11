@@ -7,6 +7,7 @@ const ctx = {
   sources: [{ title: 'Arc docs', url: 'https://a.example/x', domain: 'a.example', relevance: 0.9, trust: 0.8, createdAt: '2026-01-02' }],
   claims: [{ text: 'Arc finality is sub-second', status: 'supported' }],
   ledger: { deposited: 2, spend: 0.4, fee: 0.004, balance: 1.596 },
+  escrow: { jobId: '9', status: 'Completed', completeTx: '0xabc', targetCap: 2 },
   slug: 'demo-v3',
 };
 
@@ -24,6 +25,7 @@ describe('export renderers', () => {
     expect(md.encoding).toBeUndefined();
     const json = await renderExport('json', ctx);
     expect(JSON.parse(json.content).claims[0].status).toBe('supported');
+    expect(JSON.parse(json.content).escrow).toMatchObject({ jobId: '9', status: 'Completed', completeTx: '0xabc' });
     const bib = await renderExport('bibtex', ctx);
     expect(bib.content).toContain('@misc{');
     expect(bib.content).toContain('https://a.example/x');

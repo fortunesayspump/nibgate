@@ -82,6 +82,9 @@ export default function ResearchNewPage() {
   // remainder returns automatically at settle. No opt-in — money is the gate.
   const [escrowConfigured, setEscrowConfigured] = useState<boolean | null>(null);
   const [escrowFunded, setEscrowFunded] = useState(false);
+  // What actually landed onchain (may be below the cap — partial deposits).
+  // The approve copy must name this number, never the cap.
+  const [escrowBudget, setEscrowBudget] = useState(0);
   const stopRef = useRef<null | (() => void)>(null);
 
   // The open batch: every unanswered question, in order. Answered batches
@@ -92,15 +95,57 @@ export default function ResearchNewPage() {
     return hasAnswer(cleanAnswer(d, it.question, !!otherOpen[it.seq]));
   }).length;
 
-  // Resume a project that was left mid-intake.
+  // Resume a project that was left mid-flow. Intake stages restore inline
+  // here; anything past intake lives on the run page, which carries the
+  // escrow/approve/review state — landing on a blank composer instead
+  // strands owners who left right before funding (seen live).
+  //
+  // ?project=<id> is the explicit door (Projects links here). Without it,
+  // fall back to the last touched run in this browser: closing the tab
+  // mid-intake and reopening Research must pick up the flow, not a blank
+  // composer. Only live intake stages auto-restore; anything else goes to
+  // its run page, and a dead id clears itself silently.
+  // Remember the run this browser is mid-flow on, so closing the tab
+  // mid-intake and reopening Research picks the flow back up. Cleared once
+  // the run leaves the inline stages (approve pushes to the run page) or
+  // the id proves dead.
+  function rememberRun(id: string | null) {
+    try {
+      if (id) localStorage.setItem("drnib-last-run", id);
+      else localStorage.removeItem("drnib-last-run");
+    } catch { /* private mode — resume just won't persist */ }
+  }
+
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("project");
+    const explicit = new URLSearchParams(window.location.search).get("project");
+    const id = explicit || (() => {
+      try { return localStorage.getItem("drnib-last-run") || ""; } catch { return ""; }
+    })();
     if (!id) return;
     (async () => {
       try {
         const run: any = await drNibApi.getRun(id);
-        if (!["draft", "intake", "intake-done"].includes(run.status)) {
-          router.replace(`/dr-nib/research/${id}`);
+        if (!["draft", "intake"].includes(run.status)) {
+          if (run.status === "intake-done") {
+            // Restore the inline pre-plan flow: answers, config, escrow.
+            const loaded: Item[] = (run.decisions || [])
+              .filter((d: any) => d.kind === "question")
+              .map((d: any) => ({ seq: d.seq, question: d.question, answer: d.answer || undefined }));
+            setProject({ id: run.id, title: run.title, description: run.description, status: run.status, metadata: run.metadata });
+            setTopic(run.brief?.topic || "");
+            setItems(loaded);
+            const firstUnanswered = loaded.findIndex((it) => !it.answer);
+            setIdx(firstUnanswered === -1 ? Math.max(0, loaded.length - 1) : firstUnanswered);
+            setPhase("configure");
+            void loadEscrow(run.id);
+            return;
+          }
+          // Past the inline stages: the explicit door follows to the run
+          // page, but an implicit revisit stays on the composer — yanking
+          // every fresh visit into an old running run is worse than a
+          // blank box. Terminal/deleted states clear the memory.
+          if (explicit) { router.replace(`/dr-nib/research/${id}`); return; }
+          if (["complete", "failed", "ended"].includes(run.status)) rememberRun(null);
           return;
         }
         const loaded: Item[] = (run.decisions || [])
@@ -112,8 +157,11 @@ export default function ResearchNewPage() {
         const firstUnanswered = loaded.findIndex((it) => !it.answer);
         setIdx(firstUnanswered === -1 ? Math.max(0, loaded.length - 1) : firstUnanswered);
         setPhase(loaded.length ? "questions" : "composer");
+        rememberRun(run.id);
       } catch {
-        /* backend down — stay on composer */
+        // Dead id (deleted elsewhere): forget it so the next visit doesn't
+        // retry a ghost. Backend-down stays on the composer untouched.
+        if (!explicit) rememberRun(null);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,6 +198,11 @@ export default function ResearchNewPage() {
       stick("Sign in to Nibgate to use Dr. Nib, then retry.");
       return;
     }
+    if (e?.code === "rate-limited") {
+      // Back off, don't hammer: the limit lifts on its own.
+      stick("Too many tries just now — wait a moment, then retry.");
+      return;
+    }
     if (e?.code === "unavailable") {
       // Outage, not logged-out: retrying is the fix, signing in changes nothing.
       stick("Dr. Nib couldn't reach accounts just now — retry in a moment.");
@@ -170,6 +223,7 @@ export default function ResearchNewPage() {
       const run: any = await drNibApi.createProject(t);
       setNeedsSignIn(false);
       setProject(run);
+      rememberRun(run?.id || null);
       const first = Array.isArray(run.questions) && run.questions.length
         ? run.questions
         : run.question ? [{ ...run.question, seq: 0 }] : [];
@@ -357,6 +411,7 @@ export default function ResearchNewPage() {
   }, [phase, escrowConfigured, escrowFunded, project]);
   async function loadEscrow(runId: string) {
     setEscrowFunded(false);
+    setEscrowBudget(0);
     try {
       let st: any = await drNibApi.getEscrow(runId);
       if (st?.configured === true && !st?.job) {
@@ -364,7 +419,13 @@ export default function ResearchNewPage() {
         st = await drNibApi.getEscrow(runId);
       }
       setEscrowConfigured(st?.configured === true);
-      setEscrowFunded(st?.job?.chain?.status === "Funded");
+      // Funded means spendable: status Funded AND at least the plan estimate
+      // onchain (approve enforces the same minimum — deposits are one-shot).
+      const need = Number.isFinite(Number(estimate)) && Number(estimate) > 0 ? Number(estimate) : Number(budgetCap || 0);
+      const budget = Number(st?.job?.chain?.budget ?? 0);
+      const funded = st?.job?.chain?.status === "Funded" && budget >= need;
+      setEscrowFunded(funded);
+      if (funded) setEscrowBudget(budget);
     } catch {
       setEscrowConfigured(null);
     }
@@ -396,10 +457,13 @@ export default function ResearchNewPage() {
       });
       // Planning is an LLM call away — replans especially can take a minute.
       // Never leave the user on a dead configure screen: either land review
-      // or say so out loud.
+      // or say so out loud. Exponential backoff (2s→30s): the plan takes a
+      // minute and 90 flat-2s polls hammered the API for nothing.
       let landed = false;
-      for (let i = 0; i < 90; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
+      let waitMs = 2000;
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, waitMs));
+        waitMs = Math.min(30000, waitMs * 1.5);
         const full: any = await drNibApi.getRun(project.id);
         if (full.status === "planned" || full.status === "running" || full.status === "complete") {
           setEstimate(Number(full.plan?.estimate ?? 0.2));
@@ -423,6 +487,9 @@ export default function ResearchNewPage() {
     setBusy(true);
     try {
       await drNibApi.approveRun(project.id);
+      // The run page owns it from here — forget the inline resume so fresh
+      // visits open a clean composer.
+      rememberRun(null);
       router.push(`/dr-nib/research/${project.id}`);
     } catch (e: any) {
       fail(e, "Approve failed");
@@ -562,7 +629,7 @@ export default function ResearchNewPage() {
 
       {phase === "questions" && thinking && (
         <section className="mx-auto flex max-w-2xl flex-col items-center py-20 text-center">
-          {(!streamDone || loadingAnswer) && <Loader2 className="mb-5 animate-pulse opacity-70" size={28} />}
+          {(!streamDone || loadingAnswer) && <Loader2 className="mb-5 animate-spin opacity-70" size={28} />}
           {loadingAnswer && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Sending answers…</p>}
           {!loadingAnswer && streamDone && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Noted — read it, then continue</p>}
           {!loadingAnswer && (
@@ -803,14 +870,14 @@ export default function ResearchNewPage() {
             </div>
           )}
           {escrowConfigured === true && project && !escrowFunded && (
-            <EscrowDeposit runId={project.id} budgetCap={budgetCap} onFunded={() => setEscrowFunded(true)} />
+            <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={estimate} onFunded={() => setEscrowFunded(true)} />
           )}
           {escrowConfigured === true && escrowFunded && (
-            <p className="mt-4 border-2 border-black bg-white p-4 text-sm">✓ Escrow funded — approving starts the run against your deposit. Unspent money returns to your wallet automatically at settle.</p>
+            <p className="mt-4 border-2 border-black bg-white p-4 text-sm">✓ Escrow funded (${escrowBudget.toFixed(2)}) — approving starts the run against your deposit. Unspent money returns to your wallet automatically at settle.</p>
           )}
           <p className="mt-4 text-xs leading-5 opacity-60">
             {escrowConfigured === true
-              ? `Approving starts the run against your $${budgetCap.toFixed(2)} onchain deposit — this is the spend authorization, signed when you funded. Stages draw from it; whatever isn't spent returns to your wallet at settle.`
+              ? `Approving starts the run against your $${(escrowFunded ? escrowBudget : Number(budgetCap || 0)).toFixed(2)} onchain deposit — this is the spend authorization, signed when you funded. Stages draw from it; whatever isn't spent returns to your wallet at settle.`
               : "Onchain escrow isn't available on this network yet, so runs draw from a ledger allowance. Real money moves only where escrow is configured."}
           </p>
           <div className="mt-4 flex gap-2">

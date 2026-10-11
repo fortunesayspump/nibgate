@@ -25,12 +25,14 @@ import { polymarketSearch } from './providers/polymarket.js';
 import { semanticscholarSearch } from './providers/semanticscholar.js';
 import { crossrefSearch } from './providers/crossref.js';
 import { searxngSearch, isSearxngConfigured } from './providers/searxng.js';
+import { openrouterSearch, isOpenrouterSearchConfigured } from './providers/openrouter.js';
 import { directExtract } from './providers/direct.js';
 import { circuitAllows, circuitFailure, circuitSuccess } from './circuit.js';
 
 export { RetrievalUnavailable, dedupeByUrl, mapLimit } from './util.js';
 export { isTavilyConfigured } from './providers/tavily.js';
 export { isExaConfigured } from './providers/exa.js';
+export { isOpenrouterSearchConfigured } from './providers/openrouter.js';
 export { normalizeUrl } from './util.js';
 
 export function retrievalStatus() {
@@ -39,11 +41,11 @@ export function retrievalStatus() {
   // The free bench needs no keys and is always available: a keyless
   // deployment searches, it just searches free indexes. A self-hosted
   // SearXNG joins the bench when SEARXNG_URL is set.
-  return { tavily, exa, searxng: isSearxngConfigured(), free: true, any: true };
-}
-
-export function isRetrievalConfigured() {
-  return retrievalStatus().any;
+  // OpenRouter web search rides the LLM key (no separate search key): any
+  // deployment that can think can also search the live web through the
+  // model's own server-side tool.
+  const openrouter = isOpenrouterSearchConfigured();
+  return { tavily, exa, searxng: isSearxngConfigured(), openrouter, free: true, any: true };
 }
 
 /**
@@ -101,6 +103,23 @@ export async function searchAll(input, { fetchImpl } = {}) {
         ).then(
           (r) => { circuitSuccess('exa'); return { name: 'exa', ...r }; },
           (e) => { circuitFailure('exa'); throw e; },
+        ),
+      );
+    }
+  }
+  // Model-driven web search over the LLM key: the model picks its own
+  // queries and OpenRouter executes them server-side. Same circuit-breaker
+  // treatment as the keyed pair; zero annotations is an empty result, and
+  // a model without tool support 400s into a disagreement, never a crash.
+  if (status.openrouter) {
+    const gate = circuitAllows('openrouter');
+    if (!gate.allowed) {
+      calls.push(Promise.resolve({ name: 'openrouter', skipped: 'circuit-open', retryAfterMs: gate.retryAfterMs }));
+    } else {
+      calls.push(
+        openrouterSearch({ query, maxResults }, { fetchImpl }).then(
+          (r) => { circuitSuccess('openrouter'); return { name: 'openrouter', ...r }; },
+          (e) => { circuitFailure('openrouter'); throw e; },
         ),
       );
     }

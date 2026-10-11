@@ -2,13 +2,13 @@ import { Callout } from 'nextra/components'
 
 # Retrieval bench
 
-Where the agent's evidence comes from when it hasn't spent a cent: 11 keyless indexes plus keyed providers when configured, document parsing for the files the web is actually made of, and honest reporting when a door is closed.
+Where the agent's evidence comes from when it hasn't spent a cent: 11 keyless indexes plus keyed providers when configured, model-driven web search over the run's own LLM key, document parsing for the files the web is actually made of, and honest reporting when a door is closed.
 
 **Reference:** `dr-nib/backend/src/retrieval/`.
 
 ## Free indexes (no key, no signup)
 
-GDELT (paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR, Stack Exchange, Hacker News, Polymarket, arXiv, plus a self-hosted SearXNG instance. Tavily/Exa slots accept keys when configured. Queries are keyword-ified per provider; provider failures are tagged by name so the trail shows *which* source failed, not just that something did.
+GDELT (paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR, Stack Exchange, Hacker News, Polymarket, arXiv, plus a self-hosted SearXNG instance. Tavily/Exa slots accept keys when configured. No separate search key is needed for model-driven search: the OpenRouter `web_search` server tool rides the existing LLM key — the model picks its own queries (Exa engine, ~$0.007 + tokens per search) and only cited `url_citation` annotations become results, circuit-broken like every other provider. Queries are keyword-ified per provider; provider failures are tagged by name so the trail shows *which* source failed, not just that something did.
 
 ## Documents, not just pages
 

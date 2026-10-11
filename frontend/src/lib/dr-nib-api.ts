@@ -28,6 +28,13 @@ async function req(path: string, opts: RequestInit = {}) {
     (err as any).code = 'unavailable';
     throw err;
   }
+  if (res.status === 429) {
+    // Rate limit (auth verifies, repeated signs): waiting beats hammering.
+    const err = new Error('Too many tries just now — wait a moment, then retry.');
+    (err as any).code = 'rate-limited';
+    (err as any).status = 429;
+    throw err;
+  }
   if (!res.ok) {
     // Surface the server's reason (cap-hit counts, validation detail) — a
     // bare status leaves users staring at a dead screen with no next step.

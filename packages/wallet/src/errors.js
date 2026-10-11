@@ -3,6 +3,7 @@ export const WALLET_ERRORS = {
   pending: 'Check your wallet to approve the pending request.',
   unauthorized: 'Reconnect your wallet and approve access to continue.',
   unsupportedChain: 'Your wallet is on a network that is not supported.',
+  switchTimeout: 'The network switch was not confirmed in your wallet. Open your wallet, approve the switch to Arc, then try again.',
   insufficientFunds: 'Insufficient funds to complete this transaction.',
   default: 'Something went wrong with your wallet. Please try again.',
 };
@@ -85,6 +86,9 @@ export function getWalletErrorMessage(error, { defaultMessage = WALLET_ERRORS.de
   }
   if (lowered.includes('pending request') || lowered.includes('pending:') || lowered.includes('already pending')) {
     return WALLET_ERRORS.pending;
+  }
+  if (lowered.includes('did not switch networks in time') || lowered.includes('did not switch network')) {
+    return WALLET_ERRORS.switchTimeout;
   }
   if (lowered.includes('not been authorized') || lowered.includes('unauthorized')) {
     return WALLET_ERRORS.unauthorized;

@@ -8,6 +8,7 @@
 // starts once the job reads Funded for at least the plan estimate.
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import type { Eip1193Provider } from "@nibgate/wallet";
 import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
 import { createPublicClient, createWalletClient, custom, encodeFunctionData } from "viem";
@@ -25,7 +26,7 @@ const USDC_ABI = [
   { name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
 ] as const;
 
-type Step = "idle" | "creating" | "budget" | "approving" | "funding" | "confirming" | "funded";
+type Step = "idle" | "switching" | "creating" | "budget" | "approving" | "funding" | "confirming" | "funded";
 
 export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId: string; budgetCap: number; estimate?: number | null; onFunded: () => void }) {
   const { address } = useAppKitAccount();
@@ -49,6 +50,10 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     try {
       const provider = walletProvider;
       if (!provider?.request) throw new Error("Wallet provider is not available.");
+      // Busy from the first await: the network switch can take seconds (or
+      // pop a wallet prompt), and until now the button sat idle through all
+      // of it looking dead (seen live on Fund).
+      setStep("switching");
       await ensureArcNetwork(provider);
       const chain = activeArcChain();
       const wc: any = createWalletClient({ chain, account: address as `0x${string}`, transport: custom(provider) });
@@ -123,6 +128,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   const busy = step !== "idle";
   const labels: Record<Step, string> = {
     idle: `Fund $${chosen.toFixed(2)} escrow`,
+    switching: "Confirm the network in your wallet…",
     creating: "Opening the onchain job…",
     budget: "1/3 Confirm budget in wallet…",
     approving: "2/3 Confirm USDC approval…",
@@ -146,8 +152,9 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
           className="w-32 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm" />
         <span className="text-xs opacity-60">min ${minimum.toFixed(2)} (plan estimate){Number(budgetCap) > minimum ? ` · cap $${Number(budgetCap).toFixed(2)}` : ""}</span>
       </div>
-      <button onClick={run} disabled={busy || !(chosen >= minimum)} className="mt-3 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
+      <button onClick={run} disabled={busy || !(chosen >= minimum)} className="mt-3 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
         title={!(chosen >= minimum) ? `Deposit at least $${minimum.toFixed(2)}` : undefined}>
+        {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
         {labels[step]}
       </button>
       {tx && <p className="mt-2 break-all font-mono text-[11px] opacity-60">{tx}</p>}

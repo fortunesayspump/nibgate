@@ -882,7 +882,7 @@ export default function ResearchNewPage() {
           </p>
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project || (escrowConfigured === true && !escrowFunded)} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy ? "Starting…" : "Approve & run"}</button>
+            <button onClick={approve} disabled={busy || !project || (escrowConfigured === true && !escrowFunded)} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? "Starting…" : "Approve & run"}</button>
           </div>
         </section>
       )}

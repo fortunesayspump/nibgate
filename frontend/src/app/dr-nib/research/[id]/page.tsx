@@ -3,11 +3,12 @@
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Pause, Play, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Pause, Play, Send } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { subscribeRunEvents } from "@/lib/dr-nib-events";
 import { explorerTxUrl } from "@nibgate/wallet";
 import { TrustChip } from "@/components/dr-nib/common";
+import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
 import { ReportArticle, ReportEvidence, ReportQA } from "@/components/dr-nib/ReportMarkdown";
 
 // One chronological feed from three sources: the agent's reads (intake
@@ -30,6 +31,7 @@ function buildFeed(run: any): any[] {
   for (const e of run.events || []) {
     if (e.type === "tool.call") items.push({ t: "tool", at: e.at, e });
     else if (e.type === "awaiting") items.push({ t: "parked", at: e.at, e });
+    else if (e.type === "guidance.applied") items.push({ t: "note", at: e.at, e });
     else if (e.type === "failed" || e.type === "complete") items.push({ t: "marker", at: e.at, e });
   }
   items.sort((a, b) => +new Date(a.at || 0) - +new Date(b.at || 0));
@@ -474,6 +476,42 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const [raiseAmt, setRaiseAmt] = useState("");
   const [raiseBusy, setRaiseBusy] = useState(false);
   const [raiseError, setRaiseError] = useState("");
+  // Escrow + approve live here too, not just on the Research page: a planned
+  // run whose owner navigates straight to its URL must be able to fund and
+  // approve without finding the review screen again (seen live — stranded
+  // with no path back to approve).
+  const [escrowConfigured, setEscrowConfigured] = useState<boolean | null>(null);
+  const [escrowFunded, setEscrowFunded] = useState(false);
+  const [approveBusy, setApproveBusy] = useState(false);
+  const [approveError, setApproveError] = useState("");
+  async function loadEscrow(forRun?: any) {
+    try {
+      let st: any = await drNibApi.getEscrow(id);
+      if (st?.configured === true && !st?.job) {
+        try { await drNibApi.createEscrow(id, {}); } catch { /* already open — re-read */ }
+        st = await drNibApi.getEscrow(id);
+      }
+      setEscrowConfigured(st?.configured === true);
+      const src = forRun || run;
+      const need = Number(src?.plan?.estimate ?? src?.budgetCap ?? 0);
+      setEscrowFunded(st?.job?.chain?.status === "Funded" && Number(st?.job?.chain?.budget ?? 0) >= need);
+    } catch {
+      setEscrowConfigured(null);
+    }
+  }
+  async function approveHere() {
+    if (!run || approveBusy) return;
+    setApproveBusy(true);
+    setApproveError("");
+    try {
+      await drNibApi.approveRun(id);
+      await load();
+    } catch (e: any) {
+      setApproveError(e?.message || "Approve failed.");
+    } finally {
+      setApproveBusy(false);
+    }
+  }
 
   async function load() {
     try {
@@ -484,6 +522,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
       // background stale banner — the page is fresh again.
       setError("");
       setStaleWarn(false);
+      if (r?.status === "planned") void loadEscrow(r);
       try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); } catch { setReport(null); }
     } catch (e: any) {
       // A background refetch (every SSE event calls load) must never wipe a
@@ -742,7 +781,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
   const banner: Record<string, string> = {
     planning: "Planning the run — breaking the brief into answerable questions.",
-    planned: "Plan is ready — approve it from Research to start spending.",
+    planned: "Plan is ready — fund and approve in the review box above to start spending.",
     running: (run.steps || []).length === 0
       ? "Approved — starting the first pass now."
       : "Running — steps, sources, and the report appear below as they land.",
@@ -812,6 +851,42 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           )}
         </div>
       </header>
+
+          {run.status === "planned" && (
+            <section className="mt-4 rounded-2xl border-2 border-black bg-white p-5">
+              <p className="text-sm font-medium">Review the plan — approve here, no need to go back</p>
+              <p className="mt-1 text-xs opacity-60">
+                {Array.isArray(run.plan?.sub_questions) ? `${run.plan.sub_questions.length} steps · ` : ""}
+                Estimated cost <strong>${Number(run.plan?.estimate ?? 0.2).toFixed(2)}</strong>
+                {Number(run.budgetCap) > 0 ? ` · cap $${Number(run.budgetCap).toFixed(2)}` : ""}
+              </p>
+              {Array.isArray(run.plan?.sub_questions) && run.plan.sub_questions.length > 0 && (
+                <ol className="mt-2 space-y-1">
+                  {(run.plan.sub_questions as string[]).slice(0, 6).map((sq: string, i: number) => (
+                    <li key={i} className="text-[13px] leading-5"><span className="opacity-50">{i + 1}.</span> {sq}</li>
+                  ))}
+                </ol>
+              )}
+              {escrowConfigured === true && !escrowFunded && (
+                <EscrowDeposit runId={id} budgetCap={Number(run.budgetCap || 0)} estimate={Number(run.plan?.estimate ?? 0.2)} onFunded={() => loadEscrow()} />
+              )}
+              {escrowConfigured === true && escrowFunded && (
+                <p className="mt-3 text-sm">✓ Escrow funded — approving starts the run against your deposit.</p>
+              )}
+              {approveError ? <p className="mt-2 text-xs text-red-700">{approveError}</p> : null}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={approveHere}
+                  disabled={approveBusy || (escrowConfigured === true && !escrowFunded)}
+                  title={escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}
+                  className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {approveBusy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
+                  {approveBusy ? "Starting…" : "Approve & run"}
+                </button>
+              </div>
+            </section>
+          )}
 
           {["complete", "ended", "failed"].includes(run.status) && (
             <SettlementReceipt run={run} />
@@ -933,18 +1008,24 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             </div>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>
             {(["intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"] as string[]).includes(run.status) && (
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  type="number" min={0.1} step={0.1} value={raiseAmt}
-                  onChange={(e) => setRaiseAmt(e.target.value)}
-                  placeholder={`New cap total (now $${cap.toFixed(2)})`}
-                  aria-label="New cap total in USDC"
-                  className="w-52 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm"
-                />
-                <button onClick={raiseCap} disabled={raiseBusy} className="border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">
-                  {raiseBusy ? "Raising…" : "Raise cap"}
-                </button>
-              </div>
+              escrowConfigured === true && !escrowFunded ? (
+                <div className="mt-3 border border-dark-gray/40 bg-white p-3">
+                  <p className="text-sm leading-6"><span className="font-medium">No deposit yet</span> — nothing to raise. Fund the escrow first{run.status === "planned" ? " in the review box above" : ""}, then approve.</p>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="number" min={0.1} step={0.1} value={raiseAmt}
+                    onChange={(e) => setRaiseAmt(e.target.value)}
+                    placeholder={`New cap total (now $${cap.toFixed(2)})`}
+                    aria-label="New cap total in USDC"
+                    className="w-52 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm"
+                  />
+                  <button onClick={raiseCap} disabled={raiseBusy} className="border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">
+                    {raiseBusy ? "Raising…" : "Raise cap"}
+                  </button>
+                </div>
+              )
             )}
             {raiseError ? <p className="mt-2 text-xs text-red-700">{raiseError}</p> : null}
           </section>
@@ -1030,6 +1111,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                       </div>
                     );
                   }
+                  if (item.t === "note") {
+                    const text = item.e.guidance?.text || item.e.guidance || "";
+                    return (
+                      <div key={`note-${i}`} className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
+                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">You steered<FeedTime at={item.at} /></p>
+                        {text ? <p className="mt-1 text-[13px] leading-6">“{String(text).slice(0, 500)}”</p> : null}
+                      </div>
+                    );
+                  }
                   if (item.t === "marker") {
                     return <p key={`mk-${i}`} className={`text-center text-[11px] uppercase tracking-wider opacity-50${enter}`}>— {item.e.type} —</p>;
                   }
@@ -1102,6 +1192,19 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                     </button>
                   </div>
                   {awaitingError && <p className="mt-1.5 text-[11px] text-red-700">{awaitingError}</p>}
+                </div>
+              ) : run.status === "planned" ? (
+                <div className="border-2 border-black bg-white p-3">
+                  <p className="text-xs font-medium uppercase tracking-wider opacity-60">△ Not funded yet</p>
+                  <p className="mt-1 text-sm leading-6">
+                    {escrowConfigured === true && !escrowFunded
+                      ? "Fund the escrow in the review box above — steering opens once the run starts."
+                      : "Approve the plan in the review box above to start the run."}
+                  </p>
+                </div>
+              ) : ["intake", "intake-done", "planning"].includes(run.status) ? (
+                <div className="border border-dark-gray/40 bg-white p-3">
+                  <p className="mt-1 text-sm leading-6 opacity-70">Still preparing — the run page comes alive once you approve the plan.</p>
                 </div>
               ) : (
                 <>

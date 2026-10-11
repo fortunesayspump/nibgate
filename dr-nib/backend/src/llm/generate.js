@@ -518,7 +518,11 @@ export async function generateStageNote({ kind, facts = '', next = '' } = {}) {
       maxTokens: 120,
     });
     const line = String(text || '').trim().replace(/\s+/g, ' ');
-    return line || null;
+    // Same clipped-read rule as intake thinkings: a cut-off narration line
+    // ("I take this to mean each" — seen live) is worse than silence, and
+    // the caller treats null as "say nothing".
+    if (!line || !/[.!?…]["']?\s*$/.test(line)) return null;
+    return line;
   } catch {
     return null;
   }

@@ -44,11 +44,11 @@ function timeAgo(iso?: string): string {
 // ── screen routing ────────────────────────────────────────────────────────
 type AppScreen = 'home' | 'activity' | 'send' | 'receive' | 'deposit' | 'withdraw' | 'settings' | 'detail';
 
-function showOnboarding(step: 'welcome' | 'create' | 'import' | 'backup' = 'welcome') {
+function showOnboarding(step: 'welcome' | 'create' | 'import' | 'recover' | 'backup' = 'welcome') {
   $('screen-onboard')!.hidden = false;
   $('screen-lock')!.hidden = true;
   $('app')!.hidden = true;
-  for (const s of ['welcome', 'create', 'import', 'backup'] as const) {
+  for (const s of ['welcome', 'create', 'import', 'recover', 'backup'] as const) {
     const el = $(`ob-${s}`);
     if (el) el.hidden = s !== step;
   }
@@ -103,15 +103,22 @@ function toast(msg: string) {
   toastTimer = window.setTimeout(() => el.classList.remove('show'), 1600);
 }
 
-function copyAddress(silent: string) {
-  if (!watchAddress) return;
-  const done = () => toast(silent);
+async function copyText(text: string) {
+  if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+  await navigator.clipboard.writeText(text);
+}
+
+async function copyAddress(successMessage: string) {
+  if (!watchAddress) {
+    toast('No wallet address available');
+    return;
+  }
+  toast('Copying address…');
   try {
-    const p = navigator.clipboard?.writeText(watchAddress) as unknown as Promise<void> | undefined;
-    if (p && typeof p.then === 'function') p.then(done).catch(() => {});
-    else done();
+    await copyText(watchAddress);
+    toast(successMessage);
   } catch {
-    // Clipboard unavailable — no-op, address is visible on screen.
+    toast('Copy failed — select the address to copy');
   }
 }
 
@@ -133,6 +140,13 @@ async function paintNetwork() {
   if (tokenSub) tokenSub.textContent = main ? 'Arc dollar' : 'Arc testnet dollar';
   const about = $('about-line');
   if (about) about.textContent = main ? 'Nibgate extension · mainnet (real USDC)' : 'Nibgate extension · testnet default';
+  const faucetLink = $('faucet-action') as HTMLAnchorElement | null;
+  if (faucetLink) {
+    const url = NETWORKS[net].faucet;
+    faucetLink.hidden = !url;
+    if (url) faucetLink.href = url;
+    else faucetLink.removeAttribute('href');
+  }
   $('netopt-testnet')?.classList.toggle('sel', !main);
   $('netopt-mainnet')?.classList.toggle('sel', main);
   ($('netopt-testnet') as HTMLElement | null)?.setAttribute('aria-checked', String(!main));
@@ -162,10 +176,14 @@ function disarmMainnet() {
 }
 
 async function switchNetwork(name: NetworkName) {
-  await setNetwork(name);
-  await paintNetwork();
-  await paintBalances();
-  toast(name === 'mainnet' ? 'Switched to Mainnet' : 'Switched to Testnet');
+  try {
+    await setNetwork(name);
+    await paintNetwork();
+    await paintBalances();
+    toast(name === 'mainnet' ? 'Switched to Mainnet' : 'Switched to Testnet');
+  } catch {
+    toast('Could not switch network');
+  }
 }
 
 // ── site access (optional host permission + dynamic content script) ─────────
@@ -198,23 +216,48 @@ async function paintSiteAccess(): Promise<boolean> {
 
 function enableSiteAccess() {
   // chrome.permissions.request MUST be the first call in the gesture.
-  return chrome.permissions.request({ origins: SITE_ACCESS_ORIGINS })
-    .then(async (granted) => {
-      await chrome.runtime.sendMessage({ type: 'SYNC_CONTENT_SCRIPT' }).catch(() => {});
+  void (async () => {
+    try {
+      const granted = await chrome.permissions.request({ origins: SITE_ACCESS_ORIGINS });
+      if (!granted) {
+        await paintSiteAccess();
+        toast('Site access not granted');
+        return;
+      }
+      const sync = await chrome.runtime.sendMessage({ type: 'SYNC_CONTENT_SCRIPT' });
+      if (!sync?.ok || !sync.granted) {
+        await paintSiteAccess();
+        toast('Could not enable the Tip button');
+        return;
+      }
       await paintSiteAccess();
-      if (granted) toast('Tip button enabled');
-    })
-    .catch(() => toast('Could not enable'));
+      toast('Tip button enabled');
+    } catch {
+      await paintSiteAccess();
+      toast('Could not enable the Tip button');
+    }
+  })();
 }
 
 async function disableSiteAccess() {
   try {
-    await chrome.permissions.remove({ origins: SITE_ACCESS_ORIGINS });
-    await chrome.runtime.sendMessage({ type: 'SYNC_CONTENT_SCRIPT' }).catch(() => {});
+    const removed = await chrome.permissions.remove({ origins: SITE_ACCESS_ORIGINS });
+    if (!removed) {
+      await paintSiteAccess();
+      toast('Could not disable the Tip button');
+      return;
+    }
+    const sync = await chrome.runtime.sendMessage({ type: 'SYNC_CONTENT_SCRIPT' });
+    if (!sync?.ok || sync.granted) {
+      await paintSiteAccess();
+      toast('Site access changed, but script sync failed');
+      return;
+    }
     await paintSiteAccess();
     toast('Tip button disabled');
   } catch {
-    toast('Could not disable');
+    await paintSiteAccess();
+    toast('Could not disable the Tip button');
   }
 }
 
@@ -260,6 +303,7 @@ async function paintBalances() {
     }
   } catch {
     lastBalances = { wallet: null, gateway: null };
+    toast('Could not load balances');
   }
   paintBalance();
   const avail = $('send-avail');
@@ -351,8 +395,8 @@ function openDetail(item: HistoryItem) {
           btn.textContent = res?.error || 'Refund failed';
           btn.disabled = false;
         }
-      } catch {
-        btn.textContent = 'Refund failed';
+      } catch (error) {
+        btn.textContent = `Refund failed: ${String((error as Error)?.message || error)}`;
         btn.disabled = false;
       }
     });
@@ -366,6 +410,27 @@ function openDetail(item: HistoryItem) {
 function onboardError(msg: string) {
   const el = $('ob-error');
   if (el) el.textContent = msg;
+}
+
+function clearRecoveryForm() {
+  for (const id of ['recover-words', 'recover-password', 'recover-password-confirm'] as const) {
+    const input = $(id) as HTMLInputElement | HTMLTextAreaElement | null;
+    if (input) input.value = '';
+  }
+  for (const id of ['recover-understood', 'reset-understood'] as const) {
+    const checkbox = $(id) as HTMLInputElement | null;
+    if (checkbox) checkbox.checked = false;
+  }
+  for (const id of ['recover-go', 'reset-wallet'] as const) {
+    const button = $(id) as HTMLButtonElement | null;
+    if (button) button.disabled = true;
+  }
+  const reset = $('reset-wallet');
+  if (reset) reset.textContent = 'Clear local wallet and start over';
+  for (const id of ['recover-error', 'reset-error'] as const) {
+    const error = $(id);
+    if (error) error.textContent = '';
+  }
 }
 
 function paintMnemonic(elId: string, phrase: string) {
@@ -419,8 +484,12 @@ async function init() {
   await applyTheme(theme);
   for (const t of ['system', 'light', 'dark'] as const) {
     $(`theme-${t}`)?.addEventListener('click', async () => {
-      await chrome.storage.local.set({ nibgateTheme: t });
-      await applyTheme(t);
+      try {
+        await chrome.storage.local.set({ nibgateTheme: t });
+        await applyTheme(t);
+      } catch {
+        toast('Could not save appearance setting');
+      }
     });
   }
 
@@ -432,11 +501,18 @@ async function init() {
 
   // Decide the initial screen from vault state.
   let status: { hasVault?: boolean; unlocked?: boolean; address?: string } = {};
+  let statusFailed = false;
   try {
     status = await chrome.runtime.sendMessage({ type: 'VAULT_STATUS' });
-  } catch {}
+  } catch {
+    statusFailed = true;
+  }
   watchAddress = status.address || '';
-  if (status.unlocked && status.address) showApp('home');
+  if (statusFailed) {
+    showLock();
+    const error = $('lock-error');
+    if (error) error.textContent = 'Could not connect to your wallet. Reload the extension and try again.';
+  } else if (status.unlocked && status.address) showApp('home');
   else if (status.hasVault) showLock();
   else showOnboarding('welcome');
 
@@ -445,23 +521,114 @@ async function init() {
   $('ob-import-btn')?.addEventListener('click', () => showOnboarding('import'));
   $('ob-create-back')?.addEventListener('click', () => showOnboarding('welcome'));
   $('ob-import-back')?.addEventListener('click', () => showOnboarding('welcome'));
+  $('lock-forgot')?.addEventListener('click', () => {
+    clearRecoveryForm();
+    showOnboarding('recover');
+  });
+  $('recover-back')?.addEventListener('click', () => {
+    clearRecoveryForm();
+    showLock();
+  });
+  $('recover-understood')?.addEventListener('change', (e) => {
+    const restore = $('recover-go') as HTMLButtonElement | null;
+    if (restore) restore.disabled = !(e.target as HTMLInputElement).checked;
+  });
+  $('reset-understood')?.addEventListener('change', (e) => {
+    const reset = $('reset-wallet') as HTMLButtonElement | null;
+    if (reset) reset.disabled = !(e.target as HTMLInputElement).checked;
+  });
+  $('recover-go')?.addEventListener('click', async () => {
+    const phrase = ($('recover-words') as HTMLTextAreaElement | null)?.value || '';
+    const password = ($('recover-password') as HTMLInputElement | null)?.value || '';
+    const confirmation = ($('recover-password-confirm') as HTMLInputElement | null)?.value || '';
+    const error = $('recover-error');
+    if (!(($('recover-understood') as HTMLInputElement | null)?.checked)) return;
+    if (password !== confirmation) {
+      if (error) error.textContent = 'Those passwords do not match.';
+      return;
+    }
+    let res;
+    try {
+      res = await chrome.runtime.sendMessage({ type: 'VAULT_IMPORT', mnemonic: phrase, password });
+    } catch (e) {
+      if (error) error.textContent = String((e as Error)?.message || e);
+      return;
+    }
+    if (!res?.ok) {
+      if (error) error.textContent = res?.error || 'Wallet restore failed.';
+      return;
+    }
+    if (error) error.textContent = '';
+    watchAddress = res.address;
+    clearRecoveryForm();
+    paintAccount();
+    showApp('home');
+    await paintBalances();
+  });
+  $('reset-wallet')?.addEventListener('click', async () => {
+    const reset = $('reset-wallet') as HTMLButtonElement | null;
+    const error = $('reset-error');
+    if (!(($('reset-understood') as HTMLInputElement | null)?.checked)) return;
+    if (reset) {
+      reset.disabled = true;
+      reset.textContent = 'Clearing wallet…';
+    }
+    let res;
+    try {
+      res = await chrome.runtime.sendMessage({ type: 'VAULT_RESET' });
+    } catch (e) {
+      if (error) error.textContent = String((e as Error)?.message || e);
+      if (reset) {
+        reset.disabled = false;
+        reset.textContent = 'Clear local wallet and start over';
+      }
+      return;
+    }
+    if (!res?.ok) {
+      if (error) error.textContent = res?.error || 'Could not clear the local wallet.';
+      if (reset) {
+        reset.disabled = false;
+        reset.textContent = 'Clear local wallet and start over';
+      }
+      return;
+    }
+    watchAddress = '';
+    lastBalances = { wallet: null, gateway: null };
+    clearRecoveryForm();
+    showOnboarding('welcome');
+  });
 
   $('do-create')?.addEventListener('click', async () => {
     const pw = ($('new-password') as HTMLInputElement | null)?.value || '';
-    const res = await chrome.runtime.sendMessage({ type: 'VAULT_CREATE', password: pw });
-    if (!res?.ok) return onboardError(res?.error || 'Create failed.');
-    watchAddress = res.address;
-    paintMnemonic('ob-mnemonic', res.mnemonic || '');
-    const saved = $('ob-saved') as HTMLInputElement | null;
-    const doneBtn = $('ob-done') as HTMLButtonElement | null;
-    if (saved) saved.checked = false;
-    if (doneBtn) doneBtn.disabled = true;
-    showOnboarding('backup');
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'VAULT_CREATE', password: pw });
+      if (!res?.ok) return onboardError(res?.error || 'Create failed.');
+      watchAddress = res.address;
+      paintMnemonic('ob-mnemonic', res.mnemonic || '');
+      const saved = $('ob-saved') as HTMLInputElement | null;
+      const doneBtn = $('ob-done') as HTMLButtonElement | null;
+      if (saved) saved.checked = false;
+      if (doneBtn) doneBtn.disabled = true;
+      showOnboarding('backup');
+    } catch (error) {
+      onboardError(`Could not create wallet: ${String((error as Error)?.message || error)}`);
+    }
   });
-  $('ob-copy-phrase')?.addEventListener('click', () => {
+  $('ob-copy-phrase')?.addEventListener('click', async () => {
     const grid = $('ob-mnemonic');
     const phrase = grid ? Array.from(grid.querySelectorAll('span')).map((s) => s.textContent?.replace(/^\d+\.\s*/, '')).join(' ') : '';
-    navigator.clipboard?.writeText(phrase).catch(() => {});
+    const status = $('ob-copy-status');
+    if (!phrase) {
+      if (status) status.textContent = 'Recovery phrase is not available to copy.';
+      return;
+    }
+    if (status) status.textContent = 'Copying phrase…';
+    try {
+      await copyText(phrase);
+      if (status) status.textContent = 'Recovery phrase copied. Keep it private.';
+    } catch {
+      if (status) status.textContent = 'Copy failed. Select and copy the phrase manually.';
+    }
   });
   $('ob-done')?.addEventListener('click', async () => {
     paintAccount();
@@ -471,28 +638,36 @@ async function init() {
   $('do-import')?.addEventListener('click', async () => {
     const words = ($('imp-words') as HTMLTextAreaElement | null)?.value || '';
     const pw = ($('imp-password') as HTMLInputElement | null)?.value || '';
-    const res = await chrome.runtime.sendMessage({ type: 'VAULT_IMPORT', mnemonic: words, password: pw });
-    if (!res?.ok) return onboardError(res?.error || 'Import failed.');
-    watchAddress = res.address;
-    paintAccount();
-    showApp('home');
-    await paintBalances();
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'VAULT_IMPORT', mnemonic: words, password: pw });
+      if (!res?.ok) return onboardError(res?.error || 'Import failed.');
+      watchAddress = res.address;
+      paintAccount();
+      showApp('home');
+      await paintBalances();
+    } catch (error) {
+      onboardError(`Could not import wallet: ${String((error as Error)?.message || error)}`);
+    }
   });
 
   // ── lock wiring ──
   $('lock-go')?.addEventListener('click', async () => {
     const pw = ($('lock-password') as HTMLInputElement | null)?.value || '';
-    const res = await chrome.runtime.sendMessage({ type: 'VAULT_UNLOCK', password: pw });
     const err = $('lock-error');
-    if (!res?.ok) {
-      if (err) err.textContent = res?.error || 'Unlock failed.';
-      return;
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'VAULT_UNLOCK', password: pw });
+      if (!res?.ok) {
+        if (err) err.textContent = res?.error || 'Unlock failed.';
+        return;
+      }
+      if (err) err.textContent = '';
+      watchAddress = res.address;
+      paintAccount();
+      showApp('home');
+      await paintBalances();
+    } catch (error) {
+      if (err) err.textContent = `Could not unlock wallet: ${String((error as Error)?.message || error)}`;
     }
-    if (err) err.textContent = '';
-    watchAddress = res.address;
-    paintAccount();
-    showApp('home');
-    await paintBalances();
   });
 
   // ── top bar ──
@@ -528,6 +703,7 @@ async function init() {
     await switchNetwork('mainnet');
   });
   $('acct-chip')?.addEventListener('click', () => copyAddress('Address copied'));
+  $('faucet-action')?.addEventListener('click', () => copyAddress('Wallet address copied'));
   // Site access (optional host permission) — enable/disable the tip button.
   $('site-access-enable')?.addEventListener('click', () => { enableSiteAccess(); });
   $('site-access-toggle')?.addEventListener('click', async () => {
@@ -543,8 +719,16 @@ async function init() {
   // ── home actions (rail-aware: wallet = Send/Receive, gateway = Deposit/Withdraw) ──
   $('btn-send')?.addEventListener('click', () => { rail === 'gateway' ? openDeposit() : openSend(); });
   $('btn-receive')?.addEventListener('click', () => { rail === 'gateway' ? openWithdraw() : openReceive(); });
-  $('tab-wallet')?.addEventListener('click', () => { rail = 'wallet'; chrome.storage.local.set({ nibgateRail: 'transfer' }); paintBalance(); });
-  $('tab-gateway')?.addEventListener('click', () => { rail = 'gateway'; chrome.storage.local.set({ nibgateRail: 'gateway' }); paintBalance(); });
+  $('tab-wallet')?.addEventListener('click', () => {
+    rail = 'wallet';
+    chrome.storage.local.set({ nibgateRail: 'transfer' }).catch(() => toast('Could not save wallet view'));
+    paintBalance();
+  });
+  $('tab-gateway')?.addEventListener('click', () => {
+    rail = 'gateway';
+    chrome.storage.local.set({ nibgateRail: 'gateway' }).catch(() => toast('Could not save Gateway view'));
+    paintBalance();
+  });
   $('view-all-activity')?.addEventListener('click', () => showScreen('activity'));
 
   // ── tab bar ──
@@ -566,6 +750,7 @@ async function init() {
   $('send-max')?.addEventListener('click', () => {
     const amt = $('send-amount') as HTMLInputElement | null;
     if (amt && lastBalances.wallet != null) amt.value = String(Math.max(0, lastBalances.wallet - 0.01));
+    else toast('Wallet balance is still loading');
   });
   $('send-review-btn')?.addEventListener('click', reviewSend);
   $('send-confirm')?.addEventListener('click', confirmSend);
@@ -574,12 +759,14 @@ async function init() {
   $('deposit-max')?.addEventListener('click', () => {
     const amt = $('deposit-amount') as HTMLInputElement | null;
     if (amt && lastBalances.wallet != null) amt.value = String(Math.max(0, lastBalances.wallet - 0.01));
+    else toast('Wallet balance is still loading');
   });
   $('withdraw-max')?.addEventListener('click', () => {
     // Gas for the mint is paid from the wallet balance, so the full gateway
     // balance is withdrawable.
     const amt = $('withdraw-amount') as HTMLInputElement | null;
     if (amt && lastBalances.gateway != null) amt.value = String(Math.max(0, lastBalances.gateway));
+    else toast('Gateway balance is still loading');
   });
   $('deposit-review-btn')?.addEventListener('click', () => reviewFunding('deposit'));
   $('deposit-confirm')?.addEventListener('click', confirmFunding);
@@ -588,10 +775,18 @@ async function init() {
 
   // ── settings ──
   $('sec-lock')?.addEventListener('click', async () => {
-    await chrome.runtime.sendMessage({ type: 'VAULT_LOCK' });
-    watchAddress = '';
-    lastBalances = { wallet: null, gateway: null };
-    showLock();
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'VAULT_LOCK' });
+      if (!result?.ok) {
+        toast(result?.error || 'Could not lock wallet');
+        return;
+      }
+      watchAddress = '';
+      lastBalances = { wallet: null, gateway: null };
+      showLock();
+    } catch {
+      toast('Could not lock wallet');
+    }
   });
   $('sec-reveal')?.addEventListener('click', () => {
     const wrap = $('reveal-wrap');
@@ -599,20 +794,28 @@ async function init() {
   });
   $('reveal-go')?.addEventListener('click', async () => {
     const pw = ($('reveal-password') as HTMLInputElement | null)?.value || '';
-    const res = await chrome.runtime.sendMessage({ type: 'VAULT_REVEAL', password: pw });
     const out = $('reveal-out');
-    if (!res?.ok) {
-      if (out) { out.hidden = false; out.innerHTML = `<span style="color:var(--danger)">${res?.error || 'Reveal failed.'}</span>`; }
-      return;
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'VAULT_REVEAL', password: pw });
+      if (!res?.ok) {
+        if (out) { out.hidden = false; out.innerHTML = `<span style="color:var(--danger)">${res?.error || 'Reveal failed.'}</span>`; }
+        return;
+      }
+      if (out) { out.hidden = false; }
+      paintMnemonic('reveal-out', res.mnemonic || '');
+    } catch (error) {
+      if (out) {
+        out.hidden = false;
+        out.textContent = `Could not reveal recovery phrase: ${String((error as Error)?.message || error)}`;
+      }
     }
-    if (out) { out.hidden = false; }
-    paintMnemonic('reveal-out', res.mnemonic || '');
   });
 
   // Enter-to-submit for every primary form.
   onEnter(['new-password'], () => $('do-create')?.click());
   onEnter(['imp-words', 'imp-password'], () => $('do-import')?.click());
   onEnter(['lock-password'], () => $('lock-go')?.click());
+  onEnter(['recover-password', 'recover-password-confirm'], () => $('recover-go')?.click());
   onEnter(['reveal-password'], () => $('reveal-go')?.click());
   onEnter(['send-to', 'send-amount'], () => {
     const confirm = $('send-confirm');
@@ -631,14 +834,26 @@ async function init() {
   });
 
   // ── history ──
+  let historyLoadFailed = false;
   try {
     const { history = [] } = await chrome.storage.local.get('history');
     historyItems = history;
   } catch {
     historyItems = [];
+    historyLoadFailed = true;
   }
-  paintHistory(historyItems, 'history', 3);
-  paintHistory(historyItems, 'history-full');
+  if (historyLoadFailed) {
+    for (const id of ['history', 'history-full']) {
+      const historyEl = $(id);
+      if (historyEl) {
+        historyEl.classList.add('empty');
+        historyEl.textContent = 'Could not load activity.';
+      }
+    }
+  } else {
+    paintHistory(historyItems, 'history', 3);
+    paintHistory(historyItems, 'history-full');
+  }
 
   // Auto-hiding scrollbars: reveal while scrolling, then fade out.
   for (const el of Array.from(document.querySelectorAll('.scroll')) as HTMLElement[]) {
@@ -682,7 +897,10 @@ async function reviewSend() {
   try {
     const est = await chrome.runtime.sendMessage({ type: 'ESTIMATE_SEND_FEE', to, amountUsdc: Number(amount) });
     if (est?.feeUsdc) feeRow = `<div class="line"><span class="k">Network fee (est.)</span><span class="v">~$${est.feeUsdc} USDC</span></div>`;
-  } catch {}
+    else feeRow = '<div class="line"><span class="k">Network fee (est.)</span><span class="v">Estimate unavailable</span></div>';
+  } catch {
+    feeRow = '<div class="line"><span class="k">Network fee (est.)</span><span class="v">Estimate unavailable</span></div>';
+  }
   const rev = $('send-review');
   if (rev) {
     rev.hidden = false;
@@ -701,21 +919,31 @@ async function confirmSend() {
   const err = $('send-error');
   const conf = $('send-confirm') as HTMLButtonElement | null;
   if (conf) { conf.disabled = true; conf.textContent = 'Sending…'; }
-  const res = await chrome.runtime.sendMessage({ type: 'SEND_USDC', to: pendingSend.to, amountUsdc: Number(pendingSend.amount) });
+  let res;
+  try {
+    res = await chrome.runtime.sendMessage({ type: 'SEND_USDC', to: pendingSend.to, amountUsdc: Number(pendingSend.amount) });
+  } catch (error) {
+    if (err) err.textContent = `Could not verify the send result. Check activity before retrying. ${String((error as Error)?.message || error)}`;
+    if (conf) conf.textContent = 'Check activity before retrying';
+    return;
+  }
   if (!res?.ok) {
     if (err) err.textContent = res?.error || 'Send failed.';
     if (conf) { conf.disabled = false; conf.textContent = 'Confirm & send'; }
     return;
   }
-  // Refresh history + balances, then home.
+  let historyFailed = false;
   try {
     const { history = [] } = await chrome.storage.local.get('history');
     historyItems = history;
     paintHistory(historyItems, 'history', 3);
     paintHistory(historyItems, 'history-full');
-  } catch {}
+  } catch {
+    historyFailed = true;
+  }
   await paintBalances();
   showScreen('home');
+  toast(historyFailed ? 'USDC sent, but activity did not refresh' : res.txHash ? `USDC sent · ${String(res.txHash).slice(0, 10)}…` : 'USDC sent');
 }
 
 async function openReceive() {
@@ -787,25 +1015,37 @@ async function confirmFunding() {
   const err = $(ids.error);
   const conf = ($(ids.confirm)) as HTMLButtonElement | null;
   if (conf) { conf.disabled = true; conf.textContent = kind === 'deposit' ? 'Depositing…' : 'Withdrawing…'; }
-  const res = await chrome.runtime.sendMessage({
-    type: kind === 'deposit' ? 'GATEWAY_DEPOSIT' : 'GATEWAY_WITHDRAW',
-    amountUsdc: Number(amount),
-  });
   const doneLabel = kind === 'deposit' ? 'Confirm & deposit' : 'Confirm & withdraw';
+  let res;
+  try {
+    res = await chrome.runtime.sendMessage({
+      type: kind === 'deposit' ? 'GATEWAY_DEPOSIT' : 'GATEWAY_WITHDRAW',
+      amountUsdc: Number(amount),
+    });
+  } catch (error) {
+    if (err) err.textContent = `Could not verify ${kind}. Check balances before retrying. ${String((error as Error)?.message || error)}`;
+    if (conf) conf.textContent = 'Check balance before retrying';
+    return;
+  }
   if (!res?.ok) {
     if (err) err.textContent = res?.error || (kind === 'deposit' ? 'Deposit failed.' : 'Withdraw failed.');
     if (conf) { conf.disabled = false; conf.textContent = doneLabel; }
     return;
   }
-  toast(kind === 'deposit' ? 'Deposited to Gateway' : 'Withdrew to wallet');
+  let historyFailed = false;
   try {
     const { history = [] } = await chrome.storage.local.get('history');
     historyItems = history;
     paintHistory(historyItems, 'history', 3);
     paintHistory(historyItems, 'history-full');
-  } catch {}
+  } catch {
+    historyFailed = true;
+  }
   await paintBalances();
   showScreen('home');
+  toast(historyFailed
+    ? `${kind === 'deposit' ? 'Deposited' : 'Withdrew'}, but activity did not refresh`
+    : kind === 'deposit' ? 'Deposited to Gateway' : 'Withdrew to wallet');
 }
 
 init();

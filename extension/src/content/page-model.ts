@@ -14,6 +14,7 @@ import { decide, selectMany } from '../../../jev/src/decide.ts';
 import { renderTrace } from '../../../jev/src/trace.ts';
 import type { JevDecision, JevOption, JevPolicy } from '../../../jev/src/schema.ts';
 import { contentContainer, extractContent } from './extract';
+import { canonicalContentUrl } from './canonical-url';
 
 export type PageKind = 'content' | 'feed' | 'landing' | 'app' | 'brand' | 'unknown';
 export type ContentType = 'article' | 'video' | 'audio' | 'gallery' | 'paper' | 'code' | 'discussion' | 'product' | 'unknown';
@@ -714,7 +715,7 @@ export function mapPage(rootNode: ParentNode = document): PageMap {
     author: author.value,
     authorDecision: author.decision,
     title,
-    canonical: canonical ? new URL(canonical, doc.location?.href || undefined).href : doc.location?.href || '',
+    canonical: canonicalContentUrl(canonical, doc.location?.href || ''),
     siteName: metaContent(doc, ['og:site_name']) || (doc.location?.hostname || '').replace(/^www\./, ''),
     wordCount,
     fingerprint: fingerprint(title, text),
@@ -729,4 +730,3 @@ export function mapPage(rootNode: ParentNode = document): PageMap {
     trace: lines.join('\n'),
   };
 }
-

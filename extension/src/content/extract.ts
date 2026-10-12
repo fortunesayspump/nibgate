@@ -3,6 +3,7 @@
 // whether a page is an article and to extract title/byline/text — the same
 // industry-standard approach other extensions use, instead of word heuristics.
 import { Readability, isProbablyReaderable } from '@mozilla/readability';
+import { canonicalContentUrl } from './canonical-url';
 
 export type ExtractedContent = {
   url: string;
@@ -211,7 +212,7 @@ export function extractContent(): ExtractedContent | null {
   const words = text.split(/\s+/).filter(Boolean);
   return {
     url: window.location.href.split('#')[0],
-    canonicalUrl: new URL(canonical, window.location.href).href,
+    canonicalUrl: canonicalContentUrl(canonical, window.location.href),
     title: parsed.title || metaContent(['og:title', 'twitter:title']) || document.title || 'Untitled',
     author: parsed.byline || authorFromPage(),
     siteName: parsed.siteName || metaContent(['og:site_name']) || window.location.hostname.replace(/^www\./, ''),

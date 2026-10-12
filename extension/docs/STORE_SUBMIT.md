@@ -1,7 +1,7 @@
 # Chrome Web Store submission
 
 **Status: v1.0.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.0.1 — ships as the first update (rebubmit flow below).
+Repo is at v1.1.0 — the next update (submission flow below).
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
 
@@ -19,16 +19,18 @@ building on store approval.
 - Updates to an already-approved item review faster than first submissions.
 - Never cancel + resubmit while pending — it rejoins the back of the queue.
 
-## Pre-submit checklist (v1.0.1 — all done)
+## Pre-submit checklist (v1.1.0)
 
 - [x] `npm run build` clean, `dist/` contains manifest + bundles + icons/fonts
 - [x] Icons present: `icons/icon16|48|128.png` (store requires all three)
 - [x] No `console.log` in `src/`; dual-network copy (testnet default, mainnet pill)
 - [x] Privacy policy page — hosted at `https://nibgate.xyz/extension-privacy`
   (`frontend/src/app/extension-privacy/page.tsx`). Extension requests
-  `activeTab` (current page only), `storage` (tip history + network pref), and
-  optional site access the user grants at runtime so the tip button can read
-  page content for extraction. No analytics, no remote code, no data sale.
+  `activeTab` (current page only), `storage` (tip history + network pref),
+  `clipboardWrite` (copy an address or recovery phrase only when the user
+  clicks Copy), and optional site access the user grants at runtime so the tip
+  button can read page content for extraction. Clipboard contents are never
+  read or sent. No analytics, no remote code, no data sale.
 - [x] Store description + 1280×800 screenshots + promo tiles (see below).
 
 ## What happens next
@@ -36,9 +38,9 @@ building on store approval.
 1. **Updates re-enter review** — never cancel + resubmit while pending; it rejoins the back of the queue.
 2. Use **staged rollout** (e.g. 20% → 100%) for subsequent builds
    so a bad build doesn't hit every user at once.
-3. v1.0.1 is built (`nibgate-1.0.1.zip`) and next in line — upload as a new
-   version of the same item (review is faster for updates). It also carries
-   the listing-copy fix below.
+3. Build v1.1.0 (`nibgate-1.1.0.zip`) and upload it as a new version of the
+   same item (review is faster for updates). This release adds the testnet
+   faucet entry point and password-recovery/reset flows.
 
 ## Steps (record — used for the v1.0.0 submission)
 
@@ -66,16 +68,29 @@ Nibgate puts a tip button on every article, tutorial, and paper you read.
 • Unknown creators? Your tip waits safely until they claim it — or refund yourself in one tap
 • Self-custodial wallet built in: your keys never leave this device
 
-Starts on Arc Testnet with free faucet USDC (play money only). When you're
+Starts on Arc Testnet, with a one-tap link to Circle's faucet for free testnet
+USDC (play money only). When you're
 ready for real tips, flip to Mainnet in Settings — with an explicit
 confirmation, so it never happens by accident.
 
 Support: hello@nibgate.xyz · Privacy: https://nibgate.xyz/extension-privacy
 ```
 
-> Copy debt for the next update: the submitted text says "flip to mainnet
-> in settings" but the UI ships a confirm-gated **header pill**. Fix the
-> wording on v1.0.2.
+> 1.0.0 wording debt, fixed for the 1.1.0 listing below: the submitted text says
+> "flip to mainnet in settings" but the UI ships a confirm-gated **header
+> pill** — the 1.1.0 copy says "header pill" throughout.
+
+## Listing copy (v1.1.0 update — replaces the v1.0.0 block above on submission)
+
+Short description (132 chars):
+`Tip any creator on the web with USDC. Play money on testnet; flip to mainnet via the header pill for real tips.`
+
+Add to the full description, after the faucet paragraph:
+```
+v1.1.0: one-tap Circle faucet entry on the home screen (testnet only —
+copies your address, opens the faucet), and forgot-password recovery:
+restore with your recovery phrase or clear the device wallet and start over.
+```
 
 Screenshots (1280×800 composed feature frames, dark canvas + headline left +
 product crop right, in `e2e/screenshots/` — regenerate raws then compose;

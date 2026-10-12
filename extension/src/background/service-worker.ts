@@ -11,6 +11,7 @@ import {
   importVault,
   unlockVault,
   lockVault,
+  resetVault,
   sendUsdcTransfer,
   sessionSigner,
   revealMnemonic,
@@ -236,6 +237,17 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
     (async () => {
       await lockVault();
       respond({ ok: true });
+    })();
+    return true;
+  }
+  if (msg?.type === 'VAULT_RESET') {
+    (async () => {
+      try {
+        await resetVault();
+        respond({ ok: true });
+      } catch (e) {
+        respond({ ok: false, error: String((e as Error)?.message || e) });
+      }
     })();
     return true;
   }
@@ -682,7 +694,16 @@ async function tipConfirmFlow(
     });
     if (!verifyRes.ok) throw await notOk(verifyRes, 'tip hold verify');
     const held = await verifyRes.json();
-    await recordReceipt({ ...(held?.tip || {}), amount, title: input.title });
+    await recordReceipt({
+      ...(held?.tip || {}),
+      type: 'tip',
+      amount,
+      title: input.title,
+      txHash: proof.txHash || '',
+      recipientWallet: String(challenge?.box || challenge?.payee || ''),
+      status: 'held',
+      domain,
+    });
     const stats = await heldTipsForDomain(domain).catch(() => ({ count: 0, total: 0 }));
     return { receipt: held?.tip || {}, held: true, txHash: proof.txHash, heldCount: stats.count, heldTotal: stats.total };
   }

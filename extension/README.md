@@ -2,7 +2,7 @@
 
 **Status: v1.0.0 LIVE on the Chrome Web Store**
 ([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.0.1 (next update, unsubmitted). Sideload guide:
+Repo is at v1.1.0 (next update, unsubmitted). Sideload guide:
 `docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
 
 Part of the trio: `tipping/` = protocol, `extension/` = humans, `dr-nib/` =
@@ -26,7 +26,14 @@ On first open you **create** a wallet (a recovery phrase is shown once — write
 it down) or **import** one. The wallet is encrypted on-device with your
 password (PBKDF2 + AES-256-GCM); keys live in the background worker's memory
 only, never in web pages. Lock it anytime from Settings → Security; reveal the
-recovery phrase there too (password required).
+recovery phrase there too (password required). If you forget the password,
+choose **Forgot password?** on the lock screen to restore with the recovery
+phrase and set a new one, or explicitly clear this device's wallet and start
+over. Nibgate cannot recover the old wallet without its phrase. Clearing only
+removes its local key and activity; it does not move or erase on-chain funds,
+so you may permanently lose access to them. The backup screen has a **Copy
+phrase** button (clipboard write only, on your tap — the extension never reads
+the clipboard).
 
 ### Networks — testnet first, mainnet behind a confirm
 
@@ -34,8 +41,9 @@ One build serves both networks. The header pill shows the active one
 (**TESTNET** by default) with the Arc mark. Tapping it offers Mainnet behind
 an explicit confirmation, so real money never happens by accident.
 
-- **Testnet (Arc Testnet, chain 5042002):** free USDC from the Circle faucet
-  (`https://faucet.circle.com`). Play money for trying everything.
+- **Testnet (Arc Testnet, chain 5042002):** the home screen links to the Circle
+  faucet (`https://faucet.circle.com`). Choose Arc Testnet and paste your
+  wallet address to request free USDC. It is play money for trying everything.
 - **Mainnet (Arc, chain 5042):** real USDC. Balances, history, and tips are
   per-network — switching networks switches everything you see.
 
@@ -48,7 +56,8 @@ an explicit confirmation, so real money never happens by accident.
 3. Tapping it opens the Nibgate **tip window**: amount presets ($1 / $5 / $10)
    or custom, a review step showing exactly who gets paid and the fee, then
    **Approve** signs with your wallet. Nothing signs without your tap.
-4. Receipt lands in **Activity**. Funded holds also appear as pending `held`
+4. Receipt lands in **Activity** — with type, amount, tx hash, recipient, and
+   held/settled status. Funded holds also appear as pending `held`
    entries in the public hub ledger; they are not completed-tip totals. Refunds
    create a separate negative ledger entry.
 
@@ -117,7 +126,7 @@ Rules that are load-bearing, not stylistic:
 
 ```text
 extension/
-  manifest.json            # MV3, v1.0.1: worker, popup, optional site access
+  manifest.json            # MV3, v1.1.0: worker, popup, optional site access
   package.json / tsconfig  # TS + esbuild
   src/
     content/tip-card.ts    # the single coffee-button trigger + TIP_RESULT poll
@@ -125,6 +134,8 @@ extension/
                            #   eligibility) — every judgment a JEV decision
                            #   over scored options, no LLM, no network
     content/extract.ts     # title/author/canonical/fingerprint extraction
+    content/canonical-url.ts # canonical-URL normalization (localhost guard,
+                             #   hash-strip) shared by extract + page-model
     content/dom-candidates.ts # DOM wallet-candidate harvesting
     content/guard.ts       # where the card may/may not render (+ bfcache guards)
     background/service-worker.ts # TIP_* protocol, signing, balances, gateway
@@ -143,7 +154,7 @@ extension/
   fonts/                   # hub brand fonts so the popup matches nibgate.xyz
   docs/
     LOAD_IN_CHROME.md      # sideload + dev loop
-    STORE_SUBMIT.md        # store process + listing (v1.0.1 submitted)
+    STORE_SUBMIT.md        # store process + listing (v1.1.0 release notes)
     MARKING.md             # content-marker convention (advisory, backend decides)
 ```
 
@@ -187,7 +198,8 @@ NIBGATE_HUB_API=http://localhost:3005 npm run build   # point at a local hub
 
 ### Store & review notes (for the curious)
 
-The extension declares almost nothing at install (`activeTab`, `storage`);
-site access is requested at runtime via `optional_host_permissions` only when
-the user enables the tip button — this keeps it off the broad-host-permissions
-in-depth-review path. Full rationale in `docs/STORE_SUBMIT.md`.
+The extension declares only `activeTab`, `storage`, and `clipboardWrite` at
+install. Site access is requested at runtime via `optional_host_permissions`
+only when the user enables the tip button — this keeps it off the
+broad-host-permissions in-depth-review path. Full rationale in
+`docs/STORE_SUBMIT.md`.

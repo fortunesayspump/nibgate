@@ -107,6 +107,8 @@
     button.primary { width: 100%; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: var(--radius-action); padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
     button.primary:hover { filter: brightness(1.05); }
     button.primary:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; filter: none; }
+    button.danger { width: 100%; background: var(--danger); color: #fff; border: 0; border-radius: var(--radius-action); padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    button.danger:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
     button.ghost { width: 100%; background: transparent; color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-action); padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 10px; }
     button.ghost:hover { border-color: var(--muted); }
     input, textarea { width: 100%; background: var(--surface-raised, var(--surface)); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-action); padding: 11px 12px; font-size: 13px; outline: none; font-family: inherit; }
@@ -118,6 +120,7 @@
     .ob.center { margin-top: auto; margin-bottom: auto; }
     .ob .logo { width: 52px; height: 52px; border-radius: var(--radius-card); margin: 12px auto 0; }
     .ob h1 { font-family: var(--font-ui); font-size: 21px; font-weight: 700; letter-spacing: -.01em; text-align: center; margin: 6px 0 0; }
+    .ob h2 { font-family: var(--font-ui); font-size: 15px; font-weight: 700; margin: 0; }
     .ob p { color: var(--muted); text-align: center; margin: 0 0 8px; }
     .ob .spacer { flex: 1; }
     label.field { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin: 4px 0 -6px; text-transform: uppercase; }
@@ -125,6 +128,8 @@
     .mnemonic-grid span { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 6px; font-size: 12px; text-align: center; font-family: ui-monospace, Menlo, monospace; }
     .check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
     .check input { width: auto; }
+    .recover-danger { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 14px; }
+    .recover-danger p { text-align: left; margin: 6px 0 12px; }
 
     /* ── shell ───────────────────────────────────────────────────────── */
     #app { position: absolute; inset: 0; display: flex; flex-direction: column; }
@@ -182,6 +187,7 @@
     .seg button.on { background: var(--surface-2); color: var(--fg); }
     .actions { display: flex; justify-content: center; gap: 28px; padding: 18px 16px 6px; }
     .act { display: flex; flex-direction: column; align-items: center; gap: 7px; background: none; border: 0; cursor: pointer; color: var(--fg); font-size: 11px; font-weight: 600; }
+    a.act { text-decoration: none; }
     .act .bubble { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-ink); }
     .act.secondary .bubble { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
     .card { margin: 16px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
@@ -277,11 +283,35 @@
       <button class="ghost" id="ob-import-back">Back</button>
     </div>
 
+    <div class="ob" id="ob-recover" hidden>
+      <h1>Reset your password</h1>
+      <p>Nibgate cannot access or reset your password. Restore this wallet with its recovery phrase and choose a new password.</p>
+      <label class="field" for="recover-words">Recovery phrase</label>
+      <textarea id="recover-words" rows="3" placeholder="12 or 24 words separated by spaces" autocomplete="off" spellcheck="false"></textarea>
+      <label class="field" for="recover-password">New password</label>
+      <input id="recover-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      <label class="field" for="recover-password-confirm">Confirm new password</label>
+      <input id="recover-password-confirm" type="password" placeholder="Enter it again" autocomplete="new-password" />
+      <p>Restoring replaces the encrypted wallet on this device. Use the phrase for the wallet you want to recover. Without its phrase, this wallet cannot be recovered.</p>
+      <label class="check"><input type="checkbox" id="recover-understood" /> I understand and want to restore this wallet</label>
+      <button class="primary" id="recover-go" disabled>Restore wallet</button>
+      <div class="recover-danger">
+        <h2>Start over without the phrase</h2>
+        <p>This removes the wallet key and local activity from this device. It does not move or erase funds on Arc. If you do not have the recovery phrase, you may permanently lose access to funds in the old wallet.</p>
+        <label class="check"><input type="checkbox" id="reset-understood" /> I understand the old wallet may become unrecoverable</label>
+        <button class="danger" id="reset-wallet" disabled>Clear local wallet and start over</button>
+        <div class="err" id="reset-error" role="alert"></div>
+      </div>
+      <button class="ghost" id="recover-back">Back to unlock</button>
+      <div class="err" id="recover-error" role="alert"></div>
+    </div>
+
     <div class="ob" id="ob-backup" hidden>
       <h1>Save your recovery phrase</h1>
       <p>Write these words down. They are the only way to recover your wallet — never share them.</p>
       <div class="mnemonic-grid grid-num" id="ob-mnemonic"></div>
       <button class="ghost" id="ob-copy-phrase">Copy phrase</button>
+      <div class="hint" id="ob-copy-status" role="status" aria-live="polite"></div>
       <label class="check"><input type="checkbox" id="ob-saved" /> I&rsquo;ve saved my recovery phrase</label>
       <button class="primary" id="ob-done" disabled>Continue</button>
     </div>
@@ -297,6 +327,7 @@
       <p>Unlock your Nibgate wallet to continue.</p>
       <input id="lock-password" type="password" placeholder="Password" autocomplete="current-password" />
       <button class="primary" id="lock-go">Unlock</button>
+      <button class="ghost" id="lock-forgot">Forgot password?</button>
       <div class="err" id="lock-error"></div>
     </div>
   </section>
@@ -357,6 +388,10 @@
             <span class="bubble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"/><path d="m6 13 6 6 6-6"/></svg></span>
             <span id="btn-receive-label">Receive</span>
           </button>
+          <a class="act secondary" id="faucet-action" href="https://faucet.circle.com" target="_blank" rel="noopener noreferrer" title="Open Circle's faucet, copy your wallet address, and select Arc Testnet." hidden>
+            <span class="bubble"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3C10 6 6.5 9 6.5 13.3a5.5 5.5 0 0 0 11 0C17.5 9 14 6 12 3Z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/></svg></span>
+            <span>Faucet</span>
+          </a>
         </div>
         <div class="card">
           <div class="asset-row">

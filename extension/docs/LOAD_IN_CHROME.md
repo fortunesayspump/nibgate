@@ -1,7 +1,7 @@
 # Load Nibgate in Chrome (sideload — no store review needed)
 
-Sideload `dist/` for dev and review. The same build was submitted to the
-Chrome Web Store as v1.0.1 (awaiting review — see `STORE_SUBMIT.md`).
+Sideload `dist/` for dev and review. The repository release target is v1.1.0;
+it has not yet been submitted to the Chrome Web Store (see `STORE_SUBMIT.md`).
 Testnet default, mainnet behind the confirm-gated header pill.
 
 ## Steps
@@ -23,9 +23,12 @@ Testnet default, mainnet behind the confirm-gated header pill.
 7. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
    already have native tipping). The coffee-button tip trigger appears near
    the content.
-8. Fund the wallet: **testnet** USDC via the Circle faucet
-   (`https://faucet.circle.com`) for play-money tips, or tap the header
-   network pill → **Mainnet** (confirm-gated) for real USDC on Arc.
+8. Fund the wallet: on **testnet** tap the home-screen **Faucet** action — it
+   copies your address and opens the Circle faucet
+   (`https://faucet.circle.com`) where you pick Arc Testnet and request free
+   play-money USDC. The Faucet action hides on mainnet (real USDC only).
+   Switching networks: header pill → the other network (mainnet is
+   confirm-gated).
 
 ## Live editing (watch mode)
 

@@ -38,7 +38,7 @@ Open → Funded → Submitted → Completed → split
  3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow. Pause at cap on an exhausted deposit ends (report kept) or restarts bigger as a new run — raising past the deposit is rejected everywhere.
 4. **Submit** — the worker submits `(reportHash, spentUsdc)` through the splitter (the provider is a contract and cannot sign, so the keeper relays).
 5. **Complete** — the keeper completes with the ledger-attested spend.
-6. **Split** — anyone executes the keeper-signed attestation: earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — one atomic transaction.
+6. **Split** — the backend relays the keeper-signed attestation immediately at settle (and `POST /escrow/complete` re-runs it idempotently): earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — one atomic transaction, hash stored as `splitTx`. `split()` stays permissionless, so anyone can also execute a signed attestation directly.
 
 Why a splitter instead of the spec's hook: in the reference implementation `complete()` transfers the full budget *before* `afterAction` fires, so a hook can observe the payout but never redirect it. Setting the provider to the splitter keeps the escrow contract 100% stock.
 
@@ -50,7 +50,7 @@ Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund`
 |---|---|
 | `POST /v1/runs/:id/escrow` | open the job (planning/planned only, one per run) |
 | `GET /v1/runs/:id/escrow` | local record + live onchain status |
-| `POST /v1/runs/:id/escrow/complete` | keeper submit + complete with ledger spend; returns the split signature |
+| `POST /v1/runs/:id/escrow/complete` | keeper submit + complete with ledger spend, then relay of the split; returns the split signature and `splitTx` |
 
 ## Deployed addresses (Arc testnet)
 

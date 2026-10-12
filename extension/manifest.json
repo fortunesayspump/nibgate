@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nibgate",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Tip creators anywhere with USDC. Testnet by default; switch to mainnet for real tips.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -17,7 +17,7 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["activeTab", "scripting", "storage", "alarms", "idle"],
+  "permissions": ["activeTab", "scripting", "storage", "alarms", "idle", "clipboardWrite"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "web_accessible_resources": [
     {

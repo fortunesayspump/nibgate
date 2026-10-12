@@ -17,10 +17,10 @@ After installing, pin it (puzzle-piece icon → pin **Nibgate**) and tap **Enabl
 
 ## Your wallet
 
-First open: **create** a wallet (recovery phrase shown once — write it down) or **import** one. The wallet is encrypted on-device (PBKDF2 + AES-256-GCM); keys live in the background worker's memory only and never touch web pages. Lock anytime from Settings → Security; reveal the recovery phrase there too (password required).
+First open: **create** a wallet (recovery phrase shown once — write it down) or **import** one. The wallet is encrypted on-device (PBKDF2 + AES-256-GCM); keys live in the background worker's memory only and never touch web pages. Lock anytime from Settings → Security; reveal the recovery phrase there too (password required). If you forget the password, **Forgot password?** lets you restore from the phrase with a new password or clear the local wallet and start over.
 
 <Callout type="important">
-Lose your password *and* your recovery phrase and the wallet is gone — nobody, not even Nibgate, can recover it. There is no account, no email reset. Write the phrase down.
+Nibgate cannot recover a wallet without its recovery phrase. Clearing the local wallet removes its key and activity from this device; it does not move or erase on-chain funds. If you no longer have the phrase, clearing the wallet may permanently remove your access to those funds. There is no account or email reset.
 </Callout>
 
 ## Networks
@@ -30,7 +30,7 @@ One build, two networks, switched from the **header pill** (TESTNET by default).
 | | Testnet | Mainnet |
 |---|---|---|
 | Chain | Arc Testnet `5042002` | Arc `5042` |
-| Money | Free faucet USDC ([faucet.circle.com](https://faucet.circle.com)) | Real USDC |
+| Money | Free faucet USDC ([open Circle faucet](https://faucet.circle.com)); choose Arc Testnet and paste your wallet address | Real USDC |
 | Switch | default | pill → confirm-gated |
 
 Balances, history, and tips are per-network — testnet play money can never touch mainnet content. See [Networks](/networks).
@@ -75,6 +75,7 @@ You don't need the extension and you don't need an account. If readers tip your 
 |---|---|
 | `activeTab` | Read the current page only, to find tippable content |
 | `storage` | Tip history + network preference, on-device |
+| `clipboardWrite` | Copy your wallet address or recovery phrase when you tap Copy |
 | Optional site access | Granted by you at runtime so the button can appear on pages you visit |
 
 No analytics, no remote code, no data sale. Full policy: [nibgate.xyz/extension-privacy](https://nibgate.xyz/extension-privacy).

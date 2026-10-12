@@ -265,6 +265,13 @@ export async function lockVault(): Promise<void> {
   } catch {}
 }
 
+export async function resetVault(): Promise<void> {
+  unlockedAddress = '';
+  sessionMnemonic = null;
+  await chrome.storage.session.remove([SESSION_VAULT_KEY, SESSION_KEY]);
+  await chrome.storage.local.remove([VAULT_KEY, 'history']);
+}
+
 // Auto-lock on idle (alarms survive worker suspension; memory does not).
 try {
   chrome.alarms?.create?.('nibgate-autolock', { periodInMinutes: 1 });

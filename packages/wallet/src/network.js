@@ -1,4 +1,4 @@
-import { activeChain, getAddArcNetworkParams, isArcNetwork } from './chain.js';
+import { activeChain, getAddArcNetworkParams, isActiveChainId } from './chain.js';
 
 export async function ensureArcNetwork(provider, { currentChainId, wait = true, timeoutMs = 10000, onSwitch } = {}) {
   if (!provider?.request) {
@@ -15,7 +15,12 @@ export async function ensureArcNetwork(provider, { currentChainId, wait = true, 
       /* unreadable — fall through to the switch attempt */
     }
   }
-  if (currentChainId !== undefined && isArcNetwork(currentChainId)) {
+  // Strict: the wallet must be on THIS build's chain, not merely any Arc
+  // chain. A mainnet wallet on a testnet build (or vice versa) would sign
+  // with the wrong chainId and the RPC rejects the raw transaction (seen
+  // live on Fund) — or worse, it lands on the wrong chain. Never silently
+  // proceed; always request the switch.
+  if (currentChainId !== undefined && isActiveChainId(currentChainId)) {
     return { switched: false, chainId: currentChainId };
   }
   await switchToArcNetwork(provider);

@@ -67,16 +67,12 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
       </button>
       {mobileOpen && <div className="dashboard-mobile-overlay" onClick={() => setMobileOpen(false)} />}
       {isDetail ? (
-        <>
-          <nav aria-label="Dr. Nib" className="flex w-full shrink-0 flex-col border-b lg:hidden" style={railStyle}>
-            <Boxes pathname={pathname} onNavigate={() => setMobileOpen(false)} />
-          </nav>
-          <div className={`drnib-rail${railOpen ? " open" : ""}`}>
-            <div className="drnib-rail-mini">
-              <button className="drnib-rail-toggle" onClick={() => setRailOpen((v) => !v)}
-                aria-label={railOpen ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={railOpen}>
-                {railOpen ? <ChevronsLeft size={20} /> : <ChevronsRight size={20} />}
-              </button>
+        <div className={`drnib-rail${railOpen ? " open" : ""}`}>
+          <div className="drnib-rail-mini">
+            <button className="drnib-rail-toggle" onClick={() => setRailOpen((v) => !v)}
+              aria-label={railOpen ? "Collapse sidebar" : "Expand sidebar"} aria-expanded={railOpen}>
+              {railOpen ? <ChevronsLeft size={20} /> : <ChevronsRight size={20} />}
+            </button>
               {ITEMS.map((item, index) => {
                 const Icon = item.icon;
                 const active = item.match(pathname);
@@ -101,16 +97,23 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
               </button>
               <Boxes pathname={pathname} onNavigate={() => setRailOpen(false)} />
             </nav>
-          </div>
-        </>
+        </div>
       ) : (
-        <nav aria-label="Dr. Nib" className={`flex flex-col dashboard-sidebar ${mobileOpen ? "mobile-open" : ""}`} style={{ background: 'var(--nib-page-bg)' }}>
+        <nav aria-label="Dr. Nib" className={`hidden lg:flex flex-col dashboard-sidebar ${mobileOpen ? "mobile-open" : ""}`} style={{ background: 'var(--nib-page-bg)' }}>
           <button className="dashboard-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close sidebar">
             <X size={20} />
           </button>
           <Boxes pathname={pathname} onNavigate={() => setMobileOpen(false)} />
         </nav>
       )}
+      {/* Mobile drawer, every dr-nib page: the floating button is the only
+          opener — no hover, no always-on stack eating the viewport. */}
+      <nav aria-label="Dr. Nib" className={`flex flex-col dashboard-sidebar lg:hidden ${mobileOpen ? "mobile-open" : ""}`} style={{ background: 'var(--nib-page-bg)' }}>
+        <button className="dashboard-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close sidebar">
+          <X size={20} />
+        </button>
+        <Boxes pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+      </nav>
       <main ref={mainRef} className="flex flex-col overflow-y-auto dashboard-main-content" style={{ background: 'var(--nib-page-bg)' }}>
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6 xl:p-8">
           {children}

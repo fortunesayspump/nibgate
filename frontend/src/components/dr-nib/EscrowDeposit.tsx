@@ -60,6 +60,19 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       setStep("switching");
       await ensureArcNetwork(provider);
       const chain = activeArcChain();
+      // Belt and suspenders: a tx signed with the wrong chainId is rejected
+      // by the RPC with a cryptic error (seen live on Fund). Verify the
+      // wallet is really where we think before asking for signatures.
+      try {
+        const id = await provider.request({ method: "eth_chainId" });
+        const cur = typeof id === "string" && /^0x/i.test(id) ? Number(id) : Number(id);
+        if (cur !== chain.id) {
+          throw new Error(`Your wallet is on chain ${cur}, but this needs Arc ${chain.id === 5042 ? "mainnet" : "testnet"} (${chain.id}). Switch networks in your wallet, then try again.`);
+        }
+      } catch (e: any) {
+        if (/chain \d+/.test(e?.message || "")) throw e;
+        /* unreadable — the switch above already did its best */
+      }
       const wc: any = createWalletClient({ chain, account: address as `0x${string}`, transport: custom(provider) });
       // Sequential receipts: three rapid fire-and-forget sends reuse the same
       // nonce and only the first mines (seen live as a stuck "Confirming").

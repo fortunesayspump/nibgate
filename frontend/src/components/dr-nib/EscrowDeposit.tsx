@@ -7,7 +7,7 @@
 // The backend creates the job (anyone may); the user funds it. The run only
 // starts once the job reads Funded for at least the plan estimate.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Eip1193Provider } from "@nibgate/wallet";
 import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
@@ -44,6 +44,46 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   const minimum = Number.isFinite(Number(estimate)) && Number(estimate) > 0 ? Number(estimate) : Number(budgetCap || 0);
   const [deposit, setDeposit] = useState<string | null>(null);
   const chosen = deposit == null ? Number(budgetCap || 0) : Number(deposit) || 0;
+  const chain = activeArcChain();
+
+  // Visible wallet-network state: the switch prompt lives inside the wallet
+  // app (browsers forbid silent switching), so a mismatch must be SEEN here
+  // with its own button — not discovered mid-Fund as a cryptic RPC error.
+  const [walletChainId, setWalletChainId] = useState<number | null>(null);
+  const [switching, setSwitching] = useState(false);
+  async function readChain() {
+    try {
+      const req = walletProvider?.request;
+      if (!req) { setWalletChainId(null); return; }
+      const id: any = await (req as any)({ method: "eth_chainId" });
+      setWalletChainId(typeof id === "string" && /^0x/i.test(id) ? Number(id) : Number(id));
+    } catch {
+      setWalletChainId(null);
+    }
+  }
+  useEffect(() => {
+    if (!walletProvider || !address) { setWalletChainId(null); return; }
+    readChain();
+    const onChange = () => readChain();
+    (walletProvider as any).on?.("chainChanged", onChange);
+    return () => { (walletProvider as any).removeListener?.("chainChanged", onChange); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletProvider, address]);
+  async function switchOnly() {
+    setError("");
+    if (!walletProvider?.request) { setError("Wallet provider is not available."); return; }
+    setSwitching(true);
+    try {
+      await ensureArcNetwork(walletProvider);
+      await readChain();
+    } catch (e: any) {
+      const mapped = getWalletErrorMessage?.(e);
+      setError(mapped && mapped !== WALLET_ERRORS.default ? mapped : (e?.message || "Network switch failed."));
+    } finally {
+      setSwitching(false);
+    }
+  }
+  const onRightChain = walletChainId === chain.id;
 
   const amount = BigInt(Math.round(chosen * 1e6));
 
@@ -59,13 +99,13 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       // of it looking dead (seen live on Fund).
       setStep("switching");
       await ensureArcNetwork(provider);
-      const chain = activeArcChain();
       // Belt and suspenders: a tx signed with the wrong chainId is rejected
       // by the RPC with a cryptic error (seen live on Fund). Verify the
       // wallet is really where we think before asking for signatures.
       try {
         const id = await provider.request({ method: "eth_chainId" });
         const cur = typeof id === "string" && /^0x/i.test(id) ? Number(id) : Number(id);
+        setWalletChainId(cur);
         if (cur !== chain.id) {
           throw new Error(`Your wallet is on chain ${cur}, but this needs Arc ${chain.id === 5042 ? "mainnet" : "testnet"} (${chain.id}). Switch networks in your wallet, then try again.`);
         }
@@ -206,6 +246,22 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
         Stages draw from it; whatever is unspent returns to you at settle — enforced by contract, not promise.
         One-shot deposit (no top-ups): the run works against what you lock now and pauses when it runs out.
       </p>
+      {address && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          {walletChainId == null ? (
+            <span className="opacity-60">Reading wallet network…</span>
+          ) : onRightChain ? (
+            <span>✓ Wallet on {chain.name}</span>
+          ) : (
+            <>
+              <span className="font-medium text-red-700">Wallet is on chain {walletChainId} — this needs {chain.name} ({chain.id}).</span>
+              <button onClick={switchOnly} disabled={busy || switching} className="border border-black bg-black px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+                {switching ? "Switching…" : "Switch network"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-2 text-sm">
         <label htmlFor="drnib-deposit" className="opacity-60">Deposit (USDC)</label>
         <input id="drnib-deposit" type="number" min={minimum} step={0.1} value={deposit == null ? Number(budgetCap || 0) : deposit}

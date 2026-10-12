@@ -71,7 +71,7 @@ async function addArcNetwork(provider) {
   });
 }
 
-export function waitForChainChange(provider, { chainId = activeChain().id, timeoutMs = 10000 } = {}) {
+export function waitForChainChange(provider, { chainId = activeChain().id, timeoutMs = 30000 } = {}) {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       clearTimeout(timeout);

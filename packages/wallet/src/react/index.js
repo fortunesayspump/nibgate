@@ -61,4 +61,5 @@ export {
   useAppKitProvider,
   useAppKitState,
   useDisconnect,
+  useWalletInfo,
 } from '@reown/appkit/react'

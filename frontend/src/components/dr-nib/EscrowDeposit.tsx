@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Eip1193Provider } from "@nibgate/wallet";
-import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitProvider, useWalletInfo } from "@nibgate/wallet/react";
 import { createPublicClient, createWalletClient, custom, encodeFunctionData, formatUnits } from "viem";
 import { activeArcChain } from "@nibgate/wallet/chain";
 import { ensureArcNetwork, repairArcNetwork } from "@nibgate/wallet/network";
@@ -36,6 +36,12 @@ type Step = "idle" | "switching" | "creating" | "budget" | "approving" | "fundin
 export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId: string; budgetCap: number; estimate?: number | null; onFunded: () => void }) {
   const { address } = useAppKitAccount();
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
+  const { walletInfo } = useWalletInfo();
+  // Active wallet name (MetaMask extension vs WalletConnect phone vs
+  // embedded): routes sends through completely different infrastructure, so
+  // a send failure without the wallet name is undiagnosable.
+  const activeWalletName: string | null =
+    (walletInfo as any)?.name || (walletInfo as any)?.walletName || null;
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState("");
   const [tx, setTx] = useState("");
@@ -120,6 +126,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   }
   async function snapshotFailure(stepName: string, err: any) {
     const snap: any = { step: stepName, connector: connectorName(), at: new Date().toISOString() };
+    if (activeWalletName) snap.activeWallet = activeWalletName;
     try {
       const req: any = (walletProvider as any)?.request?.bind(walletProvider);
       if (req && address) {

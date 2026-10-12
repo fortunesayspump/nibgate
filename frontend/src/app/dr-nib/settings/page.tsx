@@ -133,7 +133,9 @@ export default function HelpPage() {
         </P>
         <P>
           <strong>“Sign in” loops:</strong> connect the wallet, then use the Sign in button once — repeated
-          signing means the session call is failing, not your wallet. Wait a moment and retry.
+          signing means the session call is failing, not your wallet. &ldquo;Message expired&rdquo; means your
+          device clock is off (enable automatic date &amp; time); &ldquo;nonce missing&rdquo; means cookies are
+          blocked for the site. Wait a moment and retry.
         </P>
         <P>
           <strong>Answers show as skipped:</strong> only questions left unanswered (e.g. via Just plan it) show

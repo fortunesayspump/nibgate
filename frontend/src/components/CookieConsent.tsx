@@ -70,7 +70,10 @@ export default function CookieConsent() {
       aria-label="Cookie consent"
       className="fixed bottom-4 left-4 right-4 z-[90] mx-auto max-w-md rounded-2xl border border-dark-gray/50 bg-white p-5 shadow-[0_24px_64px_rgba(0,0,0,0.25)] md:left-6 md:right-auto"
     >
-      <p className="text-sm font-medium">Cookies, your call</p>
+      <div className="flex items-center gap-3">
+        <svg className="h-10 w-10 shrink-0" aria-hidden="true"><use xlinkHref="#cookie"></use></svg>
+        <p className="text-sm font-medium">Cookies, your call</p>
+      </div>
       <p className="mt-1.5 text-[13px] leading-6 opacity-70">
         Essential cookies keep you signed in and remember theme and wallet state. Optional analytics help us
         understand whether setup, Explore, and dashboard flows work.{" "}

@@ -37,6 +37,20 @@ export function costPerSupportedClaim(spend, supportedCount) {
   return { cost: spend / supportedCount, spend, supported: supportedCount };
 }
 
+/** Share of evidenced claims whose phrasing is original (overlap below the
+ * copy threshold). Computed from stored passage overlaps, never recomputed
+ * from prose — the verify pass records the measurement once. */
+export function originalityRate(claims, threshold = 0.8) {
+  const list = (claims || []).filter((c) => Array.isArray(c.passages) && c.passages.length > 0);
+  if (!list.length) return { rate: 1, total: 0, original: 0, copied: [] };
+  const copied = [];
+  for (const c of list) {
+    const worst = Math.max(0, ...c.passages.map((p) => Number(p?.overlap) || 0));
+    if (worst >= threshold) copied.push(c.text);
+  }
+  return { rate: (list.length - copied.length) / list.length, total: list.length, original: list.length - copied.length, copied };
+}
+
 // Steps used against the depth allowance: a run that burns its whole tree on
 // one branch is working hard, not well. Over-allowance fails the gate.
 const STEP_ALLOWANCE = { quick: 8, standard: 14, deep: 24 };
@@ -56,5 +70,6 @@ export function gateThresholds() {
     minSupported: num('EVAL_MIN_SUPPORTED', 0.5),
     maxUncited: num('EVAL_MAX_UNCITED', 0.2),
     maxCostPerClaim: num('EVAL_MAX_COST_PER_CLAIM', 1.0),
+    minOriginality: num('EVAL_MIN_ORIGINALITY', 0.8),
   };
 }

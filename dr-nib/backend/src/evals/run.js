@@ -7,7 +7,7 @@
 import { db } from '../db.js';
 import {
   citationResolutionRate, costPerSupportedClaim, gateThresholds,
-  stoppingEfficiency, supportedRate, uncitedRate,
+  originalityRate, stoppingEfficiency, supportedRate, uncitedRate,
 } from './metrics.js';
 import { budgetState } from '../money.js';
 
@@ -24,6 +24,7 @@ export async function evaluateRun(runId) {
   const uncited = uncitedRate(claims);
   const cost = costPerSupportedClaim(state.used, supported.supported);
   const stopping = stoppingEfficiency(steps.length, run.depth);
+  const originality = originalityRate(claims);
   const t = gateThresholds();
 
   const failures = [];
@@ -32,10 +33,11 @@ export async function evaluateRun(runId) {
   if (uncited.rate > t.maxUncited) failures.push(`uncited-rate ${uncited.rate.toFixed(3)} > ${t.maxUncited}`);
   if (cost.cost > t.maxCostPerClaim) failures.push(`cost-per-claim $${cost.cost.toFixed(4)} > $${t.maxCostPerClaim}`);
   if (!stopping.within) failures.push(`steps ${stopping.steps} > ${stopping.allowance} for depth ${run.depth}`);
+  if (originality.total > 0 && originality.rate < t.minOriginality) failures.push(`originality ${originality.rate.toFixed(3)} < ${t.minOriginality} (${originality.copied.length} copied claims)`);
 
   return {
     ok: failures.length === 0,
     failures,
-    metrics: { resolution, supported, uncited, cost, stopping, spend: state.used },
+    metrics: { resolution, supported, uncited, cost, stopping, originality, spend: state.used },
   };
 }

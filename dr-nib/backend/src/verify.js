@@ -13,6 +13,7 @@
 import { db } from './db.js';
 import { recordEvent } from './eventlog.js';
 import { chatJson, isLlmConfigured } from './llm/provider.js';
+import { claimOverlap, COPY_THRESHOLD } from './originality.js';
 import { batch, JevUnavailable } from './jev/client.js';
 import { searchEvidence } from './tools/evidence.js';
 import { depthLimits } from './depth.js';
@@ -102,28 +103,34 @@ export async function verifyReport(runId, { brief } = {}) {
   }
 
   // 4. Persist. The caller owns the threshold; it lives in one env var.
+  // Overlap rides on the passage row (deterministic shingling, zero model
+  // cost): support says the passage backs the claim, overlap says whether
+  // the claim restates it nearly word-for-word.
   const threshold = supportThreshold();
   let supported = 0;
+  let copied = 0;
   for (const [i, text] of claims.entries()) {
     const p = Number(answers[`c${i}`]?.probability);
     const probability = Number.isFinite(p) ? p : 0;
     const status = probability >= threshold ? 'supported' : 'unknown';
     if (status === 'supported') supported += 1;
     const best = claimPassages[i];
+    const overlap = best ? claimOverlap(text, best.excerpt) : 0;
+    if (overlap >= COPY_THRESHOLD) copied += 1;
     await db.researchClaim.create({
       data: {
         runId,
         text,
         status,
-        passages: best ? [{ url: best.url, title: best.title, excerpt: best.excerpt, support: probability }] : [],
+        passages: best ? [{ url: best.url, title: best.title, excerpt: best.excerpt, support: probability, overlap: Math.round(overlap * 100) / 100 }] : [],
       },
     });
   }
   const costUsd = llmCost + jevCost;
   await recordEvent(runId, {
     type: 'verify.finished',
-    claims: claims.length, supported, unknown: claims.length - supported,
+    claims: claims.length, supported, unknown: claims.length - supported, copied,
     threshold, model: jevModel, costUsd,
   });
-  return { claims: claims.length, supported, unknown: claims.length - supported, costUsd, verified: true };
+  return { claims: claims.length, supported, unknown: claims.length - supported, copied, costUsd, verified: true };
 }

@@ -140,7 +140,23 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
             /* floor best-effort: the short-but-honest draft still ships */
           }
         }
-        return { ok: true, source: 'llm', model, usage: outUsage, markdown };
+        // APA-adapted assembly, same as the long path: abstract from the
+        // finished body, deterministic references from the evidence.
+        const assembled = [markdown];
+        let absModel = null;
+        try {
+          const abs = await generateAbstract({ brief, reportText: markdown, fetchImpl });
+          outUsage = addUsage(outUsage, abs.usage);
+          if (abs.model) absModel = abs.model;
+          if (abs.abstract) {
+            assembled.splice(1, 0, `> **Abstract.** ${abs.abstract}` + (abs.keywords.length ? `\n\n**Keywords:** ${abs.keywords.join(', ')}` : ''));
+          }
+        } catch {
+          /* no abstract block rather than a fake one */
+        }
+        const refs = buildReferences(sources);
+        if (refs) assembled.push(refs);
+        return { ok: true, source: 'llm', model: model || absModel, usage: outUsage, markdown: assembled.join('\n\n') };
       }
       return fallback('model returned empty text');
     } catch (err) {
@@ -223,7 +239,7 @@ function addUsage(total, usage) {
  * the sections actually found. `getEvidence` maps a section argument to that
  * section's sources; the worker supplies it from the run's collected docs.
  */
-export async function generateReportLong({ brief, sections = [], getEvidence, guidance, runId, version, fetchImpl, onToken } = {}) {
+export async function generateReportLong({ brief, sections = [], getEvidence, allSources = [], guidance, runId, version, fetchImpl, onToken } = {}) {
   const resolved = resolveLength({ length: brief?.length, lengthWords: brief?.lengthWords });
   const capped = sections.slice(0, resolved.sections);
   const perSection = Math.round(resolved.words / Math.max(1, capped.length));
@@ -232,6 +248,7 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
   const models = new Set();
   const errors = [];
   const summaries = [];
+  let introLanded = false;
 
   const introWords = Math.max(150, Math.round(perSection / 4));
   if (isLlmConfigured()) {
@@ -245,6 +262,7 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
       });
       if (intro.text?.trim()) {
         parts.push(intro.text.trim());
+        introLanded = true;
         usage = addUsage(usage, intro.usage);
         if (intro.model) models.add(intro.model);
       }
@@ -336,7 +354,26 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
     }
   }
 
-  const markdown = parts.join('\n\n');
+  // APA-adapted assembly: title+intro, abstract, sections, conclusion,
+  // references. The abstract is written from the finished body (never
+  // invented structure — the writer was told not to produce one) and the
+  // references are deterministic from the evidence order.
+  const assembled = [...parts];
+  try {
+    const abs = await generateAbstract({ brief, reportText: parts.join('\n\n'), fetchImpl });
+    usage = addUsage(usage, abs.usage);
+    if (abs.model) models.add(abs.model);
+    if (abs.abstract) {
+      const block = `> **Abstract.** ${abs.abstract}` + (abs.keywords.length ? `\n\n**Keywords:** ${abs.keywords.join(', ')}` : '');
+      assembled.splice(parts.length && introLanded ? 1 : 0, 0, block);
+    }
+  } catch (err) {
+    errors.push(`abstract: ${err?.message || err}`);
+  }
+  const refs = buildReferences(allSources);
+  if (refs) assembled.push(refs);
+
+  const markdown = assembled.join('\n\n');
   const source = errors.length === parts.length && !usage.totalTokens ? 'fallback' : parts.length ? 'llm' : 'fallback';
   return {
     ok: true,
@@ -346,6 +383,73 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
     llmError: errors.length ? errors.join(' | ').slice(0, 500) : null,
     markdown: markdown || `## Headline\n\nDraft for run ${runId}. Replace with synthesized evidence.\n`,
   };
+}
+
+/**
+ * Report abstract + keywords, APA-adapted. One bounded call after the body
+ * is written; a failure degrades to no abstract block rather than a fake
+ * one. Keywords ride the last line for easy parsing.
+ */
+export function abstractMessages({ brief, reportText } = {}) {
+  const system = `${RESEARCH_SYSTEM} You write report abstracts. Return plain prose only, no headings, no citations.`;
+  const user = `Brief: ${briefSummary(brief)}
+
+Summarize this report in an abstract of 150-200 words: what was asked, what was found, what remains open. Then, on its own final line: Keywords: k1, k2, k3.
+
+Report:
+${String(reportText || '').slice(0, 8000)}`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
+/** Deterministic bibliography: numbered to the evidence order the caller
+ * passes (trust-descending, matching the [n] citation chips). Titles +
+ * domains + URLs, deduped — no model call, nothing to hallucinate. */
+export function buildReferences(sources = []) {
+  const seen = new Map();
+  for (const s of sources || []) {
+    const url = String(s?.url || '').trim();
+    if (!url || seen.has(url)) continue;
+    seen.set(url, s);
+  }
+  const list = [...seen.values()];
+  if (!list.length) return '';
+  const lines = list.map((s, i) => {
+    const title = String(s.title || s.url).replace(/[#*[\]]/g, '').slice(0, 140);
+    const domain = s.domain ? ` ${s.domain}.` : '';
+    return `[${i + 1}] ${title}.${domain} ${s.url}`;
+  });
+  return `## References\n\n${lines.join('\n')}`;
+}
+
+export async function generateAbstract({ brief, reportText, fetchImpl } = {}) {
+  const fallback = { ok: true, source: 'fallback', abstract: null, keywords: [], usage: null };
+  if (!isLlmConfigured()) return fallback;
+  try {
+    const { text, usage, model } = await chat({
+      effort: 'low',
+      messages: abstractMessages({ brief, reportText }),
+      fetchImpl,
+      temperature: 0.3,
+      maxTokens: 500,
+    });
+    const lines = String(text || '').trim().split('\n');
+    let keywords = [];
+    const body = [];
+    for (const line of lines) {
+      const m = line.match(/^\s*keywords\s*:\s*(.+)$/i);
+      if (m) keywords = m[1].split(',').map((k) => k.trim()).filter(Boolean).slice(0, 8);
+      else if (line.trim()) body.push(line.trim());
+    }
+    const words = body.join(' ').split(/\s+/).filter(Boolean);
+    const abstract = words.slice(0, 220).join(' ');
+    if (!abstract) return fallback;
+    return { ok: true, source: 'llm', model, usage, abstract, keywords };
+  } catch {
+    return fallback;
+  }
 }
 
 /**

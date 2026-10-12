@@ -43,13 +43,17 @@ export async function signInWithSiwe(address, signMessage, options = {}) {
   // verifies nowhere and the user signs forever without a session.
   const chainId = options.chainId || nonceData.chainId || activeChain().id
 
+  // 30-minute client expiry: the server burns the single-use nonce on every
+  // attempt, so a long window cannot replay — but a short one strands anyone
+  // slow at the wallet prompt (or with a slightly slow device clock) with
+  // "invalid or expired" on a message that was born nearly expired.
   const message = createSignInMessage({
     address,
     chainId,
     nonce: nonceData.nonce,
     domain: host,
     uri: origin,
-    expirationTime: new Date(Date.now() + 10 * 60 * 1000),
+    expirationTime: new Date(Date.now() + 30 * 60 * 1000),
   })
 
   const signature = await signMessage(message)

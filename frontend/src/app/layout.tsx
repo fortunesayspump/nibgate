@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
 import NavigationProgress from "@/components/NavigationProgress";
 import TestnetBanner from "@/components/TestnetBanner";
+import CookieConsent from "@/components/CookieConsent";
 import ThemeBootstrap from "@/components/ThemeBootstrap";
 import { Providers } from "./providers";
 import "../styles/styles.css";
@@ -57,6 +58,7 @@ export default function RootLayout({
           <NavigationProgress />
         </Suspense>
         <SvgSprite />
+        <CookieConsent />
         <div id="design-settings" style={{ display: "none" }}></div>
         <Providers>
           <div className="flex min-w-0 flex-col lg:flex-row min-h-[calc(100vh-var(--testnet-banner-h,0px))]">

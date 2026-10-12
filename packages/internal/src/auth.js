@@ -22,6 +22,13 @@ export function createNonce() {
   return createSignInNonce();
 }
 
+// Clock-skew grace for the client-stamped expiry: a device clock running a
+// few minutes slow births messages that read as already expired, and failing
+// those with a generic error strands the user in a retry loop that can never
+// succeed. The nonce is single-use and burned on every attempt, so a few
+// minutes of tolerance cannot replay anything.
+const SIGN_SKEW_GRACE_MS = 5 * 60 * 1000;
+
 export async function verifySignInAndLogin({ message, signature, expectedNonce, expectedDomain }) {
   const parsed = parseSignInMessage(message);
   if (!parsed) {
@@ -32,12 +39,17 @@ export async function verifySignInAndLogin({ message, signature, expectedNonce, 
     throw new Error('Nonce does not match. Please request a new nonce.');
   }
 
+  const expMs = parsed.expirationTime ? new Date(parsed.expirationTime).getTime() : NaN;
+  if (Number.isFinite(expMs) && Date.now() - SIGN_SKEW_GRACE_MS > expMs) {
+    throw new Error('Sign-in message expired — enable automatic date & time on your device and try again.');
+  }
+
   const isValidMessage = validateSignInMessage({
     message: parsed,
     expected: {
       chainId: activeChainId(),
       domain: expectedDomain,
-      time: new Date(),
+      time: new Date(Date.now() - SIGN_SKEW_GRACE_MS),
     },
   });
   if (!isValidMessage) {

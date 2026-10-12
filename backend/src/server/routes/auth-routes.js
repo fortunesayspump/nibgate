@@ -54,7 +54,10 @@ export function registerAuthRoutes(app) {
       const expectedDomain = req.body?.domain || req.headers['x-forwarded-host'] || req.headers.host;
 
       if (!expectedNonce) {
-        return res.status(400).json({ error: 'Session expired. Please request a new nonce.' });
+        // The cookie is absent — not just stale: privacy browsers and blocked
+        // cookies land here even on a first attempt, so say that instead of
+        // blaming an expired session.
+        return res.status(400).json({ error: 'Sign-in nonce missing — enable cookies for nibgate.xyz and try again.' });
       }
 
       const { user, sessionToken } = await verifySignInAndLogin({ message, signature, expectedNonce, expectedDomain });

@@ -35,6 +35,10 @@ The host is already `api.`, so routes live under their group name directly (`/hu
 ## Auth
 
 Sign-In with Ethereum (SIWE) powers creator sessions on both the hub and Subblogs.
+Nonces are single-use and burned on every verify attempt; messages carry a
+30-minute client expiry with 5 minutes of server clock-skew grace. A failure
+naming an expired message means the device clock is off (enable automatic
+date & time); a missing-nonce failure means cookies are blocked.
 
 ```http
 GET  /auth/nonce        # request a nonce for a wallet

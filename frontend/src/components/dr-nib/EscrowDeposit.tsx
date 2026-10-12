@@ -91,8 +91,8 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   // RPC passes every other check (signatures work, balances read via our
   // backend) yet every broadcast dies at sendRawTransaction with an opaque
   // RPC error. This names the broken layer instead of guessing.
-  type ConnDiag = { rpcOk: boolean | null; gas: string | null; usdc: string | null };
-  const [diag, setDiag] = useState<ConnDiag>({ rpcOk: null, gas: null, usdc: null });
+  type ConnDiag = { rpcOk: boolean | null; gas: string | null; usdc: string | null; syncing: boolean | null; blockNum: number | null };
+  const [diag, setDiag] = useState<ConnDiag>({ rpcOk: null, gas: null, usdc: null, syncing: null, blockNum: null });
   const [repairing, setRepairing] = useState(false);
   // Fingerprint captured at send-failure time: chain, pending nonce, gas
   // price, and which wallet app signed — everything the failure depends on
@@ -125,14 +125,18 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       if (req && address) {
         const withTimeout = <T,>(p: Promise<T>, ms = 8000): Promise<T | null> =>
           Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
-        const [cid, nonce, gp] = await Promise.all([
+        const [cid, nonce, gp, sync, bn] = await Promise.all([
           withTimeout(req({ method: "eth_chainId" })),
           withTimeout(req({ method: "eth_getTransactionCount", params: [address, "pending"] })),
           withTimeout(req({ method: "eth_gasPrice" })),
+          withTimeout(req({ method: "eth_syncing" })),
+          withTimeout(req({ method: "eth_blockNumber" })),
         ]);
         if (cid != null) snap.chainId = typeof cid === "string" && /^0x/i.test(cid) ? Number(cid) : Number(cid);
         if (nonce != null) snap.noncePending = nonce;
         if (gp != null) snap.gasPriceWei = String(gp);
+        if (sync != null && sync !== false) snap.syncing = sync;
+        if (bn != null) snap.walletBlock = Number(bn);
       }
     } catch {
       /* best-effort — the raw error below is still shown */
@@ -145,18 +149,24 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     const req: any = (walletProvider as any).request.bind(walletProvider);
     const withTimeout = <T,>(p: Promise<T>, ms = 9000): Promise<T | null> =>
       Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
-    const d: ConnDiag = { rpcOk: null, gas: null, usdc: null };
+    const d: ConnDiag = { rpcOk: null, gas: null, usdc: null, syncing: null, blockNum: null };
     try {
       const bn = await withTimeout(req({ method: "eth_blockNumber" }));
       d.rpcOk = bn != null;
       if (bn != null) {
-        const [gasRaw, usdcRaw] = await Promise.all([
+        try { d.blockNum = Number(bn); } catch { /* ignore */ }
+        // A node that is still syncing (or far behind) answers reads but
+        // rejects broadcasts — the exact shape of an "everything looks fine
+        // but every send dies" failure. Name it when present.
+        const [sync, gasRaw, usdcRaw] = await Promise.all([
+          withTimeout(req({ method: "eth_syncing" })),
           withTimeout(req({ method: "eth_getBalance", params: [address, "latest"] })),
           withTimeout(req({
             method: "eth_call",
             params: [{ to: USDC, data: encodeFunctionData({ abi: USDC_ABI, functionName: "balanceOf", args: [address as `0x${string}`] }) }, "latest"],
           })),
         ]);
+        d.syncing = sync != null && sync !== false;
         if (gasRaw != null) {
           try { d.gas = formatUnits(BigInt(gasRaw as string), 18); } catch { /* ignore */ }
         }
@@ -390,6 +400,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-70">
             <span>RPC: {diag.rpcOk == null ? "checking…" : diag.rpcOk ? "✓ live" : "✗ not responding"}</span>
+            {diag.syncing === true && <span className="font-medium text-red-700">node syncing — broadcasts will fail until it catches up</span>}
             {diag.gas != null && <span>Gas money: {Number(diag.gas).toFixed(2)} USDC</span>}
             {diag.usdc != null && <span>Token balance: {Number(diag.usdc).toFixed(2)} USDC</span>}
             {diag.rpcOk === false && (

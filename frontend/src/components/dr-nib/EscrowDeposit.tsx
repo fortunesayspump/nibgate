@@ -390,8 +390,8 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-70">
             <span>RPC: {diag.rpcOk == null ? "checking…" : diag.rpcOk ? "✓ live" : "✗ not responding"}</span>
-            {diag.gas != null && <span>Gas: {Number(diag.gas).toFixed(2)} USDC</span>}
-            {diag.usdc != null && <span>Balance: {Number(diag.usdc).toFixed(2)} USDC</span>}
+            {diag.gas != null && <span>Gas money: {Number(diag.gas).toFixed(2)} USDC</span>}
+            {diag.usdc != null && <span>Token balance: {Number(diag.usdc).toFixed(2)} USDC</span>}
             {diag.rpcOk === false && (
               <button onClick={repairOnly} disabled={busy || repairing} className="border border-dark-gray/60 bg-white px-3 py-1 text-xs font-medium hover:bg-black hover:text-white disabled:opacity-50">
                 {repairing ? "Repairing…" : "Repair connection"}

@@ -24,16 +24,22 @@ function briefSummary(brief = {}) {
   return lines.join('\n') || 'Topic: (unspecified)';
 }
 
-/** Plan stage: decompose the brief into sub-questions and a cost rationale. */
-export function planMessages({ brief, guidance } = {}) {
+/** Plan stage: decompose the brief into sub-questions and a cost rationale.
+ * The planner sees the length floor (target sections + words) so the outline
+ * is sized to what must be written — a 2-question plan can never fill a
+ * 12-section report, and discovering that at write time is too late. */
+export function planMessages({ brief, guidance, sections, words } = {}) {
   const system = `${RESEARCH_SYSTEM} You are planning, not researching yet. Return a JSON object only.`;
   const guidanceLine = guidance?.text ? `\nMid-run guidance from the user: ${guidance.text}\n` : '';
+  const lengthLine = Number(sections) > 0
+    ? `\nThe finished report must run at least ${Number(words) || 1200} words across about ${sections} sections — emit at least ${sections} sub-questions, one per section, so the outline can actually fill that length.`
+    : '';
   const user = `Brief:
 ${briefSummary(brief)}
 ${guidanceLine}
 Break this into the sub-questions the research must answer. Each must be one that changes the report if answered differently.
 Cover DIFFERENT facets (mechanism, numbers, comparison, risks, how-to steps) — never restate the brief twice with an "(angle 1)/(angle 2)" suffix; near-duplicate sub-questions waste the whole run budget on the same evidence.
-
+${lengthLine}
 Return JSON with this exact shape:
 {
   "sub_questions": ["...", "..."],
@@ -95,12 +101,41 @@ Evidence you may rely on (numbered for citations — use these exact numbers):
 
 ${formatEvidence(sources) || '(no sources were collected)'}
 
-Write this section in about ${targetWords} words. Rules:
+Write this section in about ${targetWords} words — substantive depth is the point, not a summary. Rules:
 - Every factual claim must cite its source as [n], using the numbers above.
 - If a claim has no supporting source above, mark it "(unsupported)".
 - If the evidence does not cover this section: one short paragraph in plain words saying what IS covered and what IS missing. No meta-labels ("non-coverage", "finding", "scope gap"), no narration of your own process — the reader wants the gap, not the audit trail.
 - Do not write an introduction or conclusion for the whole report — only this section.
 ${brief.perspective && brief.perspective !== 'neutral' ? `- Write from a ${brief.perspective} perspective.` : ''}`;
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ];
+}
+
+/**
+ * Floor enforcement: the assembled report is short of its word floor, so one
+ * section gets a targeted deepening pass. Never a padding request — the
+ * model must add material the existing text does not already say (mechanism
+ * detail, numbers, comparisons, worked examples from the evidence), and say
+ * nothing when the evidence is spent. Returns markdown-only section text to
+ * append after the existing section body.
+ */
+export function deepenMessages({ brief, section, existing, targetWords, sources = [] } = {}) {
+  const system = `${RESEARCH_SYSTEM} You are deepening one section of a longer report. Return markdown only: prose, no heading (it joins the existing section body). Output only the new prose — never restate, quote, or narrate these instructions.`;
+  const user = `Brief:
+${briefSummary(brief)}
+
+The section argues: ${section}
+
+What it says so far (do NOT repeat any of this — add what is missing):
+${String(existing || '').slice(0, 3000)}
+
+Evidence you may rely on (numbered for citations — use these exact numbers):
+
+${formatEvidence(sources) || '(no sources were collected)'}
+
+Write about ${targetWords} words of genuinely new material for this section: mechanism detail, concrete numbers, comparisons, edge cases, or worked examples drawn from the evidence above, each factual claim cited as [n]. If the evidence holds nothing the section does not already say, reply with exactly: NOTHING_NEW.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

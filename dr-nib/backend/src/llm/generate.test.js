@@ -66,6 +66,73 @@ describe('generateSection retry', () => {
   });
 });
 
+describe('report length floor', () => {
+  const brief = { topic: 'fees', lengthWords: 4000 };
+  const evidence = [
+    { url: 'https://a.example/1', title: 'One', excerpt: 'Arc charges a flat fee for transfers.' },
+    { url: 'https://b.example/2', title: 'Two', excerpt: 'Base finality takes minutes on L1.' },
+  ];
+  const getEvidence = async () => evidence;
+
+  it('deepens short sections until the floor is met', async () => {
+    vi.stubEnv(KEY, 'test-key');
+    const { generateReportLong } = await import('./generate.js');
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(jsonResponse('Intro words here.'))
+      .mockResolvedValueOnce(jsonResponse('## Q1\n\nShort one.'))
+      .mockResolvedValueOnce(jsonResponse('## Q2\n\nShort two.'))
+      .mockResolvedValue(jsonResponse('Extended with numbers and mechanisms. Cited [1].'));
+    const out = await generateReportLong({
+      brief, sections: ['Q1', 'Q2'], getEvidence, runId: 'r1', version: 1, fetchImpl,
+    });
+    // intro + 2 sections + ≥1 deepening pass + conclusion
+    expect(fetchImpl.mock.calls.length).toBeGreaterThanOrEqual(5);
+    expect(out.markdown).toContain('Short one.');
+    expect(out.markdown).toContain('Extended with numbers');
+  }, 20000);
+
+  it('stops deepening when the evidence is spent (NOTHING_NEW)', async () => {
+    vi.stubEnv(KEY, 'test-key');
+    const { generateReportLong } = await import('./generate.js');
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(jsonResponse('Intro words here.'))
+      .mockResolvedValueOnce(jsonResponse('## Q1\n\nShort one.'))
+      .mockResolvedValueOnce(jsonResponse('## Q2\n\nShort two.'))
+      .mockResolvedValueOnce(jsonResponse('NOTHING_NEW'))
+      .mockResolvedValue(jsonResponse('## Conclusion\n\nDone here.'));
+    const out = await generateReportLong({
+      brief, sections: ['Q1', 'Q2'], getEvidence, runId: 'r1', version: 1, fetchImpl,
+    });
+    // intro + 2 sections + exactly 1 deepening attempt + conclusion
+    expect(fetchImpl.mock.calls.length).toBe(5);
+    expect(out.markdown).toContain('Short two.');
+    expect(out.markdown).not.toContain('NOTHING_NEW');
+  }, 20000);
+
+  it('counts prose words, not markup', async () => {
+    const { countWords } = await import('../length.js');
+    expect(countWords('## Title\n\nHello world, this is **bold** text.')).toBe(7);
+    expect(countWords('See [the docs](https://a.example/x) for [1] details.')).toBe(6);
+    expect(countWords('```js\nconst x = 1;\n```\nReal words here.')).toBe(3);
+  });
+
+  it('sizes the plan outline to the length floor', async () => {
+    vi.stubEnv(KEY, 'test-key');
+    const { generatePlan } = await import('./generate.js');
+    const plan = {
+      sub_questions: ['a', 'b', 'c', 'd'],
+      uncertainties: ['u'], estimate: { sources: 3, rationale: 'r' },
+    };
+    const pFetch = vi.fn().mockResolvedValue(jsonResponse(JSON.stringify(plan)));
+    const out = await generatePlan({ brief, fetchImpl: pFetch });
+    expect(out.sub_questions).toHaveLength(4);
+    const sent = JSON.parse(pFetch.mock.calls[0][1].body);
+    const prompt = sent.messages.map((m) => m.content).join('\n');
+    expect(prompt).toContain('at least 4 sub-questions');
+    expect(prompt).toContain('4000 words');
+  }, 15000);
+});
+
 describe('model split (cheap bulk, smart judgement)', () => {
   it('defaults judgement to the chat router, never the decisions router', async () => {
     // typesafe/jev-router is a decisions router: sent with the `models`

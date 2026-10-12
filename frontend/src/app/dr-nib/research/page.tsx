@@ -760,9 +760,9 @@ export default function ResearchNewPage() {
             <span className="text-sm font-medium">Report length</span>
             <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Report length">
               {[
-                { id: "brief", label: "Brief · ~1,200 words" },
-                { id: "standard", label: "Standard · ~4,000 words" },
-                { id: "comprehensive", label: "Comprehensive · ~12,000 words" },
+                { id: "brief", label: "Brief · 1,200+ words" },
+                { id: "standard", label: "Standard · 4,000+ words" },
+                { id: "comprehensive", label: "Comprehensive · 12,000+ words" },
                 { id: "custom", label: "Custom…" },
               ].map((o) => (
                 <button key={o.id} onClick={() => setLength(o.id)} aria-pressed={length === o.id}
@@ -793,7 +793,7 @@ export default function ResearchNewPage() {
             <p className="text-[15px] font-medium leading-7">{project?.title || topic}</p>
             <p className="mt-1 text-xs opacity-60">{project?.description}</p>
             <p className="mt-3 text-xs opacity-60">Depth: {depth} · Cap: ${budgetCap.toFixed(2)} · {liveWeb ? "live web" : "curated only"} · {formats.join(", ")}</p>
-            <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ~${Number(lengthWords || 0).toLocaleString()} words` : `${length} · ~${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"} words`}</p>
+            <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ${Number(lengthWords || 0).toLocaleString()}+ words minimum` : `${length} · ${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"}+ words minimum`}</p>
             <p className="mt-3 text-sm">Estimated cost: <strong>${(estimate ?? 0.2).toFixed(2)}</strong> · Run {project?.id?.slice(0, 8)}</p>
           </div>
           {subQuestions.length > 0 && (

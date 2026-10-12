@@ -8,9 +8,9 @@
 import { chat, chatJson, isLlmConfigured } from './provider.js';
 import { smartModel } from './pricing.js';
 import { introMessages, conclusionMessages, planMessages, reportMessages,
-roundReviewMessages, sectionMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages,
+roundReviewMessages, sectionMessages, deepenMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages,
 directDataMessages, forkMessages, stageNoteMessages } from './prompts.js';
-import { maxTokensForWords, resolveLength, wordsPerSection } from '../length.js';
+import { maxTokensForWords, resolveLength, wordsPerSection, countWords, FLOOR_RATIO, MAX_EXPANSIONS } from '../length.js';
 import { mapLimit } from '../retrieval/util.js';
 
 const cleanStrings = (v, cap = 12) =>
@@ -25,10 +25,11 @@ const cleanStrings = (v, cap = 12) =>
 export async function generatePlan({ brief, guidance, fetchImpl } = {}) {
   if (isLlmConfigured()) {
     try {
+      const target = resolveLength({ length: brief?.length, lengthWords: brief?.lengthWords });
       const { data, usage, model } = await chatJson({
         model: smartModel(),
         effort: 'high',
-        messages: planMessages({ brief, guidance }), fetchImpl,
+        messages: planMessages({ brief, guidance, sections: target.sections, words: target.words }), fetchImpl,
         temperature: 0.3,
         maxTokens: 1200,
       });
@@ -93,7 +94,7 @@ function fallbackQuestions(brief) {
  * Write the report from the run's own scored sources. High intensity, and bound
  * by the evidence: the prompt above refuses claims the sources do not carry.
  */
-export async function generateReport({ brief, sources = [], guidance, runId, version, fetchImpl, onToken } = {}) {
+export async function generateReport({ brief, sources = [], guidance, runId, version, fetchImpl, onToken, targetWords = 1200 } = {}) {
   const fallback = (llmError) => ({
     ok: true,
     source: 'fallback',
@@ -112,7 +113,34 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         ...(typeof onToken === 'function' ? { onToken } : {}),
       });
       if (text && text.trim()) {
-        return { ok: true, source: 'llm', model, usage, markdown: text.trim() };
+        let markdown = text.trim();
+        let outUsage = usage;
+        // Same floor as the long path, one bounded pass: a short brief
+        // report gets one deepening call, not an unbounded loop.
+        const floor = Math.round(Number(targetWords) * FLOOR_RATIO);
+        if (countWords(markdown) < floor && (sources || []).length > 0) {
+          try {
+            const deep = await chat({
+              effort: 'high',
+              messages: deepenMessages({
+                brief, section: brief?.topic || 'the brief', existing: markdown,
+                targetWords: Math.max(200, Math.round(Number(targetWords) / 3)), sources,
+              }),
+              fetchImpl,
+              temperature: 0.4,
+              maxTokens: maxTokensForWords(Math.max(200, Math.round(Number(targetWords) / 3))),
+              ...(typeof onToken === 'function' ? { onToken } : {}),
+            });
+            outUsage = addUsage(outUsage, deep.usage);
+            const line = String(deep.text || '').trim();
+            if (line && line !== 'NOTHING_NEW' && /[.!?…]["']?\s*$/.test(line)) {
+              markdown = `${markdown}\n\n${line}`;
+            }
+          } catch {
+            /* floor best-effort: the short-but-honest draft still ships */
+          }
+        }
+        return { ok: true, source: 'llm', model, usage: outUsage, markdown };
       }
       return fallback('model returned empty text');
     } catch (err) {
@@ -235,8 +263,51 @@ export async function generateReportLong({ brief, sections = [], getEvidence, gu
       sources: evidence, targetWords: perSection, guidance, fetchImpl,
       ...(typeof onToken === 'function' ? { onToken: (delta) => onToken(delta, { section: i, of: capped.length }) } : {}),
     });
-    return { i, section, out };
+    return { i, section, out, evidence };
   });
+  // Length is a floor, not a wish: if the assembled sections fall short,
+  // deepen the best-evidenced sections (never the thin ones — those were
+  // told to stay short) until the floor is met or the expansion budget is
+  // spent. Bounded: past MAX_EXPANSIONS the evidence is spent and further
+  // calls buy repetition, and every pass is metered like any section.
+  const floor = Math.round(resolved.words * FLOOR_RATIO);
+  const deepened = new Set();
+  for (let pass = 0; pass < MAX_EXPANSIONS; pass += 1) {
+    const words = sectionOuts.reduce((s, o) => s + countWords(o.out.markdown), 0);
+    if (words >= floor) break;
+    const ranked = sectionOuts
+      .filter((o) => !deepened.has(o.i) && o.out.source === 'llm' && (o.evidence || []).length > 0)
+      .map((o) => ({ o, density: (o.evidence || []).length / Math.max(1, countWords(o.out.markdown)) }))
+      .sort((a, b) => b.density - a.density);
+    if (!ranked.length) break;
+    const target = ranked[0].o;
+    deepened.add(target.i);
+    try {
+      const { text, usage: du, model: dm } = await chat({
+        effort: 'high',
+        messages: deepenMessages({
+          brief, section: target.section, existing: target.out.markdown,
+          targetWords: Math.max(200, Math.round(perSection / 2)), sources: target.evidence,
+        }),
+        fetchImpl,
+        temperature: 0.4,
+        maxTokens: maxTokensForWords(Math.max(200, Math.round(perSection / 2))),
+        ...(typeof onToken === 'function' ? { onToken: (delta) => onToken(delta, { section: target.i, of: capped.length }) } : {}),
+      });
+      usage = addUsage(usage, du);
+      if (dm) models.add(dm);
+      const line = String(text || '').trim();
+      if (line && line !== 'NOTHING_NEW' && /[.!?…]["']?\s*$/.test(line)) {
+        target.out.markdown = `${target.out.markdown.trim()}\n\n${line}`;
+      } else {
+        errors.push(`section ${target.i}: deepening found nothing new (evidence spent)`);
+        break;
+      }
+    } catch (err) {
+      errors.push(`section ${target.i}: deepening failed (${err?.message || err})`);
+      break;
+    }
+  }
   for (const { i, section, out } of sectionOuts) {
     parts.push(out.markdown);
     usage = addUsage(usage, out.usage);

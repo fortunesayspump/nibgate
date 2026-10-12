@@ -26,8 +26,11 @@ const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, data: 0.04, score: 
 // stated, not hidden: one full pipeline pass at table rates, scaled by depth
 // (more rounds, more sources) and report length (more sections to write),
 // plus one search round per sub-question beyond the first two the base pass
-// already covers. It is deliberately conservative — an estimate that comes in
-// high gets refunded on settle; one that comes in low pauses the run mid-way.
+// already covers, plus headroom for floor enforcement (up to MAX_EXPANSIONS
+// deepening passes priced as one extra write pass — the refund returns
+// whatever the floor does not need). It is deliberately conservative — an
+// estimate that comes in high gets refunded on settle; one that comes in
+// low pauses the run mid-way.
 const DEPTH_COST_FACTOR = { quick: 0.5, standard: 1, deep: 2 };
 
 export function estimatePlanCost({ subQuestions = [], depth = 'standard', lengthWords = 4000 } = {}) {
@@ -35,7 +38,8 @@ export function estimatePlanCost({ subQuestions = [], depth = 'standard', length
   const depthFactor = DEPTH_COST_FACTOR[depth] ?? 1;
   const extraQuestions = Math.max(0, subQuestions.length - 2);
   const lengthFactor = Math.max(0.5, (Number(lengthWords) || 4000) / 4000);
-  return Math.round((pass * depthFactor * lengthFactor + extraQuestions * STAGE_COSTS.search) * 100) / 100;
+  const floorHeadroom = STAGE_COSTS.write * depthFactor * lengthFactor;
+  return Math.round((pass * depthFactor * lengthFactor + extraQuestions * STAGE_COSTS.search + floorHeadroom) * 100) / 100;
 }
 
 // Crash-recovery lease. A step holds a lease while it runs and renews it on a
@@ -751,7 +755,7 @@ async function writeStage(runId, run, guidance) {
   };
   const resolved = resolveLength({ length: brief.length, lengthWords: brief.lengthWords });
   const generated = resolved.preset === 'brief'
-    ? await generateReport({ brief, sources: evidence, guidance, runId, version: run.versions, onToken: (d) => emitToken(d) })
+    ? await generateReport({ brief, sources: evidence, guidance, runId, version: run.versions, targetWords: resolved.words, onToken: (d) => emitToken(d) })
     : await generateReportLong({
         brief,
         sections: (run.plan?.sub_questions?.length ? run.plan.sub_questions : [`Report on: ${brief.topic || 'the brief'}`]),

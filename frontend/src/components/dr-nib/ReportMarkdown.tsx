@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
+import { drNibApi } from "@/lib/dr-nib-api";
 
 /** [12] and [1, 2] in text become superscript citation chips. When `sources`
  *  are provided the chip links straight to the cited source URL; otherwise it
@@ -65,7 +66,7 @@ const mdComponents = {
   a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" className="break-all underline underline-offset-2">{children}</a>,
   blockquote: ({ children }: any) => <blockquote className="mt-2.5 border-l-2 border-black/60 pl-3 opacity-80">{children}</blockquote>,
   code: ({ children }: any) => <code className="break-all font-mono text-[12px] opacity-80">{children}</code>,
-  pre: ({ children }: any) => <pre className="mt-2.5 overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-black/[0.04] p-3 font-mono text-[12px] leading-6">{children}</pre>,
+  pre: ({ children, ...props }: any) => <ReportPre {...props}>{children}</ReportPre>,
   hr: () => <hr className="my-4 border-black/20" />,
   table: ({ children }: any) => (
     <div className="mt-2.5 overflow-x-auto rounded-xl border border-dark-gray/40">
@@ -83,8 +84,131 @@ const mdComponents = {
   cite: undefined as any,
 };
 
-function citeFor(sources: { url?: string }[]) {
-  return ({ children, ...props }: any) => {
+// Fenced ```chart blocks the writer emits become real figures: deterministic
+// SVG bars from the block's own data (no model pixels, nothing to
+// hallucinate). Anything off-schema degrades to a plain table so the data
+// is never lost to a malformed block.
+type ChartDatum = { label: string; value: number };
+type ChartSpec = { type: string; title?: string; unit?: string; data: ChartDatum[] };
+
+function parseChart(raw: string): ChartSpec | null {
+  try {
+    const o = JSON.parse(String(raw || ""));
+    if (!o || typeof o !== "object" || !Array.isArray(o.data)) return null;
+    const data = o.data
+      .slice(0, 8)
+      .map((d: any) => ({
+        label: String(d?.label ?? "").slice(0, 48),
+        value: Number(d?.value),
+      }))
+      .filter((d: ChartDatum) => d.label && Number.isFinite(d.value));
+    if (!data.length) return null;
+    return { type: "bar", title: String(o.title || "").slice(0, 120), unit: String(o.unit || "").slice(0, 24), data };
+  } catch {
+    return null;
+  }
+}
+
+function ChartFigure({ spec, index }: { spec: ChartSpec; index: number }) {
+  const W = 560;
+  const labelW = 190;
+  const rowH = 34;
+  const max = Math.max(...spec.data.map((d) => Math.abs(d.value)), 1e-9);
+  const H = spec.data.length * rowH + 8;
+  // Small decimals must survive display: 0.001 is not "0.00".
+  const fmtVal = (v: number) => (Number.isInteger(v) ? String(v) : String(Number(v.toPrecision(3))));
+  return (
+    <figure className="mt-3 rounded-xl border border-dark-gray/40 bg-white p-4">
+      <figcaption className="text-[13px] font-medium leading-6">
+        Figure {index + 1}{spec.title ? `: ${spec.title}` : ""}
+        {spec.unit ? <span className="font-normal opacity-60"> ({spec.unit})</span> : null}
+      </figcaption>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img"
+        aria-label={spec.title ? `Bar chart: ${spec.title}. ${spec.data.map((d) => `${d.label}: ${d.value}`).join(", ")}.` : "Bar chart"}>
+        {spec.data.map((d, i) => {
+          const bw = Math.max(2, (Math.abs(d.value) / max) * (W - labelW - 64));
+          const y = 4 + i * rowH;
+          return (
+            <g key={i}>
+              <text x={0} y={y + 15} fontSize={12} fill="currentColor" opacity={0.75}>
+                {d.label.length > 26 ? d.label.slice(0, 25) + "…" : d.label}
+              </text>
+              <rect x={labelW} y={y} width={bw} height={18} rx={4} fill="var(--nib-ink, #111)" opacity={0.85} />
+              <text x={labelW + bw + 6} y={y + 14} fontSize={12} fill="currentColor" opacity={0.75}>
+                {fmtVal(d.value)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </figure>
+  );
+}
+
+function ChartTable({ spec }: { spec: ChartSpec }) {
+  return (
+    <div className="mt-2.5 overflow-x-auto rounded-xl border border-dark-gray/40">
+      <table className="w-full border-collapse text-[13px] leading-6">
+        <thead className="bg-black/[0.04]">
+          <tr>
+            <th className="px-3 py-1.5 text-left font-semibold">{spec.title || "Data"}</th>
+            <th className="px-3 py-1.5 text-left font-semibold">{spec.unit || "Value"}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {spec.data.map((d, i) => (
+            <tr key={i}>
+              <td className="border-b border-dark-gray/20 px-3 py-1.5 align-top">{d.label}</td>
+              <td className="border-b border-dark-gray/20 px-3 py-1.5 align-top">{d.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Chart blocks need stable figure numbers per render: a remark pass rewrites
+// fenced ```chart blocks into figureChart nodes with an index assigned in
+// document order (single traversal — no global counters, StrictMode-safe).
+export function remarkChartFigures() {
+  return (tree: any) => {
+    let index = 0;
+    visit(tree, "code", (node: any) => {
+      if (String(node?.lang || "").toLowerCase() !== "chart") return;
+      // Payload lives in the fence BODY normally — but models (and our own
+      // prompt format) often emit it inline on the fence line, which remark
+      // parses as `meta`, not `value`. Read both or charts silently vanish.
+      const raw = String(node.value ?? "") || String(node.meta ?? "");
+      node.data = {
+        hName: "figureChart",
+        hProperties: { payload: raw, index },
+      };
+      index += 1;
+    });
+  };
+}
+
+function FigureChart({ payload, index }: any) {
+  const spec = parseChart(payload);
+  if (spec) return <ChartFigure spec={spec} index={Number(index) || 0} />;
+  // Malformed block: keep the raw text over dropping data silently.
+  return (
+    <pre className="mt-2.5 overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-black/[0.04] p-3 font-mono text-[12px] leading-6">
+      {String(payload || "")}
+    </pre>
+  );
+}
+
+// Unwrap the default <pre> around rendered figures so charts are not boxed
+// twice; ordinary code blocks keep the wrapper.
+function ReportPre({ children }: any) {
+  const kids: any[] = Array.isArray(children) ? children : [children];
+  if (kids.length === 1 && (kids[0] as any)?.type === FigureChart) return <>{children}</>;
+  return <pre className="mt-2.5 overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-black/[0.04] p-3 font-mono text-[12px] leading-6">{children}</pre>;
+}
+
+function citeFor(sources: { url?: string }[]) {  return ({ children, ...props }: any) => {
     const n = Number(props?.["data-n"] ?? children);
     const url = sources[n - 1]?.url;
     const chip = (
@@ -110,14 +234,14 @@ function citeFor(sources: { url?: string }[]) {
 export function ReportArticle({ markdown, sources }: { markdown: string; sources?: { url?: string }[] }) {  const [open, setOpen] = useState(false);
   const normalized = useMemo(() => normalizeReportMd(markdown), [markdown]);
   const components = useMemo(
-    () => ({ ...mdComponents, cite: citeFor(Array.isArray(sources) ? sources : []) }),
+    () => ({ ...mdComponents, cite: citeFor(Array.isArray(sources) ? sources : []), figureChart: FigureChart }),
     [sources],
   );
   return (
     <div>
       <article className="relative text-sm">
         <div className={open ? undefined : "max-h-[340px] overflow-hidden"}>
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations]} components={components}>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations, remarkChartFigures]} components={components}>
             {normalized}
           </ReactMarkdown>
         </div>
@@ -173,6 +297,7 @@ export function ReportEvidence({ claims, sources }: { claims?: any[]; sources?: 
               {list.map((c: any, i: number) => {
                 const p = (Array.isArray(c.passages) ? c.passages : [])[0];
                 const n = p?.url ? srcIndex(String(p.url)) : null;
+                const copied = (Array.isArray(c.passages) ? c.passages : []).some((q: any) => Number(q?.overlap ?? 0) >= 0.8);
                 return (
                   <tr key={i} className="border-t border-dark-gray/20 align-top">
                     <td className="px-3 py-1.5">{String(c.text || "").slice(0, 160)}</td>
@@ -180,6 +305,7 @@ export function ReportEvidence({ claims, sources }: { claims?: any[]; sources?: 
                       <span className={c.status === "supported" ? "font-medium text-emerald-800" : "opacity-60"}>
                         {c.status === "supported" ? "✓ supported" : "? unknown"}
                       </span>
+                      {copied ? <span className="ml-1 font-medium text-red-700" title="Phrasing matches the source nearly word-for-word — paraphrase, don't paste">⚠ copied</span> : null}
                     </td>
                     <td className="px-3 py-1.5">
                       {p?.url ? (
@@ -201,8 +327,84 @@ export function ReportEvidence({ claims, sources }: { claims?: any[]; sources?: 
   );
 }
 
+// Post-report discussion: free follow-up questions about a finished report.
+// The books are closed — no ledger draw, no deposit. Each finished run gets
+// a small free allowance (see POST /v1/runs/:id/discuss); the server returns
+// the remaining count with every answer and the run's metadata carries the
+// thread, so the allowance is shown before a single question is asked.
+export function DiscussThread({ runId, initial }: { runId: string; initial?: any }) {
+  const max = Number(initial?.max ?? 10);
+  const [used, setUsed] = useState<number>(Number(initial?.used ?? 0));
+  // The server stores { used, tokens, log } — remaining derives from the
+  // allowance until the first answer returns the authoritative count.
+  const [remaining, setRemaining] = useState<number>(Number(initial?.remaining ?? Math.max(0, max - (Number(initial?.used ?? 0)))));
+  const [thread, setThread] = useState<{ q: string; a: string }[]>(
+    Array.isArray(initial?.log) ? initial.log.map((t: any) => ({ q: String(t.q || ""), a: String(t.a || "") })) : []
+  );
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function ask() {
+    const question = draft.trim();
+    if (!question || busy || remaining <= 0) return;
+    setBusy(true);
+    setError("");
+    try {
+      const out: any = await drNibApi.discussReport(runId, question);
+      setThread((h) => [...h, { q: question, a: String(out.answer || "") }]);
+      setRemaining(Number(out.remaining ?? 0));
+      setUsed(Number(out.used ?? used + 1));
+      setDraft("");
+    } catch (e: any) {
+      setError(e?.message || "Could not answer that.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-4">
+      <p className="text-xs font-medium uppercase tracking-wider opacity-60">
+        Discuss this report{max > 0 ? ` · ${remaining} of ${max} free follow-ups left` : ""}
+      </p>
+      {thread.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {thread.map((h, i) => (
+            <li key={i} className="border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">
+              <p className="text-xs font-medium opacity-60">{h.q}</p>
+              <p className="whitespace-pre-line">{h.a}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {remaining > 0 ? (
+        <div className="mt-2 flex gap-2">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
+            placeholder="Ask a follow-up about this report…"
+            aria-label="Ask a follow-up about this report"
+            disabled={busy}
+            className="w-full border border-dark-gray/50 bg-white px-3 py-2 text-xs"
+          />
+          <button
+            onClick={ask}
+            disabled={busy || !draft.trim()}
+            className="shrink-0 bg-black px-4 py-2 text-xs font-medium text-white disabled:opacity-40"
+          >
+            {busy ? "…" : "Ask"}
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs opacity-60">Free follow-ups used up ({used} of {max}) — reprompt the run for a deeper pass.</p>
+      )}
+      {error ? <p className="mt-1.5 text-xs text-red-700">{error}</p> : null}
+      <p className="mt-1.5 text-[11px] opacity-50">Free — no budget drawn, no deposit needed. Answers come from this report and its sources only.</p>
+    </div>
+  );
+}
 // Ask-about-this-report, answered deterministically from the run's own
-// verify pass — no model call, no new balance, no reopened books. "Weakest
+// verify pass — no model call, no budget, no reopened books. "Weakest
 // claim?" is a min over scored support, not a judgement; "why trust X?" is
 // the source's own trust row. Anything the tables cannot answer, the panel
 // says so instead of guessing.
@@ -210,6 +412,7 @@ export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?
   const list: any[] = Array.isArray(claims) ? claims : [];
   const srcs: any[] = Array.isArray(sources) ? sources : [];
   const [history, setHistory] = useState<{ q: string; a: string }[]>([]);
+  const [picked, setPicked] = useState("");
   if (!list.length) return null;
   const withEv = list.filter((c) => Array.isArray(c.passages) && c.passages.length > 0);
   const scored = withEv
@@ -256,17 +459,25 @@ export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?
   return (
     <div className="mt-4">
       <p className="text-xs font-medium uppercase tracking-wider opacity-60">Ask about this report</p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <select
+        value={picked}
+        onChange={(e) => {
+          const q = e.target.value;
+          if (!q) return;
+          const preset = presets.find((p) => p.q === q);
+          if (preset) setHistory((h) => [...h, { q, a: preset.a() }]);
+          setPicked("");
+        }}
+        className="mt-2 w-full max-w-md border border-dark-gray/50 bg-white px-3 py-2 text-xs"
+        aria-label="Ask about this report"
+      >
+        <option value="">Choose a question…</option>
         {presets.map((p) => (
-          <button
-            key={p.q}
-            onClick={() => setHistory((h) => [...h, { q: p.q, a: p.a() }])}
-            className="border border-dark-gray/50 bg-white px-3 py-1.5 text-xs hover:border-black"
-          >
+          <option key={p.q} value={p.q}>
             {p.q}
-          </button>
+          </option>
         ))}
-      </div>
+      </select>
       {history.length > 0 && (
         <ul className="mt-2 space-y-2">
           {history.map((h, i) => (

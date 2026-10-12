@@ -100,6 +100,8 @@ export const drNibApi = {
   getEscrow: (id: string) => req(`/v1/runs/${id}/escrow`),
   createExport: (id: string, format: string) =>
     req(`/v1/runs/${id}/exports`, { method: "POST", body: JSON.stringify({ format }) }),
+  discussReport: (id: string, question: string) =>
+    req(`/v1/runs/${id}/discuss`, { method: "POST", body: JSON.stringify({ question }) }),
   getBudget: (runId: string) => req(`/v1/budgets/${runId}`),
   topUp: (runId: string, amount: number) =>
     req(`/v1/budgets/${runId}/topup`, { method: "POST", body: JSON.stringify({ amount }) }),

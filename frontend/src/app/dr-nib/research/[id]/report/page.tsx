@@ -7,7 +7,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
-import { ReportArticle, ReportEvidence, ReportQA } from "@/components/dr-nib/ReportMarkdown";
+import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
 import { TrustChip } from "@/components/dr-nib/common";
 import { explorerTxUrl } from "@nibgate/wallet";
 
@@ -101,6 +101,9 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
             <ReportArticle markdown={report.markdown} sources={sources} />
             <ReportEvidence claims={run.claims} sources={sources} />
             <ReportQA claims={run.claims} sources={sources} />
+            {["complete", "failed", "ended"].includes(run.status) ? (
+              <DiscussThread runId={id} initial={run.metadata?.discuss} />
+            ) : null}
             <div className="mt-4 flex items-center gap-3 border-t border-dark-gray/30 pt-3">
               <button onClick={shareLink} className="text-xs font-medium underline opacity-60 hover:opacity-100" title="Copy a link to this exact report version">
                 {linkCopied ? "✓ Link copied" : "Share this version"}

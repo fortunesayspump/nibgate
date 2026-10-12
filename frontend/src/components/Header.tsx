@@ -19,7 +19,6 @@ export default function Header() {
     { label: "Leaderboards", href: "/leaderboards" },
     { label: "Ledger", href: "/ledger" },
     { label: "Dr. Nib", href: "/dr-nib/research" },
-    { label: "About", href: "/about" },
   ];
 
   return (

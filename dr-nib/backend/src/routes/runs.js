@@ -688,6 +688,60 @@ runs.get('/:id/report', async (req, res) => {
   res.json(report);
 });
 
+// Post-report discussion: free follow-up questions about a finished report.
+// The books are closed — this draws nothing from the ledger and needs no
+// deposit. The operator absorbs the pennies (one bounded low-effort call per
+// question), so each finished run carries a small free allowance instead:
+// DISCUSS_MAX_QUESTIONS questions, each answered from the report and its own
+// evidence only. Usage rides in metadata.discuss (surfaced on GET run) and
+// every answer is a 'discuss' event with its provider cost, so the free
+// tier stays auditable instead of invisible.
+const DISCUSS_MAX_QUESTIONS = Math.max(1, Number(process.env.DRNIB_DISCUSS_MAX_QUESTIONS || 10));
+const DISCUSS_MAX_TOKENS = Math.max(200, Number(process.env.DRNIB_DISCUSS_MAX_TOKENS || 600));
+const DISCUSS_CONTEXT_CHARS = 12000;
+const DISCUSS_TERMINAL = ['complete', 'failed', 'ended'];
+
+runs.post('/:id/discuss', async (req, res) => {
+  try {
+    const run = await ownedRun(req, res);
+    if (!run) return;
+    if (!DISCUSS_TERMINAL.includes(run.status)) {
+      return res.status(409).json({ error: `discussion opens once the run is finished (status ${run.status})` });
+    }
+    const report = await db.researchReport.findFirst({ where: { runId: run.id }, orderBy: { version: 'desc' } });
+    if (!report?.markdown) return res.status(409).json({ error: 'no finished report to discuss yet' });
+    const question = typeof req.body?.question === 'string' ? req.body.question.trim().slice(0, 1000) : '';
+    if (!question) return res.status(400).json({ error: 'question is required' });
+    const state = run.metadata?.discuss || { used: 0, tokens: 0, log: [] };
+    const used = Number(state.used) || 0;
+    if (used >= DISCUSS_MAX_QUESTIONS) {
+      return res.status(429).json({ error: `free discussion allowance used up (${DISCUSS_MAX_QUESTIONS} of ${DISCUSS_MAX_QUESTIONS}) — reprompt the run for a deeper pass`, used, remaining: 0, max: DISCUSS_MAX_QUESTIONS });
+    }
+    const { chat, isLlmConfigured } = await import('../llm/provider.js');
+    if (!isLlmConfigured()) return res.status(501).json({ error: 'discussion is not configured on this deployment' });
+    const sources = await db.researchSource.findMany({ where: { runId: run.id }, orderBy: [{ trust: 'desc' }, { relevance: 'desc' }, { createdAt: 'asc' }] });
+    const sourceLines = sources.slice(0, 30).map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`).join('\n');
+    const prior = (Array.isArray(state.log) ? state.log : []).slice(-4)
+      .map((t) => `Q: ${t.q}\nA: ${t.a}`).join('\n\n');
+    const { text, usage, model } = await chat({
+      effort: 'low',
+      maxTokens: DISCUSS_MAX_TOKENS,
+      messages: [
+        { role: 'system', content: 'You are discussing a finished research report with its owner. Answer strictly from the report and sources below — cite claims as [n] using the source numbers given. If the report does not cover it, say so plainly in one sentence instead of reaching beyond the evidence. Keep it under 250 words, no new headings.' },
+        { role: 'user', content: `Report:\n${String(report.markdown).slice(0, DISCUSS_CONTEXT_CHARS)}\n\nSources:\n${sourceLines || '(none listed)'}${prior ? `\n\nEarlier in this discussion:\n${prior}` : ''}\n\nQuestion: ${question}` },
+      ],
+    });
+    const tokens = Number(usage?.totalTokens) || 0;
+    const answer = String(text || '').trim() || 'No answer came back — try rephrasing the question.';
+    const entry = { q: question.slice(0, 300), a: answer.slice(0, 2000), tokens, at: new Date().toISOString() };
+    const log = [...(Array.isArray(state.log) ? state.log : []), entry].slice(-DISCUSS_MAX_QUESTIONS);
+    const next = { used: used + 1, tokens: (Number(state.tokens) || 0) + tokens, log };
+    await db.researchRun.update({ where: { id: run.id }, data: { metadata: { ...(run.metadata || {}), discuss: next } } });
+    await recordEvent(run.id, { type: 'discuss', q: question.slice(0, 200), tokens, costUsd: usage?.costUsd ?? null, model: model || null, used: next.used, remaining: DISCUSS_MAX_QUESTIONS - next.used });
+    res.json({ answer, used: next.used, remaining: DISCUSS_MAX_QUESTIONS - next.used, max: DISCUSS_MAX_QUESTIONS });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 async function nextSeq(runId) {
   const last = await db.researchDecision.findFirst({ where: { runId }, orderBy: { seq: 'desc' } });
   return (last?.seq ?? -1) + 1;

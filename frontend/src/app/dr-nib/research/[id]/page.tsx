@@ -9,7 +9,7 @@ import { subscribeRunEvents } from "@/lib/dr-nib-events";
 import { explorerTxUrl } from "@nibgate/wallet";
 import { TrustChip } from "@/components/dr-nib/common";
 import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
-import { ReportArticle, ReportEvidence, ReportQA } from "@/components/dr-nib/ReportMarkdown";
+import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
 
 // One chronological feed from three sources: the agent's reads (intake
 // thinking), the steps with their full outputs, and the tool calls with
@@ -970,6 +970,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <ReportArticle markdown={report.markdown} sources={run.sources || []} />
               <ReportEvidence claims={run.claims} sources={run.sources || []} />
               <ReportQA claims={run.claims} sources={run.sources || []} />
+              {["complete", "failed", "ended"].includes(run.status) ? (
+                <DiscussThread runId={id} initial={run.metadata?.discuss} />
+              ) : null}
             </section>
           )}
 

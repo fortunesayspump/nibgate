@@ -100,6 +100,14 @@ export default function HelpPage() {
           kept and selectable.
         </P>
         <P>
+          Below the report, <strong>Ask about this report</strong> answers fixed questions (weakest claim,
+          strongest support, what&apos;s unsupported, which source carried most) straight from the verify
+          pass — no model, no budget. Under it, <strong>Discuss this report</strong> takes free-form
+          follow-ups: each finished run gets a small free allowance (shown as &ldquo;N of 10 left&rdquo;),
+          answered from the report and its sources only, with no ledger draw and no deposit needed. When
+          the allowance runs out, reprompt for a deeper pass.
+        </P>
+        <P>
           Export to PDF, Word, Excel, PowerPoint, Markdown, JSON, or BibTeX from the run page. Exports render
           from the finished report and download directly.
         </P>

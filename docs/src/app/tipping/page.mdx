@@ -201,7 +201,7 @@ const refund = buildHoldingRefund({ domain, payer, amountUsdc, factoryAddress: d
 await submitHoldingRefund(refund, { privateKey, rpcUrl, chainId: dep.chainId })
 ```
 
-React (`@nibgate/wallet`): `useNibgateTip()` returns `{ tip, refund, status, receipt }`; `NibgateTipCard` / `NibgateTipInline` render the UI. The wallet extension detects whether the page's creator is resolved and either settles or holds, and exposes a **Refund** action on held receipts in its activity detail.
+React (`@nibgate/wallet`): `useNibgateTip()` returns `{ tip, refund, status, receipt }`; `NibgateTipCard` / `NibgateTipInline` render the UI. Before signing, `tip()` reads the wallet's onchain USDC `balanceOf` on the active network and refuses up front — naming the network, the needed amount, and the actual balance — instead of sending a transfer that would revert (a reverted transfer still burns gas, and gas on Arc is USDC). The transfer rail spends wallet USDC only: Gateway credit and other-network balances don't count. The wallet extension detects whether the page's creator is resolved and either settles or holds, and exposes a **Refund** action on held receipts in its activity detail.
 
 ## Ledger, pending-tip checker, and analytics
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
-import { encodeFunctionData, createWalletClient, custom } from 'viem'
+import { encodeFunctionData, createPublicClient, createWalletClient, custom } from 'viem'
 import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
@@ -18,6 +18,18 @@ const USDC_TRANSFER_ABI = [
       { name: 'amount', type: 'uint256' },
     ],
     outputs: [{ name: '', type: 'bool' }],
+  },
+]
+
+// balanceOf for the pre-send gate below (transfer path spends wallet USDC,
+// not Gateway credit — the wallet is what must hold the amount).
+const USDC_BALANCE_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
   },
 ]
 
@@ -147,10 +159,29 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
       setStatus('signing')
       const walletClient = createWalletClient({ chain: activeArcChain(), account, transport: custom(provider) })
       const sendTo = async (to, amt) => {
+        const value = BigInt(Math.round(amt * 1e6))
+        // Pre-send balance gate: a doomed transfer reverts onchain ("transfer
+        // amount exceeds balance") and still burns gas — gas is USDC on Arc.
+        // Refuse up front with the actual balance named. Unreadable balance
+        // (RPC blip) falls through: the wallet enforces it anyway.
+        let walletBal = null
+        try {
+          const pub = createPublicClient({ chain: activeArcChain(), transport: custom(provider) })
+          walletBal = await pub.readContract({ address: USDC, abi: USDC_BALANCE_ABI, functionName: 'balanceOf', args: [account] })
+        } catch { walletBal = null }
+        if (walletBal !== null && walletBal < value) {
+          const net = activeChain()
+          const have = (Number(walletBal) / 1e6).toFixed(2)
+          const need = (Number(value) / 1e6).toFixed(2)
+          const fund = net.testnet
+            ? 'Top up with free testnet USDC at faucet.circle.com (select Arc Testnet).'
+            : 'Top up this wallet with USDC on Arc mainnet.'
+          throw new Error(`Insufficient USDC on ${net.name}: need $${need} but ${shortAddress(account)} holds $${have}. ${fund} Balances do not cross networks, and Gateway credit cannot pay a direct transfer.`)
+        }
         const data = encodeFunctionData({
           abi: USDC_TRANSFER_ABI,
           functionName: 'transfer',
-          args: [to, BigInt(Math.round(amt * 1e6))],
+          args: [to, value],
         })
         const txHash = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account })
         return txHash?.hash || txHash || ''

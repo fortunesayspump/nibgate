@@ -90,12 +90,18 @@ describe('mcp run flow', () => {
     expect(run.status).toBe('intake');
     expect(run.question).toBeTruthy();
 
-    for (let seq = 0; seq < 4; seq++) {
+    // create_run seeds a 5-question intake batch, and every answer may spawn
+    // the next question (JEV/bank stop rules + an 8-question hard cap) — so
+    // answer until the transcript reports done, not for a fixed count.
+    let intakeDone = false;
+    for (let seq = 0; seq < 10 && !intakeDone; seq++) {
       const answered = await call('tools/call', {
         name: 'answer_question', arguments: { ownerWallet: WALLET, runId: run.id, seq, answer: { text: `answer ${seq}` } },
       });
       expect(answered.body.result.isError).toBeFalsy();
+      intakeDone = textOf(answered).done === true;
     }
+    expect(intakeDone).toBe(true);
     const configured = await call('tools/call', {
       name: 'configure_run', arguments: { ownerWallet: WALLET, runId: run.id, budgetCap: 2.5 },
     });

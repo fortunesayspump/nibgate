@@ -71,6 +71,20 @@ async function addArcNetwork(provider) {
   });
 }
 
+/**
+ * Repair a broken wallet connection: re-add Arc with the known-good RPC
+ * endpoint, then switch to it. Wallets keep the FIRST rpc ever configured
+ * for a chain — a stale/dead URL saved months ago stays forever and every
+ * broadcast dies with an opaque RPC error while reads/signatures all look
+ * fine (seen live on Fund: valid calldata, funded wallet, good nonce, RPC
+ * rejects every send). Re-adding points the wallet at a live endpoint.
+ */
+export async function repairArcNetwork(provider) {
+  await addArcNetwork(provider);
+  const chain = activeChain();
+  return { chainId: chain.id, rpcUrl: chain.rpcUrl };
+}
+
 export function waitForChainChange(provider, { chainId = activeChain().id, timeoutMs = 30000 } = {}) {
   return new Promise((resolve, reject) => {
     const cleanup = () => {

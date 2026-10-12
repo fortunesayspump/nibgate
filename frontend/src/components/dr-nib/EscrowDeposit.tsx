@@ -11,9 +11,9 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Eip1193Provider } from "@nibgate/wallet";
 import { useAppKitAccount, useAppKitProvider } from "@nibgate/wallet/react";
-import { createPublicClient, createWalletClient, custom, encodeFunctionData } from "viem";
+import { createPublicClient, createWalletClient, custom, encodeFunctionData, formatUnits } from "viem";
 import { activeArcChain } from "@nibgate/wallet/chain";
-import { ensureArcNetwork } from "@nibgate/wallet/network";
+import { ensureArcNetwork, repairArcNetwork } from "@nibgate/wallet/network";
 import { getWalletErrorMessage, WALLET_ERRORS } from "@nibgate/wallet/errors";
 import { drNibApi } from "@/lib/dr-nib-api";
 
@@ -28,6 +28,7 @@ const CORE_ABI = [
 ] as const;
 const USDC_ABI = [
   { name: "approve", type: "function", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+  { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ type: "uint256" }] },
 ] as const;
 
 type Step = "idle" | "switching" | "creating" | "budget" | "approving" | "funding" | "confirming" | "funded";
@@ -85,6 +86,64 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   }
   const onRightChain = walletChainId === chain.id;
 
+  // Connection self-diagnosis: chain, RPC liveness, native gas, and USDC —
+  // read through the user's own provider. A wallet with a stale/dead custom
+  // RPC passes every other check (signatures work, balances read via our
+  // backend) yet every broadcast dies at sendRawTransaction with an opaque
+  // RPC error. This names the broken layer instead of guessing.
+  type ConnDiag = { rpcOk: boolean | null; gas: string | null; usdc: string | null };
+  const [diag, setDiag] = useState<ConnDiag>({ rpcOk: null, gas: null, usdc: null });
+  const [repairing, setRepairing] = useState(false);
+  async function runDiag() {
+    if (!walletProvider?.request || !address) return;
+    const req: any = (walletProvider as any).request.bind(walletProvider);
+    const withTimeout = <T,>(p: Promise<T>, ms = 9000): Promise<T | null> =>
+      Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+    const d: ConnDiag = { rpcOk: null, gas: null, usdc: null };
+    try {
+      const bn = await withTimeout(req({ method: "eth_blockNumber" }));
+      d.rpcOk = bn != null;
+      if (bn != null) {
+        const [gasRaw, usdcRaw] = await Promise.all([
+          withTimeout(req({ method: "eth_getBalance", params: [address, "latest"] })),
+          withTimeout(req({
+            method: "eth_call",
+            params: [{ to: USDC, data: encodeFunctionData({ abi: USDC_ABI, functionName: "balanceOf", args: [address as `0x${string}`] }) }, "latest"],
+          })),
+        ]);
+        if (gasRaw != null) {
+          try { d.gas = formatUnits(BigInt(gasRaw as string), 18); } catch { /* ignore */ }
+        }
+        if (usdcRaw != null && String(usdcRaw).length > 2) {
+          try { d.usdc = formatUnits(BigInt(usdcRaw as string), 6); } catch { /* ignore */ }
+        }
+      }
+    } catch {
+      d.rpcOk = false;
+    }
+    setDiag(d);
+  }
+  useEffect(() => {
+    if (!walletProvider || !address) return;
+    runDiag();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletProvider, address, walletChainId]);
+  async function repairOnly() {
+    setError("");
+    if (!walletProvider?.request) { setError("Wallet provider is not available."); return; }
+    setRepairing(true);
+    try {
+      await repairArcNetwork(walletProvider);
+      await readChain();
+      await runDiag();
+    } catch (e: any) {
+      const mapped = getWalletErrorMessage?.(e);
+      setError(mapped && mapped !== WALLET_ERRORS.default ? mapped : (e?.message || "Connection repair failed."));
+    } finally {
+      setRepairing(false);
+    }
+  }
+
   const amount = BigInt(Math.round(chosen * 1e6));
 
   async function run() {
@@ -94,6 +153,12 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     try {
       const provider = walletProvider;
       if (!provider?.request) throw new Error("Wallet provider is not available.");
+      // A dead wallet RPC fails every broadcast while everything else looks
+      // fine — refuse early with the repair path instead of burning
+      // signatures into reverts/timeouts.
+      if (diag.rpcOk === false) {
+        throw new Error("Your wallet's Arc Testnet connection isn't responding — its saved RPC endpoint is likely stale. Hit Repair connection below, then try again.");
+      }
       // Busy from the first await: the network switch can take seconds (or
       // pop a wallet prompt), and until now the button sat idle through all
       // of it looking dead (seen live on Fund).
@@ -247,19 +312,31 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
         One-shot deposit (no top-ups): the run works against what you lock now and pauses when it runs out.
       </p>
       {address && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          {walletChainId == null ? (
-            <span className="opacity-60">Reading wallet network…</span>
-          ) : onRightChain ? (
-            <span>✓ Wallet on {chain.name}</span>
-          ) : (
-            <>
-              <span className="font-medium text-red-700">Wallet is on chain {walletChainId} — this needs {chain.name} ({chain.id}).</span>
-              <button onClick={switchOnly} disabled={busy || switching} className="border border-black bg-black px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50">
-                {switching ? "Switching…" : "Switch network"}
+        <div className="mt-3 space-y-1.5 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            {walletChainId == null ? (
+              <span className="opacity-60">Reading wallet network…</span>
+            ) : onRightChain ? (
+              <span>✓ Wallet on {chain.name}</span>
+            ) : (
+              <>
+                <span className="font-medium text-red-700">Wallet is on chain {walletChainId} — this needs {chain.name} ({chain.id}).</span>
+                <button onClick={switchOnly} disabled={busy || switching} className="border border-black bg-black px-4 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+                  {switching ? "Switching…" : "Switch network"}
+                </button>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-70">
+            <span>RPC: {diag.rpcOk == null ? "checking…" : diag.rpcOk ? "✓ live" : "✗ not responding"}</span>
+            {diag.gas != null && <span>Gas: {Number(diag.gas).toFixed(2)} USDC</span>}
+            {diag.usdc != null && <span>Balance: {Number(diag.usdc).toFixed(2)} USDC</span>}
+            {diag.rpcOk === false && (
+              <button onClick={repairOnly} disabled={busy || repairing} className="border border-dark-gray/60 bg-white px-3 py-1 text-xs font-medium hover:bg-black hover:text-white disabled:opacity-50">
+                {repairing ? "Repairing…" : "Repair connection"}
               </button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       )}
       <div className="mt-3 flex items-center gap-2 text-sm">

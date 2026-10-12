@@ -19,6 +19,7 @@ import { runInSandbox, sandboxConfigured, writeSandboxFile } from './sandbox.js'
 import { isSpendConfigured } from '../spend/policy.js';
 import { tipCreator } from '../spend/tips.js';
 import { unlockContent, payX402 } from '../spend/unlocks.js';
+import { rateContent } from '../spend/ratings.js';
 
 function needSpend() {
   if (!isSpendConfigured()) throw new Error('agent spending is not configured on this deployment (DRNIB_AGENT_PRIVATE_KEY)');
@@ -162,6 +163,16 @@ const TOOLS = {
       return { output: out, costUsd: out.amount };
     },
   },
+
+  rate_content: {
+    description: 'Rate a Nibgate article/share the run relied on (1-5 stars, onchain, gas only). Needs the unlock_content payment tx as unlockRef — ratings without an unlock receipt do not count. Pass contentId when known, else the page url to resolve via the hub index. Use for sources that carried a claim, not for everything touched.',
+    cost: 'onchain',
+    async run(input, ctx) {
+      needSpend();
+      const out = await rateContent({ runId: ctx.runId, contentId: input?.contentId, url: input?.url ?? input?.contentUrl, stars: input?.stars ?? input?.rating, unlockRef: input?.unlockRef ?? input?.txHash });
+      return { output: out, costUsd: 0 };
+    },
+  },
 };
 
 export function toolNames() {
@@ -212,6 +223,7 @@ function summarize(name, input) {
   if (name === 'search_sources') return String(input.query || '').slice(0, 120);
   if (name === 'tip_creator') return `${input.amount} → ${String(input.contentUrl || '').slice(0, 100)}`;
   if (name === 'unlock_content' || name === 'pay_x402') return String(input.url || '').slice(0, 120);
+  if (name === 'rate_content') return `${input.stars ?? input.rating ?? ''} stars: ${String(input.contentId || input.url || input.contentUrl || '').slice(0, 100)}`;
   return '';
 }
 
@@ -255,6 +267,9 @@ function summarizeResult(name, output) {
     if (name === 'unlock_content' || name === 'pay_x402') {
       const text = typeof output?.text === 'string' ? output.text : JSON.stringify(output?.data ?? '');
       return { paid: output?.amount ?? null, tx: output?.txHash || null, preview: String(text || '').slice(0, 300) };
+    }
+    if (name === 'rate_content') {
+      return { stars: output?.ratingValue != null ? Number(output.ratingValue) / 10 : null, tx: output?.txHash || null, indexed: output?.indexed ?? null };
     }
     return null;
   } catch {

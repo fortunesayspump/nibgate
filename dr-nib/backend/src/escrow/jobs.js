@@ -160,6 +160,29 @@ export async function submitAndComplete({ jobId, reportHash, spentUsd, operator 
 }
 
 /**
+ * Execute the split onchain through the keeper wallet (split() is
+ * permissionless — anyone may call it once the keeper has signed; the keeper
+ * relaying it itself means settle actually moves the money instead of merely
+ * attesting it). Idempotent: skips jobs already split. Returns { splitTx }.
+ */
+export async function relaySplit({ jobId, spentUsd, operator, client }, opts = {}) {
+  const cfg = escrowConfig(opts.env, opts.network);
+  if (!cfg.splitter || !cfg.keeperKey) throw new Error('escrow is not configured');
+  const c = clients(cfg, opts.make);
+  const done = await c.public.readContract({
+    address: cfg.splitter, abi: SPLITTER_ABI, functionName: 'splitDone', args: [BigInt(jobId)],
+  });
+  if (done) return { splitTx: null, alreadySplit: true };
+  const sig = await signSplit({ jobId, spentUsd, operator, client }, opts);
+  const hash = await c.wallet.writeContract({
+    address: cfg.splitter, abi: SPLITTER_ABI, functionName: 'split',
+    args: [BigInt(jobId), BigInt(Math.round(Number(spentUsd) * 1e6)), operator, sig.v, sig.r, sig.s],
+  });
+  await c.public.waitForTransactionReceipt({ hash });
+  return { splitTx: hash, alreadySplit: false };
+}
+
+/**
  * Sign a split attestation for anyone to execute. The signature binds
  * (chain, core, splitter, job, spent, operator, client, treasury, fee) —
  * permissionless execution, keeper-authorized math.

@@ -24,7 +24,7 @@ describe('tool registry', () => {
   it('advertises exactly the instruments, each with a cost model', () => {
     // `compute` (Node vm) is deliberately NOT advertised: vm is not a security
     // boundary, so model-authored code is forced through run_code's sandbox.
-    expect(toolNames().sort()).toEqual(['http_request', 'pay_x402', 'run_code', 'search_sources', 'tip_creator', 'unlock_content', 'web_fetch', 'web_search']);
+    expect(toolNames().sort()).toEqual(['http_request', 'pay_x402', 'rate_content', 'run_code', 'search_sources', 'tip_creator', 'unlock_content', 'web_fetch', 'web_search']);
     for (const spec of toolSpecs()) {
       expect(spec.description.length).toBeGreaterThan(20);
       expect(['metered', 'zero', 'onchain']).toContain(spec.cost);
@@ -75,6 +75,13 @@ describe('runTool', () => {
 
   it('runs web_search, meters the provider cost, and logs the call', async () => {
     vi.stubEnv('TAVILY_API_KEY', 'tvly-x');
+    // Hermetic cost: the repo .env may carry real provider keys (the known
+    // Prisma-import hole), which would activate extra providers and move the
+    // total. Only Tavily may be live for this assertion.
+    const savedOR = process.env.OPENROUTER_API_KEY;
+    const savedExa = process.env.EXA_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.EXA_API_KEY;
     try {
       const fetchImpl = vi.fn().mockResolvedValue({
         ok: true, status: 200,
@@ -93,6 +100,8 @@ describe('runTool', () => {
     } finally {
       // A stub that survives this test would silently reconfigure every file
       // after it — unstub even on failure.
+      if (savedOR !== undefined) process.env.OPENROUTER_API_KEY = savedOR;
+      if (savedExa !== undefined) process.env.EXA_API_KEY = savedExa;
       vi.unstubAllEnvs();
     }
   });

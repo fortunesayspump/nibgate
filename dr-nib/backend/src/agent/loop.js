@@ -34,6 +34,7 @@ const REQUIRED_INPUTS = {
   tip_creator: ['contentUrl', 'amount'],
   unlock_content: ['url'],
   pay_x402: ['url'],
+  rate_content: [['contentId', 'url', 'contentUrl'], 'stars', 'unlockRef'],
   submit_answer: ['answer'],
 };
 
@@ -46,6 +47,7 @@ const REQUIRED_LABELS = {
   tip_creator: 'contentUrl (full https URL) + amount (number, USD)',
   unlock_content: 'url (full https URL of the gated page)',
   pay_x402: 'url (full public https URL of the paid endpoint) + body (object with the endpoint\'s POST input, e.g. a search query — price is read off its 402 challenge, never pass an amount)',
+  rate_content: 'contentId (hub id) or url (page URL) + stars (1-5) + unlockRef (the unlock_content payment tx — required, ratings without an unlock receipt do not count)',
   submit_answer: 'answer (final answer text, must cover every checklist item)',
 };
 
@@ -273,19 +275,19 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     // holding the URL, recipient, and amount. When the task names a spend
     // and free evidence is banked without any spend attempt, say the
     // quiet part out loud.
-    const SPEND_TOOLS = new Set(['tip_creator', 'unlock_content', 'pay_x402']);
-    const spendTask = /tip|pay|unlock|\bbuy\b|purchase/i.test(task);
+    const SPEND_TOOLS = new Set(['tip_creator', 'unlock_content', 'pay_x402', 'rate_content']);
+    const spendTask = /tip|pay|unlock|\bbuy\b|purchase|rate|rating/i.test(task);
     const spendDone = steps.some((s) => SPEND_TOOLS.has(s.tool) && s.ok);
     let focus = focusMissing[0] || checklist?.[0] || null;
     let turnTools = tools;
     if (spendTask && !spendDone && steps.filter((s) => s.ok).length >= 2) {
       spendNudges += 1;
-      focus = 'call the spend tool NOW (tip_creator / pay_x402 / unlock_content) with the discovered URL, recipient, and amount — further researching adds nothing and the task explicitly requires spending';
+      focus = 'call the spend tool NOW (tip_creator / pay_x402 / unlock_content / rate_content) with the discovered URL, recipient, and amount — further researching adds nothing and the task explicitly requires spending';
       if (spendNudges >= 2) {
         // Funnel: free tools had their chance (the model keeps polishing
         // instead of spending). Narrow this turn to spend-or-finish so the
         // run converges. submit_answer and done stay available.
-        turnTools = ['tip_creator', 'unlock_content', 'pay_x402'];
+        turnTools = ['tip_creator', 'unlock_content', 'pay_x402', 'rate_content'];
       }
     } else {
       spendNudges = 0;

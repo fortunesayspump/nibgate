@@ -31,11 +31,23 @@ export async function settleEscrowRun(runId, reason = 'settle') {
     const out = await submitAndComplete({ jobId: local.jobId, reportHash, spentUsd: spend, operator });
     const chain = await jobStatus(local.jobId);
     const sig = await signSplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
+    // Relay the split too: attesting without executing strands the money
+    // (job Completed, splitDone false, refund ledger-only). Never throws —
+    // the run stays complete regardless; a failed relay is re-runnable via
+    // POST /:id/escrow/complete.
+    let splitTx = null;
+    try {
+      const { relaySplit } = await import('./jobs.js');
+      const rel = await relaySplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
+      if (rel?.splitTx) splitTx = rel.splitTx;
+    } catch (err) {
+      await recordEvent(runId, { type: 'escrow.split-failed', jobId: local.jobId, error: String(err?.message || err).slice(0, 200) });
+    }
     await db.researchRun.update({
       where: { id: runId },
-      data: { metadata: { ...(run.metadata || {}), escrow: { ...local, status: 'Completed', completeTx: out?.completeTx || null, splitSig: sig } } },
+      data: { metadata: { ...(run.metadata || {}), escrow: { ...local, status: 'Completed', completeTx: out?.completeTx || null, splitSig: sig, ...(splitTx ? { splitTx } : {}) } } },
     });
-    await recordEvent(runId, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || null, reason });
+    await recordEvent(runId, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || null, reason, ...(splitTx ? { splitTx } : {}) });
     return { completed: true, completeTx: out?.completeTx || null };
   } catch (err) {
     try {

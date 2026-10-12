@@ -374,6 +374,7 @@ function SettlementReceipt({ run }: { run: any }) {
   const fee = Number(run.fee ?? 0);
   const refunded = Number(run.refunded ?? 0);
   const tx = esc?.completeTx as string | undefined;
+  const fundsTx = esc?.splitTx as string | undefined;
   return (
     <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
       <p className="text-sm font-medium">Receipt</p>
@@ -388,6 +389,7 @@ function SettlementReceipt({ run }: { run: any }) {
           {Number(run.budgetCap) > 0 && Number(esc.targetCap) > Number(run.budgetCap)
             ? ` · funded $${Number(run.budgetCap).toFixed(2)} of $${Number(esc.targetCap).toFixed(2)} cap` : ""}
           {tx ? <> · <a href={explorerTxUrl(tx)} target="_blank" rel="noreferrer" className="underline">settle tx ↗</a></> : null}
+          {fundsTx ? <> · <a href={explorerTxUrl(fundsTx)} target="_blank" rel="noreferrer" className="underline">funds tx ↗</a></> : null}
         </p>
       ) : (
         <p className="mt-1.5 text-xs leading-5 opacity-60">Ledger run — no onchain escrow.</p>

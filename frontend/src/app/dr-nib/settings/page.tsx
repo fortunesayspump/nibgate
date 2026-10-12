@@ -62,7 +62,7 @@ export default function HelpPage() {
           estimate instead of the whole cap.
         </P>
         <P>
-          A 1% platform fee is taken as the budget draws down, never up front — you pay for what actually ran.
+          A 1% platform fee accrues as the budget draws down, taken from the operator share at settle — you pay for what actually ran, and the refund is everything else.
         </P>
       </Section>
 

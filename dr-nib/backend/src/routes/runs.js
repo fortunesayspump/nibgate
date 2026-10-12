@@ -653,14 +653,24 @@ runs.post('/:id/escrow/complete', async (req, res) => {
       out = await submitAndComplete({ jobId: local.jobId, reportHash, spentUsd: spend, operator });
     }
     // The client is read offchain-truthfully: the split pays job.client
-    // onchain no matter what is signed, so sign the true one.
+    // onchain no matter what is signed, so sign the true one. Then relay the
+    // split itself — attesting without executing strands the money (seen
+    // live: job Completed onchain with splitDone false, refund ledger-only).
     const chain = await jobStatus(local.jobId);
     const sig = await signSplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
+    let splitTx = local.splitTx || null;
+    try {
+      const { relaySplit } = await import('../escrow/jobs.js');
+      const rel = await relaySplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
+      if (rel?.splitTx) splitTx = rel.splitTx;
+    } catch (e) {
+      await recordEvent(run.id, { type: 'escrow.split-failed', jobId: local.jobId, error: String(e?.message || e).slice(0, 200) });
+    }
     const updated = await db.researchRun.update({
       where: { id: run.id },
-      data: { metadata: { ...(run.metadata || {}), escrow: { ...local, status: 'Completed', completeTx: out?.completeTx || local.completeTx || null, splitSig: sig } } },
+      data: { metadata: { ...(run.metadata || {}), escrow: { ...local, status: 'Completed', completeTx: out?.completeTx || local.completeTx || null, splitSig: sig, ...(splitTx ? { splitTx } : {}) } } },
     });
-    await recordEvent(run.id, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || local.completeTx || null });
+    await recordEvent(run.id, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || local.completeTx || null, ...(splitTx ? { splitTx } : {}) });
     res.json(escrowOf(updated));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

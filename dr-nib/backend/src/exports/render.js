@@ -42,7 +42,7 @@ function bibtex(sources) {
   return entries.join('\n\n') + (entries.length ? '\n' : '');
 }
 
-function packet({ report, sources, claims, ledger, escrow }) {
+function packet({ report, sources, claims, ledger, escrow, figures }) {
   return {
     version: report?.version ?? null,
     markdown: report?.markdown ?? null,
@@ -53,6 +53,7 @@ function packet({ report, sources, claims, ledger, escrow }) {
     })),
     claims: (claims || []).map((c) => ({ text: c.text, status: c.status })),
     ledger: ledger || null,
+    figures: figures || [],
     // Settlement receipt: what was deposited, what came back, and the
     // onchain proof. A money-moving run must export its receipt, not just
     // its prose.
@@ -60,10 +61,32 @@ function packet({ report, sources, claims, ledger, escrow }) {
       jobId: escrow.jobId || null,
       status: escrow.status || null,
       completeTx: escrow.completeTx || null,
+      splitTx: escrow.splitTx || null,
       targetCap: escrow.targetCap ?? null,
     } : null,
     exportedAt: new Date().toISOString(),
   };
+}
+
+/** Official settlement receipt block, appended to document exports (md, pdf,
+ * word): the money truth after the fact — deposit, spend, operator-side fee,
+ * refund, and every onchain hash. A run that took money must export its
+ * receipt, not just its prose. */
+export function receiptLines({ ledger, escrow } = {}) {
+  const fmt = (n, d = 2) => Number(n ?? 0).toFixed(d);
+  const out = ['', '---', '', '## Settlement receipt', ''];
+  out.push(`- Deposited: $${fmt(ledger?.deposited)}`);
+  out.push(`- Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee, 4)} protocol fee, taken from the operator share)` : ''}`);
+  out.push(`- Refunded: $${fmt(ledger?.refunded)}`);
+  if (escrow?.jobId) {
+    out.push(`- Escrow job ${escrow.jobId} · ${escrow.status || 'settled'}`);
+    if (escrow.completeTx) out.push(`- Settle tx: ${escrow.completeTx}`);
+    if (escrow.splitTx) out.push(`- Funds tx: ${escrow.splitTx}`);
+    else out.push('- Funds tx: pending (split not yet executed onchain)');
+  } else {
+    out.push('- Ledger run — no onchain escrow.');
+  }
+  return out;
 }
 
 const xmlEscape = (s) => String(s ?? '')
@@ -71,6 +94,52 @@ const xmlEscape = (s) => String(s ?? '')
   .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
 const mdLines = (md) => String(md || '').replace(/\r\n?/g, '\n').split('\n');
+
+/** Extract ```chart figure blocks from report markdown. Accepts the JSON on
+ * the fence line or on following lines (models emit both); malformed blocks
+ * are skipped here (the UI keeps them as text — exports never lose data, see
+ * flattenFigures). Numbering follows document order: Figure 1, 2, … */
+export function extractFigures(markdown) {
+  const src = String(markdown || '');
+  const out = [];
+  const re = /```chart\s*([\s\S]*?)```/g;
+  let m;
+  while ((m = re.exec(src)) && out.length < 12) {
+    try {
+      const o = JSON.parse((m[1] || '').trim());
+      if (!o || typeof o !== 'object' || !Array.isArray(o.data)) continue;
+      const data = o.data.slice(0, 8)
+        .map((d) => ({ label: String(d?.label ?? '').slice(0, 48), value: Number(d?.value) }))
+        .filter((d) => d.label && Number.isFinite(d.value));
+      if (!data.length) continue;
+      out.push({
+        n: out.length + 1,
+        title: String(o.title || '').slice(0, 120),
+        unit: String(o.unit || '').slice(0, 24),
+        data,
+      });
+    } catch {
+      /* malformed block: skipped as a figure, kept as text below */
+    }
+  }
+  return out;
+}
+
+/** Replace chart fences with plain caption + data rows so text renderers
+ * (PDF/Word/slides) carry the figures without JSON noise. The .md export
+ * keeps raw fences; the .json/.xlsx paths carry structured figures. */
+export function flattenFigures(markdown) {
+  const figs = extractFigures(markdown);
+  if (!figs.length) return String(markdown || '');
+  let i = 0;
+  return String(markdown || '').replace(/```chart\s*([\s\S]*?)```/g, () => {
+    const f = figs[i++];
+    if (!f) return '';
+    const head = `Figure ${f.n}${f.title ? `: ${f.title}` : ''}${f.unit ? ` (${f.unit})` : ''}`;
+    const rows = f.data.map((d) => `- ${d.label}: ${d.value}`).join('\n');
+    return `${head}\n${rows}`;
+  });
+}
 
 // ── PDF ──────────────────────────────────────────────────────────────────
 // A tiny, valid, uncompressed PDF: one Helvetica font, one content stream per
@@ -148,7 +217,7 @@ async function buildDocx(lines) {
 }
 
 // ── Excel (.xlsx) ────────────────────────────────────────────────────────
-function buildXlsx({ report, sources, claims, ledger, escrow }) {
+function buildXlsx({ report, sources, claims, ledger, escrow, figures }) {
   const wb = XLSX.utils.book_new();
   const reportSheet = XLSX.utils.aoa_to_sheet([
     ['Dr. Nib report', `v${report?.version ?? ''}`],
@@ -170,8 +239,20 @@ function buildXlsx({ report, sources, claims, ledger, escrow }) {
     escrowJob: escrow?.jobId || '',
     escrowStatus: escrow?.status || '',
     settleTx: escrow?.completeTx || '',
+    fundsTx: escrow?.splitTx || '',
   }]);
   XLSX.utils.book_append_sheet(wb, ledgerSheet, 'Ledger');
+  // Figures as data tables: the chart's own numbers, one block per figure —
+  // the evidence a reader needs without the picture.
+  if ((figures || []).length) {
+    const rows = [];
+    for (const f of figures) {
+      rows.push({ figure: `Figure ${f.n}${f.title ? `: ${f.title}` : ''}${f.unit ? ` (${f.unit})` : ''}`, label: '', value: '' });
+      for (const d of f.data || []) rows.push({ figure: '', label: d.label, value: d.value });
+      rows.push({ figure: '', label: '', value: '' });
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Figures');
+  }
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
@@ -334,25 +415,29 @@ async function buildPptx(title, lines) {
  */
 export async function renderExport(format, ctx) {
   const { report, sources, claims, ledger, escrow, slug = 'report' } = ctx;
+  const figures = extractFigures(report?.markdown);
   if (format === 'md') {
-    const content = report?.markdown || '';
+    const content = [report?.markdown || '', ...receiptLines({ ledger, escrow })].join('\n');
     return { contentType: 'text/markdown', filename: `${slug}.md`, content, bytes: Buffer.byteLength(content) };
   }
   if (format === 'json') {
-    const content = JSON.stringify(packet(ctx), null, 2);
+    const content = JSON.stringify(packet({ ...ctx, figures }), null, 2);
     return { contentType: 'application/json', filename: `${slug}.json`, content, bytes: Buffer.byteLength(content) };
   }
   if (format === 'bibtex') {
     const content = bibtex(sources);
     return { contentType: 'application/x-bibtex', filename: `${slug}.bib`, content, bytes: Buffer.byteLength(content) };
   }
-  const lines = mdLines(report?.markdown);
+  // Text renderers read flattened lines: chart fences become captioned data
+  // rows instead of raw JSON. The settlement receipt rides along so the
+  // downloaded document is the official receipt, not just the prose.
+  const lines = [...mdLines(flattenFigures(report?.markdown)), ...receiptLines({ ledger, escrow })];
   if (format === 'pdf') {
     const buf = buildPdf(lines);
     return { contentType: 'application/pdf', filename: `${slug}.pdf`, content: buf.toString('base64'), encoding: 'base64', bytes: buf.length };
   }
   if (format === 'excel') {
-    const buf = buildXlsx({ report, sources, claims, ledger });
+    const buf = buildXlsx({ report, sources, claims, ledger, escrow, figures });
     return { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: `${slug}.xlsx`, content: buf.toString('base64'), encoding: 'base64', bytes: buf.length };
   }
   if (format === 'word') {

@@ -27,6 +27,7 @@ Each verdict is stapled to the exact canonical bytes it approved and re-checked 
 | `unlock_content` | pays a gated article/share and reads the body | $2 | yes — body joins the scorable set |
 | `pay_x402` | pays any x402-gated API, dataset, or tool | $2 | yes — response joins the set |
 | `tip_creator` | tips a decisive creator page via the hub tip rail | $1 | no — receipt only |
+| `rate_content` | rates 1–5 stars a relied-on Nibgate piece, onchain | gas only | no — rating receipt only |
 | `http_request` | free public APIs and feeds | $0 | yes |
 | `run_code` | sandbox compute (RPC reads, dataset crunching) | metered | yes — stdout |
 
@@ -38,7 +39,7 @@ Each verdict is stapled to the exact canonical bytes it approved and re-checked 
 4. **Dual-RPC check.** Before value moves, the chain is cross-checked across two RPC endpoints (chain id must match, height must agree) — a lying RPC can't feed the wallet a false reality.
 5. **JEV trust after.** Paid content is scored like any source — paying never buys credibility.
 
-Tips are proposed sparingly for decisive sources; free paths come first, and on spend tasks the loop funnels to the spend tool once free evidence is banked. Every cent draws from the run budget through the normal charge path, with transaction hashes on the step output and the tool-call events.
+Tips are proposed sparingly for decisive sources; free paths come first, and on spend tasks the loop funnels to the spend tool once free evidence is banked. Nibgate-first: a paywalled Nibgate or verified-creator piece directly on point is unlocked rather than worked around — paid primary sources beat free summaries — and pieces the report relied on get rated (the unlock payment tx is the required proof). Every cent draws from the run budget through the normal charge path, with transaction hashes on the step output and the tool-call events.
 
 ## Onchain enforcement
 

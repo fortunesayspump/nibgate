@@ -8,7 +8,12 @@ import { sumDb, toDb, toNum } from './units.js';
 export const FEE_BPS = 100;
 const ZERO = new Prisma.Decimal(0);
 
-// The ledger is append-only and the only source of truth for a balance.
+// The 1% platform fee accrues on every draw, but it is operator-side: the
+// escrow contract takes it from the operator's earned share at split time
+// (earned = spent − fee), so the client's refund is budget − spent, never
+// budget − spent − fee. Fee rows are the treasury's receivable memo —
+// reported, never subtracted from the client's balance — which keeps the
+// ledger exactly equal to what the chain moves at split.
 export async function budgetState(runId) {
   const entries = await db.budgetLedger.findMany({ where: { runId } });
   const total = (kind) => sumDb(entries.filter((e) => e.kind === kind).map((e) => e.amount));
@@ -16,7 +21,7 @@ export async function budgetState(runId) {
   const spend = total('spend');
   const fee = total('fee');
   const refunded = total('refund');
-  const used = spend.plus(fee);
+  const used = spend;
   return {
     deposited: toNum(deposited),
     spend: toNum(spend),

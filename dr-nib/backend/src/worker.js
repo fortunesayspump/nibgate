@@ -486,9 +486,10 @@ async function dataStage(runId, run, queries) {
   const available = ['http_request'];
   if (sandboxConfigured()) available.push('run_code');
   // Money, when the deployment gave the agent a wallet: the model may reach
-  // for paid sources and tip decisive creators, inside per-call ceilings and
-  // the run's own balance. No key, no spend tools — the prompt says so too.
-  if (isSpendConfigured()) available.push('tip_creator', 'unlock_content', 'pay_x402');
+  // for paid sources, rate what it relied on, and tip decisive creators,
+  // inside per-call ceilings and the run's own balance. No key, no spend
+  // tools — the prompt says so too.
+  if (isSpendConfigured()) available.push('tip_creator', 'unlock_content', 'pay_x402', 'rate_content');
   // The full loop, not a bare proposal: every call is schema-checked,
   // JEV-judged (execute/skip/answer with reasons), executed, and observed —
   // the same propose→judge→execute contract as the standalone agent.
@@ -759,6 +760,9 @@ async function writeStage(runId, run, guidance) {
     : await generateReportLong({
         brief,
         sections: (run.plan?.sub_questions?.length ? run.plan.sub_questions : [`Report on: ${brief.topic || 'the brief'}`]),
+        // References numbering must match the [n] chips: same trust-desc
+        // order the run GET returns (see routes/runs.js).
+        allSources: evidence,
         getEvidence: async (section) => {
           const found = await searchEvidence(runId, { query: section, limit: 6 });
           return found.matches.map((m) => {

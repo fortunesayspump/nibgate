@@ -71,8 +71,12 @@ ${evidence || '(no sources were collected)'}
 Write the report. Rules:
 - Every factual claim must cite its source as [n].
 - If a claim has no supporting source above, mark it "(unsupported)" rather than asserting it.
+- Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any source passage. A verification pass measures verbatim overlap and flags copied claims.
 - If the evidence does not answer part of the brief, say so plainly in plain words — one short paragraph on what IS covered and what IS missing. No meta-labels, no process narration.
 - Keep it readable: a short summary, then the sections the sub-questions imply.
+- Where the evidence contains comparable numbers (fees, rates, counts, dates), include a markdown comparison table labeled **Table N.** with a short title, referred to in the text ("see Table 1"). Number tables sequentially.
+- Where a comparison has a clear winner or ranking, ALSO emit one chart block per key comparison as a fenced chart object AFTER the table, exactly: \`\`\`chart {"type":"bar","title":"...","unit":"...","data":[{"label":"...","value":number}]} \`\`\` — at most 3 charts, 8 rows each, values plain numbers.
+- Structure (APA-adapted): title, then body sections with ## headings in logical order, then a ## Conclusion. Do NOT write an abstract, keywords line, or references list — those are assembled automatically from this report and its evidence.
 ${brief.perspective && brief.perspective !== 'neutral' ? `- Write from a ${brief.perspective} perspective.` : ''}`;
   return [
     { role: 'system', content: system },
@@ -104,6 +108,9 @@ ${formatEvidence(sources) || '(no sources were collected)'}
 Write this section in about ${targetWords} words — substantive depth is the point, not a summary. Rules:
 - Every factual claim must cite its source as [n], using the numbers above.
 - If a claim has no supporting source above, mark it "(unsupported)".
+- Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any excerpt above.
+- Where the evidence contains comparable numbers, include a markdown comparison table labeled **Table N.** with a short title, and refer to it in the text ("see Table 1"). Number tables sequentially through the section.
+- Where a comparison has a clear ranking, ALSO emit one fenced chart object after the table, exactly: \`\`\`chart {"type":"bar","title":"...","unit":"...","data":[{"label":"...","value":number}]} \`\`\` — at most 2 charts per section, 8 rows each.
 - If the evidence does not cover this section: one short paragraph in plain words saying what IS covered and what IS missing. No meta-labels ("non-coverage", "finding", "scope gap"), no narration of your own process — the reader wants the gap, not the audit trail.
 - Do not write an introduction or conclusion for the whole report — only this section.
 ${brief.perspective && brief.perspective !== 'neutral' ? `- Write from a ${brief.perspective} perspective.` : ''}`;
@@ -165,7 +172,7 @@ The report will cover these sections, in order:
 
 ${sections.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
-Write the introduction in about ${targetWords} words: what was asked, why it matters, and a roadmap of what follows. State no findings — the sections argue those. No citations needed here.`;
+Write the introduction in about ${targetWords} words: what was asked, why it matters, and a roadmap of what follows. State no findings — the sections argue those. No citations needed here. Do not write an abstract — it is assembled separately.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },
@@ -182,7 +189,7 @@ Each section below ended with its own findings. Synthesize across them — do no
 
 ${sectionSummaries.map((s, i) => `Section ${i + 1} found: ${s}`).join('\n')}
 
-Write the conclusion in about ${targetWords} words.`;
+Write the conclusion in about ${targetWords} words. Do not append a references list — it is assembled separately.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },
@@ -231,7 +238,7 @@ In ONE sentence, say what you took from that answer and what it changes about th
 export function directDataMessages({ brief, queries = [], tools = [] } = {}) {
   const system = `${RESEARCH_SYSTEM} You reach for primary data, not prose. Return JSON only.`;
   const canCode = tools.includes('run_code');
-  const canSpend = tools.some((t) => ['tip_creator', 'unlock_content', 'pay_x402'].includes(t));
+  const canSpend = tools.some((t) => ['tip_creator', 'unlock_content', 'pay_x402', 'rate_content'].includes(t));
   const user = `Brief:
 ${briefSummary(brief)}
 
@@ -243,11 +250,11 @@ Propose up to 3 direct calls to primary sources. Prefer stable, keyless public e
 public CSV/JSON datasets). Each call must be plausibly load-bearing for the brief —
 no fishing, no duplicates.
 ${canCode ? 'You may also propose run_code commands (isolated Linux VM: curl, python3, jq available) to query RPC endpoints or crunch a downloaded dataset.' : 'Sandbox compute is unavailable on this deployment: http_request calls only.'}
-${canSpend ? `Money is available from the run budget, capped per call: unlock_content pays for a gated article/share and returns its body (use when the evidence needs what's behind the paywall), pay_x402 pays any x402-gated API or dataset, tip_creator tips a decisive creator page (max $1, use sparingly — a receipt, not evidence). Every cent draws from the same budget; propose spend only when free paths cannot get it.` : 'No spending money is configured on this deployment: propose http_request/run_code only, never tips or paid unlocks.'}
+${canSpend ? `Money is available from the run budget, capped per call: unlock_content pays for a gated article/share and returns its body (use when the evidence needs what's behind the paywall), pay_x402 pays any x402-gated API or dataset, tip_creator tips a decisive creator page (max $1, use sparingly — a receipt, not evidence), rate_content rates 1-5 stars a Nibgate piece the evidence relied on (needs the unlock_content payment tx as unlockRef). Nibgate-first: when search surfaces a Nibgate-hosted or verified-creator piece directly on point, prefer unlocking the real thing over settling for excerpts — paid primary sources beat free summaries. Every cent draws from the same budget; propose spend only when free paths cannot get it.` : 'No spending money is configured on this deployment: propose http_request/run_code only, never tips or paid unlocks.'}
 
 Return JSON with exactly this shape:
 {
-  "calls": [{"tool": "http_request" | "run_code" | "tip_creator" | "unlock_content" | "pay_x402", "input": {"method": "GET", "url": "https://..."} | {"command": "..."} | {"contentUrl": "https://...", "amount": 0.25} | {"url": "https://..."}, "why": "one line: what this settles"}]
+  "calls": [{"tool": "http_request" | "run_code" | "tip_creator" | "unlock_content" | "pay_x402" | "rate_content", "input": {"method": "GET", "url": "https://..."} | {"command": "..."} | {"contentUrl": "https://...", "amount": 0.25} | {"url": "https://..."} | {"contentId": "...", "stars": 5, "unlockRef": "0x..."}, "why": "one line: what this settles"}]
 }
 http_request input: method (GET/POST/HEAD), url (required, public https only), optional headers/body.
 run_code input: command (required, one shell line) or code+language. Empty calls array if nothing suitable exists.

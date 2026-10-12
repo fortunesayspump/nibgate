@@ -110,6 +110,11 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
                   Settle tx ↗
                 </a>
               ) : null}
+              {esc?.splitTx ? (
+                <a href={explorerTxUrl(esc.splitTx)} target="_blank" rel="noreferrer" className="text-xs font-medium underline opacity-60 hover:opacity-100">
+                  Funds tx ↗
+                </a>
+              ) : null}
               {Number(run.refunded ?? 0) > 0 ? (
                 <span className="text-xs opacity-60">${Number(run.refunded).toFixed(2)} refunded</span>
               ) : null}

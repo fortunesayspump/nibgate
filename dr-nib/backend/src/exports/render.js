@@ -3,16 +3,26 @@
 //
 // Text formats are dependency-light: md (the raw report), json (the evidence
 // packet: report + sources + claims + ledger state), bibtex (the cited
-// sources as @misc entries). Binary formats are rendered here too:
-//   - pdf    a dependency-free, text-only PDF (Helvetica, no compression)
-//   - word   a minimal WordprocessingML package built with jszip
-//   - excel  a real .xlsx workbook (SheetJS) with Report/Claims/Sources sheets
-//   - powerpoint a minimal PresentationML deck (jszip), title + body slides
-// Binary results are returned base64-encoded (`encoding: 'base64'`) so the
-// JSON route can carry them without object storage; R2 streaming is a later
-// optimization, not a correctness requirement.
+// sources as @misc entries). Rich formats are built with real document
+// libraries, not string-concatenated XML:
+//   - pdf    pdfkit: headings, wrapped body text with bold/italic runs,
+//            bulleted lists, tables, page numbers (WinAnsi-safe text)
+//   - word   docx: real Heading styles, bold/italic/code runs, hyperlinks,
+//            bullet + numbered lists, header-shaded tables
+//   - excel  SheetJS: Report/Claims/Sources/Ledger/Figures sheets with the
+//            report laid out as sections and tables as real grids
+//   - powerpoint  pptxgenjs: title slide, one slide per section (bullets,
+//            tables), receipt + key-sources closing slides
+// One shared markdown→blocks parser feeds every rich renderer so Word,
+// slides, and PDF agree on structure. Binary results are returned
+// base64-encoded (`encoding: 'base64'`) so the JSON route can carry them
+// without object storage; R2 streaming is a later optimization, not a
+// correctness requirement.
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, ExternalHyperlink, Table, TableRow, TableCell, WidthType, AlignmentType, Numbering, LevelFormat } from 'docx';
+import pptxgen from 'pptxgenjs';
+import PDFDocument from 'pdfkit';
 
 export const TEXT_FORMATS = new Set(['md', 'json', 'bibtex']);
 export const BINARY_FORMATS = new Set(['pdf', 'word', 'excel', 'powerpoint']);
@@ -141,90 +151,345 @@ export function flattenFigures(markdown) {
   });
 }
 
-// ── PDF ──────────────────────────────────────────────────────────────────
-// A tiny, valid, uncompressed PDF: one Helvetica font, one content stream per
-// page, a correct cross-reference table. Text-only (no images, no reflow);
-// non-ASCII characters fall back to '?' rather than corrupting the stream.
-function pdfEscape(s) {
-  return String(s)
-    .replace(/[^\x20-\x7E]/g, '?')
-    .replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+// ── Shared markdown → blocks ─────────────────────────────────────────────
+// Headings, paragraphs with inline runs, bullet/numbered lists, tables,
+// quotes, and code — parsed once so every rich renderer (Word, slides, PDF,
+// Excel) works from structure instead of dumping raw markdown lines.
+export function parseInline(text) {
+  const segs = [];
+  const re = /(\*\*.+?\*\*|\*[^*\n]+?\*|`[^`\n]+?`|\[[^\]\n]+\]\([^)\n]+\))/g;
+  let last = 0;
+  let m;
+  const push = (t, extra = {}) => { if (t) segs.push({ t, ...extra }); };
+  while ((m = re.exec(String(text || '')))) {
+    push(String(text).slice(last, m.index));
+    const tok = m[0];
+    if (tok.startsWith('**')) push(tok.slice(2, -2), { b: true });
+    else if (tok.startsWith('*')) push(tok.slice(1, -1), { i: true });
+    else if (tok.startsWith('`')) push(tok.slice(1, -1), { code: true });
+    else {
+      const link = /^\[([^\]\n]+)\]\(([^)\n]+)\)$/.exec(tok);
+      if (link) push(link[1], { link: link[2] });
+      else push(tok);
+    }
+    last = m.index + tok.length;
+  }
+  push(String(text || '').slice(last));
+  return segs.length ? segs : [{ t: String(text || '') }];
 }
 
-function buildPdf(lines) {
-  const perPage = 45;
-  const chunks = [];
-  const src = lines.length ? lines : [''];
-  for (let i = 0; i < src.length; i += perPage) chunks.push(src.slice(i, i + perPage));
+const inlineText = (segs) => (segs || []).map((s) => s.t).join('');
 
-  const objects = [];
-  const pageNums = [];
-  let next = 4;
-  const pages = chunks.map((chunk) => {
-    const pageNum = next++;
-    const contentNum = next++;
-    pageNums.push(pageNum);
-    const text = chunk.map((l) => `(${pdfEscape(l)}) Tj T*`).join('\n');
-    const stream = `BT\n/F1 11 Tf\n54 738 Td\n15 TL\n${text}\nET`;
-    return { pageNum, contentNum, stream };
+function splitTableRow(line) {
+  return String(line).trim().replace(/^\||\|$/g, '').split('|').map((c) => inlineText(parseInline(c.trim())));
+}
+
+export function parseBlocks(lines) {
+  const blocks = [];
+  const src = Array.isArray(lines) ? lines : mdLines(lines);
+  let i = 0;
+  while (i < src.length) {
+    const line = src[i];
+    const t = line.trim();
+    if (!t) { i += 1; continue; }
+    const fence = /^```/.exec(t);
+    if (fence) {
+      const code = [];
+      i += 1;
+      while (i < src.length && !/^```/.test(src[i].trim())) { code.push(src[i]); i += 1; }
+      i += 1;
+      if (code.length) blocks.push({ t: 'code', text: code.join('\n') });
+      continue;
+    }
+    const h = /^(#{1,6})\s+(.*)$/.exec(t);
+    if (h) { blocks.push({ t: 'h', level: Math.min(3, h[1].length), text: h[2].trim() }); i += 1; continue; }
+    if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(t)) { blocks.push({ t: 'hr' }); i += 1; continue; }
+    if (/^\|.*\|\s*$/.test(t)) {
+      const rows = [];
+      while (i < src.length && /^\|.*\|\s*$/.test(src[i].trim())) { rows.push(src[i]); i += 1; }
+      const isSep = (r) => /^\|?[\s:|-]+\|?[\s:|.-]*$/.test(r.trim()) && /-{2,}/.test(r);
+      let head = [];
+      let body = rows;
+      if (rows.length > 1 && isSep(rows[1])) { head = splitTableRow(rows[0]); body = rows.slice(2); }
+      blocks.push({ t: 'table', head, rows: body.map(splitTableRow).filter((r) => r.some((c) => c)) });
+      continue;
+    }
+    const ul = /^[-*]\s+(.*)$/.exec(t);
+    if (ul) {
+      const items = [];
+      while (i < src.length) {
+        const m2 = /^[-*]\s+(.*)$/.exec(src[i].trim());
+        if (!m2) break;
+        items.push(parseInline(m2[1]));
+        i += 1;
+      }
+      blocks.push({ t: 'ul', items });
+      continue;
+    }
+    const ol = /^\d+[.)]\s+(.*)$/.exec(t);
+    if (ol) {
+      const items = [];
+      while (i < src.length) {
+        const m3 = /^\d+[.)]\s+(.*)$/.exec(src[i].trim());
+        if (!m3) break;
+        items.push(parseInline(m3[1]));
+        i += 1;
+      }
+      blocks.push({ t: 'ol', items });
+      continue;
+    }
+    if (/^>\s?/.test(t)) {
+      const qs = [];
+      while (i < src.length && /^>\s?/.test(src[i].trim())) { qs.push(src[i].trim().replace(/^>\s?/, '')); i += 1; }
+      blocks.push({ t: 'quote', segs: parseInline(qs.join(' ')) });
+      continue;
+    }
+    blocks.push({ t: 'p', segs: parseInline(t) });
+    i += 1;
+  }
+  return blocks;
+}
+
+/** The settlement receipt as blocks (not raw lines) so rich renderers lay it
+ * out as a real section. receiptLines() stays for the .md export. */
+export function receiptBlocks({ ledger, escrow } = {}) {
+  const fmt = (n, d = 2) => Number(n ?? 0).toFixed(d);
+  const items = [
+    `Deposited: $${fmt(ledger?.deposited)}`,
+    `Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee, 4)} protocol fee, taken from the operator share)` : ''}`,
+    `Refunded: $${fmt(ledger?.refunded)}`,
+  ];
+  if (escrow?.jobId) {
+    items.push(`Escrow job ${escrow.jobId} · ${escrow.status || 'settled'}`);
+    if (escrow.completeTx) items.push(`Settle tx: ${escrow.completeTx}`);
+    if (escrow.splitTx) items.push(`Funds tx: ${escrow.splitTx}`);
+    else items.push('Funds tx: pending (split not yet executed onchain)');
+  } else {
+    items.push('Ledger run — no onchain escrow.');
+  }
+  return [{ t: 'h', level: 2, text: 'Settlement receipt' }, { t: 'ul', items: items.map(parseInline) }];
+}
+
+// ── PDF (pdfkit) ─────────────────────────────────────────────────────────
+// Real typesetting: sized headings, wrapped body text with bold/italic/code
+// runs, indented bullets, simple ruled tables, page numbers. Standard
+// Helvetica covers WinAnsi only, so non-WinAnsi glyphs (arrows, stars,
+// checks, emoji) are mapped to ASCII equivalents rather than silently
+// dropping to .notdef boxes.
+const PDF_SAFE = new Map(Object.entries({
+  '→': '->', '←': '<-', '↑': '^', '↓': 'v', '↔': '<->',
+  '✓': '[ok]', '✗': '[x]', '✘': '[x]', '★': '*', '☆': '*', '●': '-', '○': '-',
+  '“': '"', '”': '"', '‘': "'", '’': "'", '«': '"', '»': '"',
+  '—': '--', '–': '-', '…': '...', '•': '-', '·': '-', '×': 'x', '÷': '/',
+  '€': 'EUR', '£': 'GBP', '¥': 'JPY',
+}));
+const pdfSafe = (s) => String(s ?? '').replace(/[^\x20-\x7E\xA0-\xFF]/g, (c) => PDF_SAFE.get(c) ?? '?');
+
+function pdfSegs(doc, segs, { size = 11, gap = 6 } = {}) {
+  const list = segs && segs.length ? segs : [{ t: '' }];
+  list.forEach((s, idx) => {
+    const last = idx === list.length - 1;
+    doc.font(s.code ? 'Courier' : s.b ? 'Helvetica-Bold' : s.i ? 'Helvetica-Oblique' : 'Helvetica')
+      .fontSize(size);
+    const opts = last ? {} : { continued: true };
+    if (s.link) opts.link = s.link;
+    if (s.code) opts.backgroundColor = undefined;
+    doc.text(pdfSafe(s.t), opts);
   });
-
-  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-  objects[2] = `<< /Type /Pages /Kids [${pageNums.map((n) => `${n} 0 R`).join(' ')}] /Count ${pageNums.length} >>`;
-  objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-  for (const p of pages) {
-    objects[p.pageNum] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${p.contentNum} 0 R >>`;
-    objects[p.contentNum] = `<< /Length ${Buffer.byteLength(p.stream, 'latin1')} >>\nstream\n${p.stream}\nendstream`;
-  }
-
-  let out = '%PDF-1.4\n';
-  const offsets = [];
-  for (let i = 1; i < objects.length; i += 1) {
-    offsets[i] = Buffer.byteLength(out, 'latin1');
-    out += `${i} 0 obj\n${objects[i]}\nendobj\n`;
-  }
-  const xrefStart = Buffer.byteLength(out, 'latin1');
-  const count = objects.length;
-  out += `xref\n0 ${count}\n0000000000 65535 f \n`;
-  for (let i = 1; i < count; i += 1) out += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
-  out += `trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-  return Buffer.from(out, 'latin1');
+  doc.moveDown(gap / 12);
 }
 
-// ── Word (.docx) ─────────────────────────────────────────────────────────
-async function buildDocx(lines) {
-  const paragraphs = lines
-    .map((l) => `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(l)}</w:t></w:r></w:p>`)
-    .join('');
-  const document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-    + `<w:body>${paragraphs}<w:sectPr/></w:body></w:document>`;
-  const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-    + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-    + '<Default Extension="xml" ContentType="application/xml"/>'
-    + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-    + '</Types>';
-  const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
-    + '</Relationships>';
-  const zip = new JSZip();
-  zip.file('[Content_Types].xml', contentTypes);
-  zip.folder('_rels').file('.rels', rels);
-  zip.folder('word').file('document.xml', document);
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+function buildPdf(blocks, { title = 'Dr. Nib report' } = {}) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ compress: false, margin: 54, info: { Title: pdfSafe(title), Author: 'Dr. Nib' } });
+    const chunks = [];
+    doc.on('data', (c) => chunks.push(c));
+    doc.on('error', reject);
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    const footnote = () => {
+      const n = doc.bufferedPageRange().count;
+      for (let p = 0; p < n; p += 1) {
+        doc.switchToPage(p);
+        doc.font('Helvetica').fontSize(8).fillColor('#888888')
+          .text(`p. ${p + 1} / ${n}`, 54, doc.page.height - 40, { align: 'center', width: doc.page.width - 108 });
+        doc.fillColor('#000000');
+      }
+    };
+    doc.bufferPages = true;
+    let firstH1 = true;
+    for (const b of blocks) {
+      if (b.t === 'h') {
+        if (b.level === 1 && !firstH1) doc.addPage();
+        firstH1 = false;
+        const size = b.level === 1 ? 20 : b.level === 2 ? 15 : 12.5;
+        doc.font('Helvetica-Bold').fontSize(size);
+        doc.text(pdfSafe(b.text), { paragraphGap: 4 });
+        doc.moveDown(0.35);
+      } else if (b.t === 'p' || b.t === 'quote') {
+        if (b.t === 'quote') doc.fillColor('#444444');
+        pdfSegs(doc, b.segs);
+        doc.fillColor('#000000');
+      } else if (b.t === 'ul' || b.t === 'ol') {
+        b.items.forEach((segs, idx) => {
+          const marker = b.t === 'ul' ? '•  ' : `${idx + 1}.  `;
+          doc.font('Helvetica').fontSize(11).text(marker, { indent: 18, continued: true, paragraphGap: 2 });
+          doc.x += 0;
+          pdfSegs(doc, segs, { size: 11, gap: 3 });
+        });
+        doc.moveDown(0.25);
+      } else if (b.t === 'table') {
+        const cols = Math.max(b.head.length, ...b.rows.map((r) => r.length), 1);
+        const w = (doc.page.width - 108) / cols;
+        const y0 = doc.y;
+        if (doc.y > doc.page.height - 120) doc.addPage();
+        const row = (cells, bold) => {
+          let x = 54;
+          const y = doc.y;
+          let h = 14;
+          doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9.5);
+          const heights = cells.map((c, ci) => doc.heightOfString(pdfSafe(c), { width: w - 8 }));
+          h = Math.max(14, ...heights) + 6;
+          if (y + h > doc.page.height - 60) { doc.addPage(); return row(cells, bold); }
+          cells.forEach((c, ci) => {
+            doc.rect(x + ci * w, doc.y, w, h).stroke('#999999');
+            if (bold) doc.rect(x + ci * w, doc.y, w, h).fillOpacity(0.08).fill('#000000').fillOpacity(1);
+            doc.text(pdfSafe(c), x + ci * w + 4, doc.y + 3, { width: w - 8 });
+          });
+          doc.y = y + h;
+          doc.x = 54;
+        };
+        if (b.head.length) row(b.head, true);
+        for (const r of b.rows) row(Array.from({ length: cols }, (_, ci) => r[ci] ?? ''), false);
+        doc.moveDown(0.5);
+        void y0;
+      } else if (b.t === 'code') {
+        doc.font('Courier').fontSize(9).fillColor('#222222');
+        for (const l of String(b.text).split('\n')) doc.text(pdfSafe(l), { paragraphGap: 1 });
+        doc.fillColor('#000000');
+        doc.moveDown(0.4);
+      } else if (b.t === 'hr') {
+        doc.moveDown(0.3);
+        doc.moveTo(54, doc.y).lineTo(doc.page.width - 54, doc.y).stroke('#999999');
+        doc.moveDown(0.3);
+      }
+    }
+    footnote();
+    doc.end();
+  });
 }
 
-// ── Excel (.xlsx) ────────────────────────────────────────────────────────
-function buildXlsx({ report, sources, claims, ledger, escrow, figures }) {
+// ── Word (.docx, via the `docx` library) ──────────────────────────────────
+// Real Word structure: Heading 1-3 styles, bold/italic/code runs, external
+// hyperlinks, bulleted + numbered lists, header-shaded tables. Nothing
+// markdown-shaped survives into the document.
+function docxRuns(segs) {
+  const out = [];
+  for (const s of segs || []) {
+    if (!s.t) continue;
+    if (s.link) {
+      out.push(new ExternalHyperlink({
+        link: s.link,
+        children: [new TextRun({ text: s.t, style: 'Hyperlink', bold: !!s.b, italics: !!s.i })],
+      }));
+    } else {
+      out.push(new TextRun({
+        text: s.t, bold: !!s.b, italics: !!s.i,
+        font: s.code ? 'Consolas' : undefined,
+        shading: s.code ? { fill: 'F2F2F2' } : undefined,
+      }));
+    }
+  }
+  return out.length ? out : [new TextRun('')];
+}
+
+const docxNumberingConfig = {
+  config: [{
+    reference: 'drnib-decimal',
+    levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.START }],
+  }],
+};
+
+function docxTable(head, rows) {
+  const cell = (text, header) => new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text: String(text ?? ''), bold: header })] })],
+    shading: header ? { fill: 'D9E2F3' } : undefined,
+    width: { size: 100 / Math.max(1, Math.max(head.length, ...rows.map((r) => r.length))), type: WidthType.PERCENTAGE },
+  });
+  const trs = [];
+  if (head.length) trs.push(new TableRow({ children: head.map((c) => cell(c, true)), tableHeader: true }));
+  for (const r of rows) {
+    const width = Math.max(head.length, r.length);
+    trs.push(new TableRow({ children: Array.from({ length: width }, (_, i) => cell(r[i] ?? '', false)) }));
+  }
+  return new Table({ rows: trs, width: { size: 100, type: WidthType.PERCENTAGE } });
+}
+
+async function buildDocx(blocks, { title = 'Dr. Nib report' } = {}) {
+  const children = [];
+  for (const b of blocks) {
+    if (b.t === 'h') {
+      children.push(new Paragraph({
+        heading: b.level === 1 ? HeadingLevel.HEADING_1 : b.level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3,
+        children: [new TextRun(b.text)],
+      }));
+    } else if (b.t === 'p') {
+      children.push(new Paragraph({ children: docxRuns(b.segs), spacing: { after: 160 } }));
+    } else if (b.t === 'quote') {
+      children.push(new Paragraph({
+        children: docxRuns(b.segs),
+        indent: { left: 720 },
+        shading: { fill: 'F2F2F2' },
+        spacing: { after: 160 },
+      }));
+    } else if (b.t === 'ul') {
+      for (const item of b.items) children.push(new Paragraph({ bullet: { level: 0 }, children: docxRuns(item) }));
+    } else if (b.t === 'ol') {
+      for (const item of b.items) children.push(new Paragraph({ numbering: { reference: 'drnib-decimal', level: 0 }, children: docxRuns(item) }));
+    } else if (b.t === 'table') {
+      if (b.head.length || b.rows.length) children.push(docxTable(b.head, b.rows));
+    } else if (b.t === 'code') {
+      for (const l of String(b.text).split('\n')) {
+        children.push(new Paragraph({ children: [new TextRun({ text: l || ' ', font: 'Consolas', size: 18 })], shading: { fill: 'F2F2F2' } }));
+      }
+    }
+  }
+  if (!children.length) children.push(new Paragraph({ children: [new TextRun('')] }));
+  const doc = new Document({
+    numbering: docxNumberingConfig,
+    sections: [{ children }],
+    title,
+    creator: 'Dr. Nib',
+  });
+  return Packer.toBuffer(doc);
+}
+
+// ── Excel (.xlsx, SheetJS) ───────────────────────────────────────────────
+// The report as sections: headings as labeled rows, paragraphs one row
+// each, markdown tables as real grids, lists as bulleted rows — plus the
+// Claims/Sources/Ledger/Figures evidence sheets.
+function buildXlsx({ report, sources, claims, ledger, escrow, figures, blocks = [] }) {
   const wb = XLSX.utils.book_new();
-  const reportSheet = XLSX.utils.aoa_to_sheet([
+  const rows = [
     ['Dr. Nib report', `v${report?.version ?? ''}`],
     ['Exported', new Date().toISOString()],
     [],
-    ...mdLines(report?.markdown).map((l) => [l]),
+  ];
+  for (const b of blocks) {
+    if (b.t === 'h') rows.push([b.text]);
+    else if (b.t === 'p' || b.t === 'quote') rows.push([inlineText(b.segs)]);
+    else if (b.t === 'ul') for (const item of b.items) rows.push([`• ${inlineText(item)}`]);
+    else if (b.t === 'ol') b.items.forEach((item, i) => rows.push([`${i + 1}. ${inlineText(item)}`]));
+    else if (b.t === 'table') {
+      if (b.head.length) rows.push(b.head);
+      for (const r of b.rows) rows.push(r);
+    } else if (b.t === 'code') for (const l of String(b.text).split('\n')) rows.push([l]);
+    rows.push([]);
+  }
+  const reportSheet = XLSX.utils.aoa_to_sheet(rows.length > 3 ? rows : [
+    ['Dr. Nib report', `v${report?.version ?? ''}`],
+    ['Exported', new Date().toISOString()],
   ]);
+  reportSheet['!cols'] = [{ wch: 130 }];
   XLSX.utils.book_append_sheet(wb, reportSheet, 'Report');
   const claimSheet = XLSX.utils.json_to_sheet(
     (claims || []).map((c) => ({ claim: c.text, status: c.status })),
@@ -256,155 +521,108 @@ function buildXlsx({ report, sources, claims, ledger, escrow, figures }) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-// ── PowerPoint (.pptx) ───────────────────────────────────────────────────
-const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
-const P_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main';
-const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+// ── PowerPoint (.pptx, via pptxgenjs) ─────────────────────────────────────
+// A real deck: title slide, one slide per section (headings become slide
+// titles, lists become bullets, tables become tables), receipt + key-sources
+// closing slides. Long sections paginate into (cont.) slides.
+const PPTX_MAX_BODY = 7;
 
-function pptShapeTree(children) {
-  return '<p:spTree>'
-    + '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
-    + '<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
-    + children
-    + '</p:spTree>';
+function pptxSegs(segs) {
+  return (segs || []).map((s) => ({
+    text: s.t,
+    options: {
+      ...(s.b ? { bold: true } : {}),
+      ...(s.i ? { italic: true } : {}),
+      ...(s.code ? { fontFace: 'Consolas' } : {}),
+      ...(s.link ? { hyperlink: { url: s.link } } : {}),
+    },
+  }));
 }
 
-function titleShape(text) {
-  return '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/>'
-    + '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>'
-    + '<p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr/>'
-    + '<p:txBody><a:bodyPr/><a:lstStyle/>'
-    + `<a:p><a:r><a:rPr lang="en-US"/><a:t>${xmlEscape(text)}</a:t></a:r></a:p>`
-    + '</p:txBody></p:sp>';
-}
+async function buildPptx({ title, blocks, sources = [], receipt = [], subtitle = '' }) {
+  const pptx = new pptxgen();
+  pptx.defineLayout({ name: 'WIDE', width: 13.33, height: 7.5 });
+  pptx.layout = 'WIDE';
+  pptx.author = 'Dr. Nib';
 
-function bodyShape(lines) {
-  const paras = [''].concat(lines).map((l) => (
-    l === ''
-      ? '<a:p/>'
-      : `<a:p><a:r><a:rPr lang="en-US"/><a:t>${xmlEscape(l)}</a:t></a:r></a:p>`
-  )).join('');
-  return '<p:sp><p:nvSpPr><p:cNvPr id="3" name="Body"/>'
-    + '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>'
-    + '<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/>'
-    + `<p:txBody><a:bodyPr/><a:lstStyle/>${paras}</p:txBody></p:sp>`;
-}
+  const cover = pptx.addSlide();
+  cover.background = { color: '10110D' };
+  cover.addText(title, { x: 0.7, y: 2.2, w: 11.9, h: 1.4, fontSize: 40, bold: true, color: 'F4F4F0', align: 'left' });
+  if (subtitle) cover.addText(subtitle, { x: 0.7, y: 3.8, w: 11.9, h: 0.8, fontSize: 18, color: 'B9B2A6' });
 
-function slideXml(title, lines) {
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + `<p:sld xmlns:a="${A_NS}" xmlns:r="${R_NS}" xmlns:p="${P_NS}">`
-    + `<p:cSld>${pptShapeTree(titleShape(title) + bodyShape(lines))}</p:cSld>`
-    + '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>';
-}
+  const bodySlide = (slideTitle, items, continued) => {
+    const s = pptx.addSlide();
+    s.addText(slideTitle + (continued ? ' (cont.)' : ''), { x: 0.5, y: 0.25, w: 12.3, h: 0.7, fontSize: 24, bold: true, color: '10110D' });
+    let y = 1.15;
+    for (const item of items) {
+      if (item.table) {
+        const rows = [
+          ...(item.table.head.length ? [[...item.table.head.map((c) => ({ text: String(c), options: { bold: true, fill: { color: 'D9E2F3' } } }))]] : []),
+          ...item.table.rows.map((r) => r.map((c) => ({ text: String(c ?? '') }))),
+        ];
+        const ncols = Math.max(...rows.map((r) => r.length), 1);
+        s.addTable(rows, {
+          x: 0.5, y, w: 12.3,
+          colW: Array.from({ length: ncols }, () => 12.3 / ncols),
+          fontSize: 11, border: { type: 'solid', color: '999999', pt: 0.75 },
+          margin: 0.05,
+        });
+        y += 0.45 + rows.length * 0.38;
+      } else {
+        s.addText(item.text, { x: 0.5, y, w: 12.3, h: 5.5, fontSize: item.code ? 12 : 15, fontFace: item.code ? 'Consolas' : 'Calibri', color: item.muted ? '555555' : '10110D', bullet: item.bullet || undefined, breakLine: true, paragraphSpacing: 6 });
+        y += 0.3 + (Array.isArray(item.text) ? item.text.length : 1) * 0.32;
+      }
+    }
+  };
 
-function themeXml() {
-  const accent = (n, hex) => `<a:accent${n}><a:srgbClr val="${hex}"/></a:accent${n}>`;
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + `<a:theme xmlns:a="${A_NS}" name="Office Theme"><a:themeElements>`
-    + '<a:clrScheme name="Office">'
-    + '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'
-    + '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'
-    + '<a:dk2><a:srgbClr val="44546A"/></a:dk2><a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>'
-    + accent(1, '4472C4') + accent(2, 'ED7D31') + accent(3, 'A5A5A5')
-    + accent(4, 'FFC000') + accent(5, '5B9BD5') + accent(6, '70AD47')
-    + '<a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink>'
-    + '</a:clrScheme>'
-    + '<a:fontScheme name="Office">'
-    + '<a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'
-    + '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>'
-    + '</a:fontScheme>'
-    + '<a:fmtScheme name="Office">'
-    + '<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
-    + '<a:lnStyleLst><a:ln w="6350" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="12700" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="19050" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln></a:lnStyleLst>'
-    + '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'
-    + '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>'
-    + '</a:fmtScheme></a:themeElements></a:theme>';
-}
+  // Group blocks into sections split on h2 (h1/h3 ride as titled text).
+  const sections = [];
+  let cur = { title, items: [] };
+  const pushText = (text, extra = {}) => {
+    const last = cur.items[cur.items.length - 1];
+    if (last && last.merge && !last.table && !extra.table) last.text = last.text.concat(text);
+    else cur.items.push({ text, merge: true, ...extra });
+  };
+  for (const b of blocks) {
+    if (b.t === 'h' && b.level === 2) {
+      if (cur.items.length) sections.push(cur);
+      cur = { title: b.text, items: [] };
+    } else if (b.t === 'h') {
+      pushText([{ text: b.text, options: { bold: true } }]);
+    } else if (b.t === 'p' || b.t === 'quote') {
+      pushText(pptxSegs(b.segs), b.t === 'quote' ? { muted: true } : {});
+    } else if (b.t === 'ul') {
+      for (const item of b.items) cur.items.push({ text: pptxSegs(item), bullet: { indent: 18 }, merge: false });
+    } else if (b.t === 'ol') {
+      b.items.forEach((item, i) => cur.items.push({ text: [{ text: `${i + 1}.  `, options: { bold: true } }, ...pptxSegs(item)], merge: false }));
+    } else if (b.t === 'table') {
+      if (b.head.length || b.rows.length) cur.items.push({ table: { head: b.head, rows: b.rows }, merge: false });
+    } else if (b.t === 'code') {
+      pushText([{ text: b.text, options: { fontFace: 'Consolas' } }], { code: true });
+    }
+  }
+  if (cur.items.length) sections.push(cur);
+  if (!sections.length) sections.push({ title, items: [{ text: [{ text: '' }], merge: false }] });
 
-async function buildPptx(title, lines) {
-  const perSlide = 12;
-  const chunks = [];
-  const src = lines.length ? lines : [''];
-  for (let i = 0; i < src.length; i += perSlide) chunks.push(src.slice(i, i + perSlide));
-  const slideCount = chunks.length;
+  for (const sec of sections) {
+    const items = sec.items.length ? sec.items : [{ text: [{ text: '' }], merge: false }];
+    for (let k = 0; k < items.length; k += PPTX_MAX_BODY) {
+      bodySlide(sec.title, items.slice(k, k + PPTX_MAX_BODY), k > 0);
+    }
+  }
 
-  // rId1 = slide master (presentation rels); slides start at rId2.
-  const slideRelIds = chunks.map((_, i) => `rId${i + 2}`);
-  const presentation = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + `<p:presentation xmlns:a="${A_NS}" xmlns:r="${R_NS}" xmlns:p="${P_NS}">`
-    + '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>'
-    + '<p:sldIdLst>'
-    + chunks.map((_, i) => `<p:sldId id="${256 + i}" r:id="${slideRelIds[i]}"/>`).join('')
-    + '</p:sldIdLst>'
-    + '<p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/>'
-    + '</p:presentation>';
-
-  const presentationRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
-    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>'
-    + chunks.map((_, i) => `<Relationship Id="${slideRelIds[i]}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i + 1}.xml"/>`).join('')
-    + '</Relationships>';
-
-  const clrMap = 'bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"';
-  const master = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + `<p:sldMaster xmlns:a="${A_NS}" xmlns:r="${R_NS}" xmlns:p="${P_NS}">`
-    + `<p:cSld>${pptShapeTree(titleShape('Title') + bodyShape(['Body']))}</p:cSld>`
-    + `<p:clrMap ${clrMap}/>`
-    + '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
-    + '</p:sldMaster>';
-
-  const masterRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
-    + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>'
-    + '</Relationships>';
-
-  const layout = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + `<p:sldLayout xmlns:a="${A_NS}" xmlns:r="${R_NS}" xmlns:p="${P_NS}" type="titleAndContent" preserve="1">`
-    + `<p:cSld name="Title and Content">${pptShapeTree(titleShape('Title') + bodyShape(['Body']))}</p:cSld>`
-    + '<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>';
-
-  const layoutRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>'
-    + '</Relationships>';
-
-  const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-    + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-    + '<Default Extension="xml" ContentType="application/xml"/>'
-    + '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'
-    + '<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>'
-    + '<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>'
-    + '<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'
-    + chunks.map((_, i) => `<Override PartName="/ppt/slides/slide${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join('')
-    + '</Types>';
-
-  const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-    + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>'
-    + '</Relationships>';
-
-  const zip = new JSZip();
-  zip.file('[Content_Types].xml', contentTypes);
-  zip.folder('_rels').file('.rels', rootRels);
-  zip.folder('ppt').file('presentation.xml', presentation);
-  zip.folder('ppt').folder('_rels').file('presentation.xml.rels', presentationRels);
-  zip.folder('ppt').folder('slideMasters').file('slideMaster1.xml', master);
-  zip.folder('ppt').folder('slideMasters').folder('_rels').file('slideMaster1.xml.rels', masterRels);
-  zip.folder('ppt').folder('slideLayouts').file('slideLayout1.xml', layout);
-  zip.folder('ppt').folder('slideLayouts').folder('_rels').file('slideLayout1.xml.rels', layoutRels);
-  zip.folder('ppt').folder('theme').file('theme1.xml', themeXml());
-  chunks.forEach((chunk, i) => {
-    const heading = i === 0 ? title : `${title} (cont.)`;
-    zip.folder('ppt').folder('slides').file(`slide${i + 1}.xml`, slideXml(heading, chunk));
-    zip.folder('ppt').folder('slides').folder('_rels').file(`slide${i + 1}.xml.rels`,
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-      + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>'
-      + '</Relationships>');
-  });
-  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  if (receipt.length) {
+    const s = pptx.addSlide();
+    s.addText('Settlement receipt', { x: 0.5, y: 0.25, w: 12.3, h: 0.7, fontSize: 24, bold: true, color: '10110D' });
+    s.addText(receipt.map((r) => ({ text: r, options: {} })), { x: 0.5, y: 1.15, w: 12.3, h: 5.5, fontSize: 15, color: '10110D', bullet: { indent: 18 }, breakLine: true });
+  }
+  const top = (sources || []).filter((s) => s.url).slice(0, 8);
+  if (top.length) {
+    const s = pptx.addSlide();
+    s.addText('Key sources', { x: 0.5, y: 0.25, w: 12.3, h: 0.7, fontSize: 24, bold: true, color: '10110D' });
+    s.addText(top.map((src) => ({ text: `${src.title || src.url}`, options: { hyperlink: { url: src.url } } })), { x: 0.5, y: 1.15, w: 12.3, h: 5.5, fontSize: 13, color: '0563C1', breakLine: true });
+  }
+  return pptx.write({ outputType: 'nodebuffer' });
 }
 
 /**
@@ -428,25 +646,34 @@ export async function renderExport(format, ctx) {
     const content = bibtex(sources);
     return { contentType: 'application/x-bibtex', filename: `${slug}.bib`, content, bytes: Buffer.byteLength(content) };
   }
-  // Text renderers read flattened lines: chart fences become captioned data
-  // rows instead of raw JSON. The settlement receipt rides along so the
-  // downloaded document is the official receipt, not just the prose.
-  const lines = [...mdLines(flattenFigures(report?.markdown)), ...receiptLines({ ledger, escrow })];
+  // Rich renderers share one parsed structure (flattened chart fences +
+  // receipt section) so Word, slides, PDF, and Excel agree with each other.
+  // Slides carry the receipt as their own closing slide instead, so the
+  // receipt section stays out of the slide body flow.
+  const title = ((mdLines(report?.markdown).find((l) => l.trim()) || 'Dr. Nib report').replace(/^#+\s*/, '').slice(0, 120)) || 'Dr. Nib report';
+  const bodyBlocks = parseBlocks(mdLines(flattenFigures(report?.markdown)));
+  const blocks = [...bodyBlocks, ...receiptBlocks({ ledger, escrow })];
+  const receiptText = receiptBlocks({ ledger, escrow }).flatMap((b) => (b.t === 'ul' ? b.items.map(inlineText) : []));
   if (format === 'pdf') {
-    const buf = buildPdf(lines);
+    const buf = await buildPdf(blocks, { title });
     return { contentType: 'application/pdf', filename: `${slug}.pdf`, content: buf.toString('base64'), encoding: 'base64', bytes: buf.length };
   }
   if (format === 'excel') {
-    const buf = buildXlsx({ report, sources, claims, ledger, escrow, figures });
+    const buf = buildXlsx({ report, sources, claims, ledger, escrow, figures, blocks });
     return { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename: `${slug}.xlsx`, content: buf.toString('base64'), encoding: 'base64', bytes: buf.length };
   }
   if (format === 'word') {
-    const buf = await buildDocx(lines);
+    const buf = await buildDocx(blocks, { title });
     return { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename: `${slug}.docx`, content: buf.toString('base64'), encoding: 'base64', bytes: buf.length };
   }
   if (format === 'powerpoint') {
-    const title = (lines.find((l) => l.trim()) || 'Dr. Nib report').replace(/^#+\s*/, '').slice(0, 80);
-    const buf = await buildPptx(title, lines);
+    const buf = await buildPptx({
+      title,
+      blocks: bodyBlocks,
+      sources,
+      receipt: receiptText,
+      subtitle: `Dr. Nib research report · v${report?.version ?? ''} · exported ${new Date().toISOString().slice(0, 10)}`,
+    });
     return { contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', filename: `${slug}.pptx`, content: buf.toString('base64'), encoding: 'base64', bytes: buf.length };
   }
   throw new Error(`no renderer for format: ${format}`);

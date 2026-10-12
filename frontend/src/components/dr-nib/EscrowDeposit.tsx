@@ -94,6 +94,52 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   type ConnDiag = { rpcOk: boolean | null; gas: string | null; usdc: string | null };
   const [diag, setDiag] = useState<ConnDiag>({ rpcOk: null, gas: null, usdc: null });
   const [repairing, setRepairing] = useState(false);
+  // Fingerprint captured at send-failure time: chain, pending nonce, gas
+  // price, and which wallet app signed — everything the failure depends on
+  // that cannot be read remotely afterwards. Displayed + copyable so the
+  // next failure arrives diagnosable instead of starting another round-trip.
+  const [failSnap, setFailSnap] = useState<any | null>(null);
+  const [snapCopied, setSnapCopied] = useState(false);
+  function connectorName(): string {
+    try {
+      const eth: any = (window as any)?.ethereum;
+      const provs: any[] = Array.isArray(eth?.providers) ? eth.providers : eth ? [eth] : [];
+      const flags: string[] = [];
+      for (const p of provs) {
+        if (p?.isRabby) flags.push("rabby");
+        else if (p?.isCoinbaseWallet) flags.push("coinbase");
+        else if (p?.isTrust) flags.push("trust");
+        else if (p?.isBraveWallet) flags.push("brave");
+        else if (p?.isMetaMask) flags.push("metamask");
+        else if (p) flags.push("injected");
+      }
+      return [...new Set(flags)].join("+") || "unknown";
+    } catch {
+      return "unknown";
+    }
+  }
+  async function snapshotFailure(stepName: string, err: any) {
+    const snap: any = { step: stepName, connector: connectorName(), at: new Date().toISOString() };
+    try {
+      const req: any = (walletProvider as any)?.request?.bind(walletProvider);
+      if (req && address) {
+        const withTimeout = <T,>(p: Promise<T>, ms = 8000): Promise<T | null> =>
+          Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+        const [cid, nonce, gp] = await Promise.all([
+          withTimeout(req({ method: "eth_chainId" })),
+          withTimeout(req({ method: "eth_getTransactionCount", params: [address, "pending"] })),
+          withTimeout(req({ method: "eth_gasPrice" })),
+        ]);
+        if (cid != null) snap.chainId = typeof cid === "string" && /^0x/i.test(cid) ? Number(cid) : Number(cid);
+        if (nonce != null) snap.noncePending = nonce;
+        if (gp != null) snap.gasPriceWei = String(gp);
+      }
+    } catch {
+      /* best-effort — the raw error below is still shown */
+    }
+    snap.error = String(err?.message || err).slice(0, 600);
+    setFailSnap(snap);
+  }
   async function runDiag() {
     if (!walletProvider?.request || !address) return;
     const req: any = (walletProvider as any).request.bind(walletProvider);
@@ -148,6 +194,8 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
 
   async function run() {
     setError("");
+    setFailSnap(null);
+    setSnapCopied(false);
     if (!address) { setError("Connect your wallet first."); return; }
     if (!(chosen >= minimum)) { setError(`Deposit at least the $${minimum.toFixed(2)} plan estimate.`); return; }
     try {
@@ -182,8 +230,17 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       // Sequential receipts: three rapid fire-and-forget sends reuse the same
       // nonce and only the first mines (seen live as a stuck "Confirming").
       const public_: any = createPublicClient({ chain, transport: custom(provider) });
-      const sendAndMine = async (to: `0x${string}`, data: `0x${string}`) => {
-        const hash = await wc.sendTransaction({ to, data });
+      const sendAndMine = async (to: `0x${string}`, data: `0x${string}`, label: string) => {
+        let hash: string;
+        try {
+          hash = await wc.sendTransaction({ to, data });
+        } catch (e: any) {
+          // The wallet's own broadcast failed: capture chain/nonce/gas/
+          // connector NOW (unreadable after the fact) and stop — retrying
+          // the same blind send just burns more signatures.
+          await snapshotFailure(label, e);
+          throw e;
+        }
         setTx(hash);
         await public_.waitForTransactionReceipt({ hash });
         return hash;
@@ -216,6 +273,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
             abi: CORE_ABI, functionName: "createJob",
             args: [params.splitter as `0x${string}`, params.evaluator as `0x${string}`, BigInt(params.expiredAt), String(params.description || ""), ZERO_ADDRESS as `0x${string}`],
           }),
+          "createJob",
         );
         // Find ours by client address, newest first: race-safe where a bare
         // jobCount+1 is not (concurrent creates from anywhere).
@@ -242,18 +300,21 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       await sendAndMine(
         core,
         encodeFunctionData({ abi: CORE_ABI, functionName: "setBudget", args: [jobId, amount, "0x"] }),
+        "setBudget",
       );
 
       setStep("approving");
       await sendAndMine(
         USDC as `0x${string}`,
         encodeFunctionData({ abi: USDC_ABI, functionName: "approve", args: [core, amount] }),
+        "approve",
       );
 
       setStep("funding");
       await sendAndMine(
         core,
         encodeFunctionData({ abi: CORE_ABI, functionName: "fund", args: [jobId, amount, "0x"] }),
+        "fund",
       );
 
       setStep("confirming");
@@ -353,6 +414,31 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       </button>
       {tx && <p className="mt-2 break-all font-mono text-[11px] opacity-60">{tx}</p>}
       {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
+      {failSnap && (
+        <div className="mt-2 border border-dark-gray/40 bg-white p-2">
+          <p className="text-[11px] font-medium">
+            Send failed on step “{failSnap.step}” · wallet: {failSnap.connector}
+            {failSnap.chainId != null ? ` · chain ${failSnap.chainId}` : ""}
+            {failSnap.noncePending != null ? ` · nonce ${failSnap.noncePending}` : ""}
+          </p>
+          <details className="mt-1">
+            <summary className="cursor-pointer text-[11px] underline opacity-70">Error details</summary>
+            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{JSON.stringify(failSnap, null, 1)}</pre>
+          </details>
+          <button
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(JSON.stringify(failSnap));
+                setSnapCopied(true);
+                setTimeout(() => setSnapCopied(false), 2000);
+              } catch { /* clipboard blocked — details visible above */ }
+            }}
+            className="mt-1 text-[11px] underline opacity-70 hover:opacity-100"
+          >
+            {snapCopied ? "✓ Copied" : "Copy error details"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

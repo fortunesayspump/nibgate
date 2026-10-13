@@ -62,7 +62,11 @@ function chainDef(chain) {
     nativeCurrency: chain.nativeCurrency,
     rpcUrls: {
       default: {
-        http: [appRpcUrlFor(chain)],
+        // Wallets use chain metadata for both reads and signed broadcasts.
+        // Reown's embedded wallet forwards this URL to its signing provider;
+        // the app's read-only /rpc proxy rejects eth_sendRawTransaction.
+        // Keep app reads on explicit appRpcUrlFor() transports instead.
+        http: [chain.rpcUrl],
       },
     },
     blockExplorers: {

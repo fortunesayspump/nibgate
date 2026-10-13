@@ -32,7 +32,7 @@
     "gsc:sitemaps": "node scripts/gsc-sitemap-submit.mjs",
     "gsc:index": "node scripts/gsc-index-status.mjs",
     "e2e:nibgate": "node scripts/e2e-nibgate-flow.mjs",
-    "test": "pnpm --filter @nibgate/sdk test && pnpm --filter @nibgate/backend test && node scripts/check-network-sync.mjs",
+    "test": "node --test scripts/wallet-rpc-routing.test.mjs && pnpm --filter @nibgate/sdk test && pnpm --filter @nibgate/backend test && node scripts/check-network-sync.mjs",
     "test:watch": "pnpm --filter @nibgate/sdk test:watch"
   },
   "pnpm": {

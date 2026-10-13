@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAppKitAccount, useAppKitNetwork, useDisconnect } from "@nibgate/wallet/react";
-import { activeArcChain, activeChain } from '@nibgate/wallet'
+import { activeArcChain, activeChain, appRpcUrlFor } from '@nibgate/wallet'
 import { isActiveChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
 import { getHubSessionAddress, HUB_SESSION_CLEARED_EVENT, HUB_SESSION_UPDATED_EVENT } from '../lib/hubSession'
@@ -29,7 +29,7 @@ const SEL_WITHDRAW = '0xf3fef3a3'
 
 const gatewayClient = createPublicClient({
   chain: activeArcChain(),
-  transport: http(activeArcChain().rpcUrls.default.http[0]),
+  transport: http(appRpcUrlFor()),
 })
 
 function useNativeBalance(address?: `0x${string}`) {

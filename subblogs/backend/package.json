@@ -2,7 +2,7 @@
   "name": "nibgate-blog-backend",
   "version": "1.0.5",
   "private": true,
-  "description": "Nibgate Blog API — Express + Prisma + JWT auth",
+  "description": "Nibgate Blog API \u2014 Express + Prisma + JWT auth",
   "main": "src/index.js",
   "scripts": {
     "dev": "cross-env NODE_ENV=development nodemon src/index.js",
@@ -15,7 +15,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1095.0",
     "@nibgate/sdk": "0.4.34",
-    "@nibgate/wallet": "0.4.23",
+    "@nibgate/wallet": "0.4.24",
     "@prisma/client": "^6.3.1",
     "@sentry/node": "^8.0.0",
     "bcryptjs": "^2.4.3",

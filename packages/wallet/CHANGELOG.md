@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.24
+
+- Use the configured public Arc RPC in wallet network metadata on both mainnet and testnet, so embedded-wallet broadcasts are not routed through Nibgate's read-only application proxy.
+- Keep application-owned reads on explicit `appRpcUrlFor()` transports; the companion Hub change preserves the same read-only proxy behavior for wallet balance reads.
+- Add regression coverage for both network definitions, installed Reown RPC forwarding, environment overrides, and the application's unchanged read-only RPC allowlist.
+
+These checks exercise the installed provider routing with a mocked iframe boundary. They do not perform a live wallet login, signature, or funded transaction.
+
 ## 0.4.23
 
 - Reconcile the selected wallet account and provider before sign-in.

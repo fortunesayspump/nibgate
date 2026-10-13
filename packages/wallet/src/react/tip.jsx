@@ -5,7 +5,7 @@ import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/re
 import { encodeFunctionData, createPublicClient, createWalletClient, custom } from 'viem'
 import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
-import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
+import { getWalletErrorMessage } from '../errors.js'
 
 const USDC = '0x3600000000000000000000000000000000000000'
 const USDC_TRANSFER_ABI = [
@@ -36,6 +36,38 @@ const USDC_BALANCE_ABI = [
 function shortAddress(a) {
   if (!a) return ''
   return `${a.slice(0, 6)}...${a.slice(-4)}`
+}
+
+// Only copy messages that this module creates. Provider/RPC errors can contain
+// request bodies, signatures or credential-bearing URLs, so never reflect them.
+class TipValidationError extends Error {}
+
+function tipErrorMessage(error) {
+  if (error instanceof TipValidationError) return error.message
+  const net = activeChain().name
+  let current = error
+  let rpcFailure = false
+  const seen = new Set()
+  for (let depth = 0; current && depth < 5 && !seen.has(current); depth++) {
+    seen.add(current)
+    const code = current?.code
+    const message = typeof current === 'string' ? current :
+      [current?.shortMessage, current?.message, current?.details].filter((s) => typeof s === 'string').join(' ')
+    const text = String(message || '').slice(0, 4000)
+    const mapped = getWalletErrorMessage({ code, message: text }, { defaultMessage: null })
+    if (mapped) return mapped
+    if (code === 4901 || /chain mismatch|does not match the target chain|not on the correct chain/i.test(text)) {
+      return `Switch your wallet to ${net} before tipping.`
+    }
+    if (code === 4200 || code === -32601 || /method (?:is )?not (?:supported|found)/i.test(text)) {
+      return `This wallet does not support the required request. Connect an EVM wallet that supports ${net}.`
+    }
+    if (/rpc|network|fetch|timeout|timed out/i.test(text)) rpcFailure = true
+    current = typeof current === 'object' ? current.cause : null
+  }
+  return rpcFailure
+    ? `The wallet could not complete its connection to ${net}. Check your wallet activity for a transaction before trying again.`
+    : 'The tip could not be completed. Check your wallet activity for a transaction before trying again.'
 }
 
 // Minimal coffee-cup glyph. Inline SVG, currentColor — blends into any theme.
@@ -107,47 +139,48 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
   }
 
   const tip = useCallback(async (tipAmount) => {
-    let account = address
-    if (!account) {
-      // No wallet: open the connect modal and wait for the user, instead of
-      // just erroring — a tip click with no wallet should bring up connect.
-      setStatus('connecting')
-      try { await open() } catch {}
-      account = await waitForWallet()
-      if (!account) throw new Error('Connect your wallet to tip.')
-    }
-    const provider = providerRef.current
-    if (!provider?.request) throw new Error('Wallet provider is not available.')
-    const target = resolveTarget({ resource, challenge, recipient, amount: tipAmount ?? amount })
-    const contentUrl = resolveContentUrl(resource)
-    const contentId = resource?.contentId || resource?.id || ''
-    const websiteId = resource?.websiteId || ''
-    const imageUrl = resource?.imageUrl || ''
-    const base = (apiBase || '').replace(/\/+$/, '')
-    const resolved = target.to && /^0x[a-fA-F0-9]{40}$/.test(target.to)
-    let domain = resource?.domain || ''
-    if (!domain && contentUrl) { try { domain = new URL(contentUrl).hostname } catch { domain = '' } }
-    // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
-    if (!resolved && (!base || !domain)) throw new Error('No recipient to tip.')
-    if (!(target.amount > 0)) throw new Error('Tip amount must be above zero.')
-    if (!(target.amount >= MIN_TIP)) throw new Error(`Minimum tip is $${MIN_TIP.toFixed(2)}.`)
-    // Hosted creators are paid through their per-creator fee wallet (CREATE2),
-    // not the creator EOA, so the hub can verify the tx and split the fee.
-    // Resolve the payee via the tip challenge; fall back to the creator.
-    let payToAddr = resolved ? target.to : '';
-    if (base && payToAddr) {
-      try {
-        const chRes = await fetch(`${base}/hub/tips/challenge`, {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', recipient: payToAddr }),
-        });
-        const ch = await chRes.json().catch(() => ({}));
-        if (chRes.ok && ch?.payee && /^0x[a-fA-F0-9]{40}$/.test(ch.payee)) payToAddr = ch.payee;
-      } catch {}
-    }
-    setStatus('switching')
+    let submittedHash = ''
     setError('')
     try {
+      let account = address
+      if (!account) {
+        // No wallet: open the connect modal and wait for the user, instead of
+        // just erroring — a tip click with no wallet should bring up connect.
+        setStatus('connecting')
+        try { await open() } catch {}
+        account = await waitForWallet()
+        if (!account) throw new TipValidationError('Connect your wallet to tip.')
+      }
+      const provider = providerRef.current
+      if (!provider?.request) throw new TipValidationError('Wallet provider is not available. Reconnect your wallet to tip.')
+      const target = resolveTarget({ resource, challenge, recipient, amount: tipAmount ?? amount })
+      const contentUrl = resolveContentUrl(resource)
+      const contentId = resource?.contentId || resource?.id || ''
+      const websiteId = resource?.websiteId || ''
+      const imageUrl = resource?.imageUrl || ''
+      const base = (apiBase || '').replace(/\/+$/, '')
+      const resolved = target.to && /^0x[a-fA-F0-9]{40}$/.test(target.to)
+      let domain = resource?.domain || ''
+      if (!domain && contentUrl) { try { domain = new URL(contentUrl).hostname } catch { domain = '' } }
+      // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
+      if (!resolved && (!base || !domain)) throw new TipValidationError('No recipient to tip.')
+      if (!(target.amount > 0)) throw new TipValidationError('Tip amount must be above zero.')
+      if (!(target.amount >= MIN_TIP)) throw new TipValidationError(`Minimum tip is $${MIN_TIP.toFixed(2)}.`)
+      // Hosted creators are paid through their per-creator fee wallet (CREATE2),
+      // not the creator EOA, so the hub can verify the tx and split the fee.
+      // Resolve the payee via the tip challenge; fall back to the creator.
+      let payToAddr = resolved ? target.to : '';
+      if (base && payToAddr) {
+        try {
+          const chRes = await fetch(`${base}/hub/tips/challenge`, {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', recipient: payToAddr }),
+          });
+          const ch = await chRes.json().catch(() => ({}));
+          if (chRes.ok && ch?.payee && /^0x[a-fA-F0-9]{40}$/.test(ch.payee)) payToAddr = ch.payee;
+        } catch {}
+      }
+      setStatus('switching')
       let currentChainId
       try {
         const hex = await provider.request({ method: 'eth_chainId' })
@@ -176,7 +209,7 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
           const fund = net.testnet
             ? 'Top up with free testnet USDC at faucet.circle.com (select Arc Testnet).'
             : 'Top up this wallet with USDC on Arc mainnet.'
-          throw new Error(`Insufficient USDC on ${net.name}: need $${need} but ${shortAddress(account)} holds $${have}. ${fund} Balances do not cross networks, and Gateway credit cannot pay a direct transfer.`)
+          throw new TipValidationError(`Insufficient USDC on ${net.name}: need $${need} but ${shortAddress(account)} holds $${have}. ${fund} Balances do not cross networks, and Gateway credit cannot pay a direct transfer.`)
         }
         const data = encodeFunctionData({
           abi: USDC_TRANSFER_ABI,
@@ -184,7 +217,9 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
           args: [to, value],
         })
         const txHash = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account })
-        return txHash?.hash || txHash || ''
+        const hash = txHash?.hash || txHash || ''
+        if (typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) submittedHash = hash
+        return hash
       }
 
       if (!resolved) {
@@ -262,7 +297,11 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
       onPaid?.(out)
       return out
     } catch (e) {
-      const msg = getWalletErrorMessage(e) || (isWalletRejection(e) ? 'Request cancelled.' : String(e?.message || e))
+      // A returned hash changes the safe next step even if a page callback
+      // subsequently fails. Never describe that as an unfunded/rejected tip.
+      const msg = submittedHash
+        ? `Your wallet returned transaction ${submittedHash}, but the page could not finish updating. Check that transaction before sending another tip.`
+        : tipErrorMessage(e)
       setError(msg)
       setStatus('error')
       throw e

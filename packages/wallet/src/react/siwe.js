@@ -56,7 +56,11 @@ export async function signInWithSiwe(address, signMessage, options = {}) {
     expirationTime: new Date(Date.now() + 30 * 60 * 1000),
   })
 
+  options.assertActive?.()
   const signature = await signMessage(message)
+  // A wallet prompt can outlive the selected account or the sign-in screen.
+  // Never exchange an abandoned signature for a session.
+  options.assertActive?.()
 
   const verifyRes = await fetch(verifyPath, {
     method: 'POST',
@@ -73,5 +77,6 @@ export async function signInWithSiwe(address, signMessage, options = {}) {
     throw new Error(verifyData.details || verifyData.error || 'Signature could not be verified.')
   }
 
+  options.assertActive?.()
   return { message, signature, user: verifyData.user }
 }

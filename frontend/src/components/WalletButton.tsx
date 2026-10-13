@@ -152,13 +152,12 @@ export function WalletButton() {
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined
   const effectiveAddress = displayAddress ?? sessionAddr
+  const needsSignIn = isWalletConnected && Boolean(displayAddress) && sessionAddr?.toLowerCase() !== displayAddress?.toLowerCase()
   const isConnectedAny = isWalletConnected || Boolean(sessionAddr)
   const busyRef = useRef(busy)
-  const walletConnectedRef = useRef(isWalletConnected)
-  const sessionAddrRef = useRef(sessionAddr)
+  const needsSignInRef = useRef(needsSignIn)
   useEffect(() => { busyRef.current = busy }, [busy])
-  useEffect(() => { walletConnectedRef.current = isWalletConnected }, [isWalletConnected])
-  useEffect(() => { sessionAddrRef.current = sessionAddr }, [sessionAddr])
+  useEffect(() => { needsSignInRef.current = needsSignIn }, [needsSignIn])
 
   const nativeBalance = useNativeBalance(displayAddress)
 
@@ -202,7 +201,7 @@ export function WalletButton() {
         e.preventDefault()
         if (t.classList.contains('nibgate-header-mobile-cta')) return
         if (busyRef.current) return
-        if (walletConnectedRef.current && !sessionAddrRef.current) {
+        if (needsSignInRef.current) {
           void signIn()
         } else if (t.getAttribute('data-connected') !== 'true') {
           void connect()
@@ -241,9 +240,9 @@ export function WalletButton() {
 
       <div className="nibgate-wallet-container" data-wallet-container>
         <button className="nibgate-header-cta" type="button" data-wallet-connect data-connected={isConnectedAny && effectiveAddress ? 'true' : 'false'} data-address={effectiveAddress || ''} style={{ display: 'flex' }}>
-          {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : status === 'error' ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
+          {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : needsSignIn ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
         </button>
-        {status === 'error' && error ? <span className="nibgate-wallet-error">{error}</span> : null}
+        {error ? <span role="status" className="nibgate-wallet-error">{error}</span> : null}
         {isConnectedAny && effectiveAddress ? (
           <div className="nibgate-wallet-dropdown" data-wallet-dropdown style={{ display: 'none' }}>
             <Link href="/dashboard" className="dropdown-item">Dashboard</Link>
@@ -270,6 +269,7 @@ export function WalletButtonMobile() {
   const [sessionAddress, setSessionAddress] = useState<string | null>(null)
   const sessionAddr = isHexAddress(sessionAddress) ? sessionAddress : undefined
   const effectiveAddress = displayAddress ?? sessionAddr
+  const needsSignIn = isWalletConnected && Boolean(displayAddress) && sessionAddr?.toLowerCase() !== displayAddress?.toLowerCase()
   const isConnectedAny = isWalletConnected || Boolean(sessionAddr)
 
   const nativeBalance = useNativeBalance(displayAddress)
@@ -345,16 +345,16 @@ export function WalletButtonMobile() {
           data-address={effectiveAddress || ''}
           onClick={() => {
             if (busy) return
-            if (isWalletConnected && !sessionAddr) { void signIn(); return }
+            if (needsSignIn) { void signIn(); return }
             if (isConnectedAny && effectiveAddress) { setOpenDropdown(openDropdown === 'wallet' ? null : 'wallet'); return }
             void connect()
           }}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : status === 'error' ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
+          {status === 'connecting' ? 'Connecting…' : status === 'signing' ? 'Sign in…' : needsSignIn ? 'Sign in' : isConnectedAny && effectiveAddress ? shortAddress(effectiveAddress) : 'Connect wallet'}
           {isConnectedAny && effectiveAddress ? chevron : null}
         </button>
-        {status === 'error' && error ? <span className="nibgate-wallet-error">{error}</span> : null}
+        {error ? <span role="status" className="nibgate-wallet-error">{error}</span> : null}
         {isConnectedAny && effectiveAddress ? (
           <div className="nibgate-wallet-dropdown mobile-dropdown" data-wallet-dropdown style={{ display: openDropdown === 'wallet' ? 'flex' : 'none' }}>
             <Link href="/dashboard" className="dropdown-item" onClick={() => setOpenDropdown(null)}>Dashboard</Link>

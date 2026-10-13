@@ -22,6 +22,13 @@ export function useNibgateConnect(options = {}) {
   const modalOpenRef = useRef(false)
   const connectingWalletRef = useRef(false)
   const runningRef = useRef(false)
+  const mountedRef = useRef(true)
+  const walletRevisionRef = useRef(0)
+  useEffect(() => { walletRevisionRef.current += 1 }, [address, isConnected, walletProvider])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   // Kept in a ref because detectSilentSession runs inside connect() and must not
   // re-create the callback when the provider object identity changes.
   const walletProviderRef = useRef(walletProvider)
@@ -59,12 +66,14 @@ export function useNibgateConnect(options = {}) {
       const next = Array.isArray(accounts) && accounts.length ? norm(accounts[0]) : null
       const current = addressRef.current ? norm(addressRef.current) : null
       if (!next) {
+        walletRevisionRef.current += 1
         // Wallet disconnected/locked: drop to idle, session is unusable.
         setStatus('idle')
         setError('Wallet disconnected. Connect again to continue.')
         return
       }
       if (current && next !== current) {
+        walletRevisionRef.current += 1
         setStatus('idle')
         setError('Account changed in your wallet — sign in again to continue.')
       }
@@ -73,8 +82,10 @@ export function useNibgateConnect(options = {}) {
       const next = typeof value === 'string' && /^0x/i.test(value) ? Number(value) : Number(value)
       setChainId(Number.isFinite(next) ? next : null)
     }
+    const onDisconnect = () => onAccountsChanged([])
     provider.on('accountsChanged', onAccountsChanged)
     provider.on('chainChanged', onChainChanged)
+    provider.on('disconnect', onDisconnect)
     // Seed current chain without prompting.
     try {
       const maybe = provider.request?.({ method: 'eth_chainId' })
@@ -88,6 +99,7 @@ export function useNibgateConnect(options = {}) {
     return () => {
       try { provider.removeListener?.('accountsChanged', onAccountsChanged) } catch {}
       try { provider.removeListener?.('chainChanged', onChainChanged) } catch {}
+      try { provider.removeListener?.('disconnect', onDisconnect) } catch {}
     }
   }, [walletProvider])
 
@@ -110,19 +122,32 @@ export function useNibgateConnect(options = {}) {
     }
   }, [])
 
-  async function waitForWallet(timeoutMs = 30000) {    const started = Date.now()
-    let sawModalOpen = false
+  async function waitForWallet(timeoutMs = 30000, sawModalOpen = false) {
+    const started = Date.now()
     let modalClosedAt = 0
+    let walletPendingAt = 0
     const GRACE_MS = 6000 // after AppKit's modal closes, give the connector a moment to reconcile
-    while (Date.now() - started < timeoutMs) {
+    // Keep wallet discovery open while the user is still choosing a wallet.
+    // Once dismissed, allow a brief reconciliation window before cancelling.
+    while (mountedRef.current) {
       const addr = addressRef.current
-      if (addr) return addr
+      if (addr && isConnectedRef.current) return addr
       if (modalOpenRef.current) {
         sawModalOpen = true
         modalClosedAt = 0
-      } else if (sawModalOpen && !connectingWalletRef.current) {
+        walletPendingAt = 0
+      } else if (sawModalOpen && connectingWalletRef.current) {
+        if (walletPendingAt === 0) walletPendingAt = Date.now()
+        if (Date.now() - walletPendingAt >= 120000) return null
+      } else if (sawModalOpen) {
         if (modalClosedAt === 0) modalClosedAt = Date.now()
-        if (Date.now() - modalClosedAt >= GRACE_MS) return null
+        if (Date.now() - modalClosedAt >= GRACE_MS) {
+          const err = new Error('Wallet selection cancelled.')
+          err.code = 4001
+          throw err
+        }
+      } else if (!sawModalOpen && Date.now() - started >= timeoutMs) {
+        return null
       }
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
@@ -133,22 +158,49 @@ export function useNibgateConnect(options = {}) {
   // (slow/lazy connectors, mock providers, mobile round-trips): the address
   // may show while useAppKitProvider is still null. Never sign blind — wait
   // for a usable provider, then fail loudly instead of a generic error.
-  async function waitForProvider(timeoutMs = 15000) {
+  async function waitForProvider(timeoutMs = 15000, excludeProvider = null) {
     const started = Date.now()
-    while (Date.now() - started < timeoutMs) {
+    while (mountedRef.current && Date.now() - started < timeoutMs) {
       const p = walletProviderRef.current
-      if (p && typeof p.request === 'function') return p
+      if (p && p !== excludeProvider && typeof p.request === 'function') return p
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
     return null
   }
 
-  async function sign(addr) {
-    const provider = await waitForProvider()
-    if (!provider) throw new Error('Wallet provider is not available. Reconnect your wallet and try again.')
+  async function sign(addr, { excludeProvider = null } = {}) {
+    const provider = await waitForProvider(15000, excludeProvider)
+    if (!provider) {
+      const err = new Error(excludeProvider
+        ? 'Wallet connected. Tap Sign in to confirm the selected wallet.'
+        : 'Wallet provider is not available. Reconnect your wallet and try again.')
+      if (excludeProvider) err.code = 'PROVIDER_RECONCILING'
+      throw err
+    }
+    const revision = walletRevisionRef.current
+    const assertActive = () => {
+      if (!mountedRef.current) {
+        const err = new Error('Sign-in cancelled.')
+        err.code = 4001
+        throw err
+      }
+      if (walletRevisionRef.current !== revision || !isConnectedRef.current || addressRef.current?.toLowerCase() !== addr.toLowerCase() || walletProviderRef.current !== provider) {
+        const err = new Error('Wallet account changed. Sign in again to continue.')
+        err.code = 'ACCOUNT_MISMATCH'
+        throw err
+      }
+    }
+    assertActive()
     await ensureWalletAuthorized(addr, { walletProvider: provider, appKitAccount: { address: addr } })
+    assertActive()
     setStatus('signing')
-    await signInWithSiwe(addr, (message) => signMessageWithProvider(provider, addr, message), { authBase, noncePath, verifyPath })
+    await signInWithSiwe(addr, async (message) => {
+      assertActive()
+      const signature = await signMessageWithProvider(provider, addr, message)
+      assertActive()
+      return signature
+    }, { authBase, noncePath, verifyPath, assertActive })
+    assertActive()
     setStatus('signed-in')
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event(HUB_SESSION_UPDATED_EVENT))
@@ -162,7 +214,7 @@ export function useNibgateConnect(options = {}) {
   const signIn = useCallback(async () => {
     if (runningRef.current) return false
     const addr = addressRef.current
-    if (!addr) {
+    if (!addr || !isConnectedRef.current) {
       setStatus('error')
       setError('Wallet not connected.')
       return false
@@ -259,6 +311,10 @@ export function useNibgateConnect(options = {}) {
     setStatus('connecting')
     setError(null)
     let addr
+    let signing = false
+    // A disconnected AppKit instance can retain the previous wallet provider.
+    // A new account announcement alone does not identify the newly chosen wallet.
+    const staleProvider = !isConnectedRef.current ? walletProviderRef.current : null
     try {
       // 1. Reuse an existing authorized session without prompting. On mobile
       //    this is the difference between connecting instantly and hitting a
@@ -291,31 +347,27 @@ export function useNibgateConnect(options = {}) {
         } catch {
           announced = 0
         }
+        if (!mountedRef.current) return false
+        let usedModal = false
         if (announced === 0 && typeof window !== 'undefined' && window.ethereum) {
           await connectLegacyDirect()
         } else {
-          try {
-            await open()
-          } catch {
-            // modal open can race account sync; waitForWallet keeps polling.
-          }
+          await open({ view: 'Connect' })
+          usedModal = true
         }
-        addr = await waitForWallet()
+        addr = await waitForWallet(30000, usedModal)
       }
-
-      // 3. AppKit reconciled but useAppKitAccount may still be settling; one
-      //    bounded poll before surfacing an error.
-      if (!addr) addr = await waitForWallet(8000)
 
       if (!addr) {
         setStatus('error')
-        setError('Wallet did not connect. If your wallet is already connected to another app, disconnect it there first, then approve the connection here.')
+        setError('Wallet did not connect. Open your wallet to check for a pending request, or try Connect wallet again.')
         return false
       }
-      await sign(addr)
+      signing = true
+      await sign(addr, { excludeProvider: staleProvider })
       return true
     } catch (err) {
-      if (err?.code === 'ACCOUNT_MISMATCH') {
+      if (err?.code === 'ACCOUNT_MISMATCH' || err?.code === 'PROVIDER_RECONCILING') {
         setStatus('idle')
         setError(err.message)
       } else if (isWalletRejection(err)) {
@@ -323,7 +375,7 @@ export function useNibgateConnect(options = {}) {
         // prompt. Silently returning to idle left people tapping again with no
         // idea why, so say what happened and invite one clean retry.
         setStatus('idle')
-        setError('Connection cancelled. Tap Connect when you\'re ready.')
+        setError(signing ? 'Sign-in cancelled. Tap Sign in again when you\'re ready.' : 'Connection cancelled. Tap Connect when you\'re ready.')
       } else {
         setError(getWalletErrorMessage(err))
         setStatus('error')

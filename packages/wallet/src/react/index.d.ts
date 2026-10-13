@@ -29,7 +29,7 @@ export type SiweSigner = (message: string) => Promise<`0x${string}`>;
 export function signInWithSiwe(
   address: `0x${string}`,
   signMessage: SiweSigner,
-  options?: { authBase?: string; noncePath?: string; verifyPath?: string; headers?: Record<string, string>; domain?: string; uri?: string }
+  options?: { authBase?: string; noncePath?: string; verifyPath?: string; headers?: Record<string, string>; domain?: string; uri?: string; assertActive?: () => void }
 ): Promise<{ message: string; signature: `0x${string}`; user?: unknown }>;
 export function signMessageWithProvider(
   walletProvider: Eip1193Provider | undefined | null,

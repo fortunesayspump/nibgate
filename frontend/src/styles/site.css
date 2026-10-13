@@ -469,7 +469,10 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
   top: calc(100% + 6px);
   right: 0;
   z-index: 50;
-  max-width: 320px;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  overflow-wrap: break-word;
   padding: 8px 12px;
   border-radius: 8px;
   background: #c44;
@@ -525,7 +528,7 @@ body[data-theme="dark"] .nibgate-header-cta:focus-visible {
 /* Open on hover if connected or for balance — hover-capable pointers only.
    Touch devices get click-toggle state from WalletButtonMobile instead. */
 @media (hover: hover) and (pointer: fine) {
-  .nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"] + .nibgate-wallet-dropdown,
+  .nibgate-wallet-container:hover [data-wallet-connect][data-connected="true"] ~ .nibgate-wallet-dropdown,
   .nibgate-wallet-container:hover [data-balance-text] + .nibgate-wallet-dropdown {
     display: flex !important;
   }

@@ -1,19 +1,8 @@
 "use client";
 
-import { useAppKit, useAppKitAccount, useAppKitProvider, signMessageWithProvider } from "@nibgate/wallet/react";
-import type { Eip1193Provider } from "@nibgate/wallet";
+import { useAppKitAccount, useNibgateConnect } from "@nibgate/wallet/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createSignInMessage } from "@nibgate/wallet";
-
-type AuthUser = {
-  id: string;
-  walletAddress: string;
-  username?: string | null;
-  avatarUrl?: string | null;
-};
-
-type AuthState = "checking" | "ready" | "connecting" | "signing" | "signed-in" | "error";
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -31,29 +20,34 @@ async function readJson(res: Response) {
 export default function SigninFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") || "/dashboard/profile";
-  const { open } = useAppKit();
+  const requestedNext = searchParams.get("next");
+  const nextPath = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\") && !/[\u0000-\u0020\u007f]/.test(requestedNext)
+    ? requestedNext
+    : "/dashboard/profile";
+  const { connect, signIn, busy, status, error } = useNibgateConnect();
   const { address, isConnected } = useAppKitAccount();
-  const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
-  const addressRef = useRef(address);
+  const mountedRef = useRef(true);
+  const nextPathRef = useRef(nextPath);
   useEffect(() => {
-    addressRef.current = address;
-  }, [address]);
-  const [status, setStatus] = useState<AuthState>("checking");
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [error, setError] = useState("");
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  useEffect(() => { nextPathRef.current = nextPath; }, [nextPath]);
+  const [checking, setChecking] = useState(true);
+  const [sessionFound, setSessionFound] = useState(false);
 
   const displayAddress = isConnected ? address : undefined;
-  const isBusy = status === "checking" || status === "connecting" || status === "signing";
+  const signedIn = sessionFound || status === "signed-in";
+  const isBusy = checking || busy;
 
   const buttonLabel = useMemo(() => {
-    if (status === "checking") return "Checking session...";
+    if (checking) return "Checking session...";
     if (status === "connecting") return "Opening wallet...";
     if (status === "signing") return "Waiting for signature...";
-    if (status === "signed-in") return "Opening dashboard...";
+    if (signedIn) return "Opening dashboard...";
     if (displayAddress) return `Sign in as ${shortAddress(displayAddress)}`;
     return "Connect wallet";
-  }, [displayAddress, status]);
+  }, [checking, displayAddress, signedIn, status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,9 +56,8 @@ export default function SigninFlow() {
       try {
         const res = await fetch("/auth/me", { credentials: "include" });
         const data = await readJson(res);
-        if (!cancelled && data.authenticated) {
-          setUser(data.user);
-          setStatus("signed-in");
+        if (!cancelled && res.ok && data.authenticated) {
+          setSessionFound(true);
           router.replace(nextPath);
           return;
         }
@@ -72,7 +65,7 @@ export default function SigninFlow() {
         // A missing session should not block the sign-in screen.
       }
 
-      if (!cancelled) setStatus("ready");
+      if (!cancelled) setChecking(false);
     }
 
     void checkSession();
@@ -83,65 +76,11 @@ export default function SigninFlow() {
   }, [nextPath, router]);
 
   async function handleSignin() {
-    setError("");
-
-    let walletAddress = displayAddress;
-
-    if (!walletAddress) {
-      setStatus("connecting");
-      try {
-        await open();
-        const started = Date.now();
-        while (!addressRef.current && Date.now() - started < 30000) {
-          await new Promise((r) => setTimeout(r, 200));
-        }
-        walletAddress = addressRef.current;
-        if (!walletAddress) {
-          setStatus("ready");
-          return;
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Wallet connection failed.");
-        setStatus("error");
-        return;
-      }
-    }
-
-    try {
-      setStatus("signing");
-      const nonceRes = await fetch("/auth/nonce", { credentials: "include" });
-      const nonceData = await readJson(nonceRes);
-      if (!nonceRes.ok) throw new Error(nonceData.error || "Could not request sign-in nonce.");
-
-      const message = createSignInMessage({
-        address: walletAddress as `0x${string}`,
-        nonce: nonceData.nonce,
-        domain: window.location.host,
-        uri: window.location.origin,
-        expirationTime: new Date(Date.now() + 10 * 60 * 1000),
-      });
-      if (!walletProvider || typeof walletProvider.request !== "function") {
-        throw new Error("Wallet provider is not available. Reconnect your wallet and try again.");
-      }
-      const signature = (await signMessageWithProvider(walletProvider, walletAddress, message)) as `0x${string}`;
-      const verifyRes = await fetch("/auth/verify", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, signature }),
-      });
-      const verifyData = await readJson(verifyRes);
-      if (!verifyRes.ok || !verifyData.success) {
-        throw new Error(verifyData.details || verifyData.error || "Wallet signature could not be verified.");
-      }
-
-      setUser(verifyData.user);
-      setStatus("signed-in");
-      router.replace(nextPath);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed.");
-      setStatus("error");
-    }
+    if (isBusy || signedIn) return;
+    // The shared flow waits for the selected provider, checks authorization,
+    // and uses the nonce endpoint's chain instead of a stale render closure.
+    const ok = await (displayAddress ? signIn() : connect());
+    if (ok && mountedRef.current && nextPathRef.current === nextPath) router.replace(nextPath);
   }
 
   return (
@@ -149,14 +88,14 @@ export default function SigninFlow() {
       <div className="space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.08em] text-white/70">Creator wallet</p>
         <p className="text-xl leading-8 text-white">
-          {user ? "You are signed in. Opening your dashboard." : "Connect the wallet that should own your Nibgate creator profile."}
+          {signedIn ? "You are signed in. Opening your dashboard." : "Connect the wallet that should own your Nibgate creator profile."}
         </p>
       </div>
       <button
         className="w-full bg-white text-black px-5 py-4 text-lg font-medium rounded-lg cursor-pointer hover:bg-gray-200 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         type="button"
         onClick={handleSignin}
-        disabled={isBusy || status === "signed-in"}
+        disabled={isBusy || signedIn}
       >
         {buttonLabel}
       </button>

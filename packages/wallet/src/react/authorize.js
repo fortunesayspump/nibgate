@@ -16,7 +16,12 @@ export async function ensureWalletAuthorized(address, { walletProvider } = {}) {
   if (!address) return
   const accounts = await walletProvider.request({ method: 'eth_requestAccounts' })
   const granted = Array.isArray(accounts) && accounts.length ? accounts[0] : null
-  if (granted && granted.toLowerCase() !== address.toLowerCase()) {
+  if (typeof granted !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(granted)) {
+    const err = new Error('Wallet did not authorize an account. Reconnect and approve access to continue.')
+    err.code = 4100
+    throw err
+  }
+  if (granted.toLowerCase() !== address.toLowerCase()) {
     // Wrong account approved — AppKit will reconcile on next event; surface so
     // the caller doesn't silently sign the SIWE message with the wrong key.
     // Distinct code (NOT 4001): this is a race, not a user cancellation, and

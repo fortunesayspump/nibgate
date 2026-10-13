@@ -486,17 +486,26 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   const [escrowFunded, setEscrowFunded] = useState(false);
   const [approveBusy, setApproveBusy] = useState(false);
   const [approveError, setApproveError] = useState("");
+  // Same rule as the new-run review screen: a failed status read keeps the
+  // last known support state and marks it stale — it never unmounts the
+  // funding UI mid-signing.
+  const [escrowStale, setEscrowStale] = useState(false);
+  const configuredRef = useRef<boolean | null>(null);
   async function loadEscrow(forRun?: any) {
     try {
       // Read-only: the job opens from the user's own Fund click (their
       // wallet must be the onchain client), never implicitly from a read.
       const st: any = await drNibApi.getEscrow(id);
-      setEscrowConfigured(st?.configured === true);
+      const v = st?.configured === true;
+      configuredRef.current = v;
+      setEscrowConfigured(v);
       const src = forRun || run;
       const need = Number(src?.plan?.estimate ?? src?.budgetCap ?? 0);
       setEscrowFunded(st?.job?.chain?.status === "Funded" && Number(st?.job?.chain?.budget ?? 0) >= need);
+      setEscrowStale(false);
     } catch {
-      setEscrowConfigured(null);
+      if (configuredRef.current === true) setEscrowStale(true);
+      else setEscrowConfigured(null);
     }
   }
   async function approveHere() {
@@ -868,7 +877,15 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 </ol>
               )}
               {escrowConfigured === true && !escrowFunded && (
-                <EscrowDeposit runId={id} budgetCap={Number(run.budgetCap || 0)} estimate={Number(run.plan?.estimate ?? 0.2)} onFunded={() => loadEscrow()} />
+                <>
+                  <EscrowDeposit runId={id} budgetCap={Number(run.budgetCap || 0)} estimate={Number(run.plan?.estimate ?? 0.2)} onFunded={() => loadEscrow()} />
+                  {escrowStale && (
+                    <p className="mt-2 text-xs text-red-700">
+                      Escrow status isn&apos;t refreshing — anything you&apos;ve signed so far still stands.{" "}
+                      <button onClick={() => loadEscrow()} className="underline">Retry</button>
+                    </p>
+                  )}
+                </>
               )}
               {escrowConfigured === true && escrowFunded && (
                 <p className="mt-3 text-sm">✓ Escrow funded — approving starts the run against your deposit.</p>

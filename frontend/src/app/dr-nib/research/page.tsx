@@ -82,6 +82,16 @@ export default function ResearchNewPage() {
   // remainder returns automatically at settle. No opt-in — money is the gate.
   const [escrowConfigured, setEscrowConfigured] = useState<boolean | null>(null);
   const [escrowFunded, setEscrowFunded] = useState(false);
+  // Poll health, separate from support: one failed status read must never
+  // unmount the funding UI mid-signing (seen live on testnet: the fund box
+  // vanished and approve silently unlocked on a single status blip).
+  const [escrowStale, setEscrowStale] = useState(false);
+  const [escrowCheckFailed, setEscrowCheckFailed] = useState(false);
+  const configuredRef = useRef<boolean | null>(null);
+  function applyConfigured(v: boolean | null) {
+    configuredRef.current = v;
+    setEscrowConfigured(v);
+  }
   // What actually landed onchain (may be below the cap — partial deposits).
   // The approve copy must name this number, never the cap.
   const [escrowBudget, setEscrowBudget] = useState(0);
@@ -401,31 +411,35 @@ export default function ResearchNewPage() {
 
   // Escrow funding state for the review gate: configured means this
   // deployment verifies deposits onchain and approve stays locked until the
-  // job reads Funded. The job opens here (one less click — Fund only funds);
-  // a failed read leaves the gate open and the backend enforces it anyway.
+  // job reads Funded. The job opens from the user's own Fund click (their
+  // wallet must be the onchain client), never implicitly from a read.
   // Polls while review is open: funding can land from another tab/wallet.
+  // A failed read NEVER flips support off: while supported the UI stays up
+  // and is marked stale; before support is ever confirmed the failure is
+  // shown with a retry instead of silently ledger-pathing the run.
   useEffect(() => {
     if (phase !== "review" || escrowConfigured !== true || escrowFunded || !project) return;
     const t = setInterval(() => { void loadEscrow(project.id); }, 5000);
     return () => clearInterval(t);
   }, [phase, escrowConfigured, escrowFunded, project]);
   async function loadEscrow(runId: string) {
-    setEscrowFunded(false);
-    setEscrowBudget(0);
     try {
       // Read-only: the job opens from the user's own Fund click (their
       // wallet must be the onchain client), never implicitly from a read.
       const st: any = await drNibApi.getEscrow(runId);
-      setEscrowConfigured(st?.configured === true);
+      applyConfigured(st?.configured === true);
       // Funded means spendable: status Funded AND at least the plan estimate
       // onchain (approve enforces the same minimum — deposits are one-shot).
       const need = Number.isFinite(Number(estimate)) && Number(estimate) > 0 ? Number(estimate) : Number(budgetCap || 0);
       const budget = Number(st?.job?.chain?.budget ?? 0);
       const funded = st?.job?.chain?.status === "Funded" && budget >= need;
       setEscrowFunded(funded);
-      if (funded) setEscrowBudget(budget);
+      setEscrowBudget(funded ? budget : 0);
+      setEscrowStale(false);
+      setEscrowCheckFailed(false);
     } catch {
-      setEscrowConfigured(null);
+      if (configuredRef.current === true) setEscrowStale(true);
+      else setEscrowCheckFailed(true);
     }
   }
 
@@ -861,26 +875,58 @@ export default function ResearchNewPage() {
                 {items.map((it) => (
                   <li key={it.seq} className="text-sm">
                     <span className="font-medium leading-6">{it.question.prompt}</span>
-                    <span className="block text-xs opacity-60">→ {it.answer ? answerLabel(it) : "Skipped"}</span>
+                    <span className="block text-xs opacity-60">→ {it.answer ? (answerLabel(it) || "(answered)") : "Skipped"}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
           {escrowConfigured === true && project && !escrowFunded && (
-            <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={estimate} onFunded={() => setEscrowFunded(true)} />
+            <>
+              <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={estimate} onFunded={() => setEscrowFunded(true)} />
+              {escrowStale && (
+                <p className="mt-2 text-xs text-red-700">
+                  Escrow status isn&apos;t refreshing — anything you&apos;ve signed so far still stands.{" "}
+                  <button onClick={() => project && loadEscrow(project.id)} className="underline">Retry</button>
+                </p>
+              )}
+            </>
           )}
           {escrowConfigured === true && escrowFunded && (
             <p className="mt-4 border-2 border-black bg-white p-4 text-sm">✓ Escrow funded (${escrowBudget.toFixed(2)}) — approving starts the run against your deposit. Unspent money returns to your wallet automatically at settle.</p>
           )}
+          {escrowConfigured === false && (
+            <div className="mt-4 border border-dark-gray/50 bg-white p-4 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wider opacity-60">No onchain escrow on this network</p>
+              <p className="mt-1 leading-6">
+                Approve authorizes a <strong>${Number(budgetCap || 0).toFixed(2)} ledger allowance</strong> — no wallet
+                signature, no money moves now. Stages draw from the allowance.
+              </p>
+            </div>
+          )}
+          {escrowConfigured === null && !escrowCheckFailed && (
+            <p className="mt-4 text-xs opacity-60">Checking escrow support…</p>
+          )}
+          {escrowConfigured === null && escrowCheckFailed && project && (
+            <div className="mt-4 border border-dark-gray/50 bg-white p-4 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wider opacity-60">Couldn&apos;t check escrow support</p>
+              <p className="mt-1 leading-6">
+                Approve stays available and the backend enforces funding where it&apos;s required — but check first if
+                you meant to deposit:{" "}
+                <button onClick={() => loadEscrow(project.id)} className="underline">Retry check</button>
+              </p>
+            </div>
+          )}
           <p className="mt-4 text-xs leading-5 opacity-60">
             {escrowConfigured === true
               ? `Approving starts the run against your $${(escrowFunded ? escrowBudget : Number(budgetCap || 0)).toFixed(2)} onchain deposit — this is the spend authorization, signed when you funded. Stages draw from it; whatever isn't spent returns to your wallet at settle.`
-              : "Onchain escrow isn't available on this network yet, so runs draw from a ledger allowance. Real money moves only where escrow is configured."}
+              : escrowConfigured === false
+                ? "Ledger allowance path — nothing to sign, nothing to fund."
+                : "Waiting on the escrow check before approve unlocks."}
           </p>
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project || (escrowConfigured === true && !escrowFunded)} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? "Starting…" : "Approve & run"}</button>
+            <button onClick={approve} disabled={busy || !project || escrowConfigured === null || (escrowConfigured === true && !escrowFunded)} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? "Starting…" : "Approve & run"}</button>
           </div>
         </section>
       )}

@@ -19,8 +19,8 @@ importers:
         specifier: 0.4.34
         version: 0.4.34(d99ce7d9bbc9c1366f399f34ce1b3614)
       '@nibgate/wallet':
-        specifier: 0.4.22
-        version: 0.4.22(9007f8e4dd0b7c53e8453864d7d8fa58)
+        specifier: 0.4.23
+        version: 0.4.23(9007f8e4dd0b7c53e8453864d7d8fa58)
       '@reown/appkit':
         specifier: 1.8.21
         version: 1.8.21(@types/react@19.3.0)(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(encoding@0.1.13)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.3.0))(zod@3.25.76)
@@ -435,8 +435,8 @@ packages:
   '@nibgate/sdk@0.4.34':
     resolution: {integrity: sha512-7SxH0ASJa2hf8ZHZShdlDfE7W22yLroQcolmEZ+jIHOKGaYzmXHiiDvz3lDPfA+1Z1UkFzjBZq9KMth1TagwFw==}
 
-  '@nibgate/wallet@0.4.22':
-    resolution: {integrity: sha512-ANFPvNBjzHjZ6AjsUXwdWWuw7kOO4xxWwRLla04kOCAHzGEH7hB2wKuALztbnzMz94foVOlqgU1IaB2QY2qR8Q==}
+  '@nibgate/wallet@0.4.23':
+    resolution: {integrity: sha512-oR233m7f91YFFYqX3c7jbqS7ykzgBteSDdtC8ZyEgVp7MjEwKUyqA/hkPCS+jEoWcRYtbMbRGaXULwcDcctM4A==}
     peerDependencies:
       '@reown/appkit': 1.8.21
       '@reown/appkit-adapter-wagmi': 1.8.21
@@ -3248,7 +3248,7 @@ snapshots:
   '@nibgate/sdk@0.4.34(d99ce7d9bbc9c1366f399f34ce1b3614)':
     dependencies:
       '@circle-fin/x402-batching': 3.2.0(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(viem@2.54.1(typescript@5.9.3)(zod@3.25.76))
-      '@nibgate/wallet': 0.4.22(9007f8e4dd0b7c53e8453864d7d8fa58)
+      '@nibgate/wallet': 0.4.23(9007f8e4dd0b7c53e8453864d7d8fa58)
       '@x402/core': 2.17.0
       '@x402/evm': 2.17.0(typescript@5.9.3)
       viem: 2.54.1(typescript@5.9.3)(zod@3.25.76)
@@ -3292,7 +3292,7 @@ snapshots:
       - wagmi
       - zod
 
-  '@nibgate/wallet@0.4.22(9007f8e4dd0b7c53e8453864d7d8fa58)':
+  '@nibgate/wallet@0.4.23(9007f8e4dd0b7c53e8453864d7d8fa58)':
     dependencies:
       '@nibgate/sdk': 0.4.34(d99ce7d9bbc9c1366f399f34ce1b3614)
       '@reown/appkit': 1.8.21(@types/react@19.3.0)(@x402/core@2.17.0)(@x402/evm@2.17.0(typescript@5.9.3))(encoding@0.1.13)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.3.0))(zod@3.25.76)

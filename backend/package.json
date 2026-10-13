@@ -26,6 +26,7 @@
     "viem": "^2.52.2"
   },
   "devDependencies": {
+    "@nibgate/wallet": "workspace:*",
     "@types/multer": "^2.2.0",
     "vitest": "^3.2.1"
   }

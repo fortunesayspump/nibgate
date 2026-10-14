@@ -40,6 +40,7 @@ export async function verifyReport(runId, { brief } = {}) {
   // — heuristic sentence-splitting would fabricate "claims", so offline means
   // unverified, labelled as such.
   let claims = [];
+  let claimCitations = [];
   let llmCost = 0;
   if (isLlmConfigured()) {
     try {
@@ -49,14 +50,19 @@ export async function verifyReport(runId, { brief } = {}) {
           { role: 'system', content: 'Extract verifiable factual claims. Return JSON only.' },
           {
             role: 'user',
-            content: `List the distinct factual claims made in this report that could be checked against sources. One short sentence each. Skip opinions, transitions, and methodology statements.\n\nReturn JSON: {"claims": ["...", "..."]}\n\nReport:\n${report.markdown.slice(0, 12000)}`,
+            content: `List the distinct factual claims made in this report that could be checked against sources. One atomic factual statement each; split compound claims rather than bundling several facts. Skip opinions, transitions, and methodology statements.\n\nKeep the report citation numbers for each claim. Return JSON: {"claims": [{"text":"...", "citations":[1,2]}]}\n\nReport:\n${report.markdown.slice(0, 12000)}`,
           },
         ],
         temperature: 0.1,
         maxTokens: 1500,
       });
       llmCost = Number(usage?.costUsd) || 0;
-      claims = (Array.isArray(data?.claims) ? data.claims : []).map((c) => String(c || '').trim()).filter(Boolean).slice(0, maxClaims);
+      const extracted = (Array.isArray(data?.claims) ? data.claims : []).map(c => ({
+        text: String(typeof c === 'string' ? c : c?.text || '').trim(),
+        citations: Array.isArray(c?.citations) ? c.citations.filter(Number.isInteger) : [],
+      })).filter(c => c.text).slice(0, maxClaims);
+      claims = extracted.map(c => c.text);
+      claimCitations = extracted.map(c => c.citations);
     } catch (err) {
       await recordEvent(runId, { type: 'verify.failed', reason: 'claim-extraction-failed', error: String(err?.message || err).slice(0, 200) });
       return { claims: 0, supported: 0, unknown: 0, costUsd: llmCost, verified: false, reason: 'claim-extraction-failed' };
@@ -75,8 +81,10 @@ export async function verifyReport(runId, { brief } = {}) {
   const questions = [];
   const claimPassages = [];
   for (const [i, text] of claims.entries()) {
-    const found = await searchEvidence(runId, { query: text, limit: 3 });
-    const best = found.matches[0] || null;
+    const found = await searchEvidence(runId, { query: text, limit: 20 });
+    const citedUrls = claimCitations[i].map(n => report.citations?.[n - 1]?.url).filter(Boolean);
+    const cited = found.matches.filter(m => citedUrls.includes(m.url));
+    const best = (cited.length ? cited : found.matches)[0] || null;
     claimPassages.push(best);
     questions.push({
       id: `c${i}`,
@@ -92,11 +100,10 @@ export async function verifyReport(runId, { brief } = {}) {
   let jevCost = 0;
   let jevModel = null;
   try {
-    // Passage text belongs in state, not the 500-character instruction field.
-    // Three 1000-character passages keep every batch below the 4000-char limit.
-    for (let start = 0; start < questions.length; start += 3) {
-      const group = questions.slice(start, start + 3);
-      const passages = group.map((q, n) => `Passage ${q.id}: ${claimPassages[start + n]?.excerpt?.slice(0, 1000) || '(none)'}`).join('\n\n');
+    // Each claim gets the cited passage without competing for the state limit.
+    for (let start = 0; start < questions.length; start += 1) {
+      const group = questions.slice(start, start + 1);
+      const passages = group.map((q, n) => `Passage ${q.id}: ${claimPassages[start + n]?.excerpt?.slice(0, 3000) || '(none)'}`).join('\n\n');
       const out = await batch({ state: `${state}\n${passages}`, questions: group });
       Object.assign(answers, out.answers || {});
       jevCost += Number(out.usage?.cost) || 0;

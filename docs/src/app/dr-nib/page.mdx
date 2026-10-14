@@ -39,3 +39,5 @@ The data stage is a propose → judge → execute loop with termination enforced
 The same runs are drivable by agents over MCP (`answer_question`, `answer_questions`, `approve_plan`, `reprompt_run`, `reconcile_run`, …): signed USDC payments for tips, paid unlocks, and x402 resources come from the run budget inside per-call ceilings, and every tool call is logged with what it cost and what came back. See the spending rules below and [Budgets & refunds](./budgets).
 
 Source selection follows the approved brief, including restrictions such as official documentation only. A missing retrieved passage is reported as a gap in the collected evidence, not proof that the documentation or feature does not exist. Short custom reports use one concise writing pass; references keep stable citation numbers.
+
+Reports show a claim-to-source matrix. When fewer than half of checked claims are confirmed, a prominent limited-evidence warning asks readers to review the sources before relying on the report. Unknown means the collected passage did not confirm the claim, not that the claim is false.

@@ -157,7 +157,7 @@ function formatEvidence(sources) {
       if (s.url) bits.push(`    ${s.url}`);
       if (Number.isFinite(s.relevance)) bits.push(`    relevance: ${s.relevance}`);
       if (Number.isFinite(s.trust)) bits.push(`    trust: ${s.trust}`);
-      if (s.excerpt) bits.push(`    excerpt: ${String(s.excerpt).slice(0, 600)}`);
+      if (s.excerpt) bits.push(`    excerpt: ${String(s.excerpt).slice(0, 6000)}`);
       return bits.join('\n');
     })
     .join('\n\n');

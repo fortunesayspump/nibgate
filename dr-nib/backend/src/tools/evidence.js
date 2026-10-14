@@ -51,7 +51,7 @@ export async function searchEvidence(runId, { query, limit = 5 } = {}) {
   const scored = sources.map((s) => {
     const doc = docsByUrl.get(s.url);
     const text = doc?.text || '';
-    const excerpt = evidenceWindow(text, query);
+    const excerpt = evidenceWindow(text, query, 3000);
     const score = Math.max(
       scoreText(q, s.title, s.url) * 0.6,
       excerpt ? scoreText(q, excerpt) : 0,

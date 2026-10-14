@@ -816,7 +816,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     paused: run.pauseReason === "cap"
       ? "Parked at the budget cap — raise it to continue."
       : "Paused by you — resume when ready.",
-    complete: "Complete — the report below is the finished product.",
+    complete: "Research complete — review the report and its evidence checks below.",
     failed: "This run failed — check the receipt below for the refund status.",
     ended: "Ended — check the receipt below for the refund status.",
   };
@@ -1002,7 +1002,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                 const steer = (run.metadata?.versionPrompts || {})[report.version];
                 return steer ? <p className="mb-2 text-xs opacity-60">v{report.version} steered by: “{String(steer).slice(0, 160)}”</p> : null;
               })()}
-              <ReportArticle markdown={report.markdown} sources={run.sources || []} />
+              <ReportArticle markdown={report.markdown} sources={report.citations?.length ? report.citations : run.sources || []} />
               <ReportEvidence claims={run.claims} sources={run.sources || []} />
               <ReportQA claims={run.claims} sources={run.sources || []} />
               {["complete", "failed", "ended"].includes(run.status) ? (

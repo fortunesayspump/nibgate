@@ -2,7 +2,7 @@ import { Callout } from 'nextra/components'
 
 # Browser extension
 
-The Nibgate extension puts a tip button on every article, tutorial, paper, and video you read — on any site, not just Nibgate's. It is the human interface to [Nib Tips](/tipping): agents use the API route instead.
+The Nibgate extension lets you tip website pages with USDC. It shows a tip button on eligible creator pages; version 1.2.0 also adds an explicit right-click action for any HTTP(S) page or linked page. It is the human interface to [Nib Tips](/tipping): agents use the API route instead.
 
 <Callout type="info">
 **Live on the Chrome Web Store** ([install Nibgate](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)). Starts on Arc testnet with free faucet USDC.
@@ -35,9 +35,9 @@ One build, two networks, switched from the **header pill** (TESTNET by default).
 
 Balances, history, and tips are per-network — testnet play money can never touch mainnet content. See [Networks](/networks).
 
-## Tip any URL (1.2.0, next store update)
+## Tip any page (1.2.0, next store update)
 
-Right-click an HTTP(S) page or link and choose **Tip this URL** to open the extension amount, review, and approval window. This works on ordinary sites without creator classification or optional site access. Verified recipients use the existing settlement flow; unresolved URLs hold tips for the domain owner to verify and claim. Browser-internal URLs are unsupported. Version 1.2.0 is prepared for submission; the store listing may still serve the earlier version.
+Right-click an HTTP(S) page or link and choose **Tip this page** to open the extension amount, review, and approval window. This works on ordinary sites without creator classification or optional site access. Verified recipients use the existing settlement flow; unresolved URLs hold tips for the domain owner to verify and claim. Browser-internal URLs are unsupported. Version 1.2.0 is prepared for submission; the store listing may still serve the earlier version.
 
 The automatic **Tip the creator** button keeps its existing creator eligibility checks.
 
@@ -45,7 +45,7 @@ The automatic **Tip the creator** button keeps its existing creator eligibility 
 
 1. Open an article. A **coffee button** appears near the content — the only thing the extension ever renders inside the page, so pages can't spoof money UI. (Nibgate's own sites are excluded; they tip natively.)
 2. Tap it: the Nibgate tip window opens. Pick $1 / $5 / $10 or custom, review exactly who gets paid and the fee, then **Approve** — nothing signs without your tap.
-3. The receipt lands in **Activity** and counts in Explore/ledger/earnings like any tip.
+3. The receipt lands in **Activity**. Settled tips count in completed-tip totals; funded holds remain pending until claimed and are refundable while unclaimed.
 
 ### Fees
 
@@ -73,13 +73,15 @@ You don't need the extension and you don't need an account. If readers tip your 
 
 1. [Verify your site](/verify-site) to prove ownership.
 2. Claim everything waiting in your domain's holding box in one go.
-3. Optional: add a `data-nibgate-recipient="0xYourWallet"` marker to your pages and future tips settle instantly at 1% instead of holding.
+3. Optional: declare a recipient wallet on your page. Page-declared wallets still pass recipient checks; unresolved or unverified recipients can remain held. A right-click action does not inherit recipient metadata from a referring page.
+
+Right-clicking the page targets its address; right-clicking a link targets the linked page. The approval window shows the exact target URL before payment.
 
 ## Permissions
 
 | Permission | Why |
 |---|---|
-| `contextMenus` | Add the explicit Tip this URL action for HTTP(S) pages and links (1.2.0) |
+| `contextMenus` | Add the explicit Tip this page action for HTTP(S) pages and links (1.2.0) |
 | `activeTab` | Read the current page only, to find tippable content |
 | `storage` | Tip history + network preference, on-device |
 | `clipboardWrite` | Copy your wallet address or recovery phrase when you tap Copy |
@@ -91,7 +93,7 @@ No analytics, no remote code, no data sale. Full policy: [nibgate.xyz/extension-
 
 | Symptom | Fix |
 |---|---|
-| No button on a page | Reload the tab (especially right after enabling access); check the page isn't `*.nibgate.xyz` (excluded by design) or a non-content page (feeds, apps, logins stay button-free) |
+| No button on a page | In 1.2.0, use **Tip this page** from the right-click menu. For the automatic creator button, reload the tab (especially right after enabling access); check the page isn't `*.nibgate.xyz` (excluded by design) or a non-content page (feeds, apps, logins stay button-free) |
 | Button says funds will be held | Creator unresolved — expected. Tip holds safely, refundable in full |
 | Wrong network showing | Tap the header pill; balances/history follow the active network |
 | Popup closed mid-tip | Reopen from Activity — held and settled states are recoverable, nothing signs twice |

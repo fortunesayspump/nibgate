@@ -1,6 +1,6 @@
 # Chrome Web Store submission
 
-**Status: v1.0.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
+**Status: v1.1.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
 Repo is at v1.2.0 — the next update (submission flow below).
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
@@ -19,7 +19,7 @@ building on store approval.
 - Updates to an already-approved item review faster than first submissions.
 - Never cancel + resubmit while pending — it rejoins the back of the queue.
 
-The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this URL** action on HTTP(S) pages and links. This action opens the existing approval window and preserves verified-recipient/held-owner-claim behavior. No payment is signed from the context menu itself.
+The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this page** action on HTTP(S) pages and links. This action opens the existing approval window and preserves verified-recipient/held-owner-claim behavior. No payment is signed from the context menu itself.
 
 ## Pre-submit checklist (v1.2.0)
 
@@ -41,57 +41,34 @@ The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this U
 2. Use **staged rollout** (e.g. 20% → 100%) for subsequent builds
    so a bad build doesn't hit every user at once.
 3. Build v1.2.0 (`nibgate-1.2.0.zip`) and upload it as a new version of the
-   same item (review is faster for updates). This release adds the testnet
-   faucet entry point and password-recovery/reset flows.
+   same item (review is faster for updates). This release adds **Tip this page** to the right-click menu for HTTP(S) pages and links.
 
-## Steps (record — used for the v1.0.0 submission)
+## Submission copy for 1.2.0
 
-1. Pay the one-time $5 Chrome Web Store developer fee (Google account).
-   New accounts may face identity verification — do it immediately, it gates everything.
-2. Developer Dashboard → New item → upload the built zip (built from a clean `npm run build`).
-3. Fill listing (copy below): name `Nibgate`, category Productivity,
-   privacy policy URL `https://nibgate.xyz/extension-privacy`,
-   support email `hello@nibgate.xyz`.
-4. Submit the **testnet-default** build (honest description: testnet play
-   money). Do NOT wait for approval to continue building.
+Single purpose:
+> Tip creators and website pages with USDC. The extension shows a tip button on eligible creator pages and offers a Tip this page right-click action for HTTP(S) pages and links. Users choose an amount, review the recipient, and approve payment through a built-in self-custodial wallet. Tips settle to verified recipients or are held for the website owner to verify ownership and claim through Nibgate.
 
-## Listing copy (as submitted — v1.0.0 live)
+contextMenus justification:
+> Adds Tip this page to the right-click menu for HTTP and HTTPS pages and links. Selecting it opens the tip window for that page or linked page, where users choose an amount, review the recipient, and explicitly approve payment. This supports tipping even when no automatic creator button appears. The menu action does not sign or send a payment.
 
-Short description (132 chars):
-`Tip any creator on the web with USDC. Play money on testnet; flip to mainnet in settings for real tips.`
+Short description:
+> Tip creators and pages with USDC. Right-click to tip, review before paying. Testnet by default; mainnet available.
 
 Full description:
 ```
-Nibgate puts a tip button on every article, tutorial, and paper you read.
+Nibgate lets you tip creators and website pages with USDC.
 
-• One tap on the coffee button opens the Nibgate tip window
-• Pick $1, $5, $10 or a custom amount — review, approve, done
+• Right-click any HTTP or HTTPS page or link and choose “Tip this page”
+• On eligible creator pages, tap the inline coffee button
+• Pick $1, $5, $10, or a custom amount, review the recipient, then approve
 • Tips settle in USDC on Arc, directly or via Circle Gateway
-• Unknown creators? Your tip waits safely until they claim it — or refund yourself in one tap
-• Self-custodial wallet built in: your keys never leave this device
+• Unresolved recipients? Tips are held for the website owner to verify ownership and claim; unclaimed held tips can be refunded in full
+• Self-custodial wallet built in: your private keys stay on your device
 
-Starts on Arc Testnet, with a one-tap link to Circle's faucet for free testnet
-USDC (play money only). When you're
-ready for real tips, flip to Mainnet in Settings — with an explicit
-confirmation, so it never happens by accident.
+Starts on Arc Testnet with free faucet USDC (play money only). Switch to Mainnet using the header network pill and confirm before using real funds.
 
-Support: hello@nibgate.xyz · Privacy: https://nibgate.xyz/extension-privacy
-```
-
-> 1.0.0 wording debt, fixed for the 1.2.0 listing below: the submitted text says
-> "flip to mainnet in settings" but the UI ships a confirm-gated **header
-> pill** — the 1.2.0 copy says "header pill" throughout.
-
-## Listing copy (v1.2.0 update — replaces the v1.0.0 block above on submission)
-
-Short description (132 chars):
-`Tip any creator on the web with USDC. Play money on testnet; flip to mainnet via the header pill for real tips.`
-
-Add to the full description, after the faucet paragraph:
-```
-v1.2.0: one-tap Circle faucet entry on the home screen (testnet only —
-copies your address, opens the faucet), and forgot-password recovery:
-restore with your recovery phrase or clear the device wallet and start over.
+Support: hello@nibgate.xyz
+Privacy: https://nibgate.xyz/extension-privacy
 ```
 
 Screenshots (1280×800 composed feature frames, dark canvas + headline left +

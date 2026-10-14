@@ -21,7 +21,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 test('install and startup register the HTTP(S) page/link menu', () => {
   const { events } = harness();
   events.install();
-  assert.equal(events.menu.title, 'Tip this URL');
+  assert.equal(events.menu.title, 'Tip this page');
   assert.deepEqual(Array.from(events.menu.contexts), ['page', 'link']);
   events.startup();
   assert.equal(events.menu.id, 'nibgate-tip-url');

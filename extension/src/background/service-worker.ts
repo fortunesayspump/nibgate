@@ -757,7 +757,7 @@ const TIP_URL_MENU = 'nibgate-tip-url';
 function registerTipMenu() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: TIP_URL_MENU, title: 'Tip this URL', contexts: ['page', 'link'],
+      id: TIP_URL_MENU, title: 'Tip this page', contexts: ['page', 'link'],
       documentUrlPatterns: ['http://*/*', 'https://*/*'],
     });
   });

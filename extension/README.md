@@ -1,6 +1,6 @@
 # Nibgate Extension — tip any creator on the web with USDC
 
-**Status: v1.0.0 LIVE on the Chrome Web Store**
+**Status: v1.1.0 LIVE on the Chrome Web Store**
 ([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
 Repo is at v1.2.0 (next update, unsubmitted). Sideload guide:
 `docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
@@ -47,9 +47,9 @@ an explicit confirmation, so real money never happens by accident.
 - **Mainnet (Arc, chain 5042):** real USDC. Balances, history, and tips are
   per-network — switching networks switches everything you see.
 
-### Tip any URL from the right-click menu
+### Tip any page from the right-click menu
 
-Right-click any HTTP(S) page or link and choose **Tip this URL**. This opens the extension amount, review, and approval window even on sites that are not classified as creators, without requiring optional site access. Verified recipients settle through the existing flow; otherwise funds are held for the domain owner to verify and claim. The automatic **Tip the creator** button still requires the existing creator eligibility checks. Browser-internal URLs are unsupported.
+Right-click any HTTP(S) page or link and choose **Tip this page**. This opens the extension amount, review, and approval window even on sites that are not classified as creators, without requiring optional site access. Verified recipients settle through the existing flow; otherwise funds are held for the domain owner to verify and claim. The automatic **Tip the creator** button still requires the existing creator eligibility checks. Browser-internal URLs are unsupported.
 
 ### Tipping on creator pages
 

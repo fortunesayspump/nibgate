@@ -64,7 +64,7 @@ export function classifyArcRpcError(error, method = '', { chain: requestedChain 
   if (codes.includes(4001) || /user (rejected|denied|cancelled)/i.test(text)) reason = 'cancelled'
   else if (codes.includes(4100)) reason = 'unauthorized'
   else if (codes.includes(-32002)) reason = 'pending'
-  else if (codes.includes(4200) || codes.includes(-32601)) reason = 'unsupported'
+  else if (codes.includes(4200) || codes.includes(-32601) || /requested RPC call is not allowed/i.test(text)) reason = 'unsupported'
   else if (codes.includes(4900)) reason = 'disconnected'
   else if (codes.includes(4901) || codes.includes(4902)) reason = 'wrong-chain'
   else if (statuses.includes(401) || statuses.includes(403)) reason = 'access-denied'
@@ -198,22 +198,32 @@ export async function repairArcNetwork(provider, { timeoutMs = 9000, assertActiv
     try { assertActive() } catch { throw new ArcConnectionError('changed', { chain }) }
   }
   let method = 'wallet_addEthereumChain'
+  const deadline = Date.now() + budget(timeoutMs)
+  const request = async params => {
+    let timer
+    try {
+      return await Promise.race([
+        Promise.resolve().then(() => provider.request({ method, params })),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new ArcConnectionError('timeout', { method, chain })), Math.max(1, deadline - Date.now())) }),
+      ])
+    } finally { clearTimeout(timer) }
+  }
   repairs.add(provider)
   try {
     guard()
-    await provider.request({ method, params: [getAddArcNetworkParams(chain)] })
+    await request([getAddArcNetworkParams(chain)])
     guard()
     method = 'wallet_switchEthereumChain'
-    await provider.request({ method, params: [{ chainId: chain.chainIdHex }] })
+    await request([{ chainId: chain.chainIdHex }])
     guard()
-    await waitForChainChange(provider, { chainId: chain.id, timeoutMs: budget(timeoutMs) })
+    await waitForChainChange(provider, { chainId: chain.id, timeoutMs: Math.max(1, deadline - Date.now()) })
     guard()
-    const health = await checkArcConnection(provider, { timeoutMs, chain, assertActive })
+    const health = await checkArcConnection(provider, { timeoutMs: Math.max(1, deadline - Date.now()), chain, assertActive })
     guard()
     return { ...health, requestedRpcUrl: chain.rpcUrl }
   } catch (error) {
     const classified = classifyArcRpcError(error, method, { chain })
-    const manual = !['cancelled', 'pending', 'unauthorized', 'disconnected', 'changed'].includes(classified.reason)
+    const manual = !['cancelled', 'pending', 'unauthorized', 'disconnected', 'changed', 'unsupported'].includes(classified.reason)
     throw new ArcConnectionError(classified.reason, { method: classified.method, manual, chain })
   } finally { repairs.delete(provider) }
 }

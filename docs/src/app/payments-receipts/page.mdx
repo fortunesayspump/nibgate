@@ -120,7 +120,7 @@ The hub backend exposes Circle Gateway helper status on both rails via the share
 - `POST /api/nibshare/gateway/balance` (hub) and `GET /api/nibgate/gateway/balances` (subblogs) — return the depositor's testnet USDC balance (needs `CIRCLE_API_KEY` set on the backend; response shows `{ balance: "0.00 USDC" }`).
 - Browser deposits use the selected wallet to approve USDC and deposit it into the Gateway contract. Nibgate does not custody the wallet.
 
-The SDK 0.4.38 and wallet 0.4.28 shared React and browser/CDN deposit flow waits for a successful
+The SDK 0.4.38 and wallet 0.4.29 shared React and browser/CDN deposit flow waits for a successful
 approval receipt before requesting deposit, then verifies the matching transfer
 receipt before reporting success. Saved hashes survive panel remounts and reloads
 in the same tab. Resume checks the original transaction; an interrupted wallet
@@ -129,7 +129,7 @@ request with no saved hash requires wallet-activity review before another paymen
 Browser Gateway unlocks likewise retain submitted authorization proofs for an
 explicit `retryVerification()` action. RPC repair requests the official settings
 for the selected Arc network, verifies responding reads, and preserves pending
-proofs. It never automatically retries a payment. These client changes are included in SDK 0.4.38 and wallet 0.4.28
+proofs. It never automatically retries a payment. These client changes are included in SDK 0.4.38 and wallet 0.4.29
 on Arc mainnet and testnet. Configure the network and matching Hub together.
 
 ## Event payload
@@ -152,4 +152,4 @@ Unlock completion events should include:
 
 The dashboard should group earnings by site, receiver, content, currency, and time range. Clicking a receipt should open the source transaction or gateway receipt when available.
 
-Google wallet compatibility: wallet 0.4.28 checks already-authorized accounts before SIWE and configures AppKit with Reown's Arc RPC routes on both networks. This avoids Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
+Google wallet compatibility: wallet 0.4.29 checks already-authorized accounts before SIWE and configures AppKit with Reown's Arc RPC routes on both networks. This avoids Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.29
+
+Google and other Reown embedded wallets now receive Arc's CSP-compatible Reown RPC in the active AppKit network object, including the default network. The previous custom RPC setting alone did not reach Magic's iframe provider. A repair request that the wallet leaves pending now times out, and disallowed network methods report as unsupported instead of spinning. The React hook's published TypeScript return type also includes its existing address and session helpers. Public Arc chain metadata remains canonical.
+
 ## 0.4.28
 
 Companion SDK is 0.4.38. Google wallet sign-in checks already-granted accounts before requesting account access. AppKit uses Reown's Arc RPC routes on both networks because Magic's iframe policy blocks the direct Arc hosts. Public chain metadata retains Arc's official RPC URLs; application reads retain the Nibgate read-only proxies.

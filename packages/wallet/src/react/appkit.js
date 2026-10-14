@@ -5,7 +5,7 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { http } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { activeArcChain, appRpcUrlFor } from '../chain.js'
-import { arcAppKitRpcUrls } from './appkit-networks.js'
+import { arcAppKitNetworks, arcAppKitRpcUrls } from './appkit-networks.js'
 
 export const NIBGATE_APPKIT_PROJECT_ID = '09580756f3c5f13c5f1aeb2faa9b1696'
 export const NIBGATE_RPC_URL = appRpcUrlFor()
@@ -132,7 +132,7 @@ export function createNibgateWallet(options = {}) {
   const projectId = options.projectId || NIBGATE_APPKIT_PROJECT_ID
   const rpcUrl = options.rpcUrl || NIBGATE_RPC_URL
   const chains = options.chains && options.chains.length ? options.chains : [activeArcChain()]
-  const appKitNetworks = chains
+  const appKitNetworks = arcAppKitNetworks(chains, projectId)
   const customRpcUrls = arcAppKitRpcUrls(chains, projectId)
 
   // Connector policy: exactly ONE generic injected connector, nothing
@@ -169,7 +169,7 @@ export function createNibgateWallet(options = {}) {
     adapters: [wagmiAdapter],
     networks: appKitNetworks,
     customRpcUrls,
-    defaultNetwork: options.defaultNetwork || chains[0],
+    defaultNetwork: appKitNetworks.find(chain => chain.id === (options.defaultNetwork || chains[0]).id) || appKitNetworks[0],
     allowUnsupportedChain: options.allowUnsupportedChain ?? true,
     projectId,
     metadata,

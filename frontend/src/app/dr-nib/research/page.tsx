@@ -53,7 +53,7 @@ export default function ResearchNewPage() {
   // Dr. Nib is wallet-gated through the same shared hub session as the header.
   // When a call comes back 401 (wallet connected but not signed in), prompt and
   // open the shared connect/sign-in rather than showing a raw error.
-  const { connect } = useNibgateConnect();
+  const { connect, signIn, address: connectedAddress, busy: signInBusy, error: signInError } = useNibgateConnect();
   const [phase, setPhase] = useState<Phase>("composer");
   const [topic, setTopic] = useState("");
   const [project, setProject] = useState<any | null>(null);
@@ -616,9 +616,13 @@ export default function ResearchNewPage() {
       {notice && <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}{/live run/i.test(notice) && (<> — <button onClick={() => router.push("/dr-nib/projects")} className="underline">review them in Projects</button></>)}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button></div>}
       {needsSignIn && (
         <div className="mb-4">
-          <button onClick={() => { setNeedsSignIn(false); connect(); }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white">
-            Sign in with wallet
+          <button disabled={signInBusy} onClick={async () => {
+            const signedIn = await (connectedAddress ? signIn() : connect());
+            if (signedIn) setNeedsSignIn(false);
+          }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+            {signInBusy ? "Signing in…" : "Sign in with wallet"}
           </button>
+          {signInError && <p role="status" className="text-sm text-red-700">{signInError}</p>}
         </div>
       )}
 

@@ -54,9 +54,15 @@ export function useNibgateConnect(options?: {
 }): {
   connect: () => Promise<boolean>;
   signIn: () => Promise<boolean>;
+  signOut: () => Promise<void>;
+  authedFetch: typeof fetch;
   busy: boolean;
   status: NibgateConnectStatus;
   error: string | null;
+  address: string | undefined;
+  clearError: () => void;
+  chainId: number | null;
+  notifySessionExpired: () => void;
 };
 
 export interface UnlockResource {

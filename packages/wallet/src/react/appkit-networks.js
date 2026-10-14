@@ -12,3 +12,22 @@ export function arcAppKitRpcUrls(chains, projectId) {
       return [chainId, [{ url: url.toString() }]]
     }))
 }
+
+// Reown's embedded W3mFrameProvider reads rpcUrls.default.http[0] from the
+// active CaipNetwork. customRpcUrls alone is used by other AppKit paths and
+// does not replace this value; leaving the original Arc host here makes
+// Google wallets call a URL their CSP blocks.
+export function arcAppKitNetworks(chains, projectId) {
+  const routes = arcAppKitRpcUrls(chains, projectId)
+  return chains.map(chain => {
+    const route = routes[`eip155:${chain.id}`]?.[0]?.url
+    if (!route) return chain
+    return {
+      ...chain,
+      rpcUrls: {
+        ...chain.rpcUrls,
+        default: { ...chain.rpcUrls.default, http: [route] },
+      },
+    }
+  })
+}

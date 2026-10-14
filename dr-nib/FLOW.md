@@ -1,6 +1,11 @@
 # Dr. Nib — Flow
 
-How a research run actually happens, from the first sentence a person types to the cited
+Historical design reference. Current user-facing behavior and limits are documented at
+`docs/src/app/dr-nib/`; verification evidence is in `TESTS.md`. This document contains
+aspirational features, including public sharing and unrestricted uploads; it is not a
+claim that those features have shipped.
+
+How a research run was designed to happen, from the first sentence a person types to the cited
 report sitting on their screen. This is the intended behaviour of the product, written down
 so the implementation can be checked against it.
 

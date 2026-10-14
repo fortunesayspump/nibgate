@@ -102,7 +102,7 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
             <ReportEvidence claims={run.claims} sources={sources} />
             <ReportQA claims={run.claims} sources={sources} />
             {["complete", "failed", "ended"].includes(run.status) ? (
-              <DiscussThread runId={id} initial={run.metadata?.discuss} />
+            <DiscussThread runId={id} initial={run.metadata?.discuss} sources={sources} />
             ) : null}
             <div className="mt-4 flex items-center gap-3 border-t border-dark-gray/30 pt-3">
               <button onClick={shareLink} className="text-xs font-medium underline opacity-60 hover:opacity-100" title="Copy a link to this exact report version">

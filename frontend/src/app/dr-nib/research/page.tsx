@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2, Send, Square } from "lucide-react";
 import { drNibApi, type IntakeAnswer, type IntakeOption, type IntakeQuestion } from "@/lib/dr-nib-api";
 import { useNibgateConnect } from "@/lib/useNibgateConnect";
+import { SourceManager } from "@/components/dr-nib/SourceManager";
 import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
 
 const SAMPLES = [
@@ -65,6 +66,7 @@ export default function ResearchNewPage() {
   const [thinking, setThinking] = useState<{ history: string[]; shown: string } | null>(null);
   // The batch whose answers just landed: thinking streams first, then the UI
   // waits on Next (see advanceBatch). Nothing auto-advances.
+  const [sourcesBusy, setSourcesBusy] = useState(false);
   const [pendingBatch, setPendingBatch] = useState<null | { answers: { seq: number; answer: IntakeAnswer }[]; res: any }>(null);
   // True while the answers are still flying: the loading screen shows
   // instantly on click (optimistic), the stream lands into it when it arrives.
@@ -772,6 +774,7 @@ export default function ResearchNewPage() {
         <section className="mx-auto max-w-2xl py-6">
           <h2 className="nibgate-display-title text-2xl font-medium md:text-3xl">Configure the run</h2>
           <p className="mt-2 text-sm opacity-60">Set the bounds. Planning is free — money moves only when you approve.</p>
+          {project?.id && <SourceManager runId={project.id} onBusyChange={setSourcesBusy} />}
           <div className="mt-5 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
             <div>
               <label className="text-sm font-medium" htmlFor="drnib-depth">Depth</label>
@@ -822,7 +825,7 @@ export default function ResearchNewPage() {
           </div>
           <div className="mt-5 flex gap-2">
             <button onClick={async () => { await reloadItems(); setPhase("questions"); }} disabled={busy} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium disabled:opacity-50">Back</button>
-            <button onClick={plan} disabled={busy} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "Planning…" : "Plan run"}</button>
+            <button onClick={plan} disabled={busy || sourcesBusy} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{sourcesBusy ? "Finish adding sources…" : busy ? "Planning…" : "Plan run"}</button>
           </div>
         </section>
       )}

@@ -2,11 +2,13 @@
 import './env.js';
 import { selectSources } from './source-selection.js';
 import { SOURCE_ORDER, reportEvidence, sectionEvidence } from './report-evidence.js';
+import { citedTipCandidates } from './tip-candidates.js';
 
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from './db.js';
+import { withRunLock } from './run-lock.js';
 import { recordEvent } from './eventlog.js';
 import { enqueue } from './queue.js';
 import { budgetState, draw, settle } from './money.js';
@@ -73,7 +75,12 @@ const PARKED = new Set(['paused', 'awaiting', 'ended', 'failed', 'complete']);
 const loadRun = (runId) => db.researchRun.findUniqueOrThrow({ where: { id: runId } });
 
 async function park(runId, status, reason = null) {
-  const run = await db.researchRun.update({ where: { id: runId }, data: { status, pauseReason: reason } });
+  const run = await withRunLock(runId,async tx=>{
+    const current=await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    if(['ended','complete','failed'].includes(current.status) && status!==current.status) return current;
+    return tx.researchRun.update({where:{id:runId},data:{status,pauseReason:reason}});
+  });
+  if(run.status!==status) return run;
   await recordEvent(runId, { type: status === 'complete' ? 'complete' : 'status', status, pauseReason: reason });
   return run;
 }
@@ -81,6 +88,7 @@ async function park(runId, status, reason = null) {
 export async function halt(runId) {
   const run = await loadRun(runId);
   if (!PARKED.has(run.status)) return false;
+  if (['ended','failed'].includes(run.status)) await finishTerminalRun(runId);
   if (run.status === 'paused' && run.pauseReason !== 'user') {
     await recordEvent(runId, { type: 'status', status: run.status, pauseReason: run.pauseReason });
   }
@@ -92,16 +100,17 @@ export async function halt(runId) {
 async function takeGuidance(runId) {
   const run = await loadRun(runId);
   if (!run.pendingGuidance) return null;
-  await db.researchRun.update({ where: { id: runId }, data: { pendingGuidance: null } });
+  await db.researchRun.update({ where: { id: runId }, data: { pendingGuidance: null, brief: {...run.brief, guidance: [run.brief?.guidance, run.pendingGuidance.text].filter(Boolean).join('\n').slice(-8000)} } });
   await recordEvent(runId, { type: 'guidance.applied', guidance: run.pendingGuidance });
   return run.pendingGuidance;
 }
 
 export async function parkForQuestion(runId, question) {
-  await db.researchRun.update({
-    where: { id: runId },
+  const updated=await db.researchRun.updateMany({
+    where: { id: runId, status:{in:['running','planning']} },
     data: { status: 'awaiting', pendingQuestion: question, pauseReason: 'awaiting' },
   });
+  if(!updated.count)return null;
   await recordEvent(runId, { type: 'awaiting', question });
   return question;
 }
@@ -116,20 +125,20 @@ export async function parkForQuestion(runId, question) {
 // already happened: without it, resuming a run would draw the stage cost a
 // second time for the same step.
 async function stage(runId, kind, version, fn) {
-  const done = await db.researchStep.findFirst({
-    where: { runId, kind, attempt: version, status: 'done' },
-    orderBy: { createdAt: 'desc' },
+  const claim = await withRunLock(runId, async tx => {
+    const done = await tx.researchStep.findFirst({where:{runId,kind,attempt:version,status:'done'},orderBy:{createdAt:'desc'}});
+    if (done) return {done};
+    if (await tx.researchStep.count({where:{runId,status:'active'}})) return {busy:true};
+    const run = await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    if (!['running','planning'].includes(run.status)) return {busy:true};
+    return {row:await tx.researchStep.create({data:{runId,kind,status:'active',attempt:version,startedAt:new Date(),workerId:WORKER_ID,leaseUntil:new Date(Date.now()+LEASE_MS),heartbeatAt:new Date()}})};
   });
-  if (done) {
-    await recordEvent(runId, { type: 'step.skipped', kind, reason: 'already done' });
-    return { ...(done.output ?? {}), skipped: true };
+  if (claim.busy) { const error=new Error('Run already active or parked'); error.code='RUN_BUSY'; throw error; }
+  if (claim.done) {
+    await recordEvent(runId,{type:'step.skipped',kind,reason:'already done'});
+    return {...(claim.done.output || {}),skipped:true};
   }
-  const row = await db.researchStep.create({
-    data: {
-      runId, kind, status: 'active', attempt: version, startedAt: new Date(),
-      workerId: WORKER_ID, leaseUntil: new Date(Date.now() + LEASE_MS), heartbeatAt: new Date(),
-    },
-  });
+  const row=claim.row;
   await recordEvent(runId, { type: 'step.started', kind });
   inFlight += 1;
   const heartbeat = setInterval(() => {
@@ -140,14 +149,18 @@ async function stage(runId, kind, version, fn) {
   }, HEARTBEAT_MS);
   try {
     const started = Date.now();
-    const out = await fn();
+    let out = await fn();
+    if (kind !== 'plan' && !out?.parked && !out?.skipped) {
+      const ok = await charge(runId, kind, kind === 'write' ? out?.llmCost : out?.costUsd, `stage:${kind}:${version}`);
+      out = {...out, budgetOk:ok};
+    }
     const elapsedMs = Date.now() - started;
     console.log(`[dr-nib] stage=${kind} run=${runId} elapsed=${elapsedMs}ms`);
     // Narrate, never block: one voiced line lands in the feed seconds later.
     announce(runId, kind, out);
     await db.researchStep.update({
       where: { id: row.id },
-      data: { status: 'done', output: out ?? {}, endedAt: new Date() },
+      data: { status: out?.parked ? 'pending' : 'done', output: out ?? {}, endedAt: new Date() },
     });
     await recordEvent(runId, { type: 'step.finished', kind });
     return out;
@@ -232,7 +245,7 @@ export async function requeueOrphans({ enqueueFn = enqueue } = {}) {
       data: { status: 'pending', workerId: null, leaseUntil: null },
     });
     await recordEvent(run.id, { type: 'step.reclaimed', reason: 'worker lost mid-stage; replaying from the last finished step' });
-    if (!REQUEUEABLE.has(run.status)) continue;
+    if (!REQUEUEABLE.has(run.status)) {await finishTerminalRun(run.id);continue;}
     if (run.status === 'planning') await enqueueFn('run.plan', { runId: run.id });
     else await enqueueFn('run.execute', { runId: run.id });
     requeued.push(run.id);
@@ -278,19 +291,24 @@ export async function requeueStalledRuns({ enqueueFn = enqueue, olderThanMs = 12
 // The amount is the real cost the stage incurred when the LLM reported one
 // (`actualCost`), otherwise the price-table estimate for the stage. Metering
 // the actual number is what keeps a run's ledger honest once calls are live.
-async function charge(runId, kind, actualCost) {
-  const amount = Number.isFinite(actualCost) && actualCost > 0 ? actualCost : STAGE_COSTS[kind];
-  const result = await draw(runId, amount);
+async function charge(runId, kind, actualCost, chargeRef = null) {
+  const metered=Number.isFinite(actualCost) && actualCost>=0;
+  // Table rates estimate a plan; they are not proof of incurred cost. The
+  // operator absorbs usage that a provider cannot meter rather than billing
+  // a fictional amount to the research owner.
+  const amount = metered ? actualCost : 0;
+  const result = await draw(runId, amount, 'spend', chargeRef);
   const run = await loadRun(runId);
   await recordEvent(runId, {
     type: 'budget.tick',
     kind,
     cost: amount,
+    metering:metered ? 'reported' : 'unavailable-operator-absorbed',
     used: result.used,
     balance: result.balance,
     cap: run.budgetCap,
   });
-  if (!result.ok) await park(runId, 'paused', 'cap');
+  if (!result.ok && !['ended','failed','complete'].includes(run.status)) await park(runId, 'paused', 'cap');
   return result.ok;
 }
 
@@ -301,7 +319,7 @@ async function charge(runId, kind, actualCost) {
 // exercisable offline — the fallback is labelled, never passed off as real.
 
 const domainOf = (url) => {
-  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; }
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'uploaded document'; }
 };
 
 // Domain policy for tool calls, read from the run's brief when the configure
@@ -337,6 +355,7 @@ function keywordQuery(q) {
 
 async function searchStage(runId, run, queries) {
   const brief = run.brief || {};
+  if (brief.liveWeb === false) return {why:'User sources only: web search disabled.',queries:[],results:[],hits:0,attempted:true,costUsd:0};
   const limits = depthLimits(brief.depth);
   const list = (Array.isArray(queries) && queries.length ? queries : [brief.topic || 'the brief']).slice(0, limits.queries).map(keywordQuery);
 
@@ -390,6 +409,8 @@ async function searchStage(runId, run, queries) {
 // Robots and paywalls are respected; skipped URLs are reported, not worked
 // around. Every enrichment is a logged tool call.
 async function fetchStage(runId, run) {
+  const inputs=await db.researchStep.findMany({where:{runId,kind:'input',status:'done'},orderBy:{createdAt:'asc'}});
+  const supplied=inputs.flatMap(s=>s.output?.documents || []);
   const limits = depthLimits(run.brief?.depth);
   const search = await db.researchStep.findFirst({
     where: { runId, kind: 'search' },
@@ -402,10 +423,10 @@ async function fetchStage(runId, run) {
       why: attempted
         ? 'The providers returned no candidates, so there is nothing to read. The report will say the evidence does not cover the brief.'
         : 'Nothing to read: no retrieval results were collected.',
-      documents: [],
-      pages: 0,
+      documents: supplied,
+      pages: supplied.length,
       costUsd: 0,
-      attempted,
+      attempted: attempted || supplied.length>0,
       fallback: !attempted,
     };
   }
@@ -446,8 +467,8 @@ async function fetchStage(runId, run) {
   });
   return {
     why: selectionWhy || 'Reading candidates within the approved scope; blocked and empty pages are reported as skipped.',
-    documents,
-    pages: documents.length,
+    documents: [...supplied,...documents],
+    pages: supplied.length+documents.length,
     costUsd: extractCost + selectionCost,
     attempted: true,
     fallback: false,
@@ -490,6 +511,7 @@ async function trustCriteria(run) {
 // to stage-driven calls. Results join the evidence set; scoreStage still puts
 // every one of them past JEV trust.
 async function dataStage(runId, run, queries) {
+  if (run.brief?.liveWeb === false) return {skipped:true,why:'User sources only: external data tools disabled.',documents:[],costUsd:0};
   const fetchStep = await db.researchStep.findFirst({
     where: { runId, kind: 'fetch' },
     orderBy: { createdAt: 'desc' },
@@ -507,7 +529,7 @@ async function dataStage(runId, run, queries) {
   // for paid sources, rate what it relied on, and tip decisive creators,
   // inside per-call ceilings and the run's own balance. No key, no spend
   // tools — the prompt says so too.
-  if (isSpendConfigured()) available.push('tip_creator', 'unlock_content', 'pay_x402', 'rate_content');
+  if (isSpendConfigured()) available.push('unlock_content', 'pay_x402', 'rate_content');
   // The full loop, not a bare proposal: every call is schema-checked,
   // JEV-judged (execute/skip/answer with reasons), executed, and observed —
   // the same propose→judge→execute contract as the standalone agent.
@@ -521,10 +543,11 @@ async function dataStage(runId, run, queries) {
     runId,
     policy: briefPolicy(run),
     balanceUsd: balance,
+    onStep: step=>recordToolDecision(runId,step),
   });
   const calls = [];
   const documents = [];
-  let costUsd = 0;
+  let costUsd = Number(agent.llmCostUsd) || 0;
   let n = 0;
   for (const s of agent.steps) {
     if (!s.proposal?.tool || !s.result || s.result.skipped) {
@@ -625,22 +648,12 @@ async function scoreStage(runId, run) {
   // (fully offline). A genuine empty result is reported as empty — inventing
   // sources to fill it would be fabrication, and the report prompt already
   // knows how to say the evidence does not cover the brief.
-  if (!documents.length && !attempted) {
-    await db.researchSource.createMany({
-      data: [
-        { runId, url: 'https://example.com/a', title: 'Example source A', domain: 'example.com', relevance: 0.9, trust: 0.8 },
-        { runId, url: 'https://example.com/b', title: 'Example source B', domain: 'example.com', relevance: 0.7, trust: 0.5 },
-      ],
-      skipDuplicates: true,
-    });
-    return { why: 'Offline stub: example sources stand in because no retrieval was attempted.', scored: 2, fallback: true };
-  }
 
   if (!documents.length) {
     return { why: 'The providers returned no readable candidates, so there is nothing to score. The report will say so.', scored: 0, costUsd: 0, fallback: false };
   }
 
-  const top = documents.slice(0, limits.scoreTop);
+  const top = documents.slice(0, Math.max(limits.scoreTop,documents.filter(d=>d.provider==='user-upload').length));
   const criteria = await trustCriteria(run);
   const priors = await memoryPriors(run.userId, top.map((d) => domainOf(d.url)));
   // Sources are independent: judge up to 4 at once. The old serial loop did
@@ -730,7 +743,7 @@ export function ensureAdviceNotice(markdown, topic) {
 async function writeStage(runId, run, guidance) {
   const [sources, fetchSteps] = await Promise.all([
     db.researchSource.findMany({ where: { runId }, orderBy: SOURCE_ORDER, take: 40 }),
-    db.researchStep.findMany({ where: { runId, kind: 'fetch', status: 'done' }, orderBy: { createdAt: 'desc' } }),
+    db.researchStep.findMany({ where: { runId, kind: {in:['fetch','data']}, status: 'done' }, orderBy: { createdAt: 'desc' } }),
   ]);
   const brief = run.brief || {};
   const evidence = reportEvidence(sources, fetchSteps);
@@ -776,6 +789,7 @@ async function writeStage(runId, run, guidance) {
         onToken: (d, meta) => emitToken(d, meta),
       });
   if (tokenTimer) { clearTimeout(tokenTimer); tokenTimer = null; }
+  if (!process.env.VITEST && generated.source !== 'llm') throw new Error('Report generation unavailable. No placeholder report was delivered; retry in a new run.');
   flushTokens();
   await recordEvent(runId, {
     type: generated.source === 'llm' ? 'thinking' : 'thinking.fallback',
@@ -796,7 +810,7 @@ async function writeStage(runId, run, guidance) {
   try {
     const { verifyReport } = await import('./verify.js');
     verifyOut = await verifyReport(runId, { brief: run.brief });
-    if (Number(verifyOut?.costUsd) > 0) await charge(runId, 'verify', verifyOut.costUsd);
+    if (Number(verifyOut?.costUsd) > 0) await charge(runId, 'verify', verifyOut.costUsd,`stage:verify:${run.versions}`);
   } catch (err) {
     await recordEvent(runId, { type: 'verify.failed', reason: 'pipeline-error', error: String(err?.message || err).slice(0, 200) });
   }
@@ -823,17 +837,15 @@ async function writeStage(runId, run, guidance) {
 // the existing per-call ceiling + run-balance gates bound it. Skipped unless
 // opted in — spending the owner's money without consent is never a default.
 async function gratitudeStage(runId, run) {
+  if (run.brief?.liveWeb === false) return {skipped:true,why:'User sources only: no external creator tips.',tips:[],costUsd:0};
   if (!run.brief?.tipCreators) {
     return { skipped: true, why: 'Creator tips not opted in: the report cites, it does not pay.', tips: [] };
   }
   if (!isSpendConfigured()) {
     return { skipped: true, why: 'No agent wallet on this deployment: nothing to tip with.', tips: [] };
   }
-  const top = await db.researchSource.findMany({
-    where: { runId },
-    orderBy: [{ trust: 'desc' }, { relevance: 'desc' }],
-    take: 3,
-  });
+  const report=await db.researchReport.findFirst({where:{runId},orderBy:{version:'desc'}});
+  const top=citedTipCandidates(report).slice(0,3);
   if (!top.length) {
     return { skipped: true, why: 'No scored sources to thank.', tips: [] };
   }
@@ -847,9 +859,10 @@ async function gratitudeStage(runId, run) {
     runId,
     policy: briefPolicy(run),
     balanceUsd: balance,
+    onStep: step=>recordToolDecision(runId,step),
   });
   const tips = [];
-  let costUsd = 0;
+  let costUsd = Number(agent.llmCostUsd) || 0;
   for (const s of agent.steps) {
     if (!s.proposal?.tool || !s.result || s.result.skipped) continue;
     costUsd += s.result.costUsd || 0;
@@ -866,6 +879,10 @@ async function gratitudeStage(runId, run) {
       : 'Nothing qualified for a tip: the report cites, it does not pay.',
     tips, costUsd, attempted: true, fallback: false,
   };
+}
+
+async function recordToolDecision(runId,step) {
+  return recordEvent(runId,{type:'agent.decision',tool:step.proposal?.tool || 'finish',why:String(step.proposal?.why || '').slice(0,300),decision:step.judgement?.decision || 'skip',source:step.judgement?.source || 'unknown',confidence:step.judgement?.confidence ?? null,ok:step.result?.ok ?? null,costUsd:step.result?.costUsd || 0});
 }
 
 // ── Decisions (JEV's seat) ────────────────────────────────────────────────────// The language model proposes; JEV decides. These are the run's branch points,
@@ -896,7 +913,7 @@ function roundAttempt(version, round) {
 // that picks up the run agrees on where it is.
 async function finishedRounds(runId, version) {
   const rows = await db.researchStep.findMany({
-    where: { runId, kind: 'score', attempt: { gte: version * 1000 }, status: 'done' },
+    where: { runId, kind: 'review', attempt: { gte: version * 1000, lt:(version+1)*1000 }, status: 'done' },
     select: { attempt: true },
   });
   let max = -1;
@@ -920,10 +937,11 @@ async function reviewRound(runId, run, round) {
     orderBy: [{ trust: 'desc' }, { relevance: 'desc' }],
     take: 20,
   });
+  const fetchSteps=await db.researchStep.findMany({where:{runId,kind:{in:['fetch','data']},status:'done'},orderBy:{createdAt:'desc'}});
   const out = await generateRoundReview({
     brief: run.brief || {},
     round,
-    sources: sources.map((s) => ({ url: s.url, title: s.title, domain: s.domain })),
+    sources: reportEvidence(sources,fetchSteps),
   });
   await db.researchDecision.create({
     data: {
@@ -950,13 +968,14 @@ async function decideRoundContinue(runId, run, review, round, maxRounds) {
       type: 'round.capped', round,
       reason: round >= maxRounds ? `depth allows ${maxRounds} follow-up round(s); writing with what was collected` : 'no follow-up questions came out of review; writing with what was collected',
     });
-    return 'write';
+    return {verdict:'write',costUsd:0};
   }
   const decision = await runChoice(runId, {
     step: 'round-continue',
     prompt: `Round ${round + 1}: another retrieval round, or write?`,
     state: [
       `Topic: ${run.brief?.topic || 'the brief'}.`,
+      `Remaining budget: $${(await budgetState(runId)).balance.toFixed(4)}. Estimated next retrieval pass: $${(STAGE_COSTS.search+STAGE_COSTS.fetch+STAGE_COSTS.score).toFixed(2)} before provider variation.`,
       `Round ${round} learnings: ${review.learnings.length ? review.learnings.join(' / ') : '(none recorded)'}.`,
       `Proposed follow-ups: ${review.followUps.join(' / ')}.`,
     ].join('\n'),
@@ -967,7 +986,7 @@ async function decideRoundContinue(runId, run, review, round, maxRounds) {
     ],
   });
   if (!decision) return null; // JEV parked the run
-  return decision.pick === 'continue' ? 'continue' : 'write';
+  return {verdict:decision.pick === 'continue' ? 'continue' : 'write',costUsd:Number(decision.usage?.costUsd)||0};
 }
 
 export async function runPlan(runId) {
@@ -977,7 +996,7 @@ export async function runPlan(runId) {
   // The language model proposes the plan; it decides nothing about stopping or
   // trust. When it is unavailable the deterministic fallback keeps the run
   // honest rather than failing it.
-  const planned = await stage(runId, 'plan', run.versions, async () => {
+  const planned = await stage(runId, 'plan', Number(run.metadata?.planRevision) || run.versions, async () => {
     const generated = await generatePlan({ brief, guidance });
     await recordEvent(runId, {
       type: generated.source === 'llm' ? 'thinking' : 'thinking.fallback',
@@ -994,19 +1013,22 @@ export async function runPlan(runId) {
       llmCost: generated.usage?.costUsd ?? null,
     };
   });
-  if (!planned?.skipped && !(await charge(runId, 'plan', planned?.llmCost))) return;
+  if (await halt(runId)) return; // Planning is free; no budget draw before approval.
   const subQuestions = planned?.sub_questions || [];
   const estimate = estimatePlanCost({ subQuestions, depth: brief.depth, lengthWords: brief.lengthWords });
-  await db.researchRun.update({
-    where: { id: runId },
-    data: { plan: { sub_questions: subQuestions, estimate }, status: 'planned' },
+  const updated=await withRunLock(runId,async tx=>{
+    const current=await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    if(current.status!=='planning')return false;
+    await tx.researchRun.update({where:{id:runId},data:{plan:{sub_questions:subQuestions,estimate},status:'planned',metadata:{...(current.metadata||{}),planningPending:false}}});
+    return true;
   });
+  if(!updated)return;
   await recordEvent(runId, { type: 'plan.ready', estimate, sub_questions: subQuestions });
 }
 
-export async function runExecute(runId) {
+async function executeRun(runId) {
   let run = await loadRun(runId);
-  if (run.status === 'paused' || run.status === 'awaiting') return;
+  if (run.status !== 'running') return;
   const limits = depthLimits(run.brief?.depth);
   const maxRounds = limits.rounds;
 
@@ -1019,7 +1041,12 @@ export async function runExecute(runId) {
   };
 
   let round = await finishedRounds(runId, run.versions);
-  for (;;) {
+  const lastReview=round>0 ? await db.researchStep.findFirst({where:{runId,kind:'review',attempt:roundAttempt(run.versions,round-1),status:'done'},orderBy:{createdAt:'desc'}}) : null;
+  const readyToWrite=lastReview?.output?.verdict==='write';
+  for (;!readyToWrite;) {
+    await takeGuidance(runId);
+    run = await loadRun(runId);
+    if (await halt(runId)) return;
     const attempt = roundAttempt(run.versions, round);
     const queries = round === 0
       ? planQuestions()
@@ -1027,48 +1054,45 @@ export async function runExecute(runId) {
     if (round > 0 && !queries.length) break; // nothing new to ask: write
 
     const searched = await stage(runId, 'search', attempt, () => searchStage(runId, run, queries));
-    if (!searched?.skipped && !(await charge(runId, 'search', searched?.costUsd))) return;
+    if (searched?.budgetOk === false) { await halt(runId); return; }
     if (await halt(runId)) return;
 
     // Search candidates do not establish a disagreement. Follow approved scope.
     const fetched = await stage(runId, 'fetch', attempt, () => fetchStage(runId, run));
-    if (!fetched?.skipped && !(await charge(runId, 'fetch', fetched?.costUsd))) return;
+    if (fetched?.budgetOk === false) { await halt(runId); return; }
     if (await halt(runId)) return;
 
     const direct = await stage(runId, 'data', attempt, () => dataStage(runId, run, queries));
-    if (!direct?.skipped && !(await charge(runId, 'data', direct?.costUsd))) return;
+    if (direct?.budgetOk === false) { await halt(runId); return; }
     if (await halt(runId)) return;
 
     const scored = await stage(runId, 'score', attempt, () => scoreStage(runId, run));
     if (scored?.parked) return; // JEV parked the run; nothing to charge
-    if (!scored?.skipped && !(await charge(runId, 'score', scored?.costUsd))) return;
+    if (scored?.budgetOk === false) { await halt(runId); return; }
     if (await halt(runId)) return;
 
-    const review = await reviewRound(runId, run, round);
-    let verdict;
-    try {
-      verdict = await decideRoundContinue(runId, run, review, round, maxRounds);
-    } catch (error) {
-      // A stage failure parks visibly via stage(); the round decision sits
-      // outside any stage, so without this a throw here kills the driver and
-      // the run sits `running` forever with no error anywhere. Fail loudly.
-      await recordEvent(runId, { type: 'failed', kind: 'review', error: String(error?.message || error).slice(0, 300) });
-      await park(runId, 'failed', 'error');
-      return;
-    }
-    if (!verdict) return; // JEV parked the run
-    if (verdict === 'write') break;
+    const reviewed=await stage(runId,'review',attempt,async()=>{
+      const review=await reviewRound(runId,run,round);
+      const decision=await decideRoundContinue(runId,run,review,round,maxRounds);
+      if(!decision)return {parked:true};
+      return {...review,...decision,costUsd:(Number(review.usage?.costUsd)||0)+decision.costUsd};
+    });
+    if(reviewed.parked || reviewed.budgetOk===false || await halt(runId))return;
+    if(reviewed.verdict==='write')break;
     run = await loadRun(runId);
     round += 1;
   }
 
   run = await loadRun(runId);
   const guidance = await takeGuidance(runId);
-  const tipped = await stage(runId, 'tips', run.versions, () => gratitudeStage(runId, run));
-  if (!tipped?.skipped && !(await charge(runId, 'tips', tipped?.costUsd))) return;
+  run = await loadRun(runId);
   const written = await stage(runId, 'write', run.versions, () => writeStage(runId, run, guidance));
-  if (!written?.skipped && !(await charge(runId, 'write', written?.llmCost))) return;
+  if (written?.budgetOk === false) { await halt(runId); return; }
 
+  if (await halt(runId)) return;
+  const tipped = await stage(runId, 'tips', run.versions, () => gratitudeStage(runId, run));
+  if (tipped?.budgetOk === false) { await halt(runId); return; }
+  if (await halt(runId)) return;
   await park(runId, 'complete');
   await settle(runId, 'complete');
   // Escrowed runs release the remainder onchain here (submit + complete +
@@ -1079,6 +1103,22 @@ export async function runExecute(runId) {
   } catch {}
   // The run is over: its sandbox has no more work and must not keep billing.
   await destroySandbox(runId);
+}
+
+export async function finishTerminalRun(runId) {
+  const run=await loadRun(runId);
+  if (!['complete','ended','failed'].includes(run.status)) return;
+  const money=await settle(runId,run.status);
+  if (money.pending) return money;
+  const {settleEscrowRun}=await import('./escrow/settle.js');
+  await settleEscrowRun(runId,run.status);
+  await destroySandbox(runId);
+  return money;
+}
+export async function runExecute(runId) {
+  try { return await executeRun(runId); }
+  catch(error) { if(error.code !== 'RUN_BUSY') throw error; }
+  finally { await finishTerminalRun(runId); }
 }
 
 export async function runInline(name, data) {

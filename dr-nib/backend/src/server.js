@@ -45,7 +45,7 @@ export async function createApp() {
     if (typeof ct === 'string' && ct.includes(',')) req.headers['content-type'] = ct.split(',')[0].trim();
     next();
   });
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '4mb' }));
   // Same-origin by default (the frontend proxies /drnib/* here), so cookies
   // just work and CORS never comes up. Direct cross-origin calls need
   // credentials, which is why the browser client sends them.

@@ -14,6 +14,7 @@ import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { mapLimit } from '../util.js';
+import { publicFetch } from '../../tools/http.js';
 
 const UA = 'DrNibResearch/1.0 (+https://nibgate.xyz; research agent, respects robots.txt)';
 
@@ -220,7 +221,7 @@ function looksBlocked(html) {
  * Extract readable text from URLs directly. Free; metered at zero.
  * @returns {Promise<{documents:Array, skipped:Array, costUsd:0}>}
  */
-export async function directExtract({ urls, maxChars = 20000, timeoutMs = 12000 } = {}, { fetchImpl = fetch } = {}) {
+export async function directExtract({ urls, maxChars = 20000, timeoutMs = 12000 } = {}, { fetchImpl = publicFetch } = {}) {
   const list = Array.isArray(urls) ? urls.filter(Boolean).slice(0, 20) : [];
   // Pages are independent: fetch up to 6 at once instead of one by one.
   // The old serial loop turned 12 slow pages into minutes; the per-URL

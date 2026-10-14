@@ -334,7 +334,12 @@ export function ReportEvidence({ claims, sources }: { claims?: any[]; sources?: 
 // a small free allowance (see POST /v1/runs/:id/discuss); the server returns
 // the remaining count with every answer and the run's metadata carries the
 // thread, so the allowance is shown before a single question is asked.
-export function DiscussThread({ runId, initial }: { runId: string; initial?: any }) {
+export function DiscussionMarkdown({ markdown, sources = [] }: { markdown: string; sources?: { url?: string }[] }) {
+  const components = useMemo(() => ({ ...mdComponents, cite: citeFor(sources) }), [sources]);
+  return <div className="break-words"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations]} components={components}>{normalizeReportMd(markdown)}</ReactMarkdown></div>;
+}
+
+export function DiscussThread({ runId, initial, sources = [] }: { runId: string; initial?: any; sources?: { url?: string }[] }) {
   const max = Number(initial?.max ?? 10);
   const [used, setUsed] = useState<number>(Number(initial?.used ?? 0));
   // The server stores { used, tokens, log } — remaining derives from the
@@ -373,7 +378,7 @@ export function DiscussThread({ runId, initial }: { runId: string; initial?: any
           {thread.map((h, i) => (
             <li key={i} className="border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">
               <p className="text-xs font-medium opacity-60">{h.q}</p>
-              <p className="whitespace-pre-line">{h.a}</p>
+              <DiscussionMarkdown markdown={h.a} sources={sources} />
             </li>
           ))}
         </ul>
@@ -485,7 +490,7 @@ export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?
           {history.map((h, i) => (
             <li key={i} className="border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">
               <p className="text-xs font-medium opacity-60">{h.q}</p>
-              <p className="whitespace-pre-line">{h.a}</p>
+              <DiscussionMarkdown markdown={h.a} sources={srcs} />
             </li>
           ))}
         </ul>

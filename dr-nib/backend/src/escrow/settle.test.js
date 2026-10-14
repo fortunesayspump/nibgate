@@ -6,7 +6,7 @@ vi.mock('./jobs.js', () => ({
   submitAndComplete: vi.fn(async () => ({ alreadyCompleted: true })),
   relaySplit: vi.fn(),
 }));
-vi.mock('../money.js', () => ({ budgetState: async () => ({ spend: 0.1 }) }));
+vi.mock('../money.js', () => ({ budgetState: async () => ({ spend: 0.1 }), settle:async()=>({pending:false}) }));
 import { db } from '../db.js';
 import { relaySplit } from './jobs.js';
 import { settleEscrowRun, retryPendingSettlements } from './settle.js';

@@ -40,7 +40,7 @@ describe('budget ledger', () => {
 
   it('refuses a draw that would pass the cap and charges nothing for it', async () => {
     const before = await budgetState(RUN);
-    const result = await draw(RUN, 5);
+    const result = await draw(RUN, 5.01);
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('cap');
     const after = await budgetState(RUN);
@@ -66,6 +66,13 @@ describe('budget ledger', () => {
     expect(state.spend).toBe(1);
     expect(state.fee).toBe(0.01);
     expect(state.used).toBe(1);
+  });
+
+  it('does not bill a checkpointed stage twice after a replay',async()=>{
+    await draw(RUN,0.5,'spend','stage:search:1');
+    const replay=await draw(RUN,0.5,'spend','stage:search:1');
+    expect(replay.alreadyCharged).toBe(true);
+    expect((await budgetState(RUN)).spend).toBe(0.5);
   });
 });
 
@@ -94,6 +101,12 @@ describe('raising a budget', () => {
     expect(result.deposited).toBe(8);
     expect(result.balance).toBeCloseTo(7, 9);
   });
+
+  it('cannot create an unfunded escrow top-up through an alternate route',async()=>{
+    await db.researchRun.update({where:{id:RUN},data:{metadata:{escrow:{jobId:'42'}}}});
+    expect((await raiseCap(RUN,8)).ok).toBe(false);
+    expect((await budgetState(RUN)).deposited).toBe(5);
+  });
 });
 
 describe('settling', () => {
@@ -117,5 +130,30 @@ describe('settling', () => {
     const state = await budgetState(RUN);
     expect(state.balance).toBe(0);
     expect(state.refunded).toBeCloseTo(state.deposited - state.used, 6);
+  });
+
+  it('cannot spend or raise a budget after its refund has left',async()=>{
+    await settle(RUN,'ended');
+    expect((await draw(RUN,0.1)).reason).toBe('settled');
+    expect((await raiseCap(RUN,8)).ok).toBe(false);
+    expect((await budgetState(RUN)).balance).toBe(0);
+  });
+
+  it('records in-flight costs before refunding',async()=>{
+    const step=await db.researchStep.create({data:{runId:RUN,kind:'fetch',status:'active'}});
+    expect((await settle(RUN,'ended')).pending).toBe(true);
+    expect((await draw(RUN,0.25)).ok).toBe(true);
+    await db.researchStep.update({where:{id:step.id},data:{status:'done'}});
+    expect((await settle(RUN,'ended')).refunded).toBe(3.5);
+  });
+
+  it('serializes simultaneous draws and refunds without overspending',async()=>{
+    const results=await Promise.all([draw(RUN,3),draw(RUN,3)]);
+    expect(results.filter(r=>r.ok)).toHaveLength(1);
+    await Promise.all([settle(RUN,'ended'),settle(RUN,'ended')]);
+    const state=await budgetState(RUN);
+    expect(state.used).toBe(4.25);
+    expect(state.refunded).toBe(0.75);
+    expect(state.balance).toBe(0);
   });
 });

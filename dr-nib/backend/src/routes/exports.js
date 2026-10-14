@@ -4,7 +4,6 @@ import { db } from '../db.js';
 import * as auth from '../auth.js';
 import { budgetState } from '../money.js';
 import { PLANNED, RENDERABLE, renderExport } from '../exports/render.js';
-import { isR2Configured, putExport } from '../exports/storage.js';
 import { idempotency } from '../idempotency.js';
 
 const FORMATS = new Set([...RENDERABLE, ...PLANNED]);
@@ -41,28 +40,11 @@ exports.post('/runs/:id/exports', async (req, res, next) => {
     escrow: (run.metadata && run.metadata.escrow) || null,
     slug: `drnib-${run.id.slice(0, 8)}-v${report.version}`,
   });
-  // Prefer the hub R2 bucket for binary deliverables: upload, store the key,
-  // and return a URL instead of inlining base64. Fall back to base64 when R2
-  // (or the SDK) is unavailable, so an export never fails for lack of storage.
-  let stored = null;
-  if (rendered.encoding === 'base64' && isR2Configured()) {
-    try {
-      stored = await putExport({
-        key: `drnib/${run.id}/${rendered.filename}`,
-        body: Buffer.from(rendered.content, 'base64'),
-        contentType: rendered.contentType,
-      });
-    } catch {
-      stored = null;
-    }
-  }
+  // All research can contain private briefs, even without an uploaded file.
+  // Return authenticated bytes; never publish a report to the public media CDN.
   const row = await db.researchExport.create({
-    data: { runId: run.id, reportVersion: report.version, format, status: 'done', r2Key: stored?.storageRef || null },
+    data: { runId: run.id, reportVersion: report.version, format, status: 'done', r2Key: null },
   });
-  if (stored) {
-    const { contentType, filename, bytes } = rendered;
-    return res.json({ ...row, contentType, filename, bytes, url: stored.url, storageRef: stored.storageRef });
-  }
   res.json({ ...row, ...rendered });
   } catch (error) { next(error); }
 });

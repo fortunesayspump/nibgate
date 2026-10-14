@@ -129,6 +129,12 @@ describe('configuring and starting', () => {
 });
 
 describe('pausing', () => {
+  it('resumes free planning before any escrow funds exist',async()=>{
+    const run=await makeRun({status:'paused',budgetCap:0,metadata:{planningPending:true,planRevision:1}});
+    const resumed=await api().post(`/v1/runs/${run.id}/resume`);
+    expect(resumed.status).toBe(200);expect(resumed.body.status).toBe('planning');
+    expect((await api().get(`/v1/runs/${run.id}`)).body.used).toBe(0);
+  });
   it('records that the user paused it, and resumes cleanly', async () => {
     const run = await makeRun({ status: 'running' });
     const paused = await api().post(`/v1/runs/${run.id}/pause`);

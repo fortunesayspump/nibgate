@@ -1,7 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { db } from './db.js';
+import { withRunLock } from './run-lock.js';
 import { publish } from './events.js';
 import { sumDb, toDb, toNum } from './units.js';
+import { isEscrowConfigured } from './escrow/jobs.js';
 
 // The 1% platform fee, taken as the budget draws down rather than up front —
 // the user pays for what actually got spent, and an abandoned run refunds.
@@ -14,8 +16,8 @@ const ZERO = new Prisma.Decimal(0);
 // budget − spent − fee. Fee rows are the treasury's receivable memo —
 // reported, never subtracted from the client's balance — which keeps the
 // ledger exactly equal to what the chain moves at split.
-export async function budgetState(runId) {
-  const entries = await db.budgetLedger.findMany({ where: { runId } });
+export async function budgetState(runId, client = db) {
+  const entries = await client.budgetLedger.findMany({ where: { runId } });
   const total = (kind) => sumDb(entries.filter((e) => e.kind === kind).map((e) => e.amount));
   const deposited = total('deposit');
   const spend = total('spend');
@@ -35,30 +37,27 @@ export async function budgetState(runId) {
 // Draw the budget down for one stage. Refuses rather than overspending: a run
 // that reaches its cap pauses with its balance intact, and the owner decides
 // whether to raise the cap or call it done.
-export async function draw(runId, amount, kind = 'spend') {
-  const run = await db.researchRun.findUniqueOrThrow({ where: { id: runId } });
-  const amountDb = toDb(amount);
-  const feeDb = amountDb.mul(FEE_BPS).div(10000);
-  const state = await budgetState(runId);
-
-  if (toDb(state.used).plus(amountDb).plus(feeDb).gt(toDb(run.budgetCap))) {
-    return { ok: false, reason: 'cap', fee: 0, ...state };
-  }
-
-  await db.$transaction([
-    db.budgetLedger.create({ data: { runId, kind, amount: amountDb } }),
-    db.budgetLedger.create({ data: { runId, kind: 'fee', amount: feeDb } }),
-  ]);
-  return { ok: true, fee: toNum(feeDb), ...(await budgetState(runId)) };
+export async function draw(runId, amount, kind = 'spend', txRef = null) {
+  return withRunLock(runId, async tx => {
+    const run = await tx.researchRun.findUniqueOrThrow({ where: { id: runId } });
+    const state = await budgetState(runId, tx);
+    if(txRef && await tx.budgetLedger.findFirst({where:{runId,kind,txRef}})) return {ok:true,alreadyCharged:true,fee:0,...state};
+    const amountDb = toDb(amount);
+    if (amountDb.lt(ZERO)) throw new Error('spend must not be negative');
+    if (amountDb.eq(ZERO)) return {ok:true, fee:0, ...state};
+    if (run.settledAt || amountDb.gt(toDb(state.balance)) || toDb(state.used).plus(amountDb).gt(toDb(run.budgetCap))) {
+      return {ok:false, reason:run.settledAt ? 'settled' : 'cap', fee:0, ...state};
+    }
+    const feeDb = amountDb.mul(FEE_BPS).div(10000);
+    await tx.budgetLedger.create({ data:{runId,kind,amount:amountDb,txRef} });
+    await tx.budgetLedger.create({ data:{runId,kind:'fee',amount:feeDb} });
+    return {ok:true,fee:toNum(feeDb),...(await budgetState(runId,tx))};
+  });
 }
 
-// Spendable under the cap, independent of settle history. budgetState's
-// `balance` (deposited − used − refunded) goes negative when a settled run
-// is revised and spends again — the refund already left, but the original
-// cap still authorizes spend up to its ceiling (draw() enforces that).
-// Gates that answer "can this run spend $X more" must use spendable, never
-// balance, or settled runs wrongly read as broke. (Seen live: spent 0.27
-// on a $2 cap showing −0.128 after an early settle + reprompt.)
+// Remaining cap headroom. This is an estimate gate before funding, never
+// proof of available funds: execution must also check the live ledger balance
+// and refuse settled runs. Refunded money cannot fund another pass.
 export function spendable(budgetCap, used) {
   return toNum(toDb(budgetCap ?? 0).minus(toDb(used ?? 0)));
 }
@@ -68,34 +67,33 @@ export function spendable(budgetCap, used) {
 // the cap and a raise can never double-count money already held. A cap that
 // could move down mid-run is a cap the user was never really shown.
 export async function raiseCap(runId, amount, txRef = null) {
-  const run = await db.researchRun.findUniqueOrThrow({ where: { id: runId } });
+  return withRunLock(runId, async tx => {
+  const run = await tx.researchRun.findUniqueOrThrow({ where: { id: runId } });
+  if(run.settledAt || ['complete','ended','failed'].includes(run.status)) return {ok:false,error:'This budget is closed. Start a new funded run.'};
+  if(isEscrowConfigured() || run.metadata?.escrow?.jobId) return {ok:false,error:'Escrow deposits are one-shot. Start a fresh funded run for a larger budget.'};
   if (!(toNum(amount) > 0)) return { ok: false, error: 'amount must be > 0' };
   const capDb = toDb(run.budgetCap);
   const deltaDb = toDb(amount).minus(capDb);
   if (deltaDb.lte(ZERO)) return { ok: false, error: 'a budget can only be raised' };
-  await db.$transaction([
-    db.researchRun.update({ where: { id: runId }, data: { budgetCap: toDb(amount) } }),
-    db.budgetLedger.create({ data: { runId, kind: 'deposit', amount: deltaDb, txRef } }),
-  ]);
-  return { ok: true, budgetCap: toNum(amount), ...(await budgetState(runId)) };
+  await tx.researchRun.update({ where: { id: runId }, data: { budgetCap: toDb(amount) } });
+  await tx.budgetLedger.create({ data: { runId, kind: 'deposit', amount: deltaDb, txRef } });
+  return { ok: true, budgetCap: toNum(amount), ...(await budgetState(runId,tx)) };
+  });
 }
 
 // Settle: hand back whatever is left, immediately, once the run can no longer
 // spend it. Called on completion and on an explicit end.
 export async function settle(runId, reason) {
-  const state = await budgetState(runId);
-  const remainder = toDb(state.balance);
-  const rows = [];
-  if (remainder.gt(ZERO)) {
-    rows.push(db.budgetLedger.create({ data: { runId, kind: 'refund', amount: remainder } }));
-  }
-  rows.push(db.researchRun.update({ where: { id: runId }, data: { settledAt: new Date() } }));
-  await db.$transaction(rows);
-  const after = await budgetState(runId);
-  // NOTE: after carries the *cumulative* refunded total, which must not
-  // clobber this call's remainder under the same key. The response keeps both:
-  // refunded (what this settle handed back) and totalRefunded (to date).
-  const { refunded: totalRefunded, ...rest } = after;
-  publish(runId, { type: 'settled', reason, refunded: toNum(remainder), totalRefunded, ...rest });
-  return { refunded: toNum(remainder), totalRefunded, ...rest };
+  const result = await withRunLock(runId, async tx => {
+    const run = await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    const state = await budgetState(runId,tx);
+    if (await tx.researchStep.count({where:{runId,status:'active'}})) return {pending:true,refunded:0,...state};
+    const remainder = toDb(state.balance);
+    if (!run.settledAt && remainder.gt(ZERO)) await tx.budgetLedger.create({data:{runId,kind:'refund',amount:remainder}});
+    if (!run.settledAt) await tx.researchRun.update({where:{id:runId},data:{settledAt:new Date()}});
+    const after = await budgetState(runId,tx);
+    return {...after,totalRefunded:after.refunded,refunded:run.settledAt ? 0 : Math.max(0,toNum(remainder))};
+  });
+  if (!result.pending) publish(runId,{type:'settled',reason,...result});
+  return result;
 }

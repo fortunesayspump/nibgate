@@ -5,6 +5,10 @@ Dr. Nib is a research agent *and* the business version of itself: the
 spend-governed operator pattern, applied first to research and built to
 generalize to any budget an agent touches.
 
+## Current release scope
+
+Public funded research remains testnet-only. Mainnet is gated pending contract/keeper readiness and external escrow review. Source upload code supports private R2 originals and owner-only previews; storage is operational only after its configured application credentials pass a real write/read test. See `docs/src/app/dr-nib/` for supported behavior and limits, and `TESTS.md` for dated evidence. Historical FLOW/UX documents contain proposals, not shipped-feature guarantees.
+
 ## Why it exists
 
 Every company is now bleeding on AI costs with zero controls — no budgets,
@@ -90,7 +94,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Area | State | Where / notes |
 |---|---|---|
 | Backend service | Done | `dr-nib/backend/`: Express + Prisma (own `drnib` schema), worker + inline/BullMQ queue, `/v1` runs+budgets+exports+x402, `/mcp` |
-| Intake → plan → approve → pause/resume → revise | Done | JEV owns stop/go/reframe; cooperative pause; reprompt = new report version |
+| Intake → plan → approve → pause/resume → revise | Done | JEV owns stop/go/reframe; cooperative pause; settled budgets require a fresh funded run |
 | Agent loop (propose–judge–execute) | Done | `src/agent/`: stops, self-model (balance + cap + estimate + elapsed + status), DB-backed lessons, limits, dedupe/streak guards |
 | JEV integration | Done | `src/jev/{client,decisions,intake}`; parks (never fabricates) when JEV is unreachable |
 | Retrieval | Done | SearXNG, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv + keyed Tavily/Exa/direct + OpenRouter web_search over the LLM key |
@@ -100,15 +104,15 @@ the same as a run having executed — runtime verification is a separate row.
 | Verify + claims | Done | `src/verify.js` runs after every report write (claims cleared per report): JEV support judgements; `unverified` when JEV/LLM absent; coverage badge + claim×source matrix read it |
 | Exports | Done | md / json (+escrow receipt block) / bibtex + pdf / word / excel (+escrow columns on Ledger) / powerpoint (`src/exports/render.js`); binary formats returned base64 (R2 streaming is a later optimization) |
 | Evals + build gates | Done | `src/evals/`, `GATES.md`; gates fail the build |
-| MCP server | Done | approve/raise enforce the same escrow gates as HTTP; reprompt stores version prompts; service-key gated |
+| MCP server | Implemented | v0.2.2: private source attach/list/read, typed input schemas, shared end/settlement gates; service-key gated |
 | Escrow — contracts | Done (testnet) | stock ERC-8183 core + `NibgateRunSplitter`, deployed Arc testnet; job 10 lifecycle proven (`ESCROW.md`) |
 | Escrow — backend | Done | `src/escrow/jobs.js` create/status/submit+complete/signSplit; `/v1/runs/:id/escrow*`; funding floor is the plan estimate, working cap aligns down to the deposit |
 | Escrow — frontend | Done | `frontend/src/components/dr-nib/EscrowDeposit.tsx` (amount selector, min estimate, sequential receipts); mandatory where configured in `research/page.tsx`; approve gated on `Funded` ≥ estimate |
-| Escrow — env wiring | Done (local) | `ESCROW_KEEPER_KEY` wired in `dr-nib/backend/.env`; `isEscrowConfigured()` = true and onchain job 10 reads `Completed`. Deploys still set it on the service (see `DEPLOY.md`) |
+| Escrow — env wiring | Testnet live | Funded runs 28 and 29 completed and split/refunded on deployed testnet. Mainnet funded research remains closed. See `TESTS.md`. |
 | Gate 1 — wallet policy | **Pending** | no vendor deployable on Arc (CDP dead); the `NibgateSpender` onchain cap is the practical substitute (`GATES.md`) |
 | Gate 2 — spend mandate (onchain cap) | Partial (ops) | `NibgateSpender` deployed testnet `0x903b0606…` ($2/day, not paused); code already routes tips via `spend()` — remaining work is fund + allowlist + set `DRNIB_SPENDER_ADDRESS` |
-| Frontend UI | Done | `/dr-nib` research / projects / sources / help + detail; renders on mainnet (real spend) and testnet (testnet-funded staging). Settlement receipt, coverage badge + claim×source matrix, version-pinned share links, version steer display, report Q&A, duplicate runs, feed timestamps + jump-to-latest |
-| **Live end-to-end run** | **Partial** | Executed 2026-10-07 (run `80bf1397` complete, `afd319f4` browser partial — see `TESTS.md`). Harness lives in gitignored local-only `e2e/` |
+| Frontend UI | Done | `/dr-nib` research / projects / sources / help + detail; testnet preview with play money; mainnet entry directs users to that preview. Settlement receipt, coverage badge + claim×source matrix, version-pinned owner-only report links, version steer display, report Q&A, duplicate runs, feed timestamps + jump-to-latest |
+| **Live end-to-end evidence** | Testnet verified | Funded browser runs 28/29, seven exports and onchain split/refunds verified. This does not prove all scenarios or mainnet readiness; see dated `TESTS.md`. QA artifacts remain in ignored `e2e/`. |
 
 `ARCHITECTURE.md` remains the design reference; the historical build order
 there is superseded by this table.

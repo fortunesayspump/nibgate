@@ -39,7 +39,9 @@ Each verdict is stapled to the exact canonical bytes it approved and re-checked 
 4. **Dual-RPC check.** Before value moves, the chain is cross-checked across two RPC endpoints (chain id must match, height must agree) — a lying RPC can't feed the wallet a false reality.
 5. **JEV trust after.** Paid content is scored like any source — paying never buys credibility.
 
-Tips are proposed sparingly for decisive sources; free paths come first, and on spend tasks the loop funnels to the spend tool once free evidence is banked. Nibgate-first: a paywalled Nibgate or verified-creator piece directly on point is unlocked rather than worked around — paid primary sources beat free summaries — and pieces the report relied on get rated (the unlock payment tx is the required proof). Every cent draws from the run budget through the normal charge path, with transaction hashes on the step output and the tool-call events.
+Creator tips require the owner's explicit opt-in at Configure. They run after writing, and the executor permits only external HTTPS sources cited in the report body with trust at least 0.7. A reference-list entry alone does not qualify. The model proposes which eligible creative source deserves a tip; JEV may execute or skip it. Uploaded private documents never qualify. No qualifying source means no tip, which is a valid result.
+
+Free paths come first. Paid unlocks and x402 responses still face source scoring; paying never buys credibility. Ratings require an unlock receipt. Tool proposals, action/skip decisions, brief reasons, costs and available transaction receipts appear in the activity record. This is an audit of actions, rather than a promise to expose a model's hidden chain of thought.
 
 ## Onchain enforcement
 

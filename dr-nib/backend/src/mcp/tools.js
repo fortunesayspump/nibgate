@@ -20,6 +20,9 @@ import { requestExecute, requestPlan } from '../worker.js';
 import { isEscrowConfigured, jobStatus } from '../escrow/jobs.js';
 import { recordEvent } from '../eventlog.js';
 import { assertCanCreateRun } from '../limits.js';
+import { resolveLength } from '../length.js';
+import { attachSource, sourceSummary } from '../sources/routes.js';
+import { endRun } from '../end-run.js';
 
 function checkWallet(wallet) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(String(wallet || ''))) {
@@ -49,6 +52,36 @@ async function withBudget(run) {
 }
 
 export const TOOLS = [
+  {
+    name:'attach_source',
+    description:'Attach a private research source before planning/execution. Supply name plus contentBase64 (PDF, DOCX, XLSX, CSV, TXT, MD; 2 MB each; five per project) or a public HTTPS url. Originals use private R2; extracted text is sent to research AI providers after approval. Scanned PDFs need OCR first. Changing a reviewed source set invalidates the plan.',
+    input:{ownerWallet:'0x…',runId:'uuid',name:'expenses.csv',contentBase64:'base64 file bytes',url:'https://example.com/source'},
+    async run({ownerWallet,runId,...body}) {
+      const bad=checkWallet(ownerWallet);if(bad)throw new Error(bad.error);
+      const {error,run}=await ownedRun(runId,ownerWallet);if(error)throw new Error(error);
+      return attachSource(run,body);
+    },
+  },
+  {
+    name:'list_supplied_sources',description:'List the owner’s attached private input files, extraction warnings and preview paths. These paths require the owner’s browser session; use read_supplied_source for authenticated agent access.',
+    input:{ownerWallet:'0x…',runId:'uuid'},
+    async run({ownerWallet,runId}) {
+      const bad=checkWallet(ownerWallet);if(bad)throw new Error(bad.error);
+      const {error}=await ownedRun(runId,ownerWallet);if(error)throw new Error(error);
+      return {sources:(await db.researchStep.findMany({where:{runId,kind:'input',status:'done'},orderBy:{createdAt:'asc'}})).map(sourceSummary)};
+    },
+  },
+  {
+    name:'read_supplied_source',description:'Read a private input source’s extracted text and warnings after verifying run ownership. Returns page/sheet/row markers where available; never a public download link.',
+    input:{ownerWallet:'0x…',runId:'uuid',sourceId:'uuid'},
+    async run({ownerWallet,runId,sourceId}) {
+      const bad=checkWallet(ownerWallet);if(bad)throw new Error(bad.error);
+      const {error}=await ownedRun(runId,ownerWallet);if(error)throw new Error(error);
+      const source=await db.researchStep.findFirst({where:{id:sourceId,runId,kind:'input',status:'done'}});
+      if(!source)throw new Error('source not found');
+      return {...sourceSummary(source),text:source.output.text};
+    },
+  },
   {
     name: 'create_run',
     description: 'Open a research project for a wallet when the server card research.acceptingRuns is true: creates the brief, asks the first intake question, returns the run. Send is wallet-gated like the UI composer.',
@@ -121,21 +154,23 @@ export const TOOLS = [
   },
   {
     name: 'configure_run',
-    description: 'Set depth, budget cap, and report options once intake is done. Holds the cap against the ledger.',
-    input: { ownerWallet: '0x…', runId: 'uuid', budgetCap: 2.5, depth: 'standard', liveWeb: true, language: 'en', perspective: 'neutral', formats: ['pdf'] },
-    async run({ ownerWallet, runId, budgetCap, depth = 'standard', liveWeb = true, language = 'en', perspective = 'neutral', formats = ['pdf'] }) {
+    description: 'Set depth, budget cap and report options after intake. Planning is free. User-sources-only research requires an attached readable source; funded execution begins only after approval.',
+    input: { ownerWallet: '0x…', runId: 'uuid', budgetCap: 2.5, depth: 'standard', liveWeb: true, language: 'en', perspective: 'neutral', formats: ['pdf'], length:'standard', lengthWords:1200, tipCreators:false },
+    async run({ ownerWallet, runId, budgetCap, depth = 'standard', liveWeb = true, language = 'en', perspective = 'neutral', formats = ['pdf'], length = 'standard', lengthWords = null, tipCreators = false }) {
       const bad = checkWallet(ownerWallet);
       if (bad) throw new Error(bad.error);
       if (!(Number(budgetCap) > 0)) throw new Error('budgetCap must be > 0');
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
-      if (run.status !== 'intake-done' && run.status !== 'planning') {
+      if (!['intake-done','planning','planned'].includes(run.status)) {
         throw new Error(`cannot configure from ${run.status}`);
       }
-      const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats };
+      if(liveWeb===false && !(await db.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}}))) throw new Error('Attach at least one readable source before choosing user sources only.');
+      const resolvedLength=resolveLength({length,lengthWords});
+      const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats, length:resolvedLength.preset, lengthWords:resolvedLength.words, tipCreators:tipCreators===true };
       await db.researchRun.update({
         where: { id: run.id },
-        data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null },
+        data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null,metadata:{...(run.metadata||{}),planningPending:true,planRevision:(Number(run.metadata?.planRevision)||0)+1} },
       });
       const holds = await db.budgetLedger.findFirst({ where: { runId: run.id, kind: 'deposit' } });
       if (!isEscrowConfigured() && !holds) await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(budgetCap) } });
@@ -154,6 +189,7 @@ export const TOOLS = [
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
       if (run.status !== 'planned') throw new Error(`cannot approve from ${run.status}`);
+      if(run.settledAt || run.metadata?.escrow?.status==='Completed') throw new Error('This budget has settled. Start a new funded run.');
       const { balance, used } = await budgetState(run.id);
       const estimate = Number(run.plan?.estimate);
       if (!Number.isFinite(estimate)) throw new Error('plan has no estimate yet — wait for planning to finish');
@@ -213,35 +249,26 @@ export const TOOLS = [
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
       if (run.status !== 'paused') throw new Error(`cannot resume from ${run.status}`);
+      if(run.settledAt)throw new Error('This budget has settled. Start a fresh funded run.');
       const { balance } = await budgetState(run.id);
-      if (balance <= 0) throw new Error('out of budget — raise the cap or end the run');
-      await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
-      await recordEvent(run.id, { type: 'status', status: 'running' });
-      await requestExecute(run.id);
-      return { id: run.id, status: 'running' };
+      if (balance <= 0 && !run.metadata?.planningPending) throw new Error('out of budget — raise the cap or end the run');
+      const status=run.metadata?.planningPending ? 'planning' : 'running';
+      await db.researchRun.update({ where: { id: run.id }, data: { status, pauseReason: null } });
+      await recordEvent(run.id, { type: 'status', status });
+      if(status==='planning')await requestPlan(run.id);else await requestExecute(run.id);
+      return { id: run.id, status };
     },
   },
   {
     name: 'end_run',
-    description: 'End a run: work is kept, the unspent balance is refunded immediately.',
+    description: 'End a run and retain finished work. An active stage finishes and records its cost before the remaining balance is refunded; pending=true means settlement is still draining.',
     input: { ownerWallet: '0x…', runId: 'uuid' },
     async run({ ownerWallet, runId }) {
       const bad = checkWallet(ownerWallet);
       if (bad) throw new Error(bad.error);
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
-      if (['ended', 'complete'].includes(run.status)) throw new Error(`run is already ${run.status}`);
-      await db.researchRun.update({
-        where: { id: run.id },
-        data: { status: 'ended', endedAt: new Date(), pauseReason: 'user', pendingQuestion: null },
-      });
-      await recordEvent(run.id, { type: 'status', status: 'ended', pauseReason: 'user' });
-      const money = await settle(run.id, 'ended');
-      try {
-        const { settleEscrowRun } = await import('../escrow/settle.js');
-        await settleEscrowRun(run.id, 'ended');
-      } catch {}
-      return { id: run.id, status: 'ended', ...money };
+      return endRun(run.id);
     },
   },
   {
@@ -276,7 +303,7 @@ export const TOOLS = [
   },
   {
     name: 'reprompt_run',
-    description: 'Send a finished run again with a new prompt: bumps the version, re-executes every stage (skip is per-version), and steers the new pass with the prompt. Needs a positive balance — raise the cap first otherwise.',
+    description: 'Restart an unsettled paused run with a new prompt and report version. Refunded budgets cannot be reused: start and fund a fresh project after settlement. An active stage must finish first.',
     input: { ownerWallet: '0x…', runId: 'uuid', prompt: 'redo the search with shorter queries' },
     async run({ ownerWallet, runId, prompt }) {
       const bad = checkWallet(ownerWallet);
@@ -284,6 +311,8 @@ export const TOOLS = [
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
       if (!['complete', 'failed', 'ended', 'paused'].includes(run.status)) throw new Error(`reprompt from ${run.status} — finish, fail, end, or pause the run first`);
+      if(run.settledAt || run.metadata?.escrow?.status==='Completed') throw new Error('This budget has settled. Start a new funded run.');
+      if(await db.researchStep.count({where:{runId,status:'active'}})) throw new Error('Wait for the current stage to finish before restarting.');
       const text = typeof prompt === 'string' ? prompt.trim().slice(0, 2000) : '';
       const { balance } = await budgetState(run.id);
       if (!(balance > 0)) throw new Error('out of budget — raise the cap first');

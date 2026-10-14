@@ -52,10 +52,11 @@ async function persist(runId, record) {
 // Park the run because the decision seat is down. The balance is untouched;
 // this is a "cannot think" pause, not a budget pause.
 async function parkForJev(runId, step, error) {
-  await db.researchRun.update({
-    where: { id: runId },
+  const updated=await db.researchRun.updateMany({
+    where: { id: runId,status:{notIn:['ended','complete','failed']} },
     data: { status: 'paused', pauseReason: 'jev' },
   });
+  if(!updated.count)return;
   await recordEvent(runId, { type: 'status', status: 'paused', pauseReason: 'jev', step, error: error?.message || null });
 }
 

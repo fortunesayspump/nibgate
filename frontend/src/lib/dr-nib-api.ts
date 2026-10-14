@@ -115,3 +115,23 @@ export const drNibApi = {
 };
 
 export const DRNIB_API_BASE = BASE;
+
+export async function uploadResearchSource(runId: string, file: File, onProgress: (percent: number) => void) {
+  if(file.size>2*1024*1024) throw new Error('Choose a file no larger than 2 MB.');
+  const contentBase64=await new Promise<string>((resolve,reject)=>{
+    const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('Could not read this file.'));reader.readAsDataURL(file);
+  });
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();xhr.open('POST',`${BASE}/v1/runs/${runId}/sources`);xhr.withCredentials=true;xhr.timeout=120000;
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round(e.loaded/e.total*100))};
+    xhr.onload=()=>{let out:any={};try{out=JSON.parse(xhr.responseText)}catch{};if(xhr.status>=200&&xhr.status<300)resolve(out);else reject(new Error(out.error || 'Upload failed. Retry in a moment.'))};
+    xhr.onerror=()=>reject(new Error('Upload connection failed. Your research has not started.'));xhr.ontimeout=()=>reject(new Error('Upload timed out. Refresh the source list before retrying.'));
+    xhr.send(JSON.stringify({name:file.name,contentBase64}));
+  });
+}
+export const researchSourceApi={
+  list:(id:string)=>req(`/v1/runs/${id}/sources`),
+  addLink:(id:string,url:string)=>req(`/v1/runs/${id}/sources`,{method:'POST',body:JSON.stringify({url})}),
+  remove:(id:string,sourceId:string)=>req(`/v1/runs/${id}/sources/${sourceId}`,{method:'DELETE'}),
+};

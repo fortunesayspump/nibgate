@@ -6,6 +6,16 @@ Where the agent's evidence comes from when it hasn't spent a cent: 11 keyless in
 
 **Reference:** `dr-nib/backend/src/retrieval/`.
 
+## Your own documents
+
+At Configure, **Your sources** accepts PDF with selectable text, DOCX, XLSX, CSV, TXT and Markdown, plus readable public HTTPS links. Limits: five supplied sources per project, 2 MB per file, 100 PDF pages, ten workbook sheets, 5,000 data rows and 100 columns per sheet. Scanned PDFs need OCR first. The UI shows upload progress, processing errors, extraction warnings, an extracted-text preview and an authenticated original download. Review the preview before approving research.
+
+Originals use the private `nibgate-research` R2 bucket, separated by `testnet/` and `mainnet/` prefixes. They have no public bucket URL. Extracted text is also kept in the project database and sent to research AI providers when the research runs; private storage does not mean local-only AI processing. Upload only documents you are authorized to process. Reports containing uploaded inputs use authenticated downloads rather than public R2 export links.
+
+Choose **user sources only** to disable external search, API calls and creator tips. This mode requires at least one readable attachment. Changing sources after reviewing a plan invalidates it; sources freeze once execution starts. Starting a fresh run on the same topic does not automatically copy the files. Removing an input excludes it from research; originals remain in private storage for project history.
+
+PDF evidence retains page markers; spreadsheet evidence retains sheet/row markers. Numeric amount columns get deterministic decimal sums, grouped by an explicit currency column. Repeated full rows are flagged, not silently removed. These sums are not a bank reconciliation, financial audit or currency conversion. Extraction over 100,000 characters is visibly truncated; report prompts use selected passages rather than guaranteeing exhaustive review of every row.
+
 ## Free indexes (no key, no signup)
 
 GDELT (paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR, Stack Exchange, Hacker News, Polymarket, arXiv, plus a self-hosted SearXNG instance. Tavily/Exa slots accept keys when configured. No separate search key is needed for model-driven search: the OpenRouter `web_search` server tool rides the existing LLM key — the model picks its own queries (Exa engine, ~$0.007 + tokens per search) and only cited `url_citation` annotations become results, circuit-broken like every other provider. Queries are keyword-ified per provider; provider failures are tagged by name so the trail shows *which* source failed, not just that something did.

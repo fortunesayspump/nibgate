@@ -1,5 +1,9 @@
 # Dr. Nib — UX flow
 
+Historical design, not a release checklist. Current intake uses question batches; it does
+not implement the one-question-at-a-time sequence below. Current behavior and limits:
+`docs/src/app/dr-nib/`. Live verification evidence: `TESTS.md`.
+
 *How a run starts, what the user sees, and when money moves.
 Researched Sep 2026 (onboarding, progressive disclosure, usage-pricing UX).*
 

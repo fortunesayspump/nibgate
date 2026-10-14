@@ -1,5 +1,26 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-14 — document inputs and lifecycle release checks
+
+- Full backend suite: **325 tests passed across 41 files**, on disposable local PostgreSQL. Providers and chain writes are mocked in these regression tests; they do not establish live paid-tool or mainnet behavior.
+- Worker integration checks cover free planning, changed-configuration replanning, pause/resume during search and writing, End during an active stage, duplicate queue delivery, unavailable-JEV recovery, failed generation/refund, and source-only execution. Ledger tests cover concurrent draws/refunds, settled-money reuse rejection, checkpoint charge replay, and alternate-route escrow top-up refusal.
+- Upload checks exercise real PDF, DOCX, XLSX and CSV extraction, decimal currency totals, duplicate-row warnings, bounded sheet ranges, file limits, owner-only previews/downloads and source freezing. Public reading rejects private network destinations. Optional tips require owner opt-in and high-trust sources cited in the report body.
+- Frontend TypeScript check and documentation production build passed. Report discussion now uses the same Markdown/citation rendering as report content. Private report links are labeled as account links. New exports return authenticated bytes instead of publishing research to the public media bucket.
+- Live R2: one private bucket, **`nibgate-research`**. Cloudflare confirms managed public access disabled and no custom domains. Synthetic write/read/delete checks passed with rendered Railway variables for testnet API, mainnet API and mainnet worker, using `testnet/` and `mainnet/` paths. No customer records were used.
+- Live browser validation of this release is recorded below after deployment. Do not treat the regression suite as proof that every possible scenario or payment rail was exercised.
+
+### Research quality and release boundaries
+
+The comparison rubric uses editable plans, supplied documents, steering, cited findings, export usability and evidence limitations, consistent with [OpenAI deep research](https://help.openai.com/en/articles/10500283-deep-research), [Anthropic Research](https://www.anthropic.com/news/research) and [agent evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents). These are evaluation dimensions, not a claim of equivalent performance.
+
+Business-record analysis is assisted research: document references, explicit currency-separated decimal sums, duplicate flags and limited-evidence notices. It is not a financial audit, reconciliation or guarantee of exhaustive row-level verification. Uploaded extracted text goes to configured AI providers. OCR and public report sharing are not implemented. A fresh run copies the topic and requires files to be added again. Mainnet funded research remains gated pending escrow review and operational readiness; no mainnet escrow was deployed as part of this check.
+
+### Prior live testnet evidence
+
+Funded browser runs `911e6990-32a7-41bb-b145-13dcd0cf2fd2` (escrow 28) and `b7dd733c-bd68-4899-ba17-1ef63f3923bd` (escrow 29) completed with automatic onchain split/refunds. Run 29 spent approximately $0.16 from a $1 test deposit and refunded approximately $0.84. Its sampled verification was 5/6 supported claims. Its Arc/Base cost comparison needed a like-for-like caveat; the report prompt now explicitly requires matching workloads/units/assumptions. All seven exports from run 28 downloaded and their packages were checked; run 29's two-page PDF was visually checked. These historical runs precede this release's source-upload changes.
+
+The following entries are historical test records.
+
 What was actually run, what happened, and what it revealed. Written after a
 live attempt on **2026-10-07** against the local stack (mainnet-presented UI,
 testnet-funded backend). Not a design doc — a record.

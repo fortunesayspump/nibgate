@@ -1,0 +1,30 @@
+import express from 'express';
+import request from 'supertest';
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+vi.mock('./storage.js',()=>({sourceStorageConfig:()=>({bucket:'nibgate-research'}),putSource:vi.fn(async()=>{}),getSource:vi.fn(async()=>Buffer.from('original bytes')),deleteSource:vi.fn(async()=>{})}));
+import {db} from '../db.js';
+import {sources} from './routes.js';
+import {putSource} from './storage.js';
+const app=express();app.use(express.json());app.use((req,_res,next)=>{req.user={id:req.headers['x-owner'] || 'source-owner'};next()});app.use('/runs/:id/sources',sources);
+const id='source-route-fixture';
+beforeEach(async()=>{await db.researchRun.create({data:{id,userId:'source-owner',brief:{},status:'intake-done'}});vi.clearAllMocks()});
+afterEach(async()=>{await db.researchRun.delete({where:{id}})});
+it('keeps inputs owner-only, preserves original bytes and invalidates a stale reviewed plan',async()=>{
+  await db.researchRun.update({where:{id},data:{status:'planned',plan:{sub_questions:['old']}}});
+  const attached=await request(app).post(`/runs/${id}/sources`).send({name:'expenses.csv',contentBase64:Buffer.from('Amount,Currency\n12.50,USD').toString('base64')});
+  expect(attached.status).toBe(201);
+  expect(putSource.mock.calls[0][0]).toMatch(/^(testnet|mainnet)\/source-route-fixture\//);
+  expect((await db.researchRun.findUnique({where:{id}})).status).toBe('intake-done');
+  const sourceId=attached.body.id;
+  const preview=await request(app).get(`/runs/${id}/sources/${sourceId}`);
+  expect(preview.text).toContain('12.5');expect(preview.headers['cache-control']).toBe('private, no-store');
+  expect((await request(app).get(`/runs/${id}/sources/${sourceId}`).set('x-owner','other-owner')).status).toBe(404);
+  expect((await request(app).get(`/runs/${id}/sources/${sourceId}/original`)).body.toString()).toBe('original bytes');
+  await db.researchRun.update({where:{id},data:{status:'running'}});
+  expect((await request(app).delete(`/runs/${id}/sources/${sourceId}`)).status).toBe(409);
+  expect((await request(app).post(`/runs/${id}/sources`).send({name:'more.txt',contentBase64:'eA=='})).status).toBe(409);
+});
+it('rejects invalid input before writing to storage',async()=>{
+  const out=await request(app).post(`/runs/${id}/sources`).send({name:'program.exe',contentBase64:'eA=='});
+  expect(out.status).toBe(400);expect(putSource).not.toHaveBeenCalled();
+});

@@ -1,3 +1,5 @@
+import { sources as sourceRoutes } from '../sources/routes.js';
+import { endRun } from '../end-run.js';
 import { SOURCE_ORDER, reportSources } from '../report-evidence.js';
 import { Router } from 'express';
 import { db } from '../db.js';
@@ -24,6 +26,7 @@ export const runs = Router();
 runs.use((req, res, next) => auth.middleware(req, res, next));
 // Retried mutating requests replay instead of executing twice (see idempotency.js).
 runs.use((req, res, next) => idempotency(req, res, next));
+runs.use('/:id/sources', sourceRoutes);
 
 async function ownedRun(req, res, { allowDeleted = false } = {}) {
   const run = await db.researchRun.findUnique({ where: { id: req.params.id } });
@@ -215,11 +218,12 @@ runs.post('/:id/configure', async (req, res) => {
     if (!['intake-done', 'planning', 'planned'].includes(run.status)) {
       return res.status(409).json({ error: `cannot configure from ${run.status}` });
     }
+    if (liveWeb === false && !(await db.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}}))) return res.status(400).json({error:'Attach at least one readable source before choosing user sources only.'});
     const resolvedLength = resolveLength({ length, lengthWords });
     const brief = { ...(run.brief || {}), depth, liveWeb, language, perspective, formats, length: resolvedLength.preset, lengthWords: resolvedLength.words, tipCreators: tipCreators === true };
     await db.researchRun.update({
       where: { id: run.id },
-      data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null },
+      data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null,metadata:{...(run.metadata||{}),planningPending:true,planRevision:(Number(run.metadata?.planRevision)||0)+1} },
     });
     // The ledger deposit mirrors verified money, never intent: on escrow
     // deployments it is written at approve from the onchain Funded budget
@@ -243,13 +247,15 @@ runs.post('/:id/approve', async (req, res) => {
     // estimate, or the run would pause almost immediately with nothing learned.
     // A plan with no estimate has not finished planning — approving it would be
     // accepting an unknown spend, so wait instead.
+    if (run.settledAt || run.metadata?.escrow?.status === 'Completed') return res.status(409).json({error:'This budget has settled. Duplicate the project and fund a new run; refunded money cannot be reused.'});
+    if (await db.researchStep.count({where:{runId:run.id,status:'active'}})) return res.status(409).json({error:'Wait for the current stage to finish before restarting.'});
     const { used } = await budgetState(run.id);
     const estimate = Number(run.plan?.estimate);
     if (!Number.isFinite(estimate)) {
       return res.status(409).json({ error: 'plan has no estimate yet — wait for planning to finish' });
     }
-    // Spendable, not ledger balance: a revised-then-settled run reads
-    // negative balance while its cap still authorizes spend (see money.js).
+    // Check cap headroom before the onchain funding gate below. A cap alone
+    // never authorizes spending money that has already been refunded.
     const left = spendable(run.budgetCap, used);
     if (left < estimate) {
       return res.status(409).json({ error: `balance $${left.toFixed(2)} is below the plan estimate $${estimate.toFixed(2)} — raise the cap first` });
@@ -367,8 +373,9 @@ runs.post('/:id/resume', async (req, res) => {
     const run = await ownedRun(req, res);
     if (!run) return;
     if (run.status !== 'paused') return res.status(409).json({ error: `cannot resume from ${run.status}` });
+    if(run.settledAt)return res.status(409).json({error:'This budget has settled. Start a fresh funded run.'});
     const { balance } = await budgetState(run.id);
-    if (balance <= 0) {
+    if (balance <= 0 && !run.metadata?.planningPending) {
       // Escrow deposits are one-shot: an exhausted deposit cannot be topped
       // up, so "raise the cap" would be a lie here — name the actual outs.
       const escrow = escrowOf(run);
@@ -377,10 +384,11 @@ runs.post('/:id/resume', async (req, res) => {
       }
       return res.status(409).json({ error: 'out of budget — raise the cap or end the run' });
     }
-    await db.researchRun.update({ where: { id: run.id }, data: { status: 'running', pauseReason: null } });
-    await recordEvent(run.id, { type: 'status', status: 'running' });
-    await requestExecute(run.id);
-    res.json({ id: run.id, status: 'running' });
+    const status=run.metadata?.planningPending ? 'planning' : 'running';
+    await db.researchRun.update({ where: { id: run.id }, data: { status, pauseReason: null } });
+    await recordEvent(run.id, { type: 'status', status });
+    if(status==='planning')await requestPlan(run.id);else await requestExecute(run.id);
+    res.json({ id: run.id, status });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -389,21 +397,9 @@ runs.post('/:id/end', async (req, res) => {
   try {
     const run = await ownedRun(req, res);
     if (!run) return;
-    if (['ended', 'complete'].includes(run.status)) {
-      return res.status(409).json({ error: `run is already ${run.status}` });
-    }
-    await db.researchRun.update({
-      where: { id: run.id },
-      data: { status: 'ended', endedAt: new Date(), pauseReason: 'user', pendingQuestion: null },
-    });
-    await recordEvent(run.id, { type: 'status', status: 'ended', pauseReason: 'user' });
-    const money = await settle(run.id, 'ended');
-    try {
-      const { settleEscrowRun } = await import('../escrow/settle.js');
-      await settleEscrowRun(run.id, 'ended');
-    } catch {}
-    res.json({ id: run.id, status: 'ended', ...money });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const result=await endRun(run.id);
+    res.status(result.pending ? 202 : 200).json(result);
+  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
 });
 
 // The mid-run question card. The run parks, the owner answers, and the run picks
@@ -524,6 +520,8 @@ runs.post('/:id/revise', async (req, res) => {
       return res.status(409).json({ error: `reprompt from ${run.status} — finish, fail, end, or pause the run first` });
     }
     const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim().slice(0, 2000) : '';
+    if (run.settledAt || run.metadata?.escrow?.status === 'Completed') return res.status(409).json({error:'This budget has settled. Duplicate the project and fund a new run; refunded money cannot be reused.'});
+    if (await db.researchStep.count({where:{runId:run.id,status:'active'}})) return res.status(409).json({error:'Wait for the current stage to finish before restarting.'});
     const { used } = await budgetState(run.id);
     if (!(spendable(run.budgetCap, used) > 0)) return res.status(409).json({ error: 'out of budget — raise the cap first' });
     const version = run.versions + 1;

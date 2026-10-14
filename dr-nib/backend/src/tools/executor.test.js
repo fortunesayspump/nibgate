@@ -21,6 +21,16 @@ beforeEach(async () => {
 afterEach(wipe);
 
 describe('tool registry', () => {
+  it('enforces sources-only mode before any network tool executes',async()=>{
+    await db.researchRun.update({where:{id:RUN},data:{brief:{liveWeb:false}}});
+    const fetchImpl=vi.fn();
+    const out=await runTool(RUN,'http_request',{url:'https://example.com'},{fetchImpl});
+    expect(out.ok).toBe(false);expect(out.error).toContain('disabled');expect(fetchImpl).not.toHaveBeenCalled();
+  });
+  it('refuses unsolicited creator tips before a transfer can be prepared',async()=>{
+    const out=await runTool(RUN,'tip_creator',{contentUrl:'https://example.com',amount:1});
+    expect(out.ok).toBe(false);expect(out.error).toContain('not authorized');
+  });
   it('advertises exactly the instruments, each with a cost model', () => {
     // `compute` (Node vm) is deliberately NOT advertised: vm is not a security
     // boundary, so model-authored code is forced through run_code's sandbox.
@@ -129,6 +139,8 @@ describe('runTool', () => {
 
   it('unjudged direct spends still hit tool-level caps (defense in depth)', async () => {
     vi.stubEnv('DRNIB_AGENT_PRIVATE_KEY', '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+    await db.researchRun.update({where:{id:RUN},data:{brief:{tipCreators:true}}});
+    await db.researchReport.create({data:{runId:RUN,version:1,markdown:'A cited finding [1].',citations:[{url:'https://x.example/a',trust:0.9}]}});
     // No loop, no verdict: caps enforced at the tool boundary anyway.
     const over = await runTool(RUN, 'tip_creator', { contentUrl: 'https://x.example/a', amount: 9999 });
     expect(over.ok).toBe(false);

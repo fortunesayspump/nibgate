@@ -9,6 +9,7 @@ import { subscribeRunEvents } from "@/lib/dr-nib-events";
 import { explorerTxUrl } from "@nibgate/wallet";
 import { TrustChip } from "@/components/dr-nib/common";
 import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
+import { SourceManager } from "@/components/dr-nib/SourceManager";
 import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
 
 // One chronological feed from three sources: the agent's reads (intake
@@ -30,6 +31,7 @@ function buildFeed(run: any): any[] {
   for (const s of run.steps || []) items.push({ t: "step", at: s.createdAt, step: s });
   for (const e of run.events || []) {
     if (e.type === "tool.call") items.push({ t: "tool", at: e.at, e });
+    else if (e.type === "agent.decision") items.push({t:"agent-decision",at:e.at,e});
     else if (e.type === "awaiting") items.push({ t: "parked", at: e.at, e });
     else if (e.type === "guidance.applied") items.push({ t: "note", at: e.at, e });
     else if (e.type === "failed" || e.type === "complete") items.push({ t: "marker", at: e.at, e });
@@ -380,9 +382,10 @@ function SettlementReceipt({ run, onRefresh }: { run: any; onRefresh: () => Prom
   return (
     <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
       <p className="text-sm font-medium">Receipt</p>
+      {!run.settledAt && <p role="status" className="mt-2 text-xs">Stopping after the current stage. Its cost is recorded before the remaining balance is refunded.</p>}
       <p className="mt-2 text-[13px] leading-6">
         Deposited ${deposited.toFixed(2)}
-        {" · "}spent ${spent.toFixed(2)}{fee > 0 ? ` (+$${fee.toFixed(3)} fee)` : ""}
+        {" · "}spent ${spent.toFixed(2)}{fee > 0 ? ` ($${fee.toFixed(3)} platform share included)` : ""}
         {" · "}{esc?.jobId && !fundsTx && !esc.splitConfirmed ? "refund pending confirmation" : "refunded"} ${refunded.toFixed(2)}
       </p>
       {esc?.jobId && !fundsTx && !esc.splitConfirmed && (
@@ -431,6 +434,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   // a wipe; clears on the next successful read.
   const [staleWarn, setStaleWarn] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [actionError,setActionError]=useState("");
+  const [actionBusy,setActionBusy]=useState(false);
+  async function changeRun(action:()=>Promise<unknown>){
+    if(actionBusy)return;setActionBusy(true);setActionError("");
+    try{await action();await load()}catch(e:any){setActionError(e?.message || "The action could not complete. Retry in a moment.")}finally{setActionBusy(false)}
+  }
   const [awaitingText, setAwaitingText] = useState("");
   const [awaitingBusy, setAwaitingBusy] = useState(false);
   const [awaitingError, setAwaitingError] = useState("");
@@ -488,8 +497,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
     try {
       const created: any = await drNibApi.createProject(topic);
       router.push(`/dr-nib/research?project=${created.id}`);
-    } catch {
+    } catch (e:any) {
       setDupBusy(false);
+      setActionError(e?.message || "A fresh run could not be created. Retry in a moment.");
     }
   }
   const [raiseAmt, setRaiseAmt] = useState("");
@@ -549,7 +559,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
       setError("");
       setStaleWarn(false);
       if (r?.status === "planned") void loadEscrow(r);
-      try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); } catch { setReport(null); }
+      try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); } catch { setStaleWarn(true); }
     } catch (e: any) {
       // A background refetch (every SSE event calls load) must never wipe a
       // loaded page: a network blip showed "Could not load run" over good
@@ -568,7 +578,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
       await drNibApi.endRun(id);
       setEndArmed(false);
       await load();
-    } catch (e: any) { setError(e?.message || "End failed."); }
+    } catch (e: any) { setActionError(e?.message || "End failed."); }
     finally { setEndBusy(false); }
   }
 
@@ -856,16 +866,17 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             {run.brief?.depth || "standard"} depth · ${(run.plan?.estimate ?? 0).toFixed(2)} est · ${spent.toFixed(2)} of ${cap.toFixed(2)} spent · {(run.sources || []).length} sources
           </p>
           {banner[run.status] && <p className="mt-2.5 border-l-2 border-black/60 pl-3 text-sm leading-6">{banner[run.status]}</p>}
-          {(run.status === "running" || run.status === "paused") && (
+          {(["running","planning","paused"]).includes(run.status) && (
             <div className="mt-3 flex gap-2">
-              {run.status === "running" && (
-                <button onClick={() => drNibApi.pauseRun(id).then(load)} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white"><Pause size={14} aria-hidden="true" /> Pause</button>
+              {(run.status === "running" || run.status === "planning") && (
+                <button disabled={actionBusy} onClick={() => void changeRun(()=>drNibApi.pauseRun(id))} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"><Pause size={14} aria-hidden="true" /> Pause</button>
               )}
               {run.status === "paused" && (
-                <button onClick={() => drNibApi.resumeRun(id).then(load)} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white"><Play size={14} aria-hidden="true" /> Resume</button>
+                <button disabled={actionBusy} onClick={() => void changeRun(()=>drNibApi.resumeRun(id))} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"><Play size={14} aria-hidden="true" /> Resume</button>
               )}
             </div>
           )}
+          {actionError && <p role="alert" className="mt-2 text-xs text-red-700">{actionError}</p>}
           {(["intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"] as string[]).includes(run.status) && (
             <div className="mt-3">
               <button onClick={endRun} disabled={endBusy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{endBusy ? "Ending…" : endArmed ? "Click again to end + refund" : "End run"}</button>
@@ -973,7 +984,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                   Report · v{report.version}
                   <Link href={`/dr-nib/research/${id}/report`} className="text-xs font-normal underline opacity-60 hover:opacity-100">Open as article ↗</Link>
                   <button onClick={copyReport} className="text-xs font-normal underline opacity-60 hover:opacity-100">{copied ? "✓ Copied" : "Copy"}</button>
-                  <button onClick={shareReport} className="text-xs font-normal underline opacity-60 hover:opacity-100" title="Copy a link to this exact report version">{linkCopied ? "✓ Link copied" : "Share"}</button>
+                  <button onClick={shareReport} className="text-xs font-normal underline opacity-60 hover:opacity-100" title="Copy this private report link; opening it requires your signed-in account">{linkCopied ? "✓ Link copied" : "Copy report link"}</button>
                   {Number(run.versions) > 1 && (
                     <select
                       aria-label="Report version"
@@ -1006,11 +1017,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               <ReportEvidence claims={run.claims} sources={run.sources || []} />
               <ReportQA claims={run.claims} sources={run.sources || []} />
               {["complete", "failed", "ended"].includes(run.status) ? (
-                <DiscussThread runId={id} initial={run.metadata?.discuss} />
+                <DiscussThread runId={id} initial={run.metadata?.discuss} sources={report.citations?.length ? report.citations : run.sources || []} />
               ) : null}
             </section>
           )}
 
+          <SourceManager runId={id} readOnly />
           <section id="drnib-sources" className="mt-4 scroll-mt-4 border border-dark-gray/50 bg-white p-4">
             <p className="mb-3 text-sm font-medium">Sources ({(run.sources || []).length})</p>
             {(run.sources || []).length === 0 ? (
@@ -1158,6 +1170,9 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                       </div>
                     );
                   }
+                  if(item.t === "agent-decision") {
+                    return <div key={`agent-${i}`} className={`rounded-xl border border-dark-gray/40 bg-white p-3 text-xs${enter}`}><p className="font-medium">{item.e.tool} · {item.e.decision}</p><p className="mt-1 leading-5">{item.e.why || "No action proposed."}</p><p className="mt-1 opacity-60">Decision: {item.e.source}{item.e.confidence != null ? ` · confidence ${Math.round(item.e.confidence*100)}%` : ""} · ${Number(item.e.costUsd || 0).toFixed(4)}</p></div>;
+                  }
                   if (item.t === "marker") {
                     return <p key={`mk-${i}`} className={`text-center text-[11px] uppercase tracking-wider opacity-50${enter}`}>— {item.e.type} —</p>;
                   }
@@ -1173,7 +1188,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
               )}
             </div>
             <div className="border-t border-dark-gray/40 p-3">
-              {["ended", "complete", "failed"].includes(run.status) ? (
+              {["ended", "complete", "failed"].includes(run.status) && run.settledAt ? (
+                <div className="rounded-xl border border-dark-gray/50 bg-white p-3">
+                  <p className="text-sm font-medium">Continue with a fresh budget</p>
+                  <p className="mt-1 text-xs opacity-70">This budget is settled. Start a fresh run on the same topic, add your sources again, and adjust the brief before approving a new deposit.</p>
+                  <button onClick={duplicateRun} disabled={dupBusy} className="mt-3 border border-black px-3 py-2 text-xs disabled:opacity-50">{dupBusy ? "Opening…" : "Start fresh run"}</button>
+                </div>
+              ) : ["ended", "complete", "failed"].includes(run.status) ? (
                 <div className="border-2 border-black bg-white p-3">
                   <p className="text-xs font-medium uppercase tracking-wider opacity-60">↻ Run it again, with a steer</p>
                   <p className="mt-1 text-xs opacity-60">New version — every stage re-executes and your prompt steers the pass. Needs balance.</p>

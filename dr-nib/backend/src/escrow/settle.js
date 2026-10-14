@@ -7,7 +7,7 @@
 // POST /:id/escrow/complete remains), never allowed to fail the run itself.
 import { db } from '../db.js';
 import { Prisma } from '@prisma/client';
-import { budgetState } from '../money.js';
+import { budgetState, settle } from '../money.js';
 import { recordEvent } from '../eventlog.js';
 import { isEscrowConfigured, jobStatus, signSplit, submitAndComplete } from './jobs.js';
 
@@ -20,6 +20,10 @@ export async function settleEscrowRun(runId, reason = 'settle') {
 }
 
 export async function retryPendingSettlements() {
+  // Also finish ledger-only runs whose process exited after a terminal
+  // status was recorded but before settlement. Active stages still drain.
+  const unfinished=await db.researchRun.findMany({where:{status:{in:['complete','ended','failed']},settledAt:null,steps:{none:{status:'active'}}},take:3,orderBy:{updatedAt:'asc'},select:{id:true,status:true}});
+  for(const run of unfinished)await settle(run.id,run.status);
   if (!isEscrowConfigured()) return { retried: 0 };
   const runs = await db.researchRun.findMany({
     where: {
@@ -42,6 +46,9 @@ export async function retryPendingSettlements() {
 async function settleRun(runId, reason) {
   try {
     const run = await db.researchRun.findUnique({ where: { id: runId } });
+    if (!run || !['complete','ended','failed'].includes(run.status)) return {skipped:true};
+    if (await db.researchStep.count({where:{runId,status:'active'}})) return {pending:true,reason:'stage-in-flight'};
+    if (!run.settledAt) { const money=await settle(runId,reason); if(money?.pending) return money; }
     const local = run?.metadata?.escrow;
     if (!local?.jobId || local.splitTx || local.splitConfirmed) return { skipped: true };
     if (!isEscrowConfigured()) {

@@ -40,7 +40,7 @@ export async function searchEvidence(runId, { query, limit = 5 } = {}) {
   if (!q.length) return { matches: [], searched: 0 };
   const [sources, steps] = await Promise.all([
     db.researchSource.findMany({ where: { runId } }),
-    db.researchStep.findMany({ where: { runId, kind: 'fetch' }, orderBy: { createdAt: 'desc' } }),
+    db.researchStep.findMany({ where: { runId, kind: {in:['fetch','data']}, status:'done' }, orderBy: { createdAt: 'desc' } }),
   ]);
   const docsByUrl = new Map();
   for (const step of steps) {

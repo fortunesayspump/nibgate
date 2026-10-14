@@ -36,7 +36,7 @@ export async function reconcileRun(runId, { publicClient } = {}) {
   // Ledger spend rows that claim an onchain hash (txRef), across all runs —
   // the wallet is shared, so matching is global, then filtered to this run.
   const rows = await db.budgetLedger.findMany({ where: { kind: 'spend' }, select: { runId: true, amount: true, txRef: true } });
-  const withTx = rows.filter((r) => r.txRef);
+  const withTx = rows.filter((r) => /^0x[0-9a-f]{64}$/i.test(String(r.txRef || '')));
   const byTx = new Map(withTx.map((r) => [String(r.txRef).toLowerCase(), r]));
   const mine = withTx.filter((r) => r.runId === runId);
 

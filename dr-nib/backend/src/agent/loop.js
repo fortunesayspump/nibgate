@@ -287,7 +287,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
         // Funnel: free tools had their chance (the model keeps polishing
         // instead of spending). Narrow this turn to spend-or-finish so the
         // run converges. submit_answer and done stay available.
-        turnTools = ['tip_creator', 'unlock_content', 'pay_x402', 'rate_content'];
+        turnTools = ['tip_creator', 'unlock_content', 'pay_x402', 'rate_content'].filter(name=>!tools || tools.includes(name));
       }
     } else {
       spendNudges = 0;

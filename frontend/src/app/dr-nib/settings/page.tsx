@@ -96,8 +96,8 @@ export default function HelpPage() {
       <Section title="Reports and exports">
         <P>
           Every factual claim cites its source as [n] — the chips link straight to the cited page. The full
-          source list sits below the report. Reprompt a finished run to steer a new version; every version is
-          kept and selectable.
+          source list sits below the report. After settlement, start a fresh run with a new deposit for
+          further research; refunded money cannot be reused. Existing report versions remain selectable.
         </P>
         <P>
           Below the report, <strong>Ask about this report</strong> answers fixed questions (weakest claim,
@@ -105,12 +105,18 @@ export default function HelpPage() {
           pass — no model, no budget. Under it, <strong>Discuss this report</strong> takes free-form
           follow-ups: each finished run gets a small free allowance (shown as &ldquo;N of 10 left&rdquo;),
           answered from the report and its sources only, with no ledger draw and no deposit needed. When
-          the allowance runs out, reprompt for a deeper pass.
+          the allowance runs out, start a fresh funded run for a deeper pass.
         </P>
         <P>
           Export to PDF, Word, Excel, PowerPoint, Markdown, JSON, or BibTeX from the run page. Exports render
           from the finished report and download directly.
         </P>
+      </Section>
+
+      <Section title="Your source files">
+        <P>At Configure, add PDF with selectable text, DOCX, XLSX, CSV, TXT or Markdown, or a public HTTPS link. Up to five sources, 2 MB each. PDFs have a 100-page limit; scans need OCR. Review extracted text and warnings before approving.</P>
+        <P>Originals stay in private R2 storage with owner-only downloads. Extracted text is analyzed by our AI providers during research. Source-only mode disables external retrieval and creator tips. Files freeze once research starts; a fresh run needs its files added again.</P>
+        <P>Spreadsheet totals are computed decimal column sums grouped by stated currency, with row references and duplicate warnings. They do not constitute a reconciliation or financial audit.</P>
       </Section>
 
       <Section title="Projects, sources, trash">

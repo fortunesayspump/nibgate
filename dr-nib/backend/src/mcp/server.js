@@ -14,10 +14,22 @@ import { researchAvailability } from '../readiness.js';
 import { TOOLS } from './tools.js';
 
 export const MCP_SERVER_NAME = 'dr-nib';
-export const MCP_SERVER_VERSION = '0.2.1';
+export const MCP_SERVER_VERSION = '0.2.2';
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 let warnedOpen = false;
+
+function toolInputSchema(tool) {
+  const properties=Object.fromEntries(Object.entries(tool.input || {}).map(([name,value])=>[name,{
+    type:Array.isArray(value)?'array':typeof value==='number'?'number':typeof value==='boolean'?'boolean':typeof value==='object'?'object':'string',
+    ...(Array.isArray(value)?{items:{type:typeof value[0]==='string'?'string':'object'}}:{}),
+    ...(name==='ownerWallet'?{pattern:'^0x[a-fA-F0-9]{40}$',description:'Wallet owning the research project.'}:{}),
+  }]));
+  const required=['ownerWallet','runId'].filter(name=>name in properties);
+  const byTool={create_run:['topic'],configure_run:['budgetCap'],read_supplied_source:['sourceId'],raise_budget:['amount'],answer_questions:['answers'],answer_question:['seq','answer'],reprompt_run:['prompt']};
+  required.push(...(byTool[tool.name] || []).filter(name=>name in properties));
+  return {type:'object',properties,required,...(tool.name==='attach_source'?{anyOf:[{required:['name','contentBase64']},{required:['url']}]}:{})};
+}
 
 export function mcpAuth(req) {
   const expected = process.env.DRNIB_SERVICE_KEY || '';
@@ -75,7 +87,7 @@ export async function handleRpc(req) {
       return {
         status: 200,
         body: rpcOk(id, {
-          tools: TOOLS.map((t) => ({ name: t.name, description: t.description, inputSchema: { type: 'object' } })),
+          tools: TOOLS.map((t) => ({ name: t.name, description: t.description, inputSchema: toolInputSchema(t) })),
         }),
       };
     }

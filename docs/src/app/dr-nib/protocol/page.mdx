@@ -22,14 +22,14 @@ flowchart LR
 - **Dr. Nib service** — the Express API plus the worker that runs pipeline stages. It has no accounts of its own: identity is the hub's wallet session.
 - **Hub API** — the decision seat (JEV), and the rails the agent spends through (tip challenge/verify, x402).
 - **Postgres** — runs, evidence, claims, reports, and the append-only ledger, in the service's own `drnib` schema.
-- **R2** — rendered deliverables.
+- **R2** — rendered deliverables and private supplied-source originals. Originals use `nibgate-research`, with `testnet/` and `mainnet/` object prefixes, no public bucket domains, and owner-authenticated downloads.
 - **Arc** — the onchain guarantees: run escrow and the spend mandate.
 
 **Reference:** `dr-nib/backend/src/server.js`, `routes/`, `worker.js`, `db.js`, `env.js`; `dr-nib/ARCHITECTURE.md`.
 
 ## Identity is the wallet
 
-There is no Dr. Nib login. The API reads the hub's SIWE session cookie and validates it against the hub's own `Session`/`User` tables (`HUB_DATABASE_URL`) using the same code path the hub uses. Every mutating route is owner-checked and idempotency-keyed, so a retried request can't double-create a run or double-charge a stage. Agent callers reach the same routes over MCP, naming an owner wallet that must own the run.
+There is no Dr. Nib login. The API reads the hub's SIWE session cookie and validates it against the hub's own `Session`/`User` tables (`HUB_DATABASE_URL`) using the same code path the hub uses. Mutating routes verify ownership; supported idempotency keys protect retried requests, and stage checkpoints prevent duplicate charging. Agent callers use a service-authenticated MCP connection and name the owner wallet, which must own the run.
 
 ## The run lifecycle
 
@@ -75,8 +75,18 @@ A run never overspends — it pauses at the cap and asks. On one-shot escrow dep
 
 ## Machine parity
 
-Dr. Nib is agent-facing as well as people-facing. An MCP server exposes the same run flows as tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) enforcing the same gates as the HTTP routes — including escrow funding minimums and the deposit ceiling on raises — plus the same ownership rule and production-readiness gate. A service key gates the surface; production refuses MCP calls when no key is configured. Only local development permits keyless calls with a warning. The Dr. Nib server card (version 0.2.1) includes research availability; this is separate from the hub MCP registry. Agent callers pay in USDC (tips, paid unlocks, x402) from the run budget, inside the same per-call ceilings as the browser flow.
+Dr. Nib is agent-facing as well as people-facing. An MCP server exposes the same run flows as tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) enforcing the same gates as the HTTP routes — including escrow funding minimums and the deposit ceiling on raises — plus the same ownership rule and production-readiness gate. A service key gates the surface; production refuses MCP calls when no key is configured. Only local development permits keyless calls with a warning. The Dr. Nib server card (version 0.2.2) includes research availability; this is separate from the hub MCP registry. Agent callers pay in USDC (tips, paid unlocks, x402) from the run budget, inside the same per-call ceilings as the browser flow.
 
 ## Deliverables
 
-A finished run keeps its research as raw markdown and generates deliverables from it, never by re-running: **Markdown, JSON (+escrow receipt block), BibTeX, PDF, Word, Excel (+escrow columns on Ledger), PowerPoint**. Binary formats are rendered by the service and stored in the shared R2 bucket, returning a URL; text formats come back inline. The format is chosen *after* the research exists — choosing a format before there is anything to export is guessing. Reports carry a coverage badge + claim×source matrix from the verify pass, and have version-pinned account links. Sources are numbered in an immutable per-report snapshot so browser citations and exports keep the same mapping.
+All new report exports return authenticated inline/base64 downloads, including reports based only on a typed brief. Research reports are not published to the public media CDN. Copied report links are account links requiring the owner's sign-in; public report sharing is not implemented.
+
+## Supplied-source API and MCP
+
+Owner-authenticated routes: `GET` and `POST /v1/runs/:id/sources`; `GET /v1/runs/:id/sources/:sourceId` for extracted text; `GET /v1/runs/:id/sources/:sourceId/original` for original bytes; `DELETE /v1/runs/:id/sources/:sourceId` to exclude an input before execution. POST accepts `{name, contentBase64}` or `{url}`. Browser clients use the same-origin `/drnib-api` prefix. Downloads are private and uncached.
+
+Dr. Nib MCP 0.2.2 adds `attach_source`, `list_supplied_sources` and `read_supplied_source`. Calls require the existing service authentication and a matching owner wallet. Supply `ownerWallet` and `runId`, plus file input or `sourceId` as applicable. The hub MCP/OpenAPI version is independent and unchanged.
+
+Settled budgets cannot fund a reprompt. Start a fresh project and fund a new deposit; upload its inputs again. An active stage drains before End refunds the remainder.
+
+A finished run keeps its research as raw markdown and generates deliverables from it, never by re-running: **Markdown, JSON (+escrow receipt block), BibTeX, PDF, Word, Excel (+escrow columns on Ledger), PowerPoint**. Binary formats are rendered by the service and returned as base64 through the authenticated API; text formats come back inline. The format is chosen *after* the research exists — choosing a format before there is anything to export is guessing. Reports carry a coverage badge + claim×source matrix from the verify pass, and have version-pinned account links. Sources are numbered in an immutable per-report snapshot so browser citations and exports keep the same mapping.

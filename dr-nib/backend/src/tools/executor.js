@@ -11,6 +11,8 @@
 // (compute, evidence) meter zero but are still logged. A tool call never
 // spends from anywhere but the run's ledger, via the stage that invoked it.
 import { recordEvent } from '../eventlog.js';
+import { db } from '../db.js';
+import { citedTipCandidates } from '../tip-candidates.js';
 import { applyUrlPolicy, checkUrlPolicy, normalizePolicy } from './policy.js';
 import { searchAll, extractAll } from '../retrieval/index.js';
 import { httpRequest } from './http.js';
@@ -61,11 +63,11 @@ const TOOLS = {
       const urls = input?.urls ?? input?.url;
       need({ urls }, 'urls');
       const list = (Array.isArray(urls) ? urls : [urls]).map(String).slice(0, 20);
-      for (const url of urls) {
+      for (const url of list) {
         const verdict = checkUrlPolicy(url, ctx.policy);
         if (!verdict.ok) throw new Error(`refused: ${verdict.reason}`);
       }
-      const out = await extractAll({ urls }, { fetchImpl: ctx.fetchImpl });
+      const out = await extractAll({ urls: list }, { fetchImpl: ctx.fetchImpl });
       return { output: out, costUsd: out.costUsd };
     },
   },
@@ -193,6 +195,13 @@ export async function runTool(runId, name, input, { policy, fetchImpl } = {}) {
   if (!tool) return { ok: false, error: `unknown tool: ${name}`, costUsd: 0 };
   const ctx = { runId, policy: normalizePolicy(policy), fetchImpl };
   try {
+    const run=await db.researchRun.findUnique({where:{id:runId}});
+    if(run?.brief?.liveWeb===false && !['search_sources'].includes(name)) throw new Error('External tools are disabled for user-sources-only research.');
+    if(run && name==='tip_creator') {
+      if(run.brief?.tipCreators!==true) throw new Error('Creator tips were not authorized for this run.');
+      const report=await db.researchReport.findFirst({where:{runId},orderBy:{version:'desc'}});
+      if(!citedTipCandidates(report).some(s=>s.url===input?.contentUrl)) throw new Error('Only high-trust sources cited in the finished report are eligible for a tip.');
+    }
     const { output, costUsd } = await tool.run(input || {}, ctx);
     const cost = Number(costUsd) || 0;
     await recordEvent(runId, {

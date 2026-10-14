@@ -35,7 +35,13 @@ One build, two networks, switched from the **header pill** (TESTNET by default).
 
 Balances, history, and tips are per-network — testnet play money can never touch mainnet content. See [Networks](/networks).
 
-## Tipping on any page
+## Tip any URL (1.2.0, next store update)
+
+Right-click an HTTP(S) page or link and choose **Tip this URL** to open the extension amount, review, and approval window. This works on ordinary sites without creator classification or optional site access. Verified recipients use the existing settlement flow; unresolved URLs hold tips for the domain owner to verify and claim. Browser-internal URLs are unsupported. Version 1.2.0 is prepared for submission; the store listing may still serve the earlier version.
+
+The automatic **Tip the creator** button keeps its existing creator eligibility checks.
+
+## Tipping on creator pages
 
 1. Open an article. A **coffee button** appears near the content — the only thing the extension ever renders inside the page, so pages can't spoof money UI. (Nibgate's own sites are excluded; they tip natively.)
 2. Tap it: the Nibgate tip window opens. Pick $1 / $5 / $10 or custom, review exactly who gets paid and the fee, then **Approve** — nothing signs without your tap.
@@ -73,6 +79,7 @@ You don't need the extension and you don't need an account. If readers tip your 
 
 | Permission | Why |
 |---|---|
+| `contextMenus` | Add the explicit Tip this URL action for HTTP(S) pages and links (1.2.0) |
 | `activeTab` | Read the current page only, to find tippable content |
 | `storage` | Tip history + network preference, on-device |
 | `clipboardWrite` | Copy your wallet address or recovery phrase when you tap Copy |

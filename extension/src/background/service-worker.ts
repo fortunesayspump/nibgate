@@ -1,5 +1,5 @@
 // Background service worker: owns API calls + payment flow.
-// Keys never touch content scripts. Testnet only.
+// Keys never touch content scripts. Network selected by the user.
 import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, decideSettleOrHold, classifyPage, CHAIN_ID, type TipResolution } from '../lib/api-client';
 import { activeNetwork } from '../lib/network';
 import { fetchBalances } from '../lib/balances';
@@ -344,39 +344,7 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
   if (msg?.type === 'TIP_OPEN') {
     (async () => {
       try {
-        const content = msg.content;
-        const target = content.canonicalUrl || content.url;
-        const rail = await activeRail(msg.rail);
-        const resolution = await resolveTip(target, {
-          pageWallet: msg.pageWallet,
-          hasSdk: msg.hasSdk,
-          candidateWallets: Array.isArray(msg.candidateWallets) ? msg.candidateWallets : [],
-          title: content.title,
-          author: content.author,
-          siteName: content.siteName,
-        });
-        const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        pendingTips.set(id, {
-          id,
-          content: {
-            url: content.url, canonicalUrl: content.canonicalUrl, title: content.title,
-            author: content.author, siteName: content.siteName,
-          },
-          pageWallet: msg.pageWallet,
-          candidateWallets: Array.isArray(msg.candidateWallets) ? msg.candidateWallets : [],
-          hasSdk: msg.hasSdk,
-          domain: resolution.domain,
-          resolution: resolution.resolution,
-          rail,
-        });
-        try {
-          const w = await chrome.windows.create({ url: chrome.runtime.getURL(`tip.html?id=${encodeURIComponent(id)}`), type: 'popup', width: 380, height: 600 });
-          const p = pendingTips.get(id);
-          if (p && w?.id != null) p.windowId = w.id;
-        } catch {
-          pendingTips.delete(id);
-          return respond({ ok: false, error: 'Could not open tip window.' });
-        }
+        const id = await openTip(msg);
         respond({ ok: true, id });
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
@@ -394,6 +362,7 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
         ok: true,
         tip: {
           title: p.content.title,
+          contentUrl: p.content.canonicalUrl || p.content.url,
           siteName: p.content.siteName || '',
           domain: p.domain,
           held: r.state !== 'resolved',
@@ -746,3 +715,75 @@ export async function recordReceipt(receipt: unknown) {
   const { history = [] } = await chrome.storage.local.get('history');
   await chrome.storage.local.set({ history: [receipt, ...(history as unknown[])].slice(0, 100) });
 }
+
+async function openTip(msg: any): Promise<string> {
+  const content = msg.content;
+  const target = content.canonicalUrl || content.url;
+  const rail = await activeRail(msg.rail);
+  const resolution = await resolveTip(target, {
+    pageWallet: msg.pageWallet,
+    hasSdk: msg.hasSdk,
+    candidateWallets: Array.isArray(msg.candidateWallets) ? msg.candidateWallets : [],
+    title: content.title,
+    author: content.author,
+    siteName: content.siteName,
+  });
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  pendingTips.set(id, {
+    id,
+    content: {
+      url: content.url, canonicalUrl: content.canonicalUrl, title: content.title,
+      author: content.author, siteName: content.siteName,
+    },
+    pageWallet: msg.pageWallet,
+    candidateWallets: Array.isArray(msg.candidateWallets) ? msg.candidateWallets : [],
+    hasSdk: msg.hasSdk,
+    domain: resolution.domain,
+    resolution: resolution.resolution,
+    rail,
+  });
+  try {
+    const w = await chrome.windows.create({ url: chrome.runtime.getURL(`tip.html?id=${encodeURIComponent(id)}`), type: 'popup', width: 380, height: 600 });
+    const p = pendingTips.get(id);
+    if (p && w?.id != null) p.windowId = w.id;
+  } catch {
+    pendingTips.delete(id);
+    throw new Error('Could not open tip window.');
+  }
+  return id;
+}
+
+const TIP_URL_MENU = 'nibgate-tip-url';
+function registerTipMenu() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: TIP_URL_MENU, title: 'Tip this URL', contexts: ['page', 'link'],
+      documentUrlPatterns: ['http://*/*', 'https://*/*'],
+    });
+  });
+}
+chrome.runtime.onInstalled.addListener(registerTipMenu);
+chrome.runtime.onStartup.addListener(registerTipMenu);
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== TIP_URL_MENU) return;
+  void (async () => {
+    try {
+      const url = new URL(info.linkUrl || info.pageUrl || tab?.url || '');
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP and HTTPS URLs can receive tips.');
+      url.hash = '';
+      const target = url.href;
+      // Explicit user intent bypasses page eligibility, never recipient verification.
+      // No wallet is inferred from the referring page when tipping a link.
+      await openTip({ content: {
+        url: target, canonicalUrl: target,
+        title: info.linkUrl ? target : (tab?.title || target),
+        author: '', siteName: url.hostname,
+      } });
+    } catch (error) {
+      await chrome.windows.create({
+        url: chrome.runtime.getURL('tip.html?error=' + encodeURIComponent(String((error as Error)?.message || error))),
+        type: 'popup', width: 380, height: 600,
+      });
+    }
+  })();
+});

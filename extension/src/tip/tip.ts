@@ -47,7 +47,7 @@ function paintPresets() {
 async function init() {
   if (!id) {
     $('loading')!.hidden = true;
-    err('Missing tip id.');
+    err(new URLSearchParams(window.location.search).get('error') || 'Missing tip id.');
     return;
   }
   let data: any = null;
@@ -67,6 +67,7 @@ async function init() {
     return;
   }
   const tip = data.tip || {};
+  $('t-url')!.textContent = String(tip.contentUrl || '');
   const net = data.network || {};
   explorer = String(net.explorer || '');
   $('loading')!.hidden = true;

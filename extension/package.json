@@ -1,8 +1,8 @@
 {
   "name": "nibgate-extension",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Nibgate browser extension (testnet only).",
+  "description": "Nibgate browser extension for Arc testnet and mainnet.",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",

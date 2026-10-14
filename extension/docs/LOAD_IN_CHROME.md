@@ -1,6 +1,6 @@
 # Load Nibgate in Chrome (sideload — no store review needed)
 
-Sideload `dist/` for dev and review. The repository release target is v1.1.0;
+Sideload `dist/` for dev and review. The repository release target is v1.2.0;
 it has not yet been submitted to the Chrome Web Store (see `STORE_SUBMIT.md`).
 Testnet default, mainnet behind the confirm-gated header pill.
 

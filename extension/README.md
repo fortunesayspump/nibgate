@@ -2,7 +2,7 @@
 
 **Status: v1.0.0 LIVE on the Chrome Web Store**
 ([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.1.0 (next update, unsubmitted). Sideload guide:
+Repo is at v1.2.0 (next update, unsubmitted). Sideload guide:
 `docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
 
 Part of the trio: `tipping/` = protocol, `extension/` = humans, `dr-nib/` =
@@ -47,7 +47,11 @@ an explicit confirmation, so real money never happens by accident.
 - **Mainnet (Arc, chain 5042):** real USDC. Balances, history, and tips are
   per-network — switching networks switches everything you see.
 
-### Tipping on any page
+### Tip any URL from the right-click menu
+
+Right-click any HTTP(S) page or link and choose **Tip this URL**. This opens the extension amount, review, and approval window even on sites that are not classified as creators, without requiring optional site access. Verified recipients settle through the existing flow; otherwise funds are held for the domain owner to verify and claim. The automatic **Tip the creator** button still requires the existing creator eligibility checks. Browser-internal URLs are unsupported.
+
+### Tipping on creator pages
 
 1. Open an article, tutorial, paper, or video page. (Nibgate's own sites are
    excluded — they already tip natively.)
@@ -126,7 +130,7 @@ Rules that are load-bearing, not stylistic:
 
 ```text
 extension/
-  manifest.json            # MV3, v1.1.0: worker, popup, optional site access
+  manifest.json            # MV3, v1.2.0: worker, popup, optional site access
   package.json / tsconfig  # TS + esbuild
   src/
     content/tip-card.ts    # the single coffee-button trigger + TIP_RESULT poll
@@ -154,7 +158,7 @@ extension/
   fonts/                   # hub brand fonts so the popup matches nibgate.xyz
   docs/
     LOAD_IN_CHROME.md      # sideload + dev loop
-    STORE_SUBMIT.md        # store process + listing (v1.1.0 release notes)
+    STORE_SUBMIT.md        # store process + listing (v1.2.0 release notes)
     MARKING.md             # content-marker convention (advisory, backend decides)
 ```
 

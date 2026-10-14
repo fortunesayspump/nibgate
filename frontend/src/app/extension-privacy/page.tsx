@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 const SECTIONS: Array<[string, string]> = [
   [
     "What the extension accesses",
-    "Active tab and page content: title, author, canonical URL, and on-page wallet signals, used only to identify the content and resolve the creator. Site access is optional and granted at runtime when you tap 'Enable on all sites' — you can revoke it any time from chrome://extensions. Storage: tip history, network preference (testnet/mainnet), and theme. Clipboard write access is used only when you click to copy an address or recovery phrase; clipboard contents are never read or sent. API host access is limited to Nibgate hosts (testnet-api.nibgate.xyz, api.nibgate.xyz).",
+    "Active tab and page content: title, author, canonical URL, and on-page wallet signals, used only to identify the content and resolve the creator. Site access is optional and granted at runtime when you tap 'Enable on all sites' — you can revoke it any time from chrome://extensions. The 1.2.0 update adds a right-click Tip this URL action: only the selected page or link URL and page title are sent when you invoke it, using the same tip flow. Storage: tip history, network preference (testnet/mainnet), and theme. Clipboard write access is used only when you click to copy an address or recovery phrase; clipboard contents are never read or sent. API host access is limited to Nibgate hosts (testnet-api.nibgate.xyz, api.nibgate.xyz).",
   ],
   [
     "What stays on your device",

@@ -43,6 +43,7 @@ ${briefSummary(brief)}
 ${guidanceLine}
 Break this into the sub-questions the research must answer. Each must be one that changes the report if answered differently.
 Cover DIFFERENT facets (mechanism, numbers, comparison, risks, how-to steps) — never restate the brief twice with an "(angle 1)/(angle 2)" suffix; near-duplicate sub-questions waste the whole run budget on the same evidence.
+Map every explicit deliverable in the brief to a sub-question. If the user asks for totals, duplicate detection, and category comparison, preserve all three; a short report is still required to answer each request. Do not drop a requested analysis to fit a shorter outline.
 ${lengthLine}
 Return JSON with this exact shape:
 {
@@ -73,6 +74,7 @@ Evidence collected for this run (the ONLY material you may rely on):
 ${evidence || '(no sources were collected)'}
 
 Write about ${targetWords} words for the entire body, excluding the separately assembled abstract and references. Stay concise; do not repeat findings to fill space. Rules:
+- Answer every explicit deliverable in the brief, even if the plan omitted it. For numeric document analysis, show each requested grouping separately, keep currencies separate, and explain any duplicate rows without silently removing them.
 - Every factual claim must cite its source as [n].
 - If a claim has no supporting source above, mark it "(unsupported)" rather than asserting it.
 - Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any source passage. A verification pass measures verbatim overlap and flags copied claims.

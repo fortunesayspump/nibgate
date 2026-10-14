@@ -116,7 +116,7 @@ export default function HelpPage() {
       <Section title="Your source files">
         <P>At Configure, add PDF with selectable text, DOCX, XLSX, CSV, TXT or Markdown, or a public HTTPS link. Up to five sources, 2 MB each. PDFs have a 100-page limit; scans need OCR. Review extracted text and warnings before approving.</P>
         <P>Originals stay in private R2 storage with owner-only downloads. Extracted text is analyzed by our AI providers during research. Source-only mode disables external retrieval and creator tips. Files freeze once research starts; a fresh run needs its files added again.</P>
-        <P>Spreadsheet totals are computed decimal column sums grouped by stated currency, with row references and duplicate warnings. They do not constitute a reconciliation or financial audit.</P>
+        <P>Spreadsheet totals are computed decimal column sums grouped by stated currency and, when present, category. CSV dates stay as entered. Repeated rows remain in the sums and are flagged with row references. These are not a reconciliation or financial audit.</P>
       </Section>
 
       <Section title="Projects, sources, trash">

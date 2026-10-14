@@ -17,7 +17,8 @@ export function tableEvidence(rows, sheet) {
   if (rows.length > 5001 || rows.some(r=>r.length>100)) throw new Error('Use at most 5,000 data rows and 100 columns per sheet.');
   const headers=(rows[0] || []).map(String);
   const currencyIndex=headers.findIndex(h=>/^currency$/i.test(h.trim()));
-  const sums={};
+  const categoryIndex=headers.findIndex(h=>/^category$/i.test(h.trim()));
+  const sums={},categorySums={};
   let duplicates=0;
   const seen=new Set();
   for (const row of rows.slice(1)) {
@@ -29,9 +30,14 @@ export function tableEvidence(rows, sheet) {
       if(!/^-?\d+(\.\d+)?$/.test(raw)) return;
       const key=`${h} · ${currencyIndex>=0 ? String(row[currencyIndex] || 'currency unspecified') : 'currency unspecified'}`;
       sums[key]=(sums[key] || new Prisma.Decimal(0)).plus(raw);
+      if(categoryIndex>=0) {
+        const category=String(row[categoryIndex] || 'category unspecified').trim().slice(0,80);
+        const groupedKey=`${key} · ${category}`;
+        categorySums[groupedKey]=(categorySums[groupedKey] || new Prisma.Decimal(0)).plus(raw);
+      }
     });
   }
-  const summary=`Sheet: ${sheet}; ${Math.max(0,rows.length-1)} data rows; ${duplicates} repeated full rows (not automatically removed).\nComputed column sums, grouped by the stated currency; these are not reconciled balances or an audit:\n${Object.entries(sums).map(([k,v])=>`${k}: ${v.toFixed()}`).join('\n') || '(no explicit numeric amount columns)'}`;
+  const summary=`Sheet: ${sheet}; ${Math.max(0,rows.length-1)} data rows; ${duplicates} repeated full rows (not automatically removed).\nComputed column sums, grouped by the stated currency; these are not reconciled balances or an audit:\n${Object.entries(sums).map(([k,v])=>`${k}: ${v.toFixed()}`).join('\n') || '(no explicit numeric amount columns)'}${categoryIndex>=0?`\nComputed category sums (flagged duplicates still included):\n${Object.entries(categorySums).map(([k,v])=>`${k}: ${v.toFixed()}`).join('\n') || '(no numeric category amounts)'}`:''}`;
   return `${summary}\n\n${rows.map((r,i)=>`[${sheet}, row ${i+1}] ${JSON.stringify(r)}`).join('\n')}`;
 }
 
@@ -57,7 +63,11 @@ export async function parseSource(name, buffer) {
     text=(await mammoth.extractRawText({buffer})).value;
   } else if(ext==='.csv' || ext==='.xlsx') {
     if(ext==='.xlsx') await checkArchive(buffer);
-    const book=XLSX.read(buffer,{type:'buffer',cellFormula:false,cellHTML:false});
+    // CSV has no cell types. SheetJS otherwise guesses ISO dates and exposes
+    // Excel serials (for example 2026-10-02 -> 46297) to the research model.
+    // Keep the user's literal values; numeric amount columns are parsed by
+    // tableEvidence using Decimal after the rows are read.
+    const book=XLSX.read(buffer,{type:'buffer',cellFormula:false,cellHTML:false,...(ext==='.csv'?{raw:true}:{})});
     if(book.SheetNames.length>10) throw new Error('Workbooks are limited to 10 sheets.');
     text=book.SheetNames.map(sheet=>{
       const worksheet=book.Sheets[sheet];

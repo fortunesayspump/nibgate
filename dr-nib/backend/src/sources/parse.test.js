@@ -18,11 +18,15 @@ describe('private research source extraction',()=>{
     expect((await parseSource('costs.xlsx',XLSX.write(book,{type:'buffer',bookType:'xlsx'}))).text).toContain('[Costs, row 2]');
   });
   it('keeps currency totals separate, uses exact decimals, and flags duplicate rows without removing evidence',async()=>{
-    const out=await parseSource('expenses.csv',Buffer.from('Date,Amount,Currency\n2026-01-01,0.10,USD\n2026-01-01,0.20,USD\n2026-01-01,0.20,USD\n2026-01-02,4,EUR'));
+    const out=await parseSource('expenses.csv',Buffer.from('Date,Amount,Currency,Category\n2026-01-01,0.10,USD,Tools\n2026-01-01,0.20,USD,Tools\n2026-01-01,0.20,USD,Tools\n2026-01-02,4,EUR,Travel'));
     expect(out.text).toContain('Amount · USD: 0.5');
     expect(out.text).toContain('Amount · EUR: 4');
+    expect(out.text).toContain('Amount · USD · Tools: 0.5');
+    expect(out.text).toContain('Amount · EUR · Travel: 4');
     expect(out.text).toContain('1 repeated full rows');
     expect(out.text).toContain('row 5]');
+    expect(out.text).toContain('"2026-01-01"');
+    expect(out.text).not.toContain('46023');
     expect(out.text).toContain('not reconciled balances or an audit');
   });
   it('rejects oversized worksheet ranges before expanding rows',async()=>{

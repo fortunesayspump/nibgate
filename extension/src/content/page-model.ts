@@ -46,7 +46,7 @@ export type PageMap = {
 const BOILER =
   'header,nav,footer,aside,[role="navigation"],[role="complementary"],[role="contentinfo"],[aria-hidden="true"]';
 const CHROME_HINT =
-  /(^|[-_\s])(share|shared|social|related|recommend|comment|comments|disqus|tag|tags|subscribe|newsletter|cookie|consent|breadcrumb|author-bio|bio|promo|advert|ad|sponsor|sidebar|menu|nav|footer|widget|meta|pagination|pager|more-posts|back|prev|next)([-_\s]|$)/i;
+  /(^|[-_\s])(share|shared|social|related|recommend|comment|comments|webmention|webmentions|disqus|tag|tags|subscribe|newsletter|cookie|consent|breadcrumb|author-bio|bio|promo|advert|ad|sponsor|sidebar|menu|nav|footer|widget|meta|pagination|pager|more-posts|back|prev|next)([-_\s]|$)/i;
 const READ_MORE = /(read more|continue reading|read the rest|full story|keep reading|read on)\b/i;
 const BLOCK_SEL = 'h1,h2,h3,h4,h5,h6,p,blockquote,pre,figure';
 
@@ -64,7 +64,11 @@ function hintOf(el: Element): string {
 function isBoiler(el: Element | null): boolean {
   if (!el) return false;
   try {
-    return Boolean(el.closest(BOILER)) || CHROME_HINT.test(hintOf(el));
+    if (el.closest(BOILER)) return true;
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      if (CHROME_HINT.test(hintOf(node))) return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -114,7 +118,25 @@ function isContentImage(img: Element, ogImage: string): boolean {
 }
 
 function contentImageCount(scope: ParentNode, ogImage: string): number {
-  return Array.from(scope.querySelectorAll('img')).filter((im) => isContentImage(im, ogImage)).length;
+  return Array.from(scope.querySelectorAll('img')).filter((im) => !isBoiler(im) && isContentImage(im, ogImage)).length;
+}
+
+// A photo or recording is substantive work even when it has no transcript.
+// Require a creator signal and a published work, not merely a hero image/player.
+function mediaWorkScore(doc: Document, scope: Element): number {
+  const types = schemaTypes(doc).join(' ');
+  if (/product|offer|softwareapplication/.test(types)) return 0;
+  const creator = /person|musicgroup/.test(types) || Boolean(
+    metaContent(doc, ['author', 'article:author', 'dc.creator', 'fediverse:creator', 'twitter:creator'])
+    || doc.querySelector('[rel~="author"], [rel~="me"], .h-card .p-name, [itemprop="author"]'),
+  );
+  const published = Boolean(scope.matches('.h-entry') || scope.querySelector('.h-entry, time[datetime], .dt-published')
+    || metaContent(doc, ['article:published_time']) || Array.from(scope.querySelectorAll('h1')).some((h) => /\b20\d{2}[-/]\d{2}[-/]\d{2}\b/.test(h.textContent || ''))
+    || /videoobject|audioobject|musicrecording|podcastepisode|imagegallery|photograph/.test(types));
+  const titled = Boolean(scope.querySelector('h1, .p-name') || metaContent(doc, ['og:title']));
+  const media = pickMedia(doc, scope);
+  const images = contentImageCount(scope, metaContent(doc, ['og:image']));
+  return creator && published && titled && (media || images > 0) ? 1 : 0;
 }
 function numericPagination(doc: Document): boolean {
   if (doc.querySelector('.pagination, .page-numbers, [class*="pagination" i], nav[aria-label*="pag" i]')) return true;
@@ -146,7 +168,11 @@ function repeatedCards(doc: Document): number {
 // corporate footer, portfolio/services nav, and absence of a Person author.
 function organizationScore(doc: Document): number {
   const typeStr = schemaTypes(doc).join(' ');
-  const articleType = /article|blogposting|newsarticle|techarticle|scholarlyarticle/.test(typeStr);
+  const articleType = /article|blogposting|newsarticle|techarticle|scholarlyarticle/.test(typeStr)
+    || metaContent(doc, ['og:type']).toLowerCase() === 'article'
+    || Boolean(doc.querySelector('article h1, [role="article"] h1, .post-content, .entry-content, .article-body'));
+  // Publisher navigation and legal footers are not evidence against its work.
+  if (articleType) return 0;
   let score = 0;
   // Organization only counts when the page itself is an org page — not when it
   // is merely the publisher of an Article/BlogPosting.
@@ -202,13 +228,15 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
   const best = contentContainer(doc);
   const bestProse = proseWords(best);
   const singleFocus = clamp01(bestProse / Math.max(1, pageProse));
-  const substance = clamp01(pageProse / 600);
+  const substance = clamp01(pageProse / 350);
   const ogArticle = metaContent(doc, ['og:type']) === 'article' ? 1 : 0;
   const articleTag = doc.querySelector('article') ? 1 : 0;
   // A profile page is declared by OG type. (h-card alone is too common — many
   // articles embed one for the site/author — so it is not treated as a profile.)
   const profilePage = metaContent(doc, ['og:type']).toLowerCase() === 'profile';
   const articleCount = doc.querySelectorAll('article').length;
+  const main = doc.querySelector('main, [role="main"]');
+  const mediaWork = Math.max(mediaWorkScore(doc, best), main ? mediaWorkScore(doc, main) : 0);
   const feedCards = clamp01((repeatedCards(doc) - 1) / 3);
   const pagination = numericPagination(doc) ? 1 : 0;
   const linkDensity = (() => {
@@ -227,9 +255,15 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
   // not make a single article look like a listing.
   const mainRegion: Element = doc.querySelector('main, [role="main"]') ?? doc.body ?? doc.documentElement;
   const readMore = clamp01(
-    Array.from(mainRegion.querySelectorAll('a')).filter((a) => READ_MORE.test((a.textContent || '').trim())).length / 2,
+    Array.from(mainRegion.querySelectorAll('a')).filter((a) => !isBoiler(a) && READ_MORE.test((a.textContent || '').trim())).length / 2,
   );
-  const linkedHeadings = clamp01(mainRegion.querySelectorAll('h2 a, h3 a, h4 a').length / 4);
+  const linkedHeadings = clamp01(Array.from(mainRegion.querySelectorAll('h2 a, h3 a, h4 a'))
+    .filter((a) => {
+      const href = a.getAttribute('href') || '';
+      if (isBoiler(a) || !href || href.startsWith('#')) return false;
+      try { const target = new URL(href, doc.location?.href); return target.pathname !== doc.location?.pathname; }
+      catch { return false; }
+    }).length / 4);
   // One dominant article holding most of the prose strongly indicates content.
   const articles = Array.from(doc.querySelectorAll('article'));
   const dominantArticle =
@@ -245,7 +279,9 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
   // Hidden-text apps (editors, games) carry prose in textContent that is not
   // actually visible. Compare visible text to raw text to tell them apart.
   const bodyVisibleWords = (doc.body?.innerText || '').trim().split(/\s+/).filter(Boolean).length;
-  const bodyTextWords = (doc.body?.textContent || '').trim().split(/\s+/).filter(Boolean).length;
+  const textBody = doc.body?.cloneNode(true) as HTMLElement | undefined;
+  textBody?.querySelectorAll('script, style, template, noscript, [hidden], [aria-hidden="true"]').forEach((el) => el.remove());
+  const bodyTextWords = (textBody?.textContent || '').trim().split(/\s+/).filter(Boolean).length;
   const visibleRatio = bodyTextWords > 0 ? clamp01(bodyVisibleWords / bodyTextWords) : 1;
 
   const weights: Record<string, number> = {
@@ -266,6 +302,7 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
     organization: 0.5,
     hiddenContent: 0.5,
     dominantArticle: 0.4,
+    mediaWork: 0.9,
   };
 
   const mk = (kind: PageKind, scores: Record<string, number>): JevOption => {
@@ -275,8 +312,8 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
   const options: JevOption[] = [
     // A short page (bio card, landing) or a brand/organization page cannot be
     // "the content", however well titled its single block is.
-    pageProse >= 200 && org < 0.5 && !profilePage && visibleRatio >= 0.5
-      ? mk('content', { substance, singleFocus, titleAlign, ogArticle, articleTag, dominantArticle })
+    (pageProse >= 200 || mediaWork || (pageProse >= 120 && titleAlign && (articleTag || ogArticle))) && org < 0.5 && !profilePage && visibleRatio >= 0.5
+      ? mk('content', { substance, singleFocus, titleAlign, ogArticle, articleTag, dominantArticle, mediaWork })
       : mk('content', { substance: 0, singleFocus: 0, titleAlign: 0, ogArticle: 0, articleTag: 0, dominantArticle: 0 }),
     mk('feed', { feedCards, pagination, manyArticles: clamp01((articleCount - 1) / 3), readMore, linkedHeadings }),
     mk('landing', { lowSubstance, navHeavy, manyExternals: navHeavy, controlHeavy, organization: org, hiddenContent: 1 - visibleRatio }),
@@ -301,6 +338,7 @@ function pickRoot(
     '.post-content',
     '.entry-content',
     '.article-body',
+    '.h-entry',
     '[itemtype*="Article"]',
   ];
   const seen = new Set<Element>();
@@ -310,7 +348,8 @@ function pickRoot(
     if (!el || seen.has(el) || isBoiler(el)) return;
     seen.add(el);
     const w = proseWords(el);
-    if (w < 160) return;
+    const mediaWork = mediaWorkScore(doc, el);
+    if (w < 120 && !mediaWork) return;
     const total = wordsOf(el);
     const ld = total ? linkWords(el) / total : 1;
     const parentProse = el.parentElement ? Math.max(1, proseWords(el.parentElement)) : w;
@@ -335,6 +374,7 @@ function pickRoot(
       readableTail,
       contentMedia: contentImages > 0 || Boolean(el.querySelector('video,audio')) ? 1 : 0,
       imageClean: totalImages ? contentImages / totalImages : 1,
+      mediaWork,
     };
     entries.push({
       el,
@@ -363,6 +403,7 @@ function pickRoot(
     readableTail: 0.3,
     contentMedia: 0.12,
     imageClean: 0.08,
+    mediaWork: 0.45,
   };
   const options: JevOption[] = entries.map(({ option }) => {
     const confidence = clamp01(elementValue(option, weights));
@@ -542,7 +583,7 @@ function pickType(doc: Document, root: Element | null): { decision: JevDecision;
     mk('paper', { schema: has(/scholarlyarticle|report|thesis/) ? 1 : 0, og: og === 'book' ? 1 : 0 }),
     mk('video', { schema: has(/videoobject/) ? 1 : 0, og: og.startsWith('video') ? 1 : 0, media: hasVideo ? 1 : 0 }),
     mk('audio', { schema: has(/audioobject|podcastepisode|podcastseries/) ? 1 : 0, og: og.startsWith('music') ? 1 : 0, media: hasAudio ? 1 : 0 }),
-    mk('gallery', { schema: has(/imagegallery|imageobject/) ? 1 : 0, gallery: contentImgs >= 4 && paraCount <= 4 ? 1 : 0 }),
+    mk('gallery', { schema: has(/imagegallery|photograph/) || (contentImgs > 0 && proseWords(scope as Element) < 120 && mediaWorkScore(doc, scope as Element)) ? 1 : 0, gallery: contentImgs >= 1 && paraCount <= 4 && !hasVideo && !hasAudio ? 1 : 0, media: contentImgs > 0 && mediaWorkScore(doc, scope as Element) ? 1 : 0 }),
     mk('code', { schema: has(/softwaresourcecode|softwareapplication/) ? 1 : 0, code: hasCode ? 1 : 0 }),
     mk('discussion', { schema: has(/discussionforumposting|question/) ? 1 : 0, discussion: hasDiscussion ? 1 : 0 }),
   ];
@@ -688,7 +729,7 @@ export function mapPage(rootNode: ParentNode = document): PageMap {
     kindConfidence,
     rootConfidence: clamp01(picked.decision.value),
     boundRatio: bounds.total ? bounds.kept / bounds.total : 0,
-    substance: clamp01(wordCount / 600),
+    substance: Math.max(clamp01(wordCount / 600), mediaWorkScore(doc, effectiveRoot)),
     authorPresent: author.value ? 1 : 0,
     mediaPresent: media ? 1 : 0,
   });

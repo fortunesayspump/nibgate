@@ -1,9 +1,8 @@
 // Content script: runs on every http(s) page (minus Nibgate hosts).
-// Detects the page's content, then embeds an inline tip widget INTO that
-// content container — like native widgets, not a detached corner overlay.
+// Detects creator content and shows a dismissible floating tip control.
 // Rendered in a Shadow DOM so the host page's CSS can never break it (and
 // ours never leaks out). No wallet code here: signing happens in the worker.
-import { extractContent, contentContainer, isBoilerplateZone, recipientWalletFromPage, recipientWalletsFromPage, hasNibgateSdk } from './extract';
+import { extractContent, contentContainer, recipientWalletFromPage, recipientWalletsFromPage, hasNibgateSdk } from './extract';
 import type { PageWalletCandidate } from './extract';
 import { mapPage } from './page-model';
 import { isTippableUrl } from './guard';
@@ -20,8 +19,6 @@ type CardInput = {
   hasSdk: boolean;
   isMainnet: boolean;
   state: 'resolved' | 'held' | 'unknown';
-  end?: Element | null;
-  kind?: string;
 };
 
 function fontUrl(file: string): string {
@@ -30,10 +27,6 @@ function fontUrl(file: string): string {
   } catch {
     return '';
   }
-}
-
-function escapeHtml(s: string): string {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
 }
 
 type PageVisual = {
@@ -148,29 +141,34 @@ function shadowStyles(): string {
     @font-face { font-family:'Kumbh Sans'; src:url('${kumbh}') format('woff2'); font-weight:400; }
     @font-face { font-family:'Kumbh Sans'; src:url('${kumbh600}') format('woff2'); font-weight:600; }
     @font-face { font-family:'Kumbh Sans'; src:url('${kumbh700}') format('woff2'); font-weight:700; }
-    :host { all: initial; display: block; width: 100%; flex: 0 0 100%; --bg:#f4f4f0; --surface:#ffffff; --surface-2:#f0eee6; --border:#11111124; --fg:#0a0a0a; --muted:#44423d; --accent:#7c9a6d; --accent-ink:#10110e; --gold:#ffc900; --danger:#ff3e30; }
+    :host { all: initial; position:fixed !important; inset:auto max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) auto !important; z-index:2147483646 !important; display:block; width:max-content; max-width:calc(100vw - 32px); --bg:#f4f4f0; --surface:#ffffff; --surface-2:#f0eee6; --border:#11111124; --fg:#0a0a0a; --muted:#44423d; --accent:#7c9a6d; --accent-ink:#10110e; --gold:#ffc900; --danger:#ff3e30; }
     @media (prefers-color-scheme: dark) {
       :host { --bg:#171813; --surface:#20221c; --surface-2:#242820; --border:#f3efe729; --fg:#f4f4f0; --muted:#b9b2a6; --accent:#a9c69a; --danger:#ff5b4d; }
     }
     /* Slim coffee trigger: the only thing that renders in-page. Everything
        about money lives in the extension window. */
-    .tipbtn { display:inline-flex; align-items:center; gap:8px; box-sizing:border-box; cursor:pointer; margin:24px 0; max-width:640px;
+    #nibgate-card { position:relative; }
+    .dismiss { position:absolute; top:-10px; right:-8px; display:grid; place-items:center; width:28px; height:28px; padding:0; border:1px solid var(--border); border-radius:50%; background:var(--surface); color:var(--fg); cursor:pointer; box-shadow:0 2px 8px #0002; }
+    button:focus-visible { outline:3px solid var(--fg); outline-offset:3px; }
+    .tipbtn { display:inline-flex; align-items:center; gap:8px; box-sizing:border-box; cursor:pointer; margin:0; max-width:calc(100vw - 32px); box-shadow:0 4px 20px #0003;
       font-family:var(--wc-font, 'Kumbh Sans','ABC Favorit',system-ui,sans-serif); font-size:var(--wc-size, 14px); font-weight:700;
       background:var(--accent); color:var(--accent-ink); border:0; border-radius:999px; padding:10px 18px; }
     .tipbtn:hover { filter:brightness(1.05); }
     .tipbtn svg { flex:none; display:block; }
     .tipbtn:disabled { opacity:.6; cursor:default; filter:none; }
-    [data-tip-status] { font-size:.86em; color:var(--accent); margin:8px 0 24px; min-height:1.2em; max-width:640px;
+    [data-tip-status]:empty { display:none; }
+    [data-tip-status] { font-size:.86em; margin:8px 0 0; max-width:240px; background:var(--surface); color:var(--fg); border-radius:8px; padding:8px;
       font-family:var(--wc-font, 'Kumbh Sans','ABC Favorit',system-ui,sans-serif); }
   `;
 }
 
-function cardMarkup(input: CardInput): string {
+function cardMarkup(): string {
   return `
     <style>${shadowStyles()}</style>
     <div id="${CARD_ID}">
+      <button class="dismiss" data-dismiss-tip aria-label="Dismiss tip button" title="Dismiss for this page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       <button class="tipbtn" data-open-tip aria-label="Tip the creator"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h13v5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 7c0-1.2.9-1.2.9-2.4M12 7c0-1.2.9-1.2.9-2.4"/></svg>Tip the creator</button>
-      <div data-tip-status></div>
+      <div data-tip-status role="status" aria-live="polite"></div>
     </div>`;
 }
 
@@ -194,10 +192,9 @@ async function assessState(): Promise<CardInput | null> {
   } catch {}
 
   const eligible = map.eligibility ? map.eligibility.kind === 'select' : map.kind === 'content';
-  const placementEnd = map.anchor ?? map.end;
 
   let content: CardInput['content'] | null = null;
-  if (map.kind === 'content' && eligible && placementEnd) {
+  if (map.kind === 'content' && eligible) {
     content = {
       url: window.location.href.split('#')[0],
       canonicalUrl: map.canonical || window.location.href.split('#')[0],
@@ -205,11 +202,6 @@ async function assessState(): Promise<CardInput | null> {
       author: map.author,
       siteName: map.siteName,
     };
-  } else if (map.kind === 'content' && eligible) {
-    // Content page whose boundaries we could not map: fall back to Readability
-    // for metadata + placement. Inconclusive/unknown pages are not tipped.
-    const fallback = extractContent();
-    if (fallback) content = fallback;
   }
 
   // Low-confidence escalation: the deterministic page model owns the clear-cut
@@ -259,78 +251,7 @@ async function assessState(): Promise<CardInput | null> {
   } catch {
     state = hasSdk ? 'resolved' : 'held';
   }
-  return { content, pageWallet, hasSdk, isMainnet, state, end: map.kind === 'content' ? map.end : null, kind: map.kind };
-}
-
-// Placement uses the same practitioner-tested ideas as mainstream extraction
-// libraries: sanitize boilerplate by landmark and Readability-style unlikely
-// classes, inspect content blocks rather than raw wrappers, and anchor a live
-// element against Readability's canonical article text.
-const CONTENT_BLOCK_SELECTOR = 'h1, h2, h3, p, blockquote, pre, figure, figcaption';
-const MIN_CONTENT_BLOCK_WORDS = 8;
-const READABILITY_ANCHOR_WORDS = 120;
-const MIN_ANCHOR_WORDS = 12;
-const MIN_ANCHOR_SUFFIX_MATCH = 10;
-
-function normalizeAnchorText(value: string): string {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function visibleContentBlock(element: Element): element is HTMLElement {
-  if (!(element instanceof HTMLElement)) return false;
-  if (element.closest(`[${HOST_ATTR}]`) || isBoilerplateZone(element)) return false;
-  const text = normalizeAnchorText(element.textContent || '');
-  if (text.split(' ').filter(Boolean).length < MIN_CONTENT_BLOCK_WORDS) return false;
-  const style = window.getComputedStyle(element);
-  return style.display !== 'none' && style.visibility !== 'hidden';
-}
-
-function liveContentBlocks(container: Element): HTMLElement[] {
-  return Array.from(container.querySelectorAll(CONTENT_BLOCK_SELECTOR)).filter(visibleContentBlock);
-}
-
-function suffixMatchLength(blockWords: string[], tailWords: string[]): number {
-  const limit = Math.min(blockWords.length, tailWords.length);
-  let match = 0;
-  while (match < limit && blockWords[blockWords.length - 1 - match] === tailWords[tailWords.length - 1 - match]) {
-    match += 1;
-  }
-  return match;
-}
-
-// Match one live page block to the end of Readability’s sanitized article.
-// This prefers the actual conclusion, even when a noisy sidebar, shop widget,
-// or footer comes later in DOM order.
-function findContentEndAnchor(container: Element, excerptTail?: string): HTMLElement | null {
-  const tailWords = normalizeAnchorText(excerptTail || '').split(' ').filter(Boolean).slice(-READABILITY_ANCHOR_WORDS);
-  if (tailWords.length < MIN_ANCHOR_WORDS) return null;
-  const blocks = liveContentBlocks(container);
-  let best: HTMLElement | null = null;
-  let bestScore = MIN_ANCHOR_SUFFIX_MATCH - 1;
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const words = normalizeAnchorText(blocks[i].textContent || '').split(' ').filter(Boolean);
-    if (words.length < MIN_CONTENT_BLOCK_WORDS) continue;
-    const score = suffixMatchLength(words, tailWords);
-    if (score > bestScore) {
-      best = blocks[i];
-      bestScore = score;
-    }
-  }
-  return best;
-}
-
-function fallbackContentEnd(container: Element): HTMLElement | null {
-  const blocks = liveContentBlocks(container);
-  return blocks.length ? blocks[blocks.length - 1] : null;
-}
-
-function placementParent(anchor: Element | null, container: Element): { parent: Node; before: ChildNode | null } {
-  if (anchor?.parentNode) return { parent: anchor.parentNode, before: anchor.nextSibling };
-  return { parent: container, before: null };
+  return { content, pageWallet, hasSdk, isMainnet, state };
 }
 
 function renderCard(input: CardInput, runId: string): void {
@@ -340,63 +261,27 @@ function renderCard(input: CardInput, runId: string): void {
   const host = document.createElement('div');
   host.setAttribute(HOST_ATTR, '');
   const shadow = host.attachShadow({ mode: 'open' });
-  shadow.innerHTML = cardMarkup(input);
+  shadow.innerHTML = cardMarkup();
   const card = shadow.getElementById(CARD_ID);
   if (card) card.setAttribute('data-run', runId);
   statusEl = shadow.querySelector('[data-tip-status]');
 
-  shadow.querySelector('[data-open-tip]')?.addEventListener('click', () => {
-    openTipWindow(input.content, input.pageWallet);
+  shadow.querySelector('[data-open-tip]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (button.disabled) return;
+    button.disabled = true;
+    try { await openTipWindow(input.content, input.pageWallet); }
+    finally { button.disabled = false; }
   });
 
-  // Embed inside the detected content container (native placement), falling
-  // back to body only when there is no content element.
-  const container = input.end?.parentElement ?? contentContainer();
-  try {
-    applyPageVisual(host, container);
-  } catch {}
-  // Prefer the mapped content end from the deterministic page model (that is
-  // where the actual piece finishes); only fall back to the block scan when the
-  // model did not produce an end anchor.
-  let inserted = false;
-  if (input.end?.parentNode) {
-    try {
-      input.end.parentNode.insertBefore(host, input.end.nextSibling);
-      inserted = true;
-    } catch {}
-  }
-  // Legacy fallback: insert after the last substantial visible block rather
-  // than blindly appending to a container that may include footers or widgets.
-  if (!inserted) {
-    const blocks = Array.from(container.querySelectorAll('h1, h2, h3, p, blockquote, pre, figure'));
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      const block = blocks[i];
-      if (!(block instanceof HTMLElement) || block.closest(`[${HOST_ATTR}]`) || isBoilerplateZone(block)) continue;
-      const text = (block.textContent || '').trim();
-      if (text.length < 80) continue;
-      const style = window.getComputedStyle(block);
-      if (style.display === 'none' || style.visibility === 'hidden') continue;
-      const parent = block.parentNode;
-      if (!parent) continue;
-      try {
-        parent.insertBefore(host, block.nextSibling);
-        inserted = true;
-        break;
-      } catch {
-        continue;
-      }
-    }
-  }
-  if (!inserted) {
-    try {
-      container.appendChild(host);
-    } catch {
-      document.body.appendChild(host);
-    }
-  }
-
-  shadow.querySelector('[data-open-tip]')?.addEventListener('click', () => {
-    openTipWindow(input.content, input.pageWallet);
+  const container = contentContainer();
+  try { applyPageVisual(host, container); } catch {}
+  document.documentElement.appendChild(host);
+  shadow.querySelector('[data-dismiss-tip]')?.addEventListener('click', () => {
+    (window as any).__nibgateDismissedUrl = window.location.href.split('#')[0];
+    host.remove();
+    statusEl = null;
+    themeObserver?.disconnect();
   });
   watchPageVisual(host, container);
 }
@@ -454,27 +339,70 @@ async function openTipWindow(content: CardInput['content'], pageWallet: string) 
 }
 
 async function main() {
-  // Keep the MV3 worker alive across the multi-step tip flow. Released on
-  // pagehide so bfcache doesn't hold a dead port (unchecked lastError noise).
+  const shared = window as any;
+  shared.__nibgateCardCleanup?.();
+  if (shared.__nibgateCardResume) window.removeEventListener('pageshow', shared.__nibgateCardResume);
+  shared.__nibgateCardResume = (event: PageTransitionEvent) => { if (event.persisted) void main(); };
+  window.addEventListener('pageshow', shared.__nibgateCardResume);
   let keepalive: chrome.runtime.Port | null = null;
-  try {
-    keepalive = chrome.runtime.connect({ name: 'nibgate-keepalive' });
-    document.addEventListener('pagehide', () => {
-      try { keepalive?.disconnect(); } catch {}
-      keepalive = null;
-    });
-  } catch {}
-  // Single-winner claim: concurrent injections race here; only the latest
-  // proceeds past assessment. Host dedupe in renderCard backs it up.
+  try { keepalive = chrome.runtime.connect({ name: 'nibgate-keepalive' }); } catch {}
   const myRun = Math.random().toString(36).slice(2);
-  (window as any).__nibgateCardRun = myRun;
-  try {
-    await chrome.runtime.sendMessage({ type: 'CONTENT_READY', url: window.location.href });
-  } catch {}
-  const input = await assessState();
-  if ((window as any).__nibgateCardRun !== myRun) return;
-  document.documentElement.setAttribute('data-nibgate-assessed', '1');
-  if (input) renderCard(input, myRun);
+  shared.__nibgateCardRun = myRun;
+  let pageUrl = window.location.href.split('#')[0];
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  let busy = false;
+  let lastSignature = '';
+  let stopped = false;
+  const assess = async () => {
+    if (stopped || busy || shared.__nibgateCardRun !== myRun) return;
+    if (shared.__nibgateDismissedUrl === pageUrl || document.querySelector(`[${HOST_ATTR}]`)) return;
+    const signature = pageUrl + document.title + (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+    if (signature === lastSignature) return;
+    lastSignature = signature;
+    busy = true;
+    const assessedUrl = pageUrl;
+    try {
+      const input = await assessState();
+      if (stopped || shared.__nibgateCardRun !== myRun || window.location.href.split('#')[0] !== assessedUrl) return;
+      document.documentElement.setAttribute('data-nibgate-assessed', '1');
+      if (input) renderCard(input, myRun);
+    } finally { busy = false; if (pageUrl !== assessedUrl) schedule(); }
+  };
+  const schedule = () => {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(() => { void assess(); }, 1000);
+  };
+  // Hydrated and lazy-loaded articles often appear after document_idle.
+  const observer = new MutationObserver((changes) => {
+    if (changes.some((c) => !((c.target as Element).closest?.(`[${HOST_ATTR}]`)))) schedule();
+  });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  // SPA navigation does not necessarily trigger a Chrome tab load event.
+  const navigation = setInterval(() => {
+    const next = window.location.href.split('#')[0];
+    if (next === pageUrl) return;
+    pageUrl = next;
+    lastSignature = '';
+    document.querySelector(`[${HOST_ATTR}]`)?.remove();
+    themeObserver?.disconnect();
+    statusEl = null;
+    schedule();
+  }, 1000);
+  const retries = [1500, 4000, 10000].map((ms) => setTimeout(() => { void assess(); }, ms));
+  const cleanup = () => {
+    stopped = true;
+    observer.disconnect();
+    clearInterval(navigation);
+    if (pending) clearTimeout(pending);
+    retries.forEach(clearTimeout);
+    try { keepalive?.disconnect(); } catch {}
+    keepalive = null;
+    document.removeEventListener('pagehide', cleanup);
+  };
+  shared.__nibgateCardCleanup = cleanup;
+  document.addEventListener('pagehide', cleanup);
+  try { await chrome.runtime.sendMessage({ type: 'CONTENT_READY', url: window.location.href }); } catch {}
+  await assess();
 }
 
-main();
+void main();

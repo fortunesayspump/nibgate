@@ -59,7 +59,7 @@ Full description:
 Nibgate lets you tip creators and website pages with USDC.
 
 • Right-click any HTTP or HTTPS page or link and choose “Tip this page”
-• On eligible creator pages, tap the inline coffee button
+• On eligible creator pages, tap the floating coffee button (dismiss it with ×)
 • Pick $1, $5, $10, or a custom amount, review the recipient, then approve
 • Tips settle in USDC on Arc, directly or via Circle Gateway
 • Unresolved recipients? Tips are held for the website owner to verify ownership and claim; unclaimed held tips can be refunded in full

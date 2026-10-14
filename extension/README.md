@@ -53,10 +53,11 @@ Right-click any HTTP(S) page or link and choose **Tip this page**. This opens th
 
 ### Tipping on creator pages
 
-1. Open an article, tutorial, paper, or video page. (Nibgate's own sites are
+1. Open an article, tutorial, paper, photo post, music recording, or video page. (Nibgate's own sites are
    excluded — they already tip natively.)
-2. A **coffee-button** appears near the content. That's the whole page UI —
-   nothing about money ever renders inside the page, so pages can't spoof it.
+2. A **coffee-button** floats at the bottom right. That's the whole page UI —
+   dismiss it with **×** for the current page. Amounts and approvals stay in the extension window.
+
 3. Tapping it opens the Nibgate **tip window**: amount presets ($1 / $5 / $10)
    or custom, a review step showing exactly who gets paid and the fee, then
    **Approve** signs with your wallet. Nothing signs without your tap.
@@ -64,6 +65,13 @@ Right-click any HTTP(S) page or link and choose **Tip this page**. This opens th
    held/settled status. Funded holds also appear as pending `held`
    entries in the public hub ledger; they are not completed-tip totals. Refunds
    create a separate negative ledger entry.
+
+Detection uses the published work, creator metadata, and actual media—not a
+minimum article length alone. It rechecks hydrated content and SPA navigation,
+ignores comment/webmention sections and heading permalinks, and keeps indexes,
+marketing heroes, and product galleries out of the automatic creator flow.
+These page signals do not verify payment ownership; recipient resolution and
+domain claiming still happen through the hub.
 
 Two outcomes, both safe:
 

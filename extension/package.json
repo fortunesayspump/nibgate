@@ -7,11 +7,14 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/context-menu.test.mjs scripts/content-detection.test.mjs",
+    "test:sites": "node scripts/audit-content-pages.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.280",
     "esbuild": "^0.25.0",
+    "jsdom": "^26.1.0",
     "typescript": "^5.7.0"
   },
   "dependencies": {

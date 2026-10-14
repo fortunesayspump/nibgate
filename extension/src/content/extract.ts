@@ -149,8 +149,7 @@ function proseLength(element: Element): number {
   });
   return score;
 }
-// The element that holds the page's main content — where the inline tip
-// widget is embedded. Picks the highest non-boilerplate prose-density
+// The element that holds the page's main content. Picks the highest non-boilerplate prose-density
 // container (sum of paragraph text) so plain-<div> articles beat related
 // links/comments/nav, preferring the deepest element on ties.
 export function contentContainer(root: ParentNode = document): Element {
@@ -190,7 +189,7 @@ export function extractContent(): ExtractedContent | null {
   // Fast gate: is this plausibly an article? (Skips dashboards/apps/consoles.)
   let readerable = false;
   try {
-    readerable = isProbablyReaderable(document, { minContentLength: 240, minScore: 24 });
+    readerable = isProbablyReaderable(document, { minContentLength: 140, minScore: 10 });
   } catch {
     return null;
   }

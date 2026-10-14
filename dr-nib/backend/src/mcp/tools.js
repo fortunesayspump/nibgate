@@ -54,7 +54,7 @@ async function withBudget(run) {
 export const TOOLS = [
   {
     name:'attach_source',
-    description:'Attach a private research source before planning/execution. Supply name plus contentBase64 (PDF, DOCX, XLSX, CSV, TXT, MD; 2 MB each; five per project) or a public HTTPS url. Originals use private R2; extracted text is sent to research AI providers after approval. Scanned PDFs need OCR first. Changing a reviewed source set invalidates the plan.',
+    description:'Attach a private research source before planning/execution. Supply name plus contentBase64 (text PDF, DOCX, XLSX, CSV, TXT, MD, or PNG/JPEG/WebP with readable English text; 2 MB each; five per project) or a public HTTPS url. Images use local OCR and require preview review for numeric errors; scanned PDFs still need OCR first. Originals use private R2; extracted text is sent to research AI providers after approval. Changing a reviewed source set invalidates the plan.',
     input:{ownerWallet:'0x…',runId:'uuid',name:'expenses.csv',contentBase64:'base64 file bytes',url:'https://example.com/source'},
     async run({ownerWallet,runId,...body}) {
       const bad=checkWallet(ownerWallet);if(bad)throw new Error(bad.error);

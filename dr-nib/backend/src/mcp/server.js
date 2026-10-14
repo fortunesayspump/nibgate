@@ -14,7 +14,7 @@ import { researchAvailability } from '../readiness.js';
 import { TOOLS } from './tools.js';
 
 export const MCP_SERVER_NAME = 'dr-nib';
-export const MCP_SERVER_VERSION = '0.2.2';
+export const MCP_SERVER_VERSION = '0.2.3';
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 let warnedOpen = false;

@@ -8,7 +8,7 @@ Where the agent's evidence comes from when it hasn't spent a cent: 11 keyless in
 
 ## Your own documents
 
-At Configure, **Your sources** accepts PDF with selectable text, DOCX, XLSX, CSV, TXT and Markdown, plus readable public HTTPS links. Limits: five supplied sources per project, 2 MB per file, 100 PDF pages, ten workbook sheets, 5,000 data rows and 100 columns per sheet. Scanned PDFs need OCR first. The UI shows upload progress, processing errors, extraction warnings, an extracted-text preview and an authenticated original download. Review the preview before approving research.
+At Configure, **Your sources** accepts PDF with selectable text, DOCX, XLSX, CSV, TXT, Markdown, and PNG/JPEG/WebP images with readable English text, plus readable public HTTPS links. Images are processed by local OCR; it may misread figures, handwriting and table structure, so check the extracted text against the original before approving research. Limits: five supplied sources per project, 2 MB per file, 20 megapixels per image, 100 PDF pages, ten workbook sheets, 5,000 data rows and 100 columns per sheet. Scanned PDFs still need OCR first. The UI shows upload progress, processing errors, extraction warnings, an extracted-text preview and an authenticated original download.
 
 Originals use the private `nibgate-research` R2 bucket, separated by `testnet/` and `mainnet/` prefixes. They have no public bucket URL. Extracted text is also kept in the project database and sent to research AI providers when the research runs; private storage does not mean local-only AI processing. Upload only documents you are authorized to process. Reports containing uploaded inputs use authenticated downloads rather than public R2 export links.
 

@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 
 export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 export const MAX_SOURCE_CHARS = 100000;
-export const SOURCE_EXTENSIONS = ['.pdf','.docx','.xlsx','.csv','.txt','.md'];
+export const SOURCE_EXTENSIONS = ['.pdf','.docx','.xlsx','.csv','.txt','.md','.png','.jpg','.jpeg','.webp'];
 
 async function checkArchive(buffer) {
   const zip = await JSZip.loadAsync(buffer);
@@ -43,10 +43,14 @@ export function tableEvidence(rows, sheet) {
 
 export async function parseSource(name, buffer) {
   const ext=path.extname(String(name)).toLowerCase();
-  if(!SOURCE_EXTENSIONS.includes(ext)) throw new Error('Supported files: PDF, DOCX, XLSX, CSV, TXT and Markdown.');
+  if(!SOURCE_EXTENSIONS.includes(ext)) throw new Error('Supported files: PDF, DOCX, XLSX, CSV, TXT, Markdown, PNG, JPEG and WebP.');
   if(!buffer.length || buffer.length>MAX_SOURCE_BYTES) throw new Error('Choose a nonempty file no larger than 2 MB.');
-  let text='', pages=null;
-  if(ext==='.pdf') {
+  let text='', pages=null, warnings=[];
+  if(['.png','.jpg','.jpeg','.webp'].includes(ext)) {
+    const { extractImageText } = await import('./ocr.js');
+    const ocr=await extractImageText(buffer,ext);
+    text=ocr.text;pages=ocr.pages;warnings=ocr.warnings;
+  } else if(ext==='.pdf') {
     if(!buffer.subarray(0,5).equals(Buffer.from('%PDF-'))) throw new Error('This file is not a valid PDF.');
     const {getDocumentProxy,extractText}=await import('unpdf');
     const pdf=await getDocumentProxy(new Uint8Array(buffer));
@@ -83,5 +87,5 @@ export async function parseSource(name, buffer) {
   }
   if(!text.trim()) throw new Error('No readable content was found.');
   const truncated=text.length>MAX_SOURCE_CHARS;
-  return {text:text.slice(0,MAX_SOURCE_CHARS),pages,truncated,characters:Math.min(text.length,MAX_SOURCE_CHARS),warnings:truncated?['Only the first 100,000 extracted characters are included. Split the document for complete coverage.']:[]};
+  return {text:text.slice(0,MAX_SOURCE_CHARS),pages,truncated,characters:Math.min(text.length,MAX_SOURCE_CHARS),warnings:truncated?[...warnings,'Only the first 100,000 extracted characters are included. Split the document for complete coverage.']:warnings};
 }

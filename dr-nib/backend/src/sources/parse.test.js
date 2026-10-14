@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import PDFDocument from 'pdfkit';
 import {Document,Packer,Paragraph} from 'docx';
+import sharp from 'sharp';
 import {parseSource,MAX_SOURCE_BYTES} from './parse.js';
 
 describe('private research source extraction',()=>{
@@ -29,6 +30,16 @@ describe('private research source extraction',()=>{
     expect(out.text).not.toContain('46023');
     expect(out.text).toContain('not reconciled balances or an audit');
   });
+  it('reads a synthetic invoice image locally and warns that OCR figures need review',async()=>{
+    const svg=Buffer.from('<svg width="1400" height="420" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/><text x="45" y="120" font-family="Arial" font-size="52" fill="black">SYNTHETIC INVOICE 2026-10-14</text><text x="45" y="240" font-family="Arial" font-size="52" fill="black">Research supplies USD 42.00</text></svg>');
+    const png=await sharp(svg).png().toBuffer();
+    const out=await parseSource('invoice.png',png);
+    expect(out.text).toContain('INVOICE 2026-10-14');
+    expect(out.text).toContain('USD 42.00');
+    expect(out.pages).toBe(1);
+    expect(out.warnings[0]).toContain('misread figures');
+    await expect(parseSource('invoice.jpg',png)).rejects.toThrow(/matching its filename/);
+  },30000);
   it('rejects oversized worksheet ranges before expanding rows',async()=>{
     const book=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Amount']]),'Huge');

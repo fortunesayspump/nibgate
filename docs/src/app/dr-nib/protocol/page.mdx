@@ -75,7 +75,7 @@ A run never overspends — it pauses at the cap and asks. On one-shot escrow dep
 
 ## Machine parity
 
-Dr. Nib is agent-facing as well as people-facing. An MCP server exposes the same run flows as tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) enforcing the same gates as the HTTP routes — including escrow funding minimums and the deposit ceiling on raises — plus the same ownership rule and production-readiness gate. A service key gates the surface; production refuses MCP calls when no key is configured. Only local development permits keyless calls with a warning. The Dr. Nib server card (version 0.2.2) includes research availability; this is separate from the hub MCP registry. Agent callers pay in USDC (tips, paid unlocks, x402) from the run budget, inside the same per-call ceilings as the browser flow.
+Dr. Nib is agent-facing as well as people-facing. An MCP server exposes the same run flows as tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) enforcing the same gates as the HTTP routes — including escrow funding minimums and the deposit ceiling on raises — plus the same ownership rule and production-readiness gate. A service key gates the surface; production refuses MCP calls when no key is configured. Only local development permits keyless calls with a warning. The Dr. Nib server card (version 0.2.3) includes research availability; this is separate from the hub MCP registry. Agent callers pay in USDC (tips, paid unlocks, x402) from the run budget, inside the same per-call ceilings as the browser flow.
 
 ## Deliverables
 
@@ -85,7 +85,7 @@ All new report exports return authenticated inline/base64 downloads, including r
 
 Owner-authenticated routes: `GET` and `POST /v1/runs/:id/sources`; `GET /v1/runs/:id/sources/:sourceId` for extracted text; `GET /v1/runs/:id/sources/:sourceId/original` for original bytes; `DELETE /v1/runs/:id/sources/:sourceId` to exclude an input before execution. POST accepts `{name, contentBase64}` or `{url}`. Browser clients use the same-origin `/drnib-api` prefix. Downloads are private and uncached.
 
-Dr. Nib MCP 0.2.2 adds `attach_source`, `list_supplied_sources` and `read_supplied_source`. Calls require the existing service authentication and a matching owner wallet. Supply `ownerWallet` and `runId`, plus file input or `sourceId` as applicable. The hub MCP/OpenAPI version is independent and unchanged.
+Dr. Nib MCP 0.2.3 provides `attach_source`, `list_supplied_sources` and `read_supplied_source`, including OCR for PNG/JPEG/WebP source images. Calls require the existing service authentication and a matching owner wallet. Supply `ownerWallet` and `runId`, plus file input or `sourceId` as applicable. The hub MCP/OpenAPI version is independent and unchanged.
 
 Settled budgets cannot fund a reprompt. Start a fresh project and fund a new deposit; upload its inputs again. An active stage drains before End refunds the remainder.
 

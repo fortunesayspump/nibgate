@@ -114,7 +114,7 @@ export default function HelpPage() {
       </Section>
 
       <Section title="Your source files">
-        <P>At Configure, add PDF with selectable text, DOCX, XLSX, CSV, TXT or Markdown, or a public HTTPS link. Up to five sources, 2 MB each. PDFs have a 100-page limit; scans need OCR. Review extracted text and warnings before approving.</P>
+        <P>At Configure, add PDF with selectable text, DOCX, XLSX, CSV, TXT, Markdown, or PNG/JPEG/WebP images with readable English text, or a public HTTPS link. Images use local OCR and may misread figures; review the extracted text against the original before approving. Up to five sources, 2 MB each; images are limited to 20 megapixels and PDFs to 100 pages. Scanned PDFs still need OCR first.</P>
         <P>Originals stay in private R2 storage with owner-only downloads. Extracted text is analyzed by our AI providers during research. Source-only mode disables external retrieval and creator tips. Files freeze once research starts; a fresh run needs its files added again.</P>
         <P>Spreadsheet totals are computed decimal column sums grouped by stated currency and, when present, category. CSV dates stay as entered. Repeated rows remain in the sums and are flagged with row references. These are not a reconciliation or financial audit.</P>
       </Section>

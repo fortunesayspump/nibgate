@@ -45,7 +45,7 @@ Anthropic multi-agent DR, ByteByteGo teardown):
 | Instruction builder | Rewrites the enriched brief into a precise plan |
 | Research workers | Execute sub-tasks (search, fetch, extract) in parallel |
 | Synthesizer | Merges evidence packets into narrative |
-| Citation checker | Verifies every claim maps to a supporting passage |
+| Citation checker | Checks a bounded sample of claims against collected passages |
 
 Stopping rules used in practice: ≥2 independent sources per sub-question,
 novelty exhaustion (new searches stop surfacing new facts), contradictions
@@ -89,10 +89,10 @@ JEV's question types map onto this one-to-one: `score` for graded criteria,
 | Sub-question coverage | `selectMany`-style batch | one question per checklist item, no overlap |
 | Source relevance (per source × sub-q) | `score` 0..1 | topicality, specificity, recency — scored **independently** |
 | Source trust (per source) | `score` 0..1, **separate channel** | authority, provenance, corroboration history — never fed as truth |
-| Claim support (per claim × passage) | `noul` → Supported / Contradicted / Insufficient | exact-span match; Insufficient ⇒ mark Unknown, never fabricate |
+| Claim support (sampled claim × passage) | `noul` probability | gathered passage and a support threshold; low support ⇒ mark Unknown |
 | Section framing | `choice` among candidate outlines | coverage of checklist, narrative fit |
 | Continue vs stop (per sub-q) | `noul` on marginal novelty | stop when expected new facts < threshold, or caps hit |
-| Revision scope | diff-scoped re-verify | only touched claims + their citations re-checked |
+| Revision scope | fresh bounded sample | each new report version replaces the prior claim-verification sample |
 
 ### 3.3 Failure modes we design against (with receipts)
 
@@ -100,29 +100,30 @@ JEV's question types map onto this one-to-one: `score` for graded criteria,
   agents answer from parametric memory and use search only to confirm
   (up to 44.5% answered without tools; scores drop 25–40 points on
   recency-gated questions). **Counter:** evidence-led discovery is
-  enforced — a claim with no retrieved passage is Unknown by construction,
+  pursued — a sampled claim with no retrieved passage is Unknown in the evidence panel,
   and our eval set includes recency-gated questions no model can know.
 - **Citation recall gap** (BrowseComp-Plus): agents retrieve useful docs
   but fail to cite them. **Counter:** the citation checker is a separate
   pass over *retrieved* evidence, not over memory.
 - **Revision regression** (MR DRE, ACL 2026): edits fix the target but
   break 16–27% of previously covered content/citations. **Counter:**
-  reports are versioned immutably; revision is diff-scoped and prior
-  verified claims are never rewritten, only superseded with a new version.
+  reports are versioned immutably; each new version receives a fresh bounded
+  verification sample. Regression between versions still needs a dedicated eval.
 - **Last-mile over/under-retrieval** (DeepSearchQA): agents either miss
   the long tail or pad with low-confidence extras. **Counter:** explicit
   novelty-based stopping + hard caps + partial-report honesty.
 - **Rubric artifacts** (2609.02942): judges can score from rubric text
   alone without reading the response. **Counter:** evidence-grounding is
-  mechanical (span must exist in the passage), not vibes.
+  tied to retrieved passages, though the support verdict remains a model
+  judgement and requires calibration against human review.
 
 ### 3.4 Calibration and audit
 
 JEV probabilities are mapped to human bands (high/med/low) and logged
-with inputs, criteria version, and model. Every run ships a **decision
-trace**: which sources were considered, what each scored, which claims
-were dropped and why. That trace is the sophistication — competitors bury
-it in chain-of-thought; we surface it as a first-class artifact.
+with inputs and model. Runs expose a **decision trace**: which sources were
+considered, how they scored, which claims were sampled, and their support
+verdicts. This is an auditable record of actions and judgements, not hidden
+chain-of-thought or proof that every report claim was checked.
 
 ---
 
@@ -139,11 +140,11 @@ it in chain-of-thought; we surface it as a first-class artifact.
                → novelty check → stop or continue (caps enforced)
 5. Memory      evidence store: claim → passage → source → scores
                (dedupe + entity resolution)
-6. Synthesize  draft per section from evidence ONLY
-               unverified claim ⇒ marked Unknown, never written as fact
-7. Verify      active fact-check over ALL claims (cited and uncited)
-               JEV noul per claim; drop or flag unsupported. Runs after
-               every report write; claims cleared per report; support bar
+6. Synthesize  draft per section from the collected evidence
+7. Verify      active fact-check over a bounded, report-wide sample of claims
+               JEV noul per sampled claim; unsupported sampled claims are
+               flagged in the evidence panel, not silently removed from the
+               prose. Runs after every report write; claims cleared per report; support bar
                VERIFY_SUPPORT_THRESHOLD (0.6); coverage badge + matrix read it
 8. Deliver     report + sources + decision trace + exports (R2)
                full audit log; versions immutable

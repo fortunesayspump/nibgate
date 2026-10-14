@@ -101,7 +101,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Tools | Done | `src/tools/`: http, web_fetch/search, run_code sandbox (Railway), compute, evidence, tip/unlock/x402 spend |
 | Budget engine | Done | `src/money.js`: append-only ledger, 1% fee on drawdown, raise-only caps (never past the onchain deposit), settle/refund |
 | Spend policy + guard | Done | per-call ceilings, run-balance gate, verdict binding, dual-RPC when configured |
-| Verify + claims | Done | `src/verify.js` runs after every report write (claims cleared per report): JEV support judgements; `unverified` when JEV/LLM absent; coverage badge + claim×source matrix read it |
+| Verify + claims | Done | `src/verify.js` samples claims across report sections after every write (claims cleared per report): JEV support judgements; pass marked unverified when JEV/LLM absent or report input exceeds the cap; coverage badge + claim×source matrix read the sampled verdicts |
 | Exports | Done | md / json (+escrow receipt block) / bibtex + pdf / word / excel (+escrow columns on Ledger) / powerpoint (`src/exports/render.js`); binary formats returned base64 (R2 streaming is a later optimization) |
 | Evals + build gates | Done | `src/evals/`, `GATES.md`; gates fail the build |
 | MCP server | Implemented | v0.2.3: private source attach/list/read with image OCR, typed input schemas, shared end/settlement gates; service-key gated |

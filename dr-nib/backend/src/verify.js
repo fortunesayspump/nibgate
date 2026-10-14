@@ -7,9 +7,9 @@
 // does not support is marked unknown in the store — visible to follow-ups and
 // to the audit — rather than quietly standing.
 //
-// Cost discipline: one LLM call extracts all claims; ONE JEV batch call scores
-// every claim against its best passage. Per-claim round trips would cost more
-// than the evidence is worth.
+// Cost discipline: bounded report chunks supply candidates across the whole
+// report. At most the depth-specific sample is then scored by JEV against its
+// best collected passage. The event records sample size and input coverage.
 import { db } from './db.js';
 import { recordEvent } from './eventlog.js';
 import { chatJson, isLlmConfigured } from './llm/provider.js';
@@ -21,6 +21,52 @@ import { depthLimits } from './depth.js';
 export function supportThreshold() {
   const n = Number(process.env.VERIFY_SUPPORT_THRESHOLD);
   return Number.isFinite(n) && n > 0 && n < 1 ? n : 0.6;
+}
+
+const VERIFY_CHUNK_CHARS = 10000;
+const MAX_VERIFY_CHUNKS = 24;
+
+// Keep section/paragraph boundaries where possible. Long reports are checked
+// from beginning to end; a bounded call count prevents verification alone
+// from exhausting a small research budget.
+export function reportVerificationChunks(markdown, maxChars = VERIFY_CHUNK_CHARS) {
+  const text = String(markdown || '');
+  const chunks = [];
+  let offset = 0;
+  while (offset < text.length && chunks.length < MAX_VERIFY_CHUNKS) {
+    let end = Math.min(offset + maxChars, text.length);
+    if (end < text.length) {
+      const boundary = text.lastIndexOf('\n\n', end);
+      if (boundary > offset + maxChars / 2) end = boundary + 2;
+    }
+    chunks.push(text.slice(offset, end));
+    offset = end;
+  }
+  return { chunks, coveredChars: offset, complete: offset === text.length };
+}
+
+// Sample across all sections instead of taking only the first N claims from
+// the introduction. Verification is explicitly a sample, never a whole-report
+// certification.
+export function sampleClaimsAcrossChunks(groups, limit) {
+  const selected = [];
+  const seen = new Set();
+  const spread = Math.min(groups.length, Math.max(0, limit));
+  const preferred = spread === 1 ? [0] : Array.from({ length: spread }, (_, i) => Math.round(i * (groups.length - 1) / (spread - 1)));
+  const order = [...preferred, ...groups.map((_, i) => i).filter(i => !preferred.includes(i))];
+  const longest = Math.max(0, ...groups.map((group) => group.length));
+  for (let row = 0; row < longest && selected.length < limit; row += 1) {
+    for (const index of order) {
+      const claim = groups[index][row];
+      if (!claim) continue;
+      const key = claim.text.toLowerCase().replace(/\s+/g, ' ').trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      selected.push(claim);
+      if (selected.length >= limit) break;
+    }
+  }
+  return selected;
 }
 
 /**
@@ -42,27 +88,34 @@ export async function verifyReport(runId, { brief } = {}) {
   let claims = [];
   let claimCitations = [];
   let llmCost = 0;
+  const coverage = reportVerificationChunks(report.markdown);
+  let extractedCount = 0;
   if (isLlmConfigured()) {
     try {
-      const { data, usage } = await chatJson({
-        effort: 'low',
-        messages: [
-          { role: 'system', content: 'Extract verifiable factual claims. Return JSON only.' },
-          {
-            role: 'user',
-            content: `List the distinct factual claims made in this report that could be checked against sources. One atomic factual statement each; split compound claims rather than bundling several facts. Skip opinions, transitions, and methodology statements.\n\nKeep the report citation numbers for each claim. Return JSON: {"claims": [{"text":"...", "citations":[1,2]}]}\n\nReport:\n${report.markdown.slice(0, 12000)}`,
-          },
-        ],
-        temperature: 0.1,
-        maxTokens: 1500,
-      });
-      llmCost = Number(usage?.costUsd) || 0;
-      const extracted = (Array.isArray(data?.claims) ? data.claims : []).map(c => ({
-        text: String(typeof c === 'string' ? c : c?.text || '').trim(),
-        citations: Array.isArray(c?.citations) ? c.citations.filter(Number.isInteger) : [],
-      })).filter(c => c.text).slice(0, maxClaims);
-      claims = extracted.map(c => c.text);
-      claimCitations = extracted.map(c => c.citations);
+      const groups = [];
+      for (const chunk of coverage.chunks) {
+        const { data, usage } = await chatJson({
+          effort: 'low',
+          messages: [
+            { role: 'system', content: 'Extract verifiable factual claims. Return JSON only.' },
+            {
+              role: 'user',
+              content: `List the distinct factual claims made in this part of a longer report that could be checked against sources. One atomic factual statement each; split compound claims rather than bundling several facts. Skip opinions, transitions, and methodology statements. Keep the report citation numbers for each claim. Return JSON: {"claims": [{"text":"...", "citations":[1,2]}]}\n\nReport part:\n${chunk}`,
+            },
+          ],
+          temperature: 0.1,
+          maxTokens: 1500,
+        });
+        llmCost += Number(usage?.costUsd) || 0;
+        groups.push((Array.isArray(data?.claims) ? data.claims : []).map(c => ({
+          text: String(typeof c === 'string' ? c : c?.text || '').trim(),
+          citations: Array.isArray(c?.citations) ? c.citations.filter(Number.isInteger) : [],
+        })).filter(c => c.text));
+      }
+      extractedCount = groups.reduce((total, group) => total + group.length, 0);
+      const sampled = sampleClaimsAcrossChunks(groups, maxClaims);
+      claims = sampled.map(c => c.text);
+      claimCitations = sampled.map(c => c.citations);
     } catch (err) {
       await recordEvent(runId, { type: 'verify.failed', reason: 'claim-extraction-failed', error: String(err?.message || err).slice(0, 200) });
       return { claims: 0, supported: 0, unknown: 0, costUsd: llmCost, verified: false, reason: 'claim-extraction-failed' };
@@ -73,7 +126,7 @@ export async function verifyReport(runId, { brief } = {}) {
   }
 
   if (!claims.length) {
-    return { claims: 0, supported: 0, unknown: 0, costUsd: llmCost, verified: true, reason: 'no-claims' };
+    return { claims: 0, supported: 0, unknown: 0, costUsd: llmCost, verified: false, reason: 'no-claims' };
   }
 
   // 2. Best passage per claim, from the run's own evidence.
@@ -95,7 +148,8 @@ export async function verifyReport(runId, { brief } = {}) {
     });
   }
 
-  // 3. One JEV batch scores every claim. JEV down means unverified, never guessed.
+  // 3. JEV scores each sampled claim against its own passage. JEV down means
+  // unverified, never guessed.
   let answers = {};
   let jevCost = 0;
   let jevModel = null;
@@ -143,7 +197,10 @@ export async function verifyReport(runId, { brief } = {}) {
   await recordEvent(runId, {
     type: 'verify.finished',
     claims: claims.length, supported, unknown: claims.length - supported, copied,
-    threshold, model: jevModel, costUsd,
+    threshold, model: jevModel, costUsd, scope: 'sampled',
+    extractedClaims: extractedCount, reportChunks: coverage.chunks.length,
+    reportCoverageComplete: coverage.complete,
+    ...(coverage.complete ? {} : { reason: 'report-too-long-for-verification' }),
   });
-  return { claims: claims.length, supported, unknown: claims.length - supported, copied, costUsd, verified: true };
+  return { claims: claims.length, supported, unknown: claims.length - supported, copied, costUsd, verified: coverage.complete, scope: 'sampled', reportCoverageComplete: coverage.complete };
 }

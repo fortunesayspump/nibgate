@@ -22,6 +22,7 @@ Business-record analysis is assisted research: document references, explicit cur
 - Independent testnet API smoke: a synthetic image upload returned OCR text and the exact original bytes to its owner; an unauthenticated original request returned 401.
 - Independent funded Arc Testnet run `726bb0da-f728-495a-a4e0-8b9230a4734b` used a synthetic expense CSV and a separate QA wallet. Escrow job 31 completed, spending $0.028886292 of a $1 test deposit and refunding $0.971113708. The sampled report gave the expected currency-separated totals, date range, category shares and duplicate caveat.
 - These checks do not establish that every UI control, export, failure recovery path, paid source-tip decision or mainnet transaction works end to end. The regression suite mocks providers and chain writes in many cases. No independent comparative quality benchmark against other research products has been completed.
+- Follow-up verification change: claim extraction now walks report sections and samples claims across them instead of reading only the first 12,000 characters. Focused tests cover the report tail, spread sampling, duplicate claims and the very-long-report cap. This is a code-level check; a fresh live funded run with a long report is still required to prove the deployed behavior and judge its quality.
 
 ### Prior live testnet evidence
 

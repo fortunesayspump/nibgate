@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import http from 'node:http';
 import { applyUrlPolicy, checkUrlPolicy } from './policy.js';
-import { httpRequest } from './http.js';
+import { fetchPinned, httpRequest } from './http.js';
 import { compute } from './compute.js';
 import { isIn, parse } from './ipaddr-lite.js';
 
@@ -52,6 +53,34 @@ describe('ipaddr-lite', () => {
 });
 
 describe('http_request SSRF guard', () => {
+  it('connects to the validated address while preserving the requested hostname', async () => {
+    const server = http.createServer((req, res) => res.end(req.headers.host));
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const port = server.address().port;
+      const response = await fetchPinned({
+        url: `http://rebind.invalid:${port}/`,
+        addresses: [{ address: '127.0.0.1', family: 4 }],
+      });
+      expect(await response.text()).toBe(`rebind.invalid:${port}`);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('caps bytes before retaining a public fetch response', async () => {
+    const server = http.createServer((_req, res) => res.end('too many bytes'));
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      await expect(fetchPinned({
+        url: `http://rebind.invalid:${server.address().port}/`,
+        addresses: [{ address: '127.0.0.1', family: 4 }],
+      }, {}, 4)).rejects.toThrow('response-too-large');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
   it('refuses loopback, private, and metadata addresses', async () => {
     for (const url of ['http://127.0.0.1/', 'http://10.1.2.3/', 'http://169.254.169.254/latest', 'http://[::1]/']) {
       await expect(httpRequest({ url }, { fetchImpl: async () => { throw new Error('must not be called'); } }))

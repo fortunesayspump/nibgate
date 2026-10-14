@@ -623,7 +623,7 @@ function repeatsPriorGround(prompt, answered = []) {
  * batch that repeats itself is worse than no batch. Anything off-spec falls
  * back to an empty list and the caller uses the bank.
  */
-export async function generateIntakeBatch({ topic, answered = [], count = 5, reframe = null, fetchImpl } = {}) {
+export async function generateIntakeBatch({ topic, answered = [], count = 5, reframe = null, fetchImpl, signal } = {}) {
   const n = Math.max(1, Math.min(Number(count) || 5, 5));
   const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, questions: [] });
   if (!isLlmConfigured()) return fallback(null);
@@ -632,6 +632,7 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
       model: smartModel(),
       effort: 'low',
       messages: intakeBatchMessages({ topic, answered, count: n, reframe }),
+      signal,
       temperature: 0.4,
       maxTokens: 400 * n,
       fetchImpl,

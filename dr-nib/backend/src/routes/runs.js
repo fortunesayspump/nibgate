@@ -69,21 +69,15 @@ runs.post('/', async (req, res) => {
         status: 'intake',
       },
     });
-    // The opener is a BATCH: up to 5 questions generated for the topic in one
-    // call when a model is configured — a generic first question is where
-    // "this feels canned" comes from. Bank fallback keeps creation instant
-    // and infallible either way. The live call races a 15s clock: long enough
-    // for the router to answer most of the time (LLM-first is the point —
-    // bank is the fallback, not the product), short enough that creation
-    // never hangs behind a slow model (proxies and clients time out long
-    // before users do — an empty 500 from a dropped socket is worse than
-    // bank questions).
+    // Keep the opener short: three focused questions reduce both generation
+    // latency and user effort. Give the model a bounded 25s window and abort
+    // expired work rather than leaving a discarded completion running.
     let questions = nextQuestions([], 5);
     try {
-      const live = await Promise.race([
-        generateIntakeBatch({ topic: topic.trim(), answered: [], count: 5 }),
-        new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
-      ]);
+      const live = await generateIntakeBatch({
+        topic: topic.trim(), answered: [], count: 3,
+        signal: AbortSignal.timeout(25_000),
+      });
       if (live?.questions?.length) questions = live.questions.map((q) => ({ ...q, source: 'llm' }));
       else console.log(`[dr-nib] intake batch fell back to bank for run=${run.id}: ${live?.llmError || 'race timed out / no usable questions'}`);
     } catch {}

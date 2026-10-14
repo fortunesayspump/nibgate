@@ -60,7 +60,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   const [switching, setSwitching] = useState(false);
   async function readChain() {
     try {
-      const req = walletProvider?.request;
+      const req = walletProvider?.request?.bind(walletProvider);
       if (!req) { setWalletChainId(null); return; }
       const id: any = await (req as any)({ method: "eth_chainId" });
       setWalletChainId(typeof id === "string" && /^0x/i.test(id) ? Number(id) : Number(id));

@@ -109,15 +109,18 @@ nanopayments handled by the CLI):
 ```bash
 circle services inspect "https://api.nibgate.xyz/ns/{slug}" --output json
 circle services pay   "https://api.nibgate.xyz/ns/{slug}" \
-  --address <agent-wallet> --chain ARC-TESTNET --output json
+  --address <agent-wallet> --chain ARC --output json
 ```
 
+This example targets mainnet. For testnet, use `https://testnet-api.nibgate.xyz`
+and `--chain ARC-TESTNET`; always match the network in the 402 challenge.
 Works against any Nibgate URL (nibshare links, creator-site access endpoints).
 The same URL shape works with any x402 client library. Gotchas:
 
 - Nanopayments spend the **Gateway balance**, not the on-chain balance.
   If you get `Insufficient Gateway balance`, deposit first:
-  `circle gateway deposit --address <addr> --chain ARC-TESTNET --amount 1 --method direct`
+  `circle gateway deposit --address <addr> --chain ARC --amount 1 --method direct`
+  for mainnet, or use `ARC-TESTNET` for testnet.
 - Re-requesting an already-paid resource returns it again without a new charge.
 
 **Raw path** (no Circle tooling):
@@ -151,7 +154,8 @@ before you lose the USDC.
 2. `GET /api/nibgate/access?path=X&rail=transfer&wallet=<payer>` → 402
    challenge JSON with the seller `recipient` and `amount`
 3. Broadcast a plain ERC-20 `transfer(recipient, amount)` of USDC (6 decimals)
-   on Arc Testnet and wait for the receipt
+   on the exact Arc network from the challenge (mainnet 5042 or testnet 5042002)
+   and wait for the receipt
 4. Sign the EIP-191 message
    ``Nibgate transfer ownership\ntx:<txHash lowercase>\nresource:<path>`` with
    the **paying** wallet
@@ -205,7 +209,7 @@ do NOT cross networks.
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.36 and wallet 0.4.26 support Arc mainnet (`eip155:5042`,
+SDK 0.4.37 and wallet 0.4.27 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub

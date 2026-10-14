@@ -89,7 +89,7 @@ import { GatewayWalletUI } from '@nibgate/wallet/react';
 
 Renders buyer wallet balance and Circle Gateway balance with deposit flow.
 
-The wallet 0.4.26 Gateway safety update uses only the AppKit-selected EVM provider.
+The wallet 0.4.27 Gateway safety update uses only the AppKit-selected EVM provider.
 The displayed account must match that provider, and every transaction explicitly
 names the build's active Arc chain. A rejected switch or changed wallet stops the
 next send. Approval must be successfully mined before deposit is requested;
@@ -110,7 +110,7 @@ cancel a transaction already submitted to the wallet. If the wallet response is
 lost before a hash is saved, or a transaction is replaced/cancelled, the flow
 fails closed: inspect wallet activity before any further payment. Recovery does
 not span other tabs, devices, cleared session storage, or closed browsing
-sessions. These changes are included in wallet `0.4.26`.
+sessions. These changes are included in wallet `0.4.27`.
 Use one shared wallet module instance per page. Concurrent transfers from
 independent SDK bundles (for example, separately bundled CDN and React clients)
 do not share an in-flight lock and are not supported.
@@ -166,7 +166,7 @@ MIT
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.36 and wallet 0.4.26 support Arc mainnet (`eip155:5042`,
+SDK 0.4.37 and wallet 0.4.27 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub

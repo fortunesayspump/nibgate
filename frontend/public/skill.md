@@ -1,6 +1,6 @@
 ---
 name: nibgate-sdk
-description: Complete guide for integrating @nibgate/sdk into a creator-owned site. Covers widget installation, resource definition, server gating, payments (Circle Gateway and direct USDC transfer rails on Arc Testnet), browser unlock UI, admin panel for managing gating settings, onchain reputation/ratings, manifest/discovery metadata, and common gotchas.
+description: Complete guide for integrating @nibgate/sdk into a creator-owned site. Covers widget installation, resource definition, server gating, payments (Circle Gateway and direct USDC transfer rails on Arc mainnet and testnet), browser unlock UI, admin panel for managing gating settings, onchain reputation/ratings, manifest/discovery metadata, and common gotchas.
 ---
 
 # Nibgate SDK
@@ -330,9 +330,9 @@ Visit `/admin/nibgate` in your browser. The page shows all configured resources 
 
 ---
 
-## 8. Payments (Gateway and direct transfer rails on Arc Testnet)
+## 8. Payments (Gateway and direct transfer rails on Arc mainnet and testnet)
 
-For v1, treat `unlock.mode: 'one_time'` with the Gateway rail or the direct USDC transfer rail as the production path. All payments settle on Arc Testnet (chain ID 5042002) in USDC.
+For v1, treat `unlock.mode: 'one_time'` with the Gateway rail or the direct USDC transfer rail as the production path. Payments settle in USDC on the configured Arc network: mainnet (5042) or testnet (5042002). Set NIBGATE_NETWORK=mainnet on the server and NEXT_PUBLIC_NIBGATE_NETWORK=mainnet before building a production React client; the wallet package defaults to testnet when neither variable is set. Keep the Hub API, payment network, and wallet target on the same network. The testnet examples below are for staging.
 
 ### How payment works
 
@@ -402,16 +402,16 @@ The resulting receipt is stored with `paymentProvider: 'direct-transfer'` and ke
 
 ### Before testing locally
 
-Deposit testnet USDC from your wallet into the Gateway facilitator so transactions can settle:
+In a Nibgate repository checkout with its workspace dependencies installed, these staging commands deposit testnet USDC and read the Gateway balance. The in-repository CLI is not a separately published npm release; external integrations can use the Circle Agent Stack commands below.
 
 ```bash
-npx nibgate deposit 10
+pnpm --filter @nibgate/cli exec node bin/nibgate.js deposit 10
 ```
 
 Check your Gateway balance:
 
 ```bash
-npx nibgate balance
+pnpm --filter @nibgate/cli exec node bin/nibgate.js balance
 ```
 
 ### Env vars
@@ -576,7 +576,7 @@ An internal stress test script (not shipped with the npm package) simulates N ag
 
 ## 10. Onchain Reputation & Ratings
 
-After a verified unlock, users can rate content onchain via the `NibgateReputation.sol` contract deployed on Arc Testnet.
+After a verified unlock, users can rate content onchain through the reputation contract for the selected network. The SDK reputation constants describe the testnet deployment. For mainnet, use the contract returned by the mainnet Hub's ratings prepare endpoint and explicitly configure matching mainnet wallet and RPC settings.
 
 ### How it works
 
@@ -605,7 +605,7 @@ Or buttons with `data-nibgate-rating-value="4"` attributes. Ratings are 1-5.
 ### Reputation requirements
 
 - Only ratings from wallets that have an unlock receipt for the same content are counted
-- Ratings are onchain (requires gas on Arc Testnet)
+- Ratings are onchain (requires gas on the selected Arc network)
 - Content reputation (0-5 stars) and creator reputation (0-100 score) update after indexing
 
 ---
@@ -656,7 +656,7 @@ Only expose values with `NEXT_PUBLIC_` or client-side env names when they are in
 - **Unlock events need three env vars.** `accessResponse()` emits `payment_completed` and `unlock_completed` to the Hub after gateway payment, but only if `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE` are set. Without them, the x402 payment still works and the unlock proof is returned, but unlock counts and volume on Explore will not update.
 - **Smart contract wallets** may not support `eth_signTypedData_v4`. Use an EOA or the server-side pay route.
 - **Wallet extension conflicts** can cause signature corruption if multiple wallets are installed. Advise users to disable other wallet extensions when testing.
-- **Deposit before testing locally.** Run `npx nibgate deposit 10` to fund the Gateway facilitator balance.
+- **Deposit before testing locally.** Run `pnpm --filter @nibgate/cli exec node bin/nibgate.js deposit 10` to fund the Gateway facilitator balance.
 
 ---
 
@@ -885,7 +885,7 @@ claimed.
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.36 and wallet 0.4.26 support Arc mainnet (`eip155:5042`,
+SDK 0.4.37 and wallet 0.4.27 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub

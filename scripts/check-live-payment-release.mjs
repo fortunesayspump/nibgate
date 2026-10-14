@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const sdkVersion = JSON.parse(readFileSync(new URL('../packages/nibgate/package.json', import.meta.url))).version;
+const walletVersion = JSON.parse(readFileSync(new URL('../packages/wallet/package.json', import.meta.url))).version;
 
 const networks = ['https://api.nibgate.xyz', 'https://testnet-api.nibgate.xyz'];
 for (const origin of networks) {
@@ -32,7 +36,7 @@ if (process.argv.includes('--clients')) {
     assert.ok(!body.includes('0.4.35-testnet.0'), `${path} stale SDK prerelease`);
     assert.ok(!body.includes('0.4.25-testnet.0'), `${path} stale wallet prerelease`);
     assert.ok(!/https:\/\/(?:www\.)?nibgate\.xyz\/hub\//.test(body), `${path} legacy Hub URL`);
-    if (path.endsWith('.md')) { assert.match(body, /0\.4\.35/); assert.match(body, /0\.4\.25/); }
+    if (path.endsWith('.md')) { assert.ok(body.includes(sdkVersion), `${path}: current SDK version`); assert.ok(body.includes(walletVersion), `${path}: current wallet version`); }
     console.log(`https://nibgate.xyz${path}: live stable documentation PASS`);
   }
   const docs = await fetch('https://docs.nibgate.xyz/llms.txt', { signal: AbortSignal.timeout(30000) });
@@ -41,7 +45,7 @@ if (process.argv.includes('--clients')) {
   console.log('https://docs.nibgate.xyz/llms.txt: live documentation PASS');
 }
 if (process.argv.includes('--npm')) {
-  for (const [name, version, companion, companionVersion] of [['sdk','0.4.36','wallet','0.4.26'], ['wallet','0.4.26','sdk','0.4.36']]) {
+  for (const [name, version, companion, companionVersion] of [['sdk',sdkVersion,'wallet',walletVersion], ['wallet',walletVersion,'sdk',sdkVersion]]) {
     const response = await fetch(`https://registry.npmjs.org/@nibgate%2f${name}?releasecheck=${Date.now()}`, { signal: AbortSignal.timeout(30000) });
     assert.equal(response.status, 200);
     const metadata = await response.json();

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.27
+
+Companion SDK is 0.4.37. This pair completes the network guide audit: mainnet commands target mainnet, staging examples are explicit, and the package guide describes both networks. Runtime code is unchanged from SDK 0.4.36 / wallet 0.4.26.
+
 ## 0.4.26
 
 Stable release for Arc mainnet and testnet; companion SDK is `0.4.36`.

@@ -17,11 +17,10 @@ dist/
 
 docs/.next/
 
-# NOTE: docs/public/_pagefind is COMMITTED on purpose. The Vercel dashboard
-# runs bare `next build` (ignoring the pagefind step and docs/vercel.json),
-# so a gitignored index means search 404s for everyone. Regenerate it with
-# `npm run build` in docs/ whenever docs content changes and commit the
-# output with the same PR.
+# NOTE: docs/public/_pagefind is COMMITTED on purpose. The docs build also
+# regenerates it on Vercel. Run `pnpm --filter @nibgate/docs build` from the
+# workspace root whenever docs content changes and commit the output in
+# the same PR so local previews and deployments include a matching index.
 
 # hackathon media assets (not for git)
 HACKATHON_VIDEO_*

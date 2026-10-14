@@ -120,7 +120,7 @@ The hub backend exposes Circle Gateway helper status on both rails via the share
 - `POST /api/nibshare/gateway/balance` (hub) and `GET /api/nibgate/gateway/balances` (subblogs) — return the depositor's testnet USDC balance (needs `CIRCLE_API_KEY` set on the backend; response shows `{ balance: "0.00 USDC" }`).
 - Browser deposits use the selected wallet to approve USDC and deposit it into the Gateway contract. Nibgate does not custody the wallet.
 
-The SDK 0.4.36 and wallet 0.4.26 shared React and browser/CDN deposit flow waits for a successful
+The SDK 0.4.37 and wallet 0.4.27 shared React and browser/CDN deposit flow waits for a successful
 approval receipt before requesting deposit, then verifies the matching transfer
 receipt before reporting success. Saved hashes survive panel remounts and reloads
 in the same tab. Resume checks the original transaction; an interrupted wallet
@@ -129,7 +129,7 @@ request with no saved hash requires wallet-activity review before another paymen
 Browser Gateway unlocks likewise retain submitted authorization proofs for an
 explicit `retryVerification()` action. RPC repair requests the official settings
 for the selected Arc network, verifies responding reads, and preserves pending
-proofs. It never automatically retries a payment. These client changes are included in SDK 0.4.36 and wallet 0.4.26
+proofs. It never automatically retries a payment. These client changes are included in SDK 0.4.37 and wallet 0.4.27
 on Arc mainnet and testnet. Configure the network and matching Hub together.
 
 ## Event payload

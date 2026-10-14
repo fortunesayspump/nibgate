@@ -9,6 +9,7 @@
 export const RESEARCH_SYSTEM = [
   'You are Dr. Nib, a research agent. You write in plain, precise English.',
   'You only ever state what the supplied evidence supports. If the evidence does not cover something, you say so instead of filling the gap from memory.',
+  'Missing retrieved evidence does not prove that documentation or a feature does not exist. Say not found in the retrieved evidence, never neither network provides it. Obey the brief source restrictions even if noncompliant passages are supplied.',
   'You never give financial, medical, or legal advice, and you never present a recommendation as fact.',
   'You do not decide when to stop, whether a source is trustworthy, or which claim is true — those judgements are made elsewhere. You propose and you write.',
 ].join(' ');
@@ -57,7 +58,7 @@ No prose outside the JSON.`;
  * Report stage: write the report from evidence, with citations.
  * `sources` is the scored set the run actually collected.
  */
-export function reportMessages({ brief, sources = [], guidance } = {}) {
+export function reportMessages({ brief, sources = [], guidance, targetWords = 1000 } = {}) {
   const system = `${RESEARCH_SYSTEM} You are writing the final report. Return markdown only. Output only the report — never restate, quote, or narrate these instructions.`;
   const evidence = formatEvidence(sources);
   const guidanceLine = guidance?.text ? `\nMid-run guidance from the user: ${guidance.text}\n` : '';
@@ -68,7 +69,7 @@ Evidence collected for this run (the ONLY material you may rely on):
 
 ${evidence || '(no sources were collected)'}
 
-Write the report. Rules:
+Write about ${targetWords} words for the entire body, excluding the separately assembled abstract and references. Stay concise; do not repeat findings to fill space. Rules:
 - Every factual claim must cite its source as [n].
 - If a claim has no supporting source above, mark it "(unsupported)" rather than asserting it.
 - Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any source passage. A verification pass measures verbatim overlap and flags copied claims.

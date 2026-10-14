@@ -1,5 +1,6 @@
 // FIRST import: env.js must populate process.env before db.js builds a client.
 import './env.js';
+import { selectSources } from './source-selection.js';
 import { SOURCE_ORDER, reportEvidence, sectionEvidence } from './report-evidence.js';
 
 import os from 'node:os';
@@ -363,7 +364,7 @@ async function searchStage(runId, run, queries) {
       results: [],
     };
   }
-  const results = dedupeByUrl(settled).slice(0, 40);
+  const results = dedupeByUrl(settled).slice(0, 100);
   return {
     why: 'Fanning the sub-questions across the available providers — keyed breadth plus the free academic index — then collapsing duplicate URLs before reading anything.',
     queries: list,
@@ -407,7 +408,16 @@ async function fetchStage(runId, run) {
   // (academic 0.5) — seen live: 6 on-topic web hits unfetched while 4
   // irrelevant papers became the whole evidence set. Stable sort keeps
   // ties in bench order.
-  const ranked = [...results].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+  let ranked = [...results].sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0));
+  let selectionCost = 0;
+  let selectionWhy = '';
+  if (isLlmConfigured()) {
+    const previous = await db.researchSource.findMany({ where: { runId }, select: { url: true } });
+    const selected = await selectSources({ brief: run.brief, candidates: ranked, limit: limits.fetchDocs, seen: previous.map(s => s.url) });
+    ranked = selected.candidates;
+    selectionCost = selected.costUsd;
+    selectionWhy = selected.why;
+  }
   const thin = ranked.slice(0, limits.fetchDocs).filter((r) => (r.content || '').trim().length < 500);
   const enriched = new Map();
   let extractCost = 0;
@@ -428,10 +438,10 @@ async function fetchStage(runId, run) {
     };
   });
   return {
-    why: 'Opening the ranked results and keeping the passages that carry claims; paywalled, blocked, and empty pages are reported as skipped, never scraped around.',
+    why: selectionWhy || 'Reading candidates within the approved scope; blocked and empty pages are reported as skipped.',
     documents,
     pages: documents.length,
-    costUsd: extractCost,
+    costUsd: extractCost + selectionCost,
     attempted: true,
     fallback: false,
   };
@@ -741,7 +751,7 @@ async function writeStage(runId, run, guidance) {
     if (!tokenTimer) tokenTimer = setTimeout(() => { tokenTimer = null; flushTokens(); }, 250);
   };
   const resolved = resolveLength({ length: brief.length, lengthWords: brief.lengthWords });
-  const generated = resolved.preset === 'brief'
+  const generated = resolved.words <= 1200
     ? await generateReport({ brief, sources: evidence, guidance, runId, version: run.versions, targetWords: resolved.words, onToken: (d) => emitToken(d) })
     : await generateReportLong({
         brief,
@@ -855,57 +865,6 @@ async function gratitudeStage(runId, run) {
 // and each one is logged and streamed in full (question, options, probabilities,
 // pick) by runChoice. When JEV is unreachable the run parks — the pipeline must
 // never quietly let the model decide.
-
-// Is interrupting the user worth it? Options are the real trade-off, including
-// the honest "proceed and flag the assumption" one. Returns false when JEV
-// parked the run, so the caller stops.
-async function maybeAsk(runId, run) {
-  const asked = await db.researchDecision.findFirst({ where: { runId, kind: 'question', step: 'midrun' } });
-  if (asked) return true;
-  const decision = await runChoice(runId, {
-    step: 'midrun-ask',
-    prompt: 'Is interrupting the user for a branch choice worth it?',
-    state: `Topic: ${run.brief?.topic || 'the brief'}. The run has mapped the space and found a fork in the evidence: the top sources disagree on the core claim. Asking the user now costs one interruption; proceeding without asking risks researching the wrong branch for the remainder of the run.`,
-    instructions: 'Choose whether the run should stop and ask the user to narrow the branch, or proceed now and flag the assumption in the report. Pick the option with the higher expected value.',
-    options: [
-      { id: 'ask', context: 'Stop and ask. The fork is material: the answer changes which branch is researched, and researching both doubles the remaining budget.' },
-      { id: 'proceed', context: 'Proceed now. The fork is minor, or both branches are cheap to cover; record the choice as an assumption in the report instead of interrupting.' },
-    ],
-  });
-  if (!decision) return false; // JEV unavailable; run parked.
-  if (decision.pick === 'ask') {
-    // The fork must name its branches: pull what round 0 actually found
-    // (queries + top hit titles) and let the model phrase it as one pick.
-    // A branchless "narrow me down" gets "i dont understand" answers.
-    const search = await db.researchStep.findFirst({
-      where: { runId, kind: 'search' },
-      orderBy: { createdAt: 'desc' },
-    });
-    const out = search?.output || {};
-    const titles = (out.results || []).filter((r) => r && r.title).map((r) => `${r.title}${r.provider ? ` [${r.provider}]` : ''}`);
-    const branches = [
-      `First direction in the hits: ${titles.slice(0, 3).join(' / ') || 'no usable hits'}`,
-      `Second direction in the hits: ${titles.slice(3, 6).join(' / ') || 'no usable hits'}`,
-      `Asked as: ${(out.queries || []).slice(0, 4).join(' / ')}`,
-    ];
-    const { generateForkQuestion } = await import('./llm/generate.js');
-    const fork = await generateForkQuestion({ topic: run.brief?.topic, branches });
-    if (fork) {
-      await parkForQuestion(runId, {
-        ...fork,
-        why: 'The top sources disagree on the core claim, and going both ways doubles the remaining cost.',
-      });
-    } else {
-      // No phrasing, no question: asking blind is worse than proceeding.
-      // The assumption rides the report instead.
-      await recordEvent(runId, {
-        type: 'thinking', phase: 'midrun-fork',
-        text: 'Search came back split but the fork could not be phrased as a clean choice, so the run proceeds on both branches and flags the split in the report.',
-      });
-    }
-  }
-  return true;
-}
 
 // ── Rounds ────────────────────────────────────────────────────────────────────
 // A run advances one retrieval round at a time: search the round's questions,
@@ -1064,11 +1023,7 @@ export async function runExecute(runId) {
     if (!searched?.skipped && !(await charge(runId, 'search', searched?.costUsd))) return;
     if (await halt(runId)) return;
 
-    if (round === 0) {
-      if (!(await maybeAsk(runId, run))) return; // JEV parked the run
-      if (await halt(runId)) return;
-    }
-
+    // Search candidates do not establish a disagreement. Follow approved scope.
     const fetched = await stage(runId, 'fetch', attempt, () => fetchStage(runId, run));
     if (!fetched?.skipped && !(await charge(runId, 'fetch', fetched?.costUsd))) return;
     if (await halt(runId)) return;

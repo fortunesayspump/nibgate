@@ -23,7 +23,8 @@ async function ownedRun(req, res) {
   return run;
 }
 
-exports.post('/runs/:id/exports', async (req, res) => {
+exports.post('/runs/:id/exports', async (req, res, next) => {
+  try {
   const { format } = req.body || {};
   if (!FORMATS.has(format)) return res.status(400).json({ error: `format must be one of ${[...FORMATS].join(', ')}` });
   const run = await ownedRun(req, res);
@@ -63,6 +64,7 @@ exports.post('/runs/:id/exports', async (req, res) => {
     return res.json({ ...row, contentType, filename, bytes, url: stored.url, storageRef: stored.storageRef });
   }
   res.json({ ...row, ...rendered });
+  } catch (error) { next(error); }
 });
 
 exports.get('/runs/:id/exports/:exportId', async (req, res) => {

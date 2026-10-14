@@ -71,7 +71,7 @@ export async function verifyReport(runId, { brief } = {}) {
   }
 
   // 2. Best passage per claim, from the run's own evidence.
-  const state = [`Topic: ${brief?.topic || ''}`, `Report version: ${report.version}`].join('\n');
+  const state = `Report version: ${report.version}`;
   const questions = [];
   const claimPassages = [];
   for (const [i, text] of claims.entries()) {
@@ -82,7 +82,7 @@ export async function verifyReport(runId, { brief } = {}) {
       id: `c${i}`,
       type: 'noul',
       instructions: best
-        ? `Probability (0..1) that this passage supports the claim. Claim: ${text.slice(0, 300)} Passage: ${best.excerpt.slice(0, 600)}`
+        ? `Probability (0..1) that passage c${i} in the state supports this claim: ${text.slice(0, 380)}`
         : `No passage was collected for this claim, so it cannot be supported. Claim: ${text.slice(0, 300)}`,
     });
   }
@@ -92,10 +92,16 @@ export async function verifyReport(runId, { brief } = {}) {
   let jevCost = 0;
   let jevModel = null;
   try {
-    const out = await batch({ state, questions });
-    answers = out.answers || {};
-    jevCost = Number(out.usage?.cost) || 0;
-    jevModel = out.model;
+    // Passage text belongs in state, not the 500-character instruction field.
+    // Three 1000-character passages keep every batch below the 4000-char limit.
+    for (let start = 0; start < questions.length; start += 3) {
+      const group = questions.slice(start, start + 3);
+      const passages = group.map((q, n) => `Passage ${q.id}: ${claimPassages[start + n]?.excerpt?.slice(0, 1000) || '(none)'}`).join('\n\n');
+      const out = await batch({ state: `${state}\n${passages}`, questions: group });
+      Object.assign(answers, out.answers || {});
+      jevCost += Number(out.usage?.cost) || 0;
+      jevModel = out.model;
+    }
   } catch (err) {
     if (!(err instanceof JevUnavailable)) throw err;
     await recordEvent(runId, { type: 'verify.failed', reason: 'jev-unavailable' });

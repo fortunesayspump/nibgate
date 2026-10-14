@@ -302,7 +302,7 @@ function pdfSegs(doc, segs, { size = 11, gap = 6 } = {}) {
 
 function buildPdf(blocks, { title = 'Dr. Nib report' } = {}) {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ compress: false, margin: 54, info: { Title: pdfSafe(title), Author: 'Dr. Nib' } });
+    const doc = new PDFDocument({ bufferPages: true, compress: false, margin: 54, info: { Title: pdfSafe(title), Author: 'Dr. Nib' } });
     const chunks = [];
     doc.on('data', (c) => chunks.push(c));
     doc.on('error', reject);
@@ -311,12 +311,14 @@ function buildPdf(blocks, { title = 'Dr. Nib report' } = {}) {
       const n = doc.bufferedPageRange().count;
       for (let p = 0; p < n; p += 1) {
         doc.switchToPage(p);
+        const bottom = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
         doc.font('Helvetica').fontSize(8).fillColor('#888888')
-          .text(`p. ${p + 1} / ${n}`, 54, doc.page.height - 40, { align: 'center', width: doc.page.width - 108 });
+          .text(`p. ${p + 1} / ${n}`, 54, doc.page.height - 40, { lineBreak: false, align: 'center', width: doc.page.width - 108 });
+        doc.page.margins.bottom = bottom;
         doc.fillColor('#000000');
       }
     };
-    doc.bufferPages = true;
     let firstH1 = true;
     for (const b of blocks) {
       if (b.t === 'h') {
@@ -352,9 +354,9 @@ function buildPdf(blocks, { title = 'Dr. Nib report' } = {}) {
           h = Math.max(14, ...heights) + 6;
           if (y + h > doc.page.height - 60) { doc.addPage(); return row(cells, bold); }
           cells.forEach((c, ci) => {
-            doc.rect(x + ci * w, doc.y, w, h).stroke('#999999');
-            if (bold) doc.rect(x + ci * w, doc.y, w, h).fillOpacity(0.08).fill('#000000').fillOpacity(1);
-            doc.text(pdfSafe(c), x + ci * w + 4, doc.y + 3, { width: w - 8 });
+            doc.rect(x + ci * w, y, w, h).stroke('#999999');
+            if (bold) doc.rect(x + ci * w, y, w, h).fillOpacity(0.08).fill('#000000').fillOpacity(1);
+            doc.text(pdfSafe(c), x + ci * w + 4, y + 3, { width: w - 8 });
           });
           doc.y = y + h;
           doc.x = 54;

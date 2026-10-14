@@ -23,7 +23,7 @@ composer → intake (batches ≤5, 8 questions max) → configure → review →
  3. **JEV runs the stop rule** — after each batch a calibrated decision picks `proceed` (brief is whole), `ask_more` (another batch), or `reframe` (the angle is dead — the next batch opens a different one, and the rejected direction stays on the record). The model proposes, JEV disposes; fallbacks are labeled, never silent.
  4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length. Planning is free.
  5. **Review** — sub-questions (editable), uncertainties, cost estimate. Fund the [onchain escrow](./escrow) first — any amount from the estimate up to your cap; approve is then gated on it being Funded for at least the estimate.
- 6. **Run** — the command-center page: report and sources on the left, the live reasoning feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript, timestamps, jump-to-latest), guidance box or mid-run question card pinned at the bottom. Pause/resume any time. Blips never wipe the page (stale banner + retry).
+ 6. **Run** — the command-center page: report and sources on the left, the live reasoning feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript, timestamps, jump-to-latest), guidance box pinned at the bottom. Research follows the approved scope; search results alone never trigger a claim that evidence disagrees. Pause/resume any time. Blips never wipe the page (stale banner + retry).
  7. **Report** — versioned, cited (chips link to the source order saved with that report version), coverage badge + claim×source matrix, report Q&A, free post-report discussion (a small per-run follow-up allowance, answered from the report and its sources only — no budget, no deposit), version-pinned links (the account owner must sign in), exportable (Markdown, JSON, BibTeX, PDF, Word, Excel, PowerPoint), settlement receipt. Finished runs can **run again with a new prompt** (reprompt creates version N+1 with the steer recorded, original kept) or be **duplicated** into a fresh run on the same topic.
 
 ## How a run spends
@@ -37,3 +37,5 @@ The data stage is a propose → judge → execute loop with termination enforced
 ## Machine access
 
 The same runs are drivable by agents over MCP (`answer_question`, `answer_questions`, `approve_plan`, `reprompt_run`, `reconcile_run`, …): signed USDC payments for tips, paid unlocks, and x402 resources come from the run budget inside per-call ceilings, and every tool call is logged with what it cost and what came back. See the spending rules below and [Budgets & refunds](./budgets).
+
+Source selection follows the approved brief, including restrictions such as official documentation only. A missing retrieved passage is reported as a gap in the collected evidence, not proof that the documentation or feature does not exist. Short custom reports use one concise writing pass; references keep stable citation numbers.

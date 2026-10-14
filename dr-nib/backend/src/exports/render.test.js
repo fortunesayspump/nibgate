@@ -14,6 +14,13 @@ const ctx = {
 const decode = (r) => Buffer.from(r.content, 'base64');
 
 describe('export renderers', () => {
+  it('exports multiple PDF pages without flushing the page-number buffer', async () => {
+    const pdf = await renderExport('pdf', {...ctx, report: {version:1, markdown:'# Long report\n\n' + ('A paragraph about documented payment fees and wallet integration. '.repeat(15)+'\n\n').repeat(25)}});
+    const { extractText } = await import('unpdf');
+    const { text, totalPages } = await extractText(new Uint8Array(decode(pdf)));
+    expect(totalPages).toBeGreaterThan(2);
+    expect(text.join('\n')).toContain(`p. ${totalPages} / ${totalPages}`);
+  });
   it('advertises every format as renderable', () => {
     expect([...RENDERABLE].sort()).toEqual(['bibtex', 'excel', 'json', 'md', 'pdf', 'powerpoint', 'word']);
     expect([...BINARY_FORMATS].sort()).toEqual(['excel', 'pdf', 'powerpoint', 'word']);

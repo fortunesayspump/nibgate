@@ -115,7 +115,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
     try {
       const { text, usage, model } = await reportChat({
         effort: 'high',
-        messages: reportMessages({ brief, sources, guidance }), fetchImpl,
+        messages: reportMessages({ brief, sources, guidance, targetWords: Math.max(150, targetWords - 175) }), fetchImpl,
         temperature: 0.4,
         maxTokens: 4000,
         ...(typeof onToken === 'function' ? { onToken } : {}),
@@ -125,7 +125,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         let outUsage = usage;
         // Same floor as the long path, one bounded pass: a short brief
         // report gets one deepening call, not an unbounded loop.
-        const floor = Math.round(Number(targetWords) * FLOOR_RATIO);
+        const floor = Math.round(Math.max(150, Number(targetWords) - 175) * FLOOR_RATIO);
         if (countWords(markdown) < floor && (sources || []).length > 0) {
           try {
             const deep = await reportChat({

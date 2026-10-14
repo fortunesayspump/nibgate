@@ -13,7 +13,15 @@
 
 The comparison rubric uses editable plans, supplied documents, steering, cited findings, export usability and evidence limitations, consistent with [OpenAI deep research](https://help.openai.com/en/articles/10500283-deep-research), [Anthropic Research](https://www.anthropic.com/news/research) and [agent evaluation guidance](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents). These are evaluation dimensions, not a claim of equivalent performance.
 
-Business-record analysis is assisted research: document references, explicit currency-separated decimal sums, duplicate flags and limited-evidence notices. It is not a financial audit, reconciliation or guarantee of exhaustive row-level verification. Uploaded extracted text goes to configured AI providers. OCR and public report sharing are not implemented. A fresh run copies the topic and requires files to be added again. Mainnet funded research remains gated pending escrow review and operational readiness; no mainnet escrow was deployed as part of this check.
+Business-record analysis is assisted research: document references, explicit currency-separated decimal sums, duplicate flags and limited-evidence notices. It is not a financial audit, reconciliation or guarantee of exhaustive row-level verification. Uploaded extracted text goes to configured AI providers. PNG, JPEG and WebP now use local English-text OCR; image-only charts, handwriting, table structure and scanned PDFs are not reliably interpreted. Public report sharing is not implemented. A fresh run copies the topic and requires files to be added again. Mainnet funded research remains gated pending escrow review and operational readiness; no mainnet escrow was deployed as part of this check.
+
+### 2026-10-14 follow-up live checks
+
+- Testnet Google-wallet browser flow: sign-in, Arc RPC reachability, gas and USDC balances, and the enabled escrow button were observed after the wallet RPC fix. The user's wallet was not used for a payment.
+- Testnet browser source flow: a synthetic PNG uploaded to the private bucket, produced a readable OCR preview and warning, invalidated the old plan, and returned the project to Configure. Removing that disposable image returned the source count to one. After the configuration fix deployed, reloading the project restored quick depth, the $1 cap, source-only mode and a custom 600-word target.
+- Independent testnet API smoke: a synthetic image upload returned OCR text and the exact original bytes to its owner; an unauthenticated original request returned 401.
+- Independent funded Arc Testnet run `726bb0da-f728-495a-a4e0-8b9230a4734b` used a synthetic expense CSV and a separate QA wallet. Escrow job 31 completed, spending $0.028886292 of a $1 test deposit and refunding $0.971113708. The sampled report gave the expected currency-separated totals, date range, category shares and duplicate caveat.
+- These checks do not establish that every UI control, export, failure recovery path, paid source-tip decision or mainnet transaction works end to end. The regression suite mocks providers and chain writes in many cases. No independent comparative quality benchmark against other research products has been completed.
 
 ### Prior live testnet evidence
 

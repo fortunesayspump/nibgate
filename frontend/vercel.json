@@ -1,4 +1,4 @@
 {
   "installCommand": "cd .. && npx pnpm@10.28.0 install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @nibgate/frontend build"
+  "buildCommand": "npx pnpm@10.28.0 --filter @nibgate/frontend build"
 }

@@ -40,3 +40,17 @@ if (process.argv.includes('--clients')) {
   assert.ok(!/https:\/\/(?:www\.)?nibgate\.xyz\/hub\//.test(await docs.text()));
   console.log('https://docs.nibgate.xyz/llms.txt: live documentation PASS');
 }
+if (process.argv.includes('--npm')) {
+  for (const [name, version, companion, companionVersion] of [['sdk','0.4.36','wallet','0.4.26'], ['wallet','0.4.26','sdk','0.4.36']]) {
+    const response = await fetch(`https://registry.npmjs.org/@nibgate%2f${name}?releasecheck=${Date.now()}`, { signal: AbortSignal.timeout(30000) });
+    assert.equal(response.status, 200);
+    const metadata = await response.json();
+    const release = metadata.versions[version];
+    assert.ok(release, `${name} ${version} is publicly available`);
+    assert.equal(release.dependencies[`@nibgate/${companion}`], companionVersion);
+    assert.ok(!JSON.stringify(release).includes('workspace:'));
+    assert.equal(metadata['dist-tags'].latest, version);
+    assert.equal(metadata['dist-tags'].testnet, version);
+    console.log(`@nibgate/${name}@${version}: exact dependencies, latest/testnet tags PASS`);
+  }
+}

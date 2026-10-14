@@ -805,7 +805,7 @@ app.get('/nibgate/access', async (req, res) => {
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.35 and wallet 0.4.25 support Arc mainnet (`eip155:5042`,
+SDK 0.4.36 and wallet 0.4.26 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub

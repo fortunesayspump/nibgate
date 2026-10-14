@@ -1,6 +1,6 @@
 # Unified workspace and payment release
 
-Prepared October 14, 2026 from Fortama's `draft/nibgate-unified-workspace-20261014` handoff. The root lockfile is now resolved with Node 22 and pnpm 10.28.0. This release includes SDK 0.4.35, wallet 0.4.25, and OpenAPI/MCP/registry 0.2.12 for Arc mainnet and testnet.
+Prepared October 14, 2026 from Fortama's `draft/nibgate-unified-workspace-20261014` handoff. The root lockfile is now resolved with Node 22 and pnpm 10.28.0. This release includes SDK 0.4.36, wallet 0.4.26, and OpenAPI/MCP/registry 0.2.12 for Arc mainnet and testnet.
 
 ## Workspace
 
@@ -25,9 +25,9 @@ Local C: ran out of space. Generated app build output and disposable npm/test ca
 
 PR #3 merged as `0c624d6b82dc4b14959bfc6fb63838b193443e92`. Live mainnet and testnet OpenAPI, MCP initialization, tools/list, and server cards passed at 0.2.12. Railway service settings use the repository root, installed Prisma generation, and package-filtered startup. Vercel projects use Node 22, their respective app roots, access to external workspace source, and frozen root installation.
 
-SDK 0.4.35 and wallet 0.4.25 uploads were accepted under the staging `release` tag. Confirm npm processing completes before promoting public tags. The client rollout restores normal Vercel Git deployment policy only after backend verification. Verify the exact deployed commit on all affected services.
+The initial SDK 0.4.35/wallet 0.4.25 publication mistakenly used `npm pack`, which retained workspace dependency protocols. Those versions are deprecated. The corrected SDK 0.4.36/wallet 0.4.26 pnpm tarballs passed a fresh consumer install, exact companion dependency checks, and public registry hash comparisons. Always use `pnpm pack`; `scripts/check-release-packs.mjs --archives-only` rejects workspace protocols directly in both tarball manifests before publication. Confirm npm processing and registry dependency metadata before promoting public tags. The client rollout restores normal Vercel Git deployment policy only after backend verification. Build commands pin pnpm 10.28.0 explicitly because Vercel otherwise selected pnpm 6 for the Hub frontend despite the correctly pinned install command.
 
-Republish `mcp-registry/server.json` with the official MCP publisher and verify the live registry record. Verify discovery.md, skill.md, agent-skills, llms indexes, API/MCP, docs, and npm/CDN artifacts after deployment.
+MCP Registry 0.2.12 is published and its public record is verified active/latest. Verify discovery.md, skill.md, agent-skills, llms indexes, API/MCP, docs, and npm/CDN artifacts after deployment.
 
 `node scripts/check-live-payment-release.mjs` checks the public API/MCP release on both networks. Add `--clients` after client rollout to check the live discovery and documentation surfaces.
 

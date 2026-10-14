@@ -138,6 +138,17 @@ export default function ResearchNewPage() {
     } catch { /* private mode — resume just won't persist */ }
   }
 
+  function restoreConfiguration(run: any) {
+    const brief = run.brief || {};
+    setDepth(brief.depth || run.depth || "standard");
+    setBudgetCap(Number(run.budgetCap) || 2.5);
+    setLiveWeb(brief.liveWeb !== false);
+    setTipCreators(brief.tipCreators === true);
+    setFormats(Array.isArray(brief.formats) && brief.formats.length ? brief.formats : ["pdf"]);
+    setLength(brief.length || "standard");
+    setLengthWords(Number(brief.lengthWords) || 4000);
+  }
+
   useEffect(() => {
     const explicit = new URLSearchParams(window.location.search).get("project");
     const id = explicit || (() => {
@@ -155,6 +166,7 @@ export default function ResearchNewPage() {
               .map((d: any) => ({ seq: d.seq, question: d.question, answer: d.answer || undefined }));
             setProject({ id: run.id, title: run.title, description: run.description, status: run.status, metadata: run.metadata });
             setTopic(run.brief?.topic || "");
+            restoreConfiguration(run);
             setItems(loaded);
             const firstUnanswered = loaded.findIndex((it) => !it.answer);
             setIdx(firstUnanswered === -1 ? Math.max(0, loaded.length - 1) : firstUnanswered);

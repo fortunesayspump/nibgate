@@ -1,11 +1,8 @@
 'use client'
 
-// Some injected wallets (MetaMask) keep per-origin permissions that can go
-// stale — e.g. the site was previously authorized for a different account, or
-// the connect approval hasn't fully settled. Calling eth_requestAccounts again
-// through the active wallet provider re-authorizes the CURRENT account for this
-// origin right before we ask for a signature, which avoids error 4100
-// ("requested account and/or method has not been authorized") on personal_sign.
+// Verify the currently authorized account before signing. Request access only
+// when the provider reports no granted accounts: embedded social wallets do
+// not support the injected-wallet eth_requestAccounts approval flow.
 //
 // This uses AppKit's `walletProvider` directly (the reconciled source of
 // truth) rather than wagmi's connector, which may be null if wagmi's account
@@ -14,7 +11,13 @@
 export async function ensureWalletAuthorized(address, { walletProvider } = {}) {
   if (!walletProvider || typeof walletProvider.request !== 'function') return
   if (!address) return
-  const accounts = await walletProvider.request({ method: 'eth_requestAccounts' })
+  // Social wallets already grant access during login and may not implement
+  // eth_requestAccounts. Read the granted account before requesting access.
+  // Do not swallow provider failures or accept a different selected account.
+  let accounts = await walletProvider.request({ method: 'eth_accounts' })
+  if (Array.isArray(accounts) && accounts.length === 0) {
+    accounts = await walletProvider.request({ method: 'eth_requestAccounts' })
+  }
   const granted = Array.isArray(accounts) && accounts.length ? accounts[0] : null
   if (typeof granted !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(granted)) {
     const err = new Error('Wallet did not authorize an account. Reconnect and approve access to continue.')

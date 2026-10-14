@@ -68,10 +68,14 @@ export default function CookieConsent() {
       role="dialog"
       aria-live="polite"
       aria-label="Cookie consent"
-      className="fixed bottom-4 left-4 right-4 z-[90] mx-auto max-w-md rounded-2xl border border-dark-gray/50 bg-white p-5 shadow-[0_24px_64px_rgba(0,0,0,0.25)] md:left-6 md:right-auto"
+      className="fixed bottom-4 left-4 right-4 z-[90] mx-auto max-w-md rounded-2xl border p-5 md:left-6 md:right-auto"
+      style={{ background: "var(--nib-surface-raised)", color: "var(--nib-page-fg)", borderColor: "var(--nib-border-soft)", boxShadow: "var(--nib-shadow-3)" }}
     >
       <div className="flex items-center gap-3">
-        <svg className="h-10 w-10 shrink-0" aria-hidden="true"><use xlinkHref="#cookie"></use></svg>
+        <svg className="h-10 w-10 shrink-0" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="12" cy="12" r="10" />
+          <g fill="currentColor" stroke="none"><circle cx="8" cy="8" r="1.5" /><circle cx="15" cy="7" r="1" /><circle cx="12" cy="13" r="1.5" /><circle cx="7" cy="16" r="1" /><circle cx="17" cy="16" r="1.5" /></g>
+        </svg>
         <p className="text-sm font-medium">Cookies, your call</p>
       </div>
       <p className="mt-1.5 text-[13px] leading-6 opacity-70">
@@ -80,7 +84,7 @@ export default function CookieConsent() {
         <a href="/cookies" className="underline underline-offset-2">Cookie policy</a>
       </p>
       {customizing && (
-        <div className="mt-3 space-y-2 rounded-xl bg-black/[0.04] p-3 text-[13px]">
+        <div className="mt-3 space-y-2 rounded-xl p-3 text-[13px]" style={{ background: "var(--nib-surface-soft)", accentColor: "var(--nib-focus)" }}>
           <label className="flex items-center justify-between gap-3">
             <span>Essential — sign-in, theme, wallet <span className="opacity-60">(always on)</span></span>
             <input type="checkbox" checked disabled aria-label="Essential cookies, always on" />
@@ -99,13 +103,15 @@ export default function CookieConsent() {
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           onClick={() => choose(true)}
-          className="bg-black px-4 py-2.5 text-sm font-medium text-white"
+          className="rounded-lg border px-4 py-2.5 text-sm font-medium hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-surface-soft)" }}
         >
           Accept all
         </button>
         <button
           onClick={() => choose(false)}
-          className="border border-dark-gray/60 px-4 py-2.5 text-sm font-medium hover:bg-black hover:text-white"
+          className="rounded-lg border px-4 py-2.5 text-sm font-medium hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{ borderColor: "var(--nib-border-soft)", background: "var(--nib-surface-soft)" }}
         >
           Essential only
         </button>

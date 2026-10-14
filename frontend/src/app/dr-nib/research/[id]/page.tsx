@@ -381,7 +381,7 @@ function SettlementReceipt({ run }: { run: any }) {
       <p className="mt-2 text-[13px] leading-6">
         Deposited ${deposited.toFixed(2)}
         {" · "}spent ${spent.toFixed(2)}{fee > 0 ? ` (+$${fee.toFixed(3)} fee)` : ""}
-        {" · "}refunded ${refunded.toFixed(2)}
+        {" · "}{esc?.jobId && !fundsTx ? "refund pending confirmation" : "refunded"} ${refunded.toFixed(2)}
       </p>
       {esc?.jobId ? (
         <p className="mt-1.5 text-xs leading-5 opacity-60">
@@ -770,7 +770,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   );
 
   const topic = run.brief?.topic || "Untitled run";
-  const spent = Number(run.spent || 0);
+  const spent = Number(run.used ?? run.spend ?? run.spent ?? 0);
   const cap = Number(run.budgetCap || 0);
   const pct = cap > 0 ? Math.min(100, Math.round((spent / cap) * 100)) : 0;
   // Honest empties: a finished search with zero sources is a finding ("asked,
@@ -800,8 +800,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
       ? "Parked at the budget cap — raise it to continue."
       : "Paused by you — resume when ready.",
     complete: "Complete — the report below is the finished product.",
-    failed: "This run failed — the unspent balance was refunded.",
-    ended: "Ended — the unspent balance was refunded.",
+    failed: "This run failed — check the receipt below for the refund status.",
+    ended: "Ended — check the receipt below for the refund status.",
   };
 
   return (

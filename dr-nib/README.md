@@ -112,7 +112,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Gate 1 — wallet policy | **Pending** | no vendor deployable on Arc (CDP dead); the `NibgateSpender` onchain cap is the practical substitute (`GATES.md`) |
 | Gate 2 — spend mandate (onchain cap) | Partial (ops) | `NibgateSpender` deployed testnet `0x903b0606…` ($2/day, not paused); code already routes tips via `spend()` — remaining work is fund + allowlist + set `DRNIB_SPENDER_ADDRESS` |
 | Frontend UI | Done | `/dr-nib` research / projects / sources / help + detail; testnet preview with play money; mainnet entry directs users to that preview. Settlement receipt, coverage badge + claim×source matrix, version-pinned owner-only report links, version steer display, report Q&A, duplicate runs, feed timestamps + jump-to-latest |
-| **Live end-to-end evidence** | Testnet verified | Funded browser runs 28/29, seven exports and onchain split/refunds verified. This does not prove all scenarios or mainnet readiness; see dated `TESTS.md`. QA artifacts remain in ignored `e2e/`. |
+| **Live end-to-end evidence** | Testnet verified | Funded browser runs 28/29 and QA run 33, seven exports, multi-round JEV decisions and onchain split/refunds verified. Paid-source selection, autonomous early stop, human-scored quality and mainnet readiness remain unproven; see dated `TESTS.md`. QA artifacts remain in ignored `e2e/`. |
 
 `ARCHITECTURE.md` remains the design reference; the historical build order
 there is superseded by this table.

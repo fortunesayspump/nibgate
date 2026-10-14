@@ -172,7 +172,8 @@ export function contentContainer(root: ParentNode = document): Element {
   for (const el of candidates) {
     if (isBoilerplateZone(el)) continue;
     const paras = el.querySelectorAll('p, blockquote, li');
-    const isContentTag = el.tagName === 'ARTICLE' || el.tagName === 'MAIN' || el.getAttribute('role') === 'main';
+    const isContentTag = el.tagName === 'ARTICLE' || el.tagName === 'MAIN' || el.getAttribute('role') === 'main'
+      || el.matches('.h-entry,.hentry,.entry-content,.post-content,.article-body,.post-body');
     if (paras.length < 2 && !isContentTag) continue;
     const score = proseLength(el);
     const depth = depthOf(el);

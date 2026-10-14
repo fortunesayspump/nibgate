@@ -2,16 +2,21 @@
 // Detects creator content and shows a dismissible floating tip control.
 // Rendered in a Shadow DOM so the host page's CSS can never break it (and
 // ours never leaks out). No wallet code here: signing happens in the worker.
-import { extractContent, contentContainer, recipientWalletFromPage, recipientWalletsFromPage, hasNibgateSdk } from './extract';
+import { extractContent, contentContainer, isBoilerplateZone, recipientWalletFromPage, recipientWalletsFromPage, hasNibgateSdk } from './extract';
 import type { PageWalletCandidate } from './extract';
 import { mapPage } from './page-model';
 import { isTippableUrl } from './guard';
+import coffeeSvg from '../../icons/coffee.svg';
+
+// UXWing's requested coffee icon; the inline reminder retains its line icon.
+const FLOATING_COFFEE = coffeeSvg.replace('<svg ', '<svg width="26" height="26" fill="currentColor" aria-hidden="true" ');
 
 const CARD_ID = 'nibgate-card';
 const HOST_ATTR = 'data-nibgate-widget';
 
 // Module ref into the shadow tree (document.getElementById can't see into it).
-let statusEl: HTMLElement | null = null;
+let statusEls: HTMLElement[] = [];
+let tipBusy = false;
 
 type CardInput = {
   content: { url: string; canonicalUrl: string; title: string; author: string; siteName: string; excerptTail?: string };
@@ -19,6 +24,8 @@ type CardInput = {
   hasSdk: boolean;
   isMainnet: boolean;
   state: 'resolved' | 'held' | 'unknown';
+  end?: Element | null;
+  root?: Element | null;
 };
 
 function fontUrl(file: string): string {
@@ -124,7 +131,7 @@ function watchPageVisual(host: HTMLElement, container: Element): void {
     themeObserver?.disconnect();
     themeObserver = new MutationObserver(() => {
       try {
-        applyPageVisual(host, container);
+        document.querySelectorAll<HTMLElement>(`[${HOST_ATTR}]`).forEach((widget) => applyPageVisual(widget, container));
       } catch {}
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
@@ -133,7 +140,7 @@ function watchPageVisual(host: HTMLElement, container: Element): void {
   } catch {}
 }
 
-function shadowStyles(): string {
+function shadowStyles(floating = true): string {
   const kumbh = fontUrl('KumbhSans-Regular.woff2');
   const kumbh600 = fontUrl('KumbhSans-SemiBold.woff2');
   const kumbh700 = fontUrl('KumbhSans-Bold.woff2');
@@ -141,18 +148,19 @@ function shadowStyles(): string {
     @font-face { font-family:'Kumbh Sans'; src:url('${kumbh}') format('woff2'); font-weight:400; }
     @font-face { font-family:'Kumbh Sans'; src:url('${kumbh600}') format('woff2'); font-weight:600; }
     @font-face { font-family:'Kumbh Sans'; src:url('${kumbh700}') format('woff2'); font-weight:700; }
-    :host { all: initial; position:fixed !important; inset:auto max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) auto !important; z-index:2147483646 !important; display:block; width:max-content; max-width:calc(100vw - 32px); --bg:#f4f4f0; --surface:#ffffff; --surface-2:#f0eee6; --border:#11111124; --fg:#0a0a0a; --muted:#44423d; --accent:#7c9a6d; --accent-ink:#10110e; --gold:#ffc900; --danger:#ff3e30; }
+    :host { all: initial; ${floating ? 'position:fixed !important; inset:auto max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) auto !important; z-index:2147483646 !important; width:max-content; max-width:calc(100vw - 32px);' : 'width:100%; margin:24px 0;'} display:block; --bg:#f4f4f0; --surface:#ffffff; --surface-2:#f0eee6; --border:#11111124; --fg:#0a0a0a; --muted:#44423d; --accent:#7c9a6d; --accent-ink:#10110e; --gold:#ffc900; --danger:#ff3e30; }
     @media (prefers-color-scheme: dark) {
       :host { --bg:#171813; --surface:#20221c; --surface-2:#242820; --border:#f3efe729; --fg:#f4f4f0; --muted:#b9b2a6; --accent:#a9c69a; --danger:#ff5b4d; }
     }
     /* Slim coffee trigger: the only thing that renders in-page. Everything
        about money lives in the extension window. */
-    #nibgate-card { position:relative; }
-    .dismiss { position:absolute; top:-10px; right:-8px; display:grid; place-items:center; width:28px; height:28px; padding:0; border:1px solid var(--border); border-radius:50%; background:var(--surface); color:var(--fg); cursor:pointer; box-shadow:0 2px 8px #0002; }
+    #nibgate-card { position:relative; display:flex; flex-direction:column; align-items:${floating ? 'flex-end' : 'flex-start'}; }
+    .dismiss { position:absolute; top:-5px; right:-5px; display:grid; place-items:center; width:20px; height:20px; padding:0; border:1px solid var(--border); border-radius:50%; background:var(--surface); color:var(--fg); cursor:pointer; box-shadow:0 2px 6px #0002; }
+    .dismiss::after { content:''; position:absolute; inset:-4px; border-radius:50%; }
     button:focus-visible { outline:3px solid var(--fg); outline-offset:3px; }
-    .tipbtn { display:inline-flex; align-items:center; gap:8px; box-sizing:border-box; cursor:pointer; margin:0; max-width:calc(100vw - 32px); box-shadow:0 4px 20px #0003;
+    .tipbtn { display:inline-flex; align-items:center; justify-content:center; gap:8px; box-sizing:border-box; cursor:pointer; margin:0; ${floating ? 'width:48px; height:48px; box-shadow:0 4px 20px #0003;' : 'width:max-content; max-width:100%;'}
       font-family:var(--wc-font, 'Kumbh Sans','ABC Favorit',system-ui,sans-serif); font-size:var(--wc-size, 14px); font-weight:700;
-      background:var(--accent); color:var(--accent-ink); border:0; border-radius:999px; padding:10px 18px; }
+      background:var(--accent); color:var(--accent-ink); border:0; border-radius:${floating ? '50%' : '999px'}; padding:${floating ? '0' : '10px 18px'}; }
     .tipbtn:hover { filter:brightness(1.05); }
     .tipbtn svg { flex:none; display:block; }
     .tipbtn:disabled { opacity:.6; cursor:default; filter:none; }
@@ -162,12 +170,12 @@ function shadowStyles(): string {
   `;
 }
 
-function cardMarkup(): string {
+function cardMarkup(floating = true): string {
   return `
-    <style>${shadowStyles()}</style>
+    <style>${shadowStyles(floating)}</style>
     <div id="${CARD_ID}">
-      <button class="dismiss" data-dismiss-tip aria-label="Dismiss tip button" title="Dismiss for this page"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
-      <button class="tipbtn" data-open-tip aria-label="Tip the creator"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h13v5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 7c0-1.2.9-1.2.9-2.4M12 7c0-1.2.9-1.2.9-2.4"/></svg>Tip the creator</button>
+      ${floating ? '<button class="dismiss" data-dismiss-tip aria-label="Dismiss floating tip button" title="Dismiss for this page"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>' : ''}
+      <button class="tipbtn" data-open-tip aria-label="Tip the creator" title="Tip the creator">${floating ? FLOATING_COFFEE : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h13v5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 7c0-1.2.9-1.2.9-2.4M12 7c0-1.2.9-1.2.9-2.4"/></svg>'}${floating ? '' : 'Tip the creator'}</button>
       <div data-tip-status role="status" aria-live="polite"></div>
     </div>`;
 }
@@ -251,46 +259,58 @@ async function assessState(): Promise<CardInput | null> {
   } catch {
     state = hasSdk ? 'resolved' : 'held';
   }
-  return { content, pageWallet, hasSdk, isMainnet, state };
+  return { content, pageWallet, hasSdk, isMainnet, state, end: map.anchor ?? map.end, root: map.root };
 }
 
 function renderCard(input: CardInput, runId: string): void {
-  // One widget per page: dedupe on the host element in the page DOM.
   if (document.querySelector(`[${HOST_ATTR}]`)) return;
-
-  const host = document.createElement('div');
-  host.setAttribute(HOST_ATTR, '');
-  const shadow = host.attachShadow({ mode: 'open' });
-  shadow.innerHTML = cardMarkup();
-  const card = shadow.getElementById(CARD_ID);
-  if (card) card.setAttribute('data-run', runId);
-  statusEl = shadow.querySelector('[data-tip-status]');
-
-  shadow.querySelector('[data-open-tip]')?.addEventListener('click', async (event) => {
-    const button = event.currentTarget as HTMLButtonElement;
-    if (button.disabled) return;
-    button.disabled = true;
-    try { await openTipWindow(input.content, input.pageWallet); }
-    finally { button.disabled = false; }
-  });
-
-  const container = contentContainer();
-  try { applyPageVisual(host, container); } catch {}
-  document.documentElement.appendChild(host);
-  shadow.querySelector('[data-dismiss-tip]')?.addEventListener('click', () => {
+  const container = input.root ?? contentContainer();
+  statusEls = [];
+  const mount = (floating: boolean) => {
+    const host = document.createElement('div');
+    host.setAttribute(HOST_ATTR, floating ? 'floating' : 'inline');
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = cardMarkup(floating);
+    shadow.getElementById(CARD_ID)?.setAttribute('data-run', runId);
+    const status = shadow.querySelector<HTMLElement>('[data-tip-status]');
+    if (status) statusEls.push(status);
+    shadow.querySelector('[data-open-tip]')?.addEventListener('click', async () => {
+      if (tipBusy) return;
+      tipBusy = true;
+      const buttons = Array.from(document.querySelectorAll(`[${HOST_ATTR}]`))
+        .map((widget) => widget.shadowRoot?.querySelector<HTMLButtonElement>('[data-open-tip]')).filter(Boolean);
+      buttons.forEach((button) => { button!.disabled = true; });
+      try { await openTipWindow(input.content, input.pageWallet); }
+      finally { tipBusy = false; buttons.forEach((button) => { button!.disabled = false; }); }
+    });
+    try { applyPageVisual(host, container); } catch {}
+    return { host, shadow };
+  };
+  const floating = mount(true);
+  document.documentElement.appendChild(floating.host);
+  floating.shadow.querySelector('[data-dismiss-tip]')?.addEventListener('click', () => {
     (window as any).__nibgateDismissedUrl = window.location.href.split('#')[0];
-    host.remove();
-    statusEl = null;
-    themeObserver?.disconnect();
+    floating.host.remove();
+    statusEls = statusEls.filter((el) => el.isConnected);
   });
-  watchPageVisual(host, container);
+  const inline = mount(false);
+  let anchor = input.end;
+  if (!anchor || /^H[1-6]$/.test(anchor.tagName)) {
+    const blocks = Array.from(container.querySelectorAll('p,blockquote,pre,figure'))
+      .filter((el) => !isBoilerplateZone(el) && ((el.textContent || '').trim().length >= 40 || el.tagName === 'FIGURE'));
+    anchor = blocks[blocks.length - 1] ?? null;
+  }
+  if (anchor?.parentNode) anchor.parentNode.insertBefore(inline.host, anchor.nextSibling);
+  else container.appendChild(inline.host);
+  watchPageVisual(floating.host, container);
 }
 
 // The button opens the extension tip window (all money UI lives there).
 // Afterwards the card polls for the receipt so the page shows the outcome.
 async function openTipWindow(content: CardInput['content'], pageWallet: string) {
+  const currentStatuses = [...statusEls];
   const say = (text: string) => {
-    if (statusEl) statusEl.textContent = text;
+    currentStatuses.filter((el) => el.isConnected).forEach((el) => { el.textContent = text; });
   };
   // Extension reloaded or page frozen (bfcache): the message channel is gone.
   // Bail quietly instead of throwing unchecked lastError noise.
@@ -356,7 +376,9 @@ async function main() {
   const assess = async () => {
     if (stopped || busy || shared.__nibgateCardRun !== myRun) return;
     if (shared.__nibgateDismissedUrl === pageUrl || document.querySelector(`[${HOST_ATTR}]`)) return;
-    const signature = pageUrl + document.title + (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+    const mediaSignature = Array.from(document.querySelectorAll('img,video,audio,iframe')).slice(0, 200)
+      .map((el) => [el.getAttribute('src'), el.getAttribute('srcset'), el.getAttribute('width'), (el as HTMLImageElement).naturalWidth || 0].join(':')).join('|');
+    const signature = pageUrl + document.title + mediaSignature + (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
     if (signature === lastSignature) return;
     lastSignature = signature;
     busy = true;
@@ -376,16 +398,16 @@ async function main() {
   const observer = new MutationObserver((changes) => {
     if (changes.some((c) => !((c.target as Element).closest?.(`[${HOST_ATTR}]`)))) schedule();
   });
-  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'srcset', 'width', 'height'] });
   // SPA navigation does not necessarily trigger a Chrome tab load event.
   const navigation = setInterval(() => {
     const next = window.location.href.split('#')[0];
     if (next === pageUrl) return;
     pageUrl = next;
     lastSignature = '';
-    document.querySelector(`[${HOST_ATTR}]`)?.remove();
+    document.querySelectorAll(`[${HOST_ATTR}]`).forEach((el) => el.remove());
     themeObserver?.disconnect();
-    statusEl = null;
+    statusEls = [];
     schedule();
   }, 1000);
   const retries = [1500, 4000, 10000].map((ms) => setTimeout(() => { void assess(); }, ms));

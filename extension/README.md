@@ -55,8 +55,10 @@ Right-click any HTTP(S) page or link and choose **Tip this page**. This opens th
 
 1. Open an article, tutorial, paper, photo post, music recording, or video page. (Nibgate's own sites are
    excluded — they already tip natively.)
-2. A **coffee-button** floats at the bottom right. That's the whole page UI —
-   dismiss it with **×** for the current page. Amounts and approvals stay in the extension window.
+2. A **coffee icon** floats at the bottom right, with a **Tip the creator**
+   tooltip. A full **Tip the creator** button remains at the detected content's
+   end. **×** hides only the floating icon for the current page. Both open the
+   same extension tip window; amounts and approvals stay there.
 
 3. Tapping it opens the Nibgate **tip window**: amount presets ($1 / $5 / $10)
    or custom, a review step showing exactly who gets paid and the fee, then
@@ -110,7 +112,7 @@ by you at runtime ("Enable on all sites") — install asks for almost nothing.
 ```text
 page (untrusted)            extension (trusted)
 ─────────────────           ──────────────────────────────────
-article DOM ──► content/tip-card.ts (ONE coffee button only)
+article DOM ──► content/tip-card.ts (floating coffee icon + inline reminder)
                        │  chrome.runtime messages (TIP_OPEN/GET/
                        ▼  CHALLENGE/EXECUTE/CANCEL/RESULT)
                 background/service-worker.ts — keys, signing,
@@ -141,7 +143,7 @@ extension/
   manifest.json            # MV3, v1.2.0: worker, popup, optional site access
   package.json / tsconfig  # TS + esbuild
   src/
-    content/tip-card.ts    # the single coffee-button trigger + TIP_RESULT poll
+    content/tip-card.ts    # both tip triggers + TIP_RESULT poll
     content/page-model.ts  # deterministic page map (kind/root/bounds/author/
                            #   eligibility) — every judgment a JEV decision
                            #   over scored options, no LLM, no network

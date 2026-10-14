@@ -12,6 +12,9 @@ for (const [name, body, head] of [
   ['photo-only published work', '<main><div class="h-entry"><h1>A practical tutorial</h1><figure><img src="/photo.jpg" width="1200" height="800"><figcaption>Morning light</figcaption></figure></div></main>', '<meta name="author" content="A photographer">'],
   ['short audio post', '<main class="h-entry"><h1>A practical tutorial</h1><audio controls src="/recording.mp3"></audio><p>My new recording.</p></main>', '<meta name="author" content="A musician">'],
   ['short video post', '<main class="h-entry"><h1>A practical tutorial</h1><iframe src="https://www.youtube-nocookie.com/embed/example"></iframe><p>My latest film.</p></main>', '<meta name="author" content="A filmmaker">'],
+  ['Next.js app-root article', `<div id="__next">${article()}</div>`, ''],
+  ['Ghost taxonomy classes on a post', `<main><article class="post tag-personal"><h1>A practical tutorial</h1><p>${prose(400)}</p></article></main>`, ''],
+  ['Blogger line-break post without paragraphs', `<div class="widget Blog" id="Blog1"><main><div class="post hentry"><h1>A practical tutorial</h1><div class="post-body">${prose(350)}<br>${prose(50)}</div></div></main></div>`, '<meta property="og:type" content="article">'],
 ]) {
   test(`detects ${name}`, async () => {
     const f = fixture(body, head);
@@ -49,6 +52,12 @@ test('hydrated content gets one floating control, one tip request, and stays dis
     await f.tick(1600);
     assert.equal(f.messages.filter((m) => m.type === 'TIP_OPEN').length, 1);
     host.shadowRoot.querySelector('[data-dismiss-tip]').click();
+    const inline = f.window.document.querySelector('[data-nibgate-widget="inline"]');
+    assert.ok(inline, 'inline reminder survives dismissal');
+    inline.shadowRoot.querySelector('[data-open-tip]').click();
+    await f.tick(1600);
+    assert.equal(f.messages.filter((m) => m.type === 'TIP_OPEN').length, 2);
+    assert.match(inline.shadowRoot.textContent, /Tip the creator/);
     f.window.document.body.appendChild(f.window.document.createElement('p'));
     await f.tick(11000);
     assert.equal(f.host(), null);
@@ -59,6 +68,13 @@ test('hydrated content gets one floating control, one tip request, and stays dis
     f.window.document.body.innerHTML = article();
     await f.tick(2100);
     assert.ok(f.host(), 'SPA navigation should reassess the new page');
-    assert.equal(f.window.document.querySelectorAll('[data-nibgate-widget]').length, 1);
+    assert.equal(f.window.document.querySelectorAll('[data-nibgate-widget]').length, 2);
   } finally { f.close(); }
+});
+
+test('WordPress sidebar layout class on body does not suppress an article', async () => {
+  const f = fixture(article());
+  f.window.document.body.className = 'single-post right-sidebar';
+  try { await f.tick(0); assert.ok(f.host()); }
+  finally { f.close(); }
 });

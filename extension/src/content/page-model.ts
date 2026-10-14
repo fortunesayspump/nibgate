@@ -49,6 +49,7 @@ const CHROME_HINT =
   /(^|[-_\s])(share|shared|social|related|recommend|comment|comments|webmention|webmentions|disqus|tag|tags|subscribe|newsletter|cookie|consent|breadcrumb|author-bio|bio|promo|advert|ad|sponsor|sidebar|menu|nav|footer|widget|meta|pagination|pager|more-posts|back|prev|next)([-_\s]|$)/i;
 const READ_MORE = /(read more|continue reading|read the rest|full story|keep reading|read on)\b/i;
 const BLOCK_SEL = 'h1,h2,h3,h4,h5,h6,p,blockquote,pre,figure';
+const POST_ROOT_SEL = 'article,[role="article"],.h-entry,.hentry,.entry-content,.post-content,.article-body,.post-body';
 
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
@@ -61,12 +62,18 @@ function wordsOf(el: Element | null | undefined): number {
 function hintOf(el: Element): string {
   return `${el.className || ''} ${el.id || ''}`.toString().toLowerCase();
 }
+function chromeZone(el: Element): boolean {
+  // Layout/root classes describe the whole page, not a boilerplate region.
+  // Ghost tags, WordPress sidebar layouts, and Next's __next are common here.
+  if (el.matches('html, body, main, article, [role="main"], [role="article"], .h-entry, .hentry, .entry-content, .post-content, .article-body, .widget.Blog') || el.id === '__next') return false;
+  return CHROME_HINT.test(hintOf(el));
+}
 function isBoiler(el: Element | null): boolean {
   if (!el) return false;
   try {
     if (el.closest(BOILER)) return true;
     for (let node: Element | null = el; node; node = node.parentElement) {
-      if (CHROME_HINT.test(hintOf(node))) return true;
+      if (chromeZone(node)) return true;
     }
     return false;
   } catch {
@@ -75,10 +82,18 @@ function isBoiler(el: Element | null): boolean {
 }
 function proseWords(el: Element): number {
   let total = 0;
-  el.querySelectorAll('p, blockquote, pre').forEach((p) => {
+  el.querySelectorAll('p, blockquote, pre, li').forEach((p) => {
     if (isBoiler(p)) return;
+    if (p.tagName === 'LI' && p.querySelector('p,blockquote,pre')) return;
     total += Math.min(wordsOf(p), 2000);
   });
+  // Blogger and some minimalist blogs use divs + line breaks instead of p.
+  // Only use raw text inside a declared post root, never the whole dashboard.
+  if (total < 120 && el.matches(POST_ROOT_SEL) && !isBoiler(el)) {
+    const clone = el.cloneNode(true) as Element;
+    clone.querySelectorAll('script,style,template,noscript,nav,header,footer,aside,form,.comments,#comments,.webmentions,.related,[hidden],[aria-hidden="true"]').forEach((node) => node.remove());
+    total = Math.max(total, wordsOf(clone));
+  }
   return total;
 }
 function linkWords(el: Element): number {
@@ -222,9 +237,12 @@ function elementValue(option: JevOption, weights: Record<string, number>): numbe
 //    strongest evidence wins. Feeds/landings win their own signals and get cut.
 function classify(doc: Document): { decision: JevDecision; options: JevOption[]; policy: JevPolicy } {
   let pageProse = 0;
-  doc.querySelectorAll('p, blockquote, pre').forEach((p) => {
+  doc.querySelectorAll('p, blockquote, pre, li').forEach((p) => {
+    if (p.tagName === 'LI' && p.querySelector('p,blockquote,pre')) return;
     if (!isBoiler(p)) pageProse += Math.min(wordsOf(p), 2000);
   });
+  const postRoots = Array.from(doc.querySelectorAll(POST_ROOT_SEL)).filter((el) => !el.parentElement?.closest(POST_ROOT_SEL));
+  pageProse = Math.max(pageProse, postRoots.reduce((total, el) => total + proseWords(el), 0));
   const best = contentContainer(doc);
   const bestProse = proseWords(best);
   const singleFocus = clamp01(bestProse / Math.max(1, pageProse));
@@ -339,6 +357,8 @@ function pickRoot(
     '.entry-content',
     '.article-body',
     '.h-entry',
+    '.hentry',
+    '.post-body',
     '[itemtype*="Article"]',
   ];
   const seen = new Set<Element>();
@@ -346,6 +366,7 @@ function pickRoot(
   const entries: Array<{ el: Element; option: JevOption }> = [];
   const add = (el: Element | null) => {
     if (!el || seen.has(el) || isBoiler(el)) return;
+    if (el.matches('body,html') && doc.querySelector(`main,[role="main"],${POST_ROOT_SEL}`)) return;
     seen.add(el);
     const w = proseWords(el);
     const mediaWork = mediaWorkScore(doc, el);
@@ -596,7 +617,7 @@ function pickType(doc: Document, root: Element | null): { decision: JevDecision;
 function pickMedia(doc: Document, root: Element | null): Element | null {
   const sel =
     'video, audio, iframe[src*="youtube"], iframe[src*="vimeo"], iframe[src*="player"], iframe[src*="spotify"], iframe[src*="anchor.fm"], [itemprop="video"], [itemprop="audio"]';
-  return (root ?? doc).querySelector(sel) || doc.querySelector(sel);
+  return (root ?? doc).querySelector(sel);
 }
 
 // For a gallery, the tip belongs after the last content figure, not after a

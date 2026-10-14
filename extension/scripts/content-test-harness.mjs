@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 
-const bundled = await build({ entryPoints: ['src/content/tip-card.ts'], absWorkingDir: fileURLToPath(new URL('..', import.meta.url)), bundle: true, format: 'iife', write: false, target: 'es2022' });
+const bundled = await build({ entryPoints: ['src/content/tip-card.ts'], absWorkingDir: fileURLToPath(new URL('..', import.meta.url)), bundle: true, format: 'iife', write: false, target: 'es2022', loader: { '.svg': 'text' } });
 const code = bundled.outputFiles[0].text;
 export function fixture(body, head = '') {
   const dom = new JSDOM(`<!doctype html><html><head><title>A practical tutorial</title>${head}</head><body>${body}</body></html>`, { url: 'https://creator.example/tutorial', runScripts: 'outside-only', pretendToBeVisual: true });
@@ -51,5 +51,5 @@ export function fixture(body, head = '') {
     await flush();
   };
   window.eval(code);
-  return { window, messages, tick, host: () => window.document.querySelector('[data-nibgate-widget]'), reinject: () => window.eval(code), close: () => { window.__nibgateCardCleanup?.(); window.close(); } };
+  return { window, messages, tick, host: () => window.document.querySelector('[data-nibgate-widget="floating"]'), reinject: () => window.eval(code), close: () => { window.__nibgateCardCleanup?.(); window.close(); } };
 }

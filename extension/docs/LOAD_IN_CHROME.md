@@ -22,8 +22,9 @@ Testnet default, mainnet behind the confirm-gated header pill.
    immediately (otherwise reload the tab).
 7. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
    already have native tipping). The coffee-button tip trigger floats at the
-   bottom right. Dismiss it with **×** for the current page; the right-click
-   **Tip this page** action stays available.
+   bottom right. Dismiss it with **×** for the current page; the full **Tip the
+   creator** button at the content's end and the right-click **Tip this page**
+   action stay available.
 8. Fund the wallet: on **testnet** tap the home-screen **Faucet** action — it
    copies your address and opens the Circle faucet
    (`https://faucet.circle.com`) where you pick Arc Testnet and request free

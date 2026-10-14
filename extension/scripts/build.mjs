@@ -19,6 +19,7 @@ const esbuildOptions = {
   format: 'iife',
   platform: 'browser',
   target: 'es2022',
+  loader: { '.svg': 'text' },
   outdir,
   absWorkingDir: root,
   // @circle-fin/x402-batching imports Node's "crypto"; shim it to WebCrypto.

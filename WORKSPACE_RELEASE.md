@@ -23,9 +23,13 @@ Local C: ran out of space. Generated app build output and disposable npm/test ca
 
 ## Rollout
 
-Vercel Git deployment guards remain disabled during the backend-first stage. Deploy the backend commit on both networks and verify live OpenAPI/MCP 0.2.12 before promoting the npm releases or dependent clients. Publish the two matching artifacts under a staging tag first, then update the public tags together. Restore normal Vercel Git policy for the client rollout and verify the exact commit on every affected service.
+PR #3 merged as `0c624d6b82dc4b14959bfc6fb63838b193443e92`. Live mainnet and testnet OpenAPI, MCP initialization, tools/list, and server cards passed at 0.2.12. Railway service settings use the repository root, installed Prisma generation, and package-filtered startup. Vercel projects use Node 22, their respective app roots, access to external workspace source, and frozen root installation.
+
+SDK 0.4.35 and wallet 0.4.25 uploads were accepted under the staging `release` tag. Confirm npm processing completes before promoting public tags. The client rollout restores normal Vercel Git deployment policy only after backend verification. Verify the exact deployed commit on all affected services.
 
 Republish `mcp-registry/server.json` with the official MCP publisher and verify the live registry record. Verify discovery.md, skill.md, agent-skills, llms indexes, API/MCP, docs, and npm/CDN artifacts after deployment.
+
+`node scripts/check-live-payment-release.mjs` checks the public API/MCP release on both networks. Add `--clients` after client rollout to check the live discovery and documentation surfaces.
 
 No funded wallet transaction is part of automated validation. The PostgreSQL fixtures use real EOA signatures and database behavior with synthetic chain/facilitator responses; they do not establish funded live-chain correctness.
 

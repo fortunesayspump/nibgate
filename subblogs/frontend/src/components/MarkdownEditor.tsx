@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, Extension } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import ImageExt from "@tiptap/extension-image";
@@ -14,7 +14,6 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 import { Markdown } from "tiptap-markdown";
 import { createVirtualCursor } from "prosemirror-virtual-cursor";
-import { Extension } from "@tiptap/core";
 import {
   Bold, Italic, Strikethrough, Heading2, Quote, List, ListOrdered,
   Link2, Image, Code, Code2, Undo2, Redo2, Table2, CheckSquare,

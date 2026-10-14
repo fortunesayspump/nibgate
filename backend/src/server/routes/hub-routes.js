@@ -1,3 +1,4 @@
+import { gatewayTipIdentity, transferTipIdentity, tipRequestBinding, recordTipOnce, isTipClaimMetadata } from '../hub/tip-idempotency.js';
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
 import { activeNetwork } from '@nibgate/internal/networks.js';
@@ -787,6 +788,7 @@ export function registerHubRoutes(app) {
 
   app.post('/api/hub/pay', hubPayLimiter, async (req, res) => {
     try {
+      if (isTipClaimMetadata(req.body?.contentId)) return res.status(400).json({ error: 'This contentId uses a reserved internal namespace.' });
       const { price, recipient, title, paymentRail } = req.body || {};
       let resolvedRecipient = recipient || process.env.NIBGATE_SELLER_ADDRESS || '';
       if (!resolvedRecipient) return res.status(400).json({ error: 'No recipient wallet provided. Pass recipient in request body or set NIBGATE_SELLER_ADDRESS.' });
@@ -836,7 +838,7 @@ export function registerHubRoutes(app) {
         } catch (claimError) {
           if (claimError?.code === 'P2002') {
             const existing = await db.paymentTxClaim.findUnique({ where: { txHash: claimedTx } });
-            if (existing && existing.contentId !== claimContentId) {
+            if (existing && (isTipClaimMetadata(existing.contentId) || existing.contentId !== claimContentId)) {
               return res.status(402).json({ ok: false, error: 'Payment already used for different content', reason: 'txhash-claimed-elsewhere' });
             }
           } else {
@@ -1321,80 +1323,61 @@ export function registerHubRoutes(app) {
   app.post('/api/hub/tips/verify', hubTipLimiter, async (req, res) => {
     try {
       const tip = await tipServer();
-      if (!tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
-      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, walletAddress, contentId, websiteId, imageUrl, domain } = req.body || {};
-      const rail = String(paymentRail || 'transfer').toLowerCase();
+
+      if (!tip ) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, contentId, websiteId, imageUrl, domain } = req.body || {};
       const hubNet = activeNetwork();
-      const tipNetwork = normalizeNetworkName(network) || hubNet.name;
-      const payNetwork = hubNet.caip2;
-      const reqd = await tip.createTipRequirement(
-        { contentUrl: contentUrl || url, title, amount, currency, recipient },
-        { network: payNetwork, paymentRail: rail },
-      );
-      const verifier = tip.createTipVerifier({});
-      let provider = 'direct-transfer';
-      let paymentId = txHash || null;
-      let receiptTxHash = txHash || null;
-      let payer = walletAddress || null;
-      if (rail === 'transfer' || rail === 'direct-transfer') {
-        if (!txHash) return res.status(400).json({ error: 'txHash is required.' });
-        const ok = await verifier.verifyDirect({
-          resource: { price: String(amount) },
-          txHash,
-          payment: { recipient: reqd.payee, amount: Number(amount) },
-        });
-        if (!ok) return res.status(402).json({ ok: false, error: 'Tip transfer verification failed' });
-      } else {
-        // Browser clients send the gateway signature in the body; the
-        // facilitator check reads the payment-signature header. Map it.
-        req.headers['payment-signature'] = req.headers['payment-signature'] || req.body?.paymentSignature || req.body?.paymentId || '';
-        const gw = await verifier.verifyGateway({
-          req, resource: { contentUrl: contentUrl || url, title }, recipient: reqd.payee, amount, network: payNetwork,
-        });
-        if (gw.handled) {
-          const status = gw.response?.status || 402;
-          let body = null;
-          try { body = JSON.parse(await gw.response.text()); } catch { body = { error: 'Payment required' }; }
-          return res.status(status).json(body);
-        }
-        provider = 'circle-gateway';
-        paymentId = gw.payment.paymentId || gw.payment.txHash || null;
-        receiptTxHash = gw.payment.txHash || null;
-        payer = gw.payment.payer || walletAddress || null;
-      }
-      // Attribute the tip to indexed content when possible. Clients may send
-      // only a relative path; resolve it (or the given contentId/externalId)
-      // so the row carries contentId/websiteId/domain/imageUrl like a view.
-      const resolved = await resolveTipContent({
-        contentId, contentUrl: contentUrl || url, websiteId,
-      }).catch(() => null);
+      if (network && normalizeNetworkName(network) !== hubNet.name) return res.status(400).json({ error: 'Payment network does not match this hub.' });
+      const target = String(contentUrl || url || '');
+      if (!target || !(Number(amount) > 0) || !Number.isFinite(Number(amount))) return res.status(400).json({ error: 'contentUrl and a positive finite amount are required.' });
+      const resolved = await resolveTipContent({ contentId, contentUrl: target, websiteId }).catch(() => null);
       const resolvedWebsite = resolved?.website || null;
-      const storedUrl = resolved?.url || contentUrl || url || null;
+      const storedUrl = resolved?.url || target;
       const storedContentId = resolved?.id || contentId || null;
       const storedWebsiteId = websiteId || resolved?.websiteId || resolvedWebsite?.id || null;
       const storedImageUrl = imageUrl || resolved?.imageUrl || null;
-      let storedDomain = String(domain || '').trim();
-      if (!storedDomain) { try { storedDomain = storedUrl ? new URL(storedUrl).hostname : ''; } catch { storedDomain = ''; } }
-      if (!storedDomain) storedDomain = resolvedWebsite?.domain || '';
-      const receipt = tip.tipReceipt({
-        contentUrl: storedUrl || contentUrl || url, title, amount, currency, network: tipNetwork,
-        payerWallet: payer, recipient, payee: reqd.payee,
-        protocolFee: reqd.protocolFee, feeBps: reqd.feeBps, txHash: receiptTxHash,
-      });
-      const row = await db.tip.create({
-        data: {
-          contentUrl: storedUrl || contentUrl || url || null, contentId: storedContentId, websiteId: storedWebsiteId,
-          domain: storedDomain || null,
-          title: title || resolved?.title || null, imageUrl: storedImageUrl,
-          amount: Number(amount), currency: currency || 'USDC', network: tipNetwork,
-          payerWallet: payer, recipientWallet: recipient || null, payeeWallet: reqd.payee,
-          protocolFee: reqd.protocolFee, feeBps: reqd.feeBps,
-          paymentProvider: provider, paymentId, txHash: receiptTxHash, status: 'settled',
+      let dom = String(domain || '').trim();
+      if (!dom) { try { dom = new URL(storedUrl).hostname; } catch { dom = ''; } }
+      if (!dom) dom = resolvedWebsite?.domain || '';
+      const reqd = await tip.createTipRequirement({ contentUrl: target, title, amount, currency, recipient }, { network: hubNet.caip2, paymentRail: paymentRail || 'transfer' });
+      const rail = String(paymentRail || 'transfer').toLowerCase();
+      const isTransfer = rail === 'transfer' || rail === 'direct-transfer';
+      const signature = req.headers['payment-signature'] || req.body?.paymentSignature || req.body?.paymentId || '';
+
+      const payee = reqd.payee;
+      const identity = isTransfer ? transferTipIdentity(txHash) : await gatewayTipIdentity(signature, hubNet.caip2, reqd.challenge.accepts[0]);
+      const binding = tipRequestBinding(req.body || {}, { network: hubNet.caip2, payee, status: 'settled' });
+      const verifier = tip.createTipVerifier({});
+      const { row, replayed } = await recordTipOnce({
+        db, identity, binding,
+        verify: async () => {
+          if (isTransfer) {
+            const payment = { recipient: payee, amount: Number(amount) };
+            const ok = await verifier.verifyDirect({ resource: { price: String(amount) }, txHash, payment });
+            if (!ok || !/^0x[0-9a-f]{40}$/i.test(payment.transferPayer || '')) throw Object.assign(new Error('Tip transfer verification failed or verified payer unavailable.'), { status: 402 });
+            return { payer: payment.transferPayer.toLowerCase(), paymentId: identity.key, receiptTxHash: identity.key, provider: 'direct-transfer' };
+          }
+          req.headers['payment-signature'] = signature;
+          const gw = await verifier.verifyGateway({ req, resource: { contentUrl: target, title }, recipient: payee, amount, network: hubNet.caip2 });
+          if (gw.handled || String(gw.payment?.payer || '').toLowerCase() !== identity.payer) throw Object.assign(new Error('Gateway settlement is not confirmed. Reconcile this proof before any new payment.'), { code: 'payment-verification-pending' });
+          return { payer: identity.payer, paymentId: identity.key, receiptTxHash: gw.payment.txHash || null, provider: 'circle-gateway' };
         },
+        makeData: async (paid) => ({
+          contentUrl: storedUrl, contentId: storedContentId, websiteId: storedWebsiteId,
+          domain: dom || null, title: title || resolved?.title || null, imageUrl: storedImageUrl,
+          amount: Number(amount), currency: currency || 'USDC', network: hubNet.name,
+          payerWallet: paid.payer, recipientWallet: recipient || null, payeeWallet: payee,
+          protocolFee: reqd.protocolFee, feeBps: reqd.feeBps,
+          paymentProvider: paid.provider, paymentId: paid.paymentId, txHash: paid.receiptTxHash,
+          status: 'settled',
+        }),
       });
-      res.json({ success: true, receipt, id: row.id });
+      const receipt = tip.tipReceipt({ contentUrl: row.contentUrl, title: row.title, amount: row.amount, currency: row.currency, network: row.network, payerWallet: row.payerWallet, recipient: row.recipientWallet, payee: row.payeeWallet, protocolFee: row.protocolFee, feeBps: row.feeBps, txHash: row.txHash, paymentId: row.paymentId });
+      receipt.timestamp = new Date(row.createdAt).toISOString();
+      res.json({ success: true, receipt, id: row.id, replayed });
     } catch (error) {
-      res.status(400).json({ error: error.message });
+      if (['payment-proof-already-used', 'payment-verification-pending'].includes(error?.code)) return res.status(409).json({ success: false, code: error.code, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message });
     }
   });
 
@@ -1417,16 +1400,14 @@ export function registerHubRoutes(app) {
   //   POST with proof      → verify into the box, record a held Tip
   app.post('/api/hub/tips/hold', hubTipLimiter, async (req, res) => {
     try {
-      const holding = await holdingServer();
       const tip = await tipServer();
-      if (!holding || !tip) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
-      const { contentUrl, url, title, amount, currency, domain, paymentRail, walletAddress, txHash, contentId, websiteId, imageUrl } = req.body || {};
+      const holding = await holdingServer();
+      if (!tip || !holding) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const { contentUrl, url, title, amount, currency, network, recipient, paymentRail, txHash, contentId, websiteId, imageUrl, domain } = req.body || {};
+      const hubNet = activeNetwork();
+      if (network && normalizeNetworkName(network) !== hubNet.name) return res.status(400).json({ error: 'Payment network does not match this hub.' });
       const target = String(contentUrl || url || '');
-      if (!target) return res.status(400).json({ error: 'contentUrl is required.' });
-      if (!(Number(amount) > 0)) return res.status(400).json({ error: 'amount must be > 0.' });
-      // Resolve indexed content first: it recovers the canonical URL, an
-      // explicit domain, and contentId/websiteId/imageUrl from a client that
-      // only sent a relative path.
+      if (!target || !(Number(amount) > 0) || !Number.isFinite(Number(amount))) return res.status(400).json({ error: 'contentUrl and a positive finite amount are required.' });
       const resolved = await resolveTipContent({ contentId, contentUrl: target, websiteId }).catch(() => null);
       const resolvedWebsite = resolved?.website || null;
       const storedUrl = resolved?.url || target;
@@ -1437,63 +1418,43 @@ export function registerHubRoutes(app) {
       if (!dom) { try { dom = new URL(storedUrl).hostname; } catch { dom = ''; } }
       if (!dom) dom = resolvedWebsite?.domain || '';
       if (!dom) return res.status(400).json({ error: 'Could not determine domain; pass domain explicitly.' });
-      const hubNet = activeNetwork();
-      const reqd = holding.buildHoldingRequirement(
-        { contentUrl: storedUrl, title: title || resolved?.title, amount, currency, domain: dom },
-        { network: hubNet.name, paymentRail },
-      );
+      const reqd = holding.buildHoldingRequirement({ contentUrl: storedUrl, title: title || resolved?.title, amount, currency, domain: dom }, { network: hubNet.name, paymentRail });
       const rail = String(paymentRail || reqd.challenge.paymentRail || 'gateway').toLowerCase();
       const isTransfer = rail === 'transfer' || rail === 'direct-transfer';
-      const gatewaySig = req.headers['payment-signature'] || req.body?.paymentSignature || req.body?.paymentId || '';
-      const hasProof = isTransfer ? Boolean(txHash) : Boolean(gatewaySig);
-      if (!hasProof) {
-        return res.json({ success: true, holdStatus: 'challenge', domain: dom, box: reqd.box, feeBps: reqd.feeBps, ...reqd.challenge });
-      }
+      const signature = req.headers['payment-signature'] || req.body?.paymentSignature || req.body?.paymentId || '';
+      if (!(isTransfer ? txHash : signature)) return res.json({ success: true, holdStatus: 'challenge', domain: dom, box: reqd.box, feeBps: reqd.feeBps, ...reqd.challenge });
+      const payee = reqd.box;
+      const identity = isTransfer ? transferTipIdentity(txHash) : await gatewayTipIdentity(signature, hubNet.caip2, reqd.challenge.accepts[0]);
+      const binding = tipRequestBinding(req.body || {}, { network: hubNet.caip2, payee, status: 'held' });
       const verifier = tip.createTipVerifier({});
-      let payer = walletAddress || null;
-      let paymentId = txHash || null;
-      let receiptTxHash = txHash || null;
-      let provider = 'direct-transfer';
-      if (isTransfer) {
-        const ok = await verifier.verifyDirect({
-          resource: { price: String(amount) },
-          txHash,
-          payment: { recipient: reqd.box, amount: Number(amount) },
-        });
-        if (!ok) return res.status(402).json({ ok: false, error: 'Hold transfer verification failed' });
-      } else {
-        provider = 'circle-gateway';
-        req.headers['payment-signature'] = gatewaySig;
-        const gw = await verifier.verifyGateway({
-          req, resource: { contentUrl: target, title }, recipient: reqd.box, amount, network: hubNet.caip2,
-        });
-        if (gw.handled) {
-          const status = gw.response?.status || 402;
-          let body = null;
-          try { body = JSON.parse(await gw.response.text()); } catch { body = { error: 'Payment required' }; }
-          return res.status(status).json(body);
-        }
-        paymentId = gw.payment.paymentId || gw.payment.txHash || null;
-        payer = gw.payment.payer || walletAddress || null;
-        // No onchain funds yet: Circle credits the box's Gateway ledger. The
-        // box's ERC-1271 withdrawal materializes it at claim time — no hub
-        // custody, no shell address.
-      }
-      const row = await db.tip.create({
-        data: {
-          contentUrl: storedUrl, contentId: storedContentId, websiteId: storedWebsiteId,
-          domain: dom, title: title || resolved?.title || null, imageUrl: storedImageUrl,
-          amount: Number(amount), currency: currency || 'USDC',
-          network: hubNet.name, payerWallet: payer,
-          payeeWallet: reqd.box, status: 'held', holdReason: 'awaiting-claim',
-          paymentProvider: provider, paymentId, txHash: receiptTxHash,
-          feeBps: reqd.feeBps,
+      const { row, replayed } = await recordTipOnce({
+        db, identity, binding,
+        verify: async () => {
+          if (isTransfer) {
+            const payment = { recipient: payee, amount: Number(amount) };
+            const ok = await verifier.verifyDirect({ resource: { price: String(amount) }, txHash, payment });
+            if (!ok || !/^0x[0-9a-f]{40}$/i.test(payment.transferPayer || '')) throw Object.assign(new Error('Tip transfer verification failed or verified payer unavailable.'), { status: 402 });
+            return { payer: payment.transferPayer.toLowerCase(), paymentId: identity.key, receiptTxHash: identity.key, provider: 'direct-transfer' };
+          }
+          req.headers['payment-signature'] = signature;
+          const gw = await verifier.verifyGateway({ req, resource: { contentUrl: target, title }, recipient: payee, amount, network: hubNet.caip2 });
+          if (gw.handled || String(gw.payment?.payer || '').toLowerCase() !== identity.payer) throw Object.assign(new Error('Gateway settlement is not confirmed. Reconcile this proof before any new payment.'), { code: 'payment-verification-pending' });
+          return { payer: identity.payer, paymentId: identity.key, receiptTxHash: gw.payment.txHash || null, provider: 'circle-gateway' };
         },
+        makeData: async (paid) => ({
+          contentUrl: storedUrl, contentId: storedContentId, websiteId: storedWebsiteId,
+          domain: dom || null, title: title || resolved?.title || null, imageUrl: storedImageUrl,
+          amount: Number(amount), currency: currency || 'USDC', network: hubNet.name,
+          payerWallet: paid.payer, recipientWallet: null, payeeWallet: payee,
+          protocolFee: null, feeBps: reqd.feeBps,
+          paymentProvider: paid.provider, paymentId: paid.paymentId, txHash: paid.receiptTxHash,
+          status: 'held', holdReason: 'awaiting-claim',
+        }),
       });
-      res.json({ success: true, holdStatus: 'held', box: reqd.box, tip: row });
+      res.json({ success: true, holdStatus: 'held', box: row.payeeWallet, tip: row, replayed });
     } catch (error) {
-      console.error(`[hub] POST /api/hub/tips/hold failed: ${error?.message || error}`);
-      res.status(400).json({ error: error.message });
+      if (['payment-proof-already-used', 'payment-verification-pending'].includes(error?.code)) return res.status(409).json({ success: false, code: error.code, error: error.message });
+      res.status(error.status || 400).json({ success: false, error: error.message });
     }
   });
 

@@ -5,7 +5,7 @@ import { createCircleGatewayBrowserAdapter } from './gateway.js';
 // tip endpoints. Testnet by default; pass network/chainId for mainnet.
 //
 // Two rails depending on whether the creator resolves on Nibgate:
-//   resolved   → direct tip (USDC straight to the payee), status settled
+//   resolved   → direct tip, settled only after hub verification; standalone pending
 //   unresolved → no-key holding box for the domain, status held (claimable by
 //                the creator, refundable by the payer until claimed)
 
@@ -18,11 +18,11 @@ async function resolveRecipient({ api, contentUrl, recipient }) {
   if (!api || !contentUrl) return '';
   try {
     const res = await fetch(`${api}/hub/resolve?url=${encodeURIComponent(contentUrl)}`);
-    if (!res.ok) return '';
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return data?.wallet || '';
-  } catch {
-    return '';
+  } catch (cause) {
+    throw new Error(`Tip recipient lookup failed; no payment was made: ${cause.message}`, { cause });
   }
 }
 
@@ -34,6 +34,7 @@ async function payChallenge({ chal, signer, network }) {
   const payTo = accept.payTo || accept.recipient || chal.payTo || '';
   const rawAmount = accept.amount ?? chal.amount;
   const payNetwork = accept.network || network || 'eip155:5042002';
+  if (network && payNetwork !== network) throw new Error('Tip challenge network does not match the requested network.');
   if (!payTo) throw new Error('tip challenge has no recipient.');
   if (!(Number(rawAmount) > 0)) throw new Error('tip challenge has no amount.');
   const gatewayQuoted =
@@ -44,18 +45,20 @@ async function payChallenge({ chal, signer, network }) {
   let txHash = '';
   let paymentSignature = '';
   let paymentRail = chal.paymentRail || '';
-  if (signer?.signTypedData) {
+  if (gatewayQuoted && signer?.signTypedData) {
     const adapter = await createCircleGatewayBrowserAdapter({ network: payNetwork, signer });
-    const paid = await adapter.pay(chal, { address: signer.address });
+    const paid = await adapter.pay({ challenge: chal });
     txHash = paid?.transaction || paid?.txHash || '';
-    paymentSignature = paid?.signature || txHash;
+    paymentSignature = paid?.paymentSignature || paid?.signature || txHash;
     paymentRail = paymentRail || (paymentSignature && paymentSignature !== txHash ? 'gateway' : 'transfer');
   } else if (signer?.sendTransaction) {
     txHash = await signer.sendTransaction({ to: payTo, amount: payAmount, network: payNetwork });
     paymentSignature = txHash;
     paymentRail = 'transfer';
   } else {
-    throw new Error('tipContent needs a signer (signTypedData or sendTransaction).');
+    throw new Error(gatewayQuoted
+      ? 'Gateway tips need signTypedData or sendTransaction.'
+      : 'Transfer tips need a signer with sendTransaction.');
   }
   return { txHash, paymentSignature, paymentRail, payTo, payAmount, payNetwork };
 }
@@ -67,7 +70,11 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
   if (!challenge && !signer) throw new Error('tipContent needs a signer.');
 
   // Attempt to resolve the creator when the caller did not pin a recipient.
-  const resolved = challenge ? recipient : await resolveRecipient({ api, contentUrl, recipient });
+  const resolved = await resolveRecipient({ api, contentUrl, recipient })
+    || (!api && challenge ? challenge.accepts?.[0]?.payTo || challenge.accepts?.[0]?.recipient || challenge.payTo : '');
+  if (challenge && !resolved) {
+    throw new Error('An explicit tip challenge needs a creator recipient or a resolvable contentUrl; it cannot fall back to a hold.');
+  }
   if (!resolved) {
     // External / unclaimed creator: hold the tip in the domain's no-key box.
     return holdTipContent({ contentUrl, title, amount, currency, network: net, domain, contentId, websiteId, imageUrl, signer, hubApi: api });
@@ -98,20 +105,33 @@ export async function tipContent({ contentUrl, title, amount, currency = 'USDC',
     contentId: contentId || undefined, websiteId: websiteId || undefined, imageUrl: imageUrl || undefined,
   };
   if (api) {
-    await fetch(`${api}/hub/tips/verify`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', ...(paymentSignature && paymentRail !== 'transfer' ? { 'payment-signature': paymentSignature } : {}) },
-      body: JSON.stringify({
-        ...receipt,
-        domain: domain || undefined,
-        recipient: resolved || '',
-        paymentRail,
-        walletAddress: signer?.address || '',
-        paymentSignature,
-      }),
-    }).catch(() => {});
+    let verified;
+    try {
+      const res = await fetch(`${api}/hub/tips/verify`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(paymentSignature && paymentRail !== 'transfer' ? { 'payment-signature': paymentSignature } : {}) },
+        body: JSON.stringify({
+          ...receipt,
+          domain: domain || undefined,
+          recipient: resolved || '',
+          paymentRail,
+          walletAddress: signer?.address || '',
+          paymentSignature,
+        }),
+      });
+      verified = await res.json();
+      if (!res.ok || verified?.success !== true || verified?.ok === false) {
+        throw new Error(verified?.error || `HTTP ${res.status}`);
+      }
+    } catch (cause) {
+      const error = new Error(`Tip verification failed after payment; do not pay again automatically${txHash ? ` (tx ${txHash})` : ''}: ${cause.message}`);
+      Object.assign(error, { cause, txHash, paymentSignature, paymentRail });
+      throw error;
+    }
+    return { ...receipt, ...verified.receipt, held: false, status: 'settled', id: verified.id, paymentSignature };
   }
-  return { ...receipt, paymentSignature };
+  // A submitted transaction or signed Gateway proof is not settlement evidence.
+  return { ...receipt, paymentSignature, status: 'pending' };
 }
 
 // Unresolved/external creator: fund the domain's deterministic no-key holding
@@ -120,32 +140,55 @@ export async function holdTipContent({ contentUrl, title, amount, currency = 'US
   const api = normalizeApi(hubApi);
   const net = network || 'eip155:5042002';
   if (!api) throw new Error('holdTipContent needs hubApi.');
-  if (!signer) throw new Error('holdTipContent needs a signer.');
+  if (!signer?.signTypedData && !signer?.sendTransaction) throw new Error('holdTipContent needs a signer with signTypedData or sendTransaction.');
   let dom = String(domain || '').trim();
   if (!dom) { try { dom = new URL(contentUrl).hostname; } catch { dom = ''; } }
   if (!dom) throw new Error('holdTipContent needs a domain or contentUrl.');
 
   const base = { contentUrl, title, amount, currency, domain: dom, contentId: contentId || undefined, websiteId: websiteId || undefined, imageUrl: imageUrl || undefined };
+  const requestedRail = signer.signTypedData ? 'gateway' : 'transfer';
   const chalRes = await fetch(`${api}/hub/tips/hold`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...base, paymentRail: 'transfer' }),
+    body: JSON.stringify({ ...base, paymentRail: requestedRail }),
   });
   if (!chalRes.ok) throw new Error(`tip hold challenge failed: ${chalRes.status}`);
   const chal = await chalRes.json();
   if (!chal?.box) throw new Error('tip hold challenge has no box.');
   const box = chal.box;
-  const payAmount = amount;
-
-  const txHash = await signer.sendTransaction({ to: box, amount: payAmount, network: net });
-  const verifyRes = await fetch(`${api}/hub/tips/hold`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...base, paymentRail: 'transfer', txHash, walletAddress: signer.address || '' }),
-  });
-  if (!verifyRes.ok) throw new Error(`tip hold failed: ${verifyRes.status} (tx ${txHash || ''})`);
-  const held = await verifyRes.json();
+  // Older transfer-only hubs returned only the box; full challenges carry
+  // the authoritative network and amount, including Gateway base units.
+  if (!chal.accepts?.length && requestedRail !== 'transfer') {
+    throw new Error('Tip hold challenge has no Gateway payment requirement.');
+  }
+  const paymentChallenge = chal.accepts?.length ? chal : {
+    paymentRail: requestedRail,
+    accepts: [{ payTo: box, amount, network: net }],
+  };
+  const accept = paymentChallenge.accepts[0];
+  if (String(accept.payTo || accept.recipient || '').toLowerCase() !== String(box).toLowerCase()) {
+    throw new Error('Tip hold challenge recipient does not match its box.');
+  }
+  const paid = await payChallenge({ chal: paymentChallenge, signer, network: net });
+  const { txHash, paymentSignature, paymentRail, payAmount, payNetwork } = paid;
+  let held;
+  try {
+    const verifyRes = await fetch(`${api}/hub/tips/hold`, {
+      method: 'POST', headers: { 'content-type': 'application/json', ...(paymentRail === 'gateway' ? { 'payment-signature': paymentSignature } : {}) },
+      body: JSON.stringify({ ...base, amount: payAmount, paymentRail, txHash, paymentSignature, walletAddress: signer.address || '' }),
+    });
+    held = await verifyRes.json();
+    if (!verifyRes.ok || held?.success !== true || held?.ok === false || held?.holdStatus !== 'held') {
+      throw new Error(held?.error || `HTTP ${verifyRes.status}`);
+    }
+  } catch (cause) {
+    const error = new Error(`Tip hold verification failed after payment; do not pay again automatically${txHash ? ` (tx ${txHash})` : ''}: ${cause.message}`);
+    Object.assign(error, { cause, txHash, paymentSignature, paymentRail });
+    throw error;
+  }
   return {
     type: 'tip', held: true, status: 'held', contentUrl, title,
-    amount: Number(payAmount), currency, network: net, domain: dom, box, txHash, receipt: held?.tip || null,
+    amount: Number(payAmount), currency, network: payNetwork, domain: dom, box,
+    txHash: held?.tip?.txHash || txHash, paymentSignature, receipt: held?.tip || null,
   };
 }
 

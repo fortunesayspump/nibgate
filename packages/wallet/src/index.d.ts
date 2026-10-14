@@ -101,7 +101,11 @@ export function getPaymentErrorMessage(
   options?: { fallback?: string },
 ): string;
 
+export type ArcNetworkTarget = Pick<ArcChainConfig, "id">;
+
 export type EnsureArcNetworkOptions = {
+  assertActive?: () => void;
+  chain?: ArcNetworkTarget;
   currentChainId?: number;
   wait?: boolean;
   timeoutMs?: number;
@@ -111,14 +115,29 @@ export type EnsureArcNetworkOptions = {
 export type EnsureArcNetworkResult = {
   switched: boolean;
   chainId: number;
+  blockNumber: string;
+  checkedAt: number;
 };
+
+export class ArcConnectionError extends Error {
+  code: "ARC_CONNECTION_ERROR";
+  reason: string;
+  chainId: number;
+  method: string;
+  canRepair: boolean;
+  manual: boolean;
+  constructor(reason?: string, options?: { method?: string; manual?: boolean; chain?: ArcNetworkTarget });
+}
+export function classifyArcRpcError(error: unknown, method?: string, options?: { chain?: ArcNetworkTarget }): ArcConnectionError;
+export function checkArcConnection(provider: Eip1193Provider, options?: { timeoutMs?: number; chain?: ArcNetworkTarget; assertActive?: () => void }): Promise<{ chainId: number; blockNumber: string; checkedAt: number }>;
+export function repairArcNetwork(provider: Eip1193Provider, options?: { timeoutMs?: number; assertActive?: () => void; chain?: ArcNetworkTarget }): Promise<{ chainId: number; blockNumber: string; checkedAt: number; requestedRpcUrl: string }>;
 
 export function ensureArcNetwork(
   provider: Eip1193Provider,
   options?: EnsureArcNetworkOptions,
 ): Promise<EnsureArcNetworkResult>;
 
-export function switchToArcNetwork(provider: Eip1193Provider): Promise<void>;
+export function switchToArcNetwork(provider: Eip1193Provider, options?: { chain?: ArcNetworkTarget; assertActive?: () => void }): Promise<void>;
 
 export function waitForChainChange(
   provider: Eip1193Provider,
@@ -177,3 +196,5 @@ export function verifySignature(parameters: {
   rpcUrl?: string;
   chain?: { id: number; name: string; nativeCurrency: { decimals: number; name: string; symbol: string }; rpcUrl: string };
 }): Promise<boolean>;
+
+export * from "./gateway-transactions.js";

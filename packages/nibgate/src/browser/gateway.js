@@ -35,11 +35,6 @@ export async function createCircleGatewayBrowserAdapter(options = {}) {
         && extra.name === 'GatewayWalletBatched'
         && extra.version === '1'
         && typeof extra.verifyingContract === 'string';
-    }) || accepts.find((option) => {
-      const extra = option.extra || {};
-      return extra.name === 'GatewayWalletBatched'
-        && extra.version === '1'
-        && typeof extra.verifyingContract === 'string';
     });
     if (!selected) {
       const networks = accepts.map((option) => option.network).filter(Boolean).join(', ') || 'none';

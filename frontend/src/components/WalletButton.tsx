@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useAppKitAccount, useAppKitNetwork, useDisconnect } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitNetwork, useDisconnect, useGatewayTransfer } from "@nibgate/wallet/react";
 import { activeArcChain, activeChain, appRpcUrlFor } from '@nibgate/wallet'
 import { isActiveChainId } from '../lib/chains'
 import { createPublicClient, http } from 'viem'
@@ -23,9 +23,6 @@ const GATEWAY_WALLET_ADDRESS: `0x${string}` = activeChain().id === 5042
   : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'
 const USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const
 const GATEWAY_ABI = [{ name: 'availableBalance', type: 'function', inputs: [{ name: 'token', type: 'address' }, { name: 'depositor', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' }] as const
-const SEL_APPROVE = '0x095ea7b3'
-const SEL_DEPOSIT = '0x47e7ef24'
-const SEL_WITHDRAW = '0xf3fef3a3'
 
 const gatewayClient = createPublicClient({
   chain: activeArcChain(),
@@ -59,56 +56,18 @@ function fmt(n: number) {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
 }
 
-function parse6(v: string) {
-  const [w = '0', f = ''] = v.split('.')
-  return BigInt(w + f.padEnd(6, '0').slice(0, 6))
-}
-
-function addr32(a: string) { return '000000000000000000000000' + a.slice(2) }
-
 function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { address: string; gatewayBal: number; walletBal: number; onClose: () => void }) {
   const [tab, setTab] = useState<'deposit' | 'withdraw'>('deposit')
   const [amount, setAmount] = useState('')
-  const [status, setStatus] = useState('')
-  const [busy, setBusy] = useState(false)
+  const { run, reset, repairConnection, busy, status, transfer } = useGatewayTransfer(address)
+  const finished = transfer?.status === 'confirmed' || transfer?.status === 'reverted'
+  const pending = transfer?.status === 'pending'
+  const action = transfer?.kind ?? tab
+  const canCancel = pending && !transfer.approvalHash && !transfer.transferHash && !transfer.submitting
 
-  async function doDeposit() {
-    if (!amount || Number(amount) <= 0) { setStatus('Enter an amount'); return }
-    if (!window.ethereum) { setStatus('No wallet found'); return }
-    setBusy(true)
-    try {
-      setStatus('Approving USDC\u2026')
-      const amt = parse6(amount).toString(16)
-      const eth = window.ethereum as any;
-      await eth.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: address, to: USDC_ADDRESS, data: SEL_APPROVE + addr32(GATEWAY_WALLET_ADDRESS) + amt.padStart(64, '0') }],
-      })
-      setStatus('Depositing\u2026')
-      await eth.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: address, to: GATEWAY_WALLET_ADDRESS, data: SEL_DEPOSIT + addr32(USDC_ADDRESS) + amt.padStart(64, '0') }],
-      })
-      setStatus('Deposited!')
-    } catch (e: any) { setStatus(e?.message || 'Failed') }
-    setBusy(false)
-  }
-
-  async function doWithdraw() {
-    if (!amount || Number(amount) <= 0) { setStatus('Enter an amount'); return }
-    if (!window.ethereum) { setStatus('No wallet found'); return }
-    setBusy(true)
-    try {
-      setStatus('Withdrawing\u2026')
-      const amt = parse6(amount).toString(16)
-      const eth = window.ethereum as any;
-      await eth.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: address, to: GATEWAY_WALLET_ADDRESS, data: SEL_WITHDRAW + addr32(USDC_ADDRESS) + amt.padStart(64, '0') }],
-      })
-      setStatus('Withdrawn!')
-    } catch (e: any) { setStatus(e?.message || 'Failed') }
-    setBusy(false)
+  async function submit() {
+    if (finished) { await reset(); setAmount(''); return }
+    await run(action, amount)
   }
 
   return (
@@ -126,14 +85,18 @@ function GatewayBridgeModal({ address, gatewayBal, walletBal, onClose }: { addre
           </div>
         </div>
         <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border,#cecdc3)' }}>
-          <button onClick={() => setTab('deposit')} style={{ flex: 1, padding: '10px 0', fontSize: 15, fontWeight: 600, cursor: 'pointer', border: 'none', background: 'transparent', color: tab === 'deposit' ? 'var(--fg,#0a0a0a)' : 'var(--muted,#6b6862)', borderBottom: `2px solid ${tab === 'deposit' ? 'var(--accent,#7c9a6d)' : 'transparent'}`, fontFamily: 'inherit' }}>Deposit</button>
-          <button onClick={() => setTab('withdraw')} style={{ flex: 1, padding: '10px 0', fontSize: 15, fontWeight: 600, cursor: 'pointer', border: 'none', background: 'transparent', color: tab === 'withdraw' ? 'var(--fg,#0a0a0a)' : 'var(--muted,#6b6862)', borderBottom: `2px solid ${tab === 'withdraw' ? 'var(--accent,#7c9a6d)' : 'transparent'}`, fontFamily: 'inherit' }}>Withdraw</button>
+          <button disabled={busy || Boolean(pending)} onClick={() => setTab('deposit')} style={{ flex: 1, padding: '10px 0', fontSize: 15, fontWeight: 600, cursor: 'pointer', border: 'none', background: 'transparent', color: action === 'deposit' ? 'var(--fg,#0a0a0a)' : 'var(--muted,#6b6862)', borderBottom: `2px solid ${action === 'deposit' ? 'var(--accent,#7c9a6d)' : 'transparent'}`, fontFamily: 'inherit' }}>Deposit</button>
+          <button disabled={busy || Boolean(pending)} onClick={() => setTab('withdraw')} style={{ flex: 1, padding: '10px 0', fontSize: 15, fontWeight: 600, cursor: 'pointer', border: 'none', background: 'transparent', color: action === 'withdraw' ? 'var(--fg,#0a0a0a)' : 'var(--muted,#6b6862)', borderBottom: `2px solid ${action === 'withdraw' ? 'var(--accent,#7c9a6d)' : 'transparent'}`, fontFamily: 'inherit' }}>Withdraw</button>
         </div>
         <label style={{ fontSize: 17, fontWeight: 600, color: 'var(--muted,#6b6862)', marginBottom: 8, display: 'block' }}>Amount (USDC)</label>
-        <input type="number" step="0.01" min="0" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} style={{ padding: '14px 16px', fontSize: 18, borderRadius: 12, border: '1px solid var(--border,#cecdc3)', background: 'transparent', color: 'var(--fg,#0a0a0a)', width: '100%', fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box' }} />
-        <button onClick={tab === 'deposit' ? doDeposit : doWithdraw} disabled={busy} style={{ width: '100%', padding: '16px 28px', fontSize: 20, fontWeight: 600, borderRadius: 12, cursor: busy ? 'default' : 'pointer', border: 'none', background: 'var(--accent,#7c9a6d)', color: 'var(--bg,#f4f4f0)', fontFamily: 'inherit', opacity: busy ? 0.35 : 1 }}>
-          {busy ? status : tab === 'deposit' ? 'Deposit' : 'Withdraw'}
+        <input type="number" step="0.01" min="0" placeholder="0.00" disabled={busy || Boolean(transfer)} value={transfer?.amount ?? amount} onChange={e => setAmount(e.target.value)} style={{ padding: '14px 16px', fontSize: 18, borderRadius: 12, border: '1px solid var(--border,#cecdc3)', background: 'transparent', color: 'var(--fg,#0a0a0a)', width: '100%', fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box' }} />
+        <button onClick={submit} disabled={busy} style={{ width: '100%', padding: '16px 28px', fontSize: 20, fontWeight: 600, borderRadius: 12, cursor: busy ? 'default' : 'pointer', border: 'none', background: 'var(--accent,#7c9a6d)', color: 'var(--bg,#f4f4f0)', fontFamily: 'inherit', opacity: busy ? 0.35 : 1 }}>
+          {busy ? status : finished ? 'Start a new transfer' : pending ? `Resume ${action}` : tab === 'deposit' ? 'Deposit' : 'Withdraw'}
         </button>
+        <button type="button" disabled={busy} onClick={() => void repairConnection()} style={{ marginTop: 12 }} title="Requests the official Arc RPC in your connected wallet and checks its connection. Saved transactions are preserved.">Repair wallet connection</button>
+        {canCancel && <button disabled={busy} onClick={() => void reset()} style={{ marginTop: 12 }}>Cancel and change amount</button>}
+        {transfer?.approvalHash && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 12 }}>Approval: {transfer.approvalHash}</div>}
+        {transfer?.transferHash && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 12 }}>Transaction: {transfer.transferHash}</div>}
         {status && <div style={{ fontSize: 12, color: status.includes('Failed') ? '#dc2626' : 'var(--accent,#7c9a6d)', wordBreak: 'break-all', marginTop: 12 }}>{status}</div>}
       </div>
     </div>

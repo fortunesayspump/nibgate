@@ -4,3 +4,15 @@ packages:
   - backend
   - dr-nib/backend
   - packages/*
+  - subblogs/frontend
+  - subblogs/backend
+
+nodeLinker: isolated
+
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - esbuild
+  - sharp
+  - '@tailwindcss/oxide'

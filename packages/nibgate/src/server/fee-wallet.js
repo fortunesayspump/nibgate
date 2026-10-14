@@ -165,6 +165,11 @@ export function createTransferVerifier(options = {}) {
         const value = BigInt(log.data || '0x0');
         if (value >= amountWei) {
           matched = true;
+          // Refund attribution must use the token owner in the verified log,
+          // not a caller-supplied wallet or a relayer's transaction sender.
+          if (payment && /^0x[0-9a-fA-F]{64}$/.test(log.topics[1] || '')) {
+            payment.transferPayer = getAddress(`0x${log.topics[1].slice(26)}`).toLowerCase();
+          }
           // Surface what actually landed so surfaces can flag overpays
           // (buyer sent more than price — e.g. a double-pay) on the receipt.
           if (payment && value > amountWei) {

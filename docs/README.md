@@ -18,7 +18,9 @@ Create a separate Vercel project from the same GitHub repo with:
 Root Directory: docs
 Build Command: pnpm --filter @nibgate/docs build
 Output Directory: .next
-Install Command: pnpm install
+Install Command: cd .. && npx pnpm@10.28.0 install --frozen-lockfile
+Node.js Version: 22.x
+Include files outside the root directory: enabled
 ```
 
 Then add the custom domain:

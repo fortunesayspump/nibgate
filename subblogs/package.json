@@ -2,19 +2,13 @@
   "name": "nibgate-blog",
   "version": "1.0.0",
   "private": true,
-  "description": "Standalone blog with Nibgate SDK — creators write, gate premium content, get paid.",
+  "description": "Convenience commands for the Subblogs apps in the Nibgate pnpm workspace.",
   "scripts": {
-    "dev:backend": "npm run dev --prefix backend",
-    "dev:frontend": "npm run dev --prefix frontend",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "build:frontend": "npm run build --prefix frontend",
-    "start:backend": "npm start --prefix backend",
-    "seed": "npm run seed --prefix backend"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
-  },
-  "dependencies": {
-    "@nibgate/sdk": "file:../packages/nibgate"
+    "dev:backend": "pnpm --dir .. --filter nibgate-blog-backend dev",
+    "dev:frontend": "pnpm --dir .. --filter nibgate-blog-frontend dev",
+    "dev": "pnpm --dir .. --parallel --filter nibgate-blog-backend --filter nibgate-blog-frontend dev",
+    "build:frontend": "pnpm --dir .. --filter nibgate-blog-frontend build",
+    "start:backend": "pnpm --dir .. --filter nibgate-blog-backend start",
+    "seed": "pnpm --dir .. --filter nibgate-blog-backend seed"
   }
 }

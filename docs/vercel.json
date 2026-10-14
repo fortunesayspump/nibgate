@@ -1,4 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "next build && pagefind --site .next/server/app --output-path public/_pagefind --force-language en"
+  "buildCommand": "pnpm --filter @nibgate/docs build",
+  "git": {
+    "deploymentEnabled": false
+  },
+  "installCommand": "cd .. && npx pnpm@10.28.0 install --frozen-lockfile"
 }

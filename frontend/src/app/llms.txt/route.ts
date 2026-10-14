@@ -68,6 +68,8 @@ export async function GET() {
 
 Nibgate is an open protocol for paid content. Creators keep content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content.
 
+Mainnet and testnet: submitted tip proofs are not verified receipts. Retry the original proof and exact request; completed proofs recover the existing receipt. Conflicts and ambiguous settlement require reconciliation, never another payment.
+
 ## Key pages
 
 ${HUB_PAGES.map(([url, desc]) => `- [${url}](${url}) — ${desc}`).join("\n")}

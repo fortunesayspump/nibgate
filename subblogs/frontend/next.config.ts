@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const _rawApi = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/+$/, "");
 // Mirror lib/api.ts: canonical backend paths are bare, so strip one /api
@@ -7,6 +8,8 @@ const _rawApi = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api")
 const apiUrl = _rawApi.endsWith("/api") ? _rawApi.slice(0, -"/api".length) : _rawApi;
 
 const nextConfig: NextConfig = {
+  // Include workspace package sources and dependencies in the server trace.
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   transpilePackages: ["@nibgate/wallet"],
   webpack(config, _ctx) {
     config.resolve = config.resolve || {};

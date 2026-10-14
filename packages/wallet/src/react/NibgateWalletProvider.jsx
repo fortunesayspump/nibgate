@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { useAppKitState } from '@reown/appkit/react'
 import { createNibgateWallet } from './appkit.js'
+import { ArcConnectionNotice } from './ArcConnectionNotice.jsx'
 
 const APPKIT_CONNECTION_KEY = '@appkit/connection_status'
 
@@ -42,7 +43,7 @@ export function NibgateWalletProvider({ children, ...options }) {
 
   return (
     <WagmiProvider config={wagmiConfig} reconnectOnMount={autoReconnect}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}><ArcConnectionNotice />{children}</QueryClientProvider>
     </WagmiProvider>
   )
 }

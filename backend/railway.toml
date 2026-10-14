@@ -4,6 +4,7 @@ watchPatterns = [
   "backend/**",
   "packages/cli/**",
   "packages/nibgate/**",
+  "packages/wallet/**",
   "packages/internal/**",
   "package.json",
   "pnpm-lock.yaml",

@@ -15,16 +15,19 @@ needs the monorepo's `workspace:*` deps:
   must be the repo root so pnpm resolves the workspace; the start command is
   scoped to the package instead.
 - **Start Command:** `pnpm --filter @nibgate/dr-nib-backend start:prod`
-  (generate → migrate deploy → serve).
+  (generate → serve; no schema changes during startup).
 - **Healthcheck Path:** `/health`.
 
 > Note: `railway.toml`/config-as-code is deprecated on Railway; the settings
 > above are set on the service directly, so the repository's
 > `dr-nib/backend/railway.toml` is only a reference now.
 
-The start command runs `prisma generate` → `prisma migrate deploy` → serve, so
-the first deploy creates the `drnib` schema and later deploys apply new
-migrations. Migration history lives in the `drnib` schema.
+The start command generates the Prisma client and starts the API. Fresh installs
+must provision the `drnib` schema before serving traffic. Schema upgrades require
+a separate, reviewed maintenance step against the correct `DRNIB_DATABASE_URL`:
+inspect migration status and SQL, confirm backups and authorization, then apply
+the approved migrations before deploying code that requires them. Migration
+history lives in the `drnib` schema. Startup never runs migrations or `db push`.
 
 ### Testnet mirror (full testnet flow)
 

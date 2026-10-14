@@ -1,7 +1,7 @@
 // No live wallets, RPC calls, or signed transactions: exercise the installed
 // Reown routing code while replacing only the iframe message boundary.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile } from './test-source.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';

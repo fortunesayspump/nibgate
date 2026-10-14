@@ -18,7 +18,7 @@ const account = privateKeyToAccount(KEY);
 const CHAIN = activeChainId();
 const DOMAIN = 'nibgate.xyz';
 
-function signedMessage({ expirationTime, domain = DOMAIN, nonce = 'test-nonce-123' } = {}) {
+function signedMessage({ expirationTime, domain = DOMAIN, nonce = 'testnonce123' } = {}) {
   const message = createSignInMessage({
     address: account.address,
     chainId: CHAIN,
@@ -41,33 +41,33 @@ beforeEach(() => {
 describe('verifySignInAndLogin clock handling', () => {
   it('accepts a fresh message', async () => {
     const { message, signature } = await signedMessage({ expirationTime: new Date(Date.now() + 30 * 60 * 1000) });
-    const out = await verifySignInAndLogin({ message, signature, expectedNonce: 'test-nonce-123', expectedDomain: DOMAIN });
+    const out = await verifySignInAndLogin({ message, signature, expectedNonce: 'testnonce123', expectedDomain: DOMAIN });
     expect(out.user.id).toBe('u1');
     expect(dbMock.session.create).toHaveBeenCalledTimes(1);
   });
 
   it('names the device clock on a long-expired message', async () => {
     const { message, signature } = await signedMessage({ expirationTime: new Date(Date.now() - 15 * 60 * 1000) });
-    await expect(verifySignInAndLogin({ message, signature, expectedNonce: 'test-nonce-123', expectedDomain: DOMAIN }))
+    await expect(verifySignInAndLogin({ message, signature, expectedNonce: 'testnonce123', expectedDomain: DOMAIN }))
       .rejects.toThrow(/automatic date & time/);
     expect(dbMock.session.create).not.toHaveBeenCalled();
   });
 
   it('tolerates a few minutes of clock skew inside the grace window', async () => {
     const { message, signature } = await signedMessage({ expirationTime: new Date(Date.now() - 3 * 60 * 1000) });
-    const out = await verifySignInAndLogin({ message, signature, expectedNonce: 'test-nonce-123', expectedDomain: DOMAIN });
+    const out = await verifySignInAndLogin({ message, signature, expectedNonce: 'testnonce123', expectedDomain: DOMAIN });
     expect(out.user.id).toBe('u1');
   });
 
   it('keeps domain mismatches on the generic error, not the clock one', async () => {
     const { message, signature } = await signedMessage({ expirationTime: new Date(Date.now() + 30 * 60 * 1000), domain: 'evil.example' });
-    await expect(verifySignInAndLogin({ message, signature, expectedNonce: 'test-nonce-123', expectedDomain: DOMAIN }))
+    await expect(verifySignInAndLogin({ message, signature, expectedNonce: 'testnonce123', expectedDomain: DOMAIN }))
       .rejects.toThrow(/invalid or expired/);
   });
 
   it('still rejects a wrong nonce first', async () => {
-    const { message, signature } = await signedMessage({ expirationTime: new Date(Date.now() + 30 * 60 * 1000), nonce: 'other' });
-    await expect(verifySignInAndLogin({ message, signature, expectedNonce: 'test-nonce-123', expectedDomain: DOMAIN }))
+    const { message, signature } = await signedMessage({ expirationTime: new Date(Date.now() + 30 * 60 * 1000), nonce: 'othernonce123' });
+    await expect(verifySignInAndLogin({ message, signature, expectedNonce: 'testnonce123', expectedDomain: DOMAIN }))
       .rejects.toThrow(/Nonce does not match/);
   });
 });

@@ -70,6 +70,8 @@ export interface UnlockResource {
   currency?: string;
   path?: string;
   recipient?: string;
+  /** Initial component rail; defaults to Direct when omitted. */
+  paymentRail?: 'gateway' | 'transfer';
 }
 
 export function useNibgateUnlock(options: {
@@ -127,6 +129,7 @@ export function NibgateUnlock(props: {
   noncePath?: string;
   verifyPath?: string;
   walletBar?: boolean;
+  /** Called at content reveal after the brief success confirmation; restored access has no delay. */
   onUnlock?: (result: { ok: boolean; payload?: unknown; resource?: UnlockResource }) => void;
   children?: ReactNode | ((state: ReturnType<typeof useNibgateUnlock>) => ReactNode);
 }): ReactNode;
@@ -151,6 +154,9 @@ export interface TipResource {
 
 export interface TipResult {
   type: 'tip';
+  held?: boolean;
+  status?: 'pending' | 'held' | 'settled' | 'conflict';
+  receipt?: Record<string, unknown> | null;
   txHash: string;
   paymentId: string;
   amount: number;
@@ -164,10 +170,11 @@ export interface TipResult {
 
 export interface TipOptions {
   resource?: TipResource;
-  challenge?: { accepts?: Array<{ payTo?: string; recipient?: string; amount?: string | number; network?: string }> };
+  challenge?: { paymentRail?: string; accepts?: Array<{ payTo?: string; recipient?: string; amount?: string | number; network?: string; extra?: { name?: string } }> };
   recipient?: string;
   amount?: string | number;
   amounts?: Array<string | number>;
+  minAmount?: number;
   apiBase?: string;
   style?: React.CSSProperties;
   onPaid?: (result: TipResult) => void;
@@ -175,6 +182,8 @@ export interface TipOptions {
 
 export function useNibgateTip(options?: TipOptions): {
   tip: (amount?: string | number) => Promise<TipResult>;
+  retryVerification: () => Promise<TipResult>;
+  refund: (domain: string | { domain: string }) => Promise<Record<string, unknown>>;
   status: string;
   error: string;
   receipt: TipResult | null;
@@ -185,6 +194,26 @@ export function useNibgateTip(options?: TipOptions): {
 export function NibgateTipInline(props: TipOptions): ReactNode;
 
 export function NibgateTipCard(props: TipOptions): ReactNode;
+
+export interface GatewayTransfer {
+  kind: 'deposit' | 'withdraw';
+  amount: string;
+  address: string;
+  chainId: number;
+  status: 'pending' | 'confirmed' | 'reverted';
+  submitting: 'approval' | 'transfer' | null;
+  approvalHash: string | null;
+  transferHash: string | null;
+}
+
+export function useGatewayTransfer(address: string): {
+  run: (kind: 'deposit' | 'withdraw', amount: string) => Promise<GatewayTransfer | null>;
+  reset: () => Promise<void>;
+  repairConnection: () => Promise<boolean>;
+  busy: boolean;
+  status: string;
+  transfer: GatewayTransfer | null;
+};
 
 export function GatewayWalletUI(props: {
   address: string;

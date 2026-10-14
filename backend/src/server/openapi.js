@@ -81,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.11",
+    version: "0.2.12",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -758,7 +758,7 @@ export const openApiSpec = {
         tags: ["Tips"],
         summary: "Record a settled tip",
         description:
-          "Submit the payment proof (transfer txHash or Circle Gateway signature) for a resolved tip. The hub verifies the transfer, then records a Tip row with status settled and returns a receipt. No access grant: a tip is revenue, not an entitlement.",
+          "Submit the payment proof (transfer txHash or Circle Gateway signature) for a resolved tip. The hub verifies the transfer, then records a Tip row with status settled and returns a receipt. No access grant: a tip is revenue, not an entitlement. Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged.",
         requestBody: {
           required: true,
           content: {
@@ -782,6 +782,7 @@ export const openApiSpec = {
         },
         responses: {
           "200": { description: "Settled tip receipt", content: { "application/json": { schema: { type: "object" } } } },
+          "409": { description: "payment-proof-already-used or payment-verification-pending: stop new payments and reconcile the existing proof", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "402": { description: "Payment verification failed", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },
       },
@@ -791,7 +792,7 @@ export const openApiSpec = {
         tags: ["Tips"],
         summary: "Tip a creator not yet on Nibgate (no-key holding box)",
         description:
-          "For unresolved/external creators. Call without a payment proof to get the deterministic per-domain holding box address; fund it with USDC; call again with txHash to record a Tip row with status held. Funds sit onchain in a no-key box (nobody, not even Nibgate, can move them), claimable by the verified site owner and refundable by the payer until claimed. Two rails: direct transfer or Circle Gateway credit.",
+          "For unresolved/external creators. Call without a payment proof to get the deterministic per-domain holding box address; fund it with USDC; call again with txHash to record a Tip row with status held. Funds sit onchain in a no-key box (nobody, not even Nibgate, can move them), claimable by the verified site owner and refundable by the payer until claimed. Two rails: direct transfer or Circle Gateway credit. Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged.",
         requestBody: {
           required: true,
           content: {
@@ -815,6 +816,7 @@ export const openApiSpec = {
         },
         responses: {
           "200": { description: "holdStatus=challenge (box) or holdStatus=held (tip)", content: { "application/json": { schema: { type: "object" } } } },
+          "409": { description: "payment-proof-already-used or payment-verification-pending: stop new payments and reconcile the existing proof", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
           "402": { description: "Hold transfer verification failed", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
         },
       },

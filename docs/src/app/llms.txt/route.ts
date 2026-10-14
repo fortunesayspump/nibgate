@@ -34,6 +34,8 @@ Agent-facing surfaces:
 - https://api.nibgate.xyz/openapi.json — OpenAPI specification including unlock endpoints.
 - https://api.nibgate.xyz/mcp — MCP server exposing discovery tools to agents.
 
+Mainnet and testnet: submitted tip proofs are not verified receipts. Retry the original proof and exact request; completed proofs recover the existing receipt. Conflicts and ambiguous settlement require reconciliation, never another payment.
+
 ## Pages
 
 ${PAGES.map(([url, desc]) => `- [${url}](${url}) — ${desc}`).join("\n")}

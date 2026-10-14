@@ -1,6 +1,7 @@
 import { createEvmGatewayUnlock } from './evm-gateway.js';
 import unlockKeyAnimation from './unlock-key.js';
-import { ARC_TESTNET, getWalletErrorMessage, isWalletRejection, switchToArcNetwork } from '@nibgate/wallet';
+import { getWalletErrorMessage } from '@nibgate/wallet';
+import { createBrowserGatewayTransfer } from './gateway-transfer.js';
 
 const SID = 'nibgate-ui-styles';
 
@@ -132,7 +133,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     walletLabel: null,
     status: '[data-nibgate-status]',
     unlockedTarget: '[data-nibgate-premium]',
-    onStatus: (msg) => status(st, msg),
+    onStatus: (msg) => { status(st, msg); Promise.resolve().then(updatePaymentActions); },
     onUnlock: options.premiumContentUrl ? async () => {
       const premiumEl = card.querySelector('[data-nibgate-premium]');
       if (!premiumEl) return;
@@ -147,6 +148,38 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       }
     } : options.onUnlock,
   });
+
+  const retryPayment = el('button', { type: 'button', cls: 'nui-btn nui-btn-outline', style: { marginTop: 12 }, 'data-nibgate-retry-payment': '' }, 'Retry submitted payment');
+  retryPayment.hidden = true;
+  retryPayment.addEventListener('click', async () => {
+    retryPayment.disabled = true;
+    try { await ctrl.retryVerification(); } finally { retryPayment.disabled = false; updateLabel(); }
+  });
+  card.appendChild(retryPayment);
+  const repairWallet = el('button', { type: 'button', cls: 'nui-btn nui-btn-outline', style: { marginTop: 12 }, 'data-nibgate-repair-wallet': '' }, 'Repair wallet connection');
+  repairWallet.addEventListener('click', async () => {
+    repairWallet.disabled = true;
+    btn.disabled = true;
+    try { await ctrl.repairConnection(); } catch { /* The controller reports safe repair instructions. */ }
+    finally { repairWallet.disabled = false; updateLabel(); }
+  });
+  card.appendChild(repairWallet);
+  const cancelApproval = el('button', { type: 'button', cls: 'nui-btn nui-btn-outline', style: { marginTop: 12 }, 'data-nibgate-cancel-approval': '' }, 'Cancel unfinished approval');
+  cancelApproval.hidden = true;
+  cancelApproval.addEventListener('click', () => {
+    try { ctrl.clear(); } catch { status(st, 'Saved Gateway payment data needs review before paying again.'); }
+    updateLabel();
+  });
+  card.appendChild(cancelApproval);
+
+  function updatePaymentActions() {
+    let pending;
+    try { pending = ctrl.getPendingPayment?.(); }
+    catch { btn.disabled = true; retryPayment.hidden = true; cancelApproval.hidden = true; status(st, 'Saved Gateway payment data needs review before paying again.'); return; }
+    retryPayment.hidden = !pending?.canRetry;
+    cancelApproval.hidden = !pending || pending.canRetry || pending.submitted;
+    if (pending) { btn.disabled = true; setBtnText(pending.canRetry || pending.submitted ? 'Payment awaiting verification' : 'Approval unfinished'); }
+  }
 
   function shortAddress(a) { return a ? a.slice(0, 6) + '...' + a.slice(-4) : ''; }
 
@@ -164,6 +197,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
       btn.style.cursor = 'default';
       textEl.innerHTML = unlockSVG + 'Hold to pay';
     }
+    updatePaymentActions();
   }
 
   // Re-attach bal click handler after refreshBal updates the text
@@ -242,7 +276,7 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
   card.addEventListener('remove', cleanup);
 
   // ── Gateway balance + deposit icon ─────────────────────────────────────
-  let balEl = null, gwOverlay = null, balTimer = null;
+  let balEl = null, gwOverlay = null, balTimer = null, gatewayView = null;
 
   function depIcon() {
     return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>';
@@ -253,24 +287,29 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     gwOverlay = el('div', { style: 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:20px;animation:nfade .15s ease-out' });
     const modal = el('div', { style: 'background:' + theme.bg + ';border-radius:16px;max-width:540px;width:100%;max-height:90vh;overflow:auto;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.12);animation:nscale .15s ease-out' });
     const close = el('button', { style: 'position:absolute;top:12px;right:16px;z-index:20;background:none;border:none;font-size:28px;cursor:pointer;color:' + theme.muted + ';font-family:inherit;line-height:1' }, '\u00d7');
-    close.addEventListener('click', () => { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); });
+    close.addEventListener('click', closeDeposit);
     modal.appendChild(close);
     gwOverlay.appendChild(modal);
-    gwOverlay.addEventListener('click', (e) => { if (e.target === gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } });
+    gwOverlay.addEventListener('click', (e) => { if (e.target === gwOverlay) closeDeposit(); });
     document.body.appendChild(gwOverlay);
     document.addEventListener('keydown', onDepKey);
-    renderDefaultGatewayWalletUI(modal, {
-      address: ctrl.getWalletAddress(),
+    gatewayView = renderDefaultGatewayWalletUI(modal, {
       gatewayBalanceUrl: options.gatewayBalanceUrl,
       ...(options.gatewayOptions || {}),
+      network: options.network,
+      getProvider: () => ctrl.getProvider(),
+      getAddress: () => ctrl.getWalletAddress(),
     });
   }
-  function onDepKey(e) { if (e.key === 'Escape' && gwOverlay) { gwOverlay.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); } }
+  function closeDeposit() { gatewayView?.destroy(); gatewayView = null; gwOverlay?.remove(); gwOverlay = null; document.removeEventListener('keydown', onDepKey); }
+  function onDepKey(e) { if (e.key === 'Escape') closeDeposit(); }
 
   async function refreshBal() {
-    if (!card.isConnected || !window.ethereum || !options.gatewayBalanceUrl) return;
+    const provider = ctrl.getProvider();
+    if (!card.isConnected || !provider || !options.gatewayBalanceUrl) return;
     try {
-      const accts = await window.ethereum.request({ method: 'eth_accounts' });
+      const accts = await provider.request({ method: 'eth_accounts' });
+      if (ctrl.getProvider() !== provider) return;
       const addr = Array.isArray(accts) && accts[0] ? accts[0] : null;
       if (!addr) return;
       attachBalClick();
@@ -286,13 +325,14 @@ export function renderDefaultUnlockUI(container, resource, options = {}) {
     } catch {}
   }
 
-  if (window.ethereum) {
+  const balanceProvider = ctrl.getProvider();
+  if (balanceProvider) {
     balTimer = setInterval(refreshBal, 15000);
     setTimeout(refreshBal, 1000);
-    window.ethereum.on('accountsChanged', refreshBal);
+    balanceProvider.on?.('accountsChanged', refreshBal);
   }
 
-  return { ...ctrl, element: card, destroy: () => { cleanup(); card.remove(); if (balTimer) clearInterval(balTimer); if (gwOverlay) { gwOverlay.remove(); gwOverlay = null; } } };
+  return { ...ctrl, element: card, destroy: () => { cleanup(); ctrl.destroy?.(); card.remove(); if (balTimer) clearInterval(balTimer); balanceProvider?.removeListener?.('accountsChanged', refreshBal); closeDeposit(); } };
 }
 
 export function renderDefaultRatingUI(container, resource, options = {}) {
@@ -458,8 +498,20 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
   const walletBalEl = wrap.querySelector('[data-gw-wallet-balance]');
   const gwBalEl = wrap.querySelector('[data-gw-balance]');
 
-  const isMainnet = /eip155:5042\b/.test(options.network || '');
-  const ARC_RPC = options.rpcUrl || (isMainnet ? 'https://rpc.mainnet.arc.io' : ARC_TESTNET.rpcUrl);
+  let walletAddress = options.address || '';
+  let displayedAddress = '';
+  let transfer = null;
+  let txMessage = '';
+  let observedProvider = null;
+  const getProvider = () => typeof options.getProvider === 'function' ? options.getProvider()
+    : Object.hasOwn(options, 'provider') ? options.provider : window.ethereum || null;
+  const requestedAddress = () => typeof options.getAddress === 'function' ? options.getAddress() : options.address || walletAddress;
+  const getAddress = () => displayedAddress;
+  const controller = createBrowserGatewayTransfer({
+    ...options, getProvider, getAddress, isActive: () => wrap.isConnected && requestedAddress()?.toLowerCase() === displayedAddress.toLowerCase(),
+    onUpdate: (record, message) => { transfer = record; if (message !== undefined) txMessage = message; syncTransfer(); },
+  });
+  const ARC_RPC = options.rpcUrl || controller.chain.rpcUrl;
   const USDC = '0x3600000000000000000000000000000000000000';
   const BALANCE_OF = '0x70a08231';
 
@@ -471,66 +523,62 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     });
   }
 
-  const GATEWAY = options.gatewayAddress || (isMainnet ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE' : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9');
-  const SEL_APPROVE = '0x095ea7b3';
-  const SEL_DEPOSIT = '0x47e7ef24';
-
-  function parse6(v) {
-    const [w = '0', f = ''] = String(v).split('.');
-    return BigInt(w + f.padEnd(6, '0').slice(0, 6));
-  }
-
-  function addr32(a) { return '000000000000000000000000' + a.slice(2); }
-
   function setTx(msg, ok) {
-    const el = formEl.querySelector('[data-gw-tx]');
-    if (!el) return;
-    el.style.display = 'block';
-    el.style.color = ok ? theme.accent : '#dc2626';
-    el.textContent = msg;
+    txMessage = msg;
+    const target = formEl.querySelector('[data-gw-tx]');
+    if (!target) return;
+    target.style.display = msg ? 'block' : 'none';
+    target.style.color = ok ? theme.accent : '#dc2626';
+    target.textContent = msg;
   }
 
-  async function switchToArc() {
-    try {
-      await switchToArcNetwork(window.ethereum);
-    } catch (error) {
-      if (isWalletRejection(error)) throw error;
-    }
+  function syncTransfer() {
+    const busy = controller.isBusy();
+    const pending = transfer?.status === 'pending';
+    const finished = transfer && !pending;
+    tabs.forEach(b => { b.disabled = busy || Boolean(transfer); });
+    select(tabs, transfer?.kind || tab);
+    const input = formEl.querySelector('[data-gw-deposit-amount]') || formEl.querySelector('[data-gw-withdraw-amount]');
+    if (input) { input.disabled = busy || Boolean(transfer); if (transfer) input.value = transfer.amount; }
+    const button = formEl.querySelector('[data-gw-deposit]') || formEl.querySelector('[data-gw-withdraw]');
+    if (button) { button.disabled = busy; button.textContent = busy ? 'Processing…' : finished ? 'Start a new transfer' : pending ? `Resume ${transfer.kind}` : tab === 'deposit' ? 'Deposit' : 'Withdraw to your wallet'; }
+    const repair = formEl.querySelector('[data-gw-repair]');
+    if (repair) repair.disabled = busy;
+    const cancel = formEl.querySelector('[data-gw-cancel]');
+    if (cancel) { cancel.hidden = !(pending && !transfer.approvalHash && !transfer.transferHash && !transfer.submitting); cancel.disabled = busy; }
+    const hashes = formEl.querySelector('[data-gw-hashes]');
+    if (hashes) hashes.textContent = [transfer?.approvalHash && `Approval: ${transfer.approvalHash}`, transfer?.transferHash && `Transaction: ${transfer.transferHash}`].filter(Boolean).join('\n');
+    setTx(txMessage, transfer?.status === 'confirmed');
   }
 
   async function doDeposit() {
-    if (!window.ethereum) { setTx('No wallet found'); return; }
-    await switchToArc();
-    const input = formEl.querySelector('[data-gw-deposit-amount]');
-    const amt = input?.value;
-    if (!amt || Number(amt) <= 0) { setTx('Enter an amount'); return; }
-    const btn = formEl.querySelector('[data-gw-deposit]');
+    if (controller.isBusy()) return;
+    if (requestedAddress()?.toLowerCase() !== displayedAddress.toLowerCase()) {
+      await updateWallet(); setTx('The wallet changed. Review the displayed account before continuing.'); return;
+    }
     try {
-      btn.disabled = true;
-      btn.textContent = 'Approving\u2026';
-      const accts = await window.ethereum.request({ method: 'eth_accounts' });
-      const addr = accts?.[0];
-      if (!addr) { setTx('Connect wallet'); btn.disabled = false; btn.textContent = 'Deposit'; return; }
-      const amount = parse6(amt).toString(16);
-      const approveTx = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: addr, to: USDC, data: SEL_APPROVE + addr32(GATEWAY) + amount.padStart(64, '0') }],
-      });
-      setTx('Approved: ' + approveTx.slice(0, 10) + '\u2026', true);
-      btn.textContent = 'Depositing\u2026';
-      const depositTx = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: addr, to: GATEWAY, data: SEL_DEPOSIT + addr32(USDC) + amount.padStart(64, '0') }],
-      });
-      setTx('Deposited: ' + depositTx.slice(0, 10) + '\u2026', true);
-      updateWallet();
-      btn.textContent = 'Deposit';
-    } catch (e) { setTx(getWalletErrorMessage(e) || 'Deposit failed'); }
-    btn.disabled = false;
-    btn.textContent = 'Deposit';
+      transfer = controller.saved();
+      if (transfer && transfer.status !== 'pending') { await controller.reset(); return; }
+      const amount = (formEl.querySelector('[data-gw-deposit-amount]') || formEl.querySelector('[data-gw-withdraw-amount]'))?.value || '';
+      const result = await controller.run(transfer?.kind || 'deposit', amount);
+      if (result?.status === 'confirmed') void updateWallet();
+    } catch (error) { setTx(getWalletErrorMessage(error) || 'Check wallet activity before continuing.'); }
+    finally { syncTransfer(); }
+  }
+
+  async function repairConnection() {
+    if (controller.isBusy()) return;
+    if (requestedAddress()?.toLowerCase() !== displayedAddress.toLowerCase()) {
+      await updateWallet(); setTx('The wallet changed. Review the displayed account before repairing it.'); return;
+    }
+    const operation = controller.repair();
+    syncTransfer();
+    await operation;
+    syncTransfer();
   }
 
   function render(t) {
+    if (controller.isBusy() || (transfer && t !== tab)) return;
     tab = t;
     select(tabs, t);
     if (t === 'deposit') {
@@ -538,6 +586,9 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
         <label class="nui-label">Amount (USDC)</label>
         <input type="number" step="0.01" min="0" placeholder="0.00" data-gw-deposit-amount class="nui-input" style="margin-bottom:16px">
         <button type="button" data-gw-deposit class="nui-btn nui-btn-primary" style="width:100%;padding:16px 28px;font-size:20px">Deposit</button>
+        <button type="button" data-gw-repair class="nui-btn nui-btn-outline" style="margin-top:12px">Repair wallet connection</button>
+        <button type="button" data-gw-cancel hidden>Cancel and change amount</button>
+        <div data-gw-hashes class="nui-mono" style="font-size:12px;word-break:break-all;white-space:pre-wrap;margin-top:12px"></div>
         <div data-gw-tx class="nui-mono" style="font-size:12px;color:${theme.muted};word-break:break-all;margin-top:12px;display:none"></div>
       `;
       formEl.querySelector('[data-gw-deposit]')?.addEventListener('click', doDeposit);
@@ -546,29 +597,43 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
         <label class="nui-label">Amount (USDC)</label>
         <input type="number" step="0.01" min="0" placeholder="0.00" data-gw-withdraw-amount class="nui-input" style="margin-bottom:16px">
         <button type="button" data-gw-withdraw class="nui-btn nui-btn-primary" style="width:100%;padding:16px 28px;font-size:20px">Withdraw to your wallet</button>
+        <button type="button" data-gw-repair class="nui-btn nui-btn-outline" style="margin-top:12px">Repair wallet connection</button>
+        <button type="button" data-gw-cancel hidden>Cancel and change amount</button>
+        <div data-gw-hashes class="nui-mono" style="font-size:12px;word-break:break-all;white-space:pre-wrap;margin-top:12px"></div>
         <div data-gw-tx class="nui-mono" style="font-size:12px;color:${theme.muted};word-break:break-all;margin-top:12px;display:none"></div>
       `;
       formEl.querySelector('[data-gw-withdraw]')?.addEventListener('click', doWithdraw);
     }
+    formEl.querySelector('[data-gw-repair]')?.addEventListener('click', repairConnection);
+    formEl.querySelector('[data-gw-cancel]')?.addEventListener('click', async () => { await controller.reset(); syncTransfer(); });
+    syncTransfer();
   }
 
   async function doWithdraw() {
+    if (transfer) return doDeposit();
     setTx('Withdraw via admin dashboard', false);
   }
 
   function shortAddress(a) { return a ? a.slice(0, 6) + '...' + a.slice(-4) : ''; }
 
   async function updateWallet() {
-    if (!window.ethereum) return;
+    const provider = getProvider();
+    if (provider !== observedProvider) {
+      observedProvider?.removeListener?.('accountsChanged', updateWallet);
+      observedProvider = provider;
+      observedProvider?.on?.('accountsChanged', updateWallet);
+    }
+    if (!provider?.request) return;
     try {
-      const accts = await window.ethereum.request({ method: 'eth_accounts' });
-      const addr = Array.isArray(accts) && accts[0] ? accts[0] : null;
-      if (addr) {
-        walletAddrEl.textContent = shortAddress(addr);
-        fetchWalletUsdc(addr);
-        fetchGwBal(addr);
-      }
-    } catch {}
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      if (provider !== getProvider() || !wrap.isConnected) return;
+      walletAddress = Array.isArray(accounts) && accounts[0] ? accounts[0] : '';
+      displayedAddress = requestedAddress() || '';
+      walletAddrEl.textContent = shortAddress(getAddress());
+      transfer = controller.saved();
+      syncTransfer();
+      if (getAddress()) { void fetchWalletUsdc(getAddress()); void fetchGwBal(getAddress()); }
+    } catch { setTx('Could not read the selected wallet. Reconnect it before continuing.'); }
   }
 
   async function fetchWalletUsdc(addr) {
@@ -601,14 +666,10 @@ export function renderDefaultGatewayWalletUI(container, options = {}) {
     } catch { gwBalEl.textContent = '—'; }
   }
 
-  if (window.ethereum) {
-    window.ethereum.on('accountsChanged', updateWallet);
-  }
-
   render('deposit');
   tabs.forEach(b => b.addEventListener('click', () => render(b.dataset.tab)));
 
-  setTimeout(updateWallet, 100);
+  const updateTimer = setTimeout(updateWallet, 100);
 
-  return { element: wrap, destroy: () => wrap.remove(), switchTab: render };
+  return { element: wrap, destroy: () => { controller.destroy(); clearTimeout(updateTimer); observedProvider?.removeListener?.('accountsChanged', updateWallet); wrap.remove(); }, switchTab: render };
 }

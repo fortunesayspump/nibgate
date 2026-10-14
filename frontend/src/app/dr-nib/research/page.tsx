@@ -776,7 +776,7 @@ export default function ResearchNewPage() {
             <div>
               <label className="text-sm font-medium" htmlFor="drnib-depth">Depth</label>
               <select id="drnib-depth" value={depth} onChange={(e) => setDepth(e.target.value)} className="mt-1.5 w-full border border-dark-gray/50 bg-white px-3 py-2 text-sm">
-                <option value="quick">Quick — 1 pass</option>
+                <option value="quick">Quick — up to 2 rounds</option>
                 <option value="standard">Standard — balanced</option>
                 <option value="deep">Deep — exhaustive</option>
               </select>

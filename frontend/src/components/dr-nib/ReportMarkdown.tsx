@@ -279,8 +279,9 @@ export function ReportEvidence({ claims, sources }: { claims?: any[]; sources?: 
       {supported < list.length / 2 ? <p role="status" className="mb-3 rounded-xl border border-dark-gray/50 bg-gray p-3 text-sm leading-6"><strong>Limited evidence support.</strong> Most checked claims were not confirmed by the collected passages. Review the source matrix below before relying on this report; an unknown verdict does not mean a claim is false.</p> : null}
       <p className="flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-black px-2.5 py-0.5 font-medium text-white">{supported}/{list.length} supported</span>
-        <span className="opacity-60">evidence on {withEv}/{list.length} · {pct}% held up under verification</span>
+        <span className="opacity-60">{list.length} sampled claims checked · {pct}% supported · evidence on {withEv}/{list.length}</span>
       </p>
+      <p className="mt-1 text-xs opacity-60">These checks cover sampled claims, not every sentence. Review important conclusions against their sources.</p>
       <details className="mt-2">
         <summary className="cursor-pointer text-xs font-medium underline opacity-70 hover:opacity-100">
           Claim × source matrix ({list.length})

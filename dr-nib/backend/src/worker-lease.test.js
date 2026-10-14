@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from './db.js';
-import { findOrphans, requeueOrphans } from './worker.js';
+import { findOrphans, requeueOrphans, estimatePlanCost } from './worker.js';
+
+it('prices retrieval overhead even for a short quick report', () => {
+  const short = estimatePlanCost({depth:'quick',lengthWords:600,subQuestions:['Fees','Wallets']});
+  expect(short).toBeGreaterThanOrEqual(0.4);
+  expect(estimatePlanCost({depth:'deep',lengthWords:4000})).toBeGreaterThan(short);
+});
 
 const RUNS = {
   running: 'aaaaaaaa-0000-4000-8000-0000000000c1',

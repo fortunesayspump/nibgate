@@ -41,7 +41,14 @@ export function estimatePlanCost({ subQuestions = [], depth = 'standard', length
   const extraQuestions = Math.max(0, subQuestions.length - 2);
   const lengthFactor = Math.max(0.5, (Number(lengthWords) || 4000) / 4000);
   const floorHeadroom = STAGE_COSTS.write * depthFactor * lengthFactor;
-  return Math.round((pass * depthFactor * lengthFactor + extraQuestions * STAGE_COSTS.search + floorHeadroom) * 100) / 100;
+  const limits = depthLimits(depth);
+  const rounds = limits.rounds + 1;
+  // Retrieval and judging do not shrink with report length. Include every
+  // permitted round, source selection, verification and provider headroom.
+  const retrievalAllowance = limits.queries * rounds * 0.04;
+  const judgingAllowance = limits.scoreTop * rounds * 0.01;
+  const operationalEstimate = (retrievalAllowance + judgingAllowance + 0.1 * lengthFactor) * 1.5;
+  return Math.ceil(Math.max(operationalEstimate, pass * depthFactor * lengthFactor + extraQuestions * STAGE_COSTS.search + floorHeadroom) * 100) / 100;
 }
 
 // Crash-recovery lease. A step holds a lease while it runs and renews it on a

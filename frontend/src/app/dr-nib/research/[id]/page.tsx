@@ -777,7 +777,8 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
   // found nothing"), not a loading state — say so instead of promising live
   // content that is never coming.
   const searchDone = (run.steps || []).some((s: any) => s.kind === "search" && s.status === "done");
-  const nothingFound = searchDone && (run.sources || []).length === 0;
+  const nothingFound = searchDone && (run.sources || []).length === 0 &&
+    (run.steps || []).filter((s: any) => s.kind === "search" && s.status === "done").every((s: any) => Array.isArray(s.output?.results) && s.output.results.length === 0);
 
   const statusStyle: Record<string, string> = {
     running: "bg-black text-white",
@@ -996,7 +997,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           <section id="drnib-sources" className="mt-4 scroll-mt-4 border border-dark-gray/50 bg-white p-4">
             <p className="mb-3 text-sm font-medium">Sources ({(run.sources || []).length})</p>
             {(run.sources || []).length === 0 ? (
-              <p className="text-xs opacity-60">{searchDone ? "Search finished with no candidates — nothing to score." : "Sources appear here as the run finds and scores them."}</p>
+              <p className="text-xs opacity-60">{nothingFound ? "Search finished with no candidates — nothing to score." : searchDone ? "Search candidates found — sources appear here as the agent reads and scores them." : "Sources appear here as the run finds and scores them."}</p>
             ) : (
               <ul className="space-y-2">
                 {run.sources.map((s: any, i: number) => (

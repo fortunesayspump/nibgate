@@ -51,7 +51,7 @@ Each wallet transaction must have a successful receipt before the next step star
 | Endpoint | Does |
 |---|---|
 | `POST /v1/runs/:id/escrow` | return parameters for your wallet to open the job (planning/planned only) |
-| `POST /v1/runs/:id/escrow/register` | register the wallet-created job after validating its onchain client, provider and evaluator |
+| `POST /v1/runs/:id/escrow/register` | register the wallet-created job after validating its onchain client and provider |
 | `GET /v1/runs/:id/escrow` | local record + live onchain status |
 | `POST /v1/runs/:id/escrow/complete` | keeper submit + complete with ledger spend, then relay of the split; returns the split signature and `splitTx` |
 

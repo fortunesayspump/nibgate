@@ -378,7 +378,9 @@ async function main() {
     if (shared.__nibgateDismissedUrl === pageUrl || document.querySelector(`[${HOST_ATTR}]`)) return;
     const mediaSignature = Array.from(document.querySelectorAll('img,video,audio,iframe')).slice(0, 200)
       .map((el) => [el.getAttribute('src'), el.getAttribute('srcset'), el.getAttribute('width'), (el as HTMLImageElement).naturalWidth || 0].join(':')).join('|');
-    const signature = pageUrl + document.title + mediaSignature + (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+    const metadataSignature = Array.from(document.head.querySelectorAll('meta,link[rel="canonical"],script[type="application/ld+json"]'))
+      .map((el) => el.getAttribute('content') || el.getAttribute('href') || el.textContent || '').join('|');
+    const signature = pageUrl + document.title + mediaSignature + metadataSignature + (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
     if (signature === lastSignature) return;
     lastSignature = signature;
     busy = true;
@@ -399,6 +401,7 @@ async function main() {
     if (changes.some((c) => !((c.target as Element).closest?.(`[${HOST_ATTR}]`)))) schedule();
   });
   observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'srcset', 'width', 'height'] });
+  observer.observe(document.head, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['content', 'href'] });
   // SPA navigation does not necessarily trigger a Chrome tab load event.
   const navigation = setInterval(() => {
     const next = window.location.href.split('#')[0];

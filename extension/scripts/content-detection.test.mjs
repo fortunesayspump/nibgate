@@ -15,6 +15,8 @@ for (const [name, body, head] of [
   ['Next.js app-root article', `<div id="__next">${article()}</div>`, ''],
   ['Ghost taxonomy classes on a post', `<main><article class="post tag-personal"><h1>A practical tutorial</h1><p>${prose(400)}</p></article></main>`, ''],
   ['Blogger line-break post without paragraphs', `<div class="widget Blog" id="Blog1"><main><div class="post hentry"><h1>A practical tutorial</h1><div class="post-body">${prose(350)}<br>${prose(50)}</div></div></main></div>`, '<meta property="og:type" content="article">'],
+  ['short dated creator post', `<main><article><h1>A practical tutorial</h1><time datetime="2026-10-14">Today</time><a rel="author">A creator</a><p>${prose(55)}</p></article></main>`, ''],
+  ['Chinese post without spaces', `<main><article><h1>A practical tutorial</h1><p>${'摄影是观察世界的方式。每天记录光线和生活的变化。'.repeat(45)}</p></article></main>`, ''],
 ]) {
   test(`detects ${name}`, async () => {
     const f = fixture(body, head);
@@ -77,4 +79,17 @@ test('WordPress sidebar layout class on body does not suppress an article', asyn
   f.window.document.body.className = 'single-post right-sidebar';
   try { await f.tick(0); assert.ok(f.host()); }
   finally { f.close(); }
+});
+
+test('late creator metadata triggers reassessment without changing article text', async () => {
+  const f = fixture(`<main><article><h1>A practical tutorial</h1><time datetime="2026-10-14">Today</time><p>${prose(55)}</p></article></main>`);
+  try {
+    await f.tick(0);
+    assert.equal(f.host(), null);
+    const author = f.window.document.createElement('meta');
+    author.name = 'author'; author.content = 'A creator';
+    f.window.document.head.appendChild(author);
+    await f.tick(1100);
+    assert.ok(f.host());
+  } finally { f.close(); }
 });

@@ -50,6 +50,17 @@ const CHROME_HINT =
 const READ_MORE = /(read more|continue reading|read the rest|full story|keep reading|read on)\b/i;
 const BLOCK_SEL = 'h1,h2,h3,h4,h5,h6,p,blockquote,pre,figure';
 const POST_ROOT_SEL = 'article,[role="article"],.h-entry,.hentry,.entry-content,.post-content,.article-body,.post-body';
+const schemaCache = new WeakMap<Document, string[]>();
+const postRootCache = new WeakMap<Document, Element[]>();
+const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+function postRootsOf(doc: Document): Element[] {
+  let roots = postRootCache.get(doc);
+  if (!roots) {
+    roots = Array.from(doc.querySelectorAll(POST_ROOT_SEL)).filter((el) => !el.parentElement?.closest(POST_ROOT_SEL));
+    postRootCache.set(doc, roots);
+  }
+  return roots;
+}
 
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
@@ -57,7 +68,11 @@ function clamp01(n: number): number {
 function wordsOf(el: Element | null | undefined): number {
   if (!el) return 0;
   const text = (el.textContent || '').trim();
-  return text ? text.split(/\s+/).length : 0;
+  if (!text) return 0;
+  if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text)) {
+    return Array.from(wordSegmenter.segment(text)).filter((part) => part.isWordLike).length;
+  }
+  return text.split(/\s+/).length;
 }
 function hintOf(el: Element): string {
   return `${el.className || ''} ${el.id || ''}`.toString().toLowerCase();
@@ -153,6 +168,20 @@ function mediaWorkScore(doc: Document, scope: Element): number {
   const images = contentImageCount(scope, metaContent(doc, ['og:image']));
   return creator && published && titled && (media || images > 0) ? 1 : 0;
 }
+
+function publishedTextScore(doc: Document, scope: Element): number {
+  const types = schemaTypes(doc).join(' ');
+  if (/product|offer|softwareapplication/.test(types) || wordsOf(scope) < 40) return 0;
+  const roots = postRootsOf(doc);
+  if (roots.length > 1) return 0;
+  const declared = metaContent(doc, ['og:type']) === 'article' || /article|blogposting/.test(types);
+  const named = Boolean(metaContent(doc, ['author', 'article:author']) || /person/.test(types)
+    || scope.querySelector('[rel~="author"], [itemprop="author"], .p-author'));
+  const dated = Boolean(metaContent(doc, ['article:published_time']) || scope.querySelector('time[datetime], .dt-published, .published'));
+  const titled = Boolean(scope.querySelector('h1,h2'));
+  const region = scope.matches(`main,[role="main"],${POST_ROOT_SEL}`);
+  return named && dated && titled && (declared || (region && roots.length === 1)) ? 1 : 0;
+}
 function numericPagination(doc: Document): boolean {
   if (doc.querySelector('.pagination, .page-numbers, [class*="pagination" i], nav[aria-label*="pag" i]')) return true;
   const nums = Array.from(doc.querySelectorAll('nav a, [class*="pagination" i] a')).filter((a) =>
@@ -241,7 +270,7 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
     if (p.tagName === 'LI' && p.querySelector('p,blockquote,pre')) return;
     if (!isBoiler(p)) pageProse += Math.min(wordsOf(p), 2000);
   });
-  const postRoots = Array.from(doc.querySelectorAll(POST_ROOT_SEL)).filter((el) => !el.parentElement?.closest(POST_ROOT_SEL));
+  const postRoots = postRootsOf(doc);
   pageProse = Math.max(pageProse, postRoots.reduce((total, el) => total + proseWords(el), 0));
   const best = contentContainer(doc);
   const bestProse = proseWords(best);
@@ -255,6 +284,8 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
   const articleCount = doc.querySelectorAll('article').length;
   const main = doc.querySelector('main, [role="main"]');
   const mediaWork = Math.max(mediaWorkScore(doc, best), main ? mediaWorkScore(doc, main) : 0);
+  const publishedText = Math.max(publishedTextScore(doc, best), main ? publishedTextScore(doc, main) : 0,
+    ...postRoots.map((el) => publishedTextScore(doc, el)));
   const feedCards = clamp01((repeatedCards(doc) - 1) / 3);
   const pagination = numericPagination(doc) ? 1 : 0;
   const linkDensity = (() => {
@@ -321,6 +352,7 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
     hiddenContent: 0.5,
     dominantArticle: 0.4,
     mediaWork: 0.9,
+    publishedText: 0.55,
   };
 
   const mk = (kind: PageKind, scores: Record<string, number>): JevOption => {
@@ -330,8 +362,8 @@ function classify(doc: Document): { decision: JevDecision; options: JevOption[];
   const options: JevOption[] = [
     // A short page (bio card, landing) or a brand/organization page cannot be
     // "the content", however well titled its single block is.
-    (pageProse >= 200 || mediaWork || (pageProse >= 120 && titleAlign && (articleTag || ogArticle))) && org < 0.5 && !profilePage && visibleRatio >= 0.5
-      ? mk('content', { substance, singleFocus, titleAlign, ogArticle, articleTag, dominantArticle, mediaWork })
+    (pageProse >= 200 || mediaWork || publishedText || (pageProse >= 120 && titleAlign && (articleTag || ogArticle))) && org < 0.5 && !profilePage && visibleRatio >= 0.5
+      ? mk('content', { substance, singleFocus, titleAlign, ogArticle, articleTag, dominantArticle, mediaWork, publishedText })
       : mk('content', { substance: 0, singleFocus: 0, titleAlign: 0, ogArticle: 0, articleTag: 0, dominantArticle: 0 }),
     mk('feed', { feedCards, pagination, manyArticles: clamp01((articleCount - 1) / 3), readMore, linkedHeadings }),
     mk('landing', { lowSubstance, navHeavy, manyExternals: navHeavy, controlHeavy, organization: org, hiddenContent: 1 - visibleRatio }),
@@ -370,7 +402,8 @@ function pickRoot(
     seen.add(el);
     const w = proseWords(el);
     const mediaWork = mediaWorkScore(doc, el);
-    if (w < 120 && !mediaWork) return;
+    const publishedText = publishedTextScore(doc, el);
+    if (w < 120 && !mediaWork && !publishedText) return;
     const total = wordsOf(el);
     const ld = total ? linkWords(el) / total : 1;
     const parentProse = el.parentElement ? Math.max(1, proseWords(el.parentElement)) : w;
@@ -396,6 +429,7 @@ function pickRoot(
       contentMedia: contentImages > 0 || Boolean(el.querySelector('video,audio')) ? 1 : 0,
       imageClean: totalImages ? contentImages / totalImages : 1,
       mediaWork,
+      publishedText,
     };
     entries.push({
       el,
@@ -425,6 +459,7 @@ function pickRoot(
     contentMedia: 0.12,
     imageClean: 0.08,
     mediaWork: 0.45,
+    publishedText: 0.35,
   };
   const options: JevOption[] = entries.map(({ option }) => {
     const confidence = clamp01(elementValue(option, weights));
@@ -547,6 +582,8 @@ function fingerprint(title: string, text: string): string {
 
 // Structured-data types (schema.org JSON-LD) map to the content kinds we tip.
 function schemaTypes(doc: Document): string[] {
+  const cached = schemaCache.get(doc);
+  if (cached) return cached;
   const out: string[] = [];
   doc.querySelectorAll('script[type="application/ld+json"]').forEach((node) => {
     let data: unknown;
@@ -570,6 +607,7 @@ function schemaTypes(doc: Document): string[] {
     };
     walk(data);
   });
+  schemaCache.set(doc, out);
   return out;
 }
 
@@ -662,6 +700,9 @@ function eligibility(input: {
 
 export function mapPage(rootNode: ParentNode = document): PageMap {
   const doc = (rootNode as Document).documentElement ? (rootNode as Document) : document;
+  // Cache only within one assessment; hydrated metadata must be read afresh.
+  schemaCache.delete(doc);
+  postRootCache.delete(doc);
   const classified = classify(doc);
   const kind = (classified.decision.kind === 'select' ? classified.decision.action : 'unknown') as PageKind;
 
@@ -744,7 +785,7 @@ export function mapPage(rootNode: ParentNode = document): PageMap {
     doc.title ||
     'Untitled';
   const text = (effectiveRoot.textContent || '').trim();
-  const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const wordCount = wordsOf(effectiveRoot);
 
   const elig = eligibility({
     kindConfidence,

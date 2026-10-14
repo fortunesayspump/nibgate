@@ -11,11 +11,11 @@ import dotenv from 'dotenv';
 const root = path.resolve(import.meta.dirname, '..');
 const file = path.join(root, '.env.test');
 
-if (!fs.existsSync(file)) {
+if (!fs.existsSync(file) && !process.env.DRNIB_DATABASE_URL) {
   throw new Error(`Missing ${file}. Copy test/env.example to .env.test and point it at a throwaway schema.`);
 }
 
-dotenv.config({ path: file });
+if (fs.existsSync(file)) dotenv.config({ path: file });
 
 const url = process.env.DRNIB_DATABASE_URL || '';
 if (!/[?&]schema=drnib_test\b/.test(url)) {
@@ -28,14 +28,19 @@ if (!/[?&]schema=drnib_test\b/.test(url)) {
 // carry, so a developer's local .env can never make the suite non-deterministic.
 // Test files stub exactly the keys their subject needs.
 //
-// Known hole this does NOT cover: the Prisma client loads the repo .env into
-// process.env at import time (after this file runs), re-introducing real keys
-// that unstubAllEnvs cannot remove (it only restores stubbed vars). Tests
-// asserting "off without key" must therefore delete the real vars at the
-// assertion site and restore after — see spend policy + sandbox tests.
+// Construct both Prisma clients before clearing inherited keys: constructors
+// load package .env files. Later imports reuse these initialized modules.
 process.env.HUB_API_URL = 'http://127.0.0.1:9';
+process.env.OPENROUTER_BASE_URL = 'http://127.0.0.1:9';
+await import('../src/db.js');
+await import('@nibgate/internal/db.js');
 delete process.env.OPENROUTER_API_KEY;
 delete process.env.DRNIB_AGENT_PRIVATE_KEY;
 delete process.env.SANDBOX_URL;
 delete process.env.SANDBOX_API_KEY;
 delete process.env.SANDBOX_TOKEN;
+// Local .env also carries optional live service settings; tests use defaults
+// unless a test explicitly stubs an option. Never inherit operator keys.
+for (const key of Object.keys(process.env)) {
+  if (/^(?:LLM_|ESCROW_|R2_|TAVILY_|EXA_|SEARXNG_|SANDBOX_)/.test(key) || ['DRNIB_NETWORK', 'DRNIB_MAINNET_ONLY', 'NIBGATE_KEEPER_PRIVATE_KEY'].includes(key)) delete process.env[key];
+}

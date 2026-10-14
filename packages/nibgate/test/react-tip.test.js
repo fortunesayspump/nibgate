@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ states: [], account: '0x1111111111111111111111111111111111111111', send: vi.fn(), wait: vi.fn(), rpc: vi.fn(), onPaid: vi.fn() }))
 vi.doMock(walletRequire.resolve('react'), () => ({ useCallback: (fn) => fn, useEffect: (fn) => fn(), useRef: (current) => ({ current }), useState: (initial) => { const state = { value: initial }; mocks.states.push(state); return [initial, (value) => { state.value = value }] } }))
 vi.doMock(walletRequire.resolve('@reown/appkit/react'), () => ({ useAppKit: () => ({ open: vi.fn() }), useAppKitAccount: () => ({ address: mocks.account, isConnected: true }), useAppKitProvider: () => ({ walletProvider: { request: mocks.rpc } }) }))
-vi.doMock(walletRequire.resolve('viem').replace('/_cjs/', '/_esm/'), async (original) => ({ ...(await original()), createWalletClient: () => ({ sendTransaction: mocks.send }), createPublicClient: () => ({ readContract: async () => 10000000n, waitForTransactionReceipt: mocks.wait }) }))
+vi.doMock(walletRequire.resolve('viem').replaceAll('\\', '/').replace('/_cjs/', '/_esm/'), async (original) => ({ ...(await original()), createWalletClient: () => ({ sendTransaction: mocks.send }), createPublicClient: () => ({ readContract: async () => 10000000n, waitForTransactionReceipt: mocks.wait }) }))
 const { useNibgateTip } = await import('../../wallet/src/react/tip.jsx')
 import { activeChain } from '../../wallet/src/chain.js'
 const recipient = '0x2222222222222222222222222222222222222222'

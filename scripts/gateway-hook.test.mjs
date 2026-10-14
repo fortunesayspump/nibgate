@@ -3,7 +3,7 @@
 // stubbed. This is not a browser or React renderer integration test.
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { readFile } from 'node:fs/promises'
+import { readFile } from './test-source.mjs'
 import test from 'node:test'
 import * as engine from '../packages/wallet/src/gateway-transactions.js'
 

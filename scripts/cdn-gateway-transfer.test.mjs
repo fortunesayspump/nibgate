@@ -1,7 +1,7 @@
 // Offline adapter/UI harness: actual source + audited transaction engine, with
 // DOM, viem, wallet RPC and network helpers stubbed. No live network or wallet.
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile } from './test-source.mjs';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import * as engine from '../packages/wallet/src/gateway-transactions.js';

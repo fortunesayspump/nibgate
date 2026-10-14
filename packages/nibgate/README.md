@@ -261,7 +261,7 @@ The package includes lightweight controller UIs for common integration patterns:
 
 `createEvmGatewayUnlock(resource, options)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility for EVM-compatible wallets.
 
-Unreleased browser/CDN safety update: pass the selected EIP-1193 `provider`, or
+SDK 0.4.35 browser/CDN safety update: pass the selected EIP-1193 `provider`, or
 `getProvider()` for a changing selection. An explicitly unavailable provider never
 falls back to an injected wallet. `network` selects exactly `eip155:5042` (Arc
 mainnet) or `eip155:5042002` (testnet, the default); connection health, account,
@@ -289,8 +289,8 @@ Use one shared wallet module instance per page; concurrent Gateway transfers
 from independently loaded SDK bundles do not share an in-flight lock and are
 not supported.
 
-These source changes require new matching SDK and wallet releases; they are not
-included in the previously published `0.4.35-testnet.0`/`0.4.25-testnet.0` pair.
+These changes are included in SDK `0.4.35` and wallet `0.4.25`. Use the matching
+pair and configure its network and Hub together.
 
 
 `createTransferCheckout(resource, options)` supports direct Arc transfer-style unlocks where Gateway is not used (testnet 5042002 / mainnet 5042).
@@ -829,13 +829,13 @@ NIBGATE_BUYER_PRIVATE_KEY=0xYourFundedBuyerPrivateKey
 
 Without a real Gateway payment, the server will not issue a Nibgate unlock token.
 
-## Testnet prerelease: payment confirmation and safe retries
+## Payment confirmation and safe retries
 
-This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
-`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
-`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
-release are unchanged by this release plan; a `testnet` package tag does not
-configure the application's network automatically.
+SDK 0.4.35 and wallet 0.4.25 support Arc mainnet (`eip155:5042`,
+`https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
+`https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
+`@nibgate/wallet@latest`. Configure the application network and matching Hub
+together; an npm tag does not configure the network automatically.
 
 A wallet transaction hash or Gateway signature means a proof was submitted,
 not that the Hub recorded a successful tip. A standalone SDK tip without a Hub

@@ -1,7 +1,7 @@
 // Offline access/presentation boundary checks. Executes the real unlock hook
 // with wallet, SDK and React boundaries controlled; never sends a payment.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile } from './test-source.mjs'
 import test from 'node:test'
 
 const source = (await readFile(new URL('../packages/wallet/src/react/unlock.jsx', import.meta.url), 'utf8'))

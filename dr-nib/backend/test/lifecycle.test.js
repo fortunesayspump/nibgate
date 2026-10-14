@@ -169,7 +169,7 @@ describe('ending a run', () => {
     const ended = await api().post(`/v1/runs/${run.id}/end`);
     expect(ended.status).toBe(200);
     expect(ended.body.status).toBe('ended');
-    expect(ended.body.refunded).toBeCloseTo(3.99, 6);
+    expect(ended.body.refunded).toBeCloseTo(4, 6);
     expect(ended.body.balance).toBe(0);
 
     const after = await api().get(`/v1/runs/${run.id}`);

@@ -1,7 +1,7 @@
 // Offline controlled-hook tests. Runs the real presentation hook with React's
 // state/effect boundaries and timers controlled; not a browser integration test.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile } from './test-source.mjs'
 import test from 'node:test'
 
 const source = (await readFile(new URL('../packages/wallet/src/react/useUnlockReveal.js', import.meta.url), 'utf8'))

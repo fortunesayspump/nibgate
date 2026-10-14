@@ -2,7 +2,7 @@
 // initializer/selection expressions; no wallet, network or transaction calls.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { readFile } from './test-source.mjs'
 import { normalizePaymentRail } from '../packages/nibgate/src/core/payment.js'
 const source = await readFile(new URL('../packages/wallet/src/react/unlock.jsx', import.meta.url), 'utf8')
 const initializer = source.match(/const \[paymentRail, setPaymentRail\] = useState\(([^\n]+)\)/)?.[1]

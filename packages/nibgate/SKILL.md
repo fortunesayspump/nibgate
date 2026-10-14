@@ -347,7 +347,7 @@ For v1, treat `unlock.mode: 'one_time'` with the Gateway rail or the direct USDC
 > **⚠️ Important:** Use viem's `createWalletClient` + `custom(selectedProvider)` transport instead of raw `eth_signTypedData_v4`. This ensures consistent EIP-712 hashing across wallets (MetaMask, Rabby, etc.). Raw `eth_signTypedData_v4` can produce hashes that don't match what the server expects.
 
 
-### Browser wallet selection and recovery (unreleased)
+### Browser wallet selection and recovery
 
 For `createEvmGatewayUnlock`, pass the explicitly selected `provider` or a
 `getProvider()` callback. Explicit null does not fall back to `window.ethereum`.
@@ -803,13 +803,13 @@ app.get('/nibgate/access', async (req, res) => {
 - **CMS apps**: Save Nibgate resource settings beside each content record. Use `settingsToAccessPolicy()` and `settingsToUnlockPolicy()` to convert stored settings to resource shapes. Mount the admin panel for easy management.
 - **Static/vanilla HTML/JS**: Compile the SDK into a bundle with esbuild (see section 8). Use `gate()` and `nibgate` from the global `Nibgate` namespace.
 
-## Testnet prerelease: payment confirmation and safe retries
+## Payment confirmation and safe retries
 
-This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
-`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
-`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
-release are unchanged by this release plan; a `testnet` package tag does not
-configure the application's network automatically.
+SDK 0.4.35 and wallet 0.4.25 support Arc mainnet (`eip155:5042`,
+`https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
+`https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
+`@nibgate/wallet@latest`. Configure the application network and matching Hub
+together; an npm tag does not configure the network automatically.
 
 A wallet transaction hash or Gateway signature means a proof was submitted,
 not that the Hub recorded a successful tip. A standalone SDK tip without a Hub
@@ -865,3 +865,23 @@ reconciliation; retrying verification remains possible, but cannot clear or
 resettle an ambiguous backend reservation. The hook reports a verified receipt
 only after a successful Hub response. A later UI callback failure must not prompt
 another payment. Pending proof material must not be published or sent to analytics.
+
+## React dependency identity
+
+For a React host, the validated companion stack is Reown AppKit/adapter
+`1.8.21`, wagmi `3.6.21`, React/ReactDOM `19.2.4`, and React Query `5.101.2`.
+Keep React and the wallet provider in one module graph. The application root
+should pin transitive wallet integrations with these npm `overrides` (or the
+same keys under `pnpm.overrides` when using pnpm 10):
+
+```json
+{
+  "overrides": {
+    "viem": "2.54.1",
+    "@wagmi/connectors": "8.0.20",
+    "@coinbase/cdp-sdk": "1.51.2"
+  }
+}
+```
+
+This keeps fresh installations on the tested connector/core and x402 peer graph.

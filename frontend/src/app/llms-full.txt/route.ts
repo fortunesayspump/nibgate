@@ -66,7 +66,7 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 - https://docs.nibgate.xyz/api-reference — API reference.
 - https://docs.nibgate.xyz/agent-discovery — Agent discovery docs.
 
-Testnet prerelease tip verification: reuse the original proof and exact request. A completed matching proof recovers the existing receipt; HTTP 409 pending/conflicting proofs require reconciliation, not another payment.
+Mainnet and testnet tip verification: reuse the original proof and exact request. A completed matching proof recovers the existing receipt; HTTP 409 pending/conflicting proofs require reconciliation, not another payment.
 
 ## API endpoints
 

@@ -15,7 +15,7 @@ import { db } from '../db.js';
 
 const TEST_KEY = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-beforeEach(() => { console.log("TRAP-BEFORE KEY_SET=" + Boolean(process.env.DRNIB_AGENT_PRIVATE_KEY));
+beforeEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
 });

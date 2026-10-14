@@ -1,14 +1,13 @@
 # Railway service: Dr. Nib backend.
 #
-# Set this service's Root Directory to dr-nib/backend. Railway checks out the
-# whole repo, so pnpm still finds the workspace root two levels up and resolves
-# dr-nib's `@nibgate/internal` workspace dependency.
+# Use the repository root as the service root so the shared lockfile and
+# workspace packages are in the build context. Scope the start command below.
 #
 # Start runs generate + serve without changing the database schema. Fresh
 # installs and schema upgrades require a separately reviewed migration step
 # against the `drnib` schema named by DRNIB_DATABASE_URL before deployment.
 [build]
-builder = "nixpacks"
+builder = "railpack"
 watchPatterns = [
   "dr-nib/**",
   "packages/internal/**",

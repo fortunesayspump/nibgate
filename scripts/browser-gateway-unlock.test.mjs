@@ -2,7 +2,7 @@
 // RPC guard. Only external Circle/viem packages and browser/HTTP IO are stubbed.
 // Run with Node 22: node --test scripts/browser-gateway-unlock.test.mjs
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile } from './test-source.mjs';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');

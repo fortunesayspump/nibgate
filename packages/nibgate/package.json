@@ -1,6 +1,6 @@
 {
   "name": "@nibgate/sdk",
-  "version": "0.4.35-testnet.0",
+  "version": "0.4.35",
   "description": "Framework-agnostic browser and server package for creator-owned gated content, unlock events, and receipts.",
   "type": "module",
   "sideEffects": [
@@ -49,7 +49,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "testnet"
+    "tag": "latest"
   },
   "files": [
     "src",

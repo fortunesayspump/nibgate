@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync } from './test-source.mjs';
 import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -31,7 +31,7 @@ test('Hub startup generates its client without schema mutation', () => {
   const { commands } = inspectHubGeneration();
   assert.equal(commands.length, 1);
   assert.match(commands[0], / generate --schema=/);
-  assert.match(commands[0], /packages\/cli\/prisma\/schema\.prisma/);
+  assert.match(commands[0].replaceAll('\\', '/'), /packages\/cli\/prisma\/schema\.prisma/);
   assert.doesNotMatch(hubStart, /db push|migrate deploy|accept-data-loss/);
 });
 
@@ -60,7 +60,7 @@ test('Dr. Nib production API and worker generate clients without migrations', ()
 test('Subblogs starts production from the build-generated client', () => {
   const { scripts } = manifest('subblogs/backend/package.json');
   assert.equal(scripts.start, 'cross-env NODE_ENV=production node src/index.js');
-  assert.equal(scripts.postinstall, 'npx prisma generate');
+  assert.equal(scripts.postinstall, 'prisma generate');
   assert.equal(scripts.prestart, undefined);
   assert.match(read('subblogs/backend/src/lib/prisma.js'), /require\('\.\.\/\.\.\/prisma\/generated\/client'\)/);
   assert.match(read('subblogs/backend/prisma/schema.prisma'), /output\s*=\s*"\.\/generated\/client"/);

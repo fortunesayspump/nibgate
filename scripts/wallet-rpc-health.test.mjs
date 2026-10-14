@@ -1,7 +1,7 @@
 // Execute the actual network module with only its chain metadata dependency
 // stubbed. No installed packages, HTTP, wallet, signing, or broadcasts needed.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile } from './test-source.mjs'
 import test from 'node:test'
 const path = '../packages/wallet/src/network.js'
 const source = (await readFile(new URL(path, import.meta.url), 'utf8')).replace(/^import .*?;\n/, `

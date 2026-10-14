@@ -28,14 +28,14 @@ describe('budget ledger', () => {
     expect(state.balance).toBe(5);
   });
 
-  it('takes exactly 1% for the platform on every draw', async () => {
+  it('accrues 1% operator-side without reducing the payer balance', async () => {
     const result = await draw(RUN, 1);
     expect(result.ok).toBe(true);
     expect(FEE_BPS).toBe(100);
     expect(result.spend).toBe(1);
     expect(result.fee).toBe(0.01);
-    expect(result.used).toBe(1.01);
-    expect(result.balance).toBeCloseTo(3.99, 9);
+    expect(result.used).toBe(1);
+    expect(result.balance).toBeCloseTo(4, 9);
   });
 
   it('refuses a draw that would pass the cap and charges nothing for it', async () => {
@@ -65,7 +65,7 @@ describe('budget ledger', () => {
     // (0.1 is unrepresentable in binary); Decimal does not.
     expect(state.spend).toBe(1);
     expect(state.fee).toBe(0.01);
-    expect(state.used).toBe(1.01);
+    expect(state.used).toBe(1);
   });
 });
 
@@ -92,7 +92,7 @@ describe('raising a budget', () => {
     expect(result.ok).toBe(true);
     expect(result.budgetCap).toBe(8);
     expect(result.deposited).toBe(8);
-    expect(result.balance).toBeCloseTo(6.99, 9);
+    expect(result.balance).toBeCloseTo(7, 9);
   });
 });
 
@@ -105,8 +105,8 @@ describe('settling', () => {
 
   it('returns the unspent remainder immediately and zeroes the balance', async () => {
     const result = await settle(RUN, 'ended');
-    // 5 deposited − 1.25 spent − 0.0125 (1% fee) = 3.7375 refunded.
-    expect(result.refunded).toBeCloseTo(3.7375, 4);
+    // 5 deposited − 1.25 spent = 3.75 refunded; the fee is operator-side.
+    expect(result.refunded).toBeCloseTo(3.75, 4);
     expect(result.balance).toBe(0);
   });
 

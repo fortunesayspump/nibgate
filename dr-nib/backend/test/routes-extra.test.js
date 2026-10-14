@@ -284,9 +284,9 @@ describe('exports', () => {
     expect(fetched.body.format).toBe('md');
   });
 
-  it('says plainly which formats have no renderer yet, and refuses without a report', async () => {
+  it('requires a report for supported renderers and rejects unknown formats', async () => {
     const run = await makeRun({ status: 'complete' });
-    expect((await api().post(`/v1/runs/${run.id}/exports`).send({ format: 'pdf' })).status).toBe(501);
+    expect((await api().post(`/v1/runs/${run.id}/exports`).send({ format: 'pdf' })).status).toBe(409);
     expect((await api().post(`/v1/runs/${run.id}/exports`).send({ format: 'md' })).status).toBe(409);
     expect((await api().post(`/v1/runs/${run.id}/exports`).send({ format: 'exe' })).status).toBe(400);
     expect((await api().get(`/v1/runs/${run.id}/exports/nope`)).status).toBe(404);

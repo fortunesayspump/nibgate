@@ -2,7 +2,7 @@
 // Run: node --test scripts/gateway-transactions.test.mjs
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { readFile } from 'node:fs/promises'
+import { readFile } from './test-source.mjs'
 import test from 'node:test'
 import {
   parseGatewayAmount, runGatewayTransfer, gatewayTransferKey,

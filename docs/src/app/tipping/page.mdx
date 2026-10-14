@@ -254,13 +254,13 @@ metadata or cover-image generator.
 
 See [Architecture](/architecture) for how the hub, keeper, and contracts fit together.
 
-## Testnet prerelease: payment confirmation and safe retries
+## Payment confirmation and safe retries
 
-This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
-`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
-`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
-release are unchanged by this release plan; a `testnet` package tag does not
-configure the application's network automatically.
+SDK 0.4.35 and wallet 0.4.25 support Arc mainnet (`eip155:5042`,
+`https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
+`https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
+`@nibgate/wallet@latest`. Configure the application network and matching Hub
+together; an npm tag does not configure the network automatically.
 
 A wallet transaction hash or Gateway signature means a proof was submitted,
 not that the Hub recorded a successful tip. A standalone SDK tip without a Hub

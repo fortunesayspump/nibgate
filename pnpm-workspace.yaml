@@ -8,3 +8,11 @@ packages:
   - subblogs/backend
 
 nodeLinker: isolated
+
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - esbuild
+  - sharp
+  - '@tailwindcss/oxide'

@@ -10,6 +10,25 @@ npm install @nibgate/wallet
 
 Peer-style companions you likely want: `@tanstack/react-query`, `wagmi`, `@reown/appkit` are re-exported from `@nibgate/wallet/react` — always import those primitives from this package, not directly, so every Nibgate consumer shares a single instance.
 
+
+For a React host, the validated companion stack is Reown AppKit/adapter
+`1.8.21`, wagmi `3.6.21`, React/ReactDOM `19.2.4`, and React Query `5.101.2`.
+Keep React and the wallet provider in one module graph. The application root
+should pin transitive wallet integrations with these npm `overrides` (or the
+same keys under `pnpm.overrides` when using pnpm 10):
+
+```json
+{
+  "overrides": {
+    "viem": "2.54.1",
+    "@wagmi/connectors": "8.0.20",
+    "@coinbase/cdp-sdk": "1.51.2"
+  }
+}
+```
+
+This keeps fresh installations on the tested connector/core and x402 peer graph.
+
 ## Quick start
 
 ```jsx
@@ -70,7 +89,7 @@ import { GatewayWalletUI } from '@nibgate/wallet/react';
 
 Renders buyer wallet balance and Circle Gateway balance with deposit flow.
 
-The unreleased Gateway safety update uses only the AppKit-selected EVM provider.
+The wallet 0.4.25 Gateway safety update uses only the AppKit-selected EVM provider.
 The displayed account must match that provider, and every transaction explicitly
 names the build's active Arc chain. A rejected switch or changed wallet stops the
 next send. Approval must be successfully mined before deposit is requested;
@@ -91,7 +110,7 @@ cancel a transaction already submitted to the wallet. If the wallet response is
 lost before a hash is saved, or a transaction is replaced/cancelled, the flow
 fails closed: inspect wallet activity before any further payment. Recovery does
 not span other tabs, devices, cleared session storage, or closed browsing
-sessions. These changes have not been published in `0.4.25-testnet.0`.
+sessions. These changes are included in wallet `0.4.25`.
 Use one shared wallet module instance per page. Concurrent transfers from
 independent SDK bundles (for example, separately bundled CDN and React clients)
 do not share an in-flight lock and are not supported.
@@ -145,13 +164,13 @@ Star rating written to the Nibgate reputation contract (constants exported as `N
 
 MIT
 
-## Testnet prerelease: payment confirmation and safe retries
+## Payment confirmation and safe retries
 
-This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
-`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
-`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
-release are unchanged by this release plan; a `testnet` package tag does not
-configure the application's network automatically.
+SDK 0.4.35 and wallet 0.4.25 support Arc mainnet (`eip155:5042`,
+`https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
+`https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
+`@nibgate/wallet@latest`. Configure the application network and matching Hub
+together; an npm tag does not configure the network automatically.
 
 A wallet transaction hash or Gateway signature means a proof was submitted,
 not that the Hub recorded a successful tip. A standalone SDK tip without a Hub
@@ -193,7 +212,7 @@ only after a successful Hub response. A later UI callback failure must not promp
 another payment. Pending proof material must not be published or sent to analytics.
 
 
-### Wallet RPC health and repair (unreleased)
+### Wallet RPC health and repair
 
 A matching chain ID does not prove that an external wallet's saved RPC works.
 `ensureArcNetwork(provider)` now reads the selected provider's actual chain ID

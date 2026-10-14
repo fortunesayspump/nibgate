@@ -8,8 +8,8 @@ import { mapPage } from './page-model';
 import { isTippableUrl } from './guard';
 import coffeeSvg from '../../icons/coffee.svg';
 
-// UXWing's requested coffee icon; the inline reminder retains its line icon.
-const FLOATING_COFFEE = coffeeSvg.replace('<svg ', '<svg width="26" height="26" fill="currentColor" aria-hidden="true" ');
+// Shared UXWing coffee icon for the floating control and inline reminder.
+const COFFEE_ICON = coffeeSvg.replace('<svg ', '<svg width="26" height="26" fill="currentColor" aria-hidden="true" ');
 
 const CARD_ID = 'nibgate-card';
 const HOST_ATTR = 'data-nibgate-widget';
@@ -175,7 +175,7 @@ function cardMarkup(floating = true): string {
     <style>${shadowStyles(floating)}</style>
     <div id="${CARD_ID}">
       ${floating ? '<button class="dismiss" data-dismiss-tip aria-label="Dismiss floating tip button" title="Dismiss for this page"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>' : ''}
-      <button class="tipbtn" data-open-tip aria-label="Tip the creator" title="Tip the creator">${floating ? FLOATING_COFFEE : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h13v5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 7c0-1.2.9-1.2.9-2.4M12 7c0-1.2.9-1.2.9-2.4"/></svg>'}${floating ? '' : 'Tip the creator'}</button>
+      <button class="tipbtn" data-open-tip aria-label="Tip the creator" title="Tip the creator">${COFFEE_ICON}${floating ? '' : 'Tip the creator'}</button>
       <div data-tip-status role="status" aria-live="polite"></div>
     </div>`;
 }

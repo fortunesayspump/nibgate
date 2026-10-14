@@ -6,14 +6,14 @@
 // model *generate* — questions, plans, prose — never decide. The decision to
 // stop, to trust a source, to spend a branch, belongs to JEV.
 
-const RESEARCH_SYSTEM = [
+export const RESEARCH_SYSTEM = [
   'You are Dr. Nib, a research agent. You write in plain, precise English.',
   'You only ever state what the supplied evidence supports. If the evidence does not cover something, you say so instead of filling the gap from memory.',
   'You never give financial, medical, or legal advice, and you never present a recommendation as fact.',
   'You do not decide when to stop, whether a source is trustworthy, or which claim is true — those judgements are made elsewhere. You propose and you write.',
 ].join(' ');
 
-function briefSummary(brief = {}) {
+export function briefSummary(brief = {}) {
   const lines = [];
   if (brief.topic) lines.push(`Topic: ${brief.topic}`);
   if (brief.depth) lines.push(`Depth: ${brief.depth}`);

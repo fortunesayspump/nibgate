@@ -65,6 +65,10 @@ The run returns the *first* triggering condition — thresholds tune from this f
 
 All thresholds live named in one place with their provenance (`limits.js`) — standard-backed where a standard exists, labeled heuristic where tuned from traces.
 
+## Report completion
+
+Report-writing calls reserve additional output-token headroom for reasoning as well as prose. Replies that end at the token limit are not saved as finished prose: sections retry at most three times, then show an explicit pending section. Usage from every completed attempt remains metered, including discarded partial replies. Abstracts that cannot finish are omitted.
+
 ## Memory, two levels
 
 - **In-run:** shaped history (tool + literal input + outcome), coverage state, novelty window, re-plans.

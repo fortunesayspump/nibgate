@@ -7,11 +7,19 @@
 // fallback never pretends the model spoke.
 import { chat, chatJson, isLlmConfigured } from './provider.js';
 import { smartModel } from './pricing.js';
-import { introMessages, conclusionMessages, planMessages, reportMessages,
+import { RESEARCH_SYSTEM, briefSummary, introMessages, conclusionMessages, planMessages, reportMessages,
 roundReviewMessages, sectionMessages, deepenMessages, thinkingMessages, intakeQuestionMessages, intakeBatchMessages,
 directDataMessages, forkMessages, stageNoteMessages } from './prompts.js';
 import { maxTokensForWords, resolveLength, wordsPerSection, countWords, FLOOR_RATIO, MAX_EXPANSIONS } from '../length.js';
 import { mapLimit } from '../retrieval/util.js';
+
+// Reasoning consumes the same output-token ceiling as the final report.
+// Keep room for both, and never save a reply cut off by that ceiling.
+async function reportChat(options) {
+  const out = await chat({ ...options, maxTokens: options.maxTokens + 8192 });
+  return out.finishReason === 'length' || out.finishReason === 'content_filter'
+    ? { ...out, text: '' } : out;
+}
 
 const cleanStrings = (v, cap = 12) =>
   (Array.isArray(v) ? v : []).map((s) => String(s || '').trim()).filter(Boolean).slice(0, cap);
@@ -105,7 +113,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
   });
   if (isLlmConfigured()) {
     try {
-      const { text, usage, model } = await chat({
+      const { text, usage, model } = await reportChat({
         effort: 'high',
         messages: reportMessages({ brief, sources, guidance }), fetchImpl,
         temperature: 0.4,
@@ -120,7 +128,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         const floor = Math.round(Number(targetWords) * FLOOR_RATIO);
         if (countWords(markdown) < floor && (sources || []).length > 0) {
           try {
-            const deep = await chat({
+            const deep = await reportChat({
               effort: 'high',
               messages: deepenMessages({
                 brief, section: brief?.topic || 'the brief', existing: markdown,
@@ -158,7 +166,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         if (refs) assembled.push(refs);
         return { ok: true, source: 'llm', model: model || absModel, usage: outUsage, markdown: assembled.join('\n\n') };
       }
-      return fallback('model returned empty text');
+      return { ...fallback('model returned empty or incomplete text'), usage, model };
     } catch (err) {
       return fallback(err?.message || String(err));
     }
@@ -193,7 +201,7 @@ export async function generateSection({ brief, section, index, of, sources = [],
   let lastModel = null;
   for (let attempt = 1; attempt <= SECTION_ATTEMPTS; attempt += 1) {
     try {
-      const { text, usage, model } = await chat({
+      const { text, usage, model } = await reportChat({
         effort: 'high',
         messages: sectionMessages({ brief, section, index, of, sources, targetWords, guidance }),
         fetchImpl,
@@ -203,10 +211,10 @@ export async function generateSection({ brief, section, index, of, sources = [],
         maxTokens: maxTokensForWords(targetWords),
         ...(typeof onToken === 'function' ? { onToken } : {}),
       });
-      lastUsage = usage || lastUsage;
+      lastUsage = addUsage(lastUsage || {}, usage);
       lastModel = model || lastModel;
       if (text && text.trim()) {
-        return { ok: true, source: 'llm', model, usage, markdown: text.trim() };
+        return { ok: true, source: 'llm', model, usage: lastUsage, markdown: text.trim() };
       }
       lastError = `model returned empty text (attempt ${attempt}/${SECTION_ATTEMPTS})`;
     } catch (err) {
@@ -253,17 +261,17 @@ export async function generateReportLong({ brief, sections = [], getEvidence, al
   const introWords = Math.max(150, Math.round(perSection / 4));
   if (isLlmConfigured()) {
     try {
-      const intro = await chat({
+      const intro = await reportChat({
         effort: 'high',
         messages: introMessages({ brief, sections: capped, targetWords: introWords }),
         fetchImpl,
         temperature: 0.4,
         maxTokens: maxTokensForWords(introWords),
       });
+      usage = addUsage(usage, intro.usage);
       if (intro.text?.trim()) {
         parts.push(intro.text.trim());
         introLanded = true;
-        usage = addUsage(usage, intro.usage);
         if (intro.model) models.add(intro.model);
       }
     } catch (err) {
@@ -301,7 +309,7 @@ export async function generateReportLong({ brief, sections = [], getEvidence, al
     const target = ranked[0].o;
     deepened.add(target.i);
     try {
-      const { text, usage: du, model: dm } = await chat({
+      const { text, usage: du, model: dm } = await reportChat({
         effort: 'high',
         messages: deepenMessages({
           brief, section: target.section, existing: target.out.markdown,
@@ -337,16 +345,16 @@ export async function generateReportLong({ brief, sections = [], getEvidence, al
   const conclusionWords = Math.max(150, Math.round(perSection / 3));
   if (isLlmConfigured() && summaries.length) {
     try {
-      const conclusion = await chat({
+      const conclusion = await reportChat({
         effort: 'high',
         messages: conclusionMessages({ brief, sectionSummaries: summaries, targetWords: conclusionWords }),
         fetchImpl,
         temperature: 0.4,
         maxTokens: maxTokensForWords(conclusionWords),
       });
+      usage = addUsage(usage, conclusion.usage);
       if (conclusion.text?.trim()) {
         parts.push(conclusion.text.trim());
-        usage = addUsage(usage, conclusion.usage);
         if (conclusion.model) models.add(conclusion.model);
       }
     } catch (err) {
@@ -428,7 +436,7 @@ export async function generateAbstract({ brief, reportText, fetchImpl } = {}) {
   const fallback = { ok: true, source: 'fallback', abstract: null, keywords: [], usage: null };
   if (!isLlmConfigured()) return fallback;
   try {
-    const { text, usage, model } = await chat({
+    const { text, usage, model } = await reportChat({
       effort: 'low',
       messages: abstractMessages({ brief, reportText }),
       fetchImpl,
@@ -445,7 +453,7 @@ export async function generateAbstract({ brief, reportText, fetchImpl } = {}) {
     }
     const words = body.join(' ').split(/\s+/).filter(Boolean);
     const abstract = words.slice(0, 220).join(' ');
-    if (!abstract) return fallback;
+    if (!abstract) return { ...fallback, usage, model };
     return { ok: true, source: 'llm', model, usage, abstract, keywords };
   } catch {
     return fallback;

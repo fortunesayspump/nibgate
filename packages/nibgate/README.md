@@ -261,7 +261,7 @@ The package includes lightweight controller UIs for common integration patterns:
 
 `createEvmGatewayUnlock(resource, options)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility for EVM-compatible wallets.
 
-SDK 0.4.37 browser/CDN safety update: pass the selected EIP-1193 `provider`, or
+SDK 0.4.38 browser/CDN safety update: pass the selected EIP-1193 `provider`, or
 `getProvider()` for a changing selection. An explicitly unavailable provider never
 falls back to an injected wallet. `network` selects exactly `eip155:5042` (Arc
 mainnet) or `eip155:5042002` (testnet, the default); connection health, account,
@@ -289,7 +289,7 @@ Use one shared wallet module instance per page; concurrent Gateway transfers
 from independently loaded SDK bundles do not share an in-flight lock and are
 not supported.
 
-These changes are included in SDK `0.4.37` and wallet `0.4.27`. Use the matching
+These changes are included in SDK `0.4.38` and wallet `0.4.28`. Use the matching
 pair and configure its network and Hub together.
 
 
@@ -831,7 +831,7 @@ Without a real Gateway payment, the server will not issue a Nibgate unlock token
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.37 and wallet 0.4.27 support Arc mainnet (`eip155:5042`,
+SDK 0.4.38 and wallet 0.4.28 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub
@@ -891,3 +891,5 @@ reconciliation; retrying verification remains possible, but cannot clear or
 resettle an ambiguous backend reservation. The hook reports a verified receipt
 only after a successful Hub response. A later UI callback failure must not prompt
 another payment. Pending proof material must not be published or sent to analytics.
+
+Google wallet compatibility: wallet 0.4.28 checks already-authorized accounts before SIWE and configures AppKit with Reown's Arc RPC routes on both networks. This avoids Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.

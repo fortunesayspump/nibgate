@@ -63,9 +63,9 @@ function chainDef(chain) {
     rpcUrls: {
       default: {
         // Wallets use chain metadata for both reads and signed broadcasts.
-        // Reown's embedded wallet forwards this URL to its signing provider;
-        // the app's read-only /rpc proxy rejects eth_sendRawTransaction.
-        // Keep app reads on explicit appRpcUrlFor() transports instead.
+        // AppKit separately selects Reown's CSP-compatible Arc RPC routes
+        // for its embedded wallet. The app's /rpc proxy remains read-only;
+        // keep app reads on explicit appRpcUrlFor() transports instead.
         http: [chain.rpcUrl],
       },
     },

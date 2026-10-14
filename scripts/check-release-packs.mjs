@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 const packs = join(tmpdir(), 'nibgate-release-packs');
-for (const [name, version, companion, companionVersion] of [['sdk','0.4.37','wallet','0.4.27'], ['wallet','0.4.27','sdk','0.4.37']]) {
+for (const [name, version, companion, companionVersion] of [['sdk','0.4.38','wallet','0.4.28'], ['wallet','0.4.28','sdk','0.4.38']]) {
   const unpack = spawnSync('tar', ['-xOf', join(packs, `nibgate-${name}-${version}.tgz`), 'package/package.json'], { encoding: 'utf8' });
   assert.equal(unpack.status, 0, unpack.stderr);
   const packed = JSON.parse(unpack.stdout);
@@ -21,8 +21,8 @@ if (process.argv.includes('--archives-only')) {
 const fixture = mkdtempSync(join(tmpdir(), 'nibgate-release-consumer-'));
 const registryConsumer = process.argv.includes('--registry');
 const dependencies = {
-  '@nibgate/sdk': registryConsumer ? '0.4.37' : `file:${join(packs,'nibgate-sdk-0.4.37.tgz').replaceAll('\\','/')}`,
-  '@nibgate/wallet': registryConsumer ? '0.4.27' : `file:${join(packs,'nibgate-wallet-0.4.27.tgz').replaceAll('\\','/')}`,
+  '@nibgate/sdk': registryConsumer ? '0.4.38' : `file:${join(packs,'nibgate-sdk-0.4.38.tgz').replaceAll('\\','/')}`,
+  '@nibgate/wallet': registryConsumer ? '0.4.28' : `file:${join(packs,'nibgate-wallet-0.4.28.tgz').replaceAll('\\','/')}`,
   '@reown/appkit': '1.8.21', '@reown/appkit-adapter-wagmi': '1.8.21',
   '@tanstack/react-query': '5.101.2', react: '19.2.4', 'react-dom': '19.2.4',
   wagmi: '3.6.21', viem: '2.54.1', typescript: '5.9.3',
@@ -36,9 +36,9 @@ const sdkFile = require.resolve('@nibgate/sdk/package.json');
 const walletFile = join(require.resolve('@nibgate/wallet'), '..', '..', 'package.json');
 const sdk = JSON.parse(readFileSync(sdkFile,'utf8'));
 const wallet = JSON.parse(readFileSync(walletFile,'utf8'));
-assert.equal(sdk.version,'0.4.37'); assert.equal(wallet.version,'0.4.27');
-assert.equal(sdk.dependencies['@nibgate/wallet'],'0.4.27');
-assert.equal(wallet.dependencies['@nibgate/sdk'],'0.4.37');
+assert.equal(sdk.version,'0.4.38'); assert.equal(wallet.version,'0.4.28');
+assert.equal(sdk.dependencies['@nibgate/wallet'],'0.4.28');
+assert.equal(wallet.dependencies['@nibgate/sdk'],'0.4.38');
 assert.ok(!JSON.stringify({sdk,wallet}).includes('workspace:'));
 assert.equal(realpathSync(require.resolve('react')), realpathSync(createRequire(walletFile).resolve('react')));
 const browser = await import(pathToFileURL(require.resolve('@nibgate/sdk/browser')));

@@ -5,6 +5,7 @@ import { readFile } from './test-source.mjs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
+import { arcAppKitRpcUrls } from '../packages/wallet/src/react/appkit-networks.js';
 import {
   ARC_MAINNET, ARC_TESTNET, arcMainnet, arcTestnet,
   activeArcChain, appRpcUrlFor, getAddArcNetworkParams,
@@ -29,8 +30,9 @@ for (const [name, config, chain, rpcUrl] of cases) {
     assert.deepEqual(chain.nativeCurrency, { decimals: 18, name: 'USDC', symbol: 'USDC' });
   });
 
-  test(`${name}: installed Reown forwards public RPC for embedded-wallet sends`, async () => {
-    const network = CaipNetworksUtil.extendCaipNetwork(chain, { projectId: 'offline-routing-test' });
+  test(`${name}: installed Reown forwards CSP-compatible RPC for embedded-wallet sends`, async () => {
+    const customRpcUrls = arcAppKitRpcUrls([chain], 'offline-routing-test');
+    const network = CaipNetworksUtil.extendCaipNetwork(chain, { projectId: 'offline-routing-test', customRpcUrls });
     const messages = [];
     const hash = `0x${'ab'.repeat(32)}`;
     const provider = {
@@ -46,10 +48,17 @@ for (const [name, config, chain, rpcUrl] of cases) {
     assert.equal(result, hash);
     assert.equal(messages.length, 1);
     assert.equal(messages[0].payload.chainId, config.id);
-    assert.equal(messages[0].payload.rpcUrl, rpcUrl);
+    const endpoint = new URL(messages[0].payload.rpcUrl);
+    assert.equal(endpoint.origin, 'https://rpc.walletconnect.org');
+    assert.equal(endpoint.searchParams.get('chainId'), `eip155:${config.id}`);
+    assert.equal(endpoint.searchParams.get('projectId'), 'offline-routing-test');
     assert.equal(messages[0].payload.method, 'eth_sendTransaction');
   });
 }
+
+test('Arc AppKit overrides leave unrelated custom chains alone', () => {
+  assert.deepEqual(arcAppKitRpcUrls([{ id: 1 }], 'test'), {});
+});
 
 test('per-build app RPC overrides remain separate from both exported wallet chains', () => {
   const keys = ['NEXT_PUBLIC_API_URL', 'NIBGATE_PUBLIC_API_URL', 'PUBLIC_API_URL', 'NEXT_PUBLIC_NIBGATE_NETWORK', 'NIBGATE_NETWORK'];

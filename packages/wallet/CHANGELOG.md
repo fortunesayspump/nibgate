@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.28
+
+Companion SDK is 0.4.38. Google wallet sign-in checks already-granted accounts before requesting account access. AppKit uses Reown's Arc RPC routes on both networks because Magic's iframe policy blocks the direct Arc hosts. Public chain metadata retains Arc's official RPC URLs; application reads retain the Nibgate read-only proxies.
+
 ## 0.4.27
 
 Companion SDK is 0.4.37. This pair completes the network guide audit: mainnet commands target mainnet, staging examples are explicit, and the package guide describes both networks. Runtime code is unchanged from SDK 0.4.36 / wallet 0.4.26.

@@ -5,6 +5,7 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { http } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { activeArcChain, appRpcUrlFor } from '../chain.js'
+import { arcAppKitRpcUrls } from './appkit-networks.js'
 
 export const NIBGATE_APPKIT_PROJECT_ID = '09580756f3c5f13c5f1aeb2faa9b1696'
 export const NIBGATE_RPC_URL = appRpcUrlFor()
@@ -132,6 +133,7 @@ export function createNibgateWallet(options = {}) {
   const rpcUrl = options.rpcUrl || NIBGATE_RPC_URL
   const chains = options.chains && options.chains.length ? options.chains : [activeArcChain()]
   const appKitNetworks = chains
+  const customRpcUrls = arcAppKitRpcUrls(chains, projectId)
 
   // Connector policy: exactly ONE generic injected connector, nothing
   // per-wallet. AppKit provides EIP-6963 discovery (MetaMask, Rabby,
@@ -156,6 +158,7 @@ export function createNibgateWallet(options = {}) {
 
   const wagmiAdapter = new WagmiAdapter({
     networks: appKitNetworks,
+    customRpcUrls,
     projectId,
     ssr: true,
     connectors,
@@ -165,6 +168,7 @@ export function createNibgateWallet(options = {}) {
   createAppKit({
     adapters: [wagmiAdapter],
     networks: appKitNetworks,
+    customRpcUrls,
     defaultNetwork: options.defaultNetwork || chains[0],
     allowUnsupportedChain: options.allowUnsupportedChain ?? true,
     projectId,

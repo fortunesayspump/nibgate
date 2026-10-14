@@ -63,7 +63,7 @@ user, stranger) can run `split()` once the signature exists.
 | `client` | the user wallet (pays, receives refunds) |
 | `provider` | the operator wallet (does the research, receives spent) |
 | `evaluator` | keeper EOA today (same key that relays tips/holding); JEV-gated evaluator contract later |
-| `createJob(provider, evaluator, expiredAt, description)` | a new research run (backend creates at configure) |
+| `createJob(provider, evaluator, expiredAt, description)` | a new research run (user wallet creates at review; backend registers the receipt job ID) |
 | `setBudget(jobId, amount)` | the deposit chosen at review: any amount from the plan estimate up to the cap (minimum is the estimate, not the full cap) |
 | `fund(jobId, expectedBudget)` | the deposit at approve: `approve(USDC)` + `fund()` from the user wallet (front-running protection included). One-shot: the core flips Open→Funded and can never be topped up |
 | `submit(jobId, deliverable)` | worker submits `abi.encode(reportHash, spentUsdc)` when the report lands |

@@ -30,11 +30,11 @@ Open → Funded → Submitted → Completed → split
   │       │          │            └─ keeper complete(reportHash), hook-free
   │       │          └─ keeper relays submit(reportHash, spent)
   │       └─ you sign setBudget + approve + fund
-  └─ backend createJob(provider=splitter)
+  └─ you sign createJob(provider=splitter)
 ```
 
- 1. **Open** — the backend opens the job after configure (provider = splitter, evaluator = keeper).
- 2. **Fund** — at review you sign `setBudget` + `approve` + `fund`, picking any amount from the plan estimate up. The deposit is one-shot (the core flips Open→Funded; no top-ups ever). Approve is then gated: the run only starts once the job reads Funded for at least the estimate, and the working cap aligns down to what landed.
+ 1. **Open** — your wallet opens the job at review (provider = splitter, evaluator = keeper). The backend supplies the parameters and registers the job ID from your confirmed transaction receipt.
+ 2. **Fund** — after opening the job you sign `setBudget` + `approve` + `fund`, picking any amount from the plan estimate up. The deposit is one-shot (the core flips Open→Funded; no top-ups ever). Approve is then gated: the run only starts once the job reads Funded for at least the estimate, and the working cap aligns down to what landed.
  3. **Run** — stages meter spend in the offchain ledger, exactly as without escrow. Pause at cap on an exhausted deposit ends (report kept) or restarts bigger as a new run — raising past the deposit is rejected everywhere.
 4. **Submit** — the worker submits `(reportHash, spentUsdc)` through the splitter (the provider is a contract and cannot sign, so the keeper relays).
 5. **Complete** — the keeper completes with the ledger-attested spend.
@@ -44,11 +44,14 @@ Why a splitter instead of the spec's hook: in the reference implementation `comp
 
 Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund` is permissionless: anyone can trigger it, so funds are never hostage to a backend being alive. One upstream quirk to know: if client and evaluator are ever the same address, the core checks the client branch first, so use distinct roles.
 
+Each wallet transaction must have a successful receipt before the next step starts. The job ID comes from the matching `JobCreated` event in that transaction, so concurrent runs cannot select each other's jobs.
+
 ## Backend endpoints
 
 | Endpoint | Does |
 |---|---|
-| `POST /v1/runs/:id/escrow` | open the job (planning/planned only, one per run) |
+| `POST /v1/runs/:id/escrow` | return parameters for your wallet to open the job (planning/planned only) |
+| `POST /v1/runs/:id/escrow/register` | register the wallet-created job after validating its onchain client, provider and evaluator |
 | `GET /v1/runs/:id/escrow` | local record + live onchain status |
 | `POST /v1/runs/:id/escrow/complete` | keeper submit + complete with ledger spend, then relay of the split; returns the split signature and `splitTx` |
 

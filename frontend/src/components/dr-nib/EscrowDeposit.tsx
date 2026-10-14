@@ -4,7 +4,7 @@
 // in the user's wallet. Same primitives as tips/unlocks (AppKit provider +
 // viem walletClient + Arc chain guard) — no new signing patterns.
 //
-// The backend creates the job (anyone may); the user funds it. The run only
+// The user creates and funds the job; the backend registers it. The run only
 // starts once the job reads Funded for at least the plan estimate.
 
 import { useEffect, useState } from "react";
@@ -15,6 +15,7 @@ import { createPublicClient, createWalletClient, custom, encodeFunctionData, for
 import { activeArcChain } from "@nibgate/wallet/chain";
 import { ensureArcNetwork, repairArcNetwork } from "@nibgate/wallet/network";
 import { getWalletErrorMessage, WALLET_ERRORS } from "@nibgate/wallet/errors";
+import { createdJobFromReceipt, requireSuccessfulReceipt } from "@/lib/escrow-receipt";
 import { drNibApi } from "@/lib/dr-nib-api";
 
 const USDC = "0x3600000000000000000000000000000000000000";
@@ -222,7 +223,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       // fine — refuse early with the repair path instead of burning
       // signatures into reverts/timeouts.
       if (diag.rpcOk === false) {
-        throw new Error("Your wallet's Arc Testnet connection isn't responding — its saved RPC endpoint is likely stale. Hit Repair connection below, then try again.");
+        throw new Error(`Your wallet's ${chain.name} connection is not responding. Check the connection or reconnect your wallet, then try again.`);
       }
       // Busy from the first await: the network switch can take seconds (or
       // pop a wallet prompt), and until now the button sat idle through all
@@ -259,8 +260,8 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
           throw e;
         }
         setTx(hash);
-        await public_.waitForTransactionReceipt({ hash });
-        return hash;
+        const receipt = await public_.waitForTransactionReceipt({ hash });
+        return requireSuccessfulReceipt(receipt, label);
       };
 
       setStep("creating");
@@ -281,10 +282,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
         }
       } else {
         const params: any = await drNibApi.createEscrow(runId, {});
-        const before: bigint = await public_.readContract({
-          address: params.core as `0x${string}`, abi: CORE_ABI, functionName: "jobCount",
-        }) as bigint;
-        await sendAndMine(
+        const createdReceipt = await sendAndMine(
           params.core as `0x${string}`,
           encodeFunctionData({
             abi: CORE_ABI, functionName: "createJob",
@@ -292,20 +290,10 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
           }),
           "createJob",
         );
-        // Find ours by client address, newest first: race-safe where a bare
-        // jobCount+1 is not (concurrent creates from anywhere).
-        const after: bigint = await public_.readContract({
-          address: params.core as `0x${string}`, abi: CORE_ABI, functionName: "jobCount",
-        }) as bigint;
-        let found: bigint | null = null;
-        for (let id = after; id > before; id -= BigInt(1)) {
-          const j: any = await public_.readContract({
-            address: params.core as `0x${string}`, abi: CORE_ABI, functionName: "getJob", args: [id],
-          });
-          const client = (j?.client || j?.[0]) as string | undefined;
-          if (client && String(client).toLowerCase() === String(address).toLowerCase()) { found = id; break; }
-        }
-        if (found == null) throw new Error("Job created but not found onchain — retry in a moment.");
+        const found = createdJobFromReceipt(createdReceipt, {
+          core: params.core, client: address, provider: params.splitter,
+          evaluator: params.evaluator, hook: ZERO_ADDRESS, expiredAt: params.expiredAt,
+        });
         await drNibApi.registerEscrow(runId, found.toString());
         job = (await drNibApi.getEscrow(runId))?.job;
         if (!job?.jobId) throw new Error("Job registration failed — retry in a moment.");

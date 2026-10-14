@@ -1022,7 +1022,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
             </section>
           )}
 
-          <SourceManager runId={id} readOnly />
+          <SourceManager
+            runId={id}
+            onChanged={() => {
+              if (run.status === "planned") router.push(`/dr-nib/research?project=${id}`);
+              else void load();
+            }}
+          />
           <section id="drnib-sources" className="mt-4 scroll-mt-4 border border-dark-gray/50 bg-white p-4">
             <p className="mb-3 text-sm font-medium">Sources ({(run.sources || []).length})</p>
             {(run.sources || []).length === 0 ? (

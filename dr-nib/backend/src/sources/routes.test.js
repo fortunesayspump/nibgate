@@ -28,3 +28,12 @@ it('rejects invalid input before writing to storage',async()=>{
   const out=await request(app).post(`/runs/${id}/sources`).send({name:'program.exe',contentBase64:'eA=='});
   expect(out.status).toBe(400);expect(putSource).not.toHaveBeenCalled();
 });
+it('locks the source set when an onchain escrow job has already been opened',async()=>{
+  await db.researchRun.update({where:{id},data:{status:'planned',plan:{sub_questions:['reviewed']},metadata:{escrow:{jobId:'31'}}}});
+  const listed=await request(app).get(`/runs/${id}/sources`);
+  expect(listed.body.editable).toBe(false);
+  const attached=await request(app).post(`/runs/${id}/sources`).send({name:'later.txt',contentBase64:Buffer.from('late evidence').toString('base64')});
+  expect(attached.status).toBe(409);
+  expect(attached.body.error).toMatch(/escrow job/);
+  expect(putSource).not.toHaveBeenCalled();
+});

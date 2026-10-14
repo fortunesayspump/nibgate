@@ -11,6 +11,8 @@ import { config } from '../env.js';
 
 export const sources = Router({mergeParams:true});
 const EDITABLE = ['intake','intake-done','planned'];
+const sourceEditable = run => EDITABLE.includes(run.status) && !run.metadata?.escrow?.jobId;
+const lockedMessage = 'Sources are locked after an escrow job is opened or research starts. End and start a new project to use different documents.';
 export const sourceSummary = row => ({id:row.id,name:row.output.name,bytes:row.output.bytes,characters:row.output.characters,pages:row.output.pages,warnings:row.output.warnings || [],createdAt:row.createdAt,url:row.output.documents[0].url,originalUrl:`/drnib-api/v1/runs/${row.runId}/sources/${row.id}/original`});
 async function owner(req,res) {
   const run=await db.researchRun.findUnique({where:{id:req.params.id}});
@@ -21,11 +23,11 @@ sources.get('/',async(req,res,next)=>{
   try {
     const run=await owner(req,res);if(!run)return;
     const rows=await db.researchStep.findMany({where:{runId:run.id,kind:'input',status:'done'},orderBy:{createdAt:'asc'}});
-    res.json({storageReady:Boolean(sourceStorageConfig()),editable:EDITABLE.includes(run.status),maxFiles:5,maxBytes:MAX_SOURCE_BYTES,sources:rows.map(sourceSummary)});
+    res.json({storageReady:Boolean(sourceStorageConfig()),editable:sourceEditable(run),maxFiles:5,maxBytes:MAX_SOURCE_BYTES,sources:rows.map(sourceSummary)});
   }catch(e){next(e)}
 });
 export async function attachSource(run,body) {
-    if(!EDITABLE.includes(run.status))throw Object.assign(new Error('Sources are frozen once execution starts. Start a new project to use different documents.'),{status:409});
+    if(!sourceEditable(run))throw Object.assign(new Error(lockedMessage),{status:409});
     if(!sourceStorageConfig())throw Object.assign(new Error('Private R2 uploads are temporarily unavailable. Your file was not stored.'),{status:503});
     if(await db.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}})>=5)throw new Error('A project supports up to 5 supplied sources.');
     let name=String(body?.name || '').replace(/[\r\n\\/]/g,'_').slice(0,160), buffer, parsed;
@@ -48,7 +50,8 @@ export async function attachSource(run,body) {
     try {
       row=await withRunLock(run.id,async tx=>{
         const current=await tx.researchRun.findUniqueOrThrow({where:{id:run.id}});
-        if(!EDITABLE.includes(current.status) || await tx.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}})>=5)throw new Error('Project changed while uploading. Retry after checking its status.');
+        if(!sourceEditable(current))throw Object.assign(new Error(lockedMessage),{status:409});
+        if(await tx.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}})>=5)throw new Error('Project changed while uploading. Retry after checking its status.');
         if(current.status==='planned')await tx.researchRun.update({where:{id:run.id},data:{status:'intake-done',plan:null}});
         return tx.researchStep.create({data:{id,runId:run.id,kind:'input',status:'done',endedAt:new Date(),output:{name,key,bytes:buffer.length,...parsed,documents:[{url:`/drnib-api/v1/runs/${run.id}/sources/${id}`,title:name,text:parsed.text,relevance:1,provider:'user-upload'}]}}});
       });
@@ -84,7 +87,7 @@ sources.delete('/:sourceId',async(req,res,next)=>{
     const run=await owner(req,res);if(!run)return;
     await withRunLock(run.id,async tx=>{
       const current=await tx.researchRun.findUniqueOrThrow({where:{id:run.id}});
-      if(!EDITABLE.includes(current.status))throw Object.assign(new Error('Sources are frozen after execution starts.'),{status:409});
+      if(!sourceEditable(current))throw Object.assign(new Error(lockedMessage),{status:409});
       const row=await tx.researchStep.findFirst({where:{id:req.params.sourceId,runId:run.id,kind:'input',status:'done'}});
       if(!row)throw Object.assign(new Error('source not found'),{status:404});
       // Soft removal preserves the original for project history.

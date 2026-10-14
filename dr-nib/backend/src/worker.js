@@ -755,7 +755,12 @@ async function writeStage(runId, run, guidance) {
         onToken: (d, meta) => emitToken(d, meta),
       });
   if (tokenTimer) { clearTimeout(tokenTimer); tokenTimer = null; }
-  if (!process.env.VITEST && generated.source !== 'llm') throw new Error('Report generation unavailable. No placeholder report was delivered; retry in a new run.');
+  if (!process.env.VITEST && generated.source !== 'llm') {
+    const detail = String(generated.llmError || 'no usable model response').slice(0, 240);
+    await recordEvent(runId, { type: 'write.unavailable', reason: detail });
+    console.error(`[dr-nib] write unavailable run=${runId}: ${detail}`);
+    throw new Error('Report generation unavailable. No placeholder report was delivered; retry in a new run.');
+  }
   flushTokens();
   await recordEvent(runId, {
     type: generated.source === 'llm' ? 'thinking' : 'thinking.fallback',

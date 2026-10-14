@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generateSection } from './generate.js';
+import { generateReport, generateSection } from './generate.js';
+import { reportMessages } from './prompts.js';
 import { routerModel, smartModel } from './pricing.js';
 
 const KEY = 'OPENROUTER_API_KEY';
@@ -63,6 +64,26 @@ describe('generateSection retry', () => {
     const out = await generateSection({ ...ARGS, fetchImpl });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(out.source).toBe('fallback');
+  });
+});
+
+describe('short report reliability', () => {
+  it('retries a transient writing failure and produces a real report', async () => {
+    vi.stubEnv(KEY, 'test-key');
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary writer outage'))
+      .mockResolvedValue(jsonResponse('# Findings\n\nThe evidence supports a limited conclusion [1].'));
+    const out = await generateReport({ brief: { topic: 'fees' }, sources: [{ title: 'Official fees', url: 'https://example.org/fees', excerpt: 'Documented fees.' }], targetWords: 300, fetchImpl });
+    expect(out.source).toBe('llm');
+    expect(out.markdown).toContain('The evidence supports');
+    expect(fetchImpl.mock.calls.length).toBeGreaterThanOrEqual(2);
+  }, 15000);
+
+  it('bounds the evidence context while keeping all citation numbers', () => {
+    const sources = Array.from({ length: 15 }, (_, i) => ({ citationIndex: i + 1, url: `https://example.org/${i}`, excerpt: 'x'.repeat(6000) }));
+    const prompt = reportMessages({ brief: { topic: 'fees' }, sources, targetWords: 900 })[1].content;
+    expect(prompt.length).toBeLessThan(35000);
+    expect(prompt).toContain('[15]');
   });
 });
 

@@ -67,7 +67,7 @@ All thresholds live named in one place with their provenance (`limits.js`) — s
 
 ## Report completion
 
-Report-writing calls reserve additional output-token headroom for reasoning as well as prose. Replies that end at the token limit are not saved as finished prose: sections retry at most three times, then show an explicit pending section. Usage from every completed attempt remains metered, including discarded partial replies. Abstracts that cannot finish are omitted.
+Report-writing calls reserve additional output-token headroom for reasoning as well as prose. Replies that end at the token limit are not saved as finished prose. Short reports retry a transient empty or failed model response up to three times and keep the source excerpts bounded; if all attempts fail, the run fails visibly instead of delivering a placeholder. Long-report sections retry at most three times, then show an explicit pending section. Usage from every completed attempt remains metered, including discarded partial replies. Abstracts that cannot finish are omitted.
 
 ## Memory, two levels
 

@@ -64,7 +64,10 @@ No prose outside the JSON.`;
  */
 export function reportMessages({ brief, sources = [], guidance, targetWords = 1000 } = {}) {
   const system = `${RESEARCH_SYSTEM} You are writing the final report. Return markdown only. Output only the report — never restate, quote, or narrate these instructions.`;
-  const evidence = formatEvidence(sources);
+  // A concise report still needs every source, but not whole 6k-character
+  // passages from each one. A bounded prompt keeps multi-round runs within
+  // the writer's latency window while preserving stable citation numbers.
+  const evidence = formatEvidence(sources, 1800);
   const guidanceLine = guidance?.text ? `\nMid-run guidance from the user: ${guidance.text}\n` : '';
   const user = `Brief:
 ${briefSummary(brief)}
@@ -155,14 +158,14 @@ Write about ${targetWords} words of genuinely new material for this section: mec
   ];
 }
 
-function formatEvidence(sources) {
+function formatEvidence(sources, maxExcerptChars = 6000) {
   return (sources || [])
     .map((s, i) => {
       const bits = [`[${s.citationIndex ?? i + 1}] ${s.title || s.url || 'source'}`];
       if (s.url) bits.push(`    ${s.url}`);
       if (Number.isFinite(s.relevance)) bits.push(`    relevance: ${s.relevance}`);
       if (Number.isFinite(s.trust)) bits.push(`    trust: ${s.trust}`);
-      if (s.excerpt) bits.push(`    excerpt: ${String(s.excerpt).slice(0, 6000)}`);
+      if (s.excerpt) bits.push(`    excerpt: ${String(s.excerpt).slice(0, maxExcerptChars)}`);
       return bits.join('\n');
     })
     .join('\n\n');

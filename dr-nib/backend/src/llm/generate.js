@@ -112,17 +112,24 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
     markdown: `## Headline\n\nDraft for run ${runId}. Replace with synthesized evidence.\n`,
   });
   if (isLlmConfigured()) {
-    try {
-      const { text, usage, model } = await reportChat({
-        effort: 'high',
-        messages: reportMessages({ brief, sources, guidance, targetWords: Math.max(150, targetWords - 175) }), fetchImpl,
-        temperature: 0.4,
-        maxTokens: 4000,
-        ...(typeof onToken === 'function' ? { onToken } : {}),
-      });
-      if (text && text.trim()) {
+    let lastError = 'model returned empty or incomplete text';
+    let attemptUsage = {};
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const { text, usage, model } = await reportChat({
+          effort: attempt === 1 ? 'high' : 'medium',
+          messages: reportMessages({ brief, sources, guidance, targetWords: Math.max(150, targetWords - 175) }), fetchImpl,
+          temperature: attempt === 1 ? 0.4 : 0.2,
+          maxTokens: 4000,
+          ...(typeof onToken === 'function' ? { onToken } : {}),
+        });
+        attemptUsage = addUsage(attemptUsage, usage);
+        if (!text?.trim()) {
+          lastError = `model returned empty or incomplete text (attempt ${attempt}/3)`;
+          continue;
+        }
         let markdown = text.trim();
-        let outUsage = usage;
+        let outUsage = attemptUsage;
         // Same floor as the long path, one bounded pass: a short brief
         // report gets one deepening call, not an unbounded loop.
         const floor = Math.round(Math.max(150, Number(targetWords) - 175) * FLOOR_RATIO);
@@ -165,11 +172,12 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         const refs = buildReferences(sources);
         if (refs) assembled.push(refs);
         return { ok: true, source: 'llm', model: model || absModel, usage: outUsage, markdown: assembled.join('\n\n') };
+      } catch (err) {
+        lastError = err?.message || String(err);
       }
-      return { ...fallback('model returned empty or incomplete text'), usage, model };
-    } catch (err) {
-      return fallback(err?.message || String(err));
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
+    return { ...fallback(lastError), usage: attemptUsage };
   }
   return fallback(null);
 }

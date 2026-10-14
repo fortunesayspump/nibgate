@@ -2,7 +2,9 @@ import { Callout } from 'nextra/components'
 
 # Dr. Nib research agent
 
-Dr. Nib turns a question into a cited report. You describe what you want to know, answer a few scoping questions, set a budget cap in USDC, approve the plan — and it searches the web, reads sources, scores them for relevance and trust, and writes the report. Whatever it doesn't spend comes back.
+Dr. Nib is a budgeted research agent that turns a question into a cited report. It visibly decides what evidence to pursue, whether another search round is worth its cost, and when to stop and write. You set the scope and a USDC cap before funding; the run page records its queries, source judgments, decisions, spending, and final report. Unspent escrow is returned at settlement.
+
+When the evidence is thin, Dr. Nib can consider primary APIs or a priced source within the approved budget. A proposed paid call passes a separate judgment and spending checks before execution. A paid source is optional, not a requirement or a sign of better research. The activity feed shows these decisions and available payment receipts; the report discussion is a separate chat about the finished work.
 
 Try it at **https://testnet.nibgate.xyz/dr-nib/research** with test USDC (wallet or Google sign-in required). The mainnet entry page directs new users to this preview until its funded research service is configured.
 
@@ -23,7 +25,7 @@ composer → intake (batches ≤5, 8 questions max) → configure → review →
  3. **JEV runs the stop rule** — after each batch a calibrated decision picks `proceed` (brief is whole), `ask_more` (another batch), or `reframe` (the angle is dead — the next batch opens a different one, and the rejected direction stays on the record). The model proposes, JEV disposes; fallbacks are labeled, never silent.
  4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length, optional creator tips, and [your own source files](./retrieval). Planning is free. Source-only mode requires a readable supplied file or link and disables external tools.
  5. **Review** — sub-questions (editable), uncertainties, cost estimate. Fund the [onchain escrow](./escrow) first — any amount from the estimate up to your cap; approve is then gated on it being Funded for at least the estimate.
- 6. **Run** — the command-center page: report and sources on the left, the live reasoning feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript, timestamps, jump-to-latest), guidance box pinned at the bottom. Research follows the approved scope; search results alone never trigger a claim that evidence disagrees. Pause/resume any time. Blips never wipe the page (stale banner + retry).
+ 6. **Run** — the command-center page: report and sources on the left, the live activity feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript, timestamps, jump-to-latest), guidance box pinned at the bottom. This is an audit of actions and stated reasons, not the model's private chain of thought. Research follows the approved scope; search results alone never trigger a claim that evidence disagrees. Pause/resume any time. Blips never wipe the page (stale banner + retry).
  7. **Report** — versioned, cited, with source mapping saved per report, sampled claim verification, report Q&A, Markdown-formatted free discussion, owner-only report links, seven export formats and a settlement receipt. Once the budget settles, use **Start fresh run** for further research with a new deposit; refunded money cannot fund a reprompt. Starting fresh copies the topic, so add your source files again.
 
 ## How a run spends

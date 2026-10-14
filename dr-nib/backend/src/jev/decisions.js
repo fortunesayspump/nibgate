@@ -13,7 +13,78 @@
 // decision seat is back.
 import { db } from '../db.js';
 import { recordEvent } from '../eventlog.js';
-import { JevUnavailable, decide, classify, grade } from './client.js';
+import { JevUnavailable, decide, classify, grade, batch } from './client.js';
+
+const SOURCE_GRADES = [
+  'Passing mention, directory listing, or SEO filler — no substantive content',
+  'Topical article with real content but secondary reporting',
+  'Substantive primary reporting, data, or analysis',
+  'Primary source: paper, filing, official docs, or direct measurement',
+];
+
+/** Keep independent source judgments together so a normal research round does not exhaust the hub's request limit. */
+export function sourceBatchInput(docs, { topic, criteria, priors = {} }) {
+  const state = [
+    `Research question: ${topic || ''}`,
+    ...docs.map((doc, i) => `Source ${i}: ${doc.url}\nTitle: ${doc.title || ''}\nExcerpt: ${String(doc.text || '').slice(0, 650)}`),
+  ].join('\n').slice(0, 4000);
+  const questions = docs.flatMap((doc, i) => {
+    let host = '';
+    try { host = new URL(doc.url).hostname.replace(/^www\./, ''); } catch { /* uploaded source */ }
+    const prior = priors[host];
+    const history = prior ? ` User history: cited in ${prior.cites} of ${prior.reads} past runs.` : '';
+    return [
+      { id: `trust-${i}`, type: 'noul', instructions: `Probability (0..1) that source ${i} is credible evidence for the question. Criteria: ${criteria}${history}`.slice(0, 500) },
+      { id: `grade-${i}`, type: 'choice', instructions: `Grade the evidence quality of source ${i} for the question.`, options: SOURCE_GRADES.map((description, level) => ({ id: String(level), description })) },
+    ];
+  });
+  return { state, questions };
+}
+
+export function sourceBatchJudgments(docs, answers) {
+  return docs.map((doc, i) => {
+    const trustAnswer = answers[`trust-${i}`];
+    const trust = Number(trustAnswer?.probability);
+    if (trustAnswer?.type !== 'noul' || !Number.isFinite(trust) || trust < 0 || trust > 1) {
+      throw new JevUnavailable(`JEV returned no valid trust judgment for source ${i}`);
+    }
+    const gradeAnswer = answers[`grade-${i}`];
+    const probabilities = gradeAnswer?.type === 'choice' ? gradeAnswer.probabilities : null;
+    const weights = SOURCE_GRADES.map((_, level) => Number(probabilities?.[level]));
+    const total = weights.every((p) => Number.isFinite(p) && p >= 0) ? weights.reduce((sum, p) => sum + p, 0) : 0;
+    const grade = total > 0 ? weights.reduce((sum, p, level) => sum + p * level, 0) / total : null;
+    return { doc, trust, grade, gradeAnswer: grade == null ? null : gradeAnswer };
+  });
+}
+
+export async function runSourceBatch(runId, docs, context, opts) {
+  const input = sourceBatchInput(docs, context);
+  try {
+    const out = await batch(input, opts);
+    const judged = sourceBatchJudgments(docs, out.answers);
+    for (const [i, item] of judged.entries()) {
+      await persist(runId, {
+        type: 'noul', step: 'source-trust',
+        prompt: `Is this source trustworthy for the question? ${item.doc.url}`,
+        question: { state: input.state, instructions: input.questions[i * 2].instructions },
+        output: { probability: item.trust, model: out.model, usage: out.usage },
+        confidence: item.trust,
+      });
+      if (item.gradeAnswer) await persist(runId, {
+        type: 'grade', step: 'source-grade',
+        prompt: `Grade this source's evidence quality for the question. ${item.doc.url}`,
+        question: { state: input.state, instructions: input.questions[i * 2 + 1].instructions, levels: SOURCE_GRADES },
+        output: { score: item.grade, probabilities: item.gradeAnswer.probabilities, model: out.model, usage: out.usage },
+        confidence: Number(item.gradeAnswer.confidence) || 0,
+      });
+    }
+    return { judged, costUsd: Number(out.usage?.costUsd ?? out.usage?.cost) || 0 };
+  } catch (err) {
+    if (!(err instanceof JevUnavailable)) throw err;
+    await parkForJev(runId, 'source-trust', err);
+    return null;
+  }
+}
 
 async function nextSeq(runId) {
   const last = await db.researchDecision.findFirst({ where: { runId }, orderBy: { seq: 'desc' } });

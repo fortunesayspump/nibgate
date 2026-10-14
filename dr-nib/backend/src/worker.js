@@ -15,8 +15,8 @@ import { budgetState, draw, settle } from './money.js';
 import { generatePlan, generateReport, generateReportLong, generateRoundReview } from './llm/generate.js';
 import { resolveLength } from './length.js';
 import { searchEvidence } from './tools/evidence.js';
-import { runChoice, runNoul, runGrade } from './jev/decisions.js';
-import { dedupeByUrl, mapLimit } from './retrieval/index.js';
+import { runChoice, runSourceBatch } from './jev/decisions.js';
+import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
 import { isSpendConfigured } from './spend/policy.js';
 import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/sandbox.js';
@@ -656,50 +656,16 @@ async function scoreStage(runId, run) {
   const top = documents.slice(0, Math.max(limits.scoreTop,documents.filter(d=>d.provider==='user-upload').length));
   const criteria = await trustCriteria(run);
   const priors = await memoryPriors(run.userId, top.map((d) => domainOf(d.url)));
-  // Sources are independent: judge up to 4 at once. The old serial loop did
-  // 2 hub round-trips per source back to back (standard = 16 in a row).
-  const judged = await mapLimit(top, 4, async (doc) => {
-    const prior = priors[domainOf(doc.url)];
-    const history = prior ? ` User history: cited in ${prior.cites} of ${prior.reads} past runs.` : '';
-    const trust = await runNoul(runId, {
-      step: 'source-trust',
-      prompt: `Is this source trustworthy for the question? ${doc.url}`,
-      state: `Topic: ${run.brief?.topic || ''}\nURL: ${doc.url}\nTitle: ${doc.title}\nExcerpt: ${String(doc.text || '').slice(0, 800)}`,
-      instructions: `Probability (0..1) that this source is credible evidence for the topic. Trust a source that meets these criteria: ${criteria}${history}`,
-    });
-    if (!trust) return { parked: true };
-    // Evidence grade (Score primitive): where this source falls on the
-    // quality scale. Ranks, never gates — JEV down means ungraded, and the
-    // run proceeds on trust alone.
-    let gradeScore = null;
-    let gradeCost = 0;
-    try {
-      const g = await runGrade(runId, {
-        step: 'source-grade',
-        prompt: `Grade this source's evidence quality for the question. ${doc.url}`,
-        state: `Topic: ${run.brief?.topic || ''}\nURL: ${doc.url}\nTitle: ${doc.title}\nExcerpt: ${String(doc.text || '').slice(0, 800)}`,
-        instructions: 'Grade the evidence quality of this source for the topic.',
-        levels: [
-          'Passing mention, directory listing, or SEO filler — no substantive content',
-          'Topical article with real content but secondary reporting',
-          'Substantive primary reporting, data, or analysis',
-          'Primary source: paper, filing, official docs, or direct measurement',
-        ],
-        questionId: 'source-grade',
-      });
-      if (g) {
-        gradeScore = g.score;
-        gradeCost = Number(g.usage?.costUsd) || 0;
-      }
-    } catch {}
-    return { doc, trust: trust.probability, grade: gradeScore, cost: (Number(trust.usage?.costUsd) || 0) + gradeCost };
-  });
+  // Each batch asks for independent trust and grade judgments in one hub
+  // request. Standard depth previously made 16 requests per round, exceeding
+  // the hub's 30/minute ceiling during an ordinary multi-round run.
   const scored = [];
   let jevCost = 0;
-  for (const j of judged) {
-    if (j.parked) return { why: 'Parked: JEV is unreachable, so trust cannot be judged.', scored: scored.length, fallback: false, parked: true };
-    jevCost += j.cost;
-    scored.push({ ...j.doc, trust: j.trust, grade: j.grade });
+  for (let i = 0; i < top.length; i += 4) {
+    const result = await runSourceBatch(runId, top.slice(i, i + 4), { topic: run.brief?.topic, criteria, priors });
+    if (!result) return { why: 'Parked: JEV is unreachable, so trust cannot be judged.', scored: scored.length, fallback: false, parked: true };
+    jevCost += result.costUsd;
+    scored.push(...result.judged.map((j) => ({ ...j.doc, trust: j.trust, grade: j.grade })));
   }
 
   // Primary sources first: grade ranks within equal trust.

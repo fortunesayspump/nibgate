@@ -75,7 +75,7 @@ Set these on the service (never commit them):
 | `DRNIB_DATABASE_URL` | same cluster, `...&schema=drnib` |
 | `HUB_API_URL` | the deployed hub API origin, e.g. `https://api.nibgate.xyz` |
 | `CORS_ORIGIN` | the deployed hub frontend origin, e.g. `https://nibgate.xyz` |
-| `DRNIB_SERVICE_KEY` | random string; gates the MCP server. If unset the MCP surface runs open (dev only) |
+| `DRNIB_SERVICE_KEY` | high-entropy, server-only bearer credential; grants trusted service access to runs for any named wallet. Never give it to browser clients or untrusted agents. Production rejects MCP calls if unset; local development can run open with a warning. |
 | `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the 11-index free layer (SearXNG when configured, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv) + direct fetch + OpenRouter web search over the existing LLM key |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
 | `SEARXNG_URL` | optional; a self-hosted SearXNG instance joins the free search bench — no key, Google-grade breadth. Must serve `?format=json` (stock images 403 it; see Testnet mirror above for the volume procedure) |

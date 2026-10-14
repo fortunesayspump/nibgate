@@ -12,9 +12,10 @@
 // never silently.
 import { researchAvailability } from '../readiness.js';
 import { TOOLS } from './tools.js';
+import { timingSafeEqual } from 'node:crypto';
 
 export const MCP_SERVER_NAME = 'dr-nib';
-export const MCP_SERVER_VERSION = '0.2.3';
+export const MCP_SERVER_VERSION = '0.2.4';
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 let warnedOpen = false;
@@ -41,8 +42,11 @@ export function mcpAuth(req) {
     }
     return { ok: true };
   }
-  const presented = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
-  if (presented && presented === expected) return { ok: true };
+  const authorization = String(req.headers?.authorization || '');
+  const presented = /^Bearer ([^\s]+)$/i.exec(authorization)?.[1] || '';
+  const given = Buffer.from(presented);
+  const secret = Buffer.from(expected);
+  if (given.length === secret.length && timingSafeEqual(given, secret)) return { ok: true };
   return { ok: false, error: 'missing or invalid service key' };
 }
 

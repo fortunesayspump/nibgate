@@ -7,7 +7,13 @@ vi.mock('./llm/generate.js',()=>({
   generateReport:async()=>{await controls.write?.();return {markdown:'# Synthetic report\n\nThe provided record lists USD 42 [1].',source:'llm',usage:{costUsd:0.2}}},
   generateReportLong:vi.fn(),generateRoundReview:async()=>({learnings:['The provided record lists USD 42.'],followUps:controls.followUps,source:'llm',usage:{costUsd:0.01}}),generateStageNote:async()=>'',
 }));
-vi.mock('./jev/decisions.js',()=>({runNoul:async()=>controls.trust ? controls.trust() : ({probability:0.9,usage:{costUsd:0}}),runGrade:async()=>({score:3,usage:{costUsd:0}}),runChoice:async()=>({pick:'write',usage:{costUsd:0}})}));
+vi.mock('./jev/decisions.js',()=>({
+  runSourceBatch:async(_runId,docs)=>{
+    const trust=controls.trust ? await controls.trust() : {probability:0.9};
+    return trust ? {judged:docs.map(doc=>({doc,trust:trust.probability,grade:3})),costUsd:0} : null;
+  },
+  runChoice:async()=>({pick:'write',usage:{costUsd:0}}),
+}));
 vi.mock('./verify.js',()=>({verifyReport:async()=>({costUsd:0})}));
 vi.mock('./tools/sandbox.js',()=>({sandboxConfigured:()=>false,destroySandbox:async()=>{},destroyAllSandboxes:async()=>{}}));
 vi.mock('./tools/executor.js',()=>({runTool:vi.fn(async(_id,name)=>{

@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // decisions layer's `instanceof` park-path is exercised for real.
 vi.mock('./client.js', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, decide: vi.fn(), classify: vi.fn(), grade: vi.fn() };
+  return { ...actual, decide: vi.fn(), classify: vi.fn(), grade: vi.fn(), batch: vi.fn() };
 });
 
-const { decide, classify, grade, JevUnavailable } = await import('./client.js');
-const { runChoice, runNoul, runGrade } = await import('./decisions.js');
+const { decide, classify, grade, batch, JevUnavailable } = await import('./client.js');
+const { runChoice, runNoul, runGrade, runSourceBatch, sourceBatchInput, sourceBatchJudgments } = await import('./decisions.js');
 const { db } = await import('../db.js');
 
 const RUN = 'aaaaaaaa-0000-4000-8000-0000000000d1';
@@ -90,5 +90,37 @@ describe('runGrade', () => {
     const run = await db.researchRun.findUniqueOrThrow({ where: { id: RUN } });
     expect(run.pauseReason).not.toBe('jev');
     expect(run.status).toBe('running');
+  });
+});
+
+describe('batched source judgments', () => {
+  const docs = Array.from({ length: 4 }, (_, i) => ({ url: `https://example${i}.org/source`, title: `Source ${i}`, text: 'Evidence '.repeat(150) }));
+  it('keeps four sources within the hub batch contract and records each answer', async () => {
+    const input = sourceBatchInput(docs, { topic: 'Which network?', criteria: 'Primary documentation' });
+    expect(input.state.length).toBeLessThanOrEqual(4000);
+    expect(input.questions).toHaveLength(8);
+    expect(input.questions.every((q) => q.instructions.length <= 500)).toBe(true);
+    const answers = Object.fromEntries(docs.flatMap((_, i) => [
+      [`trust-${i}`, { type: 'noul', probability: 0.8 }],
+      [`grade-${i}`, { type: 'choice', probabilities: { 0: 0, 1: 0, 2: 0.25, 3: 0.75 }, confidence: 0.75 }],
+    ]));
+    batch.mockResolvedValue({ answers, model: 'jev', usage: { cost: 0.001 } });
+    const result = await runSourceBatch(RUN, docs, { topic: 'Which network?', criteria: 'Primary documentation' });
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(result.costUsd).toBe(0.001);
+    expect(result.judged).toHaveLength(4);
+    expect(result.judged[0].grade).toBeCloseTo(2.75);
+    const rows = await db.researchDecision.findMany({ where: { runId: RUN } });
+    expect(rows.filter((row) => row.step === 'source-trust')).toHaveLength(4);
+    expect(rows.filter((row) => row.step === 'source-grade')).toHaveLength(4);
+  });
+
+  it('parks on an unavailable batch or missing trust answer, but tolerates an ungraded source', async () => {
+    const ungraded = sourceBatchJudgments(docs.slice(0, 1), { 'trust-0': { type: 'noul', probability: 0.6 } });
+    expect(ungraded[0].grade).toBeNull();
+    batch.mockResolvedValue({ answers: {}, model: 'jev', usage: null });
+    expect(await runSourceBatch(RUN, docs.slice(0, 1), { topic: 't', criteria: 'c' })).toBeNull();
+    const run = await db.researchRun.findUniqueOrThrow({ where: { id: RUN } });
+    expect(run.pauseReason).toBe('jev');
   });
 });

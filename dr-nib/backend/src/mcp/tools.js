@@ -7,10 +7,11 @@ import { SOURCE_ORDER } from '../report-evidence.js';
 // a run is. The one non-trivial flow — answering intake questions — is not
 // mirrored but shared outright (see answer-flow.js).
 //
-// Ownership here is by wallet: the agent names the owner wallet on every call
-// and it must match the run's payout wallet (case-insensitive). Runs the agent
-// creates are namespaced to that wallet, so wallet access never crosses
-// accounts.
+// The MCP bearer key is a trusted service credential, not a wallet signature.
+// Its holder may name any owner wallet. Keep that key inside trusted backends;
+// browser users instead use the SIWE-session HTTP routes. The wallet match
+// below prevents accidental cross-run access by an honest integration, but
+// does not independently authenticate the named wallet.
 import { db } from '../db.js';
 import { applyAnswer, deriveDescription, deriveTitle, nextQuestions } from '../intake.js';
 import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answer-flow.js';

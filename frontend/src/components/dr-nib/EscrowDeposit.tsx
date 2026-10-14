@@ -52,6 +52,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   const minimum = Number.isFinite(Number(estimate)) && Number(estimate) > 0 ? Number(estimate) : Number(budgetCap || 0);
   const [deposit, setDeposit] = useState<string | null>(null);
   const chosen = deposit == null ? Number(budgetCap || 0) : Number(deposit) || 0;
+  const validDeposit = Number.isFinite(chosen) && chosen >= minimum && chosen <= Number(budgetCap);
   const chain = activeArcChain();
 
   // Visible wallet-network state: the switch prompt lives inside the wallet
@@ -208,14 +209,14 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     }
   }
 
-  const amount = BigInt(Math.round(chosen * 1e6));
 
   async function run() {
     setError("");
     setFailSnap(null);
     setSnapCopied(false);
     if (!address) { setError("Connect your wallet first."); return; }
-    if (!(chosen >= minimum)) { setError(`Deposit at least the $${minimum.toFixed(2)} plan estimate.`); return; }
+    if (!validDeposit) { setError(`Choose a deposit between ${minimum.toFixed(2)} and your ${Number(budgetCap).toFixed(2)} USDC budget cap.`); return; }
+    const amount = BigInt(Math.round(chosen * 1e6));
     try {
       const provider = walletProvider;
       if (!provider?.request) throw new Error("Wallet provider is not available.");
@@ -408,13 +409,13 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       )}
       <div className="mt-3 flex items-center gap-2 text-sm">
         <label htmlFor="drnib-deposit" className="opacity-60">Deposit (USDC)</label>
-        <input id="drnib-deposit" type="number" min={minimum} step={0.1} value={deposit == null ? Number(budgetCap || 0) : deposit}
+        <input id="drnib-deposit" type="number" min={minimum} max={Number(budgetCap)} step={0.1} value={deposit == null ? Number(budgetCap || 0) : deposit}
           onChange={(e) => setDeposit(e.target.value)}
           className="w-32 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm" />
         <span className="text-xs opacity-60">min ${minimum.toFixed(2)} (plan estimate){Number(budgetCap) > minimum ? ` · cap $${Number(budgetCap).toFixed(2)}` : ""}</span>
       </div>
-      <button onClick={run} disabled={busy || !(chosen >= minimum)} className="mt-3 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
-        title={!(chosen >= minimum) ? `Deposit at least $${minimum.toFixed(2)}` : undefined}>
+      <button onClick={run} disabled={busy || !validDeposit} className="mt-3 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
+        title={!validDeposit ? `Choose ${minimum.toFixed(2)}–${Number(budgetCap).toFixed(2)}` : undefined}>
         {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
         {labels[step]}
       </button>

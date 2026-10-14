@@ -48,6 +48,12 @@ function viemChain(chain) {
   };
 }
 
+async function confirmedReceipt(client, hash) {
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('Escrow transaction reverted; settlement remains pending.');
+  return receipt;
+}
+
 function clients(cfg, make = null) {
   if (make?.public && make?.wallet) return { ...make, chain: cfg.chain };
   const vc = viemChain(cfg.chain);
@@ -86,6 +92,22 @@ export function createParams({ description, expiryHours = 72 } = {}, opts = {}) 
   };
 }
 
+// A user must not deposit into a job whose keeper cannot finish settlement.
+export async function assertEscrowOperational(opts = {}) {
+  const cfg = escrowConfig(opts.env, opts.network);
+  if (!cfg.core || !cfg.splitter || !cfg.keeperKey) throw new Error('Escrow is not configured.');
+  const c = clients(cfg, opts.make);
+  const [chainId, balance, coreCode, splitterCode] = await Promise.all([
+    c.public.getChainId(), c.public.getBalance({ address: c.account.address }),
+    c.public.getBytecode({ address: cfg.core }), c.public.getBytecode({ address: cfg.splitter }),
+  ]);
+  if (chainId !== cfg.chain.chainId || !coreCode || coreCode === '0x' || !splitterCode || splitterCode === '0x') {
+    throw new Error('Escrow contracts are unavailable on the configured network.');
+  }
+  // Operational reserve, in Arc's 18-decimal native USDC: at least $0.02.
+  if (balance < 20_000_000_000_000_000n) throw new Error('Settlement keeper needs gas funds.');
+}
+
 /**
  * Create the onchain job with the SERVER key. The signer becomes the client,
  * so this is only correct when the signer IS the intended funder (keeper
@@ -104,7 +126,7 @@ export async function createJob({ client, budget, description, expiredAt, hook }
     address: cfg.core, abi: CORE_ABI, functionName: 'createJob',
     args: [cfg.splitter, c.account.address, BigInt(expiredAt), String(description || '').slice(0, 280), hook || '0x0000000000000000000000000000000000000000'],
   });
-  await c.public.waitForTransactionReceipt({ hash });
+  await confirmedReceipt(c.public, hash);
   const jobId = await c.public.readContract({ address: cfg.core, abi: CORE_ABI, functionName: 'jobCount' });
   // setBudget is client-or-provider; the splitter cannot sign, so the keeper
   // records intent here and the frontend has the user confirm it onchain.
@@ -143,19 +165,20 @@ export async function submitAndComplete({ jobId, reportHash, spentUsd, operator 
   const names = ['Open', 'Funded', 'Submitted', 'Completed', 'Rejected', 'Expired'];
   const cur = await c.public.readContract({ address: cfg.core, abi: CORE_ABI, functionName: 'getJob', args: [BigInt(jobId)] });
   const status = names[Number(cur.status)] || '';
+  if (status === 'Completed') return { jobId: String(jobId), completeTx: null, alreadyCompleted: true, spent: Number(spent) / 1e6 };
   let hash;
   if (status === 'Funded') {
     hash = await c.wallet.writeContract({
       address: cfg.splitter, abi: SPLITTER_ABI, functionName: 'submitJob', args: [BigInt(jobId), deliverable, '0x'],
     });
-    await c.public.waitForTransactionReceipt({ hash });
+    await confirmedReceipt(c.public, hash);
   } else if (status !== 'Submitted') {
     throw new Error(`cannot settle from ${status || 'unknown'} — run the job to Submitted first`);
   }
   hash = await c.wallet.writeContract({
     address: cfg.core, abi: CORE_ABI, functionName: 'complete', args: [BigInt(jobId), deliverable.slice(0, 66), '0x'],
   });
-  await c.public.waitForTransactionReceipt({ hash });
+  await confirmedReceipt(c.public, hash);
   return { jobId: String(jobId), completeTx: hash, spent: Number(spent) / 1e6 };
 }
 
@@ -178,7 +201,7 @@ export async function relaySplit({ jobId, spentUsd, operator, client }, opts = {
     address: cfg.splitter, abi: SPLITTER_ABI, functionName: 'split',
     args: [BigInt(jobId), BigInt(Math.round(Number(spentUsd) * 1e6)), operator, sig.v, sig.r, sig.s],
   });
-  await c.public.waitForTransactionReceipt({ hash });
+  await confirmedReceipt(c.public, hash);
   return { splitTx: hash, alreadySplit: false };
 }
 

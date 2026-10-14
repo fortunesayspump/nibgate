@@ -152,7 +152,7 @@ Write about ${targetWords} words of genuinely new material for this section: mec
 function formatEvidence(sources) {
   return (sources || [])
     .map((s, i) => {
-      const bits = [`[${i + 1}] ${s.title || s.url || 'source'}`];
+      const bits = [`[${s.citationIndex ?? i + 1}] ${s.title || s.url || 'source'}`];
       if (s.url) bits.push(`    ${s.url}`);
       if (Number.isFinite(s.relevance)) bits.push(`    relevance: ${s.relevance}`);
       if (Number.isFinite(s.trust)) bits.push(`    trust: ${s.trust}`);
@@ -217,12 +217,14 @@ No prose outside the JSON. If nothing was collected, return empty arrays — nev
     { role: 'user', content: user },
   ];
 }
-export function thinkingMessages({ question, answer } = {}) {
+export function thinkingMessages({ brief, question, answer } = {}) {
   const system = `${RESEARCH_SYSTEM} You are showing your reasoning in one sentence. No preamble, no bullet points, no JSON.`;
-  const user = `Question asked: ${question?.prompt || '(unknown)'}
+  const user = `Research brief: ${briefSummary(brief)}
+
+Question asked: ${question?.prompt || '(unknown)'}
 User answered: ${answer || '(no answer)'}
 
-In ONE sentence, say what you took from that answer and what it changes about the research. Start with the substance — never with setup ("I understand that…", "I take that…", "Noted that…", "Given that…"). Be concrete. If the answer is too thin to act on, say what you still need.`;
+In ONE sentence, say what you took from that answer and what it changes about the research. Start with the substance — never with setup ("I understand that…", "I take that…", "Noted that…", "Given that…"). Be concrete and retain the original scope; never ask for information already present in the brief. If the answer is too thin to act on, say what you still need.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

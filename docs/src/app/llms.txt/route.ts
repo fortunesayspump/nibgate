@@ -10,7 +10,7 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/extension", "Browser extension: eligible creator buttons and the 1.2.0 Tip this page action for HTTP(S) pages and links (testnet default, mainnet confirm-gated), self-custodial wallet, held-tip refunds."],
   ["https://docs.nibgate.xyz/jev", "JEV judgment layer: deterministic decide/selectMany engine plus the real JEV decisions model behind hub endpoints, used by the extension and metadata enrichment."],
   ["https://docs.nibgate.xyz/dr-nib", "Dr. Nib research agent: question to cited report, intake, budgets, escrow, reprompt."],
-  ["https://docs.nibgate.xyz/dr-nib/budgets", "Run budgets: caps, per-stage draws, 1% fee, pause-never-overspend, instant refunds."],
+  ["https://docs.nibgate.xyz/dr-nib/budgets", "Run budgets: caps, per-stage draws, 1% fee, pause-never-overspend, confirmed onchain refunds, visible pending status and automatic retries."],
   ["https://docs.nibgate.xyz/dr-nib/escrow", "Onchain escrow for runs: ERC-8183 jobs, keeper completion, splitter division, testnet addresses."],
   ["https://docs.nibgate.xyz/dr-nib/agent-spending", "Agent spending: tips, paid unlocks, x402 payments from the run budget with per-call ceilings."],
   ["https://docs.nibgate.xyz/dr-nib/gates", "Spending gates: runtime, verdict, wallet, and onchain enforcement map plus the spender mandate."],

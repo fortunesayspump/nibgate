@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createJob, jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from './jobs.js';
+import { createJob, jobStatus, submitAndComplete, signSplit, isEscrowConfigured, assertEscrowOperational } from './jobs.js';
 
 beforeEach(() => vi.unstubAllEnvs());
 
@@ -27,6 +27,22 @@ describe('job validation (no chain)', () => {
   it('refuses a job without a budget', async () => {
     vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
     await expect(createJob({ client: '0x1111111111111111111111111111111111111111' }, NET)).rejects.toThrow(/budget/);
+  });
+
+  it('blocks new deposits when the settlement keeper has no gas reserve', async () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
+    await expect(assertEscrowOperational({ ...NET, make: {
+      account: { address: '0x3333333333333333333333333333333333333333' }, wallet: {},
+      public: { getChainId: async () => 5042002, getBalance: async () => 0n, getBytecode: async () => '0x1234' },
+    } })).rejects.toThrow(/gas funds/);
+  });
+
+  it('accepts deployed testnet contracts with a funded keeper', async () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
+    await expect(assertEscrowOperational({ ...NET, make: {
+      account: { address: '0x3333333333333333333333333333333333333333' }, wallet: {},
+      public: { getChainId: async () => 5042002, getBalance: async () => 100_000_000_000_000_000n, getBytecode: async () => '0x1234' },
+    } })).resolves.toBeUndefined();
   });
 });
 
@@ -79,5 +95,25 @@ describe('job reads and signatures (injected chain)', () => {
     const open = { ...job, status: 0 };
     const make2 = { ...make, public: { ...make.public, readContract: async () => open } };
     await expect(submitAndComplete({ jobId: '7', reportHash: '0x', spentUsd: 0 }, { make: make2, ...NET })).rejects.toThrow(/Open/);
+  });
+
+  it('allows a completed job to continue to its pending split without completing twice', async () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
+    const writeContract = vi.fn();
+    const out = await submitAndComplete({ jobId: '7', reportHash: '0x', spentUsd: 1.2 }, {
+      make: { ...make, public: { ...make.public, readContract: async () => ({ ...job, status: 3 }) }, wallet: { writeContract } }, ...NET,
+    });
+    expect(out.alreadyCompleted).toBe(true);
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  it('stops on a reverted submit receipt instead of completing a failed transaction', async () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
+    const writes = [];
+    await expect(submitAndComplete({ jobId: '7', reportHash: '0x', spentUsd: 1.2 }, {
+      make: { ...make, public: { ...make.public, waitForTransactionReceipt: async () => ({ status: 'reverted' }) },
+        wallet: { writeContract: async tx => { writes.push(tx.functionName); return '0xhash'; } } }, ...NET,
+    })).rejects.toThrow(/reverted/);
+    expect(writes).toEqual(['submitJob']);
   });
 });

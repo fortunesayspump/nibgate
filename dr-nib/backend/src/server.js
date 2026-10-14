@@ -16,6 +16,8 @@ import { x402 } from './routes/x402.js';
 import { mcp } from './mcp/routes.js';
 import { initQueue, queueMode } from './queue.js';
 import { requeueOrphans, requeueStalledRuns } from './worker.js';
+import { retryPendingSettlements } from './escrow/settle.js';
+import { researchAvailability } from './readiness.js';
 
 export async function createApp() {
   await initQueue();
@@ -50,7 +52,7 @@ export async function createApp() {
   app.use(cors({ origin: config.corsOrigins, credentials: true }));
   app.use(cookieParser());
 
-  app.get('/health', (_req, res) => res.json({ ok: true, queue: queueMode() }));
+  app.get('/health', (_req, res) => res.json({ ok: true, queue: queueMode(), research: researchAvailability() }));
 
   // Kill switch (DRNIB_DISABLED): refuse run/API traffic with an explicit
   // 503, but keep /health live so the deployment reads as intentionally off
@@ -71,6 +73,18 @@ export async function createApp() {
   app.use('/v1', exports);
   app.use('/mcp', mcp);
   app.use((err, _req, res, _next) => res.status(500).json({ error: err?.message || 'internal' }));
+  if (!config.disabled && !process.env.VITEST && process.env.NODE_ENV !== 'test') {
+    let retrying = false;
+    const retrySettlements = async () => {
+      if (retrying) return;
+      retrying = true;
+      try { await retryPendingSettlements(); }
+      catch { console.error('[dr-nib] settlement retry sweep failed; will retry next minute'); }
+      finally { retrying = false; }
+    };
+    void retrySettlements();
+    setInterval(retrySettlements, 60_000).unref();
+  }
   return app;
 }
 

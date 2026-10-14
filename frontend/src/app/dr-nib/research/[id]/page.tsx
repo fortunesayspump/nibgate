@@ -367,7 +367,9 @@ function FeedTime({ at }: { at: any }) {
 // header shows spend-vs-cap; this shows the money truth after the fact —
 // deposit, spend + fee, refund, and the onchain completion proof. A run that
 // took money must end with a receipt, not silence.
-function SettlementReceipt({ run }: { run: any }) {
+function SettlementReceipt({ run, onRefresh }: { run: any; onRefresh: () => Promise<void> }) {
+  const [retrying, setRetrying] = useState(false);
+  const [retryMessage, setRetryMessage] = useState("");
   const esc = (run.metadata && run.metadata.escrow) || null;
   const deposited = Number(run.deposited ?? 0);
   const spent = Number(run.spend ?? run.spent ?? 0);
@@ -381,8 +383,23 @@ function SettlementReceipt({ run }: { run: any }) {
       <p className="mt-2 text-[13px] leading-6">
         Deposited ${deposited.toFixed(2)}
         {" · "}spent ${spent.toFixed(2)}{fee > 0 ? ` (+$${fee.toFixed(3)} fee)` : ""}
-        {" · "}{esc?.jobId && !fundsTx ? "refund pending confirmation" : "refunded"} ${refunded.toFixed(2)}
+        {" · "}{esc?.jobId && !fundsTx && !esc.splitConfirmed ? "refund pending confirmation" : "refunded"} ${refunded.toFixed(2)}
       </p>
+      {esc?.jobId && !fundsTx && !esc.splitConfirmed && (
+        <div className="mt-3">
+          <p className="text-xs opacity-70">The report is ready. Your refund is still awaiting an onchain transaction; settlement retries automatically.</p>
+          <button disabled={retrying} onClick={async () => {
+            setRetrying(true); setRetryMessage("");
+            try {
+              const result = await drNibApi.completeEscrow(run.id);
+              setRetryMessage(result.pending ? "Settlement is still pending. We'll keep retrying." : "Settlement confirmed.");
+              await onRefresh();
+            } catch { setRetryMessage("Settlement could not complete yet. Your funds remain in escrow; please try again later."); }
+            finally { setRetrying(false); }
+          }} className="mt-2 rounded-lg border border-current px-3 py-2 text-xs disabled:opacity-50">{retrying ? "Checking settlement…" : "Retry settlement"}</button>
+          {retryMessage && <p role="status" className="mt-2 text-xs">{retryMessage}</p>}
+        </div>
+      )}
       {esc?.jobId ? (
         <p className="mt-1.5 text-xs leading-5 opacity-60">
           Escrow job {String(esc.jobId).slice(0, 12)}{esc.jobId?.length > 12 ? "…" : ""} · {esc.status || "settled"}
@@ -907,7 +924,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
           )}
 
           {["complete", "ended", "failed"].includes(run.status) && (
-            <SettlementReceipt run={run} />
+            <SettlementReceipt run={run} onRefresh={load} />
           )}
 
           {!report && (run.status === "running" || run.status === "paused") && !nothingFound && (

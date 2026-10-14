@@ -23,8 +23,13 @@ try {
   await run([prisma, 'db', 'push', '--skip-generate', '--schema', join(root, 'packages/cli/prisma/schema.prisma')]);
   const app = join(root, 'dr-nib/backend');
   const appRequire = createRequire(join(app, 'package.json'));
-  await run([appRequire.resolve('prisma/build/index.js'), 'generate', '--schema', join(app, 'prisma/schema.prisma')], app);
-  await run([join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=1', '--minWorkers=1', '--reporter=dot'], app);
+  // Windows keeps the engine DLL locked while a local server uses it. Reuse
+  // the existing generated client only when explicitly requested and no schema
+  // change is under test; the disposable DB is still prepared by global setup.
+  if (process.env.NIBGATE_SKIP_PRISMA_GENERATE !== '1') {
+    await run([appRequire.resolve('prisma/build/index.js'), 'generate', '--schema', join(app, 'prisma/schema.prisma')], app);
+  }
+  await run([join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=1', '--minWorkers=1', '--reporter=dot', ...process.argv.slice(2)], app);
 } finally {
   await pg.stop();
   if (!dir.startsWith(join(tmpdir(), 'nibgate-drnib-postgres-'))) throw Error('Unexpected fixture cleanup path');

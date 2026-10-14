@@ -80,6 +80,26 @@ describe('mcp protocol', () => {
     const res = await call('tools/call', { name: 'bash', arguments: {} });
     expect(res.body.result.isError).toBe(true);
   });
+
+  it('refuses production MCP calls if the service key is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DRNIB_SERVICE_KEY', '');
+    try { expect((await call('tools/list', {}, null)).status).toBe(401); }
+    finally { vi.unstubAllEnvs(); }
+  });
+
+  it('does not approve an unfunded escrow run through MCP', async () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
+    vi.stubEnv('ESCROW_CORE', '0x1111111111111111111111111111111111111111');
+    vi.stubEnv('ESCROW_SPLITTER', '0x3333333333333333333333333333333333333333');
+    const run = await db.researchRun.create({ data: { userId: `wallet:${WALLET.toLowerCase()}`, walletAddress: WALLET, brief: {}, status: 'planned', budgetCap: toDb(1), plan: { estimate: 0.1 } } });
+    await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(1) } });
+    try {
+      const res = await call('tools/call', { name: 'approve_plan', arguments: { ownerWallet: WALLET, runId: run.id } });
+      expect(res.body.result.isError).toBe(true);
+      expect(res.body.result.content[0].text).toMatch(/onchain deposit/i);
+    } finally { vi.unstubAllEnvs(); }
+  });
 });
 
 describe('mcp run flow', () => {

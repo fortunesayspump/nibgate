@@ -5,11 +5,11 @@ import { Callout } from 'nextra/components'
 For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using stock [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. Testnet first; mainnet follows audit and soak.
 
 <Callout type="info">
-Escrow is opt-in per run. Runs without it keep the [ledger path](./budgets) — nothing about the default changes.
+The public testnet preview requires escrow before research starts. Ledger-only mode is for development; it does not represent a payment or onchain refund.
 </Callout>
 
 <Callout type="warning">
-**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`. The Arc testnet contract lifecycle is proven; an app-path soak (create → fund → run → complete → split through the UI) is still pending before mainnet.
+**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`. The Arc testnet contract lifecycle is proven; a browser test has completed create → fund → run → complete → split on testnet. Mainnet still requires external review and a sustained soak.
 </Callout>
 
 ## Roles
@@ -45,6 +45,8 @@ Why a splitter instead of the spec's hook: in the reference implementation `comp
 Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund` is permissionless: anyone can trigger it, so funds are never hostage to a backend being alive. One upstream quirk to know: if client and evaluator are ever the same address, the core checks the client branch first, so use distinct roles.
 
 Each wallet transaction must have a successful receipt before the next step starts. The job ID comes from the matching `JobCreated` event in that transaction, so concurrent runs cannot select each other's jobs.
+
+New job parameters are withheld if the contracts are missing, the RPC is on the wrong chain, or the keeper has less than 0.02 native USDC for settlement. Failed settlements retry every minute and can be retried by the owner from the receipt. A completed job with an unexecuted split remains retryable; a reverted transaction never counts as confirmation.
 
 ## Backend endpoints
 

@@ -501,12 +501,12 @@ export async function generateRoundReview({ brief, round, sources = [], fetchImp
   }
   return fallback(null);
 }
-export async function generateThinking({ question, answer, fetchImpl } = {}) {
+export async function generateThinking({ brief = {}, question, answer, fetchImpl } = {}) {
   if (isLlmConfigured()) {
     try {
       const { text, usage, model } = await chat({
         effort: 'low',
-        messages: thinkingMessages({ question, answer }), fetchImpl,
+        messages: thinkingMessages({ brief, question, answer }), fetchImpl,
         temperature: 0.5,
         maxTokens: 220,
       });

@@ -24,7 +24,12 @@ async function req(path: string, opts: RequestInit = {}) {
   if (res.status === 503) {
     // The session store is unreachable (outage), not a missing login.
     // Surfaced separately so the UI says "retry", never "sign in again".
-    const err = new Error('Dr. Nib account lookup is temporarily unavailable. Retry in a moment.');
+    let message = 'Dr. Nib is temporarily unavailable. Please retry in a moment.';
+    try {
+      const detail = await res.clone().json();
+      if (detail.code === 'settlement-unavailable' && typeof detail.error === 'string') message = detail.error;
+    } catch { /* keep the retry message */ }
+    const err = new Error(message);
     (err as any).code = 'unavailable';
     throw err;
   }
@@ -62,6 +67,7 @@ export type IntakeQuestion = {
 export type IntakeAnswer = { optionIds?: string[]; text?: string };
 
 export const drNibApi = {
+  health: () => req('/health'),
   listRuns: (deleted = false) => req(`/v1/runs${deleted ? "?deleted=1" : ""}`),
   getRun: (id: string) => req(`/v1/runs/${id}`),
   createProject: (topic: string) => req("/v1/runs", { method: "POST", body: JSON.stringify({ topic }) }),
@@ -97,6 +103,7 @@ export const drNibApi = {
   // sets client = signer), then the backend verifies and stores it.
   registerEscrow: (id: string, jobId: string) =>
     req(`/v1/runs/${id}/escrow/register`, { method: "POST", body: JSON.stringify({ jobId }) }),
+  completeEscrow: (id: string) => req(`/v1/runs/${id}/escrow/complete`, { method: "POST" }),
   getEscrow: (id: string) => req(`/v1/runs/${id}/escrow`),
   createExport: (id: string, format: string) =>
     req(`/v1/runs/${id}/exports`, { method: "POST", body: JSON.stringify({ format }) }),

@@ -1,3 +1,4 @@
+import { SOURCE_ORDER, reportSources } from '../report-evidence.js';
 import { Router } from 'express';
 import { db } from '../db.js';
 import { subscribe } from '../events.js';
@@ -12,6 +13,7 @@ import { generateIntakeBatch } from '../llm/generate.js';
 import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answer-flow.js';
 import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
+import { researchAvailability } from '../readiness.js';
 import { jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
 
 export const runs = Router();
@@ -132,7 +134,7 @@ runs.get('/:id', async (req, res) => {
         // Chip [n] is sources[n-1] (see ReportMarkdown citeFor), and the
         // writer numbers evidence trust-desc (see writeStage) — so the read
         // must use the same order or chips point at the wrong URLs.
-        sources: { orderBy: [{ trust: 'desc' }, { relevance: 'desc' }, { createdAt: 'asc' }] },
+        sources: { orderBy: SOURCE_ORDER },
         claims: true,
         reports: { orderBy: { version: 'desc' }, take: 1 },
         ledger: { orderBy: { createdAt: 'asc' } },
@@ -233,6 +235,7 @@ runs.post('/:id/configure', async (req, res) => {
 
 runs.post('/:id/approve', async (req, res) => {
   try {
+    if (!researchAvailability().acceptingRuns) return res.status(503).json({ error: 'Mainnet funded research is not open yet. Try the testnet preview.' });
     const run = await ownedRun(req, res);
     if (!run) return;
     if (run.status !== 'planned') return res.status(409).json({ error: `cannot approve from ${run.status}` });
@@ -565,7 +568,11 @@ runs.post('/:id/escrow', async (req, res) => {
     // msg.sender — a relayed create would make an unfundable keeper-cliented
     // job). The backend only hands out the exact call parameters; the job
     // lands on-chain via POST /:id/escrow/register below.
-    const { createParams } = await import('../escrow/jobs.js');
+    const { createParams, assertEscrowOperational } = await import('../escrow/jobs.js');
+    try { await assertEscrowOperational(); }
+    catch {
+      return res.status(503).json({ code: 'settlement-unavailable', error: 'Research funding is temporarily unavailable while settlement is being prepared. No deposit was requested. Please try again later.' });
+    }
     const params = createParams({
       description: `Dr. Nib run: ${run.title || run.brief?.topic || run.id}`,
       expiryHours: req.body?.expiryHours,
@@ -632,40 +639,12 @@ runs.post('/:id/escrow/complete', async (req, res) => {
     if (!['complete', 'failed', 'ended'].includes(run.status)) {
       return res.status(409).json({ error: `settle the run first (status ${run.status})` });
     }
-    const report = await db.researchReport.findFirst({ where: { runId: run.id }, orderBy: { version: 'desc' } });
-    const { keccak256, toHex } = await import('viem');
-    const reportHash = report ? keccak256(toHex(report.markdown)) : '0x';
-    const { spend } = await budgetState(run.id);
-    // The operator payee is server configuration, never request input: whoever
-    // calls this endpoint must not be able to redirect earned funds.
-    const operator = process.env.ESCROW_OPERATOR || '';
-    if (!/^0x[0-9a-fA-F]{40}$/.test(operator)) {
-      return res.status(501).json({ error: 'ESCROW_OPERATOR is not configured on this deployment' });
-    }
-    let out = null;
-    if (local.status !== 'Completed') {
-      out = await submitAndComplete({ jobId: local.jobId, reportHash, spentUsd: spend, operator });
-    }
-    // The client is read offchain-truthfully: the split pays job.client
-    // onchain no matter what is signed, so sign the true one. Then relay the
-    // split itself — attesting without executing strands the money (seen
-    // live: job Completed onchain with splitDone false, refund ledger-only).
-    const chain = await jobStatus(local.jobId);
-    const sig = await signSplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
-    let splitTx = local.splitTx || null;
-    try {
-      const { relaySplit } = await import('../escrow/jobs.js');
-      const rel = await relaySplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
-      if (rel?.splitTx) splitTx = rel.splitTx;
-    } catch (e) {
-      await recordEvent(run.id, { type: 'escrow.split-failed', jobId: local.jobId, error: String(e?.message || e).slice(0, 200) });
-    }
-    const updated = await db.researchRun.update({
-      where: { id: run.id },
-      data: { metadata: { ...(run.metadata || {}), escrow: { ...local, status: 'Completed', completeTx: out?.completeTx || local.completeTx || null, splitSig: sig, ...(splitTx ? { splitTx } : {}) } } },
-    });
-    await recordEvent(run.id, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || local.completeTx || null, ...(splitTx ? { splitTx } : {}) });
-    res.json(escrowOf(updated));
+    const { settleEscrowRun } = await import('../escrow/settle.js');
+    const result = await settleEscrowRun(run.id, 'owner-retry');
+    const updated = await db.researchRun.findUnique({ where: { id: run.id } });
+    if (result.reason === 'no-operator') return res.status(501).json({ error: 'Settlement is not configured. Contact support.' });
+    if (result.reason === 'error') return res.status(503).json({ error: 'Settlement could not complete yet. Funds remain in escrow and will retry automatically.' });
+    res.json({ ...escrowOf(updated), pending: Boolean(result.pending) });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -713,8 +692,8 @@ runs.post('/:id/discuss', async (req, res) => {
     }
     const { chat, isLlmConfigured } = await import('../llm/provider.js');
     if (!isLlmConfigured()) return res.status(501).json({ error: 'discussion is not configured on this deployment' });
-    const sources = await db.researchSource.findMany({ where: { runId: run.id }, orderBy: [{ trust: 'desc' }, { relevance: 'desc' }, { createdAt: 'asc' }] });
-    const sourceLines = sources.slice(0, 30).map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`).join('\n');
+    const sources = await db.researchSource.findMany({ where: { runId: run.id }, orderBy: SOURCE_ORDER });
+    const sourceLines = reportSources(report, sources).slice(0, 30).map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`).join('\n');
     const prior = (Array.isArray(state.log) ? state.log : []).slice(-4)
       .map((t) => `Q: ${t.q}\nA: ${t.a}`).join('\n\n');
     const { text, usage, model } = await chat({

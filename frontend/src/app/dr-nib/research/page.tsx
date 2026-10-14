@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2, Send, Square } from "lucide-react";
 import { drNibApi, type IntakeAnswer, type IntakeOption, type IntakeQuestion } from "@/lib/dr-nib-api";
@@ -39,6 +40,15 @@ function answerLabel(it: { question: IntakeQuestion; answer?: IntakeAnswer }): s
 
 export default function ResearchNewPage() {
   const router = useRouter();
+  const [availability, setAvailability] = useState<"checking" | "ready" | "preview" | "unavailable">("checking");
+  const [availabilityAttempt, setAvailabilityAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    drNibApi.health().then((health) => {
+      if (!cancelled) setAvailability(health.research?.acceptingRuns === false ? (health.research.reason === "mainnet-funding-not-ready" ? "preview" : "unavailable") : "ready");
+    }).catch(() => { if (!cancelled) setAvailability("unavailable"); });
+    return () => { cancelled = true; };
+  }, [availabilityAttempt]);
   // Dr. Nib is wallet-gated through the same shared hub session as the header.
   // When a call comes back 401 (wallet connected but not signed in), prompt and
   // open the shared connect/sign-in rather than showing a raw error.
@@ -222,6 +232,7 @@ export default function ResearchNewPage() {
   }
 
   async function send() {
+    if (availability !== "ready") return;
     const t = topic.trim();
     if (!t) return flash("Type a question first — even one line.");
     // Instant: the thinking screen opens on click with your message shown as
@@ -582,6 +593,22 @@ export default function ResearchNewPage() {
     );
   }
 
+  if (phase === "composer" && availability === "preview") return (
+    <section className="mx-auto max-w-xl py-16 text-center">
+      <p className="text-xs font-medium uppercase tracking-wider opacity-60">Dr. Nib · preview</p>
+      <h1 className="mt-4 text-3xl font-medium">Try research on testnet</h1>
+      <p className="mt-4 text-sm leading-7 opacity-70">Research is available with test USDC while mainnet funding is being prepared. Ask a question, review the plan, and try the complete report and refund flow with play money.</p>
+      <a href="https://testnet.nibgate.xyz/dr-nib/research" className="mt-6 inline-block rounded-xl bg-black px-6 py-3 text-sm font-medium text-white">Open the testnet preview</a>
+      <p className="mt-4 text-xs opacity-60">Your existing mainnet projects remain in <Link href="/dr-nib/projects" className="underline">Projects</Link>.</p>
+    </section>
+  );
+  if (phase === "composer" && availability === "unavailable") return (
+    <section className="mx-auto max-w-xl py-16 text-center">
+      <h1 className="text-2xl font-medium">Research is temporarily unavailable</h1>
+      <p className="mt-3 text-sm opacity-70">We could not check the research service. Your saved projects are unchanged.</p>
+      <button className="mt-5 rounded-xl border border-current px-5 py-2 text-sm" onClick={() => { setAvailability("checking"); setAvailabilityAttempt(value => value + 1); }}>Try again</button>
+    </section>
+  );
   return (
     <div>
       {notice && <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}{/live run/i.test(notice) && (<> — <button onClick={() => router.push("/dr-nib/projects")} className="underline">review them in Projects</button></>)}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button></div>}
@@ -609,7 +636,7 @@ export default function ResearchNewPage() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               rows={4} placeholder="e.g. Compare Arc vs Base for USDC micropayments, last 90 days"
               className="w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 pb-12 text-left text-[15px] outline-none" />
-            <button onClick={send} disabled={busy} aria-label="Send" className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center bg-black text-white disabled:opacity-50">
+            <button onClick={send} disabled={busy || availability !== "ready"} aria-label="Send" className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center bg-black text-white disabled:opacity-50">
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} aria-hidden="true" />}
             </button>
           </div>

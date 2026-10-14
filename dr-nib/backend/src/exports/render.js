@@ -72,6 +72,7 @@ function packet({ report, sources, claims, ledger, escrow, figures }) {
       status: escrow.status || null,
       completeTx: escrow.completeTx || null,
       splitTx: escrow.splitTx || null,
+      splitConfirmed: Boolean(escrow.splitTx || escrow.splitConfirmed),
       targetCap: escrow.targetCap ?? null,
     } : null,
     exportedAt: new Date().toISOString(),
@@ -87,12 +88,12 @@ export function receiptLines({ ledger, escrow } = {}) {
   const out = ['', '---', '', '## Settlement receipt', ''];
   out.push(`- Deposited: $${fmt(ledger?.deposited)}`);
   out.push(`- Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee, 4)} protocol fee, taken from the operator share)` : ''}`);
-  out.push(`- Refunded: $${fmt(ledger?.refunded)}`);
+  out.push(`- ${escrow?.jobId && !escrow.splitTx && !escrow.splitConfirmed ? "Refund pending confirmation" : "Refunded"}: ${fmt(ledger?.refunded)}`);
   if (escrow?.jobId) {
     out.push(`- Escrow job ${escrow.jobId} · ${escrow.status || 'settled'}`);
     if (escrow.completeTx) out.push(`- Settle tx: ${escrow.completeTx}`);
     if (escrow.splitTx) out.push(`- Funds tx: ${escrow.splitTx}`);
-    else out.push('- Funds tx: pending (split not yet executed onchain)');
+    else out.push(escrow.splitConfirmed ? '- Funds: split confirmed onchain.' : '- Funds tx: pending (split not yet executed onchain)');
   } else {
     out.push('- Ledger run — no onchain escrow.');
   }

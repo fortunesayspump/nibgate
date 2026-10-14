@@ -7,7 +7,7 @@ Every Dr. Nib run holds its own budget in USDC. The rules are simple and absolut
 - **Cap first.** You set the cap at configure time. Nothing executes until you approve the plan against it.
 - **Draw per stage.** Search, fetch, scoring, writing, verify — each stage draws its cost, accruing a **1% platform fee** as money moves, never up front. Agent purchases (tips, paid unlocks, x402 calls) draw the same way with their transaction hashes on the record. The fee is operator-side: at split the contract takes it from the operator's earned share, so your refund is never reduced by it.
 - **Never overspend.** If the next stage would pass the cap, the run **pauses** with the balance intact. On ledger runs raise the cap or end it — your call. On one-shot escrow deposits raising past the deposit is impossible, so an exhausted run ends (report kept) or restarts bigger as a new run.
-- **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent is refunded immediately. There is no holding period. Terminal runs show a settlement receipt (deposited / spent / refunded + settle tx + funds tx).
+- **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent becomes refundable. The receipt says pending until the onchain split is confirmed; temporary keeper or RPC failures retry every minute, and the owner can retry from the receipt. Terminal runs show a settlement receipt (deposited / spent / refunded + settle tx + funds tx).
 
 <Callout type="info">
 Estimates are shown before you approve, and the run pauses instead of guessing when a plan has no estimate yet.
@@ -24,7 +24,7 @@ The budget ledger is append-only and is the only source of truth for a balance:
 | `fee` | the 1% platform cut on every draw — operator-side: at split the contract takes it from the earned share, so fee rows are treasury-receivable memos, never subtracted from your balance |
 | `refund` | the remainder, written once at settle |
 
-Nothing is ever edited or deleted. Balance = deposited − spent − refunded, always — exactly what the chain moves at split.
+Nothing is ever edited or deleted. Balance = deposited − spent − refunded, always. A refund ledger row records the amount due; the receipt separately confirms whether the onchain split has executed.
 
 ## Raising the cap
 
@@ -34,6 +34,6 @@ Out of budget mid-run? On ledger runs, raise it (raise-only, always) and a pause
 
 `reconcile_run` (MCP) checks both directions: every ledger-claimed transaction must resolve to a mined Transfer, and every agent-wallet outflow — EOA and spender-mandate alike — must resolve to a ledger row. Gateway deposits (still the agent's money) are reported separately so they never read as missing.
 
-## Onchain escrow (optional)
+## Onchain escrow in the public preview
 
-By default the budget is an offchain allowance. For real-money guarantees, fund an [onchain escrow](./escrow) at review: any amount from the plan estimate up locks in a contract (one-shot, no top-ups), the working cap aligns down to what landed, and the remainder returns to your wallet automatically at settle.
+The public testnet preview requires an [onchain escrow](./escrow) at review: any amount from the plan estimate up locks in a contract (one-shot, no top-ups), the working cap aligns down to what landed, and the remainder returns to your wallet when the settlement split confirms. Development-only ledger allowances do not move user funds.

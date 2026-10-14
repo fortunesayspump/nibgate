@@ -1,5 +1,6 @@
 // FIRST import: env.js must populate process.env before db.js builds a client.
 import './env.js';
+import { SOURCE_ORDER, reportEvidence, sectionEvidence } from './report-evidence.js';
 
 import os from 'node:os';
 import path from 'node:path';
@@ -710,27 +711,12 @@ export function ensureAdviceNotice(markdown, topic) {
 }
 
 async function writeStage(runId, run, guidance) {
-  const sources = await db.researchSource.findMany({
-    where: { runId },
-    orderBy: [{ trust: 'desc' }, { relevance: 'desc' }],
-    take: 40,
-  });
-  // Attach the passage each source contributed, so the report prompt is bound to
-  // what was actually read rather than to titles alone.
-  const fetchStep = await db.researchStep.findFirst({
-    where: { runId, kind: 'fetch' },
-    orderBy: { createdAt: 'desc' },
-  });
-  const docsByUrl = new Map((fetchStep?.output?.documents || []).map((d) => [d.url, d]));
+  const [sources, fetchSteps] = await Promise.all([
+    db.researchSource.findMany({ where: { runId }, orderBy: SOURCE_ORDER, take: 40 }),
+    db.researchStep.findMany({ where: { runId, kind: 'fetch', status: 'done' }, orderBy: { createdAt: 'desc' } }),
+  ]);
   const brief = run.brief || {};
-  const evidence = sources.map((s) => ({
-    url: s.url,
-    title: s.title,
-    domain: s.domain,
-    relevance: s.relevance,
-    trust: s.trust,
-    excerpt: docsByUrl.get(s.url)?.text || '',
-  }));
+  const evidence = reportEvidence(sources, fetchSteps);
   // Brief length stays a single bounded call; anything longer is written
   // section by section, each from its own evidence, then assembled.
   //
@@ -765,10 +751,7 @@ async function writeStage(runId, run, guidance) {
         allSources: evidence,
         getEvidence: async (section) => {
           const found = await searchEvidence(runId, { query: section, limit: 6 });
-          return found.matches.map((m) => {
-            const doc = docsByUrl.get(m.url);
-            return { url: m.url, title: m.title, excerpt: m.excerpt || doc?.text?.slice(0, 600) || '' };
-          });
+          return sectionEvidence(found.matches, evidence);
         },
         guidance,
         runId,
@@ -785,7 +768,7 @@ async function writeStage(runId, run, guidance) {
       : 'Writing offline: the report is a placeholder until the model is configured.',
   });
   await db.researchReport.create({
-    data: { runId, version: run.versions, markdown: ensureAdviceNotice(generated.markdown, run.brief?.topic), citations: [] },
+    data: { runId, version: run.versions, markdown: ensureAdviceNotice(generated.markdown, run.brief?.topic), citations: evidence.map(({ excerpt, ...source }) => source) },
   });
   // Verify pass: extract the report's claims and score each against the
   // run's own passages (JEV, one batch). This is what the coverage badge

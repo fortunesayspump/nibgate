@@ -1,3 +1,4 @@
+import { SOURCE_ORDER, reportSources } from '../report-evidence.js';
 import { Router } from 'express';
 import { db } from '../db.js';
 import * as auth from '../auth.js';
@@ -30,11 +31,11 @@ exports.post('/runs/:id/exports', async (req, res) => {
   const report = await db.researchReport.findFirst({ where: { runId: run.id }, orderBy: { version: 'desc' } });
   if (!report) return res.status(409).json({ error: 'no finished report to export yet' });
   const [sources, claims] = await Promise.all([
-    db.researchSource.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'asc' } }),
+    db.researchSource.findMany({ where: { runId: run.id }, orderBy: SOURCE_ORDER }),
     db.researchClaim.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'asc' } }),
   ]);
   const rendered = await renderExport(format, {
-    report, sources, claims,
+    report, sources: reportSources(report, sources), claims,
     ledger: await budgetState(run.id),
     escrow: (run.metadata && run.metadata.escrow) || null,
     slug: `drnib-${run.id.slice(0, 8)}-v${report.version}`,

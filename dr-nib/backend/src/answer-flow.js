@@ -34,11 +34,11 @@ export function createQuestion(runId, seq, q) {
  * otherwise, persisted as a thinking row. Independent per answer, so batches
  * run these concurrently — the batch wall clock is one thinking, not five.
  */
-export async function thinkOne(runId, seq, questionObj, answer) {
+export async function thinkOne(runId, seq, questionObj, answer, brief = {}) {
   let thinkingText = think({ question: questionObj, answer });
   let thinkingSource = 'fallback';
   try {
-    const live = await generateThinking({ question: questionObj, answer: describeAnswer(questionObj, answer) });
+    const live = await generateThinking({ brief, question: questionObj, answer: describeAnswer(questionObj, answer) });
     if (live.text) {
       thinkingText = live.text;
       thinkingSource = 'llm';
@@ -92,7 +92,7 @@ export async function recordAnswer(run, seq, answer, { reanswer = false } = {}) 
 
   await db.researchDecision.update({ where: { id: question.id }, data: { answer: answer ?? {}, answeredAt: new Date() } });
 
-  const { thinkingText, thinkingSource } = await thinkOne(run.id, seq, question.question, answer);
+  const { thinkingText, thinkingSource } = await thinkOne(run.id, seq, question.question, answer, run.brief);
   const patch = applyAnswer({ run, question: question.question, answer });
   const updated = await db.researchRun.update({
     where: { id: run.id },
@@ -238,7 +238,7 @@ export async function answerIntakeBatch(run, answers) {
   }
 
   const thinkings = await Promise.all(rows.map(async ({ seq, answer, q }) => {
-    const t = await thinkOne(run.id, seq, q.question, answer);
+    const t = await thinkOne(run.id, seq, q.question, answer, run.brief);
     return { seq, thinking: t.thinkingText, source: t.thinkingSource };
   }));
   // Brief patches chain sequentially (each builds on the last brief) with a

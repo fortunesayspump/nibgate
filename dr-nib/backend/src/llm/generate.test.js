@@ -103,8 +103,8 @@ describe('report length floor', () => {
     const out = await generateReportLong({
       brief, sections: ['Q1', 'Q2'], getEvidence, runId: 'r1', version: 1, fetchImpl,
     });
-    // intro + 2 sections + exactly 1 deepening attempt + conclusion
-    expect(fetchImpl.mock.calls.length).toBe(5);
+    // intro + 2 sections + exactly 1 deepening attempt + conclusion + abstract
+    expect(fetchImpl.mock.calls.length).toBe(6);
     expect(out.markdown).toContain('Short two.');
     expect(out.markdown).not.toContain('NOTHING_NEW');
   }, 20000);

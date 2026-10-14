@@ -61,8 +61,8 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
   );
 
   const topic = run.brief?.topic || run.title || "Untitled run";
-  const spent = Number(run.spent || 0);
-  const sources: any[] = run.sources || [];
+  const spent = Number(run.used ?? run.spend ?? run.spent ?? 0);
+  const sources: any[] = report?.citations?.length ? report.citations : run.sources || [];
   const esc = (run.metadata && run.metadata.escrow) || null;
   const steer = report ? (run.metadata?.versionPrompts || {})[report.version] : null;
   function shareLink() {
@@ -119,7 +119,7 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
                 </a>
               ) : null}
               {Number(run.refunded ?? 0) > 0 ? (
-                <span className="text-xs opacity-60">${Number(run.refunded).toFixed(2)} refunded</span>
+                <span className="text-xs opacity-60">${Number(run.refunded).toFixed(2)} {esc?.jobId && !esc.splitTx && !esc.splitConfirmed ? "refund pending confirmation" : "refunded"}</span>
               ) : null}
             </div>
           </>

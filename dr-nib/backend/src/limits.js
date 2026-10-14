@@ -7,6 +7,7 @@
 // projects never count, so a user is limited by what is actually in flight.
 import { db } from './db.js';
 import { config } from './env.js';
+import { researchAvailability } from './readiness.js';
 
 // Non-terminal, un-deleted statuses: work that is still in flight or waiting on
 // the user. `paused` and `awaiting` count — they are resumable and may hold
@@ -40,6 +41,7 @@ export async function countActiveRuns(userId) {
  * verbatim — so the HTTP route and the MCP tool say the same thing.
  */
 export async function assertCanCreateRun(userId) {
+  if (!researchAvailability().acceptingRuns) return { ok: false, status: 503, error: 'Dr. Nib is available in testnet preview. Mainnet funded research is not open yet.' };
   const active = await countActiveRuns(userId);
   const cap = maxActiveRuns();
   if (active >= cap) {

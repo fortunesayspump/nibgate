@@ -10,10 +10,11 @@
 // names the owner wallet, which must own the run. When no key is configured
 // the server stays open for local development and says so on every call —
 // never silently.
+import { researchAvailability } from '../readiness.js';
 import { TOOLS } from './tools.js';
 
 export const MCP_SERVER_NAME = 'dr-nib';
-export const MCP_SERVER_VERSION = '0.2.0';
+export const MCP_SERVER_VERSION = '0.2.1';
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 let warnedOpen = false;
@@ -21,6 +22,7 @@ let warnedOpen = false;
 export function mcpAuth(req) {
   const expected = process.env.DRNIB_SERVICE_KEY || '';
   if (!expected) {
+    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT_ID) return { ok: false, error: 'service authentication is not configured' };
     if (!warnedOpen) {
       warnedOpen = true;
       console.warn('[dr-nib] MCP running without DRNIB_SERVICE_KEY — local development only.');
@@ -46,6 +48,7 @@ export function serverCard() {
     version: MCP_SERVER_VERSION,
     protocol: 'mcp-jsonrpc-http',
     auth: 'bearer-service-key',
+    research: researchAvailability(),
     tools: TOOLS.map((t) => t.name),
   };
 }

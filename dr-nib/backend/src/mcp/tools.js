@@ -1,3 +1,5 @@
+import { researchAvailability } from '../readiness.js';
+import { SOURCE_ORDER } from '../report-evidence.js';
 // MCP tools — the same run flows, callable by agents.
 //
 // Each tool mirrors an HTTP route's contract (same ownership rule, same status
@@ -40,7 +42,7 @@ async function withBudget(run) {
     where: { id: run.id },
     // Same trust-desc order as GET /v1/runs/:id: chip [n] is sources[n-1]
     // on every surface, including this one.
-    include: { steps: { orderBy: { createdAt: 'asc' } }, sources: { orderBy: [{ trust: 'desc' }, { relevance: 'desc' }, { createdAt: 'asc' }] }, claims: true, reports: { orderBy: { version: 'desc' }, take: 1 } },
+    include: { steps: { orderBy: { createdAt: 'asc' } }, sources: { orderBy: SOURCE_ORDER }, claims: true, reports: { orderBy: { version: 'desc' }, take: 1 } },
   });
   const { ledger, ...rest } = full;
   return jsonSafe({ ...rest, ...(await budgetState(run.id)) });
@@ -49,7 +51,7 @@ async function withBudget(run) {
 export const TOOLS = [
   {
     name: 'create_run',
-    description: 'Open a research project for a wallet: creates the brief, asks the first intake question, returns the run. Send is wallet-gated like the UI composer.',
+    description: 'Open a research project for a wallet when the server card research.acceptingRuns is true: creates the brief, asks the first intake question, returns the run. Send is wallet-gated like the UI composer.',
     input: { ownerWallet: '0x…', topic: 'what to research' },
     async run({ ownerWallet, topic }) {
       const bad = checkWallet(ownerWallet);
@@ -136,7 +138,7 @@ export const TOOLS = [
         data: { depth, budgetCap: toDb(budgetCap), brief, status: 'planning', pauseReason: null },
       });
       const holds = await db.budgetLedger.findFirst({ where: { runId: run.id, kind: 'deposit' } });
-      if (!holds) await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(budgetCap) } });
+      if (!isEscrowConfigured() && !holds) await db.budgetLedger.create({ data: { runId: run.id, kind: 'deposit', amount: toDb(budgetCap) } });
       await requestPlan(run.id);
       return { id: run.id, status: 'planning' };
     },
@@ -146,6 +148,7 @@ export const TOOLS = [
     description: 'Approve the plan and start execution. Refuses when the balance is below the plan estimate; on escrowed runs requires a Funded onchain deposit of at least the estimate (the working cap aligns to the deposit).',
     input: { ownerWallet: '0x…', runId: 'uuid' },
     async run({ ownerWallet, runId }) {
+      if (!researchAvailability().acceptingRuns) throw new Error('Mainnet funded research is not open yet. Try the testnet preview.');
       const bad = checkWallet(ownerWallet);
       if (bad) throw new Error(bad.error);
       const { error, run } = await ownedRun(runId, ownerWallet);
@@ -159,7 +162,8 @@ export const TOOLS = [
       // estimate, working cap aligned to the deposit. An MCP approve that
       // skipped this would start an unfunded escrowed run.
       const escrow = (run.metadata && run.metadata.escrow) || null;
-      if (isEscrowConfigured() && escrow?.jobId) {
+      if (isEscrowConfigured()) {
+        if (!escrow?.jobId) throw new Error('No onchain deposit yet — fund the run escrow first, then approve.');
         const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
         if (chain.error) throw new Error(`cannot read escrow job: ${chain.error}`);
         if (chain.status !== 'Funded') throw new Error(`escrow job ${escrow.jobId} is ${chain.status} — fund it onchain first`);

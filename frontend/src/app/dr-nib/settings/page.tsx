@@ -68,14 +68,14 @@ export default function HelpPage() {
 
       <Section title="Escrow funding">
         <P>
-          Runs are funded by an onchain escrow deposit in USDC: set-budget + approve + fund, three wallet
+          Runs are funded by an onchain escrow deposit in USDC: open the job, set its budget, approve USDC, and fund it — four wallet
           confirmations. Approve stays locked until the job reads <strong>Funded</strong> onchain.
         </P>
         <P>
           Deposits are <strong>one-shot</strong>: the contract flips Open → Funded on funding and can never be
           topped up. Pick the amount deliberately — the run pauses when it is spent, and a bigger budget means
-          ending the run and starting a new one. Unspent money returns to your wallet automatically at settle,
-          enforced by contract, not promise.
+          ending the run and starting a new one. Unspent money returns to your wallet when the settlement transaction confirms. Pending refunds are labeled and retry automatically; the receipt also has a Retry settlement button. Refunds are
+          enforced by the escrow contract.
         </P>
       </Section>
 

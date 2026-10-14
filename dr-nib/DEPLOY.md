@@ -136,3 +136,6 @@ curl -s -X POST https://<drnib-service>/mcp \
 
 A run needs `OPENROUTER_API_KEY` to generate and JEV to decide; without the key
 a run parks at its first decision by design (it never fabricates).
+
+
+Production readiness: `/health` exposes `research.acceptingRuns`, network and escrow configuration. A production mainnet service without escrow refuses new runs and approvals; the composer offers the testnet preview. Keep at least 0.02 native USDC in the settlement keeper before accepting new deposits. Pending terminal-run settlements retry every minute (three per sweep), including jobs already completed with an unexecuted split. Receipts label refunds pending until the split is confirmed.

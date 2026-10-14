@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest'
-import { feePolicy, protocolFeeFor, feeWalletAddressFor, ensureFeeWalletDeployed, createPredictedWalletReader, resolvePayTo, createTransferVerifier, runHostedTransferRequirement, runHostedPayRequirement, transferOwnershipMessage, ARC_USDC, ARC_TESTNET_CHAIN, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, DEFAULT_TREASURY, FEE_WALLET_FACTORY_ABI, sweepFeeWallet, withdrawGatewayBalanceFor, distributeFeeWallet } from '../src/server/fee-wallet.js'
+import { describe, it, expect, vi } from 'vitest'
+
+const { offlineRpcFetch } = vi.hoisted(() => ({
+  offlineRpcFetch: vi.fn(async () => { throw new Error('Deterministic offline RPC unavailable') }),
+}))
+
+// Capture an in-memory fetch before fee-wallet caches any transports. Keep every
+// fallback mirror permanently offline rather than relying on mutable global.fetch;
+// an rpc.invalid primary still includes public Arc mirrors in production.
+vi.mock('viem', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    http: (url, options = {}) => actual.http(url, { ...options, fetchFn: offlineRpcFetch, retryCount: 0 }),
+  }
+})
+
+import { feePolicy, protocolFeeFor, feeWalletAddressFor, ensureFeeWalletDeployed, createPredictedWalletReader, resolvePayTo, createTransferVerifier, runHostedTransferRequirement, runHostedPayRequirement, transferOwnershipMessage, ARC_USDC, ARC_TESTNET_CHAIN, ARC_TESTNET_RPC_FALLBACKS, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, DEFAULT_TREASURY, FEE_WALLET_FACTORY_ABI, sweepFeeWallet, withdrawGatewayBalanceFor, distributeFeeWallet } from '../src/server/fee-wallet.js'
 
 describe('feePolicy', () => {
   it('uses the 1% default on Arc testnet', () => {
@@ -256,8 +272,18 @@ describe('createTransferVerifier', () => {
   })
 
   it('returns false when the RPC is unreachable', async () => {
-    const verifier = createTransferVerifier({ rpcUrl: 'https://rpc.invalid', recipient: creator, receiptWaitMs: 800 })
-    expect(await verifier({ resource: { recipient: creator }, txHash: '0xabc', payment: { amount: 1 } })).toBe(false)
+    offlineRpcFetch.mockClear()
+    const unexpectedFetch = vi.fn(async () => { throw new Error('Unexpected external fetch') })
+    vi.stubGlobal('fetch', unexpectedFetch)
+    try {
+      const verifier = createTransferVerifier({ rpcUrl: 'https://rpc.invalid', recipient: creator, receiptWaitMs: 800 })
+      expect(await verifier({ resource: { recipient: creator }, txHash: '0xabc', payment: { amount: 1 } })).toBe(false)
+      expect(unexpectedFetch).not.toHaveBeenCalled()
+      const attemptedOrigins = offlineRpcFetch.mock.calls.map(([url]) => new URL(url).origin)
+      expect(attemptedOrigins).toEqual(expect.arrayContaining(['https://rpc.invalid', ...ARC_TESTNET_RPC_FALLBACKS]))
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { encodeFunctionData, createWalletClient, custom } from 'viem'
 import { useAppKit, useAppKitProvider, useAppKitAccount, useAppKitNetwork, useDisconnect } from '@reown/appkit/react'
 import { getWalletErrorMessage, getPaymentErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
-import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
+import { activeArcChain, activeChain } from '../chain.js'
 import { ensureArcNetwork } from '../network.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 import { ownershipMessage } from '@nibgate/sdk'
@@ -18,6 +18,8 @@ const transferOwnershipMessage = (txHash, resource) =>
 import { HUB_SESSION_UPDATED_EVENT } from './session.js'
 import unlockKeyAnimation from '../unlock-key.js'
 import { GatewayWalletUI } from './gateway-wallet.jsx'
+import { isVerifiedUnlock, useUnlockReveal } from './useUnlockReveal.js'
+import { UnlockConfirmation, UnlockFeedbackStyles } from './unlock-feedback.jsx'
 
 const NETWORK = activeChain().caip2
 const PROOF_PREFIX = 'nibgate:payment-proof:'
@@ -67,16 +69,7 @@ function storedProof(id) {
   }
 }
 
-function waitForChain(check, timeoutMs = 8000) {
-  const started = Date.now()
-  return new Promise((resolve) => {
-    const tick = () => {
-      if (check() || Date.now() - started > timeoutMs) resolve()
-      else setTimeout(tick, 100)
-    }
-    tick()
-  })
-}
+
 
 // Derive the preflight URL from the access URL by swapping its final segment
 // (/hub/pay -> /hub/preflight, /nibshare/:slug/access -> .../preflight), so every
@@ -151,7 +144,7 @@ const PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000
 // re-signs the ownership message for the txHash already on-chain and resubmits
 // the existing payment, so the buyer is never charged twice. Anything that
 // genuinely cannot be recovered is surfaced for support rather than retried.
-function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, setProof, setUnlocked, address, walletProvider }) {
+function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, setProof, setUnlocked, address, walletProvider, onUnlock }) {
   const runningRef = useRef(false)
   const [recovering, setRecovering] = useState(false)
   const [pendingRecovery, setPendingRecovery] = useState(null)
@@ -224,7 +217,7 @@ function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, s
           metadata: recovered.metadata,
         }),
       })
-      if (result.ok) {
+      if (isVerifiedUnlock(result)) {
         clearPendingPayment(resource.id)
         const nextProof = result.payload?.unlockProof || storedProof(resource.id)
         try { if (result.payload?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, result.payload.unlockProof) } catch {}
@@ -232,6 +225,7 @@ function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, s
         setProof(nextProof)
         setUnlocked(true)
         setPendingRecovery(null)
+        onUnlock?.(result)
         return true
       }
       // The payment could not be completed automatically (e.g. the transfer
@@ -244,7 +238,7 @@ function usePaymentRecovery({ resource, accessPathFor, accessPath, setPayload, s
     } finally {
       setRecovering(false)
     }
-  }, [recoverPending, resource, accessPath, accessPathFor, setPayload, setProof, setUnlocked])
+  }, [recoverPending, resource, accessPath, accessPathFor, setPayload, setProof, setUnlocked, onUnlock])
 
   // Offer recovery as soon as a wallet is available and a broadcast note exists.
   useEffect(() => {
@@ -296,7 +290,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   const [proof, setProof] = useState('')
   const [gatewayBalance, setGatewayBalance] = useState('')
   const [walletBalance, setWalletBalance] = useState('')
-  const [paymentRail, setPaymentRail] = useState(resource.paymentRail === 'transfer' ? 'transfer' : 'gateway')
+  const [paymentRail, setPaymentRail] = useState(resource.paymentRail === 'gateway' ? 'gateway' : 'transfer')
 
   const runningRef = useRef(false)
   const addressRef = useRef(address)
@@ -405,17 +399,8 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     // Ensure the wallet is on THIS deployment's network (mainnet vs testnet)
     // before signing/sending. Accepting the other Arc chain would burn gas
     // and produce receipts the backend rejects.
-    const currentChainId = await (async () => {
-      try {
-        const hex = await provider.request({ method: 'eth_chainId' })
-        return typeof hex === 'string' ? Number(hex) : Number(hex)
-      } catch { return undefined }
-    })()
-    if (currentChainId === undefined || !isActiveChainId(currentChainId)) {
-      await ensureArcNetwork(provider, { currentChainId })
-      await waitForChain(() => isActiveChainId(chainIdRef.current))
-    }
-    const rail = input?.challenge?.paymentRail || railRef.current || resource.paymentRail || 'gateway'
+    await ensureArcNetwork(provider)
+    const rail = input?.challenge?.paymentRail || railRef.current || resource.paymentRail || 'transfer'
     const walletClient = createWalletClient({ chain: activeArcChain(), account: account, transport: custom(provider) })
     if (rail === 'transfer') {
       const payTo = String(input?.challenge?.accepts?.[0]?.payTo || input?.challenge?.accepts?.[0]?.recipient || resource.payTo || resource.recipient || '')
@@ -524,7 +509,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
   // simply ignore the extra query param.
   const accessPathFor = useCallback((path) => {
     const w = addressRef.current
-    const rail = railRef.current || resource.paymentRail || 'gateway'
+    const rail = railRef.current || resource.paymentRail || 'transfer'
     if (!path) return path
     const parts = [`rail=${encodeURIComponent(rail)}`]
     // The hub binds the transfer ownership proof to resource.path and the
@@ -600,9 +585,12 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         await signInRef.current()
       }
       const { checkResourceAccess } = await import('@nibgate/sdk')
-      const rail = railRef.current || resource.paymentRail || 'gateway'
+      const rail = railRef.current || resource.paymentRail || 'transfer'
       const accessUrl = accessPathFor(accessPath)
       accessUrlRef.current = accessUrl
+      // Capture the presentation callback for this wallet/resource. A later
+      // render must not send an old result to a newly selected gate.
+      const notifyUnlock = onUnlockRef.current
       const result = await checkResourceAccess(resource, {
         accessPath: accessUrl,
         paymentProvider: rail === 'transfer' ? 'direct-transfer-browser' : 'circle-gateway-browser',
@@ -624,7 +612,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         },
         onStatus: setStatus,
       })
-      if (result.ok) {
+      if (isVerifiedUnlock(result)) {
         const nextProof = result.payload?.unlockProof || storedProof(resource.id)
         try { if (result.payload?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, result.payload.unlockProof) } catch {}
         // Unlocked for real: the broadcast note has served its purpose.
@@ -633,7 +621,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
         setProof(nextProof)
         setUnlocked(true)
         setStatus('')
-        onUnlockRef.current?.(result)
+        notifyUnlock?.(result)
         return true
       }
       // Prefer the server's machine reason (`reason`) over the human summary
@@ -677,7 +665,14 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
 
   useEffect(() => {
     let cancelled = false
+    const notifyUnlock = onUnlockRef.current
     const init = async () => {
+      // AppKit can clear the connected flag before its cached address/provider.
+      // Do not restore access into that disconnected presentation scope.
+      if (appKitAccount.isConnected === false) {
+        if (!cancelled) setChecking(false)
+        return
+      }
       const addr = addressRef.current
       // Access follows the WALLET, not the device. Prefer a wallet-tied check so
       // the server re-issues access from the wallet's paid receipt (no re-pay);
@@ -690,13 +685,13 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
             headers: { accept: 'application/json' },
           })
           const data = await res.json().catch(() => ({}))
-          if (!cancelled && data?.ok) {
+          if (!cancelled && res.ok && data?.ok === true) {
             const nextProof = data?.unlockProof || storedProof(resource.id)
             try { if (data?.unlockProof) localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, nextProof) } catch {}
             setPayload(data)
             setProof(nextProof)
             setUnlocked(true)
-            onUnlockRef.current?.({ ok: true, payload: data, resource })
+            notifyUnlock?.({ ok: true, payload: data, resource }, { restored: true })
             setChecking(false)
             return
           }
@@ -712,20 +707,20 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
           headers: { accept: 'application/json', 'x-nibgate-payment-proof': existingProof },
         })
         const data = await res.json().catch(() => ({}))
-        if (!cancelled && data?.ok) {
+        if (!cancelled && res.ok && data?.ok === true) {
           const nextProof = data?.unlockProof && data.unlockProof !== existingProof ? data.unlockProof : existingProof
           try { localStorage.setItem(`${PROOF_PREFIX}${resource.id}`, nextProof) } catch {}
           setPayload(data)
           setProof(nextProof)
           setUnlocked(true)
-          onUnlockRef.current?.({ ok: true, payload: data, resource })
+          notifyUnlock?.({ ok: true, payload: data, resource }, { restored: true })
         }
       } catch {}
       if (!cancelled) setChecking(false)
     }
     init()
     return () => { cancelled = true }
-  }, [resource.id, accessPath, accessPathFor, address])
+  }, [resource.id, accessPath, accessPathFor, address, walletProvider, appKitAccount.isConnected])
 
   // A disconnect must release the body from this device: tear down the
   // unlocked payload and drop any stored proof. Access is wallet-bound — on
@@ -761,6 +756,7 @@ export function useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUn
     setUnlocked,
     address,
     walletProvider,
+    onUnlock,
   })
 
   return { busy, checking, status, error, unlocked, payload, proof, address, connect, disconnect, unlock, clear, gatewayBalance, refreshGatewayBalance, walletBalance, refreshWalletBalance, paymentRail, setPaymentRail: switchRail, pendingRecovery: recovery.pendingRecovery, recovering: recovery.recovering, runRecovery: () => recovery.runRecovery(walletProvider, address), dismissRecovery: () => recovery.setPendingRecovery(null) }
@@ -792,7 +788,7 @@ const labelButtonStyle = {
   margin: 0,
 }
 
-export function NibgateUnlockUI({ resource, busy, checking, status, error, address, disconnect, unlock, connect, gatewayBalance, gatewayBalanceUrl, walletBalance, paymentRail, setPaymentRail, pendingRecovery, recovering, runRecovery, dismissRecovery }) {
+export function NibgateUnlockUI({ resource, busy, checking, status, error, address, disconnect, unlock, connect, gatewayBalance, gatewayBalanceUrl, walletBalance, paymentRail = 'transfer', setPaymentRail, pendingRecovery, recovering, runRecovery, dismissRecovery }) {
   const lottieRef = useRef(null)
   const [holdPct, setHoldPct] = useState(0)
   const [holdTransition, setHoldTransition] = useState('none')
@@ -921,27 +917,6 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
         <button
           type="button"
           role="tab"
-          aria-selected={!isDirect}
-          onClick={() => setPaymentRail?.('gateway')}
-          style={{
-            flex: 1,
-            padding: '8px 0',
-            fontSize: 13,
-            fontWeight: 600,
-            border: 0,
-            borderRadius: 7,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            color: !isDirect ? 'var(--fg, #0a0a0a)' : 'var(--muted, #6b6862)',
-            background: !isDirect ? 'var(--bg, #f4f4f0)' : 'transparent',
-            boxShadow: !isDirect ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
-          }}
-        >
-          Gateway
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={isDirect}
           onClick={() => setPaymentRail?.('transfer')}
           style={{
@@ -959,6 +934,27 @@ export function NibgateUnlockUI({ resource, busy, checking, status, error, addre
           }}
         >
           Direct
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!isDirect}
+          onClick={() => setPaymentRail?.('gateway')}
+          style={{
+            flex: 1,
+            padding: '8px 0',
+            fontSize: 13,
+            fontWeight: 600,
+            border: 0,
+            borderRadius: 7,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            color: !isDirect ? 'var(--fg, #0a0a0a)' : 'var(--muted, #6b6862)',
+            background: !isDirect ? 'var(--bg, #f4f4f0)' : 'transparent',
+            boxShadow: !isDirect ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+          }}
+        >
+          Gateway
         </button>
       </div>
       <div
@@ -1180,16 +1176,51 @@ function NibgateWalletBar({ address, onDisconnect }) {
   )
 }
 
-export function NibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, children, authBase = '', noncePath = '', verifyPath = '', walletBar = true }) {
-  const state = useNibgateUnlock({ resource, accessPath, gatewayBalanceUrl, onUnlock, authBase, noncePath, verifyPath })
-  if (state.unlocked) {
-    const content = typeof children === 'function' ? children(state) : children
-    return (
-      <>
-        {content}
+function NibgateUnlockContent({ resource, accessPath, gatewayBalanceUrl, onUnlock, children, authBase = '', noncePath = '', verifyPath = '', walletBar = true, ...options }) {
+  const { address, isConnected } = useAppKitAccount()
+  const { walletProvider } = useAppKitProvider('eip155')
+  const scope = useMemo(() => ({}), [address, isConnected, walletProvider])
+  const { phase, onVerified, reset } = useUnlockReveal({ scope, onUnlock })
+  const gateRef = useRef(null)
+  const contentRef = useRef(null)
+  const gateHeightRef = useRef(0)
+  const restoreFocusRef = useRef(false)
+  const handleVerified = useCallback((result, context) => {
+    if (isConnected === false) return
+    gateHeightRef.current = gateRef.current?.getBoundingClientRect().height || 0
+    restoreFocusRef.current = Boolean(gateRef.current?.contains(document.activeElement))
+    onVerified(result, context)
+  }, [onVerified, isConnected])
+  const access = useNibgateUnlock({ ...options, resource, accessPath, gatewayBalanceUrl, onUnlock: handleVerified, authBase, noncePath, verifyPath })
+  const state = { ...access, clear: () => { reset(); access.clear() } }
+  const revealed = state.unlocked && (phase === 'revealed' || phase === 'restored-content')
+
+  useEffect(() => {
+    // Keep keyboard users with the content, without stealing focus from a
+    // different control they chose during the confirmation.
+    if (phase === 'revealed' && restoreFocusRef.current && document.activeElement === document.body) {
+      contentRef.current?.focus({ preventScroll: true })
+    }
+  }, [phase])
+
+  return <>
+    <UnlockFeedbackStyles />
+    {revealed ? (
+      <div ref={contentRef} tabIndex={-1} data-nibgate-unlock-content={phase === 'revealed' ? 'new' : 'restored'} style={{ outline: 'none' }}>
+        {typeof children === 'function' ? children(state) : children}
         {walletBar && <NibgateWalletBar address={state.address} onDisconnect={state.disconnect} />}
-      </>
-    )
-  }
-  return <NibgateUnlockUI {...state} resource={resource} gatewayBalanceUrl={gatewayBalanceUrl} />
+      </div>
+    ) : phase === 'confirmed' ? (
+      <UnlockConfirmation minHeight={gateHeightRef.current} />
+    ) : (
+      <div ref={gateRef}><NibgateUnlockUI {...state} resource={resource} gatewayBalanceUrl={gatewayBalanceUrl} /></div>
+    )}
+  </>
+}
+
+export function NibgateUnlock(props) {
+  // Navigation to a different resource cancels the old reveal and its host
+  // callback, even when the router reuses the surrounding page component.
+  const key = JSON.stringify([props.resource.id, props.resource.path, props.accessPath])
+  return <NibgateUnlockContent key={key} {...props} />
 }

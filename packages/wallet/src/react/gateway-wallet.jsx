@@ -1,27 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { switchToArcNetwork } from '../network.js'
-import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
+import { useGatewayTransfer } from './useGatewayTransfer.js'
 import { activeChain } from '../chain.js'
 
 const ARC_RPC = activeChain().rpcUrl
 const USDC = '0x3600000000000000000000000000000000000000'
-// Circle Gateway wallet contract follows the active network (testnet vs main).
-const GATEWAY = activeChain().id === 5042
-  ? '0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE'
-  : '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'
-const SEL_APPROVE = '0x095ea7b3'
-const SEL_DEPOSIT = '0x47e7ef24'
 const BALANCE_OF = '0x70a08231'
-
-function parse6(v) {
-  const [w = '0', f = ''] = String(v).split('.')
-  return BigInt(w + f.padEnd(6, '0').slice(0, 6))
-}
-
-function addr32(a) {
-  return '000000000000000000000000' + a.slice(2)
-}
 
 function shortAddress(a) {
   return a ? a.slice(0, 6) + '...' + a.slice(-4) : ''
@@ -33,7 +17,11 @@ export function GatewayWalletUI({ address, gatewayBalanceUrl, onClose }) {
   const [walletBal, setWalletBal] = useState('—')
   const [gwBal, setGwBal] = useState('—')
   const [txMsg, setTxMsg] = useState('')
-  const [busy, setBusy] = useState(false)
+  const { run, reset, repairConnection, busy, status, transfer } = useGatewayTransfer(address)
+  const finished = transfer?.status === 'confirmed' || transfer?.status === 'reverted'
+  const pending = transfer?.status === 'pending'
+  const activeTab = transfer?.kind ?? tab
+  const canCancel = pending && !transfer.approvalHash && !transfer.transferHash && !transfer.submitting
 
   useEffect(() => {
     if (!address) return
@@ -85,56 +73,14 @@ export function GatewayWalletUI({ address, gatewayBalanceUrl, onClose }) {
     }
   }
 
-  async function switchToArc() {
-    try {
-      await switchToArcNetwork(window.ethereum)
-    } catch (error) {
-      if (isWalletRejection(error)) throw error
-    }
-  }
-
   async function doDeposit() {
-    if (!window.ethereum) {
-      setTxMsg('No wallet found')
-      return
-    }
-    if (busy) return
-    try {
-      await switchToArc()
-    } catch {}
-    const amt = amount
-    if (!amt || Number(amt) <= 0) {
-      setTxMsg('Enter an amount')
-      return
-    }
-    setBusy(true)
     setTxMsg('')
-    try {
-      const accts = await window.ethereum.request({ method: 'eth_accounts' })
-      const addr = accts?.[0]
-      if (!addr) {
-        setTxMsg('Connect wallet')
-        setBusy(false)
-        return
-      }
-      const val = parse6(amt).toString(16)
-      setTxMsg('Approving…')
-      const approveTx = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: addr, to: USDC, data: SEL_APPROVE + addr32(GATEWAY) + val.padStart(64, '0') }],
-      })
-      setTxMsg('Approved: ' + approveTx.slice(0, 10) + '…')
-      const depositTx = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from: addr, to: GATEWAY, data: SEL_DEPOSIT + addr32(USDC) + val.padStart(64, '0') }],
-      })
-      setTxMsg('Deposited: ' + depositTx.slice(0, 10) + '…')
-      fetchWalletUsdc(addr)
-      fetchGwBal(addr)
-    } catch (e) {
-      setTxMsg(getWalletErrorMessage(e) || 'Deposit failed')
+    if (finished) { await reset(); setAmount(''); return }
+    const result = await run(pending ? transfer.kind : 'deposit', amount)
+    if (result?.status === 'confirmed') {
+      void fetchWalletUsdc(result.address)
+      void fetchGwBal(result.address)
     }
-    setBusy(false)
   }
 
   const inputStyle = {
@@ -246,8 +192,8 @@ export function GatewayWalletUI({ address, gatewayBalanceUrl, onClose }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border, #cecdc3)' }}>
-            <button type="button" style={tabStyle(tab === 'deposit')} onClick={() => setTab('deposit')}>Deposit</button>
-            <button type="button" style={tabStyle(tab === 'withdraw')} onClick={() => setTab('withdraw')}>Withdraw</button>
+            <button type="button" disabled={busy || Boolean(pending)} style={tabStyle(activeTab === 'deposit')} onClick={() => setTab('deposit')}>Deposit</button>
+            <button type="button" disabled={busy || Boolean(pending)} style={tabStyle(activeTab === 'withdraw')} onClick={() => setTab('withdraw')}>Withdraw</button>
           </div>
           <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--muted, #6b6862)', marginBottom: 8 }}>Amount (USDC)</div>
           <input
@@ -255,14 +201,15 @@ export function GatewayWalletUI({ address, gatewayBalanceUrl, onClose }) {
             step="0.01"
             min="0"
             placeholder="0.00"
-            value={amount}
+            disabled={busy || Boolean(transfer)}
+            value={transfer?.amount ?? amount}
             onChange={(e) => setAmount(e.target.value)}
             style={inputStyle}
           />
           <button
             type="button"
             disabled={busy}
-            onClick={tab === 'deposit' ? doDeposit : doWithdraw}
+            onClick={finished || pending || tab === 'deposit' ? doDeposit : doWithdraw}
             style={{
               width: '100%',
               padding: '16px 28px',
@@ -278,11 +225,15 @@ export function GatewayWalletUI({ address, gatewayBalanceUrl, onClose }) {
               lineHeight: 1,
             }}
           >
-            {busy ? 'Processing…' : tab === 'deposit' ? 'Deposit' : 'Withdraw to your wallet'}
+            {busy ? 'Processing…' : finished ? 'Start a new transfer' : pending ? `Resume ${transfer.kind}` : tab === 'deposit' ? 'Deposit' : 'Withdraw to your wallet'}
           </button>
-          {txMsg && (
+          <button type="button" disabled={busy} onClick={() => { setTxMsg(''); void repairConnection() }} style={{ marginTop: 12 }} title="Requests the official Arc RPC in your connected wallet and checks its connection. Saved transactions are preserved.">Repair wallet connection</button>
+          {canCancel && <button type="button" disabled={busy} onClick={() => void reset()} style={{ marginTop: 12 }}>Cancel and change amount</button>}
+          {transfer?.approvalHash && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 12 }}>Approval: {transfer.approvalHash}</div>}
+          {transfer?.transferHash && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 12 }}>Transaction: {transfer.transferHash}</div>}
+          {(txMsg || status) && (
             <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, color: 'var(--muted, #6b6862)', wordBreak: 'break-all', marginTop: 12 }}>
-              {txMsg}
+              {txMsg || status}
             </div>
           )}
         </div>

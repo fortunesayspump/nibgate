@@ -1,2 +1,14 @@
+# Optional Railway frontend deployment: use the repository as service root.
 [build]
-watchPatterns = ["src/**", "public/**", "package.json", "package-lock.json"]
+buildCommand = "pnpm --filter nibgate-blog-frontend build"
+watchPatterns = [
+  "subblogs/frontend/**",
+  "packages/nibgate/**",
+  "packages/wallet/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml"
+]
+
+[deploy]
+startCommand = "pnpm --filter nibgate-blog-frontend start"

@@ -38,42 +38,47 @@ Built for creators who want to write, publish, and optionally gate premium conte
 - **Frontend**: Next.js 15 + React 19 + Tailwind CSS 4 + Motion (port 3002)
 - **Auth**: SIWE wallet sign-in (HttpOnly `sb_auth_session` JWT) + email/password
 - **Content**: Markdown with react-markdown
-- **Premium gating**: `@nibgate/sdk` (`0.4.34`) + `@nibgate/wallet` (`0.4.19`) from npm — Reown AppKit (AppKit + wagmi) + viem. Paid posts unlock via the Gateway (EIP-3009) rail or the direct USDC transfer rail; access follows the wallet (reconnect + sign in to re-view, never re-pay; disconnect relocks).
+- **Premium gating**: `@nibgate/sdk` + `@nibgate/wallet` linked from `packages/nibgate` and `packages/wallet` in this repository — Reown AppKit (AppKit + wagmi) + viem. Paid posts unlock via the Gateway (EIP-3009) rail or the direct USDC transfer rail; access follows the wallet (reconnect + sign in to re-view, never re-pay; disconnect relocks).
 
-## Quick Start
+## Workspace and local development
 
-### 1. Database
+Subblogs frontend and backend belong to the repository's pnpm workspace. The repository root `pnpm-lock.yaml` is the only installation lockfile. Run installs from the repository root with the pnpm version pinned in its `packageManager` field. Do not create app-local npm lockfiles or a nested pnpm workspace.
+
+SDK and wallet dependencies use `workspace:*`, including their mutual dependencies, so builds consume the checked-out sources without npm publication. These packages export their JavaScript/JSX sources directly; the Next frontend transpiles the wallet package. The SDK's standalone CDN bundle is a separate release artifact and is not required for these apps.
+
+The frontend uses the same React and ReactDOM versions as the Hub. Its Tiptap core and ProseMirror adapter are explicit dependencies so the isolated pnpm layout resolves one compatible editor peer graph. Prisma remains app-local: Subblogs uses Prisma 6 and its own generated client, while the Hub and Dr. Nib retain Prisma 5. A workspace migration must not replace one app's schema or generated client with another's.
+
+### 1. Install and configure
+
+From the repository root, using Node 22:
+
+```bash
+pnpm install --frozen-lockfile
+cp subblogs/backend/.env.example subblogs/backend/.env
+# Set the local DATABASE_URL and JWT_SECRET in subblogs/backend/.env.
+```
+
+### 2. Prepare a disposable development database
 
 ```bash
 createdb nibgate_blog
+pnpm --filter nibgate-blog-backend exec prisma db push
+pnpm --filter nibgate-blog-backend exec prisma generate
+pnpm --filter nibgate-blog-backend seed
 ```
 
-### 2. Backend
+Use `db push` only for a disposable local database. Production schema changes require a separately reviewed migration and must not run during application startup.
+
+### 3. Start both apps
+
+In separate terminals from the repository root:
 
 ```bash
-cd backend
-cp .env.example .env
-# Set DATABASE_URL and JWT_SECRET in .env
-npm install
-npx prisma db push
-npx prisma generate
-npm run seed
-npm run dev
+pnpm --filter nibgate-blog-backend dev
+pnpm --filter nibgate-blog-frontend dev
 ```
 
-API runs on `http://localhost:4000`.
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend runs on `http://localhost:3002`.
-
-### 4. Open it
+The `subblogs/package.json` wrapper also provides `dev`, `build:frontend`, and `start:backend` convenience commands using root workspace filters; it has no separate package installation.
 
 - **Blog**: http://localhost:3002
 - **Admin**: http://localhost:3002/admin/posts
@@ -98,12 +103,29 @@ The admin uses JWT-based authentication. Set a strong `JWT_SECRET` in production
 
 ### Backend (Railway)
 
-1. Create a Railway project from `subblogs/backend/`
-2. Add a PostgreSQL database (Railway auto-injects `DATABASE_URL`)
-3. Set env vars: `JWT_SECRET`, `NODE_ENV=production`, `PORT=4000`
-4. Railway runs `prisma migrate deploy` on start — migrations are in `prisma/migrations/`
+Configure each mainnet/testnet service independently:
+
+1. Use the repository root as the service **Root Directory** (empty or `/`), not `subblogs/backend`. The build needs the root workspace manifest, lockfile, and `packages/` sources.
+2. Select `subblogs/backend/railway.toml` as the config file. Set the build command to `pnpm --filter nibgate-blog-backend exec prisma generate` and start command to `pnpm --filter nibgate-blog-backend start` if the service dashboard overrides config-as-code.
+3. Install from the repository root with `pnpm install --frozen-lockfile`, including build-time dependencies so the app-local Prisma CLI is available. The root package manager and Node 22 versions apply.
+4. Keep the service's existing database and network-specific environment values. Use Railway's injected `PORT` and the matching `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV=production`, and Nibgate network configuration.
+5. Include `subblogs/backend/**`, `packages/**`, and the root package/workspace/lock files in watched paths so SDK and wallet changes redeploy the service.
+
+Build/install generates the Subblogs Prisma client. Startup does not run migrations, `db push`, or destructive reset commands. Apply any separately approved schema migration before deploying code that needs it.
 
 ### Frontend (Vercel)
+
+For both Subblogs Vercel projects:
+
+- **Root Directory:** `subblogs/frontend`
+- **Include source files outside the Root Directory in the Build Step:** enabled (`sourceFilesOutsideRootDirectory: true`)
+- **Install Command:** `npx pnpm@10.28.0 install --frozen-lockfile`
+- **Build Command:** `pnpm --filter nibgate-blog-frontend build`
+- **Output Directory:** `.next`
+
+The checked-in `vercel.json` matches these commands. With the nested workspace removed, pnpm discovers the repository root workspace and its lockfile. `outputFileTracingRoot` in the Next config includes that repository root so server deployments can retain workspace source/dependency files. These repository settings do not automatically change a project's dashboard Root Directory or outside-root access setting; verify both before deployment.
+
+If deploying the frontend to Railway instead, use repository-root build context and select `subblogs/frontend/railway.toml`, which provides the filtered build/start commands and dependency watch paths.
 
 Two deployments share this code, one per network:
 
@@ -115,6 +137,12 @@ Two deployments share this code, one per network:
 | `NEXT_PUBLIC_HUB_API_URL` | `https://api.nibgate.xyz` | hub API of the matching stack |
 
 DNS is on Vercel nameservers, so adding the wildcard in each project provisions DNS automatically. No per-site domain work: every site is reachable as `<name>.nibgate.xyz` (mainnet) and `<name>.testnet.nibgate.xyz` (testnet) from creation.
+
+### Release checks and ordering
+
+Before pushing the workspace migration, regenerate the root lockfile with the actual pnpm resolver, verify a clean frozen install, run the SDK/backend tests, and build/type-check both the Hub and Subblogs frontends. Confirm every SDK/wallet resolution points to the checked-out workspace source and that the editor and wallet React peer identities are consistent. A package tarball build alone does not validate a workspace install.
+
+Deploy and verify the Hub backend's tip-idempotency changes before releasing updated clients. Independent automatic deployments from a single push do not guarantee this order. Verify the exact deployment commit and network for each backend and frontend before announcing completion. npm publication is separate and is not required for these first-party deployments.
 
 ### Creating a new site
 
@@ -225,5 +253,5 @@ subblogs/
 │       ├── app/         # Next.js pages (blog, about, admin, api)
 │       ├── components/  # Shared components
 │       └── lib/         # API client + utils
-└── package.json         # Workspace root
+└── package.json         # Convenience commands; workspace root is ../
 ```

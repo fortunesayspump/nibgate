@@ -4,15 +4,16 @@
 # whole repo, so pnpm still finds the workspace root two levels up and resolves
 # dr-nib's `@nibgate/internal` workspace dependency.
 #
-# Start runs generate + migrate + serve, so the first deploy creates the schema
-# and every later deploy applies new migrations. Migrations are tracked in the
-# `drnib` schema named by DRNIB_DATABASE_URL.
+# Start runs generate + serve without changing the database schema. Fresh
+# installs and schema upgrades require a separately reviewed migration step
+# against the `drnib` schema named by DRNIB_DATABASE_URL before deployment.
 [build]
 builder = "nixpacks"
 watchPatterns = [
   "dr-nib/**",
   "packages/internal/**",
   "packages/nibgate/**",
+  "packages/wallet/**",
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml"

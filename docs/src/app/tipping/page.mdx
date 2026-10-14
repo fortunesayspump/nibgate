@@ -253,3 +253,35 @@ metadata or cover-image generator.
 - **Refund safety:** a refund proof can only return funds to the signer; there is no path to a third party.
 
 See [Architecture](/architecture) for how the hub, keeper, and contracts fit together.
+
+## Testnet prerelease: payment confirmation and safe retries
+
+This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
+`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
+`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
+release are unchanged by this release plan; a `testnet` package tag does not
+configure the application's network automatically.
+
+A wallet transaction hash or Gateway signature means a proof was submitted,
+not that the Hub recorded a successful tip. A standalone SDK tip without a Hub
+verification response returns `status: 'pending'`. Only a successful Hub response
+confirms `settled` (resolved tip) or `holdStatus: 'held'` (funded hold).
+
+On an interrupted response, keep the original proof and exact request fields,
+including the network, amount, payee and content metadata. Retry verification
+with that same proof; never send a second payment to repair a missing receipt.
+The matching completed proof returns HTTP 200 with `replayed: true` and its
+existing receipt, without another Tip row or another Gateway settlement. Reusing a proof with different request fields
+is rejected. Legacy proofs without the new verified binding fail closed.
+
+HTTP 409 `payment-proof-already-used` means the proof is reserved or recorded
+with a different or unverifiable binding. HTTP 409 `payment-verification-pending`
+means its durable reservation has not completed. Stop automatic payment attempts;
+inspect the existing transaction/receipt and reconcile ambiguous settlement with
+the operator. Pending reservations are not automatically cleared or settled
+again. A transport or server error after submission is not evidence that no
+payment occurred. An unconfirmed direct-transfer receipt returns HTTP 402;
+retrying its read-only verification is safe. This change uses the existing
+`PaymentTxClaim` table, with no new schema migration. It does not recover a
+facilitator settlement lost before database completion or add held-tip
+claim/refund recovery.

@@ -1,4 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "next build && pagefind --site .next/server/app --output-path public/_pagefind --force-language en"
+  "buildCommand": "next build && pagefind --site .next/server/app --output-path public/_pagefind --force-language en",
+  "git": {
+    "deploymentEnabled": false
+  }
 }

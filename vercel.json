@@ -1,8 +1,6 @@
 {
   "installCommand": "npx pnpm@10 install --no-frozen-lockfile",
   "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
+    "deploymentEnabled": false
   }
 }

@@ -287,26 +287,44 @@ export declare function hasPaidReceipt(receipt?: { amount?: string | number } | 
 export declare function paidCutoffWallets(args: { policy: NibgateAccessPolicyInput; entitlements?: Array<Record<string, unknown> | null>; receipts?: Array<{ payerWallet: string; amount?: string | number } | null> }): string[];
 
 // Admin API
-export interface NibgateAdminStore {
+export interface NibgateSyncAdminStore {
   list(): Record<string, unknown>[];
   get(id: string): Record<string, unknown> | null;
   set(id: string, settings: Record<string, unknown>): Record<string, unknown>;
   remove(id: string): boolean;
 }
-export interface NibgateAdminApi {
-  handleList(req: Request, res: Record<string, unknown>): Promise<Response>;
-  handleGet(req: Request, res: Record<string, unknown>): Promise<Response>;
-  handleUpdate(req: Request, res: Record<string, unknown>): Promise<Response>;
-  handleDelete(req: Request, res: Record<string, unknown>): Promise<Response>;
+export interface NibgateAsyncAdminStore {
+  list(): Promise<Record<string, unknown>[]>;
+  get(id: string): Promise<Record<string, unknown> | null>;
+  set(id: string, settings: Record<string, unknown>): Promise<Record<string, unknown>>;
+  remove(id: string): Promise<boolean>;
+}
+export interface NibgateAdminStore {
+  list(): Record<string, unknown>[] | Promise<Record<string, unknown>[]>;
+  get(id: string): Record<string, unknown> | null | Promise<Record<string, unknown> | null>;
+  set(id: string, settings: Record<string, unknown>): Record<string, unknown> | Promise<Record<string, unknown>>;
+  remove(id: string): boolean | Promise<boolean>;
+}
+export interface NibgateAdminRequest {
+  params?: Record<string, string>;
+  body?: Record<string, unknown>;
+}
+export interface NibgateAdminApi<TRequest = NibgateAdminRequest> {
+  handleList(req: TRequest, res?: unknown): Promise<Response>;
+  handleGet(req: TRequest & { params: { id: string } }, res?: unknown): Promise<Response>;
+  handleUpdate(req: TRequest & { params: { id: string }; body?: Record<string, unknown> }, res?: unknown): Promise<Response>;
+  handleDelete(req: TRequest & { params: { id: string } }, res?: unknown): Promise<Response>;
   buildResourceFromSettings(id: string, settings: Record<string, unknown>): NibgateServerResource;
-  router(expressModule: Record<string, unknown>): unknown;
+  router<TRouter>(expressModule: { Router: () => TRouter }): TRouter;
+  router(expressModule?: unknown): unknown;
   store: NibgateAdminStore;
   settingsFields: Record<string, unknown>[];
 }
-export declare function createAdminApi(options: { store: NibgateAdminStore; title?: string; authorize?: (req: Request) => boolean }): NibgateAdminApi;
-export declare function createFileStore(options?: { path?: string }): NibgateAdminStore;
-export declare function createMemoryStore(): NibgateAdminStore;
-export declare function createPostgresStore(pool: Record<string, unknown>, options?: { table?: string; idColumn?: string; autoInit?: boolean }): NibgateAdminStore;
+/** Missing authorize denies access to both the API and admin page. */
+export declare function createAdminApi<TRequest = NibgateAdminRequest>(options: { store: NibgateAdminStore; title?: string; authorize?: (req: TRequest) => boolean | Promise<boolean> }): NibgateAdminApi<TRequest>;
+export declare function createFileStore(options?: { path?: string }): NibgateSyncAdminStore;
+export declare function createMemoryStore(): NibgateSyncAdminStore;
+export declare function createPostgresStore(pool: Record<string, unknown>, options?: { table?: string; idColumn?: string; autoInit?: boolean }): NibgateAsyncAdminStore;
 export declare function adminPageHtml(options?: { title?: string; apiBase?: string }): string;
 export declare function verifyPayment(options?: Record<string, unknown>): (req: Record<string, unknown>, res: Record<string, unknown>, next: () => void) => Promise<void>;
 export declare function createWebhookManager(options?: { webhookUrl?: string; webhookSecret?: string }): { subscribe(event: string, url: string, secret?: string): () => void; emit(event: string, payload: Record<string, unknown>): Promise<Record<string, unknown>[]>; sign(payload: Record<string, unknown>): string };

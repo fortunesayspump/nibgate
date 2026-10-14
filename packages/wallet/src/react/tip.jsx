@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppKit, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
 import { encodeFunctionData, createPublicClient, createWalletClient, custom } from 'viem'
-import { activeArcChain, activeChain, isActiveChainId } from '../chain.js'
-import { ensureArcNetwork } from '../network.js'
+import { activeArcChain, activeChain } from '../chain.js'
+import { ArcConnectionError, classifyArcRpcError, ensureArcNetwork } from '../network.js'
 import { getWalletErrorMessage } from '../errors.js'
+import { ConfirmationMark, PaymentFeedbackStyles } from './payment-feedback.jsx'
 
 const USDC = '0x3600000000000000000000000000000000000000'
 const USDC_TRANSFER_ABI = [
@@ -42,8 +43,26 @@ function shortAddress(a) {
 // request bodies, signatures or credential-bearing URLs, so never reflect them.
 class TipValidationError extends Error {}
 
+function isConfirmedTipReceipt(value, pending) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (typeof value.paymentId !== 'string' || !value.paymentId.trim()) return false
+  if (pending.held) {
+    if (typeof value.id !== 'string' || !value.id.trim() || value.status !== 'held') return false
+  } else if (value.type !== 'tip' || (value.status != null && value.status !== 'settled')) return false
+  // Both the normal receipt and persisted held row include the settled amount.
+  // Prisma-backed rows may serialize numeric values as strings.
+  if (!['number', 'string'].includes(typeof value.amount) || !String(value.amount).trim()) return false
+  const amount = Number(value.amount)
+  if (!Number.isFinite(amount) || amount <= 0 || amount !== Number(pending.receipt.amount) || value.currency !== pending.receipt.currency) return false
+  // Gateway receipts can have no on-chain hash; their paymentId is the proof
+  // identity. If a hash is supplied, it must identify this submitted transfer.
+  if (value.txHash != null && (typeof value.txHash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(value.txHash) || value.txHash.toLowerCase() !== pending.receipt.txHash.toLowerCase())) return false
+  return true
+}
+
 function tipErrorMessage(error) {
   if (error instanceof TipValidationError) return error.message
+  if (error instanceof ArcConnectionError) return `${error.message}${error.method === 'eth_sendTransaction' ? ' Check wallet activity for a transaction before trying again.' : ''}`
   const net = activeChain().name
   let current = error
   let rpcFailure = false
@@ -111,7 +130,7 @@ function resolveTarget({ resource, challenge, recipient, amount }) {
   const accept = challenge?.accepts?.[0] || {}
   return {
     to: String(accept.payTo || accept.recipient || recipient || resource?.recipient || ''),
-    amount: Number(accept.amount || amount || resource?.tipAmount || resource?.price || 0),
+    amount: Number(accept.amount || amount || resource?.tipAmount || resource?.price || 0) / (accept.amount && (challenge?.paymentRail === 'gateway' || accept.extra?.name === 'GatewayWalletBatched') ? 1e6 : 1),
     network: accept.network || resource?.network,
   }
 }
@@ -127,6 +146,8 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
   useEffect(() => { providerRef.current = walletProvider || null }, [walletProvider])
   const addressRef = useRef(null)
   useEffect(() => { addressRef.current = address || null }, [address])
+  const pendingRef = useRef(null)
+  const inFlightRef = useRef(false)
   const MIN_TIP = Number(minAmount ?? 0.1);
 
   async function waitForWallet(timeoutMs = 30000) {
@@ -138,10 +159,62 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
     return null
   }
 
+  // Keep the exact submitted proof in memory until the hub confirms it.
+  // Retrying verification must never submit a second wallet transaction.
+  const verifyPending = useCallback(async () => {
+    const pending = pendingRef.current
+    if (!pending) throw new TipValidationError('No submitted tip needs verification.')
+    if (pending.blocked) throw new TipValidationError('This payment proof is already recorded. Check its existing receipt before taking any further action.')
+    setStatus('verifying')
+    let body = {}
+    if (pending.verify) {
+      const mined = await pending.verify()
+      if (mined?.status !== 'success' || typeof mined.transactionHash !== 'string' || mined.transactionHash.toLowerCase() !== pending.receipt.txHash.toLowerCase()) {
+        throw new TipValidationError('The original tip transaction is not confirmed. Check its receipt before sending another tip.')
+      }
+    } else {
+      const res = await fetch(pending.url, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(pending.body),
+      })
+      body = await res.json()
+      if (res.status === 409 && body?.code === 'payment-verification-pending') {
+        pending.reconciliation = true
+        throw new TipValidationError('This submitted payment is still being reconciled. Keep its transaction hash; do not send another payment.')
+      }
+      if (res.status === 409 && body?.code === 'payment-proof-already-used') {
+        pending.blocked = true
+        setReceipt({ ...pending.receipt, status: 'conflict' })
+        throw new TipValidationError('This payment proof is already recorded. Check its existing receipt; do not send another payment.')
+      }
+      pending.reconciliation = false
+      if (!res.ok || body?.success !== true || (pending.held && body.holdStatus !== 'held') || !isConfirmedTipReceipt(pending.held ? body.tip : body.receipt, pending)) {
+        throw new TipValidationError('The hub has not verified this transaction yet. Retry verification without sending another tip.')
+      }
+    }
+    const out = {
+      ...pending.receipt, ...(pending.held ? {} : body.receipt),
+      held: pending.held, status: pending.held ? 'held' : 'settled',
+      ...(pending.held ? { receipt: body.tip || null } : {}),
+    }
+    // Mark confirmation before notifying the host. A failing host callback
+    // cannot cause duplicate onPaid notifications on verification retries.
+    pendingRef.current = null
+    setReceipt(out)
+    setStatus('done')
+    try { await onPaid?.(out) } catch {
+      setError('Your tip is confirmed, but the page could not finish updating. Do not send another tip to retry that update.')
+    }
+    return out
+  }, [onPaid])
+
   const tip = useCallback(async (tipAmount) => {
-    let submittedHash = ''
+    if (inFlightRef.current) throw new TipValidationError('A tip is already in progress.')
+    inFlightRef.current = true
+    let submittedHash = pendingRef.current?.receipt.txHash || ''
     setError('')
     try {
+      if (pendingRef.current) return await verifyPending()
       let account = address
       if (!account) {
         // No wallet: open the connect modal and wait for the user, instead of
@@ -153,6 +226,11 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
       }
       const provider = providerRef.current
       if (!provider?.request) throw new TipValidationError('Wallet provider is not available. Reconnect your wallet to tip.')
+      const assertSelectedWallet = () => {
+        if (providerRef.current !== provider || String(addressRef.current || '').toLowerCase() !== String(account).toLowerCase()) {
+          throw new TipValidationError('The connected wallet changed. Check the selected account before tipping.')
+        }
+      }
       const target = resolveTarget({ resource, challenge, recipient, amount: tipAmount ?? amount })
       const contentUrl = resolveContentUrl(resource)
       const contentId = resource?.contentId || resource?.id || ''
@@ -164,31 +242,29 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
       if (!domain && contentUrl) { try { domain = new URL(contentUrl).hostname } catch { domain = '' } }
       // Unresolved/external creator: hold in the domain's no-key box. Needs a hub + domain.
       if (!resolved && (!base || !domain)) throw new TipValidationError('No recipient to tip.')
+      if (target.network && target.network !== activeChain().caip2) throw new TipValidationError('The tip challenge and wallet network do not match.')
       if (!(target.amount > 0)) throw new TipValidationError('Tip amount must be above zero.')
       if (!(target.amount >= MIN_TIP)) throw new TipValidationError(`Minimum tip is $${MIN_TIP.toFixed(2)}.`)
-      // Hosted creators are paid through their per-creator fee wallet (CREATE2),
-      // not the creator EOA, so the hub can verify the tx and split the fee.
-      // Resolve the payee via the tip challenge; fall back to the creator.
+      // Hosted creators must use the server-selected fee-wallet payee.
+      // A failed challenge is not permission to bypass that destination.
       let payToAddr = resolved ? target.to : '';
       if (base && payToAddr) {
-        try {
-          const chRes = await fetch(`${base}/hub/tips/challenge`, {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', recipient: payToAddr }),
-          });
-          const ch = await chRes.json().catch(() => ({}));
-          if (chRes.ok && ch?.payee && /^0x[a-fA-F0-9]{40}$/.test(ch.payee)) payToAddr = ch.payee;
-        } catch {}
+        const chRes = await fetch(`${base}/hub/tips/challenge`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC', recipient: recipient || resource?.recipient || payToAddr, paymentRail: 'transfer' }),
+        });
+        const ch = await chRes.json();
+        if (!chRes.ok || ch?.success === false || !/^0x[a-fA-F0-9]{40}$/.test(ch?.payee || '')) {
+          throw new TipValidationError('Could not prepare the tip payment. No transaction was sent. Try again later.')
+        }
+        const net = ch.accepts?.[0]?.network
+        if (net && net !== activeChain().caip2) throw new TipValidationError('The tip hub and wallet network do not match. Choose the matching hub before tipping.')
+        payToAddr = ch.payee;
       }
       setStatus('switching')
-      let currentChainId
-      try {
-        const hex = await provider.request({ method: 'eth_chainId' })
-        currentChainId = typeof hex === 'string' ? Number(hex) : Number(hex)
-      } catch { currentChainId = undefined }
-      if (currentChainId === undefined || !isActiveChainId(currentChainId)) {
-        await ensureArcNetwork(provider, { currentChainId })
-      }
+      assertSelectedWallet()
+      await ensureArcNetwork(provider)
+      assertSelectedWallet()
       setStatus('signing')
       const walletClient = createWalletClient({ chain: activeArcChain(), account, transport: custom(provider) })
       const sendTo = async (to, amt) => {
@@ -216,9 +292,19 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
           functionName: 'transfer',
           args: [to, value],
         })
-        const txHash = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account })
+        assertSelectedWallet()
+        await ensureArcNetwork(provider)
+        assertSelectedWallet()
+        let txHash
+        try { txHash = await walletClient.sendTransaction({ to: USDC, data, chain: activeArcChain(), account }) }
+        catch (error) {
+          const connection = classifyArcRpcError(error, 'eth_sendTransaction')
+          if (connection.reason !== 'unavailable') throw connection
+          throw error
+        }
         const hash = txHash?.hash || txHash || ''
-        if (typeof hash === 'string' && /^0x[0-9a-f]{64}$/i.test(hash)) submittedHash = hash
+        if (typeof hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(hash)) throw new TipValidationError('The wallet did not return a valid transaction hash. Check wallet activity before trying another tip.')
+        submittedHash = hash
         return hash
       }
 
@@ -234,23 +320,21 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
           body: JSON.stringify(holdBody),
         })
         const chal = await chalRes.json().catch(() => ({}))
-        if (!chalRes.ok || !chal?.box) throw new Error(chal?.error || `Hold failed: ${chalRes.status}`)
+        if (!chalRes.ok || chal?.success === false || !/^0x[a-fA-F0-9]{40}$/.test(chal?.box || '')) throw new TipValidationError('Could not prepare the held tip. No transaction was sent.')
+        const acceptance = chal.accepts?.[0]
+        if (acceptance?.network && acceptance.network !== activeChain().caip2) throw new TipValidationError('The tip hub and wallet network do not match. Choose the matching hub before tipping.')
+        if (acceptance && String(acceptance.payTo || acceptance.recipient || '').toLowerCase() !== chal.box.toLowerCase()) throw new TipValidationError('The tip challenge does not match its holding box.')
         const hash = await sendTo(chal.box, target.amount)
-        const held = await fetch(`${base}/hub/tips/hold`, {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...holdBody, txHash: hash, walletAddress: account }),
-        }).then((r) => r.json()).catch(() => ({}))
         const out = {
-          type: 'tip', held: true, status: 'held', txHash: hash, paymentId: hash,
+          type: 'tip', held: false, status: 'pending', txHash: hash, paymentId: hash,
           amount: target.amount, currency: 'USDC', network: activeChain().caip2,
           domain, box: chal.box, payer: account, recipient: '',
           contentId: contentId || undefined, imageUrl: imageUrl || undefined,
-          resource: contentUrl, title: resource?.title || '', receipt: held?.tip || null,
+          resource: contentUrl, title: resource?.title || '', receipt: null,
         }
+        pendingRef.current = { url: `${base}/hub/tips/hold`, body: { ...holdBody, txHash: hash, walletAddress: account }, held: true, receipt: out }
         setReceipt(out)
-        setStatus('done')
-        onPaid?.(out)
-        return out
+        return await verifyPending()
       }
 
       const hash = await sendTo(payToAddr, target.amount)
@@ -267,46 +351,46 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
         resource: contentUrl,
         title: resource?.title || '',
       }
-      // Record on the hub (best-effort; the chain tx is the truth). Send the
-      // CREATOR as recipient so the hub resolves the fee-wallet payee itself.
       if (base) {
-        fetch(`${base}/hub/tips/verify`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            contentUrl,
-            title: resource?.title || '',
-            amount: target.amount,
-            currency: 'USDC',
-            recipient: recipient || resource?.recipient || '',
-            paymentRail: 'transfer',
-            txHash: hash,
-            walletAddress: account,
-            domain: domain || undefined,
-            contentId: contentId || undefined,
-            websiteId: websiteId || undefined,
-            imageUrl: imageUrl || undefined,
-          }),
-        }).then((r) => r.json()).then((d) => {
-          if (d?.receipt) setReceipt({ ...out, ...d.receipt });
-          if (d?.success) onPaid?.(d);
-        }).catch(() => {});
+        pendingRef.current = {
+          url: `${base}/hub/tips/verify`, held: false, receipt: { ...out, status: 'pending' },
+          body: {
+            contentUrl, title: resource?.title || '', amount: target.amount, currency: 'USDC',
+            recipient: recipient || resource?.recipient || target.to,
+            paymentRail: 'transfer', txHash: hash, walletAddress: account,
+            domain: domain || undefined, contentId: contentId || undefined,
+            websiteId: websiteId || undefined, imageUrl: imageUrl || undefined,
+          },
+        }
+        setReceipt(pendingRef.current.receipt)
+        return await verifyPending()
       }
-      setReceipt(out)
-      setStatus('done')
-      onPaid?.(out)
-      return out
+      // Without a hub, retain the proof and wait for chain confirmation too.
+      const publicClient = createPublicClient({ chain: activeArcChain(), transport: custom(provider) })
+      pendingRef.current = {
+        held: false, receipt: { ...out, status: 'pending' },
+        verify: () => publicClient.waitForTransactionReceipt({ hash, checkReplacement: false }),
+      }
+      setReceipt(pendingRef.current.receipt)
+      return await verifyPending()
     } catch (e) {
       // A returned hash changes the safe next step even if a page callback
       // subsequently fails. Never describe that as an unfunded/rejected tip.
-      const msg = submittedHash
-        ? `Your wallet returned transaction ${submittedHash}, but the page could not finish updating. Check that transaction before sending another tip.`
+      const msg = pendingRef.current?.reconciliation
+        ? `Transaction ${submittedHash} is still being reconciled. Keep this hash and check its receipt; do not send another payment.`
+        : pendingRef.current?.blocked
+        ? `Payment proof ${submittedHash} is already recorded. Check its existing receipt; do not send another payment.`
+        : submittedHash
+        ? `Transaction ${submittedHash} was submitted, but confirmation is incomplete. ${pendingRef.current ? 'Retry verification; no additional payment will be sent.' : 'Check that transaction before sending another tip.'}`
         : tipErrorMessage(e)
       setError(msg)
-      setStatus('error')
+      setStatus(pendingRef.current?.blocked ? 'blocked' : pendingRef.current ? 'pending' : 'error')
+      if (submittedHash && e && typeof e === 'object') e.txHash = submittedHash
       throw e
+    } finally {
+      inFlightRef.current = false
     }
-  }, [address, walletProvider, resource, challenge, recipient, amount, apiBase, onPaid])
+  }, [address, walletProvider, resource, challenge, recipient, amount, apiBase, onPaid, verifyPending, MIN_TIP])
 
   // Payer refund for an unclaimed held tip. Signs a control message; funds can
   // only ever return to the connected wallet.
@@ -331,17 +415,47 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
     return body
   }, [address, walletProvider, apiBase])
 
-  return { tip, refund, status, error, receipt, isConnected, address, chain: activeChain() }
+  return { tip, retryVerification: () => pendingRef.current ? tip() : Promise.reject(new TipValidationError('No submitted tip needs verification.')), refund, status, error, receipt, isConnected, address, chain: activeChain() }
 }
 
 // Compact inline tip control: "Tip me" button + amount, no chrome.
+function confirmedTip(status, receipt) {
+  return status === 'done' && (receipt?.status === 'settled' || receipt?.status === 'held')
+}
+
+function TipConfirmation({ receipt }) {
+  const held = receipt.held || receipt.status === 'held'
+  const amount = Number(receipt.amount)
+  const amountLabel = Number.isFinite(amount) && amount > 0
+    ? `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })} USDC`
+    : ''
+  return (
+    <span data-nibgate-tip-confirmed={held ? 'held' : 'settled'} title={receipt.txHash || undefined} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: held ? 'inherit' : 'var(--fg, inherit)', fontWeight: 600 }}>
+      {held ? null : <ConfirmationMark />}
+      <span>{held ? 'Tip held' : 'Tip sent!'}{amountLabel ? ` ${amountLabel}` : ''}{held ? ' · awaiting the creator’s claim' : ''}</span>
+    </span>
+  )
+}
+
+function tipProgressLabel(status) {
+  return {
+    connecting: 'Connect your wallet…',
+    switching: 'Switching network…',
+    signing: 'Confirm in your wallet…',
+    verifying: 'Confirming your tip…',
+    pending: 'Tip submitted. Confirmation pending.',
+    blocked: 'Check the existing payment receipt.',
+  }[status] || ''
+}
+
 export function NibgateTipInline({ resource, challenge, recipient, amount, amounts, minAmount, apiBase, onPaid, style }) {
   const { tip, status, error, receipt } = useNibgateTip({ resource, challenge, recipient, amount, minAmount, apiBase, onPaid })
   const min = Number(minAmount ?? 0.1);
   const presets = (Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]).filter((a) => Number(a) >= min);
-  const busy = status === 'switching' || status === 'signing'
+  const busy = status === 'connecting' || status === 'switching' || status === 'signing' || status === 'verifying' || status === 'pending' || status === 'blocked'
   return (
-    <span data-nibgate-tip-inline style={{ display: 'inline-flex', gap: 8, alignItems: 'center', ...(style || {}) }}>
+    <span data-nibgate-tip-inline style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', ...(style || {}) }}>
+      <PaymentFeedbackStyles />
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
         <TipIcon /> Tip me
       </span>
@@ -356,8 +470,11 @@ export function NibgateTipInline({ resource, challenge, recipient, amount, amoun
           ${a}
         </button>
       ))}
-      {status === 'done' ? <span style={{ fontSize: 12 }} title={receipt?.txHash || 'Tipped'}>✓{receipt?.amount ? ` $${receipt.amount}` : ''}</span> : null}
-      {error ? <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span> : null}
+      <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12 }}>
+        {confirmedTip(status, receipt) ? <TipConfirmation key={receipt.txHash || receipt.paymentId} receipt={receipt} /> : tipProgressLabel(status)}
+        {error ? <span style={{ display: 'block', color: '#dc2626' }}>{error}</span> : null}
+      </span>
+      {status === 'pending' ? <button type="button" onClick={() => tip().catch(() => {})}>Retry verification</button> : null}
     </span>
   )
 }
@@ -402,16 +519,16 @@ export function NibgateTipCard({ resource, challenge, recipient, amount, amounts
   const [hoverCta, setHoverCta] = useState(false)
   const min = Number(minAmount ?? 0.1);
   const presets = (Array.isArray(amounts) && amounts.length ? amounts : [0.25, 1]).filter((a) => Number(a) >= min);
-  const busy = status === 'switching' || status === 'signing'
-  // Success states like the rating component's "You rated N ★★★": prominent,
-  // with the amount — and held vs settled called out, since the money sits in
-  // different places. Payment receipts persist (never auto-clear like ratings).
-  const doneLabel = receipt?.held
-    ? `Held ✓ $${receipt.amount ?? ''} · the creator claims it`
-    : receipt
-      ? `Tipped ✓ $${receipt.amount ?? ''} USDC`
-      : 'Tipped ✓'
-  const label = error || (status === 'switching' ? 'Switching network…' : status === 'signing' ? 'Confirm in your wallet…' : status === 'done' ? doneLabel : 'Tip the creator')
+  const busy = status === 'connecting' || status === 'switching' || status === 'signing' || status === 'verifying' || status === 'pending' || status === 'blocked'
+  const confirmed = confirmedTip(status, receipt)
+  // Clear only the entry field after authoritative confirmation. The receipt
+  // keeps the paid amount, including when a host onPaid callback fails.
+  useEffect(() => {
+    if (!confirmed) return
+    setCustom('')
+    setHover(null)
+    setHoverCta(false)
+  }, [confirmed, receipt])
   const amountBtn = (a) => ({
     background: 'none',
     border: 'none',
@@ -429,6 +546,7 @@ export function NibgateTipCard({ resource, challenge, recipient, amount, amounts
   })
   return (
     <div data-nibgate-tip-card style={{ textAlign: 'center', padding: '28px 0', fontFamily: 'var(--font-content, inherit)', color: 'var(--fg, #0a0a0a)', ...(style || {}) }}>
+      <PaymentFeedbackStyles />
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--muted, #6b6862)' }}>
         <TipIcon size={26} />
       </div>
@@ -465,9 +583,12 @@ export function NibgateTipCard({ resource, challenge, recipient, amount, amounts
         <span style={{ fontSize: 17, color: 'var(--muted, #6b6862)', marginLeft: 12 }}>USDC</span>
       </div>
       {min > 0 ? <div style={{ fontSize: 13, color: 'var(--muted, #6b6862)', marginTop: 6 }}>Minimum tip ${min.toFixed(2)} USDC</div> : null}
-      <div style={{ fontSize: 17, color: error ? '#dc2626' : 'var(--muted, #6b6862)', marginTop: 8, minHeight: '1.4em' }}>
-        {(busy || error) ? label : <CtaButton custom={custom} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} />}
+      {status === 'pending' ? <button type="button" onClick={() => tip().catch(() => {})}>Retry verification</button> : null}
+      <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 17, color: 'var(--muted, #6b6862)', marginTop: 8, minHeight: '1.4em' }}>
+        {confirmed ? <TipConfirmation key={receipt.txHash || receipt.paymentId} receipt={receipt} /> : busy ? tipProgressLabel(status) : error ? null : <CtaButton custom={custom} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} />}
+        {error ? <div style={{ color: '#dc2626' }}>{error}</div> : null}
       </div>
+      {confirmed && Number(custom) > 0 ? <div style={{ fontSize: 17, marginTop: 6 }}><CtaButton custom={custom} hoverCta={hoverCta} setHoverCta={setHoverCta} onTip={(a) => tip(a).catch(() => {})} /></div> : null}
       {receipt || isConnected ? (
         <div style={{ fontSize: 13, color: 'var(--muted, #6b6862)', marginTop: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
           {receipt ? shortAddress(receipt.txHash) : shortAddress(address)}

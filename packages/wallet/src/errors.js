@@ -1,3 +1,5 @@
+import { ArcConnectionError } from './network.js';
+
 export const WALLET_ERRORS = {
   rejected: 'Request cancelled.',
   pending: 'Check your wallet to approve the pending request.',
@@ -64,6 +66,7 @@ export function getPaymentErrorMessage(error, { fallback = PAYMENT_ERRORS.defaul
 
 export function getWalletErrorMessage(error, { defaultMessage = WALLET_ERRORS.default } = {}) {
   if (!error) return null;
+  if (error instanceof ArcConnectionError) return error.message;
 
   const message =
     typeof error === 'string' ? error : (error?.shortMessage ?? error?.message ?? '');
@@ -101,5 +104,6 @@ export function getWalletErrorMessage(error, { defaultMessage = WALLET_ERRORS.de
 }
 
 export function isWalletRejection(error) {
+  if (error instanceof ArcConnectionError) return error.reason === 'cancelled';
   return getWalletErrorMessage(error) === WALLET_ERRORS.rejected;
 }

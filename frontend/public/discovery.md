@@ -129,6 +129,12 @@ The same URL shape works with any x402 client library. Gotchas:
 5. Submit payment with `Payment-Signature` header
 6. Settled content is returned
 
+A transaction hash is not a successful deposit receipt. Confirm the approval
+receipt before depositing, and the deposit receipt before treating funds as
+available. If payment verification is interrupted, retain and verify the original
+proof rather than creating another payment. Wallet RPC repair must not silently
+resubmit a pending transaction.
+
 **Direct-transfer alternative** (on-chain USDC transfer, no Gateway deposit):
 
 This rail settles *before* it unlocks, so the transfer is irreversible the moment
@@ -196,3 +202,35 @@ do NOT cross networks.
 - USDC is `0x360000...0000` on both networks; Arc domain is 26 on both.
 - Native gas: USDC (18 decimals for gas, 6 decimals for ERC-20).
 - Reputation contract: testnet `0x9f27fd62e75f86a3c7addfdba443aab1f930e281`; mainnet deploys separately.
+
+## Testnet prerelease: payment confirmation and safe retries
+
+This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
+`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
+`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
+release are unchanged by this release plan; a `testnet` package tag does not
+configure the application's network automatically.
+
+A wallet transaction hash or Gateway signature means a proof was submitted,
+not that the Hub recorded a successful tip. A standalone SDK tip without a Hub
+verification response returns `status: 'pending'`. Only a successful Hub response
+confirms `settled` (resolved tip) or `holdStatus: 'held'` (funded hold).
+
+On an interrupted response, keep the original proof and exact request fields,
+including the network, amount, payee and content metadata. Retry verification
+with that same proof; never send a second payment to repair a missing receipt.
+The matching completed proof returns HTTP 200 with `replayed: true` and its
+existing receipt, without another Tip row or another Gateway settlement. Reusing a proof with different request fields
+is rejected. Legacy proofs without the new verified binding fail closed.
+
+HTTP 409 `payment-proof-already-used` means the proof is reserved or recorded
+with a different or unverifiable binding. HTTP 409 `payment-verification-pending`
+means its durable reservation has not completed. Stop automatic payment attempts;
+inspect the existing transaction/receipt and reconcile ambiguous settlement with
+the operator. Pending reservations are not automatically cleared or settled
+again. A transport or server error after submission is not evidence that no
+payment occurred. An unconfirmed direct-transfer receipt returns HTTP 402;
+retrying its read-only verification is safe. This change uses the existing
+`PaymentTxClaim` table, with no new schema migration. It does not recover a
+facilitator settlement lost before database completion or add held-tip
+claim/refund recovery.

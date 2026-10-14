@@ -233,7 +233,7 @@ NEXT_PUBLIC_NIBGATE_NETWORK=mainnet               # or testnet (default testnet 
 
 When running locally, point `NEXT_PUBLIC_API_URL` at the local backend so `/api/*` rewrites and public server-rendered blog pages read from the same API.
 
-After changing the Prisma schema, sync the database and regenerate the client before running the backend:
+For a disposable local development database, sync an intentionally changed Prisma schema and regenerate the client before running the backend:
 
 ```bash
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
@@ -243,7 +243,16 @@ DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/railway \
 pnpm --filter @nibgate/cli exec prisma generate
 ```
 
-Production deploys that change `packages/cli/prisma/schema.prisma` need the same `prisma db push` against the Railway database before the new backend starts handling traffic.
+Production startup does not provision or change database schemas. Fresh installs
+and schema upgrades require a separately reviewed provisioning/migration step
+against the correct database before the new backend handles traffic; inspect
+the SQL or schema diff, confirm backups and authorization, and do not use a
+destructive startup fallback. Prisma client generation alone does not create
+tables. This applies to the Hub, Subblogs, and Dr. Nib (see
+[`dr-nib/DEPLOY.md`](dr-nib/DEPLOY.md)). The current SDK/RPC release requires no
+schema change. The Hub retains its existing idempotent startup backfill, which
+tags legacy content/receipt/rating/metric/event rows whose `network` is null;
+schema-free startup still performs those existing data updates.
 
 ## CLI
 

@@ -13,7 +13,10 @@
     "docs",
     "frontend",
     "backend",
-    "packages/*"
+    "dr-nib/backend",
+    "packages/*",
+    "subblogs/frontend",
+    "subblogs/backend"
   ],
   "scripts": {
     "build": "echo 'no root build needed'",
@@ -37,8 +40,6 @@
   },
   "pnpm": {
     "overrides": {
-      "@prisma/client": "^5.22.0",
-      "prisma": "^5.22.0",
       "viem": "2.54.1"
     }
   },

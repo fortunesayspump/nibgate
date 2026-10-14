@@ -180,7 +180,7 @@ describe('browser hold + refund helpers', () => {
       if (u.endsWith('/hub/tips/hold')) {
         holdCalls += 1
         const body = JSON.parse(init.body)
-        return { ok: true, status: 200, json: async () => (body.txHash ? { holdStatus: 'held', tip: {} } : { box: '0xbox' }) }
+        return { ok: true, status: 200, json: async () => (body.txHash ? { success: true, holdStatus: 'held', tip: {} } : { box: '0xbox' }) }
       }
       return { ok: false, status: 404, json: async () => ({}) }
     })

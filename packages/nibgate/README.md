@@ -261,6 +261,38 @@ The package includes lightweight controller UIs for common integration patterns:
 
 `createEvmGatewayUnlock(resource, options)` wires connect wallet, disconnect, unlock, wallet label, status text, and unlocked content visibility for EVM-compatible wallets.
 
+Unreleased browser/CDN safety update: pass the selected EIP-1193 `provider`, or
+`getProvider()` for a changing selection. An explicitly unavailable provider never
+falls back to an injected wallet. `network` selects exactly `eip155:5042` (Arc
+mainnet) or `eip155:5042002` (testnet, the default); connection health, account,
+and typed-data chain are checked before signing. Wallet changes or `destroy()`
+stop an abandoned operation from submitting a payment.
+
+A submitted Gateway authorization is saved in same-tab session storage before
+verification. If verification is uncertain, `unlock()` refuses another payment;
+use the explicit `retryVerification()` action to submit the same saved proof.
+`getPendingPayment()` exposes only recovery status, never the raw signature.
+`clear()` preserves signed/submitted proofs. An unsigned, unsubmitted reservation
+can be cancelled explicitly. Session storage is required before signing;
+recovery does not span closed sessions, cleared storage, other tabs, or devices.
+
+`repairConnection()` explicitly requests official settings for the chosen Arc
+network and verifies responding reads. It preserves pending payment data and
+never signs or retries payment automatically. Default UIs provide separate
+repair, saved-payment retry, and unfinished-approval cancellation controls.
+`renderDefaultGatewayWalletUI` uses the same guarded deposit state machine as the
+React wallet: exact-chain account checks, successful approval receipt before
+deposit, matching transfer receipt before success, visible saved hashes, and
+same-tab recovery. Closing a deposit panel prevents the next send but cannot
+cancel a wallet request already submitted.
+Use one shared wallet module instance per page; concurrent Gateway transfers
+from independently loaded SDK bundles do not share an in-flight lock and are
+not supported.
+
+These source changes require new matching SDK and wallet releases; they are not
+included in the previously published `0.4.35-testnet.0`/`0.4.25-testnet.0` pair.
+
+
 `createTransferCheckout(resource, options)` supports direct Arc transfer-style unlocks where Gateway is not used (testnet 5042002 / mainnet 5042).
 
 ```js
@@ -796,3 +828,66 @@ NIBGATE_BUYER_PRIVATE_KEY=0xYourFundedBuyerPrivateKey
 ```
 
 Without a real Gateway payment, the server will not issue a Nibgate unlock token.
+
+## Testnet prerelease: payment confirmation and safe retries
+
+This release targets Arc testnet (`eip155:5042002`) and the testnet Hub at
+`https://testnet-api.nibgate.xyz`. Install `@nibgate/sdk@testnet` and
+`@nibgate/wallet@testnet` for this candidate. The npm `latest` tag and mainnet
+release are unchanged by this release plan; a `testnet` package tag does not
+configure the application's network automatically.
+
+A wallet transaction hash or Gateway signature means a proof was submitted,
+not that the Hub recorded a successful tip. A standalone SDK tip without a Hub
+verification response returns `status: 'pending'`. Only a successful Hub response
+confirms `settled` (resolved tip) or `holdStatus: 'held'` (funded hold).
+
+On an interrupted response, keep the original proof and exact request fields,
+including the network, amount, payee and content metadata. Retry verification
+with that same proof; never send a second payment to repair a missing receipt.
+The matching completed proof returns HTTP 200 with `replayed: true` and its
+existing receipt, without another Tip row or another Gateway settlement. Reusing a proof with different request fields
+is rejected. Legacy proofs without the new verified binding fail closed.
+
+HTTP 409 `payment-proof-already-used` means the proof is reserved or recorded
+with a different or unverifiable binding. HTTP 409 `payment-verification-pending`
+means its durable reservation has not completed. Stop automatic payment attempts;
+inspect the existing transaction/receipt and reconcile ambiguous settlement with
+the operator. Pending reservations are not automatically cleared or settled
+again. A transport or server error after submission is not evidence that no
+payment occurred. An unconfirmed direct-transfer receipt returns HTTP 402;
+retrying its read-only verification is safe. This change uses the existing
+`PaymentTxClaim` table, with no new schema migration. It does not recover a
+facilitator settlement lost before database completion or add held-tip
+claim/refund recovery.
+
+### SDK integration changes
+
+- Recipient-resolution HTTP, network and JSON failures stop before payment; they
+  do not silently select the hold path.
+- The challenge network and payee must match the selected flow. Configure the
+  testnet Hub and network together; do not reuse mainnet proofs.
+- Gateway adapters receive `pay({ challenge })`; their `paymentSignature` is sent
+  on the Gateway rail. A direct transaction hash uses the transfer rail.
+- Verification errors retain available `txHash`, `paymentSignature` and
+  `paymentRail` for recovery. Treat payment signatures as sensitive proof material;
+  do not expose them in analytics or public logs.
+- The standalone browser bundle does not require a CommonJS `require` runtime.
+- `createAdminApi` denies the admin page and all API operations unless an explicit
+  `authorize(req)` callback returns a truthy result. Async callbacks are awaited.
+  Use server-validated authentication and return false when credentials are absent.
+
+### React pending-proof recovery
+
+`useNibgateTip()` retains the submitted proof in memory while Hub confirmation is
+incomplete. `tip()` and `retryVerification()` reuse that exact proof rather than
+send another payment. The pending state is a component `useRef`, not durable
+storage: a reload, unmount or remount loses this protection. Before paying again
+after navigation, inspect the original transaction and existing Hub receipt.
+
+`payment-proof-already-used` blocks the local attempt so the existing receipt can
+be checked. `payment-verification-pending` keeps the proof and asks for
+reconciliation; retrying verification remains possible, but cannot clear or
+resettle an ambiguous backend reservation. The hook reports a verified receipt
+only after a successful Hub response. A later UI callback failure must not prompt
+another payment. Pending proof material must not be published or sent to analytics.

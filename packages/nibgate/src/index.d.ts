@@ -225,6 +225,13 @@ export type NibgateCircleGatewayBrowserAdapter = {
   pay(input: NibgateCheckoutInput): Promise<NibgateCheckoutResult>;
 };
 
+export type NibgateEvmGatewayProvider = {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+  on?(event: string, listener: (...args: any[]) => void): unknown;
+  removeListener?(event: string, listener: (...args: any[]) => void): unknown;
+  off?(event: string, listener: (...args: any[]) => void): unknown;
+};
+
 export type NibgateEvmGatewayUnlockOptions = {
   source?: string;
   hosted?: boolean;
@@ -238,9 +245,10 @@ export type NibgateEvmGatewayUnlockOptions = {
   /** @deprecated The SDK now ships a native BatchEvmScheme — no CDN needed */
   circleClientModuleUrl?: string;
 
-  provider?: {
-    request(args: { method: string; params?: unknown[] }): Promise<unknown>;
-  };
+  /** Explicit selection takes precedence over an injected wallet, including null. */
+  provider?: NibgateEvmGatewayProvider | null;
+  /** Read the currently selected EIP-1193 provider; null never falls back to window.ethereum. */
+  getProvider?: () => NibgateEvmGatewayProvider | null | undefined;
   connectButton?: string | Element | null;
   disconnectButton?: string | Element | null;
   unlockButton?: string | Element | null;
@@ -264,9 +272,18 @@ export type NibgateEvmGatewayUnlockController = {
   connect(): Promise<string>;
   disconnect(): Promise<boolean>;
   unlock(): Promise<NibgateAccessCheckResult | { ok: false; status: number; error: string; resource: NibgateResource }>;
+  /** Recovery status only; does not expose the payment signature. */
+  getPendingPayment(): { network: string; address: string; submitted: boolean; canRetry: boolean } | null;
+  /** Resubmit only the retained proof, without signing another payment. */
+  retryVerification(): Promise<NibgateAccessCheckResult | { ok: false; status: number; error: string; resource: NibgateResource }>;
+  /** Explicitly request official selected-chain RPC metadata; never resumes payment. */
+  repairConnection(): Promise<{ chainId: number; blockNumber: string; checkedAt: number; requestedRpcUrl: string }>;
+  /** Clears local access but preserves an unresolved payment proof. */
   clear(): void;
   hydrate(): Promise<void>;
   mount(): NibgateEvmGatewayUnlockController;
+  destroy(): void;
+  getProvider(): NibgateEvmGatewayProvider | null;
   getWalletAddress(): string;
 };
 
@@ -475,11 +492,11 @@ export declare function tipContent(input: {
   contentUrl?: string; title?: string; amount: string | number; currency?: string;
   network?: string; recipient?: string; challenge?: Record<string, unknown>;
   signer: NibgateTipSigner; hubApi?: string; domain?: string;
-  contentId?: string; imageUrl?: string;
+  contentId?: string; websiteId?: string; imageUrl?: string;
 }): Promise<Record<string, unknown>>;
 export declare function holdTipContent(input: {
   contentUrl?: string; title?: string; amount: string | number; currency?: string;
-  network?: string; domain?: string; contentId?: string; imageUrl?: string;
+  network?: string; domain?: string; contentId?: string; websiteId?: string; imageUrl?: string;
   signer: NibgateTipSigner; hubApi?: string;
 }): Promise<Record<string, unknown>>;
 export declare function refundTip(input: {

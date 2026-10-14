@@ -1,5 +1,14 @@
+# Service root must be the repository root, with this config file selected.
+# The install uses the root pnpm lock and workspace package sources.
 [build]
-watchPatterns = ["subblogs/backend/**", "src/**", "prisma/**", "package.json", "package-lock.json"]
+buildCommand = "pnpm --filter nibgate-blog-backend exec prisma generate"
+watchPatterns = [
+  "subblogs/backend/**",
+  "packages/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml"
+]
 
 [deploy]
-startCommand = "npm start"
+startCommand = "pnpm --filter nibgate-blog-backend start"

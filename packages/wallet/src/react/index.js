@@ -13,6 +13,7 @@ export {
 } from './session.js'
 export { useNibgateConnect } from './useNibgateConnect.js'
 export { GatewayWalletUI } from './gateway-wallet.jsx'
+export { useGatewayTransfer } from './useGatewayTransfer.js'
 export {
   NIBGATE_REPUTATION_ABI,
   NIBGATE_REPUTATION_CHAIN_ID,

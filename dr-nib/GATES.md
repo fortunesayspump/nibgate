@@ -16,7 +16,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |
 | 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) + funding floor (≥ plan estimate) + one-shot deposits + cap aligned to deposit | contract, keeper key | keeper key compromise | ENFORCED (testnet and mainnet; funded mainnet job 1 split/refunded) |
-| 2 Spend mandate (direct creator tips) | `NibgateSpender` (owner=keeper, agent=hot key, daily cap + allowlist + pause) | contract (testnet) | keeper-key compromise; EOA-funded Gateway and held-tip flows are outside the mandate | PARTIAL (testnet funded + one verified creator payee allowlisted; worker routing requires `DRNIB_SPENDER_ADDRESS`) |
+| 2 Spend mandate (direct creator tips) | `NibgateSpenderV2` (owner=keeper, agent=hot key, daily cap + optional restriction + pause) | contract (testnet) | agent-key compromise can spend to any address up to cap; EOA-funded Gateway and held-tip flows are outside the mandate | PARTIAL (testnet funded; worker routing requires `DRNIB_SPENDER_ADDRESS`) |
 | 3 Builder | — | Arc sequencer (not ours) | out of scope | NONE |
 
 Procedural boundary in force until Gate 1 lands: the agent hot wallet holds
@@ -50,23 +50,23 @@ operate an agent wallet on a CDP-supported chain, this is the template.)
 
 ## Track C — Custom spend-limit contract (recommended near-term Gate 2)
 
-**STATUS: DEPLOYED ON ARC TESTNET (Oct 2026).** `NibgateSpender`
-`0x903b0606da40d99d78da9d9be6c435acacba5cf0` (tx
-`0x1bf713ce6d35a49d45ef48e96f3e0a90901d8da59730b5fd094ff60406e39e1f`):
-owner = keeper, agent = hot key, $2/day cap, 8/8 forge tests green.
+**STATUS: V2 DEPLOYED ON ARC TESTNET (Oct 2026).** `NibgateSpenderV2`
+`0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` (tx
+`0xb7d01c81678bbd49dc2e59ac03eac87f953504635b9e79774b3c10f97ba35f17`):
+owner = keeper, agent = live worker key, $2/day cap, open recipients, 9/9 forge tests green.
 Deployer holds no privileges (constructor-assigned roles only).
 
-The testnet contract now holds 1 test USDC and allowlists the verified
-Benedict creator fee wallet `0x6B0C5EC85768Ca69bFBB8cd6a8b35312074eD6ac`.
-`DRNIB_SPENDER_ADDRESS=0x903b…` routes verified direct tips through `spend()`;
-unallowlisted direct payees refuse without a silent EOA fallback. The
-allowlist is fail-secure, so onboarding another creator requires keeper review
-and an allowlist transaction. Unresolved held tips stay EOA-funded because
+The testnet contract holds 1 test USDC migrated from V1. The worker can
+route hub-verified direct tips through `spend()` once
+`DRNIB_SPENDER_ADDRESS=0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` is set;
+recipients are open by default, while the owner can enable an allowlist.
+The model cannot override a verified creator's recipient; a mandate refusal
+never falls back to EOA payment. Unresolved held tips stay EOA-funded because
 the current refund API requires the recorded payer's EOA signature. Gateway
 EIP-3009 flows also stay EOA-bound. The hot key therefore still holds some
 float, and the contract's cap covers only its own balance.
 
-- Minimal `NibgateSpender`: owner = keeper, agent key = spender, per-day USDC cap, recipient allowlist, forge-tested like the splitter. No vendor, no 4337, deployable on Arc today.
+- Minimal `NibgateSpenderV2`: owner = keeper, agent key = spender, per-day USDC cap, optional recipient restriction, forge-tested like the splitter. Open recipients trade flexibility for a larger agent-key blast radius within the cap.
 - The contract bounds direct tips from its own balance; the agent EOA still
   pays Gateway purchases and refundable held tips.
 - Accepts the residual: owner/keeper key is still trusted (same as escrow keeper).
@@ -89,10 +89,10 @@ Tests 1–4 are implemented (`loop.test.js`, `executor.test.js`). Test 6 is impl
 
 - Build now: verdict binding, bypass tests 1–4+6, dual-RPC guard (done, this repo).
 - Track A: dead on Arc. Track B: blocked on 4337 infra (verify if ever needed).
-- **Track C shipped** — `NibgateSpender` is deployed on Arc testnet
-  (`0x903b0606da40d99d78da9d9be6c435acacba5cf0`: owner = keeper, agent = hot
-  key, $2/day cap, 8/8 forge tests). Next step is operational, not code: fund
-  it, allowlist recipients, and set `DRNIB_SPENDER_ADDRESS` on the service.
+- **Track C deployed on testnet** — `NibgateSpenderV2` is funded at
+  `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` (owner = keeper, agent = live
+  worker key, $2/day cap, 9/9 forge tests). Set `DRNIB_SPENDER_ADDRESS` on
+  the service and verify a live tip before claiming the gate operational.
 - Unverified alternative (spike if float grows): Turnkey-style enclave +
   policy (chain-agnostic signing is plausibly Arc-compatible, unlike CDP's
   closed network list — but docs could not be verified, and it means vendor

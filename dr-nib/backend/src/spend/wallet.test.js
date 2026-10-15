@@ -16,10 +16,11 @@ beforeEach(() => {
   vi.unstubAllEnvs();
 });
 
-function mockChain({ paused = false, allowed = true, cap = 2000000n, spent = 0n } = {}) {
+function mockChain({ paused = false, restricted = false, allowed = true, cap = 2000000n, spent = 0n } = {}) {
   const readContract = vi.fn(async ({ functionName }) => {
     if (functionName === 'paused') return paused;
     if (functionName === 'allowed') return allowed;
+    if (functionName === 'restrictRecipients') return restricted;
     if (functionName === 'dailyCap') return cap;
     if (functionName === 'spentInWindow') return spent;
     throw new Error(`unexpected read ${functionName}`);
@@ -63,7 +64,7 @@ describe('mandate routing', () => {
     vi.stubEnv('DRNIB_SPENDER_ADDRESS', SPENDER);
     mockChain({ paused: true });
     await expect(spendViaContract(PAYEE, 0.05)).rejects.toThrow(/paused/);
-    mockChain({ allowed: false });
+    mockChain({ restricted: true, allowed: false });
     await expect(spendViaContract(PAYEE, 0.05)).rejects.toThrow(/allowlisted/);
     mockChain({ spent: 1990000n });
     await expect(spendViaContract(PAYEE, 0.05)).rejects.toThrow(/cap/);

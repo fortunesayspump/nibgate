@@ -64,5 +64,10 @@
     "usdc": "0x3600000000000000000000000000000000000000",
     "deployer": "0xcFb002E077d76F89148C5416e3CFAdaBfa12E69c",
     "deployedAt": "2026-10-15T00:22:04.018Z"
+  },
+  "legacySpender": {
+    "address": "0x41f626737f65F33C898d001Abe8218BE89802AD5",
+    "deployTx": "0xb8b67ede569a717eeedae238575851e0e4190d3c74659a517cf39c8cc47e2478",
+    "status": "superseded by open-recipient V2; unfunded and never routed"
   }
 }

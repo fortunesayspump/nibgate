@@ -129,7 +129,7 @@ const TOOLS = {
   },
 
   tip_creator: {
-    description: 'Tip a decisive creator page in USDC from the run budget (max $1/call). The hub resolves a verified creator wallet; a model-supplied recipient cannot override it. Verified tips settle directly (through the onchain spender mandate when enabled and allowlisted). Unresolved pages use a refundable holding box paid by the agent EOA. Returns the hub receipt or an explicit refusal.',
+    description: 'Tip a decisive creator page in USDC from the run budget (max $1/call). The hub resolves a verified creator wallet; a model-supplied recipient cannot override it. Verified tips settle directly through the onchain spender mandate when enabled, subject to its daily cap and pause. Unresolved pages use a refundable holding box paid by the agent EOA. Returns the hub receipt or an explicit refusal.',
     cost: 'onchain',
     async run(input, ctx) {
       needSpend();

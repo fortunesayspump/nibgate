@@ -68,7 +68,7 @@ The ledger is the source of truth; contracts are the guarantee:
 |---|---|---|
 | Ledger | per-stage drawdown, 1% fee, raise-only caps (never past the onchain deposit), settle/refund | `dr-nib/backend/src/money.js`, `budgets` |
 | Software caps | per-call ceilings, run-balance gate, verdict binding, dual-RPC | `spend/policy.js`, `spend/guard.js` |
-| Spend mandate | onchain daily cap + recipient allowlist for direct transfers | `NibgateSpender` (Arc testnet) |
+| Spend mandate | onchain daily cap + keeper pause for direct transfers; recipients open by default | `NibgateSpenderV2` (Arc testnet) |
 | Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (funded lifecycle verified on Arc testnet and mainnet) |
 
 A run never overspends — it pauses at the cap and asks. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. Both public network apps require escrow; ledger-only mode is for development. See [Budgets & refunds](/dr-nib/budgets), [Onchain escrow](/dr-nib/escrow), and [Spending gates](/dr-nib/gates).

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.24;
 
 import 'forge-std/Test.sol';
-import './NibgateSpender.sol';
+import './NibgateSpenderV2.sol';
 import './MockUSDC.sol';
 
-contract NibgateSpenderTest is Test {
+contract NibgateSpenderV2Test is Test {
     MockUSDC usdc;
-    NibgateSpender spender;
+    NibgateSpenderV2 spender;
     address owner = address(0x1001);
     address agent = address(0x2002);
     address creator = address(0x3003);
@@ -17,13 +17,11 @@ contract NibgateSpenderTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        spender = new NibgateSpender(address(usdc), owner, agent, DAY_CAP);
+        spender = new NibgateSpenderV2(address(usdc), owner, agent, DAY_CAP, false);
         usdc.mint(address(spender), 100_000_000); // $100 float
-        vm.prank(owner);
-        spender.setAllowed(creator, true);
     }
 
-    function test_agentSpendsWithinCapToAllowlisted() public {
+    function test_agentSpendsWithinCapToAnyRecipient() public {
         vm.prank(agent);
         assertTrue(spender.spend(creator, 500_000));
         assertEq(usdc.balanceOf(creator), 500_000);
@@ -36,10 +34,20 @@ contract NibgateSpenderTest is Test {
         spender.spend(creator, 100_000);
     }
 
-    function test_nonAllowlistedRecipientReverts() public {
+    function test_optionalRecipientRestriction() public {
+        vm.prank(owner);
+        spender.setRecipientRestriction(true);
         vm.prank(agent);
         vm.expectRevert('recipient not allowlisted');
         spender.spend(stranger, 100_000);
+        vm.prank(owner);
+        spender.setAllowed(creator, true);
+        vm.prank(agent);
+        assertTrue(spender.spend(creator, 100_000));
+        vm.prank(owner);
+        spender.setRecipientRestriction(false);
+        vm.prank(agent);
+        assertTrue(spender.spend(stranger, 100_000));
     }
 
     function test_dailyCapEnforced() public {
@@ -85,5 +93,11 @@ contract NibgateSpenderTest is Test {
         vm.prank(agent);
         vm.expectRevert('zero amount');
         spender.spend(creator, 0);
+    }
+
+    function test_zeroRecipientReverts() public {
+        vm.prank(agent);
+        vm.expectRevert('zero recipient');
+        spender.spend(address(0), 100_000);
     }
 }

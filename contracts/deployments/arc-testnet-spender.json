@@ -1,10 +1,20 @@
 {
   "network": "testnet",
   "chainId": 5042002,
-  "spender": "0x903b0606da40d99d78da9d9be6c435acacba5cf0",
+  "spenderV2": {
+    "address": "0x8F636a1aCb99d96746b657645E1d8F2864bff7DA",
+    "deployTx": "0xb7d01c81678bbd49dc2e59ac03eac87f953504635b9e79774b3c10f97ba35f17",
+    "owner": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
+    "agent": "0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365",
+    "dailyCap": "2000000",
+    "restrictRecipients": false,
+    "status": "deployed, unfunded, worker routing pending"
+  },
+  "legacySpender": "0x903b0606da40d99d78da9d9be6c435acacba5cf0",
   "deployTx": "0x1bf713ce6d35a49d45ef48e96f3e0a90901d8da59730b5fd094ff60406e39e1f",
   "owner": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
-  "agent": "0xb5ba4424B02539F25395233cb9A9B56A83eBDe69",
+  "agent": "0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365",
+  "legacyAgentRotationTx": "0x3483cba216d925e4c012c5b01eb56308a2b5e7db9c957f7f89fc25dd20b5cb5c",
   "dailyCap": "2000000",
   "deployedAt": "2026-10-06T18:20:43.016Z"
 }

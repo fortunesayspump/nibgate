@@ -36,8 +36,8 @@ const chain = {
   rpcUrls: { default: { http: [rpcUrl] } }
 };
 
-function readArtifact(name) {
-  const artifactPath = path.join(rootDir, 'contracts/out/NibgateReputation.sol', `${name}.json`);
+function readArtifact(source, name) {
+  const artifactPath = path.join(rootDir, 'contracts/out', source, `${name}.json`);
   const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
   const rawBytecode = artifact.bytecode?.object || artifact.bytecode;
   return {
@@ -50,8 +50,8 @@ const account = privateKeyToAccount(privateKey.startsWith('0x') ? privateKey : `
 const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
 const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
 
-const implementationArtifact = readArtifact('NibgateReputation');
-const proxyArtifact = readArtifact('NibgateReputationProxy');
+const implementationArtifact = readArtifact('NibgateReputationV2.sol', 'NibgateReputationV2');
+const proxyArtifact = readArtifact('NibgateReputation.sol', 'NibgateReputationProxy');
 
 console.log(`Deploying Nibgate reputation to ${chainName} (${chainId})`);
 console.log(`RPC: ${rpcUrl}`);

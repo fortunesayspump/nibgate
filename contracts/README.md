@@ -6,8 +6,9 @@ The payment does not go through this contract. Creator sites still receive unloc
 
 ## Contracts
 
-- `NibgateReputation`: upgradeable implementation with `rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, string unlockRef)`.
-- `NibgateReputationProxy`: minimal ERC-1967 proxy that delegates to the implementation.
+- `NibgateReputationV2`: current upgradeable rating implementation with `rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, string unlockRef)`.
+- `legacy/NibgateReputation.sol`: V1 implementation and the still-used minimal ERC-1967 `NibgateReputationProxy`. Testnet's proxy was upgraded to V2; moving the source does not change that proxy.
+- `NibgateSpenderV2`: capped, pausable direct-tip float for Dr. Nib. Recipients are open by default; the owner may enable an allowlist. The superseded V1 spender, its tests, and its deploy artifact are under `legacy/`.
 
 `rating` is stored as `1-50`, where `48` means `4.8` stars.
 
@@ -47,7 +48,9 @@ For local hackathon testing only, the script can fall back to the repo e2e test 
 E2E_BUYER_PRIVATE_KEY=0x... node scripts/deploy-reputation.mjs
 ```
 
-Use the printed proxy address as `NIBGATE_REPUTATION_CONTRACT`.
+The deployment script uses the V2 implementation and the proxy from the legacy source. Use the printed proxy address as `NIBGATE_REPUTATION_CONTRACT`.
+
+For Dr. Nib, `scripts/deploy-drnib-spender.mjs` dry-runs by default. Set `DRNIB_SPENDER_NETWORK=testnet` or `mainnet`, `DRNIB_SPENDER_AGENT` to the deployed worker's **public** address, and use `--broadcast` only after inspecting the printed roles, cap, recipient setting, chain and gas. Testnet reads `ESCROW_KEEPER_KEY`; mainnet reads `NIBGATE_DEPLOYER_PRIVATE_KEY`. The testnet V2 deployment is recorded in `deployments/arc-testnet-spender.json`; the deployed V1 addresses remain there and in `deployments/arc-mainnet.json` for history.
 
 Optional:
 

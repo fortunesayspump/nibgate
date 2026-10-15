@@ -264,9 +264,14 @@ export default function PostForm({ initialData, postId }: PostFormProps) {
       : resolved.type === "article"
         ? { ...resolved, media: JSON.stringify(embeddedMedia), ...accessFields }
         : { ...resolved, ...accessFields };
+    // A title or settings edit should not replace the encrypted body in R2.
+    const updatePayload: Record<string, unknown> = { ...payload };
+    if (initialData && form.bodyMarkdown === (initialData.bodyMarkdown ?? "")) {
+      delete updatePayload.bodyMarkdown;
+    }
     apiAuthFetch(`/blog/admin/posts/${postId}`, {
       method: "PUT",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(updatePayload),
     })
       .then((data: any) => {
         const cutOff = Array.isArray(data.post?.cutOffWallets) ? data.post.cutOffWallets : [];

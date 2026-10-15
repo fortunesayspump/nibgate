@@ -236,6 +236,8 @@ async function update(siteId, id, data, actor) {
 
   const willBePaid = isPaidValue(data.price !== undefined ? data.price : existing.price);
   const updateData = {};
+  let replacementBodyRef = null;
+  let oldBodyRef = null;
   if (data.title !== undefined) {
     updateData.title = String(data.title).trim();
     if (!data.slug) updateData.slug = slugify(data.title);
@@ -246,13 +248,14 @@ async function update(siteId, id, data, actor) {
   if (bodyProvided) {
     const newBody = String(data.bodyMarkdown || data.body || '').trim();
     if (ENCRYPT_ENABLED) {
-      if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
       const encryptedBody = await encryptBytesToStore(Buffer.from(newBody, 'utf8'), siteId, 'body');
+      replacementBodyRef = encryptedBody.storageRef;
+      oldBodyRef = existing.bodyStorageRef;
       updateData.bodyMarkdown = '';
       updateData.contentKey = encryptedBody.contentKey;
       updateData.bodyStorageRef = encryptedBody.storageRef;
     } else {
-      if (existing.bodyStorageRef) await deleteBlob({ storageRef: existing.bodyStorageRef }).catch(() => {});
+      oldBodyRef = existing.bodyStorageRef;
       updateData.bodyMarkdown = newBody;
       updateData.contentKey = null;
       updateData.bodyStorageRef = null;
@@ -278,15 +281,15 @@ async function update(siteId, id, data, actor) {
   if (data.videoStorageRef !== undefined) updateData.videoStorageRef = String(data.videoStorageRef).trim() || null;
   if (data.videoEncryptedKey !== undefined) updateData.videoEncryptedKey = String(data.videoEncryptedKey).trim() || null;
   if (data.videoContentType !== undefined) updateData.videoContentType = String(data.videoContentType).trim() || null;
-  updateData.videoUrl = null;
+  if (data.videoStorageRef) updateData.videoUrl = null;
   if (data.audioStorageRef !== undefined) updateData.audioStorageRef = String(data.audioStorageRef).trim() || null;
   if (data.audioEncryptedKey !== undefined) updateData.audioEncryptedKey = String(data.audioEncryptedKey).trim() || null;
   if (data.audioContentType !== undefined) updateData.audioContentType = String(data.audioContentType).trim() || null;
-  updateData.audioUrl = null;
+  if (data.audioStorageRef) updateData.audioUrl = null;
   if (data.documentStorageRef !== undefined) updateData.documentStorageRef = String(data.documentStorageRef).trim() || null;
   if (data.documentEncryptedKey !== undefined) updateData.documentEncryptedKey = String(data.documentEncryptedKey).trim() || null;
   if (data.documentContentType !== undefined) updateData.documentContentType = String(data.documentContentType).trim() || null;
-  updateData.documentUrl = null;
+  if (data.documentStorageRef) updateData.documentUrl = null;
   if (data.documentName !== undefined) updateData.documentName = String(data.documentName).trim() || null;
   if (data.documentSize !== undefined) updateData.documentSize = data.documentSize ? Number(data.documentSize) || null : null;
   if (data.videoName !== undefined) updateData.videoName = String(data.videoName).trim() || null;
@@ -311,11 +314,20 @@ async function update(siteId, id, data, actor) {
   const flippingInviteOnly = updateData.publicAccess === false && !alreadyInviteOnly;
   const whitelistChanged = updateData.whitelist !== undefined && JSON.stringify(updateData.whitelist) !== JSON.stringify(existing.whitelist);
   const cuttingOff = (updateData.publicAccess === false && flippingInviteOnly) || (alreadyInviteOnly && whitelistChanged);
-  const updated = await prisma.blogPost.update({
-    where: { id },
-    data: updateData,
-    include: { author: { select: { id: true, name: true, avatarUrl: true } } },
-  });
+  let updated;
+  try {
+    updated = await prisma.blogPost.update({
+      where: { id },
+      data: updateData,
+      include: { author: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+  } catch (error) {
+    if (replacementBodyRef) await deleteBlob({ storageRef: replacementBodyRef }).catch(() => {});
+    throw error;
+  }
+  if (oldBodyRef && oldBodyRef !== replacementBodyRef) {
+    await deleteBlob({ storageRef: oldBodyRef }).catch(() => {});
+  }
 
   if (cuttingOff && updated.id) {
     const [activeEnts, receipts] = await Promise.all([

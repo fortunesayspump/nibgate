@@ -2,9 +2,9 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const _rawApi = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/+$/, "");
-// Mirror lib/api.ts: canonical backend paths are bare, so strip one /api
-// suffix for the rewrite destination (which re-adds /:path*). Never point
-// rewrites at the legacy /api-prefixed form (hub URL standard).
+// Most backend routes have bare-path aliases, but the paid post mirror is
+// mounted only under /api/<type>/<slug>. Keep the prefix for same-origin
+// requests so the advertised access URL reaches its x402 handler.
 const apiUrl = _rawApi.endsWith("/api") ? _rawApi.slice(0, -"/api".length) : _rawApi;
 
 const nextConfig: NextConfig = {
@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: `${apiUrl}/:path*`,
+        destination: `${apiUrl}/api/:path*`,
       },
       {
         source: "/nibgate.json",

@@ -51,6 +51,11 @@ describe('payX402 buyer path', () => {
     expect(vi.mocked(GatewayClient)).not.toHaveBeenCalled();
   });
 
+  it('refuses a private-network seller before constructing a signer', async () => {
+    await expect(payX402({ runId: 'probe', url: 'https://127.0.0.1/private' })).rejects.toThrow(/private-address/);
+    expect(vi.mocked(GatewayClient)).not.toHaveBeenCalled();
+  });
+
   it('funds the gateway with exactly the price, never a lump float', async () => {
     const deposit = vi.fn(async () => ({}));
     const pay = vi.fn(async () => ({ data: { results: ['r'] }, formattedAmount: '0.01', transaction: '0xabc', status: 200 }));
@@ -64,5 +69,20 @@ describe('payX402 buyer path', () => {
     // $0.01 price → exactly $0.01 deposited: gateway float is one payment by construction
     expect(deposit).toHaveBeenCalledTimes(1);
     expect(deposit).toHaveBeenCalledWith('0.01');
+  });
+
+  it('refuses a higher or unreadable signing price after a $0.01 preview', async () => {
+    let beforePayment;
+    vi.mocked(GatewayClient).mockImplementation(() => ({
+      onBeforePaymentCreation: (hook) => { beforePayment = hook; },
+      getBalances: async () => ({ gateway: { available: 1000000n }, wallet: { balance: 0n, formatted: '0' } }),
+      pay: async () => ({ data: 'ok', formattedAmount: '0.01', transaction: '0xabc' }),
+    }));
+    await payX402({ runId: 'probe', url: 'https://seller.example/x', fetchImpl: challengeFetch() });
+    expect(await beforePayment({ selectedRequirements: { amount: '10000' } })).toBeUndefined();
+    expect(await beforePayment({ selectedRequirements: { amount: '10001' } })).toMatchObject({ abort: true });
+    expect(await beforePayment({ selectedRequirements: { amount: '2000001' } })).toMatchObject({ abort: true });
+    expect(await beforePayment({ selectedRequirements: {} })).toMatchObject({ abort: true });
+    expect(await beforePayment({ selectedRequirements: { amount: 'not-a-price' } })).toMatchObject({ abort: true });
   });
 });

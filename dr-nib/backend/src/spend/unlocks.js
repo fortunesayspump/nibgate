@@ -13,10 +13,13 @@ import { budgetState } from '../money.js';
 import { checkAmount, agentKey } from './policy.js';
 import { spendChain } from './chain.js';
 import { crossCheckRpc } from './guard.js';
+import { publicFetch } from '../tools/http.js';
 
 /** Read the price off a 402 challenge without paying. Returns dollars (0 = free). */
 export async function previewPrice(url, fetchImpl) {
-  const fetchFn = fetchImpl || fetch;
+  // The preview is an outbound request to a model-selected URL. Use the
+  // public-only, DNS-pinned fetch so private hosts and redirect hops refuse.
+  const fetchFn = fetchImpl || publicFetch;
   const res = await fetchFn(String(url), { headers: { 'x-nibgate-actor': 'agent', accept: 'application/json' } });
   if (res.status !== 402) return { price: 0, free: true };
   const header = res.headers?.get ? (res.headers.get('payment-required') || res.headers.get('x-payment-required')) : null;
@@ -40,7 +43,7 @@ export async function previewPrice(url, fetchImpl) {
   return { price: 0, free: false, unknown: true };
 }
 
-function clientForCap(cap) {
+function clientForCap(cap, quotedAmount) {
   const chain = spendChain();
   const client = new GatewayClient({
     chain: chain.gatewayChain,
@@ -48,10 +51,15 @@ function clientForCap(cap) {
     rpcUrl: chain.rpcUrl,
   });
   client.onBeforePaymentCreation(async (ctx) => {
-    try {
-      const amount = Number(ctx?.selectedRequirements?.amount) / 1e6;
-      if (Number.isFinite(amount) && amount > cap) return { abort: true, reason: `payment $${amount} exceeds the $${cap} ceiling` };
-    } catch {}
+    const raw = String(ctx?.selectedRequirements?.amount ?? '');
+    if (!/^\d+$/.test(raw) || BigInt(raw) <= 0n) {
+      return { abort: true, reason: 'payment price is missing or invalid' };
+    }
+    const micros = BigInt(raw);
+    const ceilingMicros = BigInt(Math.round(cap * 1e6));
+    const quotedMicros = BigInt(Math.round(quotedAmount * 1e6));
+    if (micros > ceilingMicros) return { abort: true, reason: `payment exceeds the $${cap} ceiling` };
+    if (micros > quotedMicros) return { abort: true, reason: 'payment price exceeds the previewed quote' };
     return undefined;
   });
   return client;
@@ -101,7 +109,7 @@ export async function payX402({ runId, url, body, fetchImpl } = {}) {
   const preview = await previewPrice(url, fetchImpl);
   if (preview.unknown) throw new Error('no readable price on this 402 — refusing to sign blind');
   const amount = await ensureExact(runId, 'x402', preview.price);
-  const client = clientForCap(cap);
+  const client = clientForCap(cap, amount);
   await ensureGatewayFunded(client, amount);
   const chain = spendChain();
   await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
@@ -121,7 +129,7 @@ export async function unlockContent({ runId, url, fetchImpl } = {}) {
   const preview = await previewPrice(url, fetchImpl);
   if (preview.unknown) throw new Error('no readable price on this 402 — refusing to sign blind');
   const amount = await ensureExact(runId, 'unlock', preview.price);
-  const client = clientForCap(cap);
+  const client = clientForCap(cap, amount);
   await ensureGatewayFunded(client, amount);
   const chain = spendChain();
   await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });

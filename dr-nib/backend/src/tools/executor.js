@@ -141,7 +141,7 @@ const TOOLS = {
   },
 
   unlock_content: {
-    description: 'Pay to unlock a paid Nibgate article/share (max $2/call) and read its body. The price is read off the free 402 challenge first; the call refuses when the price is unreadable or over budget. Returns the unlocked text as evidence.',
+    description: 'Pay to unlock a paid Nibgate article/share (max $2/call) and read its body. Preview the public 402 challenge first; refuse private URLs, unreadable prices, or a signing price above the previewed quote or run balance. Returns the unlocked text as evidence.',
     cost: 'onchain',
     async run(input, ctx) {
       needSpend();
@@ -154,7 +154,7 @@ const TOOLS = {
   },
 
   pay_x402: {
-    description: 'Pay any x402-gated URL (max $2/call): public APIs, data feeds, paid tools. Price previewed free off the 402; refuses blind or over-budget. Pass the endpoint\'s request body as `body` when it needs POST input (e.g. a search query). Returns the paid response.',
+    description: 'Pay a public x402-gated URL (max $2/call): APIs, data feeds, paid tools. Preview the 402 for free; refuse private URLs, unreadable prices, or a signing price above the previewed quote or run balance. Pass the endpoint\'s request body as `body` when it needs POST input (e.g. a search query). Returns the paid response.',
     cost: 'onchain',
     async run(input, ctx) {
       needSpend();

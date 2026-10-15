@@ -79,7 +79,7 @@ ${evidence || '(no sources were collected)'}
 Write about ${targetWords} words for the entire body, excluding the separately assembled abstract and references. Stay concise; do not repeat findings to fill space. Rules:
 - Answer every explicit deliverable in the brief, even if the plan omitted it. For numeric document analysis, show each requested grouping separately, keep currencies separate, and explain any duplicate rows without silently removing them.
 - Every factual claim must cite its source as [n].
-- If a claim has no supporting source above, mark it "(unsupported)" rather than asserting it.
+- Omit unsupported generalizations, including presumed market-wide discounts or typical vendor behavior. State the missing fact as a question to verify and name the document or observation needed; do not insert the literal label "(unsupported)" into reader-facing prose.
 - Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any source passage. A verification pass measures verbatim overlap and flags copied claims.
 - If the evidence does not answer part of the brief, say so plainly in plain words — one short paragraph on what IS covered and what IS missing. No meta-labels, no process narration.
 - Keep it readable: a short summary, then the sections the sub-questions imply.
@@ -116,7 +116,7 @@ ${formatEvidence(sources) || '(no sources were collected)'}
 
 Write this section in about ${targetWords} words — substantive depth is the point, not a summary. Rules:
 - Every factual claim must cite its source as [n], using the numbers above.
-- If a claim has no supporting source above, mark it "(unsupported)".
+- Omit unsupported generalizations. Describe missing evidence as an uncertainty and name what would verify it; do not insert the literal label "(unsupported)" into reader-facing prose.
 - Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any excerpt above.
 - Where the evidence contains comparable numbers, include a markdown comparison table labeled **Table N.** with a short title, and refer to it in the text ("see Table 1"). Number tables sequentially through the section.
 - Where a comparison has a clear ranking, ALSO emit one fenced chart object after the table, exactly: \`\`\`chart {"type":"bar","title":"...","unit":"...","data":[{"label":"...","value":number}]} \`\`\` — at most 2 charts per section, 8 rows each.

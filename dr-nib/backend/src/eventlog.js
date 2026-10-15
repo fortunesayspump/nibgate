@@ -34,9 +34,9 @@ async function withRetry(fn, attempts = 4) {
  * Persist then broadcast one event. Returns the stored row (with its seq).
  * Called with `await` everywhere so events cannot be reordered or lost.
  *
- * seq is read-max-then-insert, so concurrent writers (parallel trust/grade,
- * parallel sections) can collide on the same seq. The loser gets P2002 and
- * retries with a fresh max — a few milliseconds of jitter, never a failure.
+ * Serialize writers for this run before read-max-then-insert. The advisory
+ * transaction lock is shared with run/ledger mutations and works across API
+ * and worker processes; unique-conflict retries remain a backstop.
  */
 export async function recordEvent(runId, event) {
   // Stamp the clock into the stored payload too, not just the live broadcast
@@ -46,6 +46,7 @@ export async function recordEvent(runId, event) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     try {
       const row = await withRetry(() => db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${runId}))::text AS locked`;
         const lastRow = await tx.researchEvent.findFirst({ where: { runId }, orderBy: { seq: 'desc' }, select: { seq: true } });
         const seq = (lastRow?.seq ?? -1) + 1;
         return tx.researchEvent.create({

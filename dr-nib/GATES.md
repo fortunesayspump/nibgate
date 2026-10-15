@@ -11,7 +11,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | Gate | Mechanism | Administrator | Bypass route | Status |
 |---|---|---|---|---|
 | 0.5 Runtime construction | loop: schema, caps, JEV verdicts, dedupe, budgets, checklist | Nibgate backend (us) | operator code change | ENFORCED (app boundary) |
-| 0.5 Simulation | `previewPrice` reads the 402 free; cap hook aborts over-ceiling at signing | backend | seller serves no price → we refuse blind | ENFORCED |
+| 0.5 Simulation | `previewPrice` reads the 402 free; signing hook rejects a missing or increased price and the per-call ceiling | backend | seller serves no price or changes the price → we refuse to sign | ENFORCED |
 | 0.5 Verdict binding | judgement rows staple canonical `fp`; re-checked pre-execution (`verdict-void`) | backend | none in-process | ENFORCED |
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |

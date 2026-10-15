@@ -184,6 +184,7 @@ Set `SENTRY_DSN` env var on Railway to enable error tracking. All errors are log
 | POST | `/api/auth/register` | No | Create account |
 | POST | `/api/setup` | — | Create a subdomain site |
 | GET | `/api/nibgate/access?path=…` | No | x402 access; 200 with decrypted content / 402 challenge |
+| GET | `/api/<type>/<slug>` | No | Same-origin paid-post mirror advertised by each post page (`writing`, `photos`, `music`, `video`, `docs`); 200 body or 402 challenge |
 | GET | `/api/nibgate/manifest?path=…` | No | Per-post agent contract |
 | GET | `/api/nibgate/media/:postId/:kind` | No | Encrypted media proxy (proof-gated for paid posts) |
 | GET | `/api/nibgate/posts/:key/quote` | No | Price + access decision |

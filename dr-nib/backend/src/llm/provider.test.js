@@ -255,6 +255,8 @@ describe('prompts carry the hard rules', () => {
     const all = msgs.map((m) => m.content).join('\n');
     expect(all).toMatch(/only material you may rely on/i);
     expect(all).toMatch(/unsupported/i);
+    expect(all).toMatch(/Omit unsupported generalizations/i);
+    expect(all).toMatch(/name the document or observation needed/i);
     expect(all).toMatch(/cite/i);
   });
 

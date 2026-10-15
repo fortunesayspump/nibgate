@@ -16,7 +16,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |
 | 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) + funding floor (≥ plan estimate) + one-shot deposits + cap aligned to deposit | contract, keeper key | keeper key compromise | ENFORCED (testnet and mainnet; funded mainnet job 1 split/refunded) |
-| 2 Spend mandate (direct creator tips) | `NibgateSpenderV2` (owner=keeper, agent=hot key, daily cap + optional restriction + pause) | contract (testnet) | agent-key compromise can spend to any address up to cap; EOA-funded Gateway and held-tip flows are outside the mandate | PARTIAL (testnet funded; worker routing requires `DRNIB_SPENDER_ADDRESS`) |
+| 2 Spend mandate (direct creator tips) | `NibgateSpenderV2` (owner=keeper, agent=hot key, daily cap + optional restriction + pause) | contract (testnet and mainnet) | agent-key compromise can spend to any address up to cap; EOA-funded Gateway and held-tip flows are outside the mandate | PARTIAL (both funded and routing configured; live-tip receipt pending) |
 | 3 Builder | — | Arc sequencer (not ours) | out of scope | NONE |
 
 Procedural boundary in force until Gate 1 lands: the agent hot wallet holds
@@ -50,11 +50,17 @@ operate an agent wallet on a CDP-supported chain, this is the template.)
 
 ## Track C — Custom spend-limit contract (recommended near-term Gate 2)
 
-**STATUS: V2 DEPLOYED ON ARC TESTNET (Oct 2026).** `NibgateSpenderV2`
+**STATUS: V2 DEPLOYED ON ARC TESTNET AND MAINNET (Oct 2026).** `NibgateSpenderV2`
 `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` (tx
 `0xb7d01c81678bbd49dc2e59ac03eac87f953504635b9e79774b3c10f97ba35f17`):
 owner = keeper, agent = live worker key, $2/day cap, open recipients, 9/9 forge tests green.
 Deployer holds no privileges (constructor-assigned roles only).
+
+Mainnet V2 `0xae39444c91aE8F0b8cF0642A18A521b6D312061B` (tx
+`0x644e4049541a697384928119ea232ea3abc91583a01222361b052d3e20fdf412`)
+has keeper owner, live worker agent, the same $2/day cap and open recipients.
+It holds 0.05 USDC funded by tx
+`0xe6aa683e648d0263392c3e63af3791517a2d2a3a46c8d6364b300715c62b7fea`.
 
 The testnet contract holds 1 test USDC migrated from V1. The worker can
 route hub-verified direct tips through `spend()` once
@@ -89,10 +95,12 @@ Tests 1–4 are implemented (`loop.test.js`, `executor.test.js`). Test 6 is impl
 
 - Build now: verdict binding, bypass tests 1–4+6, dual-RPC guard (done, this repo).
 - Track A: dead on Arc. Track B: blocked on 4337 infra (verify if ever needed).
-- **Track C deployed on testnet** — `NibgateSpenderV2` is funded at
+- **Track C deployed on both networks** — testnet `NibgateSpenderV2` is funded at
   `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` (owner = keeper, agent = live
-  worker key, $2/day cap, 9/9 forge tests). Set `DRNIB_SPENDER_ADDRESS` on
-  the service and verify a live tip before claiming the gate operational.
+  worker key, $2/day cap, 9/9 forge tests). Mainnet is funded at
+  `0xae39444c91aE8F0b8cF0642A18A521b6D312061B`. Both workers have
+  `DRNIB_SPENDER_ADDRESS` configured. Verify deployment and a live tip on
+  each network before claiming the gate operational.
 - Unverified alternative (spike if float grows): Turnkey-style enclave +
   policy (chain-agnostic signing is plausibly Arc-compatible, unlike CDP's
   closed network list — but docs could not be verified, and it means vendor

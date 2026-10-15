@@ -77,6 +77,8 @@
     "agent": "0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365",
     "dailyCap": "2000000",
     "restrictRecipients": false,
-    "status": "deployed, unfunded, worker routing pending"
+    "fundTx": "0xe6aa683e648d0263392c3e63af3791517a2d2a3a46c8d6364b300715c62b7fea",
+    "initialFloatUSDC": "0.05",
+    "status": "deployed and funded; worker routing configured, live tip pending"
   }
 }

@@ -45,7 +45,7 @@ Free paths come first. Paid unlocks and x402 responses still face source scoring
 
 ## Onchain enforcement
 
-Software caps are promises; contracts are guarantees only for funds inside them. A **NibgateSpenderV2 mandate** is deployed and funded on Arc testnet (`0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`), with a $2/day cap, open recipients and keeper pause. Once the worker's `DRNIB_SPENDER_ADDRESS` is configured, verified direct tips use it. The owner can enable a recipient restriction if needed. An agent-key compromise can send the contract float to any address up to the cap. Unresolved held tips and Gateway x402 purchases still use the agent EOA so refunds and EIP-3009 signatures work. Those funds are outside the mandate and remain under software caps. Full gate map: [Spending gates](/dr-nib/gates).
+Software caps are promises; contracts are guarantees only for funds inside them. A **NibgateSpenderV2 mandate** is deployed and funded on Arc testnet (`0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`) and mainnet (`0xae39444c91aE8F0b8cF0642A18A521b6D312061B`), with a $2/day cap, open recipients and keeper pause. Both workers have `DRNIB_SPENDER_ADDRESS` configured, pending live-tip verification. The owner can enable a recipient restriction if needed. An agent-key compromise can send the contract float to any address up to the cap. Unresolved held tips and Gateway x402 purchases still use the agent EOA so refunds and EIP-3009 signatures work. Those funds are outside the mandate and remain under software caps. Full gate map: [Spending gates](/dr-nib/gates).
 
 ## Funding it
 

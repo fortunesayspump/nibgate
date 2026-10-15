@@ -89,7 +89,7 @@ Set these on the service (never commit them):
 | `DRNIB_DISABLED` | optional kill switch; `1`/`true` = answer 503 on every run route (health stays up). Flip per service to pull the backend off a stack without a code change |
 | `DRNIB_NETWORK` | `mainnet`; stated explicitly (otherwise inferred from `HUB_API_URL`) |
 | `DRNIB_SELLER_ADDRESS` | optional; receiver for direct x402 tips/unlocks |
-| `DRNIB_SPENDER_ADDRESS` | optional; route verified direct tips through `NibgateSpenderV2` (daily cap + keeper pause, open recipients by default). Testnet `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`. Keep the contract funded. Unresolved held tips remain EOA-funded so the payer can sign a refund. Gateway x402 also remains EOA-funded. |
+| `DRNIB_SPENDER_ADDRESS` | optional; route verified direct tips through `NibgateSpenderV2` (daily cap + keeper pause, open recipients by default). Testnet `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`; mainnet `0xae39444c91aE8F0b8cF0642A18A521b6D312061B`. Keep the contract funded. Unresolved held tips remain EOA-funded so the payer can sign a refund. Gateway x402 also remains EOA-funded. |
 | `DRNIB_RPC_BACKUP` | optional independent RPC used to cross-check chain ID and block height before every spend; test the provider live before enabling it, because disagreement or outage refuses spending. |
 | `ESCROW_CORE` / `ESCROW_SPLITTER` | escrow is not auto-enabled on mainnet: set both to the deployed ERC-8183 core + `NibgateRunSplitter` addresses. Testnet defaults are built in |
 | `ESCROW_KEEPER_KEY` | keeper hot key (escrow evaluator + `submit`/`complete` + split attestation). **Required for `isEscrowConfigured()`**; also read from `NIBGATE_KEEPER_PRIVATE_KEY`. Without it the escrow routes answer 501 |

@@ -58,7 +58,8 @@ export async function sendUsdc(to, amountUsd) {
     functionName: 'transfer',
     args: [to, value],
   });
-  await pub.waitForTransactionReceipt({ hash });
+  const receipt = await pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error(`USDC transfer reverted: ${hash}`);
   return hash;
 }
 
@@ -69,6 +70,7 @@ const SPENDER_ABI = [
   { type: 'function', name: 'restrictRecipients', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
   { type: 'function', name: 'dailyCap', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'spentInWindow', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'windowStart', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
 ];
 
 /**
@@ -91,18 +93,22 @@ export async function spendViaContract(to, amountUsd) {
   if (!spender) throw new Error('spender mandate not configured (DRNIB_SPENDER_ADDRESS)');
   const { wallet, public: pub } = clients();
   const value = BigInt(Math.round(Number(amountUsd) * 1e6));
-  const [paused, restricted, cap, spent] = await Promise.all([
+  const [paused, restricted, cap, spent, windowStart, block] = await Promise.all([
     pub.readContract({ address: spender, abi: SPENDER_ABI, functionName: 'paused' }),
     pub.readContract({ address: spender, abi: SPENDER_ABI, functionName: 'restrictRecipients' }),
     pub.readContract({ address: spender, abi: SPENDER_ABI, functionName: 'dailyCap' }),
     pub.readContract({ address: spender, abi: SPENDER_ABI, functionName: 'spentInWindow' }),
+    pub.readContract({ address: spender, abi: SPENDER_ABI, functionName: 'windowStart' }),
+    pub.getBlock(),
   ]);
   if (paused) throw new Error('spender mandate is paused by the keeper');
   if (restricted && !(await pub.readContract({ address: spender, abi: SPENDER_ABI, functionName: 'allowed', args: [to] }))) {
     throw new Error('recipient not allowlisted on the spender mandate');
   }
-  if (spent + value > cap) throw new Error('spender daily cap would be exceeded');
+  const effectiveSpent = block.timestamp >= windowStart + 86400n ? 0n : spent;
+  if (effectiveSpent + value > cap) throw new Error('spender daily cap would be exceeded');
   const hash = await wallet.writeContract({ address: spender, abi: SPENDER_ABI, functionName: 'spend', args: [to, value] });
-  await pub.waitForTransactionReceipt({ hash });
+  const receipt = await pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error(`spender transaction reverted: ${hash}`);
   return hash;
 }

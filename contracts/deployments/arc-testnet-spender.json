@@ -8,7 +8,10 @@
     "agent": "0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365",
     "dailyCap": "2000000",
     "restrictRecipients": false,
-    "status": "deployed, unfunded, worker routing pending"
+    "migrationWithdrawTx": "0x595e1875149a925200c52d83dc7768be90a562fd2e202fd4d9b571715ed3d221",
+    "migrationFundTx": "0xc25f3c25e7aca8d8bb4162f523f23ba930d6a525dc03094b88d650c370ccb386",
+    "initialFloatUSDC": "1",
+    "status": "deployed and funded; worker routing configured, live tip pending"
   },
   "legacySpender": "0x903b0606da40d99d78da9d9be6c435acacba5cf0",
   "deployTx": "0x1bf713ce6d35a49d45ef48e96f3e0a90901d8da59730b5fd094ff60406e39e1f",

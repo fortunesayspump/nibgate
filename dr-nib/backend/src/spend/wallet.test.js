@@ -16,17 +16,18 @@ beforeEach(() => {
   vi.unstubAllEnvs();
 });
 
-function mockChain({ paused = false, restricted = false, allowed = true, cap = 2000000n, spent = 0n } = {}) {
+function mockChain({ paused = false, restricted = false, allowed = true, cap = 2000000n, spent = 0n, windowStart = 100n, blockTime = 200n, receiptStatus = 'success' } = {}) {
   const readContract = vi.fn(async ({ functionName }) => {
     if (functionName === 'paused') return paused;
     if (functionName === 'allowed') return allowed;
     if (functionName === 'restrictRecipients') return restricted;
     if (functionName === 'dailyCap') return cap;
     if (functionName === 'spentInWindow') return spent;
+    if (functionName === 'windowStart') return windowStart;
     throw new Error(`unexpected read ${functionName}`);
   });
   const writeContract = vi.fn(async () => '0xtx');
-  vi.mocked(createPublicClient).mockReturnValue({ readContract, waitForTransactionReceipt: vi.fn(async () => ({})) });
+  vi.mocked(createPublicClient).mockReturnValue({ readContract, getBlock: vi.fn(async () => ({ timestamp: blockTime })), waitForTransactionReceipt: vi.fn(async () => ({ status: receiptStatus })) });
   vi.mocked(createWalletClient).mockReturnValue({ writeContract });
   return { readContract, writeContract };
 }
@@ -68,6 +69,20 @@ describe('mandate routing', () => {
     await expect(spendViaContract(PAYEE, 0.05)).rejects.toThrow(/allowlisted/);
     mockChain({ spent: 1990000n });
     await expect(spendViaContract(PAYEE, 0.05)).rejects.toThrow(/cap/);
+  });
+
+  it('resets the cap precheck after the contract window expires', async () => {
+    vi.stubEnv('DRNIB_SPENDER_ADDRESS', SPENDER);
+    mockChain({ spent: 1990000n, windowStart: 100n, blockTime: 86500n });
+    await expect(spendViaContract(PAYEE, 0.05)).resolves.toBe('0xtx');
+  });
+
+  it('rejects reverted mandate and direct transfer receipts', async () => {
+    vi.stubEnv('DRNIB_SPENDER_ADDRESS', SPENDER);
+    mockChain({ receiptStatus: 'reverted' });
+    await expect(spendViaContract(PAYEE, 0.05)).rejects.toThrow(/reverted/);
+    const { sendUsdc } = await import('./wallet.js');
+    await expect(sendUsdc(PAYEE, 0.05)).rejects.toThrow(/reverted/);
   });
 
   it('moveFunds routes through the mandate when configured', async () => {

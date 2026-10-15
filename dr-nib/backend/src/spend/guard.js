@@ -13,6 +13,7 @@ async function rpcCall(url, method, params, fetchImpl) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(8_000),
   });
   if (!res.ok) throw new Error(`rpc ${method} HTTP ${res.status}`);
   const data = await res.json();

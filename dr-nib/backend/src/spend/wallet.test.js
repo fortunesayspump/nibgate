@@ -6,7 +6,7 @@ vi.mock('../money.js', () => ({ budgetState: vi.fn(async () => ({ balance: 5 }))
 
 import { createPublicClient, createWalletClient } from 'viem';
 import { spenderAddress, spendViaContract } from './wallet.js';
-import { moveFunds } from './tips.js';
+import { moveFunds, tipCreator } from './tips.js';
 
 const SPENDER = '0x903b0606da40d99d78da9d9be6c435acacba5cf0';
 const PAYEE = '0xb4da5cb7f0e8dac6ec54ed0ae59c8aefb234bc27';
@@ -74,5 +74,49 @@ describe('mandate routing', () => {
     mockChain();
     const hash = await moveFunds(PAYEE, 0.05);
     expect(hash).toBe('0xtx');
+  });
+
+  it('resolves a verified creator before routing its tip through the mandate', async () => {
+    vi.stubEnv('DRNIB_SPENDER_ADDRESS', SPENDER);
+    const { writeContract } = mockChain();
+    const calls = [];
+    const fetchImpl = vi.fn(async (path, body) => {
+      calls.push({ path, body });
+      if (path === '/hub/tips/challenge') return { payee: PAYEE };
+      if (path === '/hub/tips/verify') return { success: true, receipt: { type: 'tip' } };
+      throw new Error(`unexpected ${path}`);
+    });
+    const out = await tipCreator({
+      runId: 'r1', contentUrl: 'https://creator.example/article', amount: 0.05,
+      resolveImpl: async () => ({ success: true, wallet: PAYEE }), fetchImpl,
+    });
+    expect(out.held).toBe(false);
+    expect(calls[0].body.recipient).toBe(PAYEE);
+    expect(calls[1].body.recipient).toBe(PAYEE);
+    expect(writeContract.mock.calls[0][0].functionName).toBe('spend');
+  });
+
+  it('keeps an unresolved refundable hold on the EOA', async () => {
+    vi.stubEnv('DRNIB_SPENDER_ADDRESS', SPENDER);
+    const { writeContract } = mockChain();
+    const post = vi.fn(async (_path, body) => body.txHash
+      ? { holdStatus: 'held', tip: { type: 'tip' } }
+      : { box: PAYEE });
+    const out = await tipCreator({
+      runId: 'r1', contentUrl: 'https://unknown.example/article', amount: 0.05,
+      resolveImpl: async () => ({ success: false }), fetchImpl: post,
+    });
+    expect(out.held).toBe(true);
+    expect(writeContract.mock.calls[0][0].functionName).toBe('transfer');
+    expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a model-supplied recipient that disagrees with the verified owner', async () => {
+    mockChain();
+    await expect(tipCreator({
+      runId: 'r1', contentUrl: 'https://creator.example/article', amount: 0.05,
+      recipient: '0x1111111111111111111111111111111111111111',
+      resolveImpl: async () => ({ success: true, wallet: PAYEE }),
+    })).rejects.toThrow(/disagrees/);
   });
 });

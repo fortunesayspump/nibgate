@@ -18,10 +18,10 @@ Where the agent's money is enforceable, by whom — and what remains trust-me. M
 
 ## The spender mandate (testnet)
 
-`0x903b0606da40d99d78da9d9be6c435acacba5cf0` — the agent's operating float lives here, not in the hot EOA. The agent key can only move funds through `spend()`, bounded by the daily cap and the allowlist. A compromised agent key can spend at most the cap to allowlisted recipients: never drain, never exfiltrate elsewhere. The keeper funds, sets policy, pauses, and withdraws.
+`0x903b0606da40d99d78da9d9be6c435acacba5cf0` — the testnet direct-tip float is funded here. The contract allows its agent key to spend that float only through `spend()`, bounded by the $2 daily cap and the recipient allowlist. This does not bound USDC held separately by the agent EOA for Gateway purchases or refundable held tips. The keeper funds the mandate, sets policy, pauses, and withdraws.
 
 <Callout type="info">
-Direct transfers (tips) route through the mandate when `DRNIB_SPENDER_ADDRESS` is set — with no silent fallback to the EOA. Gateway x402 flows stay EOA-bound: a contract cannot sign EIP-3009 authorizations, so that float stays small under the software caps by procedure.
+Direct tips to verified creators route through the mandate when `DRNIB_SPENDER_ADDRESS` is set. An unallowlisted payee refuses; it never silently falls back. Unresolved held tips stay EOA-funded because the refund route requires a payer signature the current contract cannot produce. Gateway x402 flows also stay EOA-bound because the contract cannot sign EIP-3009 authorizations. These EOA funds remain governed by software caps and float discipline.
 </Callout>
 
 ## What's still trust-me

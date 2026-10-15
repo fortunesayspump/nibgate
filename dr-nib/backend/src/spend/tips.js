@@ -11,8 +11,10 @@ import { spendChain } from './chain.js';
 import { crossCheckRpc } from './guard.js';
 
 /** Route a tip transfer: mandate contract when configured, raw EOA otherwise. */
-export async function moveFunds(payee, amount) {
-  if (spenderAddress()) return spendViaContract(payee, amount);
+export async function moveFunds(payee, amount, { held = false } = {}) {
+  // Held-tip refunds require an EOA signature from the recorded payer. The
+  // current spender contract cannot sign, so keep refundable holds on the EOA.
+  if (!held && spenderAddress()) return spendViaContract(payee, amount);
   return sendUsdc(payee, amount);
 }
 
@@ -37,7 +39,7 @@ async function hub(path, body) {
  * refund until then. Same hub rails browsers use — the ledger cannot tell a
  * machine tip from a human one.
  */
-export async function tipCreator({ runId, contentUrl, amount, title, recipient, fetchImpl } = {}) {
+export async function tipCreator({ runId, contentUrl, amount, title, recipient, fetchImpl, resolveImpl } = {}) {
   if (!contentUrl || typeof contentUrl !== 'string') throw new Error('contentUrl is required');
   // A creator page, not an API endpoint: tipping an /api/ URL banks money
   // against a JSON blob instead of someone's work. Fail fast with direction.
@@ -54,11 +56,21 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
   const { balance } = await budgetState(runId);
   if (!(balance >= gate.amount)) throw new Error(`run balance $${balance.toFixed(2)} cannot cover a $${gate.amount.toFixed(2)} tip`);
   const post = fetchImpl || hub;
+  // A model-supplied recipient is not proof of ownership. Resolve the page
+  // through the hub's verified index before making a direct creator payment.
+  const resolve = resolveImpl || (async (url) => {
+    const res = await fetch(`${config.hubApiUrl}/hub/resolve?url=${encodeURIComponent(url)}`);
+    return res.ok ? res.json() : null;
+  });
+  const indexed = await resolve(contentUrl).catch(() => null);
+  const verifiedRecipient = indexed?.success && /^0x[0-9a-fA-F]{40}$/.test(indexed.wallet || '')
+    ? indexed.wallet : null;
+  if (recipient && verifiedRecipient && recipient.toLowerCase() !== verifiedRecipient.toLowerCase()) {
+    throw new Error('proposed tip recipient disagrees with the verified creator wallet');
+  }
   let challenge = null;
-  try {
-    challenge = await post('/hub/tips/challenge', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer', ...(recipient ? { recipient } : {}) });
-  } catch (e) {
-    challenge = { error: e.message };
+  if (verifiedRecipient) {
+    challenge = await post('/hub/tips/challenge', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer', recipient: verifiedRecipient });
   }
   if (challenge?.payee) {
     const chain = spendChain();
@@ -66,20 +78,20 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
     const txHash = await moveFunds(challenge.payee, gate.amount);
     const verified = await post('/hub/tips/verify', {
       contentUrl, title, amount: String(gate.amount), currency: 'USDC',
-      paymentRail: 'transfer', txHash, ...(recipient ? { recipient } : {}),
+      paymentRail: 'transfer', txHash, recipient: verifiedRecipient,
     });
     if (!verified?.success) throw new Error(verified?.error || 'hub did not verify the tip transfer');
     return { receipt: verified.receipt || verified, txHash, amount: gate.amount, payee: challenge.payee, held: false };
   }
   // No direct payee (external/unresolved creator): hold in the domain box.
-  const hold = await post('/hub/tips/hold', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer', ...(recipient ? { recipient } : {}) });
+  const hold = await post('/hub/tips/hold', { contentUrl, title, amount: String(gate.amount), currency: 'USDC', paymentRail: 'transfer' });
   const box = hold?.box;
   if (!box) throw new Error(hold?.error || 'hub returned no holding box for this tip');
   await crossCheckRpc({ chainId: spendChain().chainId, rpcUrl: spendChain().rpcUrl });
-  const txHash = await moveFunds(box, gate.amount);
+  const txHash = await moveFunds(box, gate.amount, { held: true });
   const held = await post('/hub/tips/hold', {
     contentUrl, title, amount: String(gate.amount), currency: 'USDC',
-    paymentRail: 'transfer', txHash, ...(recipient ? { recipient } : {}),
+    paymentRail: 'transfer', txHash,
   });
   if (held?.holdStatus !== 'held') throw new Error(held?.error || 'hub did not verify the held tip');
   return { receipt: held.tip || held, txHash, amount: gate.amount, payee: box, held: true };

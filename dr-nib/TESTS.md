@@ -1,5 +1,12 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-15 — testnet spender routing preparation
+
+- Inspected the deployed `NibgateSpender` at `0x903b0606da40d99d78da9d9be6c435acacba5cf0`: owner and agent match the local testnet keeper and worker keys, pause is off, the daily cap is 2 USDC, and the preexisting balance was zero. The verified Benedict creator wallet resolved to `0x6cd5fd882269812fbffcc95a7bed2d480acca939`; its hub tip challenge resolved the actual fee-wallet payee `0x6B0C5EC85768Ca69bFBB8cd6a8b35312074eD6ac`.
+- The keeper allowlisted that fee wallet (`0x53218f72c9b009c03b4fbbf16192d82347457cb3420c6b529e3fdda24c6204eb`) and funded the mandate with 1 test USDC (`0xeb04d57aec571006644e3552dae481124873cc1067d8214980408c571e16230e`). Both transactions succeeded on Arc testnet.
+- Dr. Nib now resolves creator ownership against the hub index before direct tips and rejects a model-supplied mismatching recipient. Direct tips use the mandate when configured. Unresolved held tips stay on the EOA because the refund route requires an EOA payer signature. Focused spending, guard, and executor regressions passed (23 tests). Live worker routing and a Dr. Nib run receipt still require deployment verification; these preflight transactions alone do not prove them.
+- The candidate mainnet backup RPC `https://rpc.arc-scan.org` returned Cloudflare error 1033; it was **not** configured. The independent testnet `https://rpc.solidrpc.io/public/evm/5042002` reported the correct chain ID and a block height within 2 of the primary. Mainnet backup remains open until a live, independent provider is available.
+
 ## 2026-10-15 — mainnet post-run verification and spending-guard audit
 
 - Reloaded the completed mainnet synthetic-ledger run and checked the browser receipt, cited report, activity decisions and source preview. A free follow-up about unverified vendor terms returned an answer grounded in the report, reduced the visible allowance from 10 to 9, and did not require a new deposit.

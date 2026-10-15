@@ -3,15 +3,15 @@ pragma solidity ^0.8.24;
 
 // NibgateSpender — Gate 2 for the agent's own operating float.
 //
-// The agent hot key holds no funds itself. Operating USDC lives in THIS
-// contract, and the agent key can only move it through spend(), bounded by:
+// Direct-tip operating USDC lives in THIS contract; the agent key can move
+// this balance only through spend(), bounded by:
 //   - recipient allowlist (owner-managed; empty = deny-all, fail-secure)
 //   - rolling daily cap (resets 24h after the window opens)
 //   - pause (owner halts all spending instantly)
 //
 // Owner (keeper): funds, sets agent/cap/allowlist, pauses, withdraws.
-// A compromised agent key can therefore spend at most the daily cap to
-// allowlisted recipients — never drain, never exfiltrate elsewhere.
+// A compromised agent key can spend this contract's balance only up to the
+// daily cap to allowlisted recipients. EOA-held funds are outside this bound.
 //
 // Explicit non-goals: this is NOT a session-key system and does NOT cover
 // Circle Gateway EIP-3009 flows (a contract cannot sign authorizations).

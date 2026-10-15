@@ -16,7 +16,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |
 | 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) + funding floor (≥ plan estimate) + one-shot deposits + cap aligned to deposit | contract, keeper key | keeper key compromise | ENFORCED (testnet and mainnet; funded mainnet job 1 split/refunded) |
-| 2 Spend mandate (agent wallet) | `NibgateSpender` (owner=keeper, agent=hot key, daily cap + allowlist + pause) | contract (testnet) | keeper-key compromise; unset env falls back to EOA path | PARTIAL (deployed; inert until `DRNIB_SPENDER_ADDRESS` is set + funded + allowlisted) |
+| 2 Spend mandate (direct creator tips) | `NibgateSpender` (owner=keeper, agent=hot key, daily cap + allowlist + pause) | contract (testnet) | keeper-key compromise; EOA-funded Gateway and held-tip flows are outside the mandate | PARTIAL (testnet funded + one verified creator payee allowlisted; worker routing requires `DRNIB_SPENDER_ADDRESS`) |
 | 3 Builder | — | Arc sequencer (not ours) | out of scope | NONE |
 
 Procedural boundary in force until Gate 1 lands: the agent hot wallet holds
@@ -56,17 +56,19 @@ operate an agent wallet on a CDP-supported chain, this is the template.)
 owner = keeper, agent = hot key, $2/day cap, 8/8 forge tests green.
 Deployer holds no privileges (constructor-assigned roles only).
 
-Remaining before enforcement is live is operational, not code: the keeper
-funds the contract (moving the operating float off the EOA), allowlists
-recipient addresses, and sets `DRNIB_SPENDER_ADDRESS=0x903b…` on the dr-nib
-service — `tips.js#moveFunds` already routes through `spend()` the moment that
-env is set (no silent fallback). The allowlist is fail-secure (empty =
-deny-all), so it suits a bounded recipient set; arbitrary creator tips need a
-policy decision on how recipients get allowlisted. Gateway EIP-3009 flows stay
-EOA-bound (contracts cannot sign) — direct transfers only, by design.
+The testnet contract now holds 1 test USDC and allowlists the verified
+Benedict creator fee wallet `0x6B0C5EC85768Ca69bFBB8cd6a8b35312074eD6ac`.
+`DRNIB_SPENDER_ADDRESS=0x903b…` routes verified direct tips through `spend()`;
+unallowlisted direct payees refuse without a silent EOA fallback. The
+allowlist is fail-secure, so onboarding another creator requires keeper review
+and an allowlist transaction. Unresolved held tips stay EOA-funded because
+the current refund API requires the recorded payer's EOA signature. Gateway
+EIP-3009 flows also stay EOA-bound. The hot key therefore still holds some
+float, and the contract's cap covers only its own balance.
 
 - Minimal `NibgateSpender`: owner = keeper, agent key = spender, per-day USDC cap, recipient allowlist, forge-tested like the splitter. No vendor, no 4337, deployable on Arc today.
-- Agent hot wallet becomes the contract; EOA key can only spend through it.
+- The contract bounds direct tips from its own balance; the agent EOA still
+  pays Gateway purchases and refundable held tips.
 - Accepts the residual: owner/keeper key is still trusted (same as escrow keeper).
 
 ## Bypass acceptance tests (Aomi § coverage)

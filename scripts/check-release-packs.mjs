@@ -30,8 +30,9 @@ const dependencies = {
   wagmi: '3.6.21', viem: '2.54.1', typescript: '5.9.3',
 };
 const packageOverrides = registryConsumer ? {} : {'@nibgate/sdk':dependencies['@nibgate/sdk'],'@nibgate/wallet':dependencies['@nibgate/wallet']};
-writeFileSync(join(fixture,'package.json'), JSON.stringify({name:'nibgate-release-consumer',private:true,type:'module',dependencies,pnpm:{overrides:{'@wagmi/connectors':'8.0.20',viem:'2.54.1','@coinbase/cdp-sdk':'1.51.2',...packageOverrides}}},null,2));
-const install = spawnSync(process.execPath, [(process.env.NIBGATE_TEST_PNPM_PATH || process.env.npm_execpath), 'install', '--ignore-scripts'], {cwd:fixture,stdio:'inherit'});
+writeFileSync(join(fixture,'package.json'), JSON.stringify({name:'nibgate-release-consumer',private:true,type:'module',packageManager:'pnpm@10.28.0',dependencies,pnpm:{overrides:{'@wagmi/connectors':'8.0.20',viem:'2.54.1','@coinbase/cdp-sdk':'1.51.2',...packageOverrides}}},null,2));
+const pnpmCommand = process.env.NIBGATE_TEST_PNPM_PATH || (process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm');
+const install = spawnSync(pnpmCommand, ['install', '--ignore-scripts'], {cwd:fixture,stdio:'inherit',shell:process.platform === 'win32'});
 if(install.status!==0) throw Error(`Consumer install failed: ${install.status}`);
 const require = createRequire(join(fixture,'package.json'));
 const sdkFile = require.resolve('@nibgate/sdk/package.json');

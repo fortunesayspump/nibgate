@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.30
+
+Close the AppKit sheet before requesting an embedded wallet's SIWE signature so the Google/Reown approval prompt does not stack behind the connect dialog. Companion SDK: 0.4.39.
+
 ## 0.4.29
 
 Google and other Reown embedded wallets now receive Arc's CSP-compatible Reown RPC in the active AppKit network object, including the default network. The previous custom RPC setting alone did not reach Magic's iframe provider. A repair request that the wallet leaves pending now times out, and disallowed network methods report as unsupported instead of spinning. The React hook's published TypeScript return type also includes its existing address and session helpers. Public Arc chain metadata remains canonical.

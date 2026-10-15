@@ -1,7 +1,7 @@
 # Chrome Web Store submission
 
-**Status: v1.1.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.2.0 — the next update (submission flow below).
+**Status: v1.2.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)); verified October 15, 2026.
+Repo and store are both at v1.2.0. The submission copy below is retained for future updates.
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
 
@@ -21,7 +21,7 @@ building on store approval.
 
 The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this page** action on HTTP(S) pages and links. This action opens the existing approval window and preserves verified-recipient/held-owner-claim behavior. No payment is signed from the context menu itself.
 
-## Pre-submit checklist (v1.2.0)
+## Release checklist (v1.2.0)
 
 - [x] `npm run build` clean, `dist/` contains manifest + bundles + icons/fonts
 - [x] Icons present: `icons/icon16|48|128.png` (store requires all three)
@@ -35,13 +35,13 @@ The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this p
   read or sent. No analytics, no remote code, no data sale.
 - [x] Store description + 1280×800 screenshots + promo tiles (see below).
 
-## What happens next
+## Future updates
 
 1. **Updates re-enter review** — never cancel + resubmit while pending; it rejoins the back of the queue.
 2. Use **staged rollout** (e.g. 20% → 100%) for subsequent builds
    so a bad build doesn't hit every user at once.
-3. Build v1.2.0 (`nibgate-1.2.0.zip`) and upload it as a new version of the
-   same item (review is faster for updates). This release adds **Tip this page** to the right-click menu for HTTP(S) pages and links.
+3. Build the next version and upload it as an update to the same store item.
+   Version 1.2.0 already includes **Tip this page** for HTTP(S) pages and links.
 
 ## Submission copy for 1.2.0
 

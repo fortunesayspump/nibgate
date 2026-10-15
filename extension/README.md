@@ -1,8 +1,8 @@
 # Nibgate Extension — tip any creator on the web with USDC
 
-**Status: v1.1.0 LIVE on the Chrome Web Store**
+**Status: v1.2.0 LIVE on the Chrome Web Store**
 ([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.2.0 (next update, unsubmitted). Sideload guide:
+Repo is at v1.2.0. Sideload guide:
 `docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
 
 Part of the trio: `tipping/` = protocol, `extension/` = humans, `dr-nib/` =
@@ -15,7 +15,7 @@ route.
 
 ### Install
 
-- **From the store** (once review clears): install Nibgate, pin it, done.
+- **From the store**: install Nibgate, pin it, done.
 - **Right now**: sideload — build (`cd extension && npm install && npm run build`)
   and load `dist/` unpacked at `chrome://extensions`. Same code that was
   submitted.

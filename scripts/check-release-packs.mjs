@@ -6,7 +6,10 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 const packs = join(tmpdir(), 'nibgate-release-packs');
-for (const [name, version, companion, companionVersion] of [['sdk','0.4.38','wallet','0.4.28'], ['wallet','0.4.28','sdk','0.4.38']]) {
+const sdkVersion = JSON.parse(readFileSync(new URL('../packages/nibgate/package.json', import.meta.url))).version;
+const walletVersion = JSON.parse(readFileSync(new URL('../packages/wallet/package.json', import.meta.url))).version;
+const registryConsumer = process.argv.includes('--registry');
+for (const [name, version, companion, companionVersion] of registryConsumer ? [] : [['sdk',sdkVersion,'wallet',walletVersion], ['wallet',walletVersion,'sdk',sdkVersion]]) {
   const unpack = spawnSync('tar', ['-xOf', join(packs, `nibgate-${name}-${version}.tgz`), 'package/package.json'], { encoding: 'utf8' });
   assert.equal(unpack.status, 0, unpack.stderr);
   const packed = JSON.parse(unpack.stdout);
@@ -19,10 +22,9 @@ if (process.argv.includes('--archives-only')) {
   process.exit(0);
 }
 const fixture = mkdtempSync(join(tmpdir(), 'nibgate-release-consumer-'));
-const registryConsumer = process.argv.includes('--registry');
 const dependencies = {
-  '@nibgate/sdk': registryConsumer ? '0.4.38' : `file:${join(packs,'nibgate-sdk-0.4.38.tgz').replaceAll('\\','/')}`,
-  '@nibgate/wallet': registryConsumer ? '0.4.28' : `file:${join(packs,'nibgate-wallet-0.4.28.tgz').replaceAll('\\','/')}`,
+  '@nibgate/sdk': registryConsumer ? sdkVersion : `file:${join(packs,`nibgate-sdk-${sdkVersion}.tgz`).replaceAll('\\','/')}`,
+  '@nibgate/wallet': registryConsumer ? walletVersion : `file:${join(packs,`nibgate-wallet-${walletVersion}.tgz`).replaceAll('\\','/')}`,
   '@reown/appkit': '1.8.21', '@reown/appkit-adapter-wagmi': '1.8.21',
   '@tanstack/react-query': '5.101.2', react: '19.2.4', 'react-dom': '19.2.4',
   wagmi: '3.6.21', viem: '2.54.1', typescript: '5.9.3',
@@ -36,9 +38,9 @@ const sdkFile = require.resolve('@nibgate/sdk/package.json');
 const walletFile = join(require.resolve('@nibgate/wallet'), '..', '..', 'package.json');
 const sdk = JSON.parse(readFileSync(sdkFile,'utf8'));
 const wallet = JSON.parse(readFileSync(walletFile,'utf8'));
-assert.equal(sdk.version,'0.4.38'); assert.equal(wallet.version,'0.4.28');
-assert.equal(sdk.dependencies['@nibgate/wallet'],'0.4.28');
-assert.equal(wallet.dependencies['@nibgate/sdk'],'0.4.38');
+assert.equal(sdk.version,sdkVersion); assert.equal(wallet.version,walletVersion);
+assert.equal(sdk.dependencies['@nibgate/wallet'],walletVersion);
+assert.equal(wallet.dependencies['@nibgate/sdk'],sdkVersion);
 assert.ok(!JSON.stringify({sdk,wallet}).includes('workspace:'));
 assert.equal(realpathSync(require.resolve('react')), realpathSync(createRequire(walletFile).resolve('react')));
 const browser = await import(pathToFileURL(require.resolve('@nibgate/sdk/browser')));

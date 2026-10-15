@@ -9,7 +9,7 @@ import { HUB_SESSION_UPDATED_EVENT, HUB_SESSION_CLEARED_EVENT, getSessionAddress
 
 export function useNibgateConnect(options = {}) {
   const { authBase = '', noncePath, verifyPath } = options
-  const { open } = useAppKit()
+  const { open, close } = useAppKit()
   const { open: modalOpen, connectingWallet } = useAppKitState()
   // Use AppKit's account hook (not wagmi's useAccount) so sign-in flows through
   // AppKit's own connector reconciliation — this avoids wagmi throwing
@@ -177,6 +177,10 @@ export function useNibgateConnect(options = {}) {
       if (excludeProvider) err.code = 'PROVIDER_RECONCILING'
       throw err
     }
+    // Social wallets render their signature request in a separate Reown
+    // frame. Leaving AppKit's Connect/Approve sheet open stacks two dialogs
+    // and obscures the one the user needs to act on.
+    await close()
     const revision = walletRevisionRef.current
     const assertActive = () => {
       if (!mountedRef.current) {

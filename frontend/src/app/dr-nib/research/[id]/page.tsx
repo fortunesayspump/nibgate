@@ -559,7 +559,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
       setError("");
       setStaleWarn(false);
       if (r?.status === "planned") void loadEscrow(r);
-      try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); } catch { setStaleWarn(true); }
+      try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); }
+      catch (e: any) {
+        // A planned or unfinished run has no report yet. Its expected 404 is
+        // not a lost connection and must not raise the stale-state banner.
+        if (e?.status === 404) setReport(null);
+        else setStaleWarn(true);
+      }
     } catch (e: any) {
       // A background refetch (every SSE event calls load) must never wipe a
       // loaded page: a network blip showed "Could not load run" over good

@@ -408,12 +408,17 @@ export async function generateReportLong({ brief, sections = [], getEvidence, al
  */
 export function abstractMessages({ brief, reportText } = {}) {
   const system = `${RESEARCH_SYSTEM} You write report abstracts. Return plain prose only, no headings, no citations.`;
+  const report = String(reportText || '');
+  const context = report.length <= 36_000
+    ? report
+    : `${report.slice(0, 18_000)}\n\n[Middle omitted from this prompt for length; the report is complete.]\n\n${report.slice(-18_000)}`;
   const user = `Brief: ${briefSummary(brief)}
 
 Summarize this report in an abstract of 150-200 words: what was asked, what was found, what remains open. Then, on its own final line: Keywords: k1, k2, k3.
+Do not describe a section as missing, incomplete, or truncated unless the report itself says so. An omitted middle excerpt in this prompt is only a context limit, not a defect in the report.
 
 Report:
-${String(reportText || '').slice(0, 8000)}`;
+${context}`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

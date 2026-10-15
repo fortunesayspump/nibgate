@@ -420,9 +420,13 @@ async function fetchStage(runId, run) {
   const attempted = search?.output?.attempted === true;
   if (!results.length) {
     return {
-      why: attempted
-        ? 'The providers returned no candidates, so there is nothing to read. The report will say the evidence does not cover the brief.'
-        : 'Nothing to read: no retrieval results were collected.',
+      why: supplied.length
+        ? attempted
+          ? `No external candidates were returned. Continuing with ${supplied.length} supplied source${supplied.length === 1 ? '' : 's'}; external corroboration is unavailable.`
+          : `Using ${supplied.length} supplied source${supplied.length === 1 ? '' : 's'}; no external retrieval was requested.`
+        : attempted
+          ? 'The providers returned no candidates, so there is nothing to read. The report will say the evidence does not cover the brief.'
+          : 'Nothing to read: no retrieval results were collected.',
       documents: supplied,
       pages: supplied.length,
       costUsd: 0,

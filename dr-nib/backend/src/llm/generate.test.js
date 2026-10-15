@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generateReport, generateSection } from './generate.js';
+import { abstractMessages, generateReport, generateSection } from './generate.js';
 import { reportMessages } from './prompts.js';
 import { routerModel, smartModel } from './pricing.js';
 
@@ -68,6 +68,13 @@ describe('generateSection retry', () => {
 });
 
 describe('short report reliability', () => {
+  it('gives the abstract writer the conclusion after a long body', () => {
+    const report = `## Analysis\n${'Evidence and calculations. '.repeat(450)}\n## Conclusion\nThe reconciliation is complete.`;
+    const prompt = abstractMessages({ brief: { topic: 'expenses' }, reportText: report })[1].content;
+    expect(prompt).toContain('The reconciliation is complete.');
+    expect(prompt).toContain('Do not describe a section as missing');
+  });
+
   it('retries a transient writing failure and produces a real report', async () => {
     vi.stubEnv(KEY, 'test-key');
     const fetchImpl = vi.fn()

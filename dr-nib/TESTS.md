@@ -1,5 +1,11 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-15 — mainnet browser planning and model-key repair
+
+- The signed-in mainnet browser created run `3d7ea349-1510-43d4-a2d8-2dc4fc598f62` from a synthetic small-business expense brief, answered eight contextual intake questions, and attached a synthetic CSV. The source reached `Ready` with 1,511 extracted characters in private R2 storage. The connected wallet showed 0 USDC, so the browser run was not funded or executed.
+- The first plan contained generic “angle 1/2” steps. Its saved worker stage recorded `source: fallback` and OpenRouter HTTP 401 (`User not found`). The mainnet worker had a rejected key while the API key was valid. Its Railway model key and model-selection variables were changed to reference the API service. Replanning the same run then produced ledger-specific duplicate-charge/category-total and savings/stop-rule steps. This verifies live planning after the repair, not report quality or settlement.
+- The planner now persists `plan.source`. A fallback plan is labeled in the browser and rejected by approval and escrow opening/registration routes; a user can reconfigure and replan without a deposit. The Dr. Nib MCP approval tool applies the same gate. Mainnet funded execution, onchain settlement/refund, and owner-visible report remain unverified.
+
 ## 2026-10-15 — Arc mainnet escrow deployment
 
 - Deployed stock ERC-8183 core `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` (tx `0xa3d9fa4f6dc78207826f167dd5ec7da992021af0d0215f75daf95e61ae50a914`) and `NibgateRunSplitter` `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` (tx `0xa90286744ae9386e787624f4fda3ebeacec194b16426483a87ea820178cd1272`). Independent Arc RPC receipt reads returned `success` and nonempty bytecode for both. The deployment script verified USDC, core, keeper, treasury, and 100 bps fee constructor values onchain. All seven splitter Forge tests passed before deployment.

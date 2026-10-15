@@ -126,6 +126,14 @@ describe('configuring and starting', () => {
     const run = await makeRun({ status: 'intake' });
     expect((await api().post(`/v1/runs/${run.id}/approve`)).status).toBe(409);
   });
+
+  it('refuses to approve a placeholder plan produced during a model outage', async () => {
+    const run = await makeRun({ status: 'planned', plan: { sub_questions: ['Placeholder'], estimate: 0.5, source: 'fallback' } });
+    const response = await api().post(`/v1/runs/${run.id}/approve`);
+    expect(response.status).toBe(503);
+    expect(response.body.error).toMatch(/retry the plan/i);
+    expect((await api().get(`/v1/runs/${run.id}`)).body.status).toBe('planned');
+  });
 });
 
 describe('pausing', () => {

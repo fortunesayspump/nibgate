@@ -243,6 +243,7 @@ runs.post('/:id/approve', async (req, res) => {
     const run = await ownedRun(req, res);
     if (!run) return;
     if (run.status !== 'planned') return res.status(409).json({ error: `cannot approve from ${run.status}` });
+    if (run.plan?.source === 'fallback') return res.status(503).json({ error: 'Planning is temporarily unavailable. Retry the plan before funding or approving this run.' });
     // Approving is accepting the spend: the balance must cover the plan's own
     // estimate, or the run would pause almost immediately with nothing learned.
     // A plan with no estimate has not finished planning — approving it would be
@@ -346,7 +347,7 @@ runs.patch('/:id/plan', async (req, res) => {
     });
     const updated = await db.researchRun.update({
       where: { id: run.id },
-      data: { plan: { sub_questions: cleaned, estimate, edited: true }, status: 'planned' },
+      data: { plan: { sub_questions: cleaned, estimate, edited: true, source: run.plan?.source || 'edited' }, status: 'planned' },
     });
     await recordEvent(run.id, { type: 'plan.edited', estimate, sub_questions: cleaned });
     res.json({ id: run.id, status: 'planned', plan: updated.plan });
@@ -558,9 +559,8 @@ runs.post('/:id/escrow', async (req, res) => {
     if (!isEscrowConfigured()) return res.status(501).json({ error: 'escrow is not configured on this deployment' });
     const run = await ownedRun(req, res);
     if (!run) return;
-    if (!['planning', 'planned'].includes(run.status)) {
-      return res.status(409).json({ error: `escrow opens from planning/planned, not ${run.status}` });
-    }
+    if (run.status !== 'planned') return res.status(409).json({ error: `escrow opens after planning, not ${run.status}` });
+    if (run.plan?.source === 'fallback') return res.status(503).json({ error: 'Planning is temporarily unavailable. Retry the plan before depositing.' });
     if (escrowOf(run)?.jobId) return res.status(409).json({ error: 'this run already has an escrow job' });
     // The USER's wallet sends createJob (the stock core sets client =
     // msg.sender — a relayed create would make an unfundable keeper-cliented
@@ -587,9 +587,8 @@ runs.post('/:id/escrow/register', async (req, res) => {
     if (!isEscrowConfigured()) return res.status(501).json({ error: 'escrow is not configured on this deployment' });
     const run = await ownedRun(req, res);
     if (!run) return;
-    if (!['planning', 'planned'].includes(run.status)) {
-      return res.status(409).json({ error: `escrow opens from planning/planned, not ${run.status}` });
-    }
+    if (run.status !== 'planned') return res.status(409).json({ error: `escrow opens after planning, not ${run.status}` });
+    if (run.plan?.source === 'fallback') return res.status(503).json({ error: 'Planning is temporarily unavailable. Retry the plan before registering an escrow job.' });
     if (escrowOf(run)?.jobId) return res.status(409).json({ error: 'this run already has an escrow job' });
     const jobId = String(req.body?.jobId || '').trim();
     if (!/^\d+$/.test(jobId)) return res.status(400).json({ error: 'jobId is required' });

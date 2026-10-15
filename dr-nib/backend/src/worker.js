@@ -965,8 +965,8 @@ export async function runPlan(runId) {
   const guidance = await takeGuidance(runId);
   const brief = run.brief || {};
   // The language model proposes the plan; it decides nothing about stopping or
-  // trust. When it is unavailable the deterministic fallback keeps the run
-  // honest rather than failing it.
+  // trust. An unavailable model leaves a visibly labeled placeholder that
+  // cannot be funded or approved until planning is retried.
   const planned = await stage(runId, 'plan', Number(run.metadata?.planRevision) || run.versions, async () => {
     const generated = await generatePlan({ brief, guidance });
     await recordEvent(runId, {
@@ -990,7 +990,7 @@ export async function runPlan(runId) {
   const updated=await withRunLock(runId,async tx=>{
     const current=await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
     if(current.status!=='planning')return false;
-    await tx.researchRun.update({where:{id:runId},data:{plan:{sub_questions:subQuestions,estimate},status:'planned',metadata:{...(current.metadata||{}),planningPending:false}}});
+    await tx.researchRun.update({where:{id:runId},data:{plan:{sub_questions:subQuestions,estimate,source:planned?.source || 'fallback'},status:'planned',metadata:{...(current.metadata||{}),planningPending:false}}});
     return true;
   });
   if(!updated)return;

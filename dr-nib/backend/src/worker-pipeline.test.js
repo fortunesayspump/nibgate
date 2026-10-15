@@ -37,7 +37,9 @@ it('plans without drawing research funds',async()=>{
   await db.researchRun.update({where:{id},data:{status:'planning'}});
   await runPlan(id);
   expect((await budgetState(id)).used).toBe(0);
-  expect((await db.researchRun.findUnique({where:{id}})).status).toBe('planned');
+  const planned=await db.researchRun.findUnique({where:{id}});
+  expect(planned.status).toBe('planned');
+  expect(planned.plan.source).toBe('llm');
 });
 it('builds a new free plan after configuration changes instead of replaying the old one',async()=>{
   await db.researchRun.update({where:{id},data:{status:'planning',metadata:{planningPending:true,planRevision:1}}});await runPlan(id);

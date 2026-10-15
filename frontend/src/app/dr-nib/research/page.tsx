@@ -79,6 +79,7 @@ export default function ResearchNewPage() {
   const [length, setLength] = useState("standard");
   const [lengthWords, setLengthWords] = useState(4000);
   const [estimate, setEstimate] = useState<number | null>(null);
+  const [planSource, setPlanSource] = useState<string | null>(null);
   // Editable plan steps (review screen): fetched on landing, PATCHed back
   // with live repricing. Research consensus: approving a visible, editable
   // plan beats approving blind.
@@ -475,6 +476,7 @@ export default function ResearchNewPage() {
       const res: any = await drNibApi.editPlan(project.id, next);
       setSubQuestions(Array.isArray(res?.plan?.sub_questions) ? res.plan.sub_questions.map(String) : next);
       if (Number.isFinite(Number(res?.plan?.estimate))) setEstimate(Number(res.plan.estimate));
+      setPlanSource(typeof res?.plan?.source === "string" ? res.plan.source : null);
       setEditingSq(null);
     } catch (e: any) {
       fail(e, "Plan edit failed");
@@ -505,6 +507,7 @@ export default function ResearchNewPage() {
         if (full.status === "planned" || full.status === "running" || full.status === "complete") {
           setEstimate(Number(full.plan?.estimate ?? 0.2));
           setSubQuestions(Array.isArray(full.plan?.sub_questions) ? full.plan.sub_questions.map(String) : []);
+          setPlanSource(typeof full.plan?.source === "string" ? full.plan.source : null);
           setPhase("review");
           landed = true;
           await loadEscrow(project.id);
@@ -849,6 +852,11 @@ export default function ResearchNewPage() {
       {phase === "review" && (
         <section className="mx-auto max-w-2xl py-6">
           <h2 className="nibgate-display-title text-2xl font-medium md:text-3xl">Review the plan</h2>
+          {planSource === "fallback" && (
+            <p role="alert" className="mt-4 border border-red-700 bg-red-50 p-4 text-sm text-red-900">
+              The research model was unavailable, so these are placeholder steps. No deposit can be opened or approved. Go back and plan again when the service recovers.
+            </p>
+          )}
           <div className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5 text-left">
             <p className="text-[15px] font-medium leading-7">{project?.title || topic}</p>
             <p className="mt-1 text-xs opacity-60">{project?.description}</p>
@@ -927,7 +935,7 @@ export default function ResearchNewPage() {
               </ul>
             </div>
           )}
-          {escrowConfigured === true && project && !escrowFunded && (
+          {escrowConfigured === true && project && !escrowFunded && planSource !== "fallback" && (
             <>
               <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={estimate} onFunded={() => setEscrowFunded(true)} />
               {escrowStale && (
@@ -957,8 +965,7 @@ export default function ResearchNewPage() {
             <div className="mt-4 border border-dark-gray/50 bg-white p-4 text-sm">
               <p className="text-xs font-medium uppercase tracking-wider opacity-60">Couldn&apos;t check escrow support</p>
               <p className="mt-1 leading-6">
-                Approve stays available and the backend enforces funding where it&apos;s required — but check first if
-                you meant to deposit:{" "}
+                Approve stays locked until escrow support is confirmed. Retry the check:{" "}
                 <button onClick={() => loadEscrow(project.id)} className="underline">Retry check</button>
               </p>
             </div>
@@ -972,7 +979,7 @@ export default function ResearchNewPage() {
           </p>
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project || escrowConfigured === null || (escrowConfigured === true && !escrowFunded)} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? "Starting…" : "Approve & run"}</button>
+            <button onClick={approve} disabled={busy || !project || planSource === "fallback" || escrowConfigured === null || (escrowConfigured === true && !escrowFunded)} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={planSource === "fallback" ? "Retry planning before funding" : escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? "Starting…" : "Approve & run"}</button>
           </div>
         </section>
       )}

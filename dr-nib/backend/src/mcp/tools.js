@@ -155,7 +155,7 @@ export const TOOLS = [
   },
   {
     name: 'configure_run',
-    description: 'Set depth, budget cap and report options after intake. Planning is free. User-sources-only research requires an attached readable source; funded execution begins only after approval.',
+    description: 'Set depth, budget cap and report options after intake. Planning is free. User-sources-only research requires an attached readable source; funded execution begins only after approval. A fallback plan generated while the model is unavailable cannot be escrow-funded; configure again to retry planning.',
     input: { ownerWallet: '0x…', runId: 'uuid', budgetCap: 2.5, depth: 'standard', liveWeb: true, language: 'en', perspective: 'neutral', formats: ['pdf'], length:'standard', lengthWords:1200, tipCreators:false },
     async run({ ownerWallet, runId, budgetCap, depth = 'standard', liveWeb = true, language = 'en', perspective = 'neutral', formats = ['pdf'], length = 'standard', lengthWords = null, tipCreators = false }) {
       const bad = checkWallet(ownerWallet);
@@ -190,6 +190,7 @@ export const TOOLS = [
       const { error, run } = await ownedRun(runId, ownerWallet);
       if (error) throw new Error(error);
       if (run.status !== 'planned') throw new Error(`cannot approve from ${run.status}`);
+      if (run.plan?.source === 'fallback') throw new Error('Planning is temporarily unavailable. Retry the plan before funding or approving this run.');
       if(run.settledAt || run.metadata?.escrow?.status==='Completed') throw new Error('This budget has settled. Start a new funded run.');
       const { balance, used } = await budgetState(run.id);
       const estimate = Number(run.plan?.estimate);

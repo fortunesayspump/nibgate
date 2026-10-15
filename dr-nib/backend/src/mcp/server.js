@@ -15,7 +15,7 @@ import { TOOLS } from './tools.js';
 import { timingSafeEqual } from 'node:crypto';
 
 export const MCP_SERVER_NAME = 'dr-nib';
-export const MCP_SERVER_VERSION = '0.2.4';
+export const MCP_SERVER_VERSION = '0.2.5';
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 let warnedOpen = false;

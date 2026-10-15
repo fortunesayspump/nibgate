@@ -52,7 +52,7 @@ New job parameters are withheld if the contracts are missing, the RPC is on the 
 
 | Endpoint | Does |
 |---|---|
-| `POST /v1/runs/:id/escrow` | return parameters for your wallet to open the job (planning/planned only) |
+| `POST /v1/runs/:id/escrow` | return parameters for your wallet to open the job after a model-generated plan is ready (`planned` only); unavailable-model placeholder plans cannot be funded |
 | `POST /v1/runs/:id/escrow/register` | register the wallet-created job after validating its onchain client and provider |
 | `GET /v1/runs/:id/escrow` | local record + live onchain status |
 | `POST /v1/runs/:id/escrow/complete` | keeper submit + complete with ledger spend, then relay of the split; returns the split signature and `splitTx` |

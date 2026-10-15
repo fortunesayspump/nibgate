@@ -52,13 +52,13 @@ stateDiagram-v2
 Stages are durable: state checkpoints to Postgres, the worker is stateless and survives restarts, and the event feed is replayable by `seq` — a client that disconnects at step five reconnects at step six. Pause is cooperative (checked between steps); the run outlives the HTTP request that started it.
 
 <Callout type="info">
-**JEV down ≠ model decides.** If the decision seat is unreachable, the run parks with `pauseReason: 'jev'` and the balance untouched. It resumes when the seat is back. See [How JEV decides](./jev).
+**JEV down ≠ model decides.** If the decision seat is unreachable, the run parks with `pauseReason: 'jev'` and the balance untouched. It resumes when the seat is back. See [How JEV decides](/dr-nib/jev).
 </Callout>
 
 ## The two loops
 
 1. **Intake loop** — batched questions (5 per screen, 8 total), each answer folded into a living brief. JEV owns the stop rule (`proceed` / `ask_more` / `reframe`); the 8-question cap can override with a visible `cap hit` label.
-2. **Research loop** — per round: search → fetch → score → review. The data stage adds a propose → judge → execute loop (model proposes tools, JEV decides, tools execute). Termination is enforced in code with explicit budgets and stop reasons, never requested in prompt prose. See [Agent loop](./agent-loop).
+2. **Research loop** — per round: search → fetch → score → review. The data stage adds a propose → judge → execute loop (model proposes tools, JEV decides, tools execute). Termination is enforced in code with explicit budgets and stop reasons, never requested in prompt prose. See [Agent loop](/dr-nib/agent-loop).
 
 ## Money, and where it's enforced
 
@@ -71,7 +71,7 @@ The ledger is the source of truth; contracts are the guarantee:
 | Spend mandate | onchain daily cap + recipient allowlist for direct transfers | `NibgateSpender` (Arc testnet) |
 | Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (funded lifecycle verified on Arc testnet and mainnet) |
 
-A run never overspends — it pauses at the cap and asks. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. Both public network apps require escrow; ledger-only mode is for development. See [Budgets & refunds](./budgets), [Onchain escrow](./escrow), and [Spending gates](./gates).
+A run never overspends — it pauses at the cap and asks. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. Both public network apps require escrow; ledger-only mode is for development. See [Budgets & refunds](/dr-nib/budgets), [Onchain escrow](/dr-nib/escrow), and [Spending gates](/dr-nib/gates).
 
 ## Machine parity
 

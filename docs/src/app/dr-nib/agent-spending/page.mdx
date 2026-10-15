@@ -10,7 +10,7 @@ No spending key, no spend tools: if `DRNIB_AGENT_PRIVATE_KEY` is unset, paid pat
 
 ## The wallet
 
-One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Runs never share balances — separation is per-run accounting in the [ledger](./budgets), enforced before anything signs. The standing invariant: wallet balance ≥ sum of active run caps.
+One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Runs never share balances — separation is per-run accounting in the [ledger](/dr-nib/budgets), enforced before anything signs. The standing invariant: wallet balance ≥ sum of active run caps.
 
 ## How a call gets decided
 
@@ -45,7 +45,7 @@ Free paths come first. Paid unlocks and x402 responses still face source scoring
 
 ## Onchain enforcement
 
-Software caps are promises; contracts are guarantees. Direct transfers (tips) route through the **NibgateSpender mandate** on Arc testnet (`0x903b0606da40d99d78da9d9be6c435acacba5cf0`): $2/day cap, recipient allowlist, keeper pause — enforced onchain even if the backend is fully compromised. Gateway x402 flows stay EOA-bound (a contract cannot sign authorizations) under the software caps above. Full gate map: [Spending gates](./gates).
+Software caps are promises; contracts are guarantees. Direct transfers (tips) route through the **NibgateSpender mandate** on Arc testnet (`0x903b0606da40d99d78da9d9be6c435acacba5cf0`): $2/day cap, recipient allowlist, keeper pause — enforced onchain even if the backend is fully compromised. Gateway x402 flows stay EOA-bound (a contract cannot sign authorizations) under the software caps above. Full gate map: [Spending gates](/dr-nib/gates).
 
 ## Funding it
 

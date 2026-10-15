@@ -38,6 +38,6 @@ Out of budget mid-run? On ledger runs, raise it (raise-only, always) and a pause
 
 `reconcile_run` (MCP) checks both directions: every ledger-claimed transaction must resolve to a mined Transfer, and every agent-wallet outflow — EOA and spender-mandate alike — must resolve to a ledger row. Gateway deposits (still the agent's money) are reported separately so they never read as missing.
 
-## Onchain escrow in the public preview
+## Onchain escrow in the public app
 
-The public testnet preview requires an [onchain escrow](./escrow) at review: any amount from the plan estimate up locks in a contract (one-shot, no top-ups), the working cap aligns down to what landed, and the remainder returns to your wallet when the settlement split confirms. Development-only ledger allowances do not move user funds.
+The public testnet and mainnet apps require an [onchain escrow](./escrow) at review: any amount from the plan estimate up locks in a contract (one-shot, no top-ups), the working cap aligns down to what landed, and the remainder returns to your wallet when the settlement split confirms. Development-only ledger allowances do not move user funds.

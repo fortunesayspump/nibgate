@@ -2,14 +2,14 @@ import { Callout } from 'nextra/components'
 
 # Onchain escrow
 
-For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using stock [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. Funded runs are enabled on testnet and mainnet. A complete mainnet wallet-to-report-to-refund flow and independent escrow review have not yet been recorded.
+For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using stock [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. Funded runs are enabled on testnet and mainnet. A complete mainnet wallet-to-report-to-refund flow was recorded on 15 Oct 2026; independent escrow review remains open.
 
 <Callout type="info">
 The public testnet and mainnet flows require escrow before research starts. Ledger-only mode is for development; it does not represent a payment or onchain refund.
 </Callout>
 
 <Callout type="warning">
-**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`. A browser test has completed create → fund → run → complete → split on testnet. Mainnet is configured and accepting runs, but its funded lifecycle and external review remain unverified.
+**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`. Browser runs have completed create → fund → run → complete → split on both testnet and mainnet. External review remains open.
 </Callout>
 
 ## Roles
@@ -62,6 +62,8 @@ New job parameters are withheld if the contracts are missing, the RPC is on the 
 | Network | Stock ERC-8183 core | NibgateRunSplitter (100 bps) | Funded runs |
 |---|---|---|---|
 | Arc testnet | `0x5135ae9be828be42b63f176848a7b720aedf4c58` | `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` | Enabled |
-| Arc mainnet | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` | Enabled; full live lifecycle unverified |
+| Arc mainnet | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` | Enabled; funded job 1 completed and split |
 
 USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. Full lifecycle proven onchain: $0.05 funded → $0.03 spent → 17820 operator / 180 treasury / 12000 client, atomic. Partial funding proven too: $0.20 (= estimate on a $2 cap) → approve with cap aligned down → spent $0.158 → paused at cap → second fund reverted (one-shot) → settled with $0.0399 refunded.
+
+Mainnet escrow job 1 completed from a 0.50 USDC deposit on 15 Oct 2026. Its [completion](https://explorer.arc.io/tx/0x4a65ae175a3c7565037b9ffa49c42ec6e8ac565315e938cd75f514e4933cea93) and [split](https://explorer.arc.io/tx/0x4121d0fa4700a8a3831a6249d006a8a904fdaef76e0833ac140d177cd63c9866) succeeded; the split sent 0.410249 USDC back to the client. This proves that run's funded lifecycle, not every failure or refund path.

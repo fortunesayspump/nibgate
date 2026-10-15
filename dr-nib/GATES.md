@@ -15,7 +15,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | 0.5 Verdict binding | judgement rows staple canonical `fp`; re-checked pre-execution (`verdict-void`) | backend | none in-process | ENFORCED |
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |
-| 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) + funding floor (≥ plan estimate) + one-shot deposits + cap aligned to deposit | contract, keeper key | keeper key compromise | ENFORCED (testnet) |
+| 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) + funding floor (≥ plan estimate) + one-shot deposits + cap aligned to deposit | contract, keeper key | keeper key compromise | ENFORCED (testnet and mainnet; funded mainnet job 1 split/refunded) |
 | 2 Spend mandate (agent wallet) | `NibgateSpender` (owner=keeper, agent=hot key, daily cap + allowlist + pause) | contract (testnet) | keeper-key compromise; unset env falls back to EOA path | PARTIAL (deployed; inert until `DRNIB_SPENDER_ADDRESS` is set + funded + allowlisted) |
 | 3 Builder | — | Arc sequencer (not ours) | out of scope | NONE |
 

@@ -28,7 +28,6 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: name, template: `%s · ${name}` },
     description: data?.site?.description || `${name} — a blog on nibgate.xyz. Write, publish, and earn USDC from your content.`,
     metadataBase: new URL(siteUrl),
-    alternates: { canonical: "/" },
     // Testnet builds must never be indexed (staging mirror of creator blogs).
     robots:
       (process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase() === "mainnet"
@@ -37,7 +36,6 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: name,
       description: data?.site?.description || `${name} — a blog on nibgate.xyz.`,
-      url: siteUrl,
       siteName: name,
       type: "website",
       images: [{ url: "https://nibgate.xyz/og-image", width: 1200, height: 630 }],

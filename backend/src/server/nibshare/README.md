@@ -112,6 +112,8 @@ Viewer (human or agent): open /ns/<slug> (or POST /nibshare/:slug/meta -> 402 te
 |---|---|---|---|
 | POST | `/api/uploads/content?encrypted=1` | wallet-signature session | Upload + encrypt media for a share body (images → WebP first) |
 | POST | `/nibshare` | wallet-signature session | Create a share (server encrypts body, stores ciphertext in R2) |
+| GET | `/nibshare/:slug/edit` | owner | Read editable metadata and decrypted body |
+| PUT | `/nibshare/:slug` | owner | Patch supplied fields; body edits get a fresh encrypted object |
 | GET | `/nibshare/:slug/meta` | none | Public metadata (title, summary, price, expiry, whitelist flag, view/unlock counts) — never body |
 | GET | `/nibshare/:slug/access` | none (proof/session for paid + free-invite) | Server-side body: free public open, paid x402/relay, free invite-only requires possessed whitelisted wallet |
 | POST | `/nibshare/:slug/unlock` | x402 payment (or session/proof for free tiers) | Rules check -> server returns plaintext body |

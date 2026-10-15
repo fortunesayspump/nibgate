@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiDollarSign, FiUsers, FiEye } from 'react-icons/fi';
 import MarkdownEditor from './MarkdownEditor';
@@ -12,7 +12,7 @@ import { WalletListEditor } from './WalletListEditor';
 import { nibshareApi } from '../api';
 import { ShareSuccess } from './ShareSuccess';
 import { formatUsd } from '../lib/shares';
-import type { ContentMedia, CreateShareResponse, EditSharePayload } from '../types';
+import type { ContentMedia, CreateShareResponse, EditSharePayload, UpdateSharePayload } from '../types';
 import type { MediaItem } from '../lib/content';
 import { parseContent } from '../lib/content';
 
@@ -174,11 +174,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
 
   const invitationEnabled = form.inviteOnly || form.whitelist.length > 0 || form.whitelistPrice.trim() !== "";
 
-  useEffect(() => {
-    if (defaultRecipientWallet && !form.recipientWallet) {
-      setForm((prev) => ({ ...prev, recipientWallet: defaultRecipientWallet ?? "" }));
-    }
-  }, [defaultRecipientWallet, form.recipientWallet]);
+  const recipientWallet = form.recipientWallet || defaultRecipientWallet || "";
 
   function toLocalInput(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -241,7 +237,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
     if (isPaid) {
       const n = parseFloat(form.price);
       if (!Number.isFinite(n) || n <= 0) return { ok: false, reason: "Enter a valid price in USDC" };
-      if (!form.recipientWallet) return { ok: false, reason: "Recipient wallet is required for paid posts" };
+      if (!recipientWallet) return { ok: false, reason: "Recipient wallet is required for paid posts" };
     }
     const addrRe = /^0x[a-fA-F0-9]{40}$/;
     for (const w of form.whitelist) {
@@ -336,8 +332,15 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
       whitelistPrice: form.whitelistPrice.trim() === "" ? null : form.whitelistPrice,
       publicAccess: !form.inviteOnly,
     };
+    const updatePayload: UpdateSharePayload = { ...payload };
+    if (editing && JSON.stringify(payload.content) === JSON.stringify(editing.initial.content)) {
+      delete updatePayload.content;
+    }
+    if (editing?.initial.expiresAt && expiryQuick === null && customExpiry === toLocalInput(new Date(editing.initial.expiresAt))) {
+      delete updatePayload.expiresAt;
+    }
     const save = editing
-      ? nibshareApi.update(editing.slug, payload)
+      ? nibshareApi.update(editing.slug, updatePayload)
       : nibshareApi.create(payload);
     save
       .then((res) => {
@@ -638,7 +641,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Pays to</span>
               <input
-                type="text" value={form.recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
+                type="text" value={recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
                 className="input-field font-mono flex-1 min-w-0" placeholder="0x… your wallet"
                 spellCheck={false}
               />

@@ -223,7 +223,7 @@ export async function repairArcNetwork(provider, { timeoutMs = 9000, assertActiv
     return { ...health, requestedRpcUrl: chain.rpcUrl }
   } catch (error) {
     const classified = classifyArcRpcError(error, method, { chain })
-    const manual = !['cancelled', 'pending', 'unauthorized', 'disconnected', 'changed', 'unsupported'].includes(classified.reason)
+    const manual = !['cancelled', 'pending', 'unauthorized', 'disconnected', 'changed'].includes(classified.reason)
     throw new ArcConnectionError(classified.reason, { method: classified.method, manual, chain })
   } finally { repairs.delete(provider) }
 }

@@ -13,6 +13,8 @@ export class HttpError extends Error {
   }
 }
 
+const VALID_CONTENT_TYPES = ['article', 'text', 'photo', 'video', 'music', 'document'];
+
 export async function createShare({ title, summary, coverUrl, content, price, expiresAt, whitelist, whitelistPrice, publicAccess, storageProvider, contentType, status, ownerWallet }) {
   const shareStatus = status === 'draft' ? 'draft' : 'active';
 
@@ -22,7 +24,6 @@ export async function createShare({ title, summary, coverUrl, content, price, ex
   if (title.length > 150) {
     throw new HttpError(400, 'title cannot exceed 150 characters');
   }
-  const VALID_CONTENT_TYPES = ['article', 'text', 'photo', 'video', 'music', 'document'];
   if (contentType && !VALID_CONTENT_TYPES.includes(contentType)) {
     throw new HttpError(400, `contentType must be one of: ${VALID_CONTENT_TYPES.join(', ')}`);
   }
@@ -143,6 +144,7 @@ export async function updateShare(share, patch, ownerWallet) {
   }
 
   const data = { updatedAt: new Date() };
+  let replacementRef = null;
 
   if (patch.title !== undefined) {
     if (typeof patch.title !== 'string' || !patch.title.trim()) throw new HttpError(400, 'title is required');
@@ -163,30 +165,6 @@ export async function updateShare(share, patch, ownerWallet) {
       throw new HttpError(400, `contentType must be one of: ${VALID_CONTENT_TYPES.join(', ')}`);
     }
     data.contentType = patch.contentType;
-  }
-
-  // Content is the only field with a storage+encryption side effect: re-encrypt
-  // with a fresh content key, write the new blob, then drop the old one only
-  // after the new one is safely stored (mirrors subblog's delete-after-write).
-  if (patch.content !== undefined) {
-    const plaintext = typeof patch.content === 'string' ? patch.content : JSON.stringify(patch.content);
-    const plaintextBytes = Buffer.byteLength(plaintext, 'utf8');
-    if (plaintextBytes > FREE_TIER_MAX_BYTES) {
-      throw new HttpError(400, `Content exceeds the ${FREE_TIER_MAX_BYTES} byte limit for Nibgate free tier. Use Arweave for larger content.`);
-    }
-    const contentKey = generateContentKey();
-    const enc = encryptBytes(contentKey, Buffer.from(plaintext, 'utf8'));
-    const blob = packCipherBlob(enc);
-    const r2Key = `nibshare/${share.id}/body.bin`;
-    const { storageRef, url } = await putBlob({ key: r2Key, data: blob });
-    data.storageRef = storageRef;
-    data.ciphertextUrl = url;
-    data.encryptedKey = wrapKey(shareKeySecret(), contentKey);
-    data.contentHash = contentHashFor(share.ownerWallet, storageRef, plaintext);
-    data.bodyLength = plaintextBytes;
-    if (share.storageRef && share.storageRef !== storageRef) {
-      await deleteBlob({ storageRef: share.storageRef }).catch(() => {});
-    }
   }
 
   if (patch.price !== undefined) {
@@ -230,7 +208,37 @@ export async function updateShare(share, patch, ownerWallet) {
     data.status = patch.status === 'draft' ? 'draft' : 'active';
   }
 
-  const updated = await db.nibShare.update({ where: { id: share.id }, data });
+  // Validate metadata first; a content edit writes a fresh encrypted blob so
+  // a failed database update cannot invalidate the share's existing key.
+  if (patch.content !== undefined) {
+    const plaintext = typeof patch.content === 'string' ? patch.content : JSON.stringify(patch.content);
+    const plaintextBytes = Buffer.byteLength(plaintext, 'utf8');
+    if (plaintextBytes > FREE_TIER_MAX_BYTES) {
+      throw new HttpError(400, `Content exceeds the ${FREE_TIER_MAX_BYTES} byte limit for Nibgate free tier. Use Arweave for larger content.`);
+    }
+    const contentKey = generateContentKey();
+    const enc = encryptBytes(contentKey, Buffer.from(plaintext, 'utf8'));
+    const blob = packCipherBlob(enc);
+    const r2Key = `nibshare/${share.id}/body-${crypto.randomUUID()}.bin`;
+    const { storageRef, url } = await putBlob({ key: r2Key, data: blob });
+    replacementRef = storageRef;
+    data.storageRef = storageRef;
+    data.ciphertextUrl = url;
+    data.encryptedKey = wrapKey(shareKeySecret(), contentKey);
+    data.contentHash = contentHashFor(share.ownerWallet, storageRef, plaintext);
+    data.bodyLength = plaintextBytes;
+  }
+
+  let updated;
+  try {
+    updated = await db.nibShare.update({ where: { id: share.id }, data });
+  } catch (error) {
+    if (replacementRef) await deleteBlob({ storageRef: replacementRef }).catch(() => {});
+    throw error;
+  }
+  if (replacementRef && share.storageRef && share.storageRef !== replacementRef) {
+    await deleteBlob({ storageRef: share.storageRef }).catch(() => {});
+  }
 
   // Gap #11 (ACCESS-CONTROL-DESIGN §6 row 7): flipping to invite-only or
   // removing wallets from an invite-only share cuts those paid wallets off.

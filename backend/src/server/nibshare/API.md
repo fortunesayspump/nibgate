@@ -1,6 +1,7 @@
 # Nibshare API
 
-Base URL: `https://api.nibgate.xyz` (backend); share pages at `https://nibgate.xyz/ns/<slug>`.
+Mainnet base URL: `https://api.nibgate.xyz`; share pages at `https://nibgate.xyz/ns/<slug>`.
+Testnet uses `https://testnet-api.nibgate.xyz` and `https://testnet.nibgate.xyz/ns/<slug>`.
 
 Short-link suffix `slug` is an 8-char base58 string as the share's stable id on the
 public page. The DB keeps `slug @unique` and `id` (uuid) as the internal key.
@@ -70,6 +71,16 @@ Success:
 
 Any `storageProvider` other than `nibgate` is rejected with
 `only the nibgate storage provider is supported yet`.
+
+## Editing a share
+
+`GET /nibshare/:slug/edit` returns the owner's editable fields and decrypted
+body (cookie auth). `PUT /nibshare/:slug` accepts an owner-only partial update:
+send just `{"title":"Revised title"}` to rename a share. Unspecified fields,
+including the encrypted body and expiry, stay unchanged. If `content` is sent,
+the server encrypts it to a fresh R2 object and switches the database reference
+only after the upload succeeds; a failed database update leaves the old body
+accessible. The slug and share URL remain the same.
 
 ## Uploading media
 

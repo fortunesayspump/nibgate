@@ -13,12 +13,10 @@ export const metadata: Metadata = {
   },
   description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
   metadataBase: new URL("https://docs.nibgate.xyz"),
-  alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
     title: "Nibgate Docs",
     description: "Documentation for Nibgate package, widget, site verification, content events, analytics, payments, and APIs.",
-    url: "https://docs.nibgate.xyz",
     siteName: "Nibgate Docs",
     type: "website",
     images: [{ url: "https://docs.nibgate.xyz/og-image?v=1", width: 1200, height: 630 }],

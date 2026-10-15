@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, siteOrigin } from '@/lib/api';
 import ShareClient from '@/features/nibshare/components/ShareClient';
 import ShareTip from '@/features/nibshare/components/ShareTip';
 import Footer from '@/features/nibshare/components/Footer';
@@ -7,7 +7,6 @@ import { formatLongDate } from '@/features/nibshare/lib/format';
 import type { ShareMeta } from '@/features/nibshare/types';
 import '@/styles/nibshare.css';
 
-const SITE_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || 'https://nibgate.xyz';
 const TYPE_LABELS: Record<string, string> = { article: 'Writing', photo: 'Photos', music: 'Music', video: 'Video', document: 'Docs' };
 const TYPE_ICONS: Record<string, string> = { article: '✎', photo: '▣', music: '♫', video: '▶', document: '▤' };
 
@@ -29,16 +28,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!meta || meta.status !== 'active') {
     return { title: 'Share not found', description: 'This Nibshare link is broken or has been revoked.' };
   }
+  const pageUrl = `${siteOrigin()}/ns/${slug}`;
+  const description = meta.summary || `Pay-per-view ${meta.contentType} on Nibgate.`;
   return {
     title: meta.title,
-    description: meta.summary || `Pay-per-view ${meta.contentType} on Nibgate.`,
+    description,
     robots: { index: false, follow: false },
-    alternates: { canonical: `/ns/${slug}` },
+    alternates: { canonical: pageUrl },
     openGraph: {
       title: meta.title,
-      description: meta.summary || undefined,
+      description,
       type: 'article',
-      url: `/ns/${slug}`,
+      url: pageUrl,
+      images: [meta.coverUrl || `${siteOrigin()}/og-image?v=3`],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: meta.title,
+      description,
+      images: [meta.coverUrl || `${siteOrigin()}/og-image?v=3`],
     },
     other: {
       'nibgate:title': meta.title,
@@ -74,11 +82,13 @@ export default async function SharePage({ params }: Props) {
     );
   }
 
+  // Server-only expiry snapshot; the access endpoint enforces expiry independently.
+  // eslint-disable-next-line react-hooks/purity
   const isExpired = !!meta.expiresAt && new Date(meta.expiresAt).getTime() < Date.now();
   const isPremium = Number(meta.price) > 0;
   const manifestUrl = apiUrl(`/nibshare/${slug}/manifest`);
   const accessUrl = apiUrl(`/ns/${slug}`);
-  const pageUrl = `${SITE_ORIGIN}/ns/${slug}`;
+  const pageUrl = `${siteOrigin()}/ns/${slug}`;
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -109,7 +119,7 @@ export default async function SharePage({ params }: Props) {
       data-nibgate-manifest={manifestUrl}
     >
       <link rel="alternate" type="application/json" href={manifestUrl} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <div className="wrap" style={{ maxWidth: 'var(--wrap-normal)', margin: '0 auto' }}>
         <div className="small muted font-ui" style={{ marginBottom: '0.5em' }}>
           {TYPE_ICONS[meta.contentType] || '✎'} {TYPE_LABELS[meta.contentType] || meta.contentType}

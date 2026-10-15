@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.31
+
+When a wallet cannot add Arc automatically, show manual instructions for the selected network's trusted RPC. Companion SDK: 0.4.40.
+
 ## 0.4.30
 
 Close the AppKit sheet before requesting an embedded wallet's SIWE signature so the Google/Reown approval prompt does not stack behind the connect dialog. Companion SDK: 0.4.39.

@@ -158,7 +158,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
   return (
     <>
       <Header />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(post, origin)) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd(post, origin)).replace(/</g, '\\u003c') }} />
       <article data-nibgate-resource data-nibgate-id={post.id} data-nibgate-title={post.title} data-nibgate-type={post.type} data-nibgate-price={post.price || ""} data-nibgate-path={resourcePath} data-nibgate-image={post.coverUrl || ""} data-nibgate-access={accessUrl} data-nibgate-manifest={manifestUrl}>
         <link rel="alternate" type="application/json" href={manifestUrl} />
         <div className="wrap" style={{ maxWidth: "var(--wrap-post)", margin: "0 auto" }}>

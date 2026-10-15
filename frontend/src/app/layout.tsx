@@ -5,15 +5,17 @@ import NavigationProgress from "@/components/NavigationProgress";
 import TestnetBanner from "@/components/TestnetBanner";
 import CookieConsent from "@/components/CookieConsent";
 import ThemeBootstrap from "@/components/ThemeBootstrap";
+import { siteOrigin } from "@/lib/api";
 import { Providers } from "./providers";
 import "../styles/styles.css";
+
+const origin = siteOrigin();
 
 export const metadata: Metadata = {
   title: "Nibgate - verified content discovery",
   description:
     "Nibgate helps creators publish wallet-unlocked content from their own websites, get tipped on any page, and make quality content discoverable to humans and AI agents — paid in USDC on Arc mainnet.",
-  metadataBase: new URL("https://nibgate.xyz"),
-  alternates: { canonical: "/" },
+  metadataBase: new URL(origin),
   // Testnet builds must never be indexed (staging mirror of the main site).
   robots:
     (process.env.NEXT_PUBLIC_NIBGATE_NETWORK || "testnet").toLowerCase() === "mainnet"
@@ -23,17 +25,16 @@ export const metadata: Metadata = {
     title: "Nibgate - verified content discovery",
     description:
       "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
-    url: "https://nibgate.xyz",
     siteName: "Nibgate",
     type: "website",
-    images: [{ url: "https://nibgate.xyz/og-image?v=3", width: 1200, height: 630 }],
+    images: [{ url: `${origin}/og-image?v=3`, width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Nibgate - verified content discovery",
     description:
       "Nibgate helps creators publish wallet-unlocked content from their own websites, verify source ownership, and make quality content discoverable to humans and AI agents.",
-    images: ["https://nibgate.xyz/og-image?v=3"],
+    images: [`${origin}/og-image?v=3`],
   },
   icons: {
     icon: [

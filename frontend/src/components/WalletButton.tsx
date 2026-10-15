@@ -221,7 +221,7 @@ export function WalletButton() {
   )
 }
 
-export function WalletButtonMobile() {
+export function WalletButtonMobile({ onConnectStart }: { onConnectStart?: () => void } = {}) {
   const { connect, signIn, busy, status, error } = useNibgateConnect()
   const { address, isConnected } = useAppKitAccount()
   const { chainId } = useAppKitNetwork()
@@ -308,8 +308,9 @@ export function WalletButtonMobile() {
           data-address={effectiveAddress || ''}
           onClick={() => {
             if (busy) return
-            if (needsSignIn) { void signIn(); return }
+            if (needsSignIn) { onConnectStart?.(); void signIn(); return }
             if (isConnectedAny && effectiveAddress) { setOpenDropdown(openDropdown === 'wallet' ? null : 'wallet'); return }
+            onConnectStart?.()
             void connect()
           }}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

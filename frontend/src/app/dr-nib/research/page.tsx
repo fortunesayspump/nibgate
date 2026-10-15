@@ -972,7 +972,7 @@ export default function ResearchNewPage() {
           )}
           <p className="mt-4 text-xs leading-5 opacity-60">
             {escrowConfigured === true
-              ? `Approving starts the run against your $${(escrowFunded ? escrowBudget : Number(budgetCap || 0)).toFixed(2)} onchain deposit — this is the spend authorization, signed when you funded. Stages draw from it; whatever isn't spent returns to your wallet at settle.`
+              ? "Approving starts the run against the amount you fund onchain. Stages draw from that deposit; whatever isn't spent returns to your wallet at settle."
               : escrowConfigured === false
                 ? "Ledger allowance path — nothing to sign, nothing to fund."
                 : "Waiting on the escrow check before approve unlocks."}

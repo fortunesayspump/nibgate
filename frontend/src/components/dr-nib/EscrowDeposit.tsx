@@ -375,7 +375,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     <div className="mt-4 border-2 border-black bg-white p-4">
       <p className="text-xs font-medium uppercase tracking-wider opacity-60">Onchain escrow</p>
       <p className="mt-1 text-sm leading-6">
-        Lock <strong>${chosen.toFixed(2)} USDC</strong> in the run&apos;s escrow (4 wallet confirmations: open job, budget, approval, deposit).
+        Lock <strong>${chosen.toFixed(2)} USDC</strong>{" "}in the run&apos;s escrow (4 wallet confirmations: open job, budget, approval, deposit).
         Stages draw from it; whatever is unspent returns to you at settle — enforced by contract, not promise.
         One-shot deposit (no top-ups): the run works against what you lock now and pauses when it runs out.
       </p>

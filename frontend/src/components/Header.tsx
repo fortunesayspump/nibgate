@@ -94,7 +94,7 @@ export default function Header() {
             </li>
           ))}
         </ul>
-        <WalletButtonMobile />
+        <WalletButtonMobile onConnectStart={() => setIsMobileMenuOpen(false)} />
       </nav>
     </header>
     </>

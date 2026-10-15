@@ -33,14 +33,14 @@
     "proxyAddress": "0xbe8e49f6b60024c95124e723c4c487874873d7f1",
     "deployedAt": "2026-09-22T23:16:35.880Z",
     "note": "Deploy with: NIBGATE_NETWORK=mainnet NIBGATE_DEPLOYER_PRIVATE_KEY=0x... node scripts/deploy-reputation.mjs",
-  "status": "DEPLOYED",
-  "governance": {
-    "timelock": "0x09209bc76fcb56ebfbaa29b96d0f7324b9ca4eea",
-    "timelockDelaySeconds": 86400,
-    "timelockGovernance": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
-    "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
-    "note": "Fee changes route timelock (24h) -> factory. Migrate to multisig when signers are ready."
-  },
+    "status": "DEPLOYED",
+    "governance": {
+      "timelock": "0x09209bc76fcb56ebfbaa29b96d0f7324b9ca4eea",
+      "timelockDelaySeconds": 86400,
+      "timelockGovernance": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+      "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+      "note": "Fee changes route timelock (24h) -> factory. Migrate to multisig when signers are ready."
+    },
     "owner": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
     "implementationAddress": "0x84545d2ca80c0e96afa0ef3d8d5a36cf959cafb6",
     "implementationTx": "0xf3ec04a77108f7842a8f7c214dc831dfbf759b66ea688f455ec7a20417d3973d",
@@ -52,5 +52,17 @@
   "implementationTx": "0xf3ec04a77108f7842a8f7c214dc831dfbf759b66ea688f455ec7a20417d3973d",
   "proxyAddress": "0xbe8e49f6b60024c95124e723c4c487874873d7f1",
   "proxyTx": "0xdbf8ccf8037615c7ff3136ce68c3d9163f21b117c82cd84933b7a8822d035361",
-  "deployedAt": "2026-09-22T23:16:35.879Z"
+  "deployedAt": "2026-09-22T23:16:35.879Z",
+  "escrow": {
+    "core": "0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037",
+    "coreTx": "0xa3d9fa4f6dc78207826f167dd5ec7da992021af0d0215f75daf95e61ae50a914",
+    "splitter": "0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3",
+    "splitterTx": "0xa90286744ae9386e787624f4fda3ebeacec194b16426483a87ea820178cd1272",
+    "keeper": "0x0Ac8d8B89ABae8f3C6DDa223f7619EE5f6885132",
+    "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "feeBps": 100,
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "deployer": "0xcFb002E077d76F89148C5416e3CFAdaBfa12E69c",
+    "deployedAt": "2026-10-15T00:22:04.018Z"
+  }
 }

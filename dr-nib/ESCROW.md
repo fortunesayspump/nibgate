@@ -3,8 +3,8 @@
 How a Dr. Nib run holds the user's money and gives it back. Design note, not
 flow — the user-facing journey lives in `FLOW.md`.
 
-**Status (audited Oct 2026): deployed on Arc testnet and wired end-to-end in
-code.** We ship *stock* ERC-8183 plus a splitter-as-provider instead of
+**Status (checked Oct 2026): deployed and configured on Arc testnet and mainnet;
+the full funded lifecycle is proven only on testnet.** We ship *stock* ERC-8183 plus a splitter-as-provider instead of
 extending a contract. The contracts are live (see Build status), the backend
 owns the job lifecycle (`backend/src/escrow/jobs.js` + `/v1/runs/:id/escrow*`
 routes), and the hub UI funds it
@@ -161,6 +161,7 @@ the exact report bytes the money paid for, retrievable from Postgres/R2.
 - [x] Stock core surveyed (`erc8183-reference`: `ACPCore`, `IACP`/`IACPHook`, hooks, evaluator guide — read-only reference)
 - [x] `NibgateRunSplitter` written + 7 forge tests green (split math, zero-spend refund, submitJob relay + keeper gate, wrong-key/overspend/double-split/uncompleted rejections)
 - [x] Deployed on Arc testnet (Oct 2026): core `0x5135ae9be828be42b63f176848a7b720aedf4c58`, splitter `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` (keeper `0x796a…`, treasury `0x558e…`, 100 bps) — recorded in `contracts/deployments/arc-testnet.json:escrow`
+- [x] Deployed and independently receipt/bytecode-verified on Arc mainnet (15 Oct 2026): core `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037`, splitter `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` (keeper `0x0Ac8…`, treasury `0x558e…`, 100 bps) — recorded in `contracts/deployments/arc-mainnet.json:escrow`. The funded API is enabled; its complete mainnet wallet lifecycle is not yet proven.
 - [x] Full lifecycle proven onchain with real testnet USDC (job 10, tx `0xcb6a…74b8`): $0.05 funded → $0.03 spent → split 17820 operator / 180 treasury / 12000 client refund, all atomic
 - [x] Backend job lifecycle: `createJob` / `jobStatus` / `submitAndComplete` / `signSplit` (`backend/src/escrow/jobs.js`) + `POST|GET /v1/runs/:id/escrow`, `POST /v1/runs/:id/escrow/complete` (`backend/src/routes/runs.js`)
 - [x] Frontend configure→approve becomes deposit (`EscrowDeposit.tsx`: `createJob` → `setBudget` → `approve` → `fund` with sequential receipts; amount selectable from the plan estimate up to the cap; approve is gated on `Funded` ≥ estimate with the working cap aligned down to the deposit)
@@ -173,7 +174,7 @@ the exact report bytes the money paid for, retrievable from Postgres/R2.
 - [ ] `reject`/refund route parity with run status (only `complete` is routed today; the reject path is contract-side stock)
 - [x] Partial-fund lifecycle proven onchain with real testnet USDC (job 17): $0.20 funded (= plan estimate on a $2 cap) → approve 200 with cap aligned to $0.20 → spent $0.158 → paused at cap → second fund reverted (one-shot) → raise/resume refused honestly → end → ledger refund $0.0399 → job Completed with split attestation
 - [ ] App-path testnet soak of the Fund *button* itself (3 wallet confirmations in-browser); the contract lifecycle and API+script path are proven, the in-browser click path is not
-- [ ] Unaudited code must not hold real money: no mainnet user funds before external review + soak
+- [ ] Independent escrow security review and sustained mainnet wallet-flow soak are still outstanding; the mainnet service is currently configured to accept funded runs.
 
 ## Reproducing the deployment
 
@@ -193,8 +194,9 @@ git -C contracts/lib/openzeppelin-contracts sparse-checkout set contracts
 
 ## Open (unchanged)
 
-- **Unaudited code must not hold real money.** Nothing here touches mainnet
-  user funds before an external review and a testnet soak.
+- **External escrow review is still outstanding.** Mainnet escrow is configured
+  and the API accepts new runs, but a funded mainnet wallet-to-report-to-refund
+  lifecycle has not yet been recorded. Treat that as an open release risk.
 - JEV-gated evaluator contract design (phase 2).
 - `expiredAt` duration policy per depth tier.
 - How the keeper handles a `complete` whose ledger attestation disagrees

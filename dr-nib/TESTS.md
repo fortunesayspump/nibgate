@@ -1,5 +1,11 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-15 — Arc mainnet escrow deployment
+
+- Deployed stock ERC-8183 core `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` (tx `0xa3d9fa4f6dc78207826f167dd5ec7da992021af0d0215f75daf95e61ae50a914`) and `NibgateRunSplitter` `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` (tx `0xa90286744ae9386e787624f4fda3ebeacec194b16426483a87ea820178cd1272`). Independent Arc RPC receipt reads returned `success` and nonempty bytecode for both. The deployment script verified USDC, core, keeper, treasury, and 100 bps fee constructor values onchain. All seven splitter Forge tests passed before deployment.
+- The mainnet keeper was topped up from the Nibgate deployer to 0.107934559 native USDC (tx `0x18eb1d1964b9639c306cb920be33617eec83972b4e2ff271a08d0a760e2cc9c1`). The mainnet API and worker were wired with the recorded core/splitter, Railway keeper-key reference, and operator `0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365`. The API's rendered key derived the contract's keeper address. Both direct `https://drnib.nibgate.xyz/health` and proxied `https://nibgate.xyz/drnib-api/health` returned `acceptingRuns: true`, `escrowReady: true`; the mainnet browser composer replaced its preview notice.
+- This proves deployment and configuration, not a mainnet user-funded lifecycle. No mainnet research deposit, report settlement, or refund has yet been performed. External escrow review, wallet-button soak, and reject/refund route parity remain open.
+
 ## 2026-10-15 — multi-round research and MCP release check
 
 - An Arc Testnet QA run for a real Nibgate business question (Arc vs Base for a creator-tip pilot) exposed two release failures. Run `b9da69c6-409d-4acd-9d2b-340e137998c3` (escrow job 32) parked after the source scorer exceeded the hub's 30-JEV-requests/minute limit. After source trust and quality checks were batched, it resumed and finished three research rounds, but the one-shot short-report model call failed. It settled without a report: $0.236549992 spent and $1.763450008 refunded from $2 test USDC. No placeholder was delivered.

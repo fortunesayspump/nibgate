@@ -69,13 +69,15 @@ The ledger is the source of truth; contracts are the guarantee:
 | Ledger | per-stage drawdown, 1% fee, raise-only caps (never past the onchain deposit), settle/refund | `dr-nib/backend/src/money.js`, `budgets` |
 | Software caps | per-call ceilings, run-balance gate, verdict binding, dual-RPC | `spend/policy.js`, `spend/guard.js` |
 | Spend mandate | onchain daily cap + recipient allowlist for direct transfers | `NibgateSpender` (Arc testnet) |
-| Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (Arc testnet) |
+| Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (configured on Arc testnet and mainnet; full mainnet funded lifecycle not yet proven) |
 
 A run never overspends — it pauses at the cap and asks. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. The public preview requires escrow; ledger-only mode is for development. See [Budgets & refunds](./budgets), [Onchain escrow](./escrow), and [Spending gates](./gates).
 
 ## Machine parity
 
 Dr. Nib is agent-facing as well as people-facing. Its MCP server exposes run tools (`answer_question`, `approve_plan`, `pause_run`, `reprompt_run`, `reconcile_run`, …) with escrow and budget gates. The MCP key grants trusted service-level authority over runs for any named wallet; it must never be embedded in a browser or handed to an untrusted agent. Production refuses MCP calls when no key is configured. Only local development permits keyless calls with a warning. The Dr. Nib server card (version 0.2.4) includes research availability; this is separate from the hub MCP registry. Paid calls use USDC from the run budget within per-call ceilings.
+
+There are **two separate MCP servers**: the published Nibgate Hub MCP at `https://api.nibgate.xyz/mcp` provides creator, content, and payment tools; the Dr. Nib research MCP is at `https://nibgate.xyz/drnib-api/mcp` (direct service: `https://drnib.nibgate.xyz/mcp`). The Dr. Nib route has a public read-only server card, but its JSON-RPC tools require the private service key. It is not the Hub server's published MCP Registry listing, and a browser user's SIWE session does not authorize its MCP tools. Testnet uses `https://testnet.nibgate.xyz/drnib-api/mcp`.
 
 ## Deliverables
 

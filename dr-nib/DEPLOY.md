@@ -139,3 +139,11 @@ a run parks at its first decision by design (it never fabricates).
 
 
 Production readiness: `/health` exposes `research.acceptingRuns`, network and escrow configuration. A production mainnet service without escrow refuses new runs and approvals; the composer offers the testnet preview. Keep at least 0.02 native USDC in the settlement keeper before accepting new deposits. Pending terminal-run settlements retry every minute (three per sweep), including jobs already completed with an unexecuted split. Receipts label refunds pending until the split is confirmed.
+
+### Arc mainnet escrow deployment gate
+
+The Hub's published MCP (`https://api.nibgate.xyz/mcp`) and Dr. Nib's service-key MCP (`https://nibgate.xyz/drnib-api/mcp`) are separate servers. Deploying escrow contracts does not by itself open mainnet research.
+
+Build and test the contracts, then run `scripts/deploy-drnib-escrow.mjs` with `DRNIB_ESCROW_DRY_RUN=1` and a prospective `DRNIB_ESCROW_KEEPER_ADDRESS` to inspect Arc chain ID, bytecode, signer, constructor values, and gas. For broadcast, run it with the existing mainnet `NIBGATE_DEPLOYER_PRIVATE_KEY` and `NIBGATE_KEEPER_PRIVATE_KEY` in the process environment. The script requires the signer to match `contracts/deployments/arc-mainnet.json`, checks gas balance with a 50% buffer, verifies both deployed contracts onchain, and records addresses and transaction hashes. Do not copy keys into the repository, terminal arguments, or chat. It refuses to redeploy an already recorded escrow.
+
+On 15 Oct 2026, the mainnet API and worker were wired with `ESCROW_CORE`, `ESCROW_SPLITTER`, `ESCROW_KEEPER_KEY` (a Railway reference to the existing mainnet Hub keeper), and `ESCROW_OPERATOR`. The keeper was topped up to more than 0.10 native USDC, and both direct and hub-proxied `/health` returned `acceptingRuns: true` and `escrowReady: true`. A complete mainnet funded lifecycle, reject/refund route parity, wallet-button soak, and external security review remain open checks; do not describe those as verified until recorded in `TESTS.md`.

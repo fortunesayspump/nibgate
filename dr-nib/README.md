@@ -7,7 +7,7 @@ generalize to any budget an agent touches.
 
 ## Current release scope
 
-Public funded research remains testnet-only. Mainnet is gated pending contract/keeper readiness and external escrow review. Source upload code supports private R2 originals and owner-only previews; storage is operational only after its configured application credentials pass a real write/read test. See `docs/src/app/dr-nib/` for supported behavior and limits, and `TESTS.md` for dated evidence. Historical FLOW/UX documents contain proposals, not shipped-feature guarantees.
+Funded research is available on Arc testnet and mainnet. The mainnet core and splitter are deployed, the keeper is funded, and the API and worker have the escrow settings; live health reports `acceptingRuns: true`. Mainnet wallet funding and research settlement still need a recorded end-to-end transaction before claiming the full flow is proven. External escrow review has not been evidenced. Source upload code supports private R2 originals and owner-only previews; storage is operational only after its configured application credentials pass a real write/read test. See `docs/src/app/dr-nib/` for supported behavior and limits, and `TESTS.md` for dated evidence. Historical FLOW/UX documents contain proposals, not shipped-feature guarantees.
 
 ## Why it exists
 
@@ -108,7 +108,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Escrow — contracts | Done (testnet) | stock ERC-8183 core + `NibgateRunSplitter`, deployed Arc testnet; job 10 lifecycle proven (`ESCROW.md`) |
 | Escrow — backend | Done | `src/escrow/jobs.js` create/status/submit+complete/signSplit; `/v1/runs/:id/escrow*`; funding floor is the plan estimate, working cap aligns down to the deposit |
 | Escrow — frontend | Done | `frontend/src/components/dr-nib/EscrowDeposit.tsx` (amount selector, min estimate, sequential receipts); mandatory where configured in `research/page.tsx`; approve gated on `Funded` ≥ estimate |
-| Escrow — env wiring | Testnet live | Funded runs 28 and 29 completed and split/refunded on deployed testnet. Mainnet funded research remains closed. See `TESTS.md`. |
+| Escrow — env wiring | Testnet and mainnet live | Funded runs 28 and 29 completed and split/refunded on deployed testnet. Mainnet API/worker are configured and health is ready; a complete mainnet user-funded run is still unverified. See `TESTS.md`. |
 | Gate 1 — wallet policy | **Pending** | no vendor deployable on Arc (CDP dead); the `NibgateSpender` onchain cap is the practical substitute (`GATES.md`) |
 | Gate 2 — spend mandate (onchain cap) | Partial (ops) | `NibgateSpender` deployed testnet `0x903b0606…` ($2/day, not paused); code already routes tips via `spend()` — remaining work is fund + allowlist + set `DRNIB_SPENDER_ADDRESS` |
 | Frontend UI | Done | `/dr-nib` research / projects / sources / help + detail; testnet preview with play money; mainnet entry directs users to that preview. Settlement receipt, coverage badge + claim×source matrix, version-pinned owner-only report links, version steer display, report Q&A, duplicate runs, feed timestamps + jump-to-latest |

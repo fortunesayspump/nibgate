@@ -14,11 +14,13 @@ Where the agent's money is enforceable, by whom — and what remains trust-me. M
 | Injected state | dual-RPC cross-check before every spend | backend, active with `DRNIB_RPC_BACKUP` | Partial |
 | Wallet policy | — | — | **Missing** (hot key in env; see below) |
 | Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) | contract + keeper | Enforced (testnet and mainnet) |
-| Spend mandate | `NibgateSpenderV2`: $2/day, open recipients, keeper pause | contract + keeper | **Deployed and funded testnet** (worker routing pending) |
+| Spend mandate | `NibgateSpenderV2`: $2/day, open recipients, keeper pause | contract + keeper | **Testnet deployed and funded; mainnet deployed, funding/routing pending** |
 
 ## The spender mandate (testnet)
 
 `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` — the testnet direct-tip float is funded here. The contract allows its agent key to spend that float only through `spend()`, bounded by the $2 daily cap. Recipients are open by default; the keeper can enable an allowlist, pause spending, change the cap, or withdraw. This does not bound USDC held separately by the agent EOA for Gateway purchases or refundable held tips.
+
+Mainnet V2 is deployed at `0xae39444c91aE8F0b8cF0642A18A521b6D312061B` with the same roles and cap. It is not yet funded or routed by the worker.
 
 <Callout type="info">
 Direct tips to hub-verified creators route through the mandate when `DRNIB_SPENDER_ADDRESS` is set; the model cannot override the verified recipient. A contract refusal never silently falls back to EOA payment. Unresolved held tips stay EOA-funded because the refund route requires a payer signature the current contract cannot produce. Gateway x402 flows also stay EOA-bound because the contract cannot sign EIP-3009 authorizations. These EOA funds remain governed by software caps and float discipline.

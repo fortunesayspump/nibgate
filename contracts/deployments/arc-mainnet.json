@@ -69,5 +69,14 @@
     "address": "0x41f626737f65F33C898d001Abe8218BE89802AD5",
     "deployTx": "0xb8b67ede569a717eeedae238575851e0e4190d3c74659a517cf39c8cc47e2478",
     "status": "superseded by open-recipient V2; unfunded and never routed"
+  },
+  "spenderV2": {
+    "address": "0xae39444c91aE8F0b8cF0642A18A521b6D312061B",
+    "deployTx": "0x644e4049541a697384928119ea232ea3abc91583a01222361b052d3e20fdf412",
+    "owner": "0x0Ac8d8B89ABae8f3C6DDa223f7619EE5f6885132",
+    "agent": "0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365",
+    "dailyCap": "2000000",
+    "restrictRecipients": false,
+    "status": "deployed, unfunded, worker routing pending"
   }
 }

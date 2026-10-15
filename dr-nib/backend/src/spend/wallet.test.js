@@ -8,7 +8,7 @@ import { createPublicClient, createWalletClient } from 'viem';
 import { spenderAddress, spendViaContract } from './wallet.js';
 import { moveFunds, tipCreator } from './tips.js';
 
-const SPENDER = '0x903b0606da40d99d78da9d9be6c435acacba5cf0';
+const SPENDER = '0x8F636a1aCb99d96746b657645E1d8F2864bff7DA';
 const PAYEE = '0xb4da5cb7f0e8dac6ec54ed0ae59c8aefb234bc27';
 
 beforeEach(() => {

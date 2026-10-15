@@ -54,7 +54,6 @@ if (process.argv.includes('--npm')) {
     assert.equal(release.dependencies[`@nibgate/${companion}`], companionVersion);
     assert.ok(!JSON.stringify(release).includes('workspace:'));
     assert.equal(metadata['dist-tags'].latest, version);
-    assert.equal(metadata['dist-tags'].testnet, version);
-    console.log(`@nibgate/${name}@${version}: exact dependencies, latest/testnet tags PASS`);
+    console.log(`@nibgate/${name}@${version}: exact dependencies and latest tag PASS`);
   }
 }

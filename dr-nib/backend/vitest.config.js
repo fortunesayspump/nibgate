@@ -11,5 +11,6 @@ export default defineConfig({
     // Tests run against a real Postgres over the network (see test/setup.js),
     // so a draw loop of forty round trips is tens of seconds, not milliseconds.
     testTimeout: 180000,
+    hookTimeout: 60000,
   },
 });

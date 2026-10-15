@@ -101,6 +101,7 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   // RPC error. This names the broken layer instead of guessing.
   type ConnDiag = { rpcOk: boolean | null; gas: string | null; usdc: string | null; syncing: boolean | null; blockNum: number | null };
   const [diag, setDiag] = useState<ConnDiag>({ rpcOk: null, gas: null, usdc: null, syncing: null, blockNum: null });
+  const [checkingWallet, setCheckingWallet] = useState(false);
   const [repairing, setRepairing] = useState(false);
   // Fingerprint captured at send-failure time: chain, pending nonce, gas
   // price, and which wallet app signed — everything the failure depends on
@@ -399,6 +400,9 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
             {diag.syncing === true && <span className="font-medium text-red-700">node syncing — broadcasts will fail until it catches up</span>}
             {diag.gas != null && <span>Gas money: {Number(diag.gas).toFixed(2)} USDC</span>}
             {diag.usdc != null && <span>Token balance: {Number(diag.usdc).toFixed(2)} USDC</span>}
+            <button onClick={async () => { setCheckingWallet(true); try { await runDiag(); } finally { setCheckingWallet(false); } }} disabled={busy || checkingWallet} className="border border-dark-gray/60 bg-white px-3 py-1 text-xs font-medium hover:bg-black hover:text-white disabled:opacity-50">
+              {checkingWallet ? "Checking…" : "Check balances"}
+            </button>
             {diag.rpcOk === false && (
               <button onClick={repairOnly} disabled={busy || repairing} className="border border-dark-gray/60 bg-white px-3 py-1 text-xs font-medium hover:bg-black hover:text-white disabled:opacity-50">
                 {repairing ? "Repairing…" : "Repair connection"}

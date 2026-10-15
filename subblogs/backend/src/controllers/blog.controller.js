@@ -2,6 +2,7 @@ const catchAsync = require('../utils/catchAsync');
 const blogService = require('../services/blog.service');
 const { requestSiteDomain } = require('../middlewares/tenant');
 const { status } = require('http-status');
+const { publicPost } = require('./public-post');
 
 function transformTags(post) {
   if (!post) return post;
@@ -19,7 +20,7 @@ const list = catchAsync(async (req, res) => {
     tag,
     type,
   });
-  res.json({ success: true, ...result, posts: result.posts.map(transformTags) });
+  res.json({ success: true, ...result, posts: result.posts.map((post) => transformTags(publicPost(post))) });
 });
 
 const getBySlug = catchAsync(async (req, res) => {
@@ -31,9 +32,9 @@ const getBySlug = catchAsync(async (req, res) => {
   const isInviteOnly = post.publicAccess === false;
   if (isPaid || isInviteOnly) {
     const { bodyMarkdown, body, videoUrl, audioUrl, audioStorageRef, audioEncryptedKey, audioContentType, contentKey, bodyStorageRef, media, whitelist, ...teaser } = post;
-    return res.json({ success: true, post: transformTags({ ...teaser, bodyMarkdown: null, body: null, videoUrl: null, audioUrl: null, audioStorageRef: null, audioEncryptedKey: null, audioContentType: null, contentKey: null, bodyStorageRef: null, media: null, whitelist: null, isLocked: true }) });
+    return res.json({ success: true, post: transformTags(publicPost({ ...teaser, isLocked: true })) });
   }
-  res.json({ success: true, post: transformTags(post) });
+  res.json({ success: true, post: transformTags(publicPost(post)) });
 });
 
 const adminList = catchAsync(async (req, res) => {
@@ -82,7 +83,7 @@ const remove = catchAsync(async (req, res) => {
 const listByTypes = catchAsync(async (req, res) => {
   const result = await blogService.listByTypes(req.siteId);
   for (const type of Object.keys(result)) {
-    if (Array.isArray(result[type])) result[type] = result[type].map(transformTags);
+    if (Array.isArray(result[type])) result[type] = result[type].map((post) => transformTags(publicPost(post)));
   }
   res.json({ success: true, ...result });
 });

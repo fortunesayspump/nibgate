@@ -1,5 +1,13 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-15 — deployed payment rails verified, autonomous paid choice still open
+
+- From the deployed Arc testnet worker, a 0.02 test USDC tip to the hub-verified Inkwell creator routed through `NibgateSpenderV2` `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`. Transfer tx `0x5e401246c94b3c10d590469111514bbf6bfa75d410426a514987e1c3d6aa10a3` and hub receipt `82a48ad7-57b4-4acf-9f3a-f02fa6ced713` identify the spender as payer.
+- From the deployed Arc mainnet worker, a 0.02 USDC tip to the hub-verified Pitchtalk creator routed through V2 `0xae39444c91aE8F0b8cF0642A18A521b6D312061B`. Transfer tx `0xa7de7c9c8ec02658e59c9f05f110bfa99acba2771b34318580655415b948ec58` and hub receipt `bebd769b-a4ab-48a7-927d-98266bc4a9a7` identify the spender as payer. These were direct tool checks, not decisions made by a funded research run.
+- The deployed mainnet agent wallet previewed the public 0.10 USDC x402 challenge for Pitchtalk's paid article `the-discipline-of-three-slides`, deposited exactly 0.10 USDC into Circle Gateway, then received HTTP 200 and the protected article body. Gateway batching did not return an immediate transaction hash. This proves the mainnet paid-content rail but not an autonomous source-selection decision or a run-ledger charge; do not replay the purchase just to obtain a hash.
+- The mainnet browser's prior Nibgate session had expired during a new research-plan attempt. A wallet sign-in challenge was visible, but the attempted signature did not restore the session before the challenge expired. No new funded autonomous paid-source run was completed in this check. Independent escrow review and human-scored report quality also remain open.
+- `pay_x402` now refuses a 402 that offers only another chain or asset before a Gateway deposit, and rechecks the chain and asset at signing. The deployed payment client is configured for Arc testnet or Arc mainnet, not Base. Six buyer-path and three existing price-preview tests passed locally using an isolated test configuration; the full suite's remote `drnib_test` schema was unavailable for setup.
+
 ## 2026-10-15 — testnet spender routing preparation
 
 - Inspected the deployed `NibgateSpender` at `0x903b0606da40d99d78da9d9be6c435acacba5cf0`: owner and agent match the local testnet keeper and worker keys, pause is off, the daily cap is 2 USDC, and the preexisting balance was zero. The verified Benedict creator wallet resolved to `0x6cd5fd882269812fbffcc95a7bed2d480acca939`; its hub tip challenge resolved the actual fee-wallet payee `0x6B0C5EC85768Ca69bFBB8cd6a8b35312074eD6ac`.

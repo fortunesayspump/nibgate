@@ -32,14 +32,22 @@ export async function previewPrice(url, fetchImpl) {
     const text = await res.text();
     if (text) bodies.push(JSON.parse(text));
   } catch {}
+  const chain = spendChain();
+  let offered = false;
   for (const body of bodies) {
     const accepts = body?.accepts || body?.payment?.accepts || [];
     for (const a of accepts) {
+      offered = true;
+      // This worker signs only for its configured Arc network and USDC.
+      // A Gateway balance does not make a Base-only challenge payable here.
+      if (String(a?.network || '').toLowerCase() !== `eip155:${chain.chainId}` ||
+          String(a?.asset || '').toLowerCase() !== chain.usdc.toLowerCase()) continue;
       const raw = a?.maxAmountRequired ?? a?.amount ?? a?.maxAmount;
       const n = Number(raw);
-      if (Number.isFinite(n) && n > 0) return { price: n > 1000 ? n / 1e6 : n, free: false, currency: a?.asset || a?.currency || 'USDC' };
+      if (Number.isFinite(n) && n > 0) return { price: n / 1e6, free: false, currency: a.asset };
     }
   }
+  if (offered) return { price: 0, free: false, unsupported: true };
   return { price: 0, free: false, unknown: true };
 }
 
@@ -51,7 +59,12 @@ function clientForCap(cap, quotedAmount) {
     rpcUrl: chain.rpcUrl,
   });
   client.onBeforePaymentCreation(async (ctx) => {
-    const raw = String(ctx?.selectedRequirements?.amount ?? '');
+    const requirement = ctx?.selectedRequirements || {};
+    if ((requirement.network && String(requirement.network).toLowerCase() !== `eip155:${chain.chainId}`) ||
+        (requirement.asset && String(requirement.asset).toLowerCase() !== chain.usdc.toLowerCase())) {
+      return { abort: true, reason: 'payment network or asset changed after preview' };
+    }
+    const raw = String(requirement.amount ?? '');
     if (!/^\d+$/.test(raw) || BigInt(raw) <= 0n) {
       return { abort: true, reason: 'payment price is missing or invalid' };
     }
@@ -107,6 +120,7 @@ export async function payX402({ runId, url, body, fetchImpl } = {}) {
   refuseSelf(url);
   const cap = Number(process.env.DRNIB_SPEND_MAX_X402 || 2);
   const preview = await previewPrice(url, fetchImpl);
+  if (preview.unsupported) throw new Error('x402 challenge does not offer USDC on this Arc network');
   if (preview.unknown) throw new Error('no readable price on this 402 — refusing to sign blind');
   const amount = await ensureExact(runId, 'x402', preview.price);
   const client = clientForCap(cap, amount);
@@ -127,6 +141,7 @@ export async function unlockContent({ runId, url, fetchImpl } = {}) {
   if (!url || !/^https:\/\//i.test(String(url))) throw new Error('unlock needs a public https URL');
   const cap = Number(process.env.DRNIB_SPEND_MAX_UNLOCK || 2);
   const preview = await previewPrice(url, fetchImpl);
+  if (preview.unsupported) throw new Error('x402 challenge does not offer USDC on this Arc network');
   if (preview.unknown) throw new Error('no readable price on this 402 — refusing to sign blind');
   const amount = await ensureExact(runId, 'unlock', preview.price);
   const client = clientForCap(cap, amount);

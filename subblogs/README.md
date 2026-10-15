@@ -169,8 +169,8 @@ Set `SENTRY_DSN` env var on Railway to enable error tracking. All errors are log
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/blog/posts` | No | List published posts |
-| GET | `/api/blog/posts/:slug` | No | Get single post (free bodies decrypted; paid returns teaser only) |
+| GET | `/api/blog/posts` | No | List published posts; paid bodies and private storage/key metadata are omitted |
+| GET | `/api/blog/posts/:slug` | No | Get single post (free bodies decrypted; paid returns teaser only; private key metadata omitted) |
 | GET | `/api/blog/admin/posts` | Yes | List all posts |
 | POST | `/api/blog/admin/posts` | Yes (author/admin) | Create post |
 | PUT | `/api/blog/admin/posts/:id` | Yes (author/admin) | Update post |

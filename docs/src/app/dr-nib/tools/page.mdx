@@ -26,7 +26,7 @@ Observations are formatted before anything reads them: short hex values gain dec
 |---|---|---|---|
 | `tip_creator` | `contentUrl` + `amount` (USD) + optional `recipient` + `title` | $1 | hub tip rail: challenge → transfer → verify, receipt + tx hash. Unresolved creators fall back to the domain holding box (claimable later). API-endpoint URLs are rejected — tip creator pages, not the APIs that listed them. |
 | `unlock_content` | `url` of the gated page | $2 | same x402 pay, shaped as evidence (body joins the scorable set) |
-| `pay_x402` | `url` + `body` (the endpoint's POST input) | $2 | any x402-gated API. Price is read off the 402 challenge — never pass an amount; no readable price means refusing to sign blind |
+| `pay_x402` | `url` + `body` (the endpoint's POST input) | $2 | an x402-gated API offering USDC on this deployment's Arc network. Price is read off the 402 challenge — never pass an amount; another-chain offer or unreadable price is refused before funding |
 | `rate_content` | `contentId` (or page `url` to resolve via the hub index) + `stars` (1–5) + `unlockRef` (the `unlock_content` payment tx — required, ratings without an unlock receipt do not count) | gas only (run dust gate $0.05) | prepare → agent-wallet `rateContent` → hub index; chain must match the spend chain |
 
 On spend tasks the loop funnels once free evidence is banked: first a nudge naming the spend tool, then turns restricted to spend-or-finish so research converges instead of polishing forever.

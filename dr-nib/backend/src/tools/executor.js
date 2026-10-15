@@ -154,7 +154,7 @@ const TOOLS = {
   },
 
   pay_x402: {
-    description: 'Pay a public x402-gated URL (max $2/call): APIs, data feeds, paid tools. Preview the 402 for free; refuse private URLs, unreadable prices, or a signing price above the previewed quote or run balance. Pass the endpoint\'s request body as `body` when it needs POST input (e.g. a search query). Returns the paid response.',
+    description: 'Pay a public x402-gated URL that offers USDC on this deployment\'s Arc network (max $2/call): APIs, data feeds, paid tools. Preview the 402 for free; refuse private URLs, other-chain offers, unreadable prices, or a signing price above the previewed quote or run balance. Pass the endpoint\'s request body as `body` when it needs POST input (e.g. a search query). Returns the paid response.',
     cost: 'onchain',
     async run(input, ctx) {
       needSpend();

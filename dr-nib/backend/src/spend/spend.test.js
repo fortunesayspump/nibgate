@@ -8,6 +8,7 @@ vi.mock('../llm/provider.js', () => ({
 import { checkAmount, isSpendConfigured, MAX_TIP_USD } from './policy.js';
 import { agentAddress } from './wallet.js';
 import { previewPrice } from './unlocks.js';
+import { spendChain } from './chain.js';
 import { reconcileRun } from './reconcile.js';
 import { generateDirectData } from '../llm/generate.js';
 import { chatJson } from '../llm/provider.js';
@@ -61,7 +62,8 @@ describe('402 price preview', () => {
   });
 
   it('reads base-unit amounts off a JSON challenge', async () => {
-    const body = JSON.stringify({ accepts: [{ maxAmountRequired: '25000', asset: 'USDC' }] });
+    const chain = spendChain();
+    const body = JSON.stringify({ accepts: [{ network: `eip155:${chain.chainId}`, maxAmountRequired: '25000', asset: chain.usdc }] });
     const out = await previewPrice('https://x.example/paid', async () => mockRes(402, { body }));
     expect(out.price).toBeCloseTo(0.025, 6);
     expect(out.free).toBe(false);

@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@circle-fin/x402-batching/client', () => ({ GatewayClient: vi.fn() }));
 vi.mock('../money.js', () => ({ budgetState: vi.fn(async () => ({ balance: 5 })) }));
+vi.mock('./chain.js', () => ({ spendChain: () => ({ chainId: 5042002, usdc: '0x3600000000000000000000000000000000000000', gatewayChain: 'arcTestnet', rpcUrl: 'https://rpc.testnet.arc.io' }) }));
 
 import { GatewayClient } from '@circle-fin/x402-batching/client';
-import { payX402 } from './unlocks.js';
+import { payX402, previewPrice } from './unlocks.js';
 
 const TEST_KEY = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
@@ -51,6 +52,17 @@ describe('payX402 buyer path', () => {
     expect(vi.mocked(GatewayClient)).not.toHaveBeenCalled();
   });
 
+  it('rejects a Base-only challenge before funding Gateway or constructing a signer', async () => {
+    const baseOnly = async () => ({
+      status: 402,
+      headers: { get: () => null },
+      text: async () => JSON.stringify({ accepts: [{ network: 'eip155:8453', asset: '0x3600000000000000000000000000000000000000', maxAmountRequired: '10000' }] }),
+    });
+    expect(await previewPrice('https://seller.example/x', baseOnly)).toMatchObject({ unsupported: true });
+    await expect(payX402({ runId: 'probe', url: 'https://seller.example/x', fetchImpl: baseOnly })).rejects.toThrow(/does not offer USDC on this Arc network/);
+    expect(vi.mocked(GatewayClient)).not.toHaveBeenCalled();
+  });
+
   it('refuses a private-network seller before constructing a signer', async () => {
     await expect(payX402({ runId: 'probe', url: 'https://127.0.0.1/private' })).rejects.toThrow(/private-address/);
     expect(vi.mocked(GatewayClient)).not.toHaveBeenCalled();
@@ -81,6 +93,8 @@ describe('payX402 buyer path', () => {
     await payX402({ runId: 'probe', url: 'https://seller.example/x', fetchImpl: challengeFetch() });
     expect(await beforePayment({ selectedRequirements: { amount: '10000' } })).toBeUndefined();
     expect(await beforePayment({ selectedRequirements: { amount: '10001' } })).toMatchObject({ abort: true });
+    expect(await beforePayment({ selectedRequirements: { amount: '10000', network: 'eip155:8453' } })).toMatchObject({ abort: true });
+    expect(await beforePayment({ selectedRequirements: { amount: '10000', asset: '0x0000000000000000000000000000000000000001' } })).toMatchObject({ abort: true });
     expect(await beforePayment({ selectedRequirements: { amount: '2000001' } })).toMatchObject({ abort: true });
     expect(await beforePayment({ selectedRequirements: {} })).toMatchObject({ abort: true });
     expect(await beforePayment({ selectedRequirements: { amount: 'not-a-price' } })).toMatchObject({ abort: true });

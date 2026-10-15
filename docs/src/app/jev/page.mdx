@@ -107,7 +107,7 @@ Only genuinely undecided rows are touched; anything with publisher tags is never
 | Variable | Where | Default | Purpose |
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | hub env (both nets) | — (required) | Model access; never bundled client-side |
-| `JEV_DECISIONS_MODEL` | hub env | `~typesafe/jev-latest` | Model override (aliases `typesafe/jev-1.13`) |
+| `JEV_DECISIONS_MODEL` | hub env | `~typesafe/jev-latest` | OpenRouter model override. The alias can change; inspect the versioned `model` in each response. An October 15, 2026 mainnet run recorded Jev 1.14. |
 | `JEV_DECISIONS_URL` | hub env | OpenRouter `/api/alpha/decisions` | Endpoint override |
 | `NIBGATE_METADATA_ENRICH` | hub env | off | Set `1` to run the background tag pass |
 | `NIBGATE_METADATA_ENRICH_INTERVAL_MS` | hub env | `3600000` | Cycle period |

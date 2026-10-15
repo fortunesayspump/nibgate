@@ -47,7 +47,7 @@ Every primitive is one POST through the hub — the model key stays on the hub, 
 }
 // -> { "success": true, "choice": "ask_more", "confidence": 0.71,
 //      "probabilities": { "proceed": 0.21, "ask_more": 0.71, "reframe": 0.08 },
-//      "model": "typesafe/jev-1.13", "usage": { … } }
+//      "model": "typesafe/jev-1.14-20261014", "usage": { … } }
 ```
 
 `classify` and `score` take `{ state, instructions }` (plus `levels` for score); `batch` takes `{ state, questions: [{ id, type, instructions, options? }] }`. All inputs are clamped before they leave the process, so a runaway prompt can't blow the request.
@@ -135,7 +135,9 @@ Criteria text is everything. The question id is **never sent to the model**, so 
 
 ## Versioning
 
-We track `~typesafe/jev-latest` (currently resolving to `jev-1.13`). The alias drifts by design; thresholds tuned against one snapshot are re-checked when the dated suffix moves. Pin `typesafe/jev-1.13` when running evals so the judge doesn't move under the measurement.
+The hub requests `~typesafe/jev-latest` through OpenRouter. A mainnet run on October 15, 2026 recorded `typesafe/jev-1.14-20261014`, so our decision path has already reached Jev 1.14. This OpenRouter alias is separate from TypeSafe's direct-API `jev-latest`, which TypeSafe says still targets 1.13 until its planned promotion. Aliases can move without a Nibgate release; we persist the response's concrete `model` on each decision. Pin `typesafe/jev-1.13` and `typesafe/jev-1.14` in side-by-side evals, then retune spend, source-trust, and stopping thresholds before pinning a production version.
+
+Jev 1.14's reported improvement is strongest for multilingual decisions. The current Dr. Nib transport sends short text states and Choice/Noul/Score questions; it does not send images, Box questions, or long-context requests to JEV. Uploaded images are handled elsewhere in the research pipeline. TypeSafe marks its image and Box features experimental, and says long context is slower and less accurate. We should test those on labeled financial statements, scanned tables, and multilingual sources before exposing them to live spend or source-trust gates. See [TypeSafe's release notes](https://typesafe.ai/blog/jev-1-14) and [model limits](https://docs.typesafe.ai/models).
 
 <Callout type="info">
 The model proposes, JEV disposes — and JEV never spends. Execution, budgets, and money movement stay in the runtime and wallet layers, each with its own gates. See [Spending gates](/dr-nib/gates) and [Agent spending](/dr-nib/agent-spending).

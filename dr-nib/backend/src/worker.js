@@ -19,6 +19,7 @@ import { runChoice, runSourceBatch } from './jev/decisions.js';
 import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
 import { isSpendConfigured } from './spend/policy.js';
+import { previewPrice } from './spend/unlocks.js';
 import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/sandbox.js';
 import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
@@ -521,11 +522,16 @@ async function dataStage(runId, run, queries) {
     orderBy: { createdAt: 'desc' },
   });
   const have = (fetchStep?.output?.documents || []).length;
-  if (have >= 3) {
+  const fetchedUrls = new Set((fetchStep?.output?.documents || []).map((d) => d.url));
+  const priorData = await db.researchStep.findMany({ where: { runId, kind: 'data', status: 'done' } });
+  const purchasedUrls = new Set(priorData.flatMap((step) => step.output?.calls || [])
+    .filter((call) => call.ok && ['pay_x402', 'unlock_content'].includes(call.tool))
+    .map((call) => call.url).filter(Boolean));
+  const namedUrls = [...new Set([...String(run.brief?.topic || '').matchAll(/https:\/\/[^\s<>"'`]+/g)]
+    .map((m) => m[0].replace(/[),.;!?]+$/, '')))]
+    .filter((url) => !fetchedUrls.has(url) && !purchasedUrls.has(url)).slice(0, 3);
+  if (have >= 3 && !namedUrls.length) {
     return { skipped: true, why: 'Retrieval already delivered enough to judge; no direct calls needed.', calls: [], documents: [] };
-  }
-  if (!isLlmConfigured()) {
-    return { skipped: true, why: 'Model unconfigured: nobody to propose direct calls.', calls: [], documents: [] };
   }
   const available = ['http_request'];
   if (sandboxConfigured()) available.push('run_code');
@@ -539,18 +545,43 @@ async function dataStage(runId, run, queries) {
   // the same propose→judge→execute contract as the standalone agent.
   const { budgetState: state } = await import('./money.js');
   const { balance } = await state(runId);
+  const previews = [];
+  const calls = [];
+  const documents = [];
+  for (const url of namedUrls) {
+    const result = await runTool(runId, 'http_request', { url }, { policy: briefPolicy(run) });
+    const output = result.output;
+    let quote = null;
+    if (result.ok && output?.status === 402) {
+      try {
+        quote = await previewPrice(url, async () => ({
+          status: output.status,
+          headers: { get: (name) => output.headers?.[name.toLowerCase()] },
+          text: async () => output.body,
+        }));
+      } catch { quote = { unknown: true }; }
+    }
+    previews.push({ url, status: output?.status ?? null, quote, error: result.error || null });
+    calls.push({ tool: 'http_request', ok: result.ok, why: 'Preview a source named in the brief before deciding whether to buy it.', error: result.error, judgement: 'free-read' });
+    if (result.ok) {
+      const doc = toDirectDocument(documents.length, { tool: 'http_request', input: { url } }, { ...output, quote });
+      if (doc) documents.push(doc);
+    }
+  }
+  if (!isLlmConfigured()) {
+    return { why: 'Named sources were previewed, but the model was unavailable for further direct calls.', calls, documents, costUsd: 0, attempted: namedUrls.length > 0 };
+  }
   const { runToolAgent } = await import('./agent/loop.js');
   const agent = await runToolAgent({
-    task: `Gather primary evidence the web search missed for: ${run.brief?.topic || 'the brief'}\nThin queries were:\n${queries.map((q) => `- ${q}`).join('\n')}`,
+    task: `Gather primary evidence the web search missed for: ${run.brief?.topic || 'the brief'}\nDirect previews of user-named URLs (free; do not repeat them): ${JSON.stringify(previews)}\nJudge whether any priced source adds enough evidence to justify its exact quoted cost; decline when free evidence suffices. Thin queries were:\n${queries.map((q) => `- ${q}`).join('\n')}`,
     tools: available,
     maxSteps: 3,
+    spendNudge: false,
     runId,
     policy: briefPolicy(run),
     balanceUsd: balance,
     onStep: step=>recordToolDecision(runId,step),
   });
-  const calls = [];
-  const documents = [];
   let costUsd = Number(agent.llmCostUsd) || 0;
   let n = 0;
   for (const s of agent.steps) {
@@ -564,6 +595,7 @@ async function dataStage(runId, run, queries) {
     // dollars via charge(), the tx hash lives here and in the tool.call event.
     calls.push({
       tool: s.proposal.tool, ok: s.result.ok, why: s.proposal.why,
+      ...(['pay_x402', 'unlock_content'].includes(s.proposal.tool) ? { url: s.proposal.input?.url } : {}),
       error: s.result.ok ? undefined : s.result.error,
       txHash: s.result.output?.txHash || undefined,
       judgement: s.judgement.decision,
@@ -581,7 +613,7 @@ async function dataStage(runId, run, queries) {
   }
   return {
     why: documents.length
-      ? 'Retrieval came back thin, so the run asked primary sources directly; every result below still faces JEV trust.'
+      ? 'The run previewed user-named sources or asked primary sources directly; every result below still faces JEV trust.'
       : 'Direct calls went out but returned nothing usable.',
     calls, documents, costUsd, attempted: true, fallback: false,
     source: 'agent-loop', steps: agent.steps.length,
@@ -593,7 +625,11 @@ async function dataStage(runId, run, queries) {
 // prompt.
 function toDirectDocument(n, call, output) {
   if (call.tool === 'http_request') {
-    const body = typeof output?.body === 'string' ? output.body : JSON.stringify(output?.body ?? '');
+    const quote = output?.quote;
+    const quoteText = output?.status === 402
+      ? `HTTP 402 payment challenge. ${quote?.unsupported ? 'The offer is on an unsupported network or asset.' : !quote || quote.unknown ? 'The price could not be read.' : `Quoted price: ${quote.price} USDC on this Arc network.`}`
+      : '';
+    const body = `${quoteText}\n${typeof output?.body === 'string' ? output.body : JSON.stringify(output?.body ?? '')}`.trim();
     if (!body.trim()) return null;
     let title = 'API response';
     try {

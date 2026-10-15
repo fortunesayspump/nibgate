@@ -6,7 +6,7 @@ Every instrument the agent can reach for, with exactly what each one needs. Requ
 
 **Reference:** `dr-nib/backend/src/tools/executor.js`, `dr-nib/backend/src/agent/loop.js` (`REQUIRED_INPUTS`), `dr-nib/backend/src/spend/`.
 
-Private input tools on Dr. Nib MCP 0.2.5: `attach_source`, `list_supplied_sources`, `read_supplied_source`. These share file limits, image OCR and storage behavior with the browser. MCP's trusted service key grants authority over any named owner wallet; see [API contracts](/dr-nib/protocol) before integrating. A fallback plan made while the research model is unavailable cannot be funded; reconfigure the run to retry planning. See also [supplied sources](/dr-nib/retrieval).
+Private input tools on Dr. Nib MCP 0.2.6: `attach_source`, `list_supplied_sources`, `read_supplied_source`. These share file limits, image OCR and storage behavior with the browser. MCP's trusted service key grants authority over any named owner wallet; see [API contracts](/dr-nib/protocol) before integrating. A fallback plan made while the research model is unavailable cannot be funded; reconfigure the run to retry planning. See also [supplied sources](/dr-nib/retrieval).
 
 ## Research tools (free or metered, policy-approved)
 
@@ -29,7 +29,7 @@ Observations are formatted before anything reads them: short hex values gain dec
 | `pay_x402` | `url` + `body` (the endpoint's POST input) | $2 | an x402-gated API offering USDC on this deployment's Arc network. Price is read off the 402 challenge — never pass an amount; another-chain offer or unreadable price is refused before funding |
 | `rate_content` | `contentId` (or page `url` to resolve via the hub index) + `stars` (1–5) + `unlockRef` (the `unlock_content` payment tx — required, ratings without an unlock receipt do not count) | gas only (run dust gate $0.05) | prepare → agent-wallet `rateContent` → hub index; chain must match the spend chain |
 
-On spend tasks the loop funnels once free evidence is banked: first a nudge naming the spend tool, then turns restricted to spend-or-finish so research converges instead of polishing forever.
+On explicit spend tasks the standalone loop funnels once free evidence is banked: first a nudge naming the spend tool, then turns restricted to spend-or-finish so it converges instead of polishing forever. Research runs that ask whether a paid source is worthwhile keep that choice open; their named URLs are previewed for free before any judged purchase.
 
 <Callout type="info">
 Direct transfers route through the [spending mandate](/dr-nib/gates) when configured, with no silent EOA fallback. Gateway x402 flows stay EOA-bound (contracts can't sign authorizations) under the caps above.

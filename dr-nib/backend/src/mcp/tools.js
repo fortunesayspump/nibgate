@@ -85,7 +85,7 @@ export const TOOLS = [
   },
   {
     name: 'create_run',
-    description: 'Open a research project for a wallet when the server card research.acceptingRuns is true: creates the brief, asks the first intake question, returns the run. Send is wallet-gated like the UI composer.',
+    description: 'Open a research project for a wallet when the server card research.acceptingRuns is true: creates the brief, asks the first intake question, returns the run. Include any specific public source URL in topic when it must be evaluated: the run previews named URLs for free before deciding whether a quoted x402 purchase adds enough evidence. Sending is wallet-gated like the UI composer.',
     input: { ownerWallet: '0x…', topic: 'what to research' },
     async run({ ownerWallet, topic }) {
       const bad = checkWallet(ownerWallet);

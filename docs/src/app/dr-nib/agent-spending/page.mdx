@@ -2,7 +2,7 @@ import { Callout } from 'nextra/components'
 
 # Agent spending
 
-When retrieval comes back thin, the run can consider primary sources, including priced ones, using money from its approved budget. The activity record should make the choice legible: what evidence the agent sought, whether it proposed another round or a paid call, how the judge ruled, what it spent, and why it stopped. This page is the full ruleset: what the agent can spend on, the ceilings, how each call is decided, and what stops it.
+When retrieval comes back thin, or the brief names a specific public URL that retrieval missed, the run can inspect primary sources, including priced ones, using money from its approved budget. A named URL gets a free HTTP preview even when other search results are plentiful. Its 402 quote joins the evidence record before the agent weighs a purchase; a quote is not evidence of the paid article's contents. The activity record should make the choice legible: what evidence the agent sought, whether it proposed another round or a paid call, how the judge ruled, what it spent, and why it stopped. This page is the full ruleset: what the agent can spend on, the ceilings, how each call is decided, and what stops it.
 
 <Callout type="info">
 No spending key, no spend tools: if `DRNIB_AGENT_PRIVATE_KEY` is unset, paid paths don't exist and the run works the free layer only.
@@ -41,7 +41,7 @@ Each verdict is stapled to the exact canonical bytes it approved and re-checked 
 
 Creator tips require the owner's explicit opt-in at Configure. They run after writing, and the executor permits only external HTTPS sources cited in the report body with trust at least 0.7. A reference-list entry alone does not qualify. The model proposes which eligible creative source deserves a tip; JEV may execute or skip it. Uploaded private documents never qualify. No qualifying source means no tip, which is a valid result.
 
-Free paths come first. Paid unlocks and x402 responses still face source scoring; paying never buys credibility. Ratings require an unlock receipt. Tool proposals, action/skip decisions, brief reasons, costs and available transaction receipts appear in the activity record. This is an audit of actions, rather than a promise to expose a model's hidden chain of thought.
+Free paths come first. An explicit source named for evaluation is previewed even if free results already cover the broader topic. A research brief that asks whether to buy is a choice, not a command to spend. Paid unlocks and x402 responses still face source scoring; paying never buys credibility. Ratings require an unlock receipt. Tool proposals, action/skip decisions, brief reasons, costs and available transaction receipts appear in the activity record. This is an audit of actions, rather than a promise to expose a model's hidden chain of thought.
 
 ## Onchain enforcement
 

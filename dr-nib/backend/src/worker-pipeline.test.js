@@ -18,6 +18,7 @@ vi.mock('./verify.js',()=>({verifyReport:async()=>({costUsd:0})}));
 vi.mock('./tools/sandbox.js',()=>({sandboxConfigured:()=>false,destroySandbox:async()=>{},destroyAllSandboxes:async()=>{}}));
 vi.mock('./tools/executor.js',()=>({runTool:vi.fn(async(_id,name)=>{
   if(name==='web_search'){await controls.search?.();return {ok:true,costUsd:0.1,output:{attempted:true,providers:[{name:'synthetic',ok:true}],results:[1,2,3].map(n=>({url:`https://primary.example/${n}`,title:`Primary record ${n}`,score:1,content:'Synthetic primary evidence: cost USD 42. '.repeat(25)}))}}}
+  if(name==='http_request') return {ok:true,costUsd:0,output:{status:402,headers:{'payment-required':Buffer.from(JSON.stringify({accepts:[5042,5042002].map(id=>({network:`eip155:${id}`,asset:'0x3600000000000000000000000000000000000000',amount:'500000'}))})).toString('base64')},body:'{}'}};
   throw new Error('Unexpected external tool '+name);
 })}));
 import {db} from './db.js';
@@ -84,6 +85,15 @@ it('completes source-only research without any external retrieval call',async()=
   expect((await db.researchRun.findUnique({where:{id}})).status).toBe('complete');
   expect((await budgetState(id)).spend).toBe(0.21);
   expect((await db.researchSource.findMany({where:{runId:id}}))[0].url).toBe('/private/synthetic');
+});
+it('previews a user-named paid URL even when search already found three free sources',async()=>{
+  const url='https://creator.example/api/writing/relevant-source';
+  await db.researchRun.update({where:{id},data:{brief:{topic:`Compare sources and decide whether ${url} is worth buying`,depth:'quick',lengthWords:600}}});
+  await runExecute(id);
+  expect(runTool.mock.calls.some(c=>c[1]==='http_request' && c[2].url===url)).toBe(true);
+  const data=await db.researchStep.findFirst({where:{runId:id,kind:'data',status:'done'}});
+  expect(data.output.documents[0].text).toContain('Quoted price: 0.5 USDC');
+  expect((await db.researchRun.findUnique({where:{id}})).status).toBe('complete');
 });
 it('resumes after a pause during writing without another report or writing charge',async()=>{
   controls.followUps=['A marginal angle JEV chose not to pursue'];

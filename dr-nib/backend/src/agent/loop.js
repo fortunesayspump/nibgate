@@ -191,7 +191,7 @@ export async function judgeToolCall({ task, proposal, history = [], spentUsd = 0
  * History entries are shaped for the next proposal: tool, literal input,
  * and outcome — a retry loop can only learn from failures it can see.
  */
-export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSteps, runId = 'tool-agent', policy = { allow: [], deny: [] }, balanceUsd = null, fetchImpl, onStep, deadlineMs = LIMITS.deadlineMs, maxSpendUsd = LIMITS.maxSpendUsd, failBudget = LIMITS.failBudget, maxTokens = LIMITS.maxTokens, planInterval = LIMITS.planInterval, fastPath = process.env.DRNIB_JUDGE_ALL !== '1' } = {}) {
+export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSteps, runId = 'tool-agent', policy = { allow: [], deny: [] }, balanceUsd = null, fetchImpl, onStep, deadlineMs = LIMITS.deadlineMs, maxSpendUsd = LIMITS.maxSpendUsd, failBudget = LIMITS.failBudget, maxTokens = LIMITS.maxTokens, planInterval = LIMITS.planInterval, fastPath = process.env.DRNIB_JUDGE_ALL !== '1', spendNudge = true } = {}) {
   if (!isLlmConfigured()) throw new Error('LLM is not configured');
   const steps = [];
   let spentUsd = 0;
@@ -280,7 +280,7 @@ export async function runToolAgent({ task, tools = null, maxSteps = LIMITS.maxSt
     const spendDone = steps.some((s) => SPEND_TOOLS.has(s.tool) && s.ok);
     let focus = focusMissing[0] || checklist?.[0] || null;
     let turnTools = tools;
-    if (spendTask && !spendDone && steps.filter((s) => s.ok).length >= 2) {
+    if (spendNudge && spendTask && !spendDone && steps.filter((s) => s.ok).length >= 2) {
       spendNudges += 1;
       focus = 'call the spend tool NOW (tip_creator / pay_x402 / unlock_content / rate_content) with the discovered URL, recipient, and amount — further researching adds nothing and the task explicitly requires spending';
       if (spendNudges >= 2) {

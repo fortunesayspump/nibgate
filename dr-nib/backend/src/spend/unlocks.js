@@ -14,6 +14,7 @@ import { checkAmount, agentKey } from './policy.js';
 import { spendChain } from './chain.js';
 import { crossCheckRpc } from './guard.js';
 import { publicFetch } from '../tools/http.js';
+import { paidEvidenceText, sanitizePaidData } from '../paid-evidence.js';
 
 /** Read the price off a 402 challenge without paying. Returns dollars (0 = free). */
 export async function previewPrice(url, fetchImpl) {
@@ -114,7 +115,7 @@ function refuseSelf(url) {
   }
 }
 
-/** Pay an x402 resource and return its content. Returns { data, txHash, amount }. */
+/** Pay an x402 resource and return its content without payment proof bytes. */
 export async function payX402({ runId, url, body, fetchImpl } = {}) {
   if (!url || !/^https:\/\//i.test(String(url))) throw new Error('pay_x402 needs a public https URL');
   refuseSelf(url);
@@ -133,7 +134,8 @@ export async function payX402({ runId, url, body, fetchImpl } = {}) {
     ...(body ? { body } : {}),
   });
   const paid = Number(out?.formattedAmount) || amount;
-  return { data: out?.data ?? null, txHash: out?.transaction || null, amount: paid, raw: out };
+  const data = sanitizePaidData(out?.data ?? null);
+  return { data, text: paidEvidenceText(data).slice(0, 8000), txHash: out?.transaction || null, amount: paid };
 }
 
 /** Unlock paid Nibgate content: same x402 pay, shaped as evidence. */
@@ -150,7 +152,6 @@ export async function unlockContent({ runId, url, fetchImpl } = {}) {
   await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
   const out = await client.pay(String(url), { headers: { 'Content-Type': 'application/json', 'x-nibgate-actor': 'agent' } });
   const paid = Number(out?.formattedAmount) || amount;
-  const body = out?.data;
-  const text = typeof body === 'string' ? body : JSON.stringify(body ?? '');
-  return { data: body ?? null, text: text.slice(0, 8000), txHash: out?.transaction || null, amount: paid };
+  const data = sanitizePaidData(out?.data ?? null);
+  return { data, text: paidEvidenceText(data).slice(0, 8000), txHash: out?.transaction || null, amount: paid };
 }

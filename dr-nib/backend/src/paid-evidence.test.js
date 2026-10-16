@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { paidEvidenceText } from './paid-evidence.js';
+import { paidEvidenceText, sanitizePaidData } from './paid-evidence.js';
 
 it('uses bought article content without forwarding payment proof into research evidence', () => {
   const text = paidEvidenceText({ content: 'Read aloud and cut ruthlessly.', payment: { paymentId: 'signed-proof' }, resource: { title: 'Edit Like a Pro' } });
@@ -12,4 +12,9 @@ it('keeps structured API facts while dropping embedded payment credentials', () 
   expect(text).toContain('42');
   expect(text).not.toContain('signed-proof');
   expect(text).not.toContain('Bearer secret');
+});
+
+it('sanitizes nested proof fields before paid output reaches the agent loop', () => {
+  const data = sanitizePaidData({ article: { content: 'Read aloud.', payment: { signature: 'proof' } }, paymentId: 'signed-proof' });
+  expect(data).toEqual({ article: { content: 'Read aloud.' } });
 });

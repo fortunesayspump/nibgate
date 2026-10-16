@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe('payX402 buyer path', () => {
   it('previews price, funds gateway, and forwards the POST body', async () => {
-    const pay = vi.fn(async () => ({ data: { results: ['r'] }, formattedAmount: '0.01', transaction: '0xabc', status: 200 }));
+    const pay = vi.fn(async () => ({ data: { results: ['r'], paymentId: 'signed-proof' }, formattedAmount: '0.01', transaction: '0xabc', status: 200 }));
     vi.mocked(GatewayClient).mockImplementation(() => ({
       onBeforePaymentCreation: vi.fn(),
       getBalances: async () => ({ gateway: { available: 1000000n }, wallet: { balance: 0n, formatted: '0' } }),
@@ -44,6 +44,9 @@ describe('payX402 buyer path', () => {
     expect(out.amount).toBe(0.01);
     expect(out.txHash).toBe('0xabc');
     expect(out.data).toEqual({ results: ['r'] });
+    expect(out.text).toContain('"r"');
+    expect(JSON.stringify(out)).not.toContain('signed-proof');
+    expect(out).not.toHaveProperty('raw');
   });
 
   it('refuses when no readable price is on the 402', async () => {

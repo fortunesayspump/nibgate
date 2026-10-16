@@ -1,0 +1,21 @@
+# Dockerfile-specific build-context allowlist. No .env, customer data or node_modules.
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!dr-nib/
+!dr-nib/backend/
+!dr-nib/backend/package.json
+!dr-nib/backend/prisma/
+!dr-nib/backend/prisma/**
+!dr-nib/backend/src/
+!dr-nib/backend/src/**
+!packages/
+!packages/internal/
+!packages/internal/package.json
+!packages/internal/src/
+!packages/internal/src/**
+!packages/wallet/
+!packages/wallet/package.json
+!packages/wallet/src/
+!packages/wallet/src/**

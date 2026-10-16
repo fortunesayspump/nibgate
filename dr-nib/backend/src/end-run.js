@@ -1,10 +1,12 @@
 import {withRunLock} from './run-lock.js';
 import {recordEvent} from './eventlog.js';
 import {settle} from './money.js';
+import {assertConventionalPath} from './privacy/guard.js';
 
 export async function endRun(runId) {
   const active=await withRunLock(runId,async tx=>{
     const run=await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    assertConventionalPath(run);
     if(['ended','complete'].includes(run.status))throw Object.assign(new Error(`run is already ${run.status}`),{status:409});
     await tx.researchRun.update({where:{id:runId},data:{status:'ended',endedAt:new Date(),pauseReason:'user',pendingQuestion:null}});
     return tx.researchStep.count({where:{runId,status:'active'}});

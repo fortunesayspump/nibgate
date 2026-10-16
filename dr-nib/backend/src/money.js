@@ -4,6 +4,7 @@ import { withRunLock } from './run-lock.js';
 import { publish } from './events.js';
 import { sumDb, toDb, toNum } from './units.js';
 import { isEscrowConfigured } from './escrow/jobs.js';
+import { assertConventionalPath } from './privacy/guard.js';
 
 // The 1% platform fee, taken as the budget draws down rather than up front —
 // the user pays for what actually got spent, and an abandoned run refunds.
@@ -40,6 +41,7 @@ export async function budgetState(runId, client = db) {
 export async function draw(runId, amount, kind = 'spend', txRef = null) {
   return withRunLock(runId, async tx => {
     const run = await tx.researchRun.findUniqueOrThrow({ where: { id: runId } });
+    assertConventionalPath(run);
     const state = await budgetState(runId, tx);
     if(txRef && await tx.budgetLedger.findFirst({where:{runId,kind,txRef}})) return {ok:true,alreadyCharged:true,fee:0,...state};
     const amountDb = toDb(amount);
@@ -69,6 +71,7 @@ export function spendable(budgetCap, used) {
 export async function raiseCap(runId, amount, txRef = null) {
   return withRunLock(runId, async tx => {
   const run = await tx.researchRun.findUniqueOrThrow({ where: { id: runId } });
+  assertConventionalPath(run);
   if(run.settledAt || ['complete','ended','failed'].includes(run.status)) return {ok:false,error:'This budget is closed. Start a new funded run.'};
   if(isEscrowConfigured() || run.metadata?.escrow?.jobId) return {ok:false,error:'Escrow deposits are one-shot. Start a fresh funded run for a larger budget.'};
   if (!(toNum(amount) > 0)) return { ok: false, error: 'amount must be > 0' };
@@ -86,6 +89,7 @@ export async function raiseCap(runId, amount, txRef = null) {
 export async function settle(runId, reason) {
   const result = await withRunLock(runId, async tx => {
     const run = await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    assertConventionalPath(run);
     const state = await budgetState(runId,tx);
     if (await tx.researchStep.count({where:{runId,status:'active'}})) return {pending:true,refunded:0,...state};
     const remainder = toDb(state.balance);

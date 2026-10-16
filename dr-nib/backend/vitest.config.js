@@ -1,10 +1,11 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
     environment: 'node',
     globalSetup: ['./test/global-setup.js'],
     setupFiles: ['./test/setup.js'],
+    exclude: [...configDefaults.exclude, '**/privacy/*.test.mjs'],
     // The routes and the worker share one Prisma client and one set of rows.
     // Running files in parallel would have them trampling each other.
     fileParallelism: false,

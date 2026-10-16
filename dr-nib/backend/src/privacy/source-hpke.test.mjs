@@ -1,0 +1,20 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {generateFixtureRecipient,sealHpkeSource,openHpkeSource,validateHpkeSourceEnvelope} from './source-hpke.js';
+const canary='HARMLESS_SYNTHETIC_PRIVATE_CANARY';
+const context={tenantId:'tenant_fixture',runId:randomUUID(),objectId:randomUUID(),revision:1,purpose:'source'};
+test('standards-based HPKE source round trip and wrong-recipient/context/tamper rejection',async()=>{
+  const recipient=await generateFixtureRecipient();
+  const other=await generateFixtureRecipient();
+  const expected={...context,recipientId:recipient.recipientId};
+  const envelope=await sealHpkeSource({recipientPublicKey:recipient.publicKey,context:expected,plaintext:new TextEncoder().encode(canary)});
+  assert.equal(envelope.version,2);
+  assert.deepEqual(validateHpkeSourceEnvelope(envelope,{tenantId:context.tenantId,runId:context.runId}),expected);
+  assert.ok(!JSON.stringify(envelope).includes(canary));
+  assert.equal(new TextDecoder().decode(await openHpkeSource({recipientPrivateKey:recipient.privateKey,expectedContext:expected,envelope})),canary);
+  await assert.rejects(openHpkeSource({recipientPrivateKey:other.privateKey,expectedContext:expected,envelope}),/SOURCE_INTEGRITY_FAILURE/);
+  await assert.rejects(openHpkeSource({recipientPrivateKey:recipient.privateKey,expectedContext:{...expected,objectId:randomUUID()},envelope}),/SOURCE_CONTEXT_MISMATCH/);
+  await assert.rejects(openHpkeSource({recipientPrivateKey:recipient.privateKey,expectedContext:expected,envelope:{...envelope,ciphertext:Buffer.alloc(32).toString('base64')}}),/SOURCE_INTEGRITY_FAILURE/);
+  await assert.rejects(sealHpkeSource({recipientPublicKey:other.publicKey,context:expected,plaintext:Buffer.from(canary)}),/SOURCE_RECIPIENT_KEY_MISMATCH/);
+});

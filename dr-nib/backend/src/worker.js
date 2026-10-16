@@ -61,7 +61,7 @@ export function estimatePlanCost({ subQuestions = [], depth = 'standard', length
 // a slow stage (long model call, big crawl) must never look dead — and the
 // heartbeat keeps it alive for as long as work is actually happening.
 export const WORKER_ID = `${os.hostname()}-${process.pid}-${Date.now().toString(36)}`;
-export const LEASE_MS = Number(process.env.DRNIB_STAGE_LEASE_MS || 15 * 60 * 1000);
+export const LEASE_MS = Number(process.env.DRNIB_STAGE_LEASE_MS || 5 * 60 * 1000);
 const HEARTBEAT_MS = Math.min(60_000, Math.max(10_000, Math.floor(LEASE_MS / 10)));
 
 // In-flight stages in this process, for graceful shutdown: SIGTERM waits for
@@ -241,18 +241,22 @@ export async function requeueOrphans({ enqueueFn = enqueue } = {}) {
   const runIds = [...new Set(orphans.map((o) => o.runId))];
   const runs = await db.researchRun.findMany({ where: { id: { in: runIds } } });
   const requeued = [];
+  let reclaimed = 0;
   for (const run of runs) {
-    await db.researchStep.updateMany({
+    const claimed = await db.researchStep.updateMany({
       where: { runId: run.id, status: 'active', leaseUntil: { lt: new Date() } },
       data: { status: 'pending', workerId: null, leaseUntil: null },
     });
+    if (!claimed.count) continue; // another recovery process won the claim
+    reclaimed += claimed.count;
     await recordEvent(run.id, { type: 'step.reclaimed', reason: 'worker lost mid-stage; replaying from the last finished step' });
     if (!REQUEUEABLE.has(run.status)) {await finishTerminalRun(run.id);continue;}
+    await db.researchRun.update({ where: { id: run.id }, data: { updatedAt: new Date() } });
     if (run.status === 'planning') await enqueueFn('run.plan', { runId: run.id });
     else await enqueueFn('run.execute', { runId: run.id });
     requeued.push(run.id);
   }
-  return { reclaimed: orphans.length, runs: requeued };
+  return { reclaimed, runs: requeued };
 }
 
 // ── Stalled-run sweep ─────────────────────────────────────────────────────────
@@ -279,12 +283,36 @@ export async function requeueStalledRuns({ enqueueFn = enqueue, olderThanMs = 12
       await park(id, 'paused', 'cap');
       continue;
     }
-    await db.researchRun.update({ where: { id }, data: { updatedAt: new Date() } });
+    const claimed = await db.researchRun.updateMany({ where: { id, status: 'running', updatedAt: { lt: cutoff } }, data: { updatedAt: new Date() } });
+    if (!claimed.count) continue;
     await recordEvent(id, { type: 'status', status: 'running', note: 'requeued: backend restarted with no stage in flight' });
     await enqueueFn('run.execute', { runId: id });
     kicked.push(id);
   }
   return { kicked };
+}
+
+let recoveryTimer = null;
+let recoveryRunning = false;
+export function startRecoverySweep({ intervalMs = 60_000 } = {}) {
+  if (recoveryTimer || process.env.VITEST) return recoveryTimer;
+  recoveryTimer = setInterval(async () => {
+    if (recoveryRunning) return;
+    recoveryRunning = true;
+    try {
+      const orphans = await requeueOrphans();
+      const stalled = await requeueStalledRuns();
+      if (orphans.reclaimed || stalled.kicked.length) {
+        console.log(`[dr-nib] recovery sweep reclaimed ${orphans.reclaimed} orphan(s), requeued ${stalled.kicked.length} stalled run(s)`);
+      }
+    } catch (err) {
+      console.error('[dr-nib] recovery sweep failed:', err?.message || err);
+    } finally {
+      recoveryRunning = false;
+    }
+  }, intervalMs);
+  recoveryTimer.unref?.();
+  return recoveryTimer;
 }
 
 // Charge the stage, or park at the cap rather than overspending. The balance
@@ -574,7 +602,7 @@ async function dataStage(runId, run, queries) {
   }
   const { runToolAgent } = await import('./agent/loop.js');
   const agent = await runToolAgent({
-    task: `Gather primary evidence the web search missed for: ${run.brief?.topic || 'the brief'}\nDirect previews of user-named URLs (free; do not repeat them): ${JSON.stringify(previews)}\nJudge whether any priced source adds enough evidence to justify its exact quoted cost; decline when free evidence suffices. Thin queries were:\n${queries.map((q) => `- ${q}`).join('\n')}`,
+    task: `Gather primary evidence the web search missed for: ${run.brief?.topic || 'the brief'}\nDirect previews of user-named URLs (free; do not repeat them): ${JSON.stringify(previews)}\nAlready purchased earlier in this run (the unlocked body is saved as evidence; never preview or pay for these URLs again): ${JSON.stringify([...purchasedUrls])}\nJudge whether any other priced source adds enough evidence to justify its exact quoted cost; decline when free evidence suffices. Thin queries were:\n${queries.map((q) => `- ${q}`).join('\n')}`,
     tools: available,
     maxSteps: 3,
     spendNudge: false,
@@ -1164,6 +1192,7 @@ if (isMainEntry) {
   await initQueue();
   const swept = await requeueOrphans();
   const stalled = await requeueStalledRuns();
+  startRecoverySweep();
   const workers = startWorkers(workerHandlers);
   console.log(`[dr-nib] worker up (${queueMode()}), reclaimed ${swept.reclaimed} orphaned step(s) across ${swept.runs.length} run(s), requeued ${stalled.kicked.length} stalled run(s)`);
 

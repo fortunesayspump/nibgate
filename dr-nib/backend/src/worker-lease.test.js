@@ -52,6 +52,17 @@ describe('orphan sweep', () => {
     expect(step.workerId).toBeNull();
   });
 
+  it('lets only one concurrent recovery process requeue an expired stage', async () => {
+    await makeRun(RUNS.running, 'running');
+    await makeStep(RUNS.running, { status: 'active', leaseUntil: PAST });
+    const enqueueFn = vi.fn().mockResolvedValue({ id: 'j1' });
+
+    const attempts = await Promise.all([requeueOrphans({ enqueueFn }), requeueOrphans({ enqueueFn })]);
+
+    expect(attempts.reduce((count, result) => count + result.reclaimed, 0)).toBe(1);
+    expect(enqueueFn).toHaveBeenCalledTimes(1);
+  });
+
   it('requeues a planning run onto the plan job', async () => {
     await makeRun(RUNS.planning, 'planning');
     await makeStep(RUNS.planning, { status: 'active', leaseUntil: PAST });

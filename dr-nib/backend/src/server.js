@@ -15,7 +15,7 @@ import { exports } from './routes/exports.js';
 import { x402 } from './routes/x402.js';
 import { mcp } from './mcp/routes.js';
 import { initQueue, queueMode } from './queue.js';
-import { requeueOrphans, requeueStalledRuns } from './worker.js';
+import { requeueOrphans, requeueStalledRuns, startRecoverySweep } from './worker.js';
 import { retryPendingSettlements } from './escrow/settle.js';
 import { researchAvailability } from './readiness.js';
 
@@ -35,6 +35,7 @@ export async function createApp() {
     return { kicked: [] };
   });
   if (stalled.kicked.length) console.log(`[dr-nib] requeued ${stalled.kicked.length} stalled run(s): ${stalled.kicked.join(', ')}`);
+  startRecoverySweep();
   const app = express();
   app.set('trust proxy', true);
   // Some x402 client libs send a doubled Content-Type on the paid retry

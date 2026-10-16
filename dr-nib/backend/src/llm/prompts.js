@@ -81,6 +81,7 @@ Write about ${targetWords} words for the entire body, excluding the separately a
 - Answer every explicit deliverable in the brief, even if the plan omitted it. For numeric document analysis, show each requested grouping separately, keep currencies separate, and explain any duplicate rows without silently removing them.
 - Every factual claim must cite its source as [n].
 - If a source was bought, state its documented acquisition price and decision, but do not state a remaining run balance, refund, or budget share based on that price. The separate settlement receipt supplies final totals.
+- A purchased body is the response the paid endpoint returned. Do not call it a preview or infer an unabridged version exists unless the response itself says so; passage length may be capped for the prompt.
 - Omit unsupported generalizations, including presumed market-wide discounts or typical vendor behavior. State the missing fact as a question to verify and name the document or observation needed; do not insert the literal label "(unsupported)" into reader-facing prose.
 - Paraphrase, never copy: no sentence may reuse more than a few consecutive words from any source passage. A verification pass measures verbatim overlap and flags copied claims.
 - If the evidence does not answer part of the brief, say so plainly in plain words — one short paragraph on what IS covered and what IS missing. No meta-labels, no process narration.

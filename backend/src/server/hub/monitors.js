@@ -14,6 +14,7 @@ let verificationMonitorStarted = false;
 let manifestSyncMonitorStarted = false;
 let manifestSweepInFlight = false;
 let reputationIndexerStarted = false;
+let reputationIndexerSweepInFlight = false;
 let dataIntegrityMonitorStarted = false;
 let reputationIndexerLastBlock = null;
 
@@ -223,6 +224,9 @@ async function indexReputationLog(log, contractAddress) {
 }
 
 async function runReputationIndexSweep() {
+  if (reputationIndexerSweepInFlight) return { ok: false, reason: 'already-in-flight' };
+  reputationIndexerSweepInFlight = true;
+  try {
   const contractAddress = String(process.env.NIBGATE_REPUTATION_CONTRACT || DEFAULT_NIBGATE_REPUTATION_CONTRACT).toLowerCase();
   if (!contractAddress) return { ok: false, reason: 'missing_contract' };
 
@@ -252,6 +256,9 @@ async function runReputationIndexSweep() {
 
   reputationIndexerLastBlock = toBlock;
   return { ok: true, indexed, fromBlock: String(fromBlock), toBlock: String(toBlock) };
+  } finally {
+    reputationIndexerSweepInFlight = false;
+  }
 }
 
 export function startReputationIndexer() {

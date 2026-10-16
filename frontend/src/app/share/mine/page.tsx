@@ -64,7 +64,10 @@ export default function ShareMinePage() {
           setLoading(false);
         }
       } catch {
-        if (!cancelled) setSession('guest');
+        if (!cancelled) {
+          setSession('guest');
+          setLoading(false);
+        }
       }
     }
     void check();

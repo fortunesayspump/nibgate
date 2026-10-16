@@ -34,7 +34,7 @@ async function request<T = unknown>(path: string, options: RequestInit = {}): Pr
 }
 
 export const nibshareApi = {
-  me: () => request<MeResponse>("/auth/me", { credentials: "include" }),
+  me: () => request<MeResponse>("/auth/me", { credentials: "include", signal: AbortSignal.timeout(10000) }),
   logout: () => request("/auth/logout", { method: "POST", credentials: "include" }),
   authNonce: () => request<AuthNonceResponse>("/auth/nonce", { credentials: "include" }),
   authVerify: (body: { message: string; signature: `0x${string}` }) =>

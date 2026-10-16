@@ -33,4 +33,16 @@ describe('SearXNG wake-up response', () => {
     await expect(searxngSearch({ query: 'example' }, { fetchImpl })).resolves.toMatchObject({ results: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps retrying transient wake failures until the service responds', async () => {
+    vi.stubEnv('SEARXNG_URL', 'http://search.test');
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce({ ok: false, status: 502 })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [] }) });
+
+    await expect(searxngSearch({ query: 'example' }, { fetchImpl })).resolves.toMatchObject({ results: [] });
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
 });

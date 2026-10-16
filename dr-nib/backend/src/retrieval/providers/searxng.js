@@ -5,6 +5,7 @@
 // Absent URL, this provider simply does not exist — nothing configured,
 // nothing called.
 const TIMEOUT_MS = 10000;
+const WAKE_RETRY_DELAYS_MS = [250, 500, 1000, 1500, 2000];
 
 export function searxngUrl() {
   return process.env.SEARXNG_URL || '';
@@ -27,22 +28,24 @@ export async function searxngSearch({ query, maxResults = 8 } = {}, { fetchImpl 
   let data;
   try {
     const fetchFn = fetchImpl || fetch;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt <= WAKE_RETRY_DELAYS_MS.length; attempt++) {
       let res;
       try {
         res = await fetchFn(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
       } catch (err) {
         // Railway may drop the first connection while waking a sleeping service.
-        // Both attempts share the existing ten-second deadline.
-        if (attempt === 0 && !controller.signal.aborted && err instanceof TypeError) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+        // Retries share the existing ten-second deadline.
+        if (attempt < WAKE_RETRY_DELAYS_MS.length && !controller.signal.aborted && err instanceof TypeError) {
+          await new Promise((resolve) => setTimeout(resolve, WAKE_RETRY_DELAYS_MS[attempt]));
+          if (controller.signal.aborted) throw controller.signal.reason;
           continue;
         }
         throw err;
       }
       if (!res.ok) {
-        if (attempt === 0 && !controller.signal.aborted && [502, 503, 504].includes(res.status)) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+        if (attempt < WAKE_RETRY_DELAYS_MS.length && !controller.signal.aborted && [502, 503, 504].includes(res.status)) {
+          await new Promise((resolve) => setTimeout(resolve, WAKE_RETRY_DELAYS_MS[attempt]));
+          if (controller.signal.aborted) throw controller.signal.reason;
           continue;
         }
         throw new Error(`searxng HTTP ${res.status}`);

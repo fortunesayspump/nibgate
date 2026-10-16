@@ -719,19 +719,6 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   const gatewayMinter = options.gatewayMinter || serverEnv('NIBGATE_GATEWAY_MINTER') || (mainnet ? ARC_MAINNET_GATEWAY_MINTER : ARC_GATEWAY_MINTER);
   const minFee = BigInt(options.gatewayFeeFloor ?? 4_000); // buffer above the 0.0035 testnet floor
 
-  const publicClient = options.publicClient || sharedPublicClient(rpcUrl);
-  const walletClient = options.walletClient || createWalletClient({ transport: rpcTransport(rpcUrl) });
-
-  // A Gateway-credited ledger is not enough: Circle's TEE validates the
-  // ERC-1271 signature by eth_call-ing isValidSignature on the wallet, which
-  // returns empty bytes for a code-less address. Ensure the wallet contract is
-  // deployed first (permissionless, deterministic CREATE2). Callers that own a
-  // different factory (e.g. TipHoldingFactory) pass skipEnsureDeploy and
-  // deploy the contract themselves.
-  if (!options.skipEnsureDeploy) {
-    await ensureFeeWalletDeployed(wallet, { ...options, rpcUrl, account });
-  }
-
   // The gateway rail idempotency signal is the ledger balance itself: a
   // successful withdrawal debits the ledger, so the next sweep reads a lower
   // available and skips below-threshold. Do NOT use the on-chain balance as a
@@ -741,6 +728,15 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   const value = ledger.available - minFee;
   // Stringify: raw BigInts must never cross into Express res.json (it throws).
   if (value <= 0n) return { skipped: true, reason: 'below-threshold', available: ledger.available.toString() };
+
+  const publicClient = options.publicClient || sharedPublicClient(rpcUrl);
+  const walletClient = options.walletClient || createWalletClient({ transport: rpcTransport(rpcUrl) });
+  // Circle's TEE validates ERC-1271 on the wallet, so funded wallets must
+  // exist before attestation. Empty wallets need no deployment or RPC work.
+  // Other factories (e.g. TipHoldingFactory) deploy their own contracts.
+  if (!options.skipEnsureDeploy) {
+    await ensureFeeWalletDeployed(wallet, { ...options, rpcUrl, account });
+  }
 
   const intent = buildSelfBurnIntent({ wallet, value, domain, gatewayWallet, gatewayMinter, usdc, maxFee: minFee });
   const { attestation, operatorSig } = await submitGatewayWithdrawal(intent, { gatewayApi });

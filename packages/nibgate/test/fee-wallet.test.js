@@ -127,6 +127,28 @@ describe('transient RPC retry (rate limits)', () => {
   const rpcUrl = 'http://localhost:8545'
   const keeperKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
 
+  it('skips wallet deployment and RPC reads when Gateway has no withdrawable balance', async () => {
+    const getCode = vi.fn()
+    const writeContract = vi.fn()
+    global.fetch = vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ balances: [{ balance: '0.000000', pendingBatch: '0.000000' }] }),
+    }))
+    try {
+      const result = await withdrawGatewayBalanceFor(wallet, {
+        creator, feeWalletFactory: factory, keeperKey, rpcUrl,
+        gatewayApi: 'http://localhost:9999/v1',
+        publicClient: { getCode }, walletClient: { writeContract },
+      })
+      expect(result).toMatchObject({ skipped: true, reason: 'below-threshold' })
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+      expect(getCode).not.toHaveBeenCalled()
+      expect(writeContract).not.toHaveBeenCalled()
+    } finally {
+      delete global.fetch
+    }
+  })
+
   it('retries deployIfNeeded when the RPC rate-limits, then succeeds', async () => {
     let calls = 0
     const publicClient = {

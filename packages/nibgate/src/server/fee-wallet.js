@@ -893,6 +893,8 @@ export async function ensureFeeWalletDeployed(wallet, options = {}) {
 // caller wait for the first. (Cross-process, the keeper's interval + the
 // gateway ledger debiting on attestation are the remaining guardrails.)
 const inFlightSweeps = new Map();
+const gatewayGasRetryAfter = new Map();
+const GATEWAY_GAS_RETRY_MS = 10 * 60_000;
 
 // Full keeper sweep for one fee wallet: withdraw any Gateway-credited balance
 // onto the chain (gateway rail), then distribute the wallet's on-chain USDC
@@ -907,7 +909,22 @@ export async function sweepFeeWallet(wallet, options = {}) {
   }
   let run;
   const promise = (run = (async () => {
-    const gateway = await withdrawGatewayBalanceFor(wallet, options).catch((e) => ({ skipped: true, reason: `gateway:${e.message}` }));
+    // A missing keeper gas balance cannot recover from repeated RPC requests.
+    // Still run distribution for existing on-chain funds on every sweep.
+    const cooldown = gatewayGasRetryAfter.get(key) || 0;
+    let gateway;
+    if (cooldown > Date.now()) {
+      gateway = { skipped: true, reason: 'keeper-gas-cooldown' };
+    } else {
+      gatewayGasRetryAfter.delete(key);
+      gateway = await withdrawGatewayBalanceFor(wallet, options).catch((e) => {
+        if (/insufficient funds/i.test(String(e?.message))) {
+          if (gatewayGasRetryAfter.size >= 256) gatewayGasRetryAfter.delete(gatewayGasRetryAfter.keys().next().value);
+          gatewayGasRetryAfter.set(key, Date.now() + GATEWAY_GAS_RETRY_MS);
+        }
+        return { skipped: true, reason: `gateway:${e.message}` };
+      });
+    }
     const distributed = await distributeFeeWallet(wallet, options).catch((e) => ({ skipped: true, reason: `distribute:${e.message}` }));
     return { wallet, gateway, distributed };
   })());

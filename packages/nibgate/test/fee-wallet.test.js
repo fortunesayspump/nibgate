@@ -245,6 +245,31 @@ describe('transient RPC retry (rate limits)', () => {
       delete global.fetch
     }
   })
+
+  it('paces insufficient keeper gas while continuing on-chain distribution checks', async () => {
+    const gasWallet = '0x7C6B2e668016738e1be2463d589085b46C0Efd84'
+    const readContract = vi.fn(async () => 0n)
+    const writeContract = vi.fn(async () => { throw new Error('insufficient funds for gas') })
+    const fetchMock = vi.fn(async (url) => String(url).includes('/v1/balances')
+      ? { ok: true, status: 200, json: async () => ({ balances: [{ domain: 26, depositor: gasWallet, balance: '1.000000', pendingBatch: '0' }] }) }
+      : { ok: true, status: 200, json: async () => ({ attestation: '0xaaa', operatorSignature: '0xbbb' }) })
+    global.fetch = fetchMock
+    try {
+      const options = { creator, feeWalletFactory: factory, keeperKey, rpcUrl,
+        gatewayApi: 'http://localhost:9999/v1', gatewayMinter,
+        publicClient: { getCode: async () => '0x6000', readContract }, walletClient: { writeContract } }
+      const first = await sweepFeeWallet(gasWallet, options)
+      expect(first.gateway.reason).toMatch(/insufficient funds/)
+      const calls = fetchMock.mock.calls.length
+      const second = await sweepFeeWallet(gasWallet, options)
+      expect(second.gateway.reason).toBe('keeper-gas-cooldown')
+      expect(fetchMock).toHaveBeenCalledTimes(calls)
+      expect(readContract).toHaveBeenCalledTimes(2)
+      expect(writeContract).toHaveBeenCalledTimes(1)
+    } finally {
+      delete global.fetch
+    }
+  })
 })
 
 describe('feeWalletAddressFor', () => {

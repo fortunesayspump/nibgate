@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const dbMock = vi.hoisted(() => ({
   nibShare: { findMany: vi.fn() },
+  website: { findMany: vi.fn() },
   user: { findMany: vi.fn() },
   content: { findMany: vi.fn() },
   unlockReceipt: { findMany: vi.fn() },
@@ -13,6 +14,7 @@ const sdkMock = vi.hoisted(() => ({
   feeWalletUsdcBalance: vi.fn(),
   ensureFeeWalletDeployed: vi.fn(),
   distributeFeeWallet: vi.fn(),
+  checkFeeWalletFactory: vi.fn(),
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({ db: dbMock }));
@@ -22,6 +24,7 @@ vi.mock('@nibgate/sdk/server', () => ({
   feeWalletUsdcBalance: sdkMock.feeWalletUsdcBalance,
   ensureFeeWalletDeployed: sdkMock.ensureFeeWalletDeployed,
   distributeFeeWallet: sdkMock.distributeFeeWallet,
+  checkFeeWalletFactory: sdkMock.checkFeeWalletFactory,
 }));
 
 const { runRevenueSweep, startFeeKeeper } = await import('./keeper.js');
@@ -35,11 +38,19 @@ describe('revenue keeper', () => {
     dbMock.content.findMany.mockResolvedValue([]);
     dbMock.unlockReceipt.findMany.mockResolvedValue([]);
     sdkMock.feeWalletUsdcBalance.mockResolvedValue(0n);
+    sdkMock.checkFeeWalletFactory.mockResolvedValue({ ok: true });
+    dbMock.website.findMany.mockResolvedValue([]);
   });
 
   it('is disabled without NIBGATE_FEE_KEEPER', async () => {
     expect(await runRevenueSweep()).toEqual({ disabled: true });
     expect(sdkMock.sweepFeeWallet).not.toHaveBeenCalled();
+  });
+
+  it('treats the literal false setting as disabled', async () => {
+    process.env.NIBGATE_FEE_KEEPER = 'false';
+    expect(await runRevenueSweep()).toEqual({ disabled: true });
+    expect(sdkMock.checkFeeWalletFactory).not.toHaveBeenCalled();
   });
 
   it('discovers creators from paid shares and site owners, deduped and lowercased', async () => {
@@ -184,6 +195,9 @@ describe('revenue keeper', () => {
     expect(result.swept).toBe(1);
     expect(result.wallets[0].ghostRecovery).toEqual({ error: 'rpc down' });
   });
+
+
+
 });
 
 describe('startFeeKeeper scheduling', () => {

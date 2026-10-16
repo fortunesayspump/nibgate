@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { ARC_MAINNET_RPC_FALLBACKS } from '../src/server/fee-wallet.js'
 
 const { offlineRpcFetch } = vi.hoisted(() => ({
   offlineRpcFetch: vi.fn(async () => { throw new Error('Deterministic offline RPC unavailable') }),
@@ -15,7 +16,7 @@ vi.mock('viem', async (importOriginal) => {
   }
 })
 
-import { feePolicy, protocolFeeFor, feeWalletAddressFor, ensureFeeWalletDeployed, createPredictedWalletReader, resolvePayTo, createTransferVerifier, runHostedTransferRequirement, runHostedPayRequirement, transferOwnershipMessage, ARC_USDC, ARC_TESTNET_CHAIN, ARC_TESTNET_RPC_FALLBACKS, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, DEFAULT_TREASURY, FEE_WALLET_FACTORY_ABI, sweepFeeWallet, withdrawGatewayBalanceFor, distributeFeeWallet } from '../src/server/fee-wallet.js'
+import { feePolicy, protocolFeeFor, feeWalletAddressFor, ensureFeeWalletDeployed, createPredictedWalletReader, checkFeeWalletFactory, defaultMirrors, resolvePayTo, createTransferVerifier, runHostedTransferRequirement, runHostedPayRequirement, transferOwnershipMessage, ARC_USDC, ARC_TESTNET_CHAIN, ARC_TESTNET_RPC_FALLBACKS, DEFAULT_FEE_BPS, DEFAULT_MAX_FEE_BPS, DEFAULT_TREASURY, FEE_WALLET_FACTORY_ABI, sweepFeeWallet, withdrawGatewayBalanceFor, distributeFeeWallet } from '../src/server/fee-wallet.js'
 
 describe('feePolicy', () => {
   it('uses the 1% default on Arc testnet', () => {
@@ -225,6 +226,49 @@ describe('transient RPC retry (rate limits)', () => {
 })
 
 describe('feeWalletAddressFor', () => {
+  it('uses mainnet mirrors for a keyed mainnet RPC URL', () => {
+    const priorNetwork = process.env.NIBGATE_PAYMENT_NETWORK
+    const priorMirrors = process.env.NIBGATE_RPC_MIRRORS
+    process.env.NIBGATE_PAYMENT_NETWORK = 'mainnet'
+    delete process.env.NIBGATE_RPC_MIRRORS
+    try {
+      expect(defaultMirrors('https://keyed-rpc.example.com/secret')).toEqual(ARC_MAINNET_RPC_FALLBACKS)
+    } finally {
+      if (priorNetwork === undefined) delete process.env.NIBGATE_PAYMENT_NETWORK
+      else process.env.NIBGATE_PAYMENT_NETWORK = priorNetwork
+      if (priorMirrors === undefined) delete process.env.NIBGATE_RPC_MIRRORS
+      else process.env.NIBGATE_RPC_MIRRORS = priorMirrors
+    }
+  })
+
+  it('shares in-flight predictions and cached results across reader instances', async () => {
+    const factory = '0x1111111111111111111111111111111111111111'
+    const creator = '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12'
+    const wallet = '0x7C6B2e668016738e1be2463d589085b46C0Efd83'
+    const client = { readContract: vi.fn(async () => wallet) }
+    const a = createPredictedWalletReader(factory, { rpcUrl: 'https://rpc.invalid', publicClient: client })
+    const b = createPredictedWalletReader(factory, { rpcUrl: 'https://rpc.invalid', publicClient: client })
+    expect(await Promise.all([a(creator), b(creator)])).toEqual([wallet, wallet])
+    expect(await b(creator)).toBe(wallet)
+    expect(client.readContract).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry an empty deterministic factory response', async () => {
+    const client = { readContract: vi.fn(async () => { throw new Error('returned no data') }) }
+    const read = createPredictedWalletReader('0x1111111111111111111111111111111111111111', { rpcUrl: 'https://rpc.invalid', publicClient: client })
+    await expect(read('0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12')).rejects.toThrow('returned no data')
+    expect(client.readContract).toHaveBeenCalledTimes(1)
+  })
+
+  it('checks chain and factory code before a keeper sweep', async () => {
+    const creator = '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12'
+    const factory = '0x1111111111111111111111111111111111111111'
+    const client = { getChainId: vi.fn(async () => 5042), getCode: vi.fn(async () => '0x1234'), readContract: vi.fn(async () => '0x7C6B2e668016738e1be2463d589085b46C0Efd83') }
+    await expect(checkFeeWalletFactory(creator, { feeWalletFactory: factory, network: 'mainnet', publicClient: client })).resolves.toMatchObject({ ok: true, chainId: 5042 })
+    client.getChainId.mockResolvedValue(5042002)
+    await expect(checkFeeWalletFactory(creator, { feeWalletFactory: factory, network: 'mainnet', publicClient: client })).rejects.toThrow('expected 5042')
+  })
+
   it('returns null without a configured factory', async () => {
     expect(await feeWalletAddressFor('0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12')).toBeNull()
   })

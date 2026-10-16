@@ -228,35 +228,67 @@ export async function feeWalletAddressFor(creator, options = {}) {
 // RPC once.
 export function createPredictedWalletReader(factory, options = {}) {
   const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
-  const client = sharedPublicClient(rpcUrl);
-  const cache = new Map();
+  const client = options.publicClient || sharedPublicClient(rpcUrl);
+  const cacheKey = `${activePaymentNetwork()}:${getAddress(factory)}:${rpcUrl}`;
+  let clientCaches = predictionCaches.get(client);
+  if (!clientCaches) predictionCaches.set(client, clientCaches = new Map());
+  let cache = clientCaches.get(cacheKey);
+  if (!cache) clientCaches.set(cacheKey, cache = new Map());
   // A dropped eth_call here silently downgrades the surface to paying the
   // creator directly — the keeper never sees those funds. Retry before
   // giving up; a deterministic view call is always safe to repeat.
   const attempts = Math.max(1, Number(options.predictedWalletRetries ?? 3));
   const backoffMs = (i) => 250 * 2 ** i;
   return async function predictedWallet(creator) {
-    const key = `${factory}:${creator.toLowerCase()}`;
-    if (cache.has(key)) return cache.get(key);
-    let lastError;
-    for (let i = 0; i < attempts; i++) {
-      try {
-        const address = await client.readContract({
-          address: getAddress(factory),
-          abi: FEE_WALLET_FACTORY_ABI,
-          functionName: 'predictedWallet',
-          args: [getAddress(creator)],
-        });
-        const resolved = getAddress(address);
-        cache.set(key, resolved);
-        return resolved;
-      } catch (error) {
-        lastError = error;
-        if (i < attempts - 1) await new Promise((r) => setTimeout(r, backoffMs(i)));
+    const key = getAddress(creator).toLowerCase();
+    const cached = cache.get(key);
+    if (cached && (cached.promise || cached.expiresAt > Date.now())) return cached.promise || cached.value;
+    const promise = (async () => {
+      let lastError;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const address = await client.readContract({
+            address: getAddress(factory), abi: FEE_WALLET_FACTORY_ABI,
+            functionName: 'predictedWallet', args: [getAddress(creator)],
+          });
+          return getAddress(address);
+        } catch (error) {
+          lastError = error;
+          if (!isTransientRpcError(error) || i === attempts - 1) break;
+          await new Promise((r) => setTimeout(r, backoffMs(i)));
+        }
       }
+      throw lastError;
+    })();
+    cache.set(key, { promise });
+    try {
+      const value = await promise;
+      cache.delete(key);
+      cache.set(key, { value, expiresAt: Date.now() + 5 * 60_000 });
+      if (cache.size > 512) cache.delete(cache.keys().next().value);
+      return value;
+    } catch (error) {
+      cache.delete(key);
+      throw error;
     }
-    throw lastError;
   };
+}
+
+const predictionCaches = new WeakMap();
+
+// Read-only keeper gate: a bad RPC or missing factory must stop wallet writes.
+export async function checkFeeWalletFactory(creator, options = {}) {
+  const factory = options.feeWalletFactory || serverEnv('NIBGATE_FEE_WALLET_FACTORY');
+  if (!factory) return { ok: false, reason: 'factory not configured' };
+  const rpcUrl = options.rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl(options.network || activePaymentNetwork());
+  const client = options.publicClient || sharedPublicClient(rpcUrl);
+  const expectedChain = isMainnetNetwork(options.network || activePaymentNetwork()) ? 5042 : 5042002;
+  const chainId = await client.getChainId();
+  if (chainId !== expectedChain) throw new Error(`fee wallet RPC chain ${chainId}, expected ${expectedChain}`);
+  const code = await client.getCode({ address: getAddress(factory) });
+  if (!code || code === '0x') throw new Error(`fee wallet factory has no code on chain ${chainId}`);
+  await feeWalletAddressFor(creator, { ...options, rpcUrl, publicClient: client });
+  return { ok: true, chainId };
 }
 
 // The single seller-resolution seam. Every hosted surface (hub /hub/pay,
@@ -776,10 +808,11 @@ function isTransientRpcError(error) {
 // network piles up thousands of half-open connects and exhausts FDs. rank is
 // disabled — probing every mirror per client is exactly the storm we avoid.
 const transportCache = new Map();
-function defaultMirrors(primary = '') {
+export function defaultMirrors(primary = '') {
   // NIBGATE_RPC_MIRRORS (comma-separated) overrides per deployment.
   const raw = serverEnv('NIBGATE_RPC_MIRRORS');
   if (raw) return String(raw).split(',').map((u) => u.trim()).filter(Boolean);
+  if (activePaymentNetwork()) return isMainnetNetwork(activePaymentNetwork()) ? ARC_MAINNET_RPC_FALLBACKS : ARC_TESTNET_RPC_FALLBACKS;
   if (/mainnet\.arc\.io/i.test(primary || '')) return ARC_MAINNET_RPC_FALLBACKS;
   return ARC_TESTNET_RPC_FALLBACKS;
 }

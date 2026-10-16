@@ -2,6 +2,7 @@ import { db } from '@nibgate/internal/db.js';
 import { activeNetwork } from '@nibgate/internal/networks.js';
 import {
   distributeFeeWallet,
+  checkFeeWalletFactory,
   ensureFeeWalletDeployed,
   feeWalletAddressFor,
   feeWalletUsdcBalance,
@@ -9,6 +10,10 @@ import {
 } from '@nibgate/sdk/server';
 
 let feeKeeperStarted = false;
+let sweepInFlight = null;
+let feePreflightRetryAt = 0;
+const feePreflightCooldownMs = 5 * 60_000;
+const keeperEnabled = () => ['true', '1', 'yes', 'on'].includes(String(process.env.NIBGATE_FEE_KEEPER || '').toLowerCase());
 
 // ── Creator discovery ───────────────────────────────────────────────────────
 // The keeper sweeps every creator that can earn revenue through a fee wallet:
@@ -121,6 +126,17 @@ async function runFeeSweep() {
   }
 
   const results = [];
+  if (Date.now() < feePreflightRetryAt) return { swept: 0, wallets: [], error: 'factory preflight cooldown' };
+  try {
+    const preflight = await checkFeeWalletFactory(creators[0], { network: activeNetwork().name });
+    if (!preflight.ok) throw new Error(preflight.reason);
+    feePreflightRetryAt = 0;
+  } catch (error) {
+    feePreflightRetryAt = Date.now() + feePreflightCooldownMs;
+    console.log(`Revenue keeper: factory preflight failed: ${error.message}`);
+    return { swept: 0, wallets: [], error: `factory preflight: ${error.message}` };
+  }
+  const staggerMs = Math.max(0, Number.parseInt(process.env.NIBGATE_FEE_KEEPER_STAGGER_MS || '400', 10) || 0);
   for (const creator of creators) {
     try {
       const feeWallet = await feeWalletAddressFor(creator);
@@ -134,28 +150,32 @@ async function runFeeSweep() {
       // Stagger per-wallet sweeps so a burst of fee wallets does not trip the
       // public RPC rate limit (each sweep does balanceOf + getCode + optional
       // writes). The default 400ms keeps a 100-creator sweep under ~40s.
-      const staggerMs = Number.parseInt(process.env.NIBGATE_FEE_KEEPER_STAGGER_MS || '400', 10);
-      if (staggerMs > 0) await new Promise((resolve) => setTimeout(resolve, staggerMs));
     } catch (error) {
       results.push({ creator, feeWallet: null, error: error.message });
       console.log(`Revenue keeper: sweep failed for ${creator}:`, error.message);
     }
+    if (staggerMs > 0) await new Promise((resolve) => setTimeout(resolve, staggerMs));
   }
   // One summary line per cycle, always — silent idles are how stranded funds
   // go unnoticed. `distributed` counts paid-out wallets, `errors` counts
   // failed ones; everything else was already empty.
   const paid = results.filter((r) => r.distributed?.distributed).length;
   const minted = results.filter((r) => r.gateway?.minted).length;
-  const errors = results.filter((r) => r.error).length;
+  const errors = results.filter((r) => r.error || r.ghostRecovery?.error || r.gateway?.reason?.startsWith('gateway:') || r.distributed?.reason?.startsWith('distribute:')).length;
   console.log(`Revenue keeper: sweep done creators=${creators.length} distributed=${paid} gatewayMinted=${minted} errors=${errors}`);
   return { swept: results.length, wallets: results };
 }
 
 export async function runRevenueSweep() {
-  if (!process.env.NIBGATE_FEE_KEEPER) return { disabled: true };
-  const fees = await runFeeSweep();
-  const holding = await runHoldingBoxSweep().catch((error) => ({ error: error.message }));
-  return { ...fees, holding };
+  if (!keeperEnabled()) return { disabled: true };
+  if (sweepInFlight) return { skipped: 'already-in-flight' };
+  const run = (async () => {
+    const fees = await runFeeSweep().catch((error) => ({ swept: 0, wallets: [], error: error.message }));
+    const holding = await runHoldingBoxSweep().catch((error) => ({ error: error.message }));
+    return { ...fees, holding };
+  })();
+  sweepInFlight = run;
+  try { return await run; } finally { if (sweepInFlight === run) sweepInFlight = null; }
 }
 
 // ── Holding-box sweep ───────────────────────────────────────────────────────
@@ -206,7 +226,7 @@ async function runHoldingBoxSweep() {
 // ── Schedule ────────────────────────────────────────────────────────────────
 
 export function startFeeKeeper() {
-  if (feeKeeperStarted || !process.env.NIBGATE_FEE_KEEPER) return;
+  if (feeKeeperStarted || !keeperEnabled()) return;
   feeKeeperStarted = true;
 
   const intervalMs = Number.parseInt(process.env.NIBGATE_FEE_KEEPER_INTERVAL_MS || '60000', 10);

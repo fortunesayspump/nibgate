@@ -12,6 +12,7 @@ import {
 
 let verificationMonitorStarted = false;
 let manifestSyncMonitorStarted = false;
+let manifestSweepInFlight = false;
 let reputationIndexerStarted = false;
 let dataIntegrityMonitorStarted = false;
 let reputationIndexerLastBlock = null;
@@ -117,8 +118,13 @@ export function startVerificationMonitor() {
 // ── Manifest Sync Monitor ─────────────────────────────────────────────────
 
 async function runManifestSyncSweep() {
+  if (manifestSweepInFlight) return;
+  manifestSweepInFlight = true;
+  try {
   const retryAfterMs = Number.parseInt(process.env.MANIFEST_SYNC_RETRY_AFTER_MS || String(30 * 60 * 1000), 10);
   const retryAfter = new Date(Date.now() - retryAfterMs);
+  const intervalMs = Number.parseInt(process.env.MANIFEST_SYNC_INTERVAL_MS || String(15 * 60 * 1000), 10);
+  const normalAfter = new Date(Date.now() - intervalMs);
   const websites = await db.website.findMany({
     where: {
       deletedAt: null,
@@ -126,8 +132,8 @@ async function runManifestSyncSweep() {
       verificationStatus: 'verified',
       OR: [
         { lastScanStatus: null },
-        { lastScanStatus: { not: 'failed' } },
-        { lastScanAt: { lt: retryAfter } }
+        { lastScanStatus: 'failed', lastScanAt: { lt: retryAfter } },
+        { lastScanStatus: { not: 'failed' }, lastScanAt: { lt: normalAfter } }
       ]
     },
     orderBy: [
@@ -138,11 +144,16 @@ async function runManifestSyncSweep() {
   });
 
   for (const website of websites) {
-    const result = await syncWebsiteManifest(website);
-    if (!result.ok && process.env.MANIFEST_SYNC_LOG_FAILURES !== 'false') {
-      console.log(`Manifest sync failed for ${website.domain}: ${result.error}`);
+    try {
+      const result = await syncWebsiteManifest(website);
+      if (!result.ok && process.env.MANIFEST_SYNC_LOG_FAILURES !== 'false') {
+        console.log(`Manifest sync failed for ${website.domain}: ${result.error}`);
+      }
+    } catch (error) {
+      console.log(`Manifest sync threw for ${website.domain}:`, error.stack || error);
     }
   }
+  } finally { manifestSweepInFlight = false; }
 }
 
 export function startManifestSyncMonitor() {

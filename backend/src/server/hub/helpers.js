@@ -536,7 +536,13 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
   // not revive content that was removed from the site's manifest.
   const update = options.allowRevive ? { ...data, deletedAt: null } : { ...data };
 
-  const existing = await db.content.findUnique({
+  // External ID is stable across hosted-domain changes. Looking up by URL
+  // first misses legacy rows, then create collides with the external-ID unique
+  // constraint; their old IDs may not use today's deterministic hash either.
+  const existing = (data.externalId && await db.content.findUnique({
+    where: { websiteId_externalId: { websiteId: website.id, externalId: data.externalId } },
+    select: { id: true, deletedAt: true }
+  }).catch(() => null)) || await db.content.findUnique({
     where: { websiteId_url: { websiteId: website.id, url: data.url } },
     select: { id: true, deletedAt: true }
   }).catch(() => null);
@@ -544,43 +550,32 @@ export async function upsertTrackedContent(website, payload = {}, options = {}) 
   let content;
   let adoptedStaleRow = false;
   try {
-    content = await db.content.upsert({
-      where: { websiteId_url: { websiteId: website.id, url: data.url } },
-      update,
-      create: {
-        id: contentId,
-        websiteId: website.id,
-        ...data
-      },
-      include: { publisher: true }
-    });
+    content = existing
+      ? await db.content.update({ where: { id: existing.id }, data: update, include: { publisher: true } })
+      : await db.content.upsert({
+        where: { websiteId_url: { websiteId: website.id, url: data.url } },
+        update,
+        create: { id: contentId, websiteId: website.id, ...data },
+        include: { publisher: true }
+      });
   } catch (error) {
     // A concurrent sync/tracking event can win the create race (Prisma upsert
     // is find-then-write, not atomic): the row exists now, so update instead.
     if (error?.code !== 'P2002') throw error;
-    try {
-      content = await db.content.update({
-        where: { websiteId_url: { websiteId: website.id, url: data.url } },
-        data: update,
-        include: { publisher: true }
-      });
-    } catch (fallbackError) {
-      // The id hash covers websiteId+externalId but NOT the url, so a changed
-      // publish path leaves the old row holding the pkey under a stale url:
-      // create collides on the pkey while update-by-new-url finds nothing.
-      // Re-home that row onto the current url instead of failing forever.
-      const holder = await db.content.findUnique({
-        where: { id: contentId },
-        select: { id: true, websiteId: true }
-      }).catch(() => null);
-      if (!holder || holder.websiteId !== website.id) throw fallbackError;
-      content = await db.content.update({
-        where: { id: contentId },
-        data: { ...update, url: data.url },
-        include: { publisher: true }
-      });
-      adoptedStaleRow = true;
-    }
+    // A concurrent upsert, legacy ID, or URL change can win this race. Find
+    // the actual row by stable external ID before falling back to the URL.
+    const holder = (data.externalId && await db.content.findUnique({
+      where: { websiteId_externalId: { websiteId: website.id, externalId: data.externalId } },
+      select: { id: true, websiteId: true }
+    })) || await db.content.findUnique({
+      where: { websiteId_url: { websiteId: website.id, url: data.url } },
+      select: { id: true, websiteId: true }
+    });
+    if (!holder || holder.websiteId !== website.id) throw error;
+    content = await db.content.update({
+      where: { id: holder.id }, data: update, include: { publisher: true }
+    });
+    adoptedStaleRow = true;
   }
 
   if (content) {
@@ -1480,11 +1475,18 @@ export async function syncWebsiteManifest(website) {
           if (content) upserted.push(content);
         } catch (error) {
           upsertErrors.push(`${resource.path || resource.url}: ${error.message}`);
+          if (error?.code === 'P2025') {
+            const frames = String(error.stack || '').split('\n').slice(1, 5)
+              .map((line) => line.trim().replace(/https?:\/\/\S+/g, '[url]').replace(/0x[a-f\d]{40}/gi, '[address]'));
+            console.log('Manifest sync P2025 diagnostic:', { siteId: website.id, frames });
+          }
         }
       }
 
       const upsertedIds = upserted.map((c) => c.id).filter(Boolean);
-      if (upsertedIds.length) {
+      // A partial upsert cannot establish which old items were removed from
+      // the manifest. Keep existing content until a complete sync succeeds.
+      if (!upsertErrors.length && upsertedIds.length) {
         const toDelete = await db.content.findMany({
           where: { websiteId: website.id, externalId: { not: null }, deletedAt: null, id: { notIn: upsertedIds } },
           select: { id: true, url: true }
@@ -1502,14 +1504,16 @@ export async function syncWebsiteManifest(website) {
 
       await db.website.update({
         where: { id: website.id },
-        data: { lastScanAt: new Date(), lastSyncAt: new Date(), lastScanStatus: 'synced', lastScanError: upsertErrors.length ? `${url}: ${upsertErrors[0].slice(0, 300)}` : null }
+        data: upsertErrors.length
+          ? { lastScanAt: new Date(), lastScanStatus: 'failed', lastScanError: `${url}: ${upsertErrors[0].slice(0, 300)}` }
+          : { lastScanAt: new Date(), lastSyncAt: new Date(), lastScanStatus: 'synced', lastScanError: null }
       }).catch(() => {});
 
       if (upsertErrors.length) {
         console.log(`Manifest sync partial failure for ${website.domain} (${upsertErrors.length}/${resources.length}): ${upsertErrors.join(' | ').slice(0, 600)}`);
       }
 
-      return { ok: true, url, content: upserted.length, errors: upsertErrors };
+      return { ok: upsertErrors.length === 0, url, content: upserted.length, errors: upsertErrors, error: upsertErrors[0] };
     } catch (error) {
       lastError = `${url}: ${error.message}`;
     } finally {

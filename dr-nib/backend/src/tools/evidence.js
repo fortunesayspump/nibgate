@@ -5,6 +5,7 @@
 // fetched passages — so verification and follow-ups work from the run's
 // evidence instead of re-reading the web or, worse, answering from memory.
 import { db } from '../db.js';
+import { reportEvidence } from '../report-evidence.js';
 
 function tokens(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter((t) => t.length >= 3);
@@ -42,15 +43,10 @@ export async function searchEvidence(runId, { query, limit = 5 } = {}) {
     db.researchSource.findMany({ where: { runId } }),
     db.researchStep.findMany({ where: { runId, kind: {in:['fetch','data']}, status:'done' }, orderBy: { createdAt: 'desc' } }),
   ]);
-  const docsByUrl = new Map();
-  for (const step of steps) {
-    for (const d of step.output?.documents || []) {
-      if (d?.url && !docsByUrl.has(d.url)) docsByUrl.set(d.url, d);
-    }
-  }
-  const scored = sources.map((s) => {
-    const doc = docsByUrl.get(s.url);
-    const text = doc?.text || '';
+  // Use the same purchased-body precedence and acquisition record as the
+  // writer. Otherwise a later 402 quote can make every cited claim unknown.
+  const scored = reportEvidence(sources, steps).map((s) => {
+    const text = s.excerpt || '';
     const excerpt = evidenceWindow(text, query, 3000);
     const score = Math.max(
       scoreText(q, s.title, s.url) * 0.6,

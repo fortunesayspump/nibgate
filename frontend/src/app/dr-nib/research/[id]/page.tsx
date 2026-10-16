@@ -32,6 +32,7 @@ function buildFeed(run: any): any[] {
   for (const e of run.events || []) {
     if (e.type === "tool.call") items.push({ t: "tool", at: e.at, e });
     else if (e.type === "agent.decision") items.push({t:"agent-decision",at:e.at,e});
+    else if ((e.type === "thinking" || e.type === "thinking.fallback") && e.text) items.push({ t: "progress-note", at: e.at, e });
     else if (e.type === "awaiting") items.push({ t: "parked", at: e.at, e });
     else if (e.type === "guidance.applied") items.push({ t: "note", at: e.at, e });
     else if (e.type === "failed" || e.type === "complete") items.push({ t: "marker", at: e.at, e });
@@ -1132,6 +1133,17 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
                       <div key={`th-${i}`} className={`border-l-2 border-black/40 pl-3${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Dr. Nib&apos;s read<FeedTime at={item.at} /></p>
                         <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.text}</p>
+                      </div>
+                    );
+                  }
+                  if (item.t === "progress-note") {
+                    const phase = String(item.e.phase || "research").replace(/^stage-/, "").replaceAll("-", " ");
+                    return (
+                      <div key={`note-${i}`} className={`border-l-2 border-black/40 pl-3${enter}`}>
+                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
+                          Research note · {phase}{item.e.type === "thinking.fallback" ? " · fallback" : ""}<FeedTime at={item.at} />
+                        </p>
+                        <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.e.text}</p>
                       </div>
                     );
                   }

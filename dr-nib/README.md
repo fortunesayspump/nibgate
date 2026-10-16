@@ -104,7 +104,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Verify + claims | Done | `src/verify.js` samples claims across report sections after every write (claims cleared per report): JEV support judgements; pass marked unverified when JEV/LLM absent or report input exceeds the cap; coverage badge + claim×source matrix read the sampled verdicts |
 | Exports | Done | md / json (+escrow receipt block) / bibtex + pdf / word / excel (+escrow columns on Ledger) / powerpoint (`src/exports/render.js`); binary formats returned base64 (R2 streaming is a later optimization) |
 | Evals + build gates | Done | `src/evals/`, `GATES.md`; gates fail the build |
-| MCP server | Implemented | v0.2.6: named-source previews plus private source attach/list/read with image OCR, typed input schemas, shared end/settlement gates; trusted server-only service key; fallback plans cannot be funded |
+| MCP server | Implemented | v0.2.7: named-source previews plus private source attach/list/read with image OCR, typed input schemas, shared end/settlement gates; trusted server-only service key; fallback plans cannot be funded |
 | Escrow — contracts | Done (testnet) | stock ERC-8183 core + `NibgateRunSplitter`, deployed Arc testnet; job 10 lifecycle proven (`ESCROW.md`) |
 | Escrow — backend | Done | `src/escrow/jobs.js` create/status/submit+complete/signSplit; `/v1/runs/:id/escrow*`; funding floor is the plan estimate, working cap aligns down to the deposit |
 | Escrow — frontend | Done | `frontend/src/components/dr-nib/EscrowDeposit.tsx` (amount selector, min estimate, sequential receipts); mandatory where configured in `research/page.tsx`; approve gated on `Funded` ≥ estimate |

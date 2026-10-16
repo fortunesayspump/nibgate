@@ -1,7 +1,7 @@
 // FIRST import: env.js must populate process.env before db.js builds a client.
 import './env.js';
 import { selectSources } from './source-selection.js';
-import { SOURCE_ORDER, reportEvidence, sectionEvidence } from './report-evidence.js';
+import { SOURCE_ORDER, bestDocumentsByUrl, reportEvidence, sectionEvidence } from './report-evidence.js';
 import { citedTipCandidates } from './tip-candidates.js';
 
 import os from 'node:os';
@@ -20,6 +20,7 @@ import { dedupeByUrl } from './retrieval/index.js';
 import { runTool } from './tools/executor.js';
 import { isSpendConfigured } from './spend/policy.js';
 import { previewPrice } from './spend/unlocks.js';
+import { paidEvidenceText } from './paid-evidence.js';
 import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/sandbox.js';
 import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
@@ -598,6 +599,7 @@ async function dataStage(runId, run, queries) {
       ...(['pay_x402', 'unlock_content'].includes(s.proposal.tool) ? { url: s.proposal.input?.url } : {}),
       error: s.result.ok ? undefined : s.result.error,
       txHash: s.result.output?.txHash || undefined,
+      amount: ['pay_x402', 'unlock_content'].includes(s.proposal.tool) ? s.result.output?.amount : undefined,
       judgement: s.judgement.decision,
     });
     if (s.result.ok) {
@@ -636,7 +638,7 @@ function toDirectDocument(n, call, output) {
       const u = new URL(call.input?.url || '');
       title = `${u.hostname}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 120);
     } catch {}
-    return { url: String(call.input?.url || ''), title, text: body.slice(0, 8000), relevance: 0.5, provider: 'direct' };
+    return { url: String(call.input?.url || ''), title, text: body.slice(0, 8000), relevance: 0.5, provider: 'direct', ...(output?.status === 402 ? { acquisition: 'quote' } : {}) };
   }
   if (call.tool === 'run_code') {
     const stdout = String(output?.stdout || '');
@@ -651,16 +653,14 @@ function toDirectDocument(n, call, output) {
   // return their body, which joins the scorable set (JEV still judges it).
   // Tips buy goodwill, not evidence — receipt only, no document.
   if (call.tool === 'unlock_content' || call.tool === 'pay_x402') {
-    const text = typeof output?.text === 'string' && output.text.trim()
-      ? output.text
-      : JSON.stringify(output?.data ?? '');
+    const text = paidEvidenceText(output?.data);
     if (!text.trim()) return null;
     let title = 'Paid content';
     try {
       const u = new URL(call.input?.url || '');
-      title = `Paid: ${u.hostname}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 120);
+      title = `Paid: ${String(output?.data?.resource?.title || `${u.hostname}${u.pathname === '/' ? '' : u.pathname}`)}`.slice(0, 120);
     } catch {}
-    return { url: String(call.input?.url || ''), title, text: text.slice(0, 8000), relevance: 0.5, provider: 'direct' };
+    return { url: String(call.input?.url || ''), title, text: text.slice(0, 8000), relevance: 0.5, provider: 'direct', acquisition: 'paid' };
   }
   return null;
 }
@@ -681,7 +681,7 @@ async function scoreStage(runId, run) {
   // Direct-call evidence joins the retrieved set before judging: an API
   // response or sandbox computation is scored by JEV on the same axes, never
   // smuggled past trust.
-  const documents = [...(fetchStep?.output?.documents || []), ...(dataStep?.output?.documents || [])];
+  const documents = bestDocumentsByUrl([...(dataStep?.output?.documents || []), ...(fetchStep?.output?.documents || [])]);
   const attempted = fetchStep?.output?.attempted === true || (dataStep?.output?.attempted === true && (dataStep?.output?.documents || []).length > 0);
 
   // Placeholder sources exist for exactly one reason: the web was never asked
@@ -693,6 +693,9 @@ async function scoreStage(runId, run) {
     return { why: 'The providers returned no readable candidates, so there is nothing to score. The report will say so.', scored: 0, costUsd: 0, fallback: false };
   }
 
+  const named = new Set([...String(run.brief?.topic || '').matchAll(/https:\/\/[^\s<>"'`]+/g)]
+    .map((m) => m[0].replace(/[),.;!?]+$/, '')));
+  documents.sort((a, b) => Number(named.has(b.url)) - Number(named.has(a.url)));
   const top = documents.slice(0, Math.max(limits.scoreTop,documents.filter(d=>d.provider==='user-upload').length));
   const criteria = await trustCriteria(run);
   const priors = await memoryPriors(run.userId, top.map((d) => domainOf(d.url)));

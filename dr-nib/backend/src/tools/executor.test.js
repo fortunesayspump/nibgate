@@ -150,4 +150,12 @@ describe('runTool', () => {
     expect(blind.error).toMatch(/public https|refused/);
     vi.unstubAllEnvs();
   });
+
+  it('refuses to buy a URL again after a completed data stage already purchased it', async () => {
+    const url='https://creator.example/api/writing/article';
+    await db.researchStep.create({ data: { runId: RUN, kind: 'data', status: 'done', output: { calls: [{ tool: 'unlock_content', url, ok: true }] } } });
+    const out=await runTool(RUN,'pay_x402',{url});
+    expect(out.ok).toBe(false);
+    expect(out.error).toContain('already purchased');
+  });
 });

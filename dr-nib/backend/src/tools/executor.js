@@ -202,6 +202,13 @@ export async function runTool(runId, name, input, { policy, fetchImpl } = {}) {
       const report=await db.researchReport.findFirst({where:{runId},orderBy:{version:'desc'}});
       if(!citedTipCandidates(report).some(s=>s.url===input?.contentUrl)) throw new Error('Only high-trust sources cited in the finished report are eligible for a tip.');
     }
+    if (run && (name === 'unlock_content' || name === 'pay_x402')) {
+      const prior = await db.researchStep.findMany({ where: { runId, kind: 'data', status: 'done' }, select: { output: true } });
+      if (prior.some((step) => (step.output?.calls || []).some((call) =>
+        call.ok && ['unlock_content', 'pay_x402'].includes(call.tool) && call.url === input?.url))) {
+        throw new Error('This URL was already purchased for the run. Use its recorded evidence; do not pay again.');
+      }
+    }
     const { output, costUsd } = await tool.run(input || {}, ctx);
     const cost = Number(costUsd) || 0;
     await recordEvent(runId, {

@@ -116,6 +116,33 @@ async function recoverGhostGeneration(feeWallet, options = {}) {
   }
 }
 
+function failureCategory(reason) {
+  const text = String(reason || '');
+  if (/rate limit|request exceeds defined limit|too many requests|\b429\b/i.test(text)) return 'rateLimit';
+  if (/no data|empty data|could not decode|returned no data/i.test(text)) return 'emptyCall';
+  if (/timeout|timed out|etimedout/i.test(text)) return 'timeout';
+  if (/connection|econn|enotfound|network error|fetch failed/i.test(text)) return 'network';
+  if (/insufficient funds/i.test(text)) return 'insufficientFunds';
+  return 'other';
+}
+
+function countFailureCategories(results) {
+  const counts = {};
+  for (const result of results) {
+    for (const [stage, reason] of [
+      ['wallet', result.error],
+      ['ghost', result.ghostRecovery?.error],
+      ['gateway', result.gateway?.reason?.startsWith('gateway:') ? result.gateway.reason : null],
+      ['distribute', result.distributed?.reason?.startsWith('distribute:') ? result.distributed.reason : null],
+    ]) {
+      if (!reason) continue;
+      const key = `${stage}.${failureCategory(reason)}`;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
 // ── Sweep ───────────────────────────────────────────────────────────────────
 
 async function runFeeSweep() {
@@ -162,7 +189,7 @@ async function runFeeSweep() {
   const paid = results.filter((r) => r.distributed?.distributed).length;
   const minted = results.filter((r) => r.gateway?.minted).length;
   const errors = results.filter((r) => r.error || r.ghostRecovery?.error || r.gateway?.reason?.startsWith('gateway:') || r.distributed?.reason?.startsWith('distribute:')).length;
-  console.log(`Revenue keeper: sweep done creators=${creators.length} distributed=${paid} gatewayMinted=${minted} errors=${errors}`);
+  console.log(`Revenue keeper: sweep done creators=${creators.length} distributed=${paid} gatewayMinted=${minted} errors=${errors} failureCategories=${JSON.stringify(countFailureCategories(results))}`);
   return { swept: results.length, wallets: results };
 }
 

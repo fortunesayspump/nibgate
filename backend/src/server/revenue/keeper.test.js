@@ -111,6 +111,29 @@ describe('revenue keeper', () => {
     expect(result.wallets[1].gateway.minted).toBe(true);
   });
 
+  it('reports nested failure categories without logging RPC details', async () => {
+    process.env.NIBGATE_FEE_KEEPER = 'true';
+    dbMock.nibShare.findMany.mockResolvedValue([{ ownerWallet: '0xaaaa00000000000000000000000000000000aaaa' }]);
+    dbMock.user.findMany.mockResolvedValue([]);
+    sdkMock.feeWalletAddressFor.mockResolvedValue('0xfeewallet');
+    sdkMock.sweepFeeWallet.mockResolvedValue({
+      gateway: { skipped: true, reason: 'gateway:HTTP 429 at https://secret-rpc.example/key' },
+      distributed: { skipped: true, reason: 'distribute:returned no data' },
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const result = await runRevenueSweep();
+      expect(result.wallets).toHaveLength(1);
+      const summary = log.mock.calls.map(([line]) => String(line)).find((line) => line.includes('sweep done'));
+      expect(summary).toContain('errors=1');
+      expect(summary).toContain('"gateway.rateLimit":1');
+      expect(summary).toContain('"distribute.emptyCall":1');
+      expect(summary).not.toContain('secret-rpc.example');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it('survives discovery failures on one source', async () => {
     process.env.NIBGATE_FEE_KEEPER = 'true';
     dbMock.nibShare.findMany.mockRejectedValue(new Error('db down'));

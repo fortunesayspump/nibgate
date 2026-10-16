@@ -33,6 +33,27 @@ import { startVerificationMonitor, startManifestSyncMonitor, startReputationInde
 import { startFeeKeeper } from '../revenue/keeper.js';
 import { startMetadataEnricher } from '../jev/metadata.js';
 
+// Leaderboards serialize counts and scores, never raw tracking metadata or
+// receipt payloads. Loading every column of every child row multiplies the
+// Prisma engine's native allocations when all three boards load together.
+export const LEADERBOARD_CONTENT_INCLUDE = {
+  website: { select: { name: true, domain: true, isVerified: true, verificationStatus: true, faviconUrl: true, ogImageUrl: true } },
+  publisher: { select: { id: true, externalId: true, handle: true, name: true, walletAddress: true, profileUrl: true, verification: true } },
+  metrics: {
+    where: { OR: [{ type: 'view' }, { durationMs: { not: null } }] },
+    select: { type: true, durationMs: true },
+  },
+  ratings: {
+    where: { status: 'accepted', proof: { startsWith: 'onchain:' } },
+    select: { status: true, proof: true, ratingValue: true },
+  },
+  unlockReceipts: {
+    where: { status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] } },
+    select: { status: true, paymentProvider: true, paymentId: true, txHash: true, amount: true },
+  },
+  _count: { select: { metrics: true, unlockReceipts: true, ratings: true } },
+};
+
 export function registerHubRoutes(app) {
   startVerificationMonitor();
   startManifestSyncMonitor();
@@ -2164,7 +2185,7 @@ export function registerHubRoutes(app) {
         const [content, total] = await Promise.all([
           db.content.findMany({
             where: verifiedWhere,
-            include: { website: { include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } } }, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
+            include: LEADERBOARD_CONTENT_INCLUDE,
             take: 500
           }),
           db.content.count({ where: verifiedWhere })
@@ -2185,7 +2206,7 @@ export function registerHubRoutes(app) {
         const [websites, siteTotal] = await Promise.all([
           db.website.findMany({
             where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' },
-            include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, content: { where: { deletedAt: null }, include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } }, _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } },
+            include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, content: { where: { deletedAt: null }, include: LEADERBOARD_CONTENT_INCLUDE }, _count: { select: { content: true, metrics: true, unlockReceipts: true, ratings: true } } },
             take: 500,
             orderBy: { createdAt: 'desc' }
           }),
@@ -2220,7 +2241,7 @@ export function registerHubRoutes(app) {
 
       const [users, userTotal] = await Promise.all([
         db.user.findMany({
-          include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' }, include: { content: { where: { deletedAt: null }, include: { website: true, publisher: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } } } } } },
+          include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] }, websites: { where: { deletedAt: null, isVerified: true, verificationStatus: 'verified' }, include: { content: { where: { deletedAt: null }, include: LEADERBOARD_CONTENT_INCLUDE } } } },
           take: 500,
           orderBy: { createdAt: 'asc' }
         }),

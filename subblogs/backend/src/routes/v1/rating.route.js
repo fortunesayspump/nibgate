@@ -5,6 +5,7 @@ const prisma = require('../../lib/prisma');
 const router = express.Router();
 
 const RPC = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || '';
+const RPC_URLS = [...new Set([RPC, ...(process.env.ARC_RPC_FALLBACK_URLS || '').split(',').map((url) => url.trim()).filter(Boolean)])];
 if (!RPC) console.warn('[rating] No ARC_RPC_URL set — on-chain rating verification will fail');
 
 const statsCache = new Map();
@@ -80,7 +81,7 @@ router.post('/:postId', validate(ratingValidation.createRating), async (req, res
     let verified = false;
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
-        await sdk.verifyRatingTx(txHash, RPC);
+        await sdk.verifyRatingTx(txHash, RPC_URLS, require('../../lib/network').activeReputationChainId());
         verified = true;
         break;
       } catch (error) {

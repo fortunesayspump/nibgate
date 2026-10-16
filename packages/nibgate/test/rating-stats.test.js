@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { getRatingStats, readReputationStats } from '../src/server/rating.js'
+import { getRatingStats, readReputationStats, verifyRatingTx } from '../src/server/rating.js'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -25,5 +25,29 @@ describe('readReputationStats', () => {
     await expect(readReputationStats({})).rejects.toThrow(/contentHash/)
     await expect(readReputationStats({ contentHash: '0xabc' })).rejects.toThrow(/contractAddress/)
     await expect(readReputationStats({ contentHash: '0xabc', contractAddress: '0x1' })).rejects.toThrow(/rpcUrl/)
+  })
+})
+
+describe('verifyRatingTx', () => {
+  it('uses a healthy same-chain mirror when the primary is rate limited', async () => {
+    const fetchMock = vi.fn(async (url, request) => {
+      if (url.includes('primary')) return { ok: false, status: 429 }
+      const method = JSON.parse(request.body).method
+      return { ok: true, json: async () => method === 'eth_chainId'
+        ? { result: '0x13b2' }
+        : { result: { status: '0x1', transactionHash: '0xabc' } } }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(verifyRatingTx('0xabc', ['https://primary.test', 'https://mirror.test'], 5042))
+      .resolves.toMatchObject({ transactionHash: '0xabc' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('rejects a wrong-chain mirror and a reverted receipt', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ result: '0x4cef52' }) })))
+    await expect(verifyRatingTx('0xabc', ['https://wrong.test'], 5042)).rejects.toThrow(/temporarily unavailable/)
+    vi.stubGlobal('fetch', vi.fn(async (_url, request) => ({ ok: true, json: async () =>
+      JSON.parse(request.body).method === 'eth_chainId' ? { result: '0x13b2' } : { result: { status: '0x0' } } })))
+    await expect(verifyRatingTx('0xabc', 'https://good.test', 5042)).rejects.toThrow(/reverted/)
   })
 })

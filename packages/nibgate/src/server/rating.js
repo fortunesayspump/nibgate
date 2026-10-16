@@ -79,18 +79,44 @@ export async function readReputationStats({ contentHash, contractAddress, rpcUrl
   return { count: Number(count), total: Number(total) };
 }
 
-export async function verifyRatingTx(txHash, rpcUrl) {
+export async function verifyRatingTx(txHash, rpcUrl, expectedChainId) {
   if (!rpcUrl) throw new Error('RPC URL required to verify on-chain rating. Set ARC_RPC_URL or pass explicitly.');
-  const url = rpcUrl;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ method: 'eth_getTransactionReceipt', params: [txHash], id: 1, jsonrpc: '2.0' }),
-  });
-  const data = await res.json();
-  const receipt = data?.result;
-  if (!receipt || receipt.status !== '0x1') throw new Error('On-chain proof not found or invalid');
-  return receipt;
+  const urls = [...new Set((Array.isArray(rpcUrl) ? rpcUrl : [rpcUrl]).filter(Boolean))];
+  let pending = false;
+  for (const url of urls) {
+    try {
+      if (expectedChainId) {
+        const chainRes = await fetch(url, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ method: 'eth_chainId', params: [], id: 1, jsonrpc: '2.0' }),
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (!chainRes.ok) continue;
+        const chainData = await chainRes.json();
+        if (Number(chainData?.result) !== Number(expectedChainId)) continue;
+      }
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method: 'eth_getTransactionReceipt', params: [txHash], id: 1, jsonrpc: '2.0' }),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.error) {
+        if (/rate limit|too many requests|quota|capacity|temporarily unavailable/i.test(String(data.error.message))) continue;
+        throw new Error(`On-chain proof invalid: ${data.error.code || 'RPC error'}`);
+      }
+      const receipt = data?.result;
+      if (!receipt) { pending = true; continue; }
+      if (receipt.status !== '0x1') throw new Error('On-chain proof invalid: transaction reverted');
+      return receipt;
+    } catch (error) {
+      if (/^On-chain proof invalid:/.test(error.message)) throw error;
+    }
+  }
+  if (pending) throw new Error('On-chain proof not found or invalid');
+  throw new Error('Rating RPC temporarily unavailable');
 }
 
 export async function submitOnchainRating({ siteId, token, hubContentId, title, postType, price, walletAddress, rating, ratingValue, txHash, url: contentUrl, path: contentPath, hubApiUrl }) {

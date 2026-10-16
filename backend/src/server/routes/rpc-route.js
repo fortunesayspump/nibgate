@@ -3,6 +3,38 @@ import { registerRateBuckets } from '../lib/rate-buckets.js';
 
 const NET = activeNetwork();
 const RPC_URL = process.env.ARC_RPC_URL || process.env.NIBGATE_REPUTATION_RPC_URL || process.env.NEXT_PUBLIC_ARC_RPC_URL || NET.reputationRpcUrl;
+const RPC_URLS = [...new Set([RPC_URL, ...(process.env.ARC_RPC_FALLBACK_URLS || '').split(',').map((url) => url.trim()).filter(Boolean)])];
+const verifiedChains = new Map();
+const RPC_TIMEOUT_MS = 8_000;
+
+async function rpcRequest(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`RPC HTTP ${response.status}`);
+  const data = await response.json();
+  if (data?.error && /rate limit|too many requests|quota|capacity|temporarily unavailable/i.test(String(data.error.message))) {
+    throw new Error('RPC temporarily unavailable');
+  }
+  return data;
+}
+
+async function verifiedRpcRequest(url, body) {
+  if (!verifiedChains.has(url)) {
+    const check = rpcRequest(url, { jsonrpc: '2.0', id: 'chain-check', method: 'eth_chainId', params: [] })
+      .then((data) => data?.result?.toLowerCase() === NET.chainIdHex.toLowerCase());
+    verifiedChains.set(url, check);
+  }
+  const valid = await verifiedChains.get(url).catch(() => false);
+  if (!valid) {
+    verifiedChains.delete(url);
+    throw new Error('RPC chain mismatch or unavailable');
+  }
+  return rpcRequest(url, body);
+}
 
 const ALLOWED_METHODS = new Set([
   'eth_chainId',
@@ -60,13 +92,14 @@ export function registerRpcRoute(app) {
     }
 
     try {
-      const rpcRes = await fetch(RPC_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(raw),
-      })
-      const data = await rpcRes.json()
-      res.json(data)
+      for (const url of RPC_URLS) {
+        try {
+          return res.json(await verifiedRpcRequest(url, raw));
+        } catch {
+          // Only transport, provider capacity and chain-check failures reach here.
+        }
+      }
+      return res.status(502).json({ error: 'RPC proxy failed' })
     } catch (error) {
       res.status(502).json({ error: 'RPC proxy failed' })
     }

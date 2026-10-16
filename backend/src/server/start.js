@@ -55,6 +55,21 @@ export async function startAppServer() {
 
   return createApp(config, { statePath, loadLiveConfig: () => loadServerConfig().config }).then((app) => app.listen(port, () => {
     console.log(`[nibgate] Backend running on port ${port}`);
+    if (process.env.NIBGATE_MEMORY_DIAGNOSTICS !== 'false') {
+      const reportMemory = () => {
+        const { rss, heapUsed, heapTotal, external, arrayBuffers } = process.memoryUsage();
+        console.log('[nibgate] Memory:', JSON.stringify({
+          uptimeSec: Math.round(process.uptime()),
+          rssMiB: Math.round(rss / 1048576),
+          heapUsedMiB: Math.round(heapUsed / 1048576),
+          heapTotalMiB: Math.round(heapTotal / 1048576),
+          externalMiB: Math.round(external / 1048576),
+          arrayBuffersMiB: Math.round(arrayBuffers / 1048576),
+        }));
+      };
+      reportMemory();
+      setInterval(reportMemory, 300_000).unref();
+    }
   }));
 }
 

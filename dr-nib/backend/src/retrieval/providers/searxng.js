@@ -27,9 +27,29 @@ export async function searxngSearch({ query, maxResults = 8 } = {}, { fetchImpl 
   let data;
   try {
     const fetchFn = fetchImpl || fetch;
-    const res = await fetchFn(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`searxng HTTP ${res.status}`);
-    data = await res.json();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res;
+      try {
+        res = await fetchFn(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
+      } catch (err) {
+        // Railway may drop the first connection while waking a sleeping service.
+        // Both attempts share the existing ten-second deadline.
+        if (attempt === 0 && !controller.signal.aborted && err instanceof TypeError) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
+        }
+        throw err;
+      }
+      if (!res.ok) {
+        if (attempt === 0 && !controller.signal.aborted && [502, 503, 504].includes(res.status)) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
+        }
+        throw new Error(`searxng HTTP ${res.status}`);
+      }
+      data = await res.json();
+      break;
+    }
   } finally {
     clearTimeout(timer);
   }

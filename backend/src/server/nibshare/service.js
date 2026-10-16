@@ -294,6 +294,7 @@ export async function editSharePayload(share) {
 // events in ~40s). Wallet viewers dedupe via the event history; anonymous
 // viewers dedupe in-process by their dedupeKey (IP).
 const VIEW_DEDUPE_MS = Number(process.env.NIBGATE_VIEW_DEDUPE_MS || 5 * 60 * 1000);
+const MAX_ANON_VIEW_KEYS = 5000;
 const anonViewSeen = new Map();
 
 export async function recordView(share, viewer, { dedupeKey } = {}) {
@@ -308,9 +309,12 @@ export async function recordView(share, viewer, { dedupeKey } = {}) {
     const key = `${share.id}:${dedupeKey}`;
     const last = anonViewSeen.get(key);
     if (last && now - last < VIEW_DEDUPE_MS) return { deduped: true };
+    // A burst of distinct IPs must not grow this process cache without bound.
+    anonViewSeen.delete(key);
     anonViewSeen.set(key, now);
-    if (anonViewSeen.size > 5000) {
+    if (anonViewSeen.size > MAX_ANON_VIEW_KEYS) {
       for (const [k, ts] of anonViewSeen) if (now - ts > VIEW_DEDUPE_MS) anonViewSeen.delete(k);
+      while (anonViewSeen.size > MAX_ANON_VIEW_KEYS) anonViewSeen.delete(anonViewSeen.keys().next().value);
     }
   }
   await db.nibShare.update({ where: { id: share.id }, data: { viewCount: { increment: 1 } } });

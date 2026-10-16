@@ -18,32 +18,45 @@ import { publicFetch } from '../../tools/http.js';
 
 const UA = 'DrNibResearch/1.0 (+https://nibgate.xyz; research agent, respects robots.txt)';
 
-// robots.txt per origin, cached for the process lifetime. A robots file we
-// cannot fetch is treated as "no rules" — failing closed on a fetch error
-// would blacklist half the web over transient network blips.
+// robots.txt per origin. Bound memory and refresh rules so a temporary fetch
+// failure does not leave a permanent "no rules" result in a long-lived worker.
 const robotsCache = new Map();
+const ROBOTS_CACHE_MAX = 256;
+const ROBOTS_CACHE_TTL_MS = 60 * 60_000;
+const ROBOTS_FAILURE_TTL_MS = 60_000;
 
 async function robotsAllows(url, fetchImpl, timeoutMs = 8000) {
   let origin;
   try { origin = new URL(url).origin; } catch { return false; }
-  if (!robotsCache.has(origin)) {
-    robotsCache.set(origin, (async () => {
+  const now = Date.now();
+  let cached = robotsCache.get(origin);
+  if (!cached || cached.expiresAt <= now) {
+    robotsCache.delete(origin);
+    for (const [key, entry] of robotsCache) if (entry.expiresAt <= now) robotsCache.delete(key);
+    while (robotsCache.size >= ROBOTS_CACHE_MAX) robotsCache.delete(robotsCache.keys().next().value);
+    cached = { expiresAt: now + ROBOTS_CACHE_TTL_MS, promise: null };
+    cached.promise = (async () => {
       // robots.txt must never hang a slot: a dead origin fails open fast.
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(new Error('robots timed out')), timeoutMs);
       try {
         const res = await fetchImpl(`${origin}/robots.txt`, { headers: { 'user-agent': UA }, signal: controller.signal });
-        if (!res.ok) return [];
+        if (!res.ok) {
+          cached.expiresAt = Date.now() + ROBOTS_FAILURE_TTL_MS;
+          return [];
+        }
         const text = await res.text();
         return parseRobots(text);
       } catch {
+        cached.expiresAt = Date.now() + ROBOTS_FAILURE_TTL_MS;
         return [];
       } finally {
         clearTimeout(timer);
       }
-    })());
+    })();
+    robotsCache.set(origin, cached);
   }
-  const rules = await robotsCache.get(origin);
+  const rules = await cached.promise;
   try {
     const path = new URL(url).pathname;
     return !rules.some((dis) => dis && path.startsWith(dis));

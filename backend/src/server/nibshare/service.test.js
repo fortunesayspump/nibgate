@@ -4,10 +4,11 @@ const state = vi.hoisted(() => ({
   update: vi.fn(),
   putBlob: vi.fn(),
   deleteBlob: vi.fn(),
+  createEvent: vi.fn(),
 }));
 
 vi.mock('@nibgate/internal/db.js', () => ({
-  db: { nibShare: { update: state.update } },
+  db: { nibShare: { update: state.update }, nibShareEvent: { create: state.createEvent } },
 }));
 vi.mock('@nibgate/sdk/server', async (importOriginal) => ({
   ...await importOriginal(),
@@ -20,7 +21,7 @@ vi.mock('@nibgate/sdk/server', async (importOriginal) => ({
   contentHashFor: () => 'content-hash',
 }));
 
-import { updateShare } from './service.js';
+import { recordView, updateShare } from './service.js';
 
 const owner = '0x1111111111111111111111111111111111111111';
 const share = {
@@ -56,5 +57,24 @@ describe('Nibshare owner edits', () => {
     expect(state.putBlob).toHaveBeenCalledWith(expect.objectContaining({ key: expect.stringMatching(/^nibshare\/share-id\/body-[^/]+\.bin$/) }));
     expect(state.deleteBlob).toHaveBeenCalledWith({ storageRef: 'nibshare/share-id/body-new.bin' });
     expect(state.deleteBlob).not.toHaveBeenCalledWith({ storageRef: share.storageRef });
+  });
+});
+
+describe('anonymous view dedupe cache', () => {
+  it('keeps recent keys while evicting the oldest when distinct viewers exceed the cap', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    try {
+      state.update.mockResolvedValue({});
+      state.createEvent.mockResolvedValue({});
+      const cacheShare = { id: 'cache-limit-share' };
+      for (let i = 0; i <= 5000; i++) {
+        await recordView(cacheShare, null, { dedupeKey: `viewer-${i}` });
+      }
+      expect(await recordView(cacheShare, null, { dedupeKey: 'viewer-5000' })).toEqual({ deduped: true });
+      expect(await recordView(cacheShare, null, { dedupeKey: 'viewer-0' })).toEqual({ deduped: false });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

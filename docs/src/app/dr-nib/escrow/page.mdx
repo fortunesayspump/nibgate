@@ -46,7 +46,7 @@ Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund`
 
 Each wallet transaction must have a successful receipt before the next step starts. The job ID comes from the matching `JobCreated` event in that transaction, so concurrent runs cannot select each other's jobs.
 
-New job parameters are withheld if the contracts are missing, the RPC is on the wrong chain, or the keeper has less than 0.02 native USDC for settlement. Failed settlements retry every minute and can be retried by the owner from the receipt. A completed job with an unexecuted split remains retryable; a reverted transaction never counts as confirmation.
+New job parameters are withheld if the contracts are missing, the RPC is on the wrong chain, or the keeper has less than 0.02 native USDC for settlement. Funded settlements retry every minute, with failed attempts moved behind other pending jobs; never-funded Open jobs do not occupy the retry queue. The owner can also retry from the receipt. A completed job with an unexecuted split remains retryable; a reverted transaction never counts as confirmation.
 
 ## Backend endpoints
 

@@ -1,5 +1,15 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-16 — paid-source and crash-recovery release check
+
+- Arc testnet run `b745554d-2e75-436e-85fd-b73f8af0ad28`, escrow job 36, previewed the Inkwell x402 quote, bought the named article for 0.50 test USDC after a JEV execute decision, used its actual body in a cited report, and split/refunded onchain. Total run spend was 0.594122028 and refund 0.405877972 from 1 test USDC. This run exposed a verifier passage bug and misleading report balance arithmetic; its report remains an immutable historical record.
+- Run `3fa8e611-0d86-48eb-a73d-4158107fa1bf`, escrow job 37, bought the same article once for 0.50 test USDC. A second-round proposed purchase was refused without another charge. The backend was replaced mid-write; the expired stage was reclaimed and the run finished from its saved steps. Its report uses article-specific tactics and examples, separates the acquisition fee from total research cost, and 3 of 6 sampled claims were supported by the verifier (3 marked unknown). Total spend was 0.681806084, refund 0.318193916. The onchain split completed on retry, tx `0x64d446830c1fd4042cc1f765aeb79f0a6a8f4940c8578a81aa0e3f29979551c1`.
+- That retry exposed a scheduler fairness issue: nine older unfinished escrows kept the three-oldest retry batch occupied, including never-funded Open jobs. The retry query now skips Open jobs and rotates failed attempts behind other pending jobs; five settlement regressions pass. This change still needs deployment and a fresh automatic-retry check. The recorded run required a manual call to the idempotent backend settlement routine.
+- The deployed report and verification now choose purchased text over a later 402 preview; payment proof fields are stripped before model observation. The previous version gave all six sampled claims `unknown` because verification searched the 402 preview. Regressions cover evidence selection, proof stripping, repeat-purchase refusal, and concurrent stage recovery.
+- Local production builds passed for frontend, creator subblog and docs. Extension 1.2.0 passed 23 tests, typecheck and a real Edge integration for page/link context-menu tip windows. SDK, wallet and CLI npm `latest` versions match the workspace; network and workspace checks pass. These checks do not replace human-scored research comparisons or independent escrow review.
+
+Older sections below preserve the state observed at their dates; they are not the current release status.
+
 ## 2026-10-15 — deployed payment rails verified, autonomous paid choice still open
 
 - From the deployed Arc testnet worker, a 0.02 test USDC tip to the hub-verified Inkwell creator routed through `NibgateSpenderV2` `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`. Transfer tx `0x5e401246c94b3c10d590469111514bbf6bfa75d410426a514987e1c3d6aa10a3` and hub receipt `82a48ad7-57b4-4acf-9f3a-f02fa6ced713` identify the spender as payer.
@@ -433,11 +443,10 @@ ledger from the verified budget; settle completes the job onchain
 (submit + complete + split attestation) automatically. E2E run `64b973b4`:
 job 11 funded $2 (keeper), approved, completed, `escrow.completed`
 `0xc041d2…` — remainder enforceable by contract. `ESCROW_OPERATOR` on
-testnet is the keeper (test loop closed); mainnet needs a real operator
-before escrow configures there. UI suite re-runs once Vercel's 100/day
-window resets (frontend carries the review gate + rendered report).
+testnet was the keeper at this point. Mainnet escrow and its operator were
+configured and exercised later; the release status is above.
 
-## Chat-first run visibility (unpushed, local)
+## Chat-first run visibility (historical implementation note)
 
 JEV probed healthy on prod (`64b973b4`: intake-stop ask_more 0.99→proceed,
 midrun-ask 0.96, per-source trust + grade distributions, all

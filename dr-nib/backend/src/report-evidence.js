@@ -25,6 +25,12 @@ export function reportEvidence(sources, fetchSteps) {
   // previews; within one quality level the newest passage wins.
   const documents = new Map(bestDocumentsByUrl(fetchSteps.flatMap((step) => step.output?.documents || []))
     .map((doc) => [doc.url, doc]));
+  const quotedPrices = new Map();
+  for (const step of fetchSteps) for (const doc of step.output?.documents || []) {
+    if (doc?.url && doc.acquisition === 'quote' && /Quoted price: \d/.test(String(doc.text || '')) && !quotedPrices.has(doc.url)) {
+      quotedPrices.set(doc.url, String(doc.text).split('\n')[0]);
+    }
+  }
   const purchases = new Map();
   for (const step of fetchSteps) for (const call of step.output?.calls || []) {
     if (call?.ok && ['unlock_content', 'pay_x402'].includes(call.tool) && call.url && !purchases.has(call.url)) purchases.set(call.url, call);
@@ -34,6 +40,8 @@ export function reportEvidence(sources, fetchSteps) {
     relevance: source.relevance, trust: source.trust, citationIndex: i + 1,
     excerpt: `${purchases.has(source.url)
       ? `Run acquisition record: ${purchases.get(source.url).amount ?? 'unknown amount'} USDC paid to unlock this source; ${purchases.get(source.url).txHash ? `transaction ${purchases.get(source.url).txHash}` : 'Circle Gateway did not provide an immediate transaction hash'}. This purchase record is separate from the article's claims.\n`
+      : ''}${purchases.has(source.url) && quotedPrices.has(source.url)
+      ? `Run price preview: ${quotedPrices.get(source.url)} This preview is separate from the purchased article's claims.\n`
       : ''}${documents.get(source.url)?.text || ''}`,
   }));
 }

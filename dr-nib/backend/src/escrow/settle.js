@@ -30,6 +30,7 @@ export async function retryPendingSettlements() {
       status: { in: ['complete', 'ended', 'failed'] },
       AND: [
         { metadata: { path: ['escrow', 'jobId'], not: Prisma.AnyNull } },
+        { OR: ['Funded', 'Submitted', 'Completed'].map((status) => ({ metadata: { path: ['escrow', 'status'], equals: status } })) },
         { metadata: { path: ['escrow', 'splitTx'], equals: Prisma.AnyNull } },
         { OR: [
           { metadata: { path: ['escrow', 'splitConfirmed'], equals: Prisma.AnyNull } },
@@ -90,6 +91,10 @@ async function settleRun(runId, reason) {
     await recordEvent(runId, { type: 'escrow.completed', jobId: local.jobId, completeTx: out?.completeTx || null, reason, ...(splitTx ? { splitTx } : {}) });
     return { completed: splitConfirmed, pending: !splitConfirmed, completeTx: out?.completeTx || local.completeTx || null, splitTx };
   } catch (err) {
+    // Move a failed job behind other pending settlements. Otherwise a fixed
+    // take:3 oldest batch can retry the same broken jobs forever and starve a
+    // newly completed user's refund.
+    try { await db.researchRun.update({ where: { id: runId }, data: { updatedAt: new Date() } }); } catch {}
     try {
       await recordEvent(runId, { type: 'escrow.settle-failed', error: String(err?.message || err).slice(0, 300) });
     } catch {}

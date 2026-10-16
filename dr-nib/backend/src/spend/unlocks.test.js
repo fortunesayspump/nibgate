@@ -9,10 +9,10 @@ import { payX402, previewPrice } from './unlocks.js';
 
 const TEST_KEY = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
-function challengeFetch() {
+function challengeFetch(micros = '10000') {
   const body = {
     x402Version: 2,
-    accepts: [{ scheme: 'exact', network: 'eip155:5042002', maxAmountRequired: '10000', asset: '0x3600000000000000000000000000000000000000' }],
+    accepts: [{ scheme: 'exact', network: 'eip155:5042002', maxAmountRequired: micros, asset: '0x3600000000000000000000000000000000000000' }],
   };
   return async () => ({
     status: 402,
@@ -84,6 +84,21 @@ describe('payX402 buyer path', () => {
     // $0.01 price → exactly $0.01 deposited: gateway float is one payment by construction
     expect(deposit).toHaveBeenCalledTimes(1);
     expect(deposit).toHaveBeenCalledWith('0.01');
+  });
+
+  it('interprets wallet balance as USDC micros and refuses an underfunded deposit before calling Gateway', async () => {
+    const deposit = vi.fn();
+    const pay = vi.fn();
+    vi.mocked(GatewayClient).mockImplementation(() => ({
+      onBeforePaymentCreation: vi.fn(),
+      getBalances: async () => ({ gateway: { available: 0n }, wallet: { balance: 486593n, formatted: '0.486593' } }),
+      deposit,
+      pay,
+    }));
+    await expect(payX402({ runId: 'probe', url: 'https://seller.example/x', fetchImpl: challengeFetch('500000') }))
+      .rejects.toThrow(/agent wallet holds \$0\.49 USDC/);
+    expect(deposit).not.toHaveBeenCalled();
+    expect(pay).not.toHaveBeenCalled();
   });
 
   it('refuses a higher or unreadable signing price after a $0.01 preview', async () => {

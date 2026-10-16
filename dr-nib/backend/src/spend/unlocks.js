@@ -94,7 +94,12 @@ async function ensureGatewayFunded(client, price) {
   const balances = await client.getBalances();
   const available = Number(balances?.gateway?.available ?? 0n) / 1e6;
   if (available >= price) return;
-  const wallet = Number(balances?.wallet?.balance ?? balances?.wallet?.formatted ?? 0);
+  // GatewayClient reports the ERC-20 wallet balance in 6-decimal base units.
+  // Comparing that bigint directly with a dollar quote incorrectly treats
+  // 486593 micros as enough for a $0.50 deposit.
+  const wallet = balances?.wallet?.balance != null
+    ? Number(balances.wallet.balance) / 1e6
+    : Number(balances?.wallet?.formatted ?? 0);
   if (!(wallet >= price)) {
     throw new Error(`agent wallet holds $${wallet.toFixed(2)} USDC — fund it before paid unlocks can work`);
   }

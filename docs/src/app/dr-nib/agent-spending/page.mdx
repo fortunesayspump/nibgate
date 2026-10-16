@@ -10,7 +10,7 @@ No spending key, no spend tools: if `DRNIB_AGENT_PRIVATE_KEY` is unset, paid pat
 
 ## The wallet
 
-One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Runs never share balances — separation is per-run accounting in the [ledger](/dr-nib/budgets), enforced before anything signs. The standing invariant: wallet balance ≥ sum of active run caps.
+One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Runs never share balances — separation is per-run accounting in the [ledger](/dr-nib/budgets), enforced before anything signs. The operator must keep enough payment-wallet and Gateway float for expected paid calls, plus native gas. Funding a user's escrow does not automatically refill the agent's separate payment wallet; an underfunded wallet refuses a purchase and the unused escrow is refunded.
 
 ## How a call gets decided
 
@@ -51,5 +51,5 @@ Software caps are promises; contracts are guarantees only for funds inside them.
 
 ## Funding it
 
-- Local/testnet: set `DRNIB_AGENT_PRIVATE_KEY` and fund the derived address with testnet USDC (Circle faucet).
-- Production: same variable on the backend; fund with real USDC when live spend is wanted. An empty wallet fails loudly (`agent wallet holds $0.00`) — nothing half-executes.
+- Local/testnet: set `DRNIB_AGENT_PRIVATE_KEY` and fund the derived address with testnet USDC (Circle faucet). Check its balance before a paid-source demo.
+- Production: same variable on the backend; fund with real USDC when live spend is wanted. A low balance fails before a Gateway deposit, with the wallet amount in USDC; an escrow deposit by itself is not enough to enable external purchases.

@@ -70,6 +70,12 @@ export async function generateResultKey() {
   // both halves for P-256 decapsulation when the private key is not extractable.
   return { publicKey, privateKey: pair, recipientId: await recipientId(publicKey) };
 }
+export async function deriveResultKey(ikm: Uint8Array) {
+  if (!(ikm instanceof Uint8Array) || ikm.length < 32) throw new Error("Invalid private key material");
+  const pair = await suite.DeriveKeyPair(ikm);
+  const publicKey = await suite.SerializePublicKey(pair.publicKey);
+  return { publicKey, privateKey: pair, recipientId: await recipientId(publicKey) };
+}
 export async function sealSource(publicKeyBytes: Uint8Array, context: PrivateContext, plain: Uint8Array): Promise<PrivateEnvelope> {
   const aad = contextBytes(context, "source");
   if (plain.length < 1 || plain.length > 4 * 1024 * 1024 || context.recipientId !== await recipientId(publicKeyBytes)) throw new Error("Invalid private source");

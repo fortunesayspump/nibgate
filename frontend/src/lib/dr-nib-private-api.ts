@@ -134,6 +134,20 @@ export async function getPrivateJobStatus(runId: string): Promise<PrivateJobStat
   throw Error("Private worker returned an invalid job state.");
 }
 
+export type PrivateRunSummary = { id: string; createdAt: number | string; status: string; tenantId: string };
+
+export async function listPrivateRunSummaries(): Promise<PrivateRunSummary[]> {
+  const data = await request("/runs");
+  const runs = (data as { runs?: unknown })?.runs;
+  if (!Array.isArray(runs)) throw Error("Private run list was invalid.");
+  return runs
+    .filter((run): run is { id: string; createdAt?: number | string; status: string; tenantId: string } =>
+      !!run && typeof run === "object" && typeof (run as { id?: unknown }).id === "string" &&
+      UUID.test((run as { id: string }).id) && typeof (run as { status?: unknown }).status === "string" &&
+      typeof (run as { tenantId?: unknown }).tenantId === "string")
+    .map(run => ({ id: run.id, createdAt: run.createdAt ?? 0, status: run.status, tenantId: run.tenantId }));
+}
+
 export async function getEncryptedPrivateReport(runId: string, reportId: string): Promise<PrivateEnvelope | null> {
   if (!UUID.test(runId) || !UUID.test(reportId)) throw Error("Invalid private report ID");
   let response: Response;

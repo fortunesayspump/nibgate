@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PageHeader } from "@/components/dr-nib/common";
 import { PrivateReport } from "@/components/dr-nib/PrivateReport";
 import { useNibgateConnect } from "@/lib/useNibgateConnect";
 import { createPrivateRun, executeFullPrivateRun, executePrivateRun, getEncryptedPrivateReport, getPrivateJobStatus,
-  openGuestSession, proveGuestKey, type PrivateJobStatus } from "@/lib/dr-nib-private-api";
+  listPrivateRunSummaries, openGuestSession, proveGuestKey, type PrivateJobStatus, type PrivateRunSummary } from "@/lib/dr-nib-private-api";
 import { base64ToBytes, bytesToBase64, bytesToHex, equalHex, freshId, freshNonce, generateResultKey,
   openReport, proofDigest, recipientId, sealSource, type PrivateEnvelope } from "@/lib/dr-nib-private-crypto";
 import { configuredPrivateVerification, verifyPrivateSession } from "@/lib/dr-nib-private-verification";
@@ -13,6 +13,10 @@ import { canRetryPrivateReport, choosePrivateFile, PRIVATE_FILE_EXTENSIONS, PRIV
   privateFailureStage, PrivateRequestGate } from "@/lib/dr-nib-private-interaction";
 import { canBeginFreshVerifiedAttempt, pollPrivateJob } from "@/lib/dr-nib-private-recovery";
 import { freshWorkerStateKey, sealWorkerStateKey } from "@/lib/dr-nib-private-worker-key";
+import { deletePrivateRun, listPrivateRuns, privateKeyStoreAvailable, savePrivateRun,
+  updatePrivateRunReport, type PrivateLocalRun } from "@/lib/dr-nib-private-key-store";
+import { derivePrivateKeys, privateRunKeyTypedData } from "@/lib/dr-nib-private-wallet-key";
+import { useSignTypedData } from "@nibgate/wallet/react";
 
 type Identity = { id: string; tenantId: string };
 type ResultKey = Awaited<ReturnType<typeof generateResultKey>>;
@@ -50,12 +54,23 @@ export default function PrivateResearch() {
   const [runId, setRunId] = useState("");
   const [jobState, setJobState] = useState<JobUiState>("");
   const [uncertainExecution, setUncertainExecution] = useState(false);
+  const [recent, setRecent] = useState<PrivateLocalRun[]>([]);
+  const [walletRecovery, setWalletRecovery] = useState(false);
+  const [serverRuns, setServerRuns] = useState<PrivateRunSummary[]>([]);
   const identity = useRef<Identity | null>(null);
   const resultKey = useRef<ResultKey | null>(null);
   const workerStateKey = useRef<Uint8Array | null>(null);
   const executionAcknowledged = useRef(false);
   const gate = useRef(new PrivateRequestGate());
   const { connect, signIn, address, busy: signInBusy, error: signInError } = useNibgateConnect();
+  const { signTypedDataAsync } = useSignTypedData();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (privateKeyStoreAvailable()) void listPrivateRuns().then(rows => { if (!cancelled) setRecent(rows); }).catch(() => {});
+    void listPrivateRunSummaries().then(rows => { if (!cancelled) setServerRuns(rows); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   function selectFile(file?: File) {
     const choice = choosePrivateFile(file);
@@ -91,6 +106,7 @@ export default function PrivateResearch() {
     if (status.state === "complete") {
       setReportId(status.reportId);
       setUncertainExecution(false);
+      void updatePrivateRunReport(run.id, status.reportId).then(() => listPrivateRuns()).then(setRecent).catch(() => {});
       const key = resultKey.current;
       if (!key) {
         setStage("Report key lost");
@@ -169,6 +185,47 @@ export default function PrivateResearch() {
     finally { setBusy(false); gate.current.leave(); }
   }
 
+  async function reopen(entry: PrivateLocalRun) {
+    if (busy || !gate.current.enter()) return;
+    setBusy(true); setError(""); setReport("");
+    try {
+      identity.current = { id: entry.runId, tenantId: entry.tenantId };
+      setRunId(entry.runId);
+      resultKey.current = entry.key;
+      workerStateKey.current = entry.stateKey ?? null;
+      if (entry.reportId) {
+        setReportId(entry.reportId);
+        setJobState("complete");
+        await fetchReport(identity.current, entry.reportId, entry.key);
+      } else {
+        setStage("Loaded a private run from this device");
+        setError("This run has no stored report yet. Keep the tab open and check its status.");
+      }
+    } catch (cause) { setError(humanError(cause)); setStage("Stored report unavailable"); }
+    finally { setBusy(false); gate.current.leave(); }
+  }
+
+  async function forget(runId: string) {
+    try { await deletePrivateRun(runId); setRecent(await listPrivateRuns()); } catch {}
+  }
+
+  async function recoverFromWallet(entry: PrivateRunSummary) {
+    if (busy || !gate.current.enter()) return;
+    setBusy(true); setError(""); setReport("");
+    try {
+      if (!address) throw Error("Connect the wallet that created this run to recover it.");
+      setStage("Sign to rebuild the report key");
+      const signature = await signTypedDataAsync(privateRunKeyTypedData(entry.id) as Parameters<typeof signTypedDataAsync>[0]);
+      const derived = await derivePrivateKeys(signature);
+      identity.current = { id: entry.id, tenantId: entry.tenantId };
+      setRunId(entry.id);
+      resultKey.current = derived.resultKey;
+      workerStateKey.current = derived.stateKey;
+      await applyJobStatus(identity.current, await getPrivateJobStatus(entry.id));
+    } catch (cause) { setError(humanError(cause)); setStage("Wallet recovery failed"); }
+    finally { setBusy(false); gate.current.leave(); }
+  }
+
   async function submit(event?: FormEvent<HTMLFormElement>, freshAttempt = false) {
     event?.preventDefault();
     const verifiedFreshAttempt = freshAttempt && canBeginFreshVerifiedAttempt(jobState,
@@ -222,7 +279,19 @@ export default function PrivateResearch() {
       setStage("Encrypting source in this browser");
       // Reuse the tab-held report key for an explicit fresh attempt on the same
       // no-started run. A delayed old result would still be decryptable.
-      const key = resultKey.current ?? await generateResultKey();
+      let key = resultKey.current;
+      let recoveredWith = "";
+      if (!key && walletRecovery && address) {
+        setStage("Sign once to make this report recoverable");
+        try {
+          const signature = await signTypedDataAsync(privateRunKeyTypedData(run.id) as Parameters<typeof signTypedDataAsync>[0]);
+          const derived = await derivePrivateKeys(signature);
+          key = derived.resultKey;
+          workerStateKey.current = derived.stateKey;
+          recoveredWith = address;
+        } catch { key = null; }
+      }
+      key = key ?? await generateResultKey();
       resultKey.current = key; // Never localStorage, cookies, URL, or backend.
       const input = sourceFile ? {
         question: cleanQuestion, title: cleanTitle, fileName: sourceFile.name,
@@ -247,6 +316,12 @@ export default function PrivateResearch() {
           revision: 1, purpose: "source", recipientId: session.recipientId,
         }, session.sessionId, stateKey);
       }
+
+      void savePrivateRun({ runId: run.id, tenantId: run.tenantId, question: cleanQuestion,
+        title: cleanTitle, reportId: null, createdAt: Date.now(), key,
+        ...(workerStateKey.current ? { stateKey: workerStateKey.current } : {}),
+        ...(recoveredWith ? { wallet: recoveredWith } : {}) })
+        .then(() => listPrivateRuns()).then(setRecent).catch(() => {});
 
       setStage("Processing inside private worker");
       setUncertainExecution(true); // A lost execute response may have completed.
@@ -273,7 +348,7 @@ export default function PrivateResearch() {
       </section>}
 
       <p className="mb-6 max-w-3xl text-sm leading-6 opacity-75">
-        Supported files: PDF, DOCX, XLSX, CSV, TXT, MD, PNG, JPEG and WebP, up to 2 MB. Text extraction runs inside the verified guest; {fullWorkerMode ? "files with more than 100,000 extracted characters are rejected" : "only the first 100,000 extracted characters are analyzed"}, so split longer documents. Scanned PDFs without selectable text may fail, and image OCR can misread figures. Keep this page open while it runs: the result {fullWorkerMode ? "and worker-state keys stay" : "key stays"} in memory, and navigating away, closing, or refreshing this page loses {fullWorkerMode ? "them" : "it"}. A private run with a lost key may need to be restarted.
+        Supported files: PDF, DOCX, XLSX, CSV, TXT, MD, PNG, JPEG and WebP, up to 2 MB. Text extraction runs inside the verified guest; {fullWorkerMode ? "files with more than 100,000 extracted characters are rejected" : "only the first 100,000 extracted characters are analyzed"}, so split longer documents. Scanned PDFs without selectable text may fail, and image OCR can misread figures. Keep this page open while it runs: the report key is saved only in this browser when the run starts, so a finished report can be reopened later on this device. That key is never sent to a server, so clearing this browser&apos;s storage or switching devices leaves the stored report undecryptable{fullWorkerMode ? ", and the worker-state keys stay in memory only" : ""}. A private run whose key is gone may need to be restarted.
       </p>
       {fullWorkerMode && <p className="mb-6 max-w-3xl text-sm leading-6 opacity-75">
         Full worker mode is enabled in this build for a bounded source-only plan and roughly 300-word report. A guest restart during processing cannot currently resume the job; the status will remain uncertain, and this page will not automatically start it again.
@@ -312,6 +387,11 @@ export default function PrivateResearch() {
             className="mt-2 w-full border border-dark-gray/50 bg-white p-3 text-sm leading-6 focus-visible:outline-2 focus-visible:outline-offset-2" />
           <p className="mt-1 text-xs opacity-60">{sourceText.length.toLocaleString()} / {MAX_TEXT.toLocaleString()} characters</p>
         </div>
+        <label className="flex items-start gap-3 text-sm leading-6">
+          <input type="checkbox" checked={walletRecovery} onChange={event => setWalletRecovery(event.target.checked)}
+            disabled={!verification || busy || !!reportId || !!jobState || uncertainExecution} className="mt-1" />
+          <span>Make this report recoverable on other devices. You sign one message; the report key is derived from that signature and never leaves your wallet or this browser.</span>
+        </label>
         <button type="submit" disabled={!verification || busy || !!reportId || !!jobState || uncertainExecution}
           className="border border-black bg-black px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white hover:text-black focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
           {busy ? "Working…" : "Verify and research privately"}
@@ -344,9 +424,49 @@ export default function PrivateResearch() {
         </p>}
       </div>
 
+      {recent.length > 0 && <section className="mt-6 max-w-3xl border border-dark-gray/40 bg-white p-5">
+        <p className="text-xs font-medium uppercase tracking-wider opacity-60">Private research on this device</p>
+        <p className="mt-2 text-sm leading-6 opacity-75">These reopen because their keys are stored only in this browser. Nobody else — including Nibgate — can decrypt them.</p>
+        <ul className="mt-3 divide-y divide-dark-gray/30">
+          {recent.map(entry => <li key={entry.runId} className="flex items-center justify-between gap-4 py-3">
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{entry.title || entry.question || "Private run"}</span>
+              <span className="block text-xs opacity-60">{new Date(entry.createdAt).toLocaleString()} · {entry.reportId ? "report saved" : "no report yet"}</span>
+            </span>
+            <span className="flex shrink-0 gap-2">
+              {entry.reportId && <button type="button" onClick={() => void reopen(entry)} disabled={busy}
+                className="border border-black px-3 py-1.5 text-xs font-medium hover:bg-black hover:text-white focus-visible:outline-2 disabled:opacity-40">
+                Open
+              </button>}
+              <button type="button" onClick={() => void forget(entry.runId)} disabled={busy}
+                className="border border-dark-gray/50 px-3 py-1.5 text-xs font-medium hover:bg-black hover:text-white focus-visible:outline-2 disabled:opacity-40">
+                Forget
+              </button>
+            </span>
+          </li>)}
+        </ul>
+      </section>}
+
+      {serverRuns.length > 0 && <section className="mt-6 max-w-3xl border border-dark-gray/40 bg-white p-5">
+        <p className="text-xs font-medium uppercase tracking-wider opacity-60">From your account</p>
+        <p className="mt-2 text-sm leading-6 opacity-75">Confidential runs recorded for your account. Recover one on any device by signing with the wallet that created it.</p>
+        <ul className="mt-3 divide-y divide-dark-gray/30">
+          {serverRuns.map(entry => <li key={entry.id} className="flex items-center justify-between gap-4 py-3">
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-medium">{entry.id}</span>
+              <span className="block text-xs opacity-60">{new Date(entry.createdAt).toLocaleString()} · {entry.status}</span>
+            </span>
+            <button type="button" onClick={() => void recoverFromWallet(entry)} disabled={busy || !address}
+              className="shrink-0 border border-black px-3 py-1.5 text-xs font-medium hover:bg-black hover:text-white focus-visible:outline-2 disabled:opacity-40">
+              Recover
+            </button>
+          </li>)}
+        </ul>
+      </section>}
+
       {report && <article className="mt-6 max-w-3xl border border-dark-gray/40 bg-white p-5 md:p-7">
         <h3 className="text-xl font-medium">Private report</h3>
-        <p className="mt-1 text-xs opacity-60">Decrypted in this tab. Nothing in this report is saved by this page. External images and links are disabled here.</p>
+        <p className="mt-1 text-xs opacity-60">Decrypted in this tab. The report key is stored only in this browser; the plaintext report is never saved. External images and links are disabled here.</p>
         <PrivateReport markdown={report} />
       </article>}
 

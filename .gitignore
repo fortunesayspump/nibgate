@@ -86,3 +86,15 @@ dr-nib/references/smolagents/
 /docs/public/_pagefind/
 .vercel
 .env*
+
+# Local one-off scripts (never commit)
+scripts/fix-covers.mjs
+scripts/swarm-expand.mjs
+
+# Local key material (never commit)
+pair.pem
+*.pem
+
+# Local logs and scratch notes (never commit)
+screenlog.*
+CONTINUE-*.md

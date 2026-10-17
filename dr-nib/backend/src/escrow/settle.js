@@ -10,9 +10,13 @@ import { Prisma } from '@prisma/client';
 import { budgetState, settle } from '../money.js';
 import { recordEvent } from '../eventlog.js';
 import { isEscrowConfigured, jobStatus, signSplit, submitAndComplete } from './jobs.js';
+import { isLegacyRun } from '../privacy/guard.js';
+import { oldestLegacyRuns } from '../privacy/legacy-pagination.js';
 
 const inFlight = new Set();
 export async function settleEscrowRun(runId, reason = 'settle') {
+  const candidate=await db.researchRun.findUnique({where:{id:runId},select:{metadata:true}});
+  if (!isLegacyRun(candidate)) return {skipped:true,reason:'confidential-boundary-unavailable'};
   if (inFlight.has(runId)) return { pending: true, reason: 'settlement-in-progress' };
   inFlight.add(runId);
   try { return await settleRun(runId, reason); }
@@ -22,11 +26,10 @@ export async function settleEscrowRun(runId, reason = 'settle') {
 export async function retryPendingSettlements() {
   // Also finish ledger-only runs whose process exited after a terminal
   // status was recorded but before settlement. Active stages still drain.
-  const unfinished=await db.researchRun.findMany({where:{status:{in:['complete','ended','failed']},settledAt:null,steps:{none:{status:'active'}}},take:3,orderBy:{updatedAt:'asc'},select:{id:true,status:true}});
-  for(const run of unfinished)await settle(run.id,run.status);
+  const unfinished=await oldestLegacyRuns(db.researchRun.findMany.bind(db.researchRun),{status:{in:['complete','ended','failed']},settledAt:null,steps:{none:{status:'active'}}},{status:true});
+  for(const run of unfinished)if(isLegacyRun(run))await settle(run.id,run.status);
   if (!isEscrowConfigured()) return { retried: 0 };
-  const runs = await db.researchRun.findMany({
-    where: {
+  const runs = await oldestLegacyRuns(db.researchRun.findMany.bind(db.researchRun),{
       status: { in: ['complete', 'ended', 'failed'] },
       AND: [
         { metadata: { path: ['escrow', 'jobId'], not: Prisma.AnyNull } },
@@ -37,9 +40,7 @@ export async function retryPendingSettlements() {
           { metadata: { path: ['escrow', 'splitConfirmed'], equals: false } },
         ] },
       ],
-    },
-    orderBy: { updatedAt: 'asc' }, take: 3, select: { id: true },
-  });
+    },{id:true});
   for (const run of runs) await settleEscrowRun(run.id, 'automatic-retry');
   return { retried: runs.length };
 }
@@ -48,6 +49,7 @@ async function settleRun(runId, reason) {
   try {
     const run = await db.researchRun.findUnique({ where: { id: runId } });
     if (!run || !['complete','ended','failed'].includes(run.status)) return {skipped:true};
+    if (!isLegacyRun(run)) return {skipped:true,reason:'confidential-boundary-unavailable'};
     if (await db.researchStep.count({where:{runId,status:'active'}})) return {pending:true,reason:'stage-in-flight'};
     if (!run.settledAt) { const money=await settle(runId,reason); if(money?.pending) return money; }
     const local = run?.metadata?.escrow;

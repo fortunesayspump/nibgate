@@ -24,6 +24,7 @@ import { assertCanCreateRun } from '../limits.js';
 import { resolveLength } from '../length.js';
 import { attachSource, sourceSummary } from '../sources/routes.js';
 import { endRun } from '../end-run.js';
+import { isLegacyRun } from '../privacy/guard.js';
 
 function checkWallet(wallet) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(String(wallet || ''))) {
@@ -38,6 +39,7 @@ async function ownedRun(runId, wallet) {
     return { error: 'project not found', run: null };
   }
   if (run.deletedAt) return { error: 'project is deleted', run: null };
+  if (!isLegacyRun(run)) return {error:'Confidential processing is unavailable on this deployment.',run:null};
   return { run };
 }
 
@@ -87,9 +89,10 @@ export const TOOLS = [
     name: 'create_run',
     description: 'Open a research project for a wallet when the server card research.acceptingRuns is true: creates the brief, asks the first intake question, returns the run. Include any specific public source URL in topic when it must be evaluated: the run previews named URLs for free before deciding whether a quoted x402 purchase adds enough evidence. Sending is wallet-gated like the UI composer.',
     input: { ownerWallet: '0x…', topic: 'what to research' },
-    async run({ ownerWallet, topic }) {
+    async run({ ownerWallet, topic, privacyMode }) {
       const bad = checkWallet(ownerWallet);
       if (bad) throw new Error(bad.error);
+      if (privacyMode!==undefined && privacyMode!=='legacy') throw new Error('Confidential processing is unavailable on this deployment.');
       if (!topic || typeof topic !== 'string' || !topic.trim()) throw new Error('topic is required');
       const userId = `wallet:${String(ownerWallet).toLowerCase()}`;
       const gate = await assertCanCreateRun(userId);

@@ -12,6 +12,7 @@
 // spends from anywhere but the run's ledger, via the stage that invoked it.
 import { recordEvent } from '../eventlog.js';
 import { db } from '../db.js';
+import { assertConventionalPath } from '../privacy/guard.js';
 import { citedTipCandidates } from '../tip-candidates.js';
 import { applyUrlPolicy, checkUrlPolicy, normalizePolicy } from './policy.js';
 import { searchAll, extractAll } from '../retrieval/index.js';
@@ -191,11 +192,13 @@ export function toolSpecs() {
  * @returns {Promise<{ok:true, output:any, costUsd:number}|{ok:false, error:string, costUsd:0}>}
  */
 export async function runTool(runId, name, input, { policy, fetchImpl } = {}) {
+  // Refuse before tool selection, network I/O, payment or tool-call event log.
+  const run=await db.researchRun.findUnique({where:{id:runId}});
+  assertConventionalPath(run);
   const tool = TOOLS[name];
   if (!tool) return { ok: false, error: `unknown tool: ${name}`, costUsd: 0 };
   const ctx = { runId, policy: normalizePolicy(policy), fetchImpl };
   try {
-    const run=await db.researchRun.findUnique({where:{id:runId}});
     if(run?.brief?.liveWeb===false && !['search_sources'].includes(name)) throw new Error('External tools are disabled for user-sources-only research.');
     if(run && name==='tip_creator') {
       if(run.brief?.tipCreators!==true) throw new Error('Creator tips were not authorized for this run.');

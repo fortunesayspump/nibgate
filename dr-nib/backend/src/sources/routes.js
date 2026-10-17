@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { db } from '../db.js';
 import * as auth from '../auth.js';
 import { parseSource, MAX_SOURCE_BYTES } from './parse.js';
@@ -8,6 +8,9 @@ import { directExtract } from '../retrieval/providers/direct.js';
 import { recordEvent } from '../eventlog.js';
 import { withRunLock } from '../run-lock.js';
 import { config } from '../env.js';
+import { assertConventionalPath, isConfidentialRun } from '../privacy/guard.js';
+import { createEncryptedSourceAdapter } from '../privacy/encrypted-source.js';
+import { verifyRecipientForPrivateSource } from '../privacy/attestation.js';
 
 export const sources = Router({mergeParams:true});
 const EDITABLE = ['intake','intake-done','planned'];
@@ -17,8 +20,26 @@ export const sourceSummary = row => ({id:row.id,name:row.output.name,bytes:row.o
 async function owner(req,res) {
   const run=await db.researchRun.findUnique({where:{id:req.params.id}});
   if(!run || !auth.isOwner(req.user,run) || run.deletedAt) {res.status(404).json({error:'project not found'});return null}
+  try { assertConventionalPath(run); }
+  catch (error) { res.status(error.status).json({error:error.message,code:error.code}); return null; }
   return run;
 }
+async function confidentialOwner(req,res) {
+  const run=await db.researchRun.findUnique({where:{id:req.params.id}});
+  if (!run || !auth.isOwner(req.user,run) || run.deletedAt) {res.status(404).json({error:'project not found'});return null;}
+  if (!isConfidentialRun(run)) {res.status(409).json({error:'Project is not a confidential run.'});return null;}
+  return run;
+}
+const encryptedSources=createEncryptedSourceAdapter({
+  verifyRecipient:verifyRecipientForPrivateSource,
+  storage:{put:putSource,remove:deleteSource},
+  repository:{create:async(run,item)=>withRunLock(run.id,async tx=>{
+    const current=await tx.researchRun.findUniqueOrThrow({where:{id:run.id}});
+    if (!isConfidentialRun(current) || !sourceEditable(current)) throw Object.assign(new Error(lockedMessage),{status:409});
+    if (await tx.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}})>=5) throw Object.assign(new Error('A project supports up to 5 supplied sources.'),{status:409});
+    await tx.researchStep.create({data:{id:item.id,runId:run.id,kind:'input',status:'done',endedAt:new Date(),output:{encrypted:true,format:'sealed-source-hpke-v2',key:item.key,sha256:item.sha256,bytes:item.bytes,recipientId:item.recipientId}}});
+  })},
+});
 sources.get('/',async(req,res,next)=>{
   try {
     const run=await owner(req,res);if(!run)return;
@@ -27,6 +48,9 @@ sources.get('/',async(req,res,next)=>{
   }catch(e){next(e)}
 });
 export async function attachSource(run,body) {
+    // attachSource is also called directly from elsewhere; guard before URL
+    // fetch, base64 decode, parsing, R2 storage or checkpoint creation.
+    assertConventionalPath(run);
     if(!sourceEditable(run))throw Object.assign(new Error(lockedMessage),{status:409});
     if(!sourceStorageConfig())throw Object.assign(new Error('Private R2 uploads are temporarily unavailable. Your file was not stored.'),{status:503});
     if(await db.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}})>=5)throw new Error('A project supports up to 5 supplied sources.');
@@ -50,6 +74,7 @@ export async function attachSource(run,body) {
     try {
       row=await withRunLock(run.id,async tx=>{
         const current=await tx.researchRun.findUniqueOrThrow({where:{id:run.id}});
+        assertConventionalPath(current);
         if(!sourceEditable(current))throw Object.assign(new Error(lockedMessage),{status:409});
         if(await tx.researchStep.count({where:{runId:run.id,kind:'input',status:'done'}})>=5)throw new Error('Project changed while uploading. Retry after checking its status.');
         if(current.status==='planned')await tx.researchRun.update({where:{id:run.id},data:{status:'intake-done',plan:null}});
@@ -64,6 +89,34 @@ sources.post('/',async(req,res,next)=>{
     const run=await owner(req,res);if(!run)return;
     res.status(201).json(await attachSource(run,req.body));
   }catch(e){if(e.status || e.name==='Error' || e.name==='TypeError')return res.status(e.status || 400).json({error:e.message});next(e)}
+});
+// A caller supplies ciphertext produced after independently verified attestation.
+// Today verifyRecipientForPrivateSource always fails: this endpoint cannot be
+// enabled by an environment flag or a caller-supplied "verified" boolean.
+sources.post('/encrypted',async(req,res,next)=>{
+  try {
+    const run=await confidentialOwner(req,res);if(!run)return;
+    const body=req.body;
+    if (!body || typeof body!=='object' || Array.isArray(body) || Object.keys(body).sort().join(',')!=='attestationEvidence,clientNonce,envelope,proofOfPossession')
+      return res.status(400).json({error:'Expected sealed envelope and attestation handshake.'});
+    res.status(201).json(await encryptedSources.attach(run,body.envelope,body.attestationEvidence,body.proofOfPossession,body.clientNonce));
+  }catch(e){
+    // Attestation/storage/DB exceptions may contain user or provider text.
+    // Only the fixed fail-closed availability code is safe to disclose.
+    if(e?.code==='CONFIDENTIAL_BOUNDARY_UNAVAILABLE')return res.status(503).json({error:'Confidential processing is unavailable.',code:e.code});
+    return res.status(400).json({error:'Confidential upload rejected.',code:'CONFIDENTIAL_UPLOAD_REJECTED'});
+  }
+});
+sources.get('/:sourceId/encrypted',async(req,res,next)=>{
+  try {
+    const run=await confidentialOwner(req,res);if(!run)return;
+    const row=await db.researchStep.findFirst({where:{id:req.params.sourceId,runId:run.id,kind:'input',status:'done'}});
+    if (!row?.output?.encrypted || row.output.format!=='sealed-source-hpke-v2') return res.status(404).json({error:'source not found'});
+    const bytes=await getSource(row.output.key);
+    if (createHash('sha256').update(bytes).digest('hex')!==row.output.sha256)
+      return res.status(503).json({error:'Sealed source integrity check failed.'});
+    res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}).type('application/json').send(bytes);
+  }catch(e){next(e)}
 });
 sources.get('/:sourceId',async(req,res,next)=>{
   try {
@@ -87,6 +140,7 @@ sources.delete('/:sourceId',async(req,res,next)=>{
     const run=await owner(req,res);if(!run)return;
     await withRunLock(run.id,async tx=>{
       const current=await tx.researchRun.findUniqueOrThrow({where:{id:run.id}});
+      assertConventionalPath(current);
       if(!sourceEditable(current))throw Object.assign(new Error(lockedMessage),{status:409});
       const row=await tx.researchStep.findFirst({where:{id:req.params.sourceId,runId:run.id,kind:'input',status:'done'}});
       if(!row)throw Object.assign(new Error('source not found'),{status:404});

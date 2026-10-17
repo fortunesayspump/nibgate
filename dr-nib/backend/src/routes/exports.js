@@ -5,6 +5,7 @@ import * as auth from '../auth.js';
 import { budgetState } from '../money.js';
 import { PLANNED, RENDERABLE, renderExport } from '../exports/render.js';
 import { idempotency } from '../idempotency.js';
+import { assertConventionalPath } from '../privacy/guard.js';
 
 const FORMATS = new Set([...RENDERABLE, ...PLANNED]);
 
@@ -19,6 +20,8 @@ async function ownedRun(req, res) {
     res.status(404).json({ error: 'project not found' });
     return null;
   }
+  try { assertConventionalPath(run); }
+  catch (error) { res.status(error.status).json({error:error.message,code:error.code}); return null; }
   return run;
 }
 

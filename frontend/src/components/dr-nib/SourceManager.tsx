@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
 import { researchSourceApi, uploadResearchSource } from '@/lib/dr-nib-api';
+import { addLocalFileSource, addLocalTextSource, listLocalSources, removeLocalSource,
+  type LocalSource } from '@/lib/dr-nib-private-sources';
 
 export function SourceManager({runId,readOnly=false,onBusyChange,onChanged}:{runId:string;readOnly?:boolean;onBusyChange?:(busy:boolean)=>void;onChanged?:()=>void}) {
   const [state,setState]=useState<any>(null);
@@ -41,5 +43,42 @@ export function SourceManager({runId,readOnly=false,onBusyChange,onChanged}:{run
     {state?.sources.length===0 ? <p className="mt-3 text-xs opacity-60">No supplied sources yet. Add files here, or research the web.</p> : null}
     <ul className="mt-3 space-y-3">{state?.sources.map((source:any)=><li key={source.id} className="rounded-xl border border-dark-gray/30 bg-gray p-3 text-xs"><p className="break-words font-medium">{source.name}</p><p className="mt-1 opacity-60">Ready · {source.pages ? `${source.pages} ${source.pages===1?'page':'pages'} · ` : ''}{source.characters.toLocaleString()} characters</p>{source.warnings.map((warning:string)=><p key={warning} className="mt-1">{warning}</p>)}<div className="mt-2 flex flex-wrap gap-4"><a href={source.url} target="_blank" rel="noreferrer" className="underline">Preview extracted text</a><a href={source.originalUrl} className="underline">Download original</a>{editable && <button type="button" disabled={Boolean(busy)} className="underline disabled:opacity-40" onClick={async()=>{setBusy('Removing source');setError('');try{await researchSourceApi.remove(runId,source.id);await refresh();onChanged?.()}catch(e:any){setError(e.message)}finally{setBusy('')}}}>Remove from research</button>}</div></li>)}</ul>
     {!editable && state?.sources.length>0 ? <p className="mt-2 text-xs opacity-60">Sources are locked after an escrow job is opened or research starts. End and start a new project to use different files.</p> : null}
+  </section>;
+}
+
+// Confidential source manager: the file never leaves this tab. It is read into
+// memory and sealed straight to the attested guest when the run starts; it is
+// never POSTed to the ordinary Dr. Nib API or R2. The guest currently analyzes
+// one supplied document per confidential run.
+export function ConfidentialSourceManager({runId,readOnly=false,onBusyChange,onChanged}:{runId:string;readOnly?:boolean;onBusyChange?:(busy:boolean)=>void;onChanged?:()=>void}) {
+  const [sources,setSources]=useState<LocalSource[]>([]);
+  const [error,setError]=useState('');
+  const [url,setUrl]=useState('');
+  const input=useRef<HTMLInputElement>(null);
+  useEffect(()=>{onBusyChange?.(false)},[onBusyChange]);
+  useEffect(()=>{setSources(listLocalSources(runId))},[runId]);
+  function acknowledge(){setSources(listLocalSources(runId));onChanged?.()}
+  function addFiles(files:FileList|null){
+    if(!files?.length)return;
+    setError('');
+    for(const file of Array.from(files)){
+      const result=addLocalFileSource(runId,file);
+      if(!result.ok){setError(result.error);break}
+    }
+    if(input.current)input.current.value='';
+    acknowledge();
+  }
+  const editable=!readOnly && sources.length===0;
+  return <section aria-label="Your confidential sources" className="my-4 rounded-2xl border border-dark-gray/50 bg-white p-4 text-left">
+    <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-medium">Your sources ({sources.length}/1)</h2><span className="rounded-full border border-dark-gray/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider opacity-70">Never uploaded</span></div>
+    <p className="mt-2 text-xs leading-5 opacity-70">This file stays in your browser. It is encrypted to the verified confidential worker when research starts, so Dr. Nib&apos;s servers only ever see ciphertext. PDF, DOCX, XLSX, CSV, TXT, MD, PNG, JPEG or WebP, up to 2 MB. One document per confidential run.</p>
+    {editable && <>
+      <input ref={input} type="file" accept=".pdf,.docx,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg,.webp" aria-label="Choose a confidential research source file" onChange={e=>addFiles(e.target.files)} className="mt-3 block w-full text-xs file:mr-3 file:rounded-lg file:border file:border-dark-gray/40 file:bg-gray file:px-3 file:py-2 file:text-xs" />
+      <div className="mt-3 flex flex-wrap gap-2"><input type="text" value={url} onChange={e=>setUrl(e.target.value)} placeholder="…or paste text" aria-label="Paste source text" className="min-w-0 flex-1 rounded-lg border border-dark-gray/50 bg-white px-3 py-2 text-xs"/><button type="button" disabled={!url.trim()} onClick={()=>{setError('');const result=addLocalTextSource(runId,'Pasted text',url);if(!result.ok){setError(result.error);return}setUrl('');acknowledge()}} className="rounded-lg border border-dark-gray/50 px-3 py-2 text-xs disabled:opacity-40">Add text</button></div>
+    </>}
+    {error && <p role="alert" className="mt-2 text-sm">{error}</p>}
+    {sources.length===0 ? <p className="mt-3 text-xs opacity-60">No supplied source yet. Add the document you want researched confidentially.</p> : null}
+    <ul className="mt-3 space-y-3">{sources.map(source=><li key={source.id} className="rounded-xl border border-dark-gray/30 bg-gray p-3 text-xs"><p className="break-words font-medium">{source.name}</p><p className="mt-1 opacity-60">In this tab · {source.kind==='file'?`${Math.max(1,Math.round(source.size/1024))} KB`:`${source.size.toLocaleString()} characters`}</p>{!readOnly && <div className="mt-2"><button type="button" className="underline" onClick={()=>{removeLocalSource(runId,source.id);acknowledge()}}>Remove</button></div>}</li>)}</ul>
+    <p className="mt-3 text-xs opacity-60">Keep this tab open while research runs. The source and the report key live only in this tab, so a reload requires adding the document again.</p>
   </section>;
 }

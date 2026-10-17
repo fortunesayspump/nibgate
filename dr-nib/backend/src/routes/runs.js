@@ -16,6 +16,7 @@ import { answerIntakeQuestion, answerIntakeBatch, createQuestion } from '../answ
 import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
 import { researchAvailability } from '../readiness.js';
+import { assertConventionalPath, isLegacyRun } from '../privacy/guard.js';
 import { jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
 
 export const runs = Router();
@@ -34,6 +35,8 @@ async function ownedRun(req, res, { allowDeleted = false } = {}) {
     res.status(404).json({ error: 'project not found' });
     return null;
   }
+  try { assertConventionalPath(run); }
+  catch (error) { res.status(error.status).json({error:error.message,code:error.code}); return null; }
   if (run.deletedAt && !allowDeleted) {
     res.status(409).json({ error: 'project is deleted' });
     return null;
@@ -49,7 +52,9 @@ async function withBudget(run) {
 
 async function purgeExpired() {
   const cutoff = new Date(Date.now() - TRASH_TTL_MS);
-  await db.researchRun.deleteMany({ where: { deletedAt: { lt: cutoff } } });
+  const expired = await db.researchRun.findMany({where:{deletedAt:{lt:cutoff}},select:{id:true,metadata:true}});
+  const legacyIds = expired.filter(isLegacyRun).map((run)=>run.id);
+  if (legacyIds.length) await db.researchRun.deleteMany({where:{id:{in:legacyIds},deletedAt:{lt:cutoff}}});
 }
 
 // The project belongs to the signed-in wallet from the moment it exists. The
@@ -57,6 +62,11 @@ async function purgeExpired() {
 // as the intake conversation goes on.
 runs.post('/', async (req, res) => {
   try {
+    // Do not silently create a conventional plaintext run when confidential
+    // processing was requested by a future client or API caller.
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'privacyMode') && req.body.privacyMode !== 'legacy') {
+      return res.status(503).json({error:'Confidential processing is unavailable on this deployment.',code:'CONFIDENTIAL_BOUNDARY_UNAVAILABLE'});
+    }
     const { topic } = req.body || {};
     if (!topic || typeof topic !== 'string' || !topic.trim()) return res.status(400).json({ error: 'topic is required' });
     // A live run holds a funded cap and spends provider money: cap how many a
@@ -110,8 +120,11 @@ runs.get('/', async (req, res) => {
       take: 50,
       include: { ledger: true, _count: { select: { sources: true, reports: true } } },
     });
+    // Keep ordinary projects visible; don't expand an unready private record
+    // into the conventional run-list response.
+    const visibleRows = rows.filter(isLegacyRun);
     res.json(jsonSafe({
-      runs: rows.map((r) => {
+      runs: visibleRows.map((r) => {
         const { ledger, _count, ...rest } = r;
         const sum = (kind) => ledger.filter((l) => l.kind === kind).reduce((s, l) => s + Number(l.amount), 0);
         return {

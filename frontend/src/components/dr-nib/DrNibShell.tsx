@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Library, ListChecks, Menu, Microscope, CircleHelp, X, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 const ITEMS = [
-  { href: "/dr-nib/research", label: "Research", desc: "Private research", icon: Microscope, match: (p: string) => p === "/dr-nib/research" || p.startsWith("/dr-nib/research/") },
+  { href: "/dr-nib/research", label: "Research", desc: "Start something new", icon: Microscope, match: (p: string) => p === "/dr-nib/research" || p.startsWith("/dr-nib/research/") },
   { href: "/dr-nib/projects", label: "Projects", desc: "Active + ended", icon: ListChecks, match: (p: string) => p.startsWith("/dr-nib/projects") },
   { href: "/dr-nib/sources", label: "Sources", desc: "Library", icon: Library, match: (p: string) => p.startsWith("/dr-nib/sources") },
   { href: "/dr-nib/settings", label: "Help", desc: "Guide + budgets", icon: CircleHelp, match: (p: string) => p.startsWith("/dr-nib/settings") || p.startsWith("/dr-nib/budget") },

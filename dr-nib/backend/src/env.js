@@ -27,10 +27,11 @@ if (!process.env.VITEST) {
 // @nibgate/internal builds its Prisma client with no explicit datasource, so it
 // reads DATABASE_URL. That has to be the hub.
 const hubDatabaseUrl = process.env.HUB_DATABASE_URL || process.env.DATABASE_URL;
-if (!hubDatabaseUrl) {
+const brokerOnly = process.env.DRNIB_PRIVATE_BROKER_ONLY === 'true';
+if (!hubDatabaseUrl && !brokerOnly) {
   throw new Error('HUB_DATABASE_URL (or DATABASE_URL) is required — Dr. Nib authenticates against the hub database.');
 }
-process.env.DATABASE_URL = hubDatabaseUrl;
+if (hubDatabaseUrl) process.env.DATABASE_URL = hubDatabaseUrl;
 
 if (!process.env.DRNIB_DATABASE_URL) {
   throw new Error('DRNIB_DATABASE_URL is required — point it at this service\'s own schema, e.g. ?schema=drnib');

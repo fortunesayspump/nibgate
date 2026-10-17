@@ -25,6 +25,7 @@ import { destroySandbox, destroyAllSandboxes, sandboxConfigured } from './tools/
 import { depthLimits } from './depth.js';
 import { memoryPriors, recordRunMemory } from './memory.js';
 import { chat, isLlmConfigured } from './llm/provider.js';
+import { assertConventionalPath, isLegacyRun } from './privacy/guard.js';
 
 const STAGE_COSTS = { plan: 0.02, search: 0.03, fetch: 0.06, data: 0.04, score: 0.02, write: 0.09, verify: 0.03 };
 
@@ -127,11 +128,14 @@ export async function parkForQuestion(runId, question) {
 // already happened: without it, resuming a run would draw the stage cost a
 // second time for the same step.
 async function stage(runId, kind, version, fn) {
+  // Check before any checkpoint, event, provider call or error logging.
+  assertConventionalPath(await loadRun(runId));
   const claim = await withRunLock(runId, async tx => {
     const done = await tx.researchStep.findFirst({where:{runId,kind,attempt:version,status:'done'},orderBy:{createdAt:'desc'}});
     if (done) return {done};
     if (await tx.researchStep.count({where:{runId,status:'active'}})) return {busy:true};
     const run = await tx.researchRun.findUniqueOrThrow({where:{id:runId}});
+    assertConventionalPath(run);
     if (!['running','planning'].includes(run.status)) return {busy:true};
     return {row:await tx.researchStep.create({data:{runId,kind,status:'active',attempt:version,startedAt:new Date(),workerId:WORKER_ID,leaseUntil:new Date(Date.now()+LEASE_MS),heartbeatAt:new Date()}})};
   });
@@ -243,6 +247,7 @@ export async function requeueOrphans({ enqueueFn = enqueue } = {}) {
   const requeued = [];
   let reclaimed = 0;
   for (const run of runs) {
+    if (!isLegacyRun(run)) continue; // no writes, events, settlement or enqueue
     const claimed = await db.researchStep.updateMany({
       where: { runId: run.id, status: 'active', leaseUntil: { lt: new Date() } },
       data: { status: 'pending', workerId: null, leaseUntil: null },
@@ -272,10 +277,12 @@ export async function requeueStalledRuns({ enqueueFn = enqueue, olderThanMs = 12
   const cutoff = new Date(Date.now() - olderThanMs);
   const stuck = await db.researchRun.findMany({
     where: { status: 'running', updatedAt: { lt: cutoff }, deletedAt: null },
-    select: { id: true },
+    select: { id: true, metadata: true },
   });
   const kicked = [];
-  for (const { id } of stuck) {
+  for (const run of stuck) {
+    if (!isLegacyRun(run)) continue; // before budget, status, event or queue
+    const { id } = run;
     const active = await db.researchStep.count({ where: { runId: id, status: 'active' } });
     if (active) continue; // a stage is genuinely moving; leave it alone
     const { balance } = await budgetState(id);
@@ -1033,6 +1040,7 @@ async function decideRoundContinue(runId, run, review, round, maxRounds) {
 
 export async function runPlan(runId) {
   const run = await loadRun(runId);
+  assertConventionalPath(run);
   const guidance = await takeGuidance(runId);
   const brief = run.brief || {};
   // The language model proposes the plan; it decides nothing about stopping or
@@ -1149,6 +1157,7 @@ async function executeRun(runId) {
 
 export async function finishTerminalRun(runId) {
   const run=await loadRun(runId);
+  assertConventionalPath(run);
   if (!['complete','ended','failed'].includes(run.status)) return;
   const money=await settle(runId,run.status);
   if (money.pending) return money;
@@ -1158,6 +1167,8 @@ export async function finishTerminalRun(runId) {
   return money;
 }
 export async function runExecute(runId) {
+  // Outside try/finally: a refused private run must not trigger settlement.
+  assertConventionalPath(await loadRun(runId));
   try { return await executeRun(runId); }
   catch(error) { if(error.code !== 'RUN_BUSY') throw error; }
   finally { await finishTerminalRun(runId); }

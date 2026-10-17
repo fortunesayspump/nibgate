@@ -18,8 +18,15 @@ import { initQueue, queueMode } from './queue.js';
 import { requeueOrphans, requeueStalledRuns, startRecoverySweep } from './worker.js';
 import { retryPendingSettlements } from './escrow/settle.js';
 import { researchAvailability } from './readiness.js';
+import {createPrivateRunsRouter} from './privacy/private-runs.js';
+import {createPrivateBrokerRouter} from './privacy/private-broker.js';
+import {configuredPrivateBroker} from './privacy/private-broker-config.js';
+import {createPrivateMoneyRouter} from './privacy/private-money-route.js';
+import {db} from './db.js';
+import * as auth from './auth.js';
+import {drawPrivate, settlePrivate} from './money.js';
 
-export async function createApp() {
+export async function createApp({privateWakeController}={}) {
   await initQueue();
   // This process executes stages too (inline mode), so it sweeps for anything
   // a dead worker left mid-stage before serving traffic.
@@ -46,7 +53,7 @@ export async function createApp() {
     if (typeof ct === 'string' && ct.includes(',')) req.headers['content-type'] = ct.split(',')[0].trim();
     next();
   });
-  app.use(express.json({ limit: '4mb' }));
+  app.use(express.json({ limit: '5mb' }));
   // Same-origin by default (the frontend proxies /drnib/* here), so cookies
   // just work and CORS never comes up. Direct cross-origin calls need
   // credentials, which is why the browser client sends them.
@@ -65,7 +72,22 @@ export async function createApp() {
     });
   }
 
+  const privateBroker=await configuredPrivateBroker(process.env,{wakeController:privateWakeController});
+  const privateCreateLimit=async userId=>{
+    const count=await db.researchRun.count({where:{userId,metadata:{path:['privacyMode'],equals:'confidential'},deletedAt:null}});
+    return {ok:count<3};
+  };
+
   app.use('/v1/runs', runs);
+  app.use('/v1/private', createPrivateRunsRouter({ready:privateBroker.ready,
+    allowedTenantId:privateBroker.allowedTenantId,createLimit:privateCreateLimit,authenticate:auth.middleware}));
+  app.use('/v1/private', createPrivateBrokerRouter({...privateBroker,authenticate:auth.middleware,isOwner:auth.isOwner}));
+  // Broker-authenticated ledger bridge for metered confidential runs. Absent
+  // (fail closed) unless the shared secret is configured; never mounted on the
+  // broker-only process.
+  if (typeof process.env.DRNIB_PRIVATE_BROKER_MONEY_SECRET === 'string' && process.env.DRNIB_PRIVATE_BROKER_MONEY_SECRET) {
+    app.use('/v1/private', createPrivateMoneyRouter({ store: db, drawImpl: drawPrivate, settleImpl: settlePrivate }));
+  }
   app.use('/v1/budgets', budgets);
   // x402 before exports: router middleware runs on mount-prefix match, so the
   // exports router's auth would 401 these permissionless paid routes first.

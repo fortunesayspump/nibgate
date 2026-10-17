@@ -49,10 +49,54 @@ model ResearchRun {
   ledger      BudgetLedger[]
   decisions   ResearchDecision[]
   events      ResearchEvent[]
+  privateObjects PrivateWorkerObject[]
 
   @@index([userId, updatedAt])
   @@index([status, updatedAt])
   @@index([deletedAt])
+}
+
+/// Confidential worker content only. The kind, opaque object ID, revision and
+/// timestamps are disclosed metadata; all document-derived values live in an
+/// authenticated encrypted envelope. This additive table is not a migration
+/// of the legacy plaintext models.
+model PrivateWorkerObject {
+  id        String      @id @default(uuid())
+  runId     String
+  run       ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  kind      String
+  objectId  String
+  revision  Int
+  envelope  Json
+  createdAt DateTime    @default(now())
+
+  @@unique([runId, kind, objectId, revision])
+  @@index([runId, kind, createdAt])
+}
+
+/// One durable, global-budget admission for a confidential AI run. The
+/// reservation is counted in full until all attempted calls have independently
+/// verified, request-bound signed usage. This table contains no prompt,
+/// response, provider error, or receipt body.
+model PrivateAiBudgetReservation {
+  id                         String      @id @default(uuid())
+  runId                      String      @unique
+  tenantId                   String
+  monthKey                   String
+  model                      String
+  maxCalls                   Int
+  maxPromptBytesPerCall      Int
+  maxOutputTokensPerCall     Int
+  reservedMicroUsd           BigInt
+  committedMicroUsd          BigInt
+  verifiedCalls              Int         @default(0)
+  status                     String      @default("reserved")
+  createdAt                  DateTime    @default(now())
+  updatedAt                  DateTime    @updatedAt
+  finishedAt                 DateTime?
+
+  @@index([monthKey, status])
+  @@index([tenantId, createdAt])
 }
 
 model ResearchStep {

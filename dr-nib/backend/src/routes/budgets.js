@@ -4,6 +4,7 @@ import * as auth from '../auth.js';
 import { budgetState, raiseCap } from '../money.js';
 import { jsonSafe, toNum } from '../units.js';
 import { idempotency } from '../idempotency.js';
+import { isLegacyRun } from '../privacy/guard.js';
 
 export const budgets = Router();
 
@@ -16,6 +17,7 @@ budgets.get('/:runId', async (req, res) => {
   try {
     const run = await db.researchRun.findUnique({ where: { id: req.params.runId } });
     if (!run || !auth.isOwner(req.user, run)) return res.status(404).json({ error: 'project not found' });
+    if (!isLegacyRun(run)) return res.status(503).json({error:'Confidential processing is unavailable on this deployment.',code:'CONFIDENTIAL_BOUNDARY_UNAVAILABLE'});
     const entries = await db.budgetLedger.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'asc' } });
     res.json(jsonSafe({ runId: run.id, budgetCap: toNum(run.budgetCap), ...(await budgetState(run.id)), entries }));
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -27,6 +29,7 @@ budgets.post('/:runId/topup', async (req, res) => {
     const { amount, txRef } = req.body || {};
     const run = await db.researchRun.findUnique({ where: { id: req.params.runId } });
     if (!run || !auth.isOwner(req.user, run)) return res.status(404).json({ error: 'project not found' });
+    if (!isLegacyRun(run)) return res.status(503).json({error:'Confidential processing is unavailable on this deployment.',code:'CONFIDENTIAL_BOUNDARY_UNAVAILABLE'});
     const result = await raiseCap(run.id, Number(amount), txRef || null);
     if (!result.ok) return res.status(400).json({ error: result.error });
     res.status(201).json({ runId: run.id, ...result });

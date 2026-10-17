@@ -11,8 +11,6 @@ import { TrustChip } from "@/components/dr-nib/common";
 import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
 import { SourceManager } from "@/components/dr-nib/SourceManager";
 import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
-import ConfidentialRun from "@/components/dr-nib/ConfidentialRun";
-import { confidentialFlowEnabled } from "@/lib/dr-nib-private-runner";
 
 // One chronological feed from three sources: the agent's reads (intake
 // thinking), the steps with their full outputs, and the tool calls with
@@ -421,13 +419,8 @@ function SettlementReceipt({ run, onRefresh }: { run: any; onRefresh: () => Prom
   );
 }
 
-// Confidential mode route: the supplied source is sealed to the attested guest
-// and the report is decrypted in this tab. The ordinary server-driven run page
-// (SSE feed, escrow settlement, report versions) does not apply, so a
-// confidential build renders the confidential surface instead.
 export default function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  if (confidentialFlowEnabled()) return <ConfidentialRun id={id} />;
   return <ServerRunDetailPage id={id} />;
 }
 

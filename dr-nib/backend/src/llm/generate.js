@@ -34,13 +34,25 @@ export async function generatePlan({ brief, guidance, fetchImpl } = {}) {
   if (isLlmConfigured()) {
     try {
       const target = resolveLength({ length: brief?.length, lengthWords: brief?.lengthWords });
-      const { data, usage, model } = await chatJson({
-        model: smartModel(),
-        effort: 'high',
-        messages: planMessages({ brief, guidance, sections: target.sections, words: target.words }), fetchImpl,
-        temperature: 0.3,
-        maxTokens: 1200,
-      });
+      // The plan is written once and shapes the whole run, so a single
+      // truncated/odd JSON reply must not silently downgrade it to the fixed
+      // fallback (which blocks deposit). Retry with more output headroom.
+      let plan;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          plan = await chatJson({
+            model: smartModel(),
+            effort: 'high',
+            messages: planMessages({ brief, guidance, sections: target.sections, words: target.words }), fetchImpl,
+            temperature: 0.3,
+            maxTokens: attempt === 0 ? 1600 : 2600,
+          });
+          break;
+        } catch (err) {
+          if (attempt === 2) throw err;
+        }
+      }
+      const { data, usage, model } = plan;
       const subQuestions = cleanStrings(data?.sub_questions);
       if (subQuestions.length) {
         return {

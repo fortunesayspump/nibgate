@@ -22,7 +22,7 @@ export async function createPrivateBrokerOnlyApp({store=db,broker,privateWakeCon
   const authenticate=createPrivateBrokerAuth();
   const createLimit=async userId=>{
     const count=await store.researchRun.count({where:{userId,metadata:{path:['privacyMode'],equals:'confidential'},deletedAt:null}});
-    return {ok:count<3};
+    return {ok:count<20};
   };
   const app=express();
   app.set('trust proxy',true);

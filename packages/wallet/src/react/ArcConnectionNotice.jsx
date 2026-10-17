@@ -13,6 +13,7 @@ export function ArcConnectionNotice() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [visible, setVisible] = useState(false)
   const selected = useRef(null)
   const mounted = useRef(false)
   const lifecycle = useRef(0)
@@ -68,12 +69,35 @@ export function ArcConnectionNotice() {
       if (mounted.current) setBusy(false)
     }
   }
-  if (!isConnected || !address || (!error && !message)) return null
+  // Keep it out of the page flow (it used to be a full-width bar at the very
+  // top). A floating toast fades away on its own so a stale network warning
+  // never sits above the app; the user can still act before it disappears.
+  useEffect(() => {
+    if (!error && !message) { setVisible(false); return }
+    setVisible(true)
+    const timer = setTimeout(() => setVisible(false), error ? 12000 : 5000)
+    return () => clearTimeout(timer)
+  }, [error, message])
+
+  if (!isConnected || !address || (!error && !message) || !visible) return null
   return (
-    <div role="status" style={{ padding: '10px 16px', fontSize: 13, lineHeight: 1.5, borderBottom: '1px solid var(--border, #ddd)' }}>
-      <span>{error?.message || message}</span>{' '}
-      {error && <button type="button" disabled={busy} onClick={() => check(false)}>{busy ? 'Checking…' : 'Check again'}</button>}{' '}
-      {error?.canRepair && <button type="button" disabled={busy} onClick={() => check(true)}>Repair wallet connection</button>}
+    <div role={error ? 'alert' : 'status'} style={{
+      position: 'fixed', right: 16, bottom: 16, zIndex: 60, maxWidth: 360,
+      padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border, #ddd)',
+      background: 'var(--surface, #fff)', color: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+      fontSize: 13, lineHeight: 1.5, textAlign: 'left',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <span style={{ flex: 1 }}>{error?.message || message}</span>
+        <button type="button" aria-label="Dismiss" onClick={() => setVisible(false)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6, fontSize: 14, lineHeight: 1, padding: 0 }}>✕</button>
+      </div>
+      {error && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" disabled={busy} onClick={() => check(false)}>{busy ? 'Checking…' : 'Check again'}</button>
+          {error?.canRepair && <button type="button" disabled={busy} onClick={() => check(true)}>Repair wallet connection</button>}
+        </div>
+      )}
     </div>
   )
 }

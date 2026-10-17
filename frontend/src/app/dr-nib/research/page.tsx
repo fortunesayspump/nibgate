@@ -8,7 +8,7 @@ import { drNibApi, type IntakeAnswer, type IntakeOption, type IntakeQuestion } f
 import { useNibgateConnect } from "@/lib/useNibgateConnect";
 import { SourceManager, ConfidentialSourceManager } from "@/components/dr-nib/SourceManager";
 import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
-import { confidentialFlowEnabled } from "@/lib/dr-nib-private-runner";
+
 
 const SAMPLES = [
   "Compare Arc vs Base for USDC micropayments, last 90 days",
@@ -42,9 +42,8 @@ function answerLabel(it: { question: IntakeQuestion; answer?: IntakeAnswer }): s
 
 export default function ResearchNewPage() {
   const router = useRouter();
-  // When confidential mode is on, the supplied document stays in this tab and
-  // research runs in the verified worker instead of the ordinary pipeline.
-  const confidential = confidentialFlowEnabled();
+  // Render the original Dr. Nib flow (intake → plan → review → escrow → run).
+  const confidential = false;
   const [availability, setAvailability] = useState<"checking" | "ready" | "preview" | "unavailable">("checking");
   const [availabilityAttempt, setAvailabilityAttempt] = useState(0);
   useEffect(() => {

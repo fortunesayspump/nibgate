@@ -1,6 +1,6 @@
 # Dr. Nib confidential worker
 
-**Status:** implemented and merged to `main`, **off by default** (opt-in, fail-closed). The privacy unit suite passes 231 tests and a live ACI receipt probe verified the metering binding on `inference.phala.com`. There is **no completed live confidential run yet** and the guest CVM is not currently deployed. Nothing here is a shipped operator-blind guarantee — see "What is and isn't proven".
+**Status:** implemented and merged to `main`, **off by default** (opt-in, fail-closed). The privacy unit suite passes 233 tests and a live ACI receipt probe verified the metering binding on `inference.phala.com`. There is **no completed live confidential run yet** and the guest CVM is not currently deployed. Nothing here is a shipped operator-blind guarantee — see "What is and isn't proven".
 
 ## The boundary
 
@@ -29,7 +29,7 @@ Sensitive — the supplied source, the model's reading of it, and the report —
 - Guard: `backend/src/privacy/guard.js` (`assertConventionalPath` blocks non-legacy runs from the plaintext worker; `assertConfidentialDrawable` gates confidential ledger draws).
 - Crypto/intake: `private-repository.js`, `phala-quote.js`, HPKE envelope routes.
 - Guest: `phala-ai-port.js` (attaches receipt-bound usage), `private-guest-main.js` (verifies signed usage, seals the report), `private-guest-http.js` (`validJobUsage`).
-- Adapter: `phala-aci-adapter.js` — verifies the receipt and requires the response bytes to match the receipt's committed `response.*` body hash.
+- Adapter: `phala-aci-adapter.js` — verifies the receipt and requires the response bytes to match the receipt's committed `response.*` body hash. The model and compose hash are pinned; the **serving session is discovered live at job time** (`createAciSessionDiscoverer`), because the gateway rotates sessions in seconds and a boot-time session pin goes stale (`session_not_accepted`).
 - Broker + money: `private-broker.js` (strips usage, best-effort draw), `private-broker-money.js`, `private-money-route.js` (HMAC `POST /internal/draw|settle`, mounted at `/v1/private`).
 
 ## What is and isn't proven
@@ -40,7 +40,7 @@ Not proven: no full confidential run on hardware has passed end to end; attestat
 
 ## Next gates
 
-1. Deploy the guest with the full-execute DB grants; re-pin the model, session and compose hash after review.
+1. Deploy the guest with the full-execute DB grants; pin the model and compose hash after review (the serving session is discovered per job, not pinned).
 2. Independent client pin + key policy so the browser is not silently re-served.
 3. Canary sweep across DB, R2, Redis, queues, logs, HTTP before any private mode is turned on.
 4. Provider-level hard spend ceiling and stuck-job/uncertain-shutdown recovery.

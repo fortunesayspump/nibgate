@@ -5,7 +5,7 @@ import {generateHpkeRecipient} from './source-hpke.js';
 import {createGuestSessionManager} from './guest-session.js';
 import {createPrivateDemoRunner,createCiphertextReportSink,createCiphertextReportReader} from './private-demo.js';
 import {createPhalaAiPort,PRIVATE_USAGE} from './phala-ai-port.js';
-import {createAciChannelFactory} from './phala-aci-adapter.js';
+import {createAciChannelFactory,createAciSessionDiscoverer} from './phala-aci-adapter.js';
 import {createGuestCapabilityAuthenticator,createInMemoryJtiConsumer} from './private-capability.js';
 import {createPrivateExecuteJournal} from './private-execute-journal.js';
 import {createPrivateSourceOnlySessionJob} from './private-plan-session.js';
@@ -61,7 +61,10 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const baseURL=required(env,'PRIVATE_ACI_GATEWAY_BASE_URL');
   const apiKey=required(env,'PRIVATE_AI_API_KEY');
   const composeHash=required(env,'PRIVATE_ACI_COMPOSE_HASH');
-  const sessionId=required(env,'PRIVATE_ACI_SESSION_ID');
+  // Optional legacy pin. The gateway rotates sessions in seconds, so this is
+  // normally unset and a live attested session is discovered per job instead.
+  const pinnedSessionId=typeof env.PRIVATE_ACI_SESSION_ID==='string'&&env.PRIVATE_ACI_SESSION_ID.trim()
+    ?env.PRIVATE_ACI_SESSION_ID.trim():undefined;
   const fullRequested=env.DRNIB_PRIVATE_FULL_ENABLED==='true';
   const allowedTenantId=required(env,'DRNIB_PRIVATE_TEST_TENANT_ID');
   if(!/^[A-Za-z0-9:_-]{1,128}$/.test(allowedTenantId))throw new Error('Private test tenant unavailable');
@@ -72,7 +75,9 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const [{PrismaClient},{importSPKI}]=await Promise.all([import('@prisma/client'),import('jose')]);
   const db=new PrismaClient({datasourceUrl:databaseUrl});
   const publicKey=await importSPKI(publicKeyPem,'EdDSA');
-  const connectVerified=createAciChannelFactory({baseURL,apiKey,expectedComposeHash:composeHash,acceptedSessionId:sessionId,connect:connectAci});
+  const selectSession=createAciSessionDiscoverer({baseURL,apiKey});
+  const connectVerified=createAciChannelFactory({baseURL,apiKey,expectedComposeHash:composeHash,approvedModels:[model],selectSession,
+    ...(pinnedSessionId?{acceptedSessionId:pinnedSessionId}:{}),connect:connectAci});
   try{
     await db.$connect();
     await import('../sources/parse.js'); // reject a missing measured parser dependency at boot
@@ -92,7 +97,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   // path is disabled by default and needs a separate limit review.
   const maxPromptBytesPerCall=8192;
   const maxOutputTokensPerCall=512;
-  const aiPort=createPhalaAiPort({approvedModels:[model],acceptedSessionIds:[sessionId],connectVerified,
+  const aiPort=createPhalaAiPort({approvedModels:[model],connectVerified,
     maxPromptChars:maxPromptBytesPerCall,maxOutputTokens:maxOutputTokensPerCall});
   // The adapter already cryptographically verified each receipt and bound the
   // counters to the exact request/response body hashes. This hook re-checks the

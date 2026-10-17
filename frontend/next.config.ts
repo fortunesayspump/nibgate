@@ -17,6 +17,14 @@ let drnibUrl = (process.env.DRNIB_API_URL || (process.env.NODE_ENV === "producti
   : "http://localhost:3100")).replace(/\/+$/, '');
 if (!/^https?:\/\//.test(drnibUrl)) drnibUrl = 'https://' + drnibUrl;
 
+// Confidential routes use a separately deployed broker-only process. Keeping
+// a distinct rewrite prevents the synthetic test from switching or sharing
+// the ordinary Dr. Nib API, queues, workers, storage, exports or payments.
+let privateDrnibUrl = (process.env.DRNIB_PRIVATE_API_URL || (process.env.NODE_ENV === "production"
+  ? (buildNetwork === "mainnet" ? "https://private-drnib.nibgate.xyz" : "https://private-drnib.testnet.nibgate.xyz")
+  : "http://localhost:3103")).replace(/\/+$/, '');
+if (!/^https?:\/\//.test(privateDrnibUrl)) privateDrnibUrl = 'https://' + privateDrnibUrl;
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@nibgate/wallet"],
   turbopack: {},
@@ -28,7 +36,7 @@ const nextConfig: NextConfig = {
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  webpack(config, _ctx) {
+  webpack(config, { isServer, webpack }) {
     config.resolve = config.resolve || {};
     config.resolve.fallback = config.resolve.fallback || {};
     config.resolve.fallback["@x402/svm/exact/client"] = false;
@@ -37,6 +45,16 @@ const nextConfig: NextConfig = {
     config.resolve.fallback["porto"] = false;
     config.resolve.fallback["porto/internal"] = false;
     config.resolve.fallback["@metamask/connect-evm"] = false;
+    if (!isServer) {
+      // The official DCAP QVL browser build uses Node crypto, stream and Buffer.
+      config.resolve.fallback.crypto = require.resolve("crypto-browserify");
+      config.resolve.fallback.stream = require.resolve("stream-browserify");
+      config.resolve.fallback.buffer = require.resolve("buffer/");
+      config.plugins.push(new webpack.ProvidePlugin({
+        Buffer: ["buffer", "Buffer"],
+        process: "process/browser",
+      }));
+    }
     return config;
   },
   async redirects() {
@@ -75,6 +93,10 @@ const nextConfig: NextConfig = {
       {
         source: "/drnib-api/:path*",
         destination: `${drnibUrl}/:path*`,
+      },
+      {
+        source: "/drnib-private-api/:path*",
+        destination: `${privateDrnibUrl}/:path*`,
       },
       {
         source: "/.well-known/llms.txt",

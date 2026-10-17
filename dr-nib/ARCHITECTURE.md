@@ -24,6 +24,22 @@ hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hu
 - **Redis**: BullMQ queues, rate limits, idempotency keys.
 - **R2**: rendered exports (same bucket conventions as hub media).
 
+### Confidential boundary (opt-in)
+
+An ordinary run sends the supplied source and the report through this backend. A **confidential run** bypasses the plaintext path entirely:
+
+```
+browser ──HPKE ciphertext──▶ broker ──ciphertext──▶ measured guest (Phala CVM) ──▶ confidential model (attested + ZDR)
+   ▲                                                                                        │
+   └──────────────────── sealed report (result key) ◀──── sealed report ◀───────────────────┘
+                          broker validates the signed ACI receipt, draws the run budget
+```
+
+- The backend and broker hold **ciphertext + metadata only**; the topic/intake stay ordinary.
+- The browser verifies a fresh attestation and key possession before sealing anything, then HPKE-seals the source (P-256 / HKDF-SHA256 / AES-128-GCM).
+- Work is bounded to source-only `plan → write` (no live web, no server-side tools) and metered from receipt-bound usage.
+- It is **off by default** and fail-closed: a build must enable the flow *and* ship a reviewed attestation configuration. Full design and status: `CONFIDENTIAL-IMPLEMENTATION.md`; docs page: `/dr-nib/confidential`.
+
 ## 2. API surface (`/v1`)
 
 | Method + path | Purpose |

@@ -17,6 +17,7 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/dr-nib/agent-loop", "Agent loop: propose-judge-execute, stop taxonomy, budgets, memory, and failure posture."],
   ["https://docs.nibgate.xyz/dr-nib/tools", "Tool reference: research and spend tools with inputs, costs, and the x402 sell surfaces."],
   ["https://docs.nibgate.xyz/dr-nib/retrieval", "Retrieval: web indexes, private R2 inputs (PDF, DOCX, XLSX, CSV, text), owner-only previews, source-only mode, extraction limits, and bot-block honesty."],
+  ["https://docs.nibgate.xyz/dr-nib/confidential", "Confidential runs: supplied sources and the report processed only inside a measured confidential VM, browser-sealed HPKE inputs, independent attestation, receipt-bound metering, and the honest limits of an operator-blind claim."],
   ["https://docs.nibgate.xyz/dr-nib/jev", "How JEV decides: TypeSafe decision model, primitives, confidence policy, and every decision point."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the public hub endpoints."],
 ];

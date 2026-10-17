@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Library, ListChecks, Menu, Microscope, CircleHelp, X, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 const ITEMS = [
-  { href: "/dr-nib/research", label: "Research", desc: "Start something new", icon: Microscope, match: (p: string) => p === "/dr-nib/research" || p.startsWith("/dr-nib/research/") },
+  { href: "/dr-nib/research", label: "Research", desc: "Private research", icon: Microscope, match: (p: string) => p === "/dr-nib/research" || p.startsWith("/dr-nib/research/") },
   { href: "/dr-nib/projects", label: "Projects", desc: "Active + ended", icon: ListChecks, match: (p: string) => p.startsWith("/dr-nib/projects") },
   { href: "/dr-nib/sources", label: "Sources", desc: "Library", icon: Library, match: (p: string) => p.startsWith("/dr-nib/sources") },
   { href: "/dr-nib/settings", label: "Help", desc: "Guide + budgets", icon: CircleHelp, match: (p: string) => p.startsWith("/dr-nib/settings") || p.startsWith("/dr-nib/budget") },
@@ -39,15 +39,6 @@ function Boxes({ pathname, onNavigate }: { pathname: string; onNavigate?: () => 
       })}
     </>
   );
-}
-
-function PrivateResearchLink({ pathname, onNavigate, compact = false }: { pathname: string; onNavigate?: () => void; compact?: boolean }) {
-  const active = pathname === "/dr-nib/private";
-  return <Link href="/dr-nib/private" onClick={onNavigate} aria-current={active ? "page" : undefined}
-    className={`mx-3 my-3 block border-b border-current pb-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 ${active ? "underline underline-offset-4" : "hover:underline"}`}
-    aria-label="Private research">
-    {compact ? "P" : "Private research"}
-  </Link>;
 }
 
 export default function DrNibShell({ children }: { children: React.ReactNode }) {
@@ -99,14 +90,12 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
                   </Link>
                 );
               })}
-              <PrivateResearchLink pathname={pathname} compact />
             </div>
             <nav aria-label="Dr. Nib" className="drnib-rail-panel" style={railStyle}>
               <button className="drnib-rail-toggle" onClick={() => setRailOpen(false)} aria-label="Collapse sidebar">
                 <ChevronsLeft size={20} />
               </button>
               <Boxes pathname={pathname} onNavigate={() => setRailOpen(false)} />
-              <PrivateResearchLink pathname={pathname} onNavigate={() => setRailOpen(false)} />
             </nav>
         </div>
       ) : (
@@ -115,7 +104,6 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
             <X size={20} />
           </button>
           <Boxes pathname={pathname} onNavigate={() => setMobileOpen(false)} />
-          <PrivateResearchLink pathname={pathname} onNavigate={() => setMobileOpen(false)} />
         </nav>
       )}
       {/* Mobile drawer, every dr-nib page: the floating button is the only
@@ -125,7 +113,6 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
           <X size={20} />
         </button>
         <Boxes pathname={pathname} onNavigate={() => setMobileOpen(false)} />
-        <PrivateResearchLink pathname={pathname} onNavigate={() => setMobileOpen(false)} />
       </nav>
       <main ref={mainRef} className="flex flex-col overflow-y-auto dashboard-main-content" style={{ background: 'var(--nib-page-bg)' }}>
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6 xl:p-8">

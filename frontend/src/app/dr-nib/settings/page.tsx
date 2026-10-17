@@ -22,8 +22,26 @@ export default function HelpPage() {
       <PageHeader
         eyebrow="Dr. Nib"
         title="Help"
-        desc="How research runs, what money does, and what to do when something looks stuck."
+        desc="Private research by default — how it works, what money does, and what to do when something looks stuck."
       />
+
+      <Section title="Privacy">
+        <P>
+          Research is <strong>private by default</strong>. Your question and document are encrypted in this browser
+          and only leave the page after the confidential worker proves — with fresh hardware attestation and a live
+          key-possession challenge — that it is the reviewed release holding the matching key. The result comes back
+          encrypted and is decrypted only in your tab; the report key is never sent to, or stored by, Nibgate.
+        </P>
+        <P>
+          The worker runs inside a confidential VM, so the operator cannot read your source or the model&apos;s
+          plaintext output. This path fails closed: if no approved guest release and complete verification path are
+          configured for this build, the page refuses and nothing is uploaded.
+        </P>
+        <P>
+          Keep the tab open while it runs. Navigating away, closing, or refreshing loses the in-memory report key,
+          and a run whose key is lost cannot be decrypted here.
+        </P>
+      </Section>
 
       <Section title="The run, end to end">
         <P>

@@ -33,7 +33,11 @@ export function canaryReadiness(plan,{now=Date.now()}={}){
  if(plan.budgetApproved!==true)pending.push('Separate approval of proposed $5 incremental operator allowance');
  return {configurationComplete:pending.length===0,pending,remoteAcceptanceRequired:true};
 }
-const envText=values=>Object.entries(values).map(([k,v])=>`${k}=${JSON.stringify(String(v))}`).join('\n')+'\n';
+// dotenv retains backslashes before double quotes. Keep structured JSON in
+// single quotes so the runtime receives JSON rather than an escaped literal.
+const envValue=value=>{const text=String(value);if(text.includes('"')){if(/[\r\n\0']/.test(text))throw Error('CANARY_ENV_VALUE_INVALID');return "'"+text+"'";}return JSON.stringify(text);};
+const parseEnvValue=value=>value.startsWith("'")?value.slice(1,-1):JSON.parse(value);
+const envText=values=>Object.entries(values).map(([k,v])=>`${k}=${envValue(v)}`).join('\n')+'\n';
 export function railwayCanaryProgram(scope='control'){
  if(!['control','verifier'].includes(scope))throw Error('CANARY_DEPLOYMENT_SCOPE_INVALID');
  return `// Review-only owner canary. Apply/upload requires separate approval.
@@ -84,8 +88,8 @@ export function renderCanaryFiles(plan){
  // No placeholder can be mistaken for reviewed executable compose. The
  // portable preparation command below only materializes after strict review.
  files['guest/compose.inputs.json']=JSON.stringify({image:plan.release.guestImage,policy,terminal:{image:plan.release.terminalImage},modelPool:'phala-openrouter-zdr-canary-v1',fundingRequired:true,hostedJev:{policy:{DRNIB_PRIVATE_HOSTED_JEV_ENABLED:'true',PRIVATE_HOSTED_JEV_CONTEXT_DISCLOSURE:'openrouter-and-typesafe',PRIVATE_HOSTED_JEV_ZDR_VERIFIED:'true',PRIVATE_HOSTED_JEV_WORKSPACE_ID:plan.hostedReviews.jev.workspaceId,PRIVATE_HOSTED_JEV_LOGGING_REVIEWED_AT:plan.hostedReviews.jev.checkedAt},apiKey:missing('JEV_ZDR_KEY')}},null,2)+'\n';
- const environmentInputs=Object.fromEntries(Object.entries(files).filter(([name])=>name.startsWith('env/')||name==='guest/credentials.env.example').map(([name,body])=>[name,body.trim().split('\n').map(line=>{const split=line.indexOf('=');const key=line.slice(0,split),value=JSON.parse(line.slice(split+1));return {key,requiresProvisioning:value.includes('__REQUIRED_')||value.includes('.example')||(key.endsWith('RELEASE_CONTROLS')&&value.includes('false')),publicBuildValue:key.startsWith('NEXT_PUBLIC_')};})]));
- files['deployment-inputs.json']=JSON.stringify({format:'drnib-canary-input-inventory-v1',releaseInputs:readiness.pending,environmentInputs,additionalInputs:['Broker Ed25519 public key (matches private signing credential)','Current approved model input/output price ceilings','Deployment targets: frontend project, control and verifier projects in the Nibgate Railway workspace','Isolated Postgres administrator and four distinct role credentials','Private bucket ACLs, scoped keys and retention policy','Canonical Arc Testnet primary RPC and optional independent backup','Canary frontend origin approved by existing wallet/social-login provider','Phala shape/disk: proposed tdx.medium, 20 GB; verify capacity','Provider spending alerts and scheduled operator shutdown review'],remoteAcceptanceRequired:true},null,2)+'\n';
+ const environmentInputs=Object.fromEntries(Object.entries(files).filter(([name])=>name.startsWith('env/')||name==='guest/credentials.env.example').map(([name,body])=>[name,body.trim().split('\n').map(line=>{const split=line.indexOf('=');const key=line.slice(0,split),value=parseEnvValue(line.slice(split+1));return {key,requiresProvisioning:value.includes('__REQUIRED_')||value.includes('.example')||(key.endsWith('RELEASE_CONTROLS')&&value.includes('false')),publicBuildValue:key.startsWith('NEXT_PUBLIC_')};})]));
+ files['deployment-inputs.json']=JSON.stringify({format:'drnib-canary-input-inventory-v1',releaseInputs:readiness.pending,environmentInputs,additionalInputs:['Broker Ed25519 public key (matches private signing credential)','Current approved model input/output price ceilings','Deployment targets: frontend project, control and verifier projects in the Nibgate Railway workspace','Isolated Postgres administrator and four distinct role credentials','Private bucket ACLs, scoped keys and retention policy','Canonical Arc Testnet primary RPC and optional independent backup','Canary frontend origin approved by existing wallet/social-login provider','Phala shape/disk: reuse existing tdx.small, 20 GB; verify capacity','Provider spending alerts and scheduled operator shutdown review'],remoteAcceptanceRequired:true},null,2)+'\n';
  return files;
 }
 export function materializeCanaryCompose(plan,inputs){

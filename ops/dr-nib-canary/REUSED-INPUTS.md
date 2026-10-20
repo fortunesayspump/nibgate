@@ -6,7 +6,7 @@ The owner plan, credentials, rollback backups and generated bundle live under Gi
 | --- | --- |
 | Railway project | Existing testnet project; no additional project |
 | Broker | Existing private synthetic service, new scoped canary credentials |
-| Verifier | Existing private official dstack-verifier 0.6.1 engine and HTTPS gateway; update gateway CORS/image after deployment-tool approval |
+| Verifier | Existing private official dstack-verifier 0.6.1 engine and HTTPS gateway; gateway CORS/image updated and checked |
 | Database | New logical `drnib_private_canary` already created on existing Postgres, four separate restricted logins; old databases unchanged |
 | Object storage | Existing private ciphertext bucket; no public bucket |
 | Phala worker | Existing stopped production-OS small CVM; independently review new compose and accepted identities |
@@ -21,4 +21,4 @@ Funding and independent shutdown services may be added only where no safe existi
 
 The remaining owner actions are gateway deployment-tool approval, later wallet signing, and rotation of the legacy exposed RPC token through its provider. No keys or recovery codes belong in chat. Mainnet deployment and spending require separate approval.
 
-Final compose/KMS review, verifier TLS SPKI, exact-origin acceptance and the live owner canary remain release tasks. Existing identity metadata is not approval of a new boot. The owner bundle stays fail-closed until those reviews pass.
+Compose/KMS control-plane review, verifier TLS SPKI and exact-origin checks are recorded locally. Fresh session verification and the live owner canary remain release tasks. Existing identity metadata is not approval of a new boot. The owner bundle stays fail-closed until those reviews pass.

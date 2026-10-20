@@ -24,7 +24,11 @@ Preserve legacy APIs and data: the legacy database has six nonzero-budget unsett
 
 The new logical database and four restricted logins exist on the existing host. Guest and gateway immutable images are published. Fresh hosted-route probes verified JEV/TypeSafe and the Azure research fallback with request-level ZDR and matched workspace credentials; prompt storage and broadcast were off. The two public synthetic probes cost $0.000017, included in the $1 AI allowance. Historical development holds remain separate.
 
-The existing gateway needs the reviewed image/configuration update to allow the canary frontend origin. Its old endpoint rejects that origin. The deployment tool cancelled the update twice with “the user did not approve this action,” including after confirmation in chat. Nothing was deployed by those calls. Keep the patch staged; do not bypass the rejection through another deployment route.
+The existing gateway update is live after the owner applied it in Railway. Exact-origin CORS and rejection checks passed; historical real hardware evidence passed full quote/event/OS/ACPI verification with UpToDate TCB. New-boot session freshness and recipient-key possession remain required. Two empty funding/watchdog service slots exist, with no deployment yet; reviewed caps, images and scoped variables are staged alongside the reused broker update.
+
+The Phala CLI's `--prepare-only` flag applied the managed-KMS update directly (it only defers on-chain KMS updates). The worker was explicitly stopped and its stopped state confirmed. The uploaded compose and pre-launch script match local reviewed bytes; production OS/KMS, empty SSH authorization, digest pins and disabled public/container plaintext logs passed control-plane review. Reserve the short update window conservatively in cumulative runtime and operator accounting; do not label the reservation as an actual charge. Broker startup checks also found and fixed dotenv escaping of structured release-policy JSON before applying the staged service profiles.
+
+Railway currently displays a past-due subscription warning. Existing outstanding bills are outside the incremental canary allowance and require owner review; the warning was not established as the cause of connector approval cancellations.
 
 Mainnet paid-tool support is implemented locally with separate opt-in, a bounded operation ceiling, canonical Hub/chain/Gateway matching and network-bound Circle reconciliation. Fourteen focused payment tests and 446 privacy/tool tests passed without live mainnet payments. Testnet configuration explicitly disables mainnet paid tools and sets their ceiling to zero. This is implementation evidence, not mainnet acceptance.
 
@@ -50,7 +54,7 @@ An illustrative one-hour worker/control scenario, 24 hours of retained disk, 1 G
 
 Mainnet needs separately scoped state, keys, accepted contracts/roles, frontend measurements, deployment profile and an explicit real-USDC/gas/operator allowance. No mainnet deployment or live payment follows from testnet approval. Shared verification can be retained if exact origins and capacity pass review.
 
-The remaining owner actions are deployment-tool approval for the existing gateway, wallet signatures when the funded canary is ready, and rotation of the previously exposed legacy RPC token through its provider. Canonical public Arc RPCs replace that credential URL in the canary. Never paste passwords, wallet keys or recovery codes into chat.
+The remaining owner actions are applying reviewed service changes if the connector continues cancelling, wallet signatures when the funded canary is ready, and rotation of the previously exposed legacy RPC token through its provider. Canonical public Arc RPCs replace that credential URL in the canary. Never paste passwords, wallet keys or recovery codes into chat.
 
 ## Rollback and repository boundaries
 

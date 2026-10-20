@@ -69,3 +69,10 @@ test('reuse preparation disables project creation and accounts for external pref
  assert.ok(f['env/verifier-gateway.env.example'].includes('drnib-qa-verifier.railway.internal'));
  p.preflightAiMicroUsd=-1;assert.throws(()=>canaryReadiness(p),/PREFLIGHT_USAGE_INVALID/);
 });
+
+test('dotenv preserves structured release policy and frontend controls as valid JSON',async()=>{
+ const {createRequire}=await import('node:module');const require=createRequire(new URL('../backend/package.json',import.meta.url));const {parse}=require('dotenv');
+ const files=renderCanaryFiles(draft),broker=parse(files['env/broker.env.example']),frontend=parse(files['env/frontend.env.example']);
+ assert.deepEqual(JSON.parse(broker.DRNIB_PRIVATE_RELEASE_POLICY_JSON),JSON.parse(files['release-policy.json']));
+ assert.deepEqual(JSON.parse(frontend.NEXT_PUBLIC_DRNIB_PRIVATE_RELEASE_CONTROLS),draft.release.controls);
+});

@@ -570,7 +570,7 @@
     "Private bucket ACLs, scoped keys and retention policy",
     "Canonical Arc Testnet primary RPC and optional independent backup",
     "Canary frontend origin approved by existing wallet/social-login provider",
-    "Phala shape/disk: proposed tdx.medium, 20 GB; verify capacity",
+    "Phala shape/disk: reuse existing tdx.small, 20 GB; verify capacity",
     "Provider spending alerts and scheduled operator shutdown review"
   ],
   "remoteAcceptanceRequired": true

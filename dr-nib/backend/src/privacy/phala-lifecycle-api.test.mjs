@@ -58,3 +58,12 @@ test('known 409 during previous stop drains before start retry; unknown start tr
  const api=createPhalaLifecycleApi({client,cvmId:'fixture',pause:async()=>{}});await api.ensureRunning();assert.equal(starts,2);
  starts=0;status='stopped';client.startCvm=async()=>{starts++;throw Error('socket lost')};await assert.rejects(api.ensureRunning());assert.equal(starts,1);
 });
+
+for(const observed of ['starting','running'])test(`lost start response reconciles confirmed ${observed} without another start`,async()=>{
+ let status='stopped',starts=0,watches=0;const client={getCvmState:async()=>({status}),startCvm:async()=>{starts++;status=observed;throw Object.assign(Error('response lost'),{status:503});},shutdownCvm:async()=>assert.fail('no shutdown'),stopCvm:async()=>assert.fail('no stop'),watchCvmState:async()=>{watches++;status='running';return{status}}};
+ const api=createPhalaLifecycleApi({client,cvmId:'fixture'});assert.equal(await api.ensureRunning(),true);assert.equal(starts,1);assert.equal(watches,observed==='starting'?1:0);
+});
+test('positive authorization rejection never becomes an accepted start',async()=>{
+ let reads=0,starts=0;const client={getCvmState:async()=>{reads++;return{status:'stopped'}},startCvm:async()=>{starts++;throw Object.assign(Error('denied'),{status:403})},shutdownCvm:async()=>{},stopCvm:async()=>{},watchCvmState:async()=>assert.fail('no watch')};
+ await assert.rejects(createPhalaLifecycleApi({client,cvmId:'fixture'}).ensureRunning(),/denied/);assert.equal(reads,1);assert.equal(starts,1);
+});

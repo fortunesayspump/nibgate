@@ -32,10 +32,18 @@ export function createPhalaLifecycleApi({client, cvmId, watchTimeoutSeconds=120,
       signal?.throwIfAborted();
       try{await client.startCvm({id});break;}
       catch(error){
-        // Only a positively rejected conflict is safe to retry. A transport
-        // failure may hide an accepted start and must be reconciled by caller.
-        if(error?.status!==409||Date.now()>=deadline)throw error;
-        await pause(1000);current=await state();
+        // Retry only a positively rejected conflict. A lost response or 5xx
+        // may hide an accepted start: confirm its state without sending a
+        // second start. Otherwise leave quarantine/stop to the caller.
+        if(error?.status===409&&Date.now()<deadline){
+          await pause(1000);current=await state();continue;
+        }
+        if(!Number.isInteger(error?.status)||error.status>=500){
+          signal?.throwIfAborted();
+          const observed=await state().catch(()=>null);
+          if(observed==='running'||observed==='starting'){current=observed;break;}
+        }
+        throw error;
       }
     }
     if (!['running','starting','stopped'].includes(current))throw new Error('PHALA_CVM_STATE_UNKNOWN');

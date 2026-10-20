@@ -99,7 +99,7 @@ stateDiagram-v2
    confirm stopped. Work arriving during drain queues for the next safe boot.
 7. An independent watchdog reconciles controller crashes, stale leases, provider
    state and spending limits. An in-process timer alone is not a reliable hard
-   cost cap. Unknown start/stop outcomes quarantine assignment until reconciled.
+   cost cap. Unknown start/stop outcomes quarantine assignment until reconciled. A lost start response is checked against authenticated provider state without issuing another start; confirmed starting/running continues the same wake, while an unresolved result remains quarantined.
 
 ## Where state and keys live
 

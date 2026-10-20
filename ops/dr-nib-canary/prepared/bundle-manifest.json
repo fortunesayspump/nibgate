@@ -23,10 +23,10 @@
     "costs.json": "01402061837c4c77fca22be456b2d9d977ede79045478d9c0ef5e0dd82eba9a6",
     "local-verification.json": "f628d30989ff621a99ed088df9f2972b25cc3601a46e156aafdaad870d206900",
     "VERIFIER.md": "b2c2b43ec2de0ddf9caf03b0d02e0bb386293d6e24304beaaaf67cbccf66a873",
-    "ROLLOUT.md": "44a09a9e2bf65ab83103c3c372058d62acc652b62510d1f315af398a93d134db",
+    "ROLLOUT.md": "c9d43b1145d8a1266d13aa19e09c3f513a793f27c003ca8ee997a09cd85bbf5a",
     "verifier/compose.local.yaml": "c9b72cd0b9c1511199e00213fdd0e1f17bde9cb882ab04aa93de009e059bd6a5",
     "verifier/selection.json": "75044943408dd35676c6bd479d651977bb8b0195bde1652d539e415097d0b656",
     "database/fresh-canary.sql": "b25e5cd61eb0c461ec7407766f03050c4d2decc91196ff15b586d7334914d28f",
-    "source-inventory.json": "56eeebb239533addce18767908ff5c59397ccdb2bda321504822c6266d0f56de"
+    "source-inventory.json": "3d84a2a68d03e16e3a0c5d9981f5cd83924bba158314f9a3c4c64517868e2638"
   }
 }

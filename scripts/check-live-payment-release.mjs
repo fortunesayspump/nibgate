@@ -9,7 +9,7 @@ for (const origin of networks) {
   const specResponse = await fetch(`${origin}/openapi.json`, { signal: AbortSignal.timeout(30000) });
   assert.equal(specResponse.status, 200, `${origin} OpenAPI HTTP status`);
   const spec = await specResponse.json();
-  assert.equal(spec.info.version, '0.2.12', `${origin} OpenAPI version`);
+  assert.equal(spec.info.version, '0.2.13', `${origin} OpenAPI version`);
   assert.match(spec.paths['/hub/tips/verify'].post.description, /payment-verification-pending/);
   const response = await fetch(`${origin}/mcp`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
@@ -18,15 +18,15 @@ for (const origin of networks) {
   });
   assert.equal(response.status, 200, `${origin} MCP HTTP status`);
   const initialize = await response.json();
-  assert.equal(initialize.result.serverInfo.version, '0.2.12');
+  assert.equal(initialize.result.serverInfo.version, '0.2.13');
   assert.match(initialize.result.instructions, /payment-verification-pending/);
   const tools = await fetch(`${origin}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }), signal: AbortSignal.timeout(30000) });
   assert.equal(tools.status, 200);
   assert.ok((await tools.json()).result.tools.length > 0);
   const card = await fetch(`${origin}/.well-known/mcp.json`, { signal: AbortSignal.timeout(30000) });
   assert.equal(card.status, 200);
-  assert.ok(JSON.stringify(await card.json()).includes('0.2.12'));
-  console.log(`${origin}: OpenAPI, MCP initialize/tools/card 0.2.12 and retry reconciliation PASS`);
+  assert.ok(JSON.stringify(await card.json()).includes('0.2.13'));
+  console.log(`${origin}: OpenAPI, MCP initialize/tools/card 0.2.13 and retry reconciliation PASS`);
 }
 if (process.argv.includes('--clients')) {
   for (const path of ['/discovery.md', '/skill.md', '/llms.txt', '/llms-full.txt', '/.well-known/agent-skills/index.json']) {

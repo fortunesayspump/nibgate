@@ -8,6 +8,6 @@ export default {
   "agent-loop": "Agent loop",
   tools: "Tool reference",
   retrieval: "Retrieval bench",
-  confidential: "Confidential runs",
+  confidential: "Privacy & confidential processing",
   jev: "How JEV decides",
 };

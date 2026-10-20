@@ -198,3 +198,14 @@ describe('model split (cheap bulk, smart judgement)', () => {
     expect(JSON.parse(sFetch.mock.calls[0][1].body).model).toBe('~google/gemini-flash-latest');
   });
 });
+
+
+describe('concise private deliverables',()=>{
+ it('omits the separate abstract call when the concise writer requests body only',async()=>{
+  vi.stubEnv(KEY,'test-key');
+  const fetchImpl=vi.fn().mockResolvedValue(jsonResponse('# Findings\n\n'+'A supported observation [1]. '.repeat(80)));
+  const out=await generateReport({brief:{topic:'concise',qualityPolicyVersion:2},sources:[{title:'Original',url:'https://example.org',excerpt:'An observation.'}],targetWords:300,includeAbstract:false,fetchImpl});
+  expect(out.source).toBe('llm');expect(fetchImpl).toHaveBeenCalledTimes(1);expect(out.markdown).not.toContain('Abstract.');
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body).messages[1].content).toContain('about 300 words');
+ });
+});

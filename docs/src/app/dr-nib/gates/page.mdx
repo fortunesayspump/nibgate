@@ -2,25 +2,27 @@ import { Callout } from 'nextra/components'
 
 # Spending gates
 
-Where the agent's money is enforceable, by whom — and what remains trust-me. Modeled on the runtime → wallet → contract → builder gate taxonomy; this page records our coverage per gate.
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
 
-## Current coverage
+Dr. Nib applies several independent spending controls. Their scope matters: application checks protect the run ledger, while contract controls govern only the funds and entrypoints inside the contract.
 
-| Gate | Mechanism | Administrator | Status |
+## Enforcement boundaries
+
+| Gate | Mechanism | Administrator | Scope |
 |---|---|---|---|
 | Runtime construction | propose → judge → execute loop: schema, caps, JEV verdicts, dedupe, budgets, evidence checklist | Nibgate backend | Enforced (app boundary) |
-| Simulation | 402 price preview + over-ceiling abort hook at signing | backend | Enforced |
+| Price validation | 402 price preview + price-lock hook before signing | backend | Enforced |
 | Verdict binding | judgements staple the canonical call fingerprint, re-checked pre-execution | backend | Enforced |
 | Injected state | dual-RPC cross-check before every spend | backend, active with `DRNIB_RPC_BACKUP` | Partial |
-| Wallet policy | — | — | **Missing** (hot key in env; see below) |
+| Wallet policy | — | — | EOA hot key; application checks are not signer-enforced policy |
 | Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) | contract + keeper | Enforced (testnet and mainnet) |
-| Spend mandate | `NibgateSpenderV2`: $2/day, open recipients, keeper pause | contract + keeper | **Testnet and mainnet deployed, funded, and live-tip verified** |
+| Spend mandate | `NibgateSpenderV2`: configured daily cap, recipient policy, keeper pause | contract + keeper | Configured on testnet and mainnet |
 
 ## The spender mandate
 
 `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA` — the testnet direct-tip float is funded here. The contract allows its agent key to spend that float only through `spend()`, bounded by the $2 daily cap. Recipients are open by default; the keeper can enable an allowlist, pause spending, change the cap, or withdraw. This does not bound USDC held separately by the agent EOA for Gateway purchases or refundable held tips.
 
-Mainnet V2 is deployed at `0xae39444c91aE8F0b8cF0642A18A521b6D312061B` with the same roles and cap. It was funded with 0.05 USDC operating float. Both deployed workers have since routed a live 0.02 USDC creator tip through V2 and received a hub receipt. Their remaining float is lower than the original funded amount.
+Mainnet V2 is deployed at `0xae39444c91aE8F0b8cF0642A18A521b6D312061B` with the same roles and cap. Read the live contract balance before spending; the operating float changes as transfers settle.
 
 <Callout type="info">
 Direct tips to hub-verified creators route through the mandate when `DRNIB_SPENDER_ADDRESS` is set; the model cannot override the verified recipient. A contract refusal never silently falls back to EOA payment. Unresolved held tips stay EOA-funded because the refund route requires a payer signature the current contract cannot produce. Gateway x402 flows also stay EOA-bound because the contract cannot sign EIP-3009 authorizations. These EOA funds remain governed by software caps and float discipline.
@@ -28,10 +30,10 @@ Direct tips to hub-verified creators route through the mandate when `DRNIB_SPEND
 
 ## What's still trust-me
 
-- The hot key itself (env var): a full backend compromise signs freely within software caps. The mandate bounds damage; it doesn't remove the key.
-- Vendor wallets (CDP/Privy/Turnkey) were evaluated: CDP's network list excludes Arc, smart-account sessions need ERC-4337 infrastructure Arc lacks. Revisited if either changes.
-- Until then: hot-wallet float discipline (small balances only) plus ledger↔chain reconciliation on every spend.
+- The EOA hot key: possession of the key allows signing outside application checks. Small EOA float limits exposure; the separate mandate bounds contract-governed funds according to its live policy.
+- Recipient resolution, operator policy and the keeper remain trust boundaries. A valid JEV verdict does not replace onchain limits or make the operator unable to sign.
+- Reconciliation compares recorded hashes with wallet/mandate outflows when invoked; it is not an automatic exact financial audit after every spend. See [budget audit semantics](/dr-nib/budgets#audit).
 
-## Proving it
+## Execution checks
 
-Coverage is tested by attack, not asserted: spends without verdicts are refused, over-cap batches rejected whole, post-approval payload swaps voided, evaluator outage stops runs instead of running judgeless. The agent's own soak history includes two live testnet tips with hub receipts and onchain transactions.
+Spends without verdicts are refused, over-cap batches are rejected as a whole, post-approval payload changes invalidate approval, and an evaluator outage stops execution rather than bypassing judgment.

@@ -1,0 +1,56 @@
+{
+  "format": "drnib-official-verifier-selection-v1",
+  "checkedAt": "2026-10-20T21:53:36.784748+00:00",
+  "selected": {
+    "implementation": "official-dstack-verifier",
+    "release": "v0.6.1",
+    "image": "ghcr.io/dstack-tee/dstack-verifier:0.6.1@sha256:9f2c07a94efd3d8a1a89268e5faa35e91e3cb345b9c4ab859c86d35142f4f788",
+    "protocol": "dstack-full-verify",
+    "hostingAccepted": false,
+    "hostedEndpoint": null,
+    "tlsSpkiSha256": null,
+    "trustMode": "operator-hosted",
+    "operator": "Nibgate",
+    "platform": "Railway",
+    "proposedHostedEndpoint": "https://verify-drnib-canary.nibgate.xyz/verify"
+  },
+  "sources": {
+    "release": "https://github.com/Dstack-TEE/dstack/releases/tag/v0.6.1",
+    "protocol": "https://github.com/Dstack-TEE/dstack/blob/v0.6.1/dstack/verifier/README.md",
+    "hostedQuoteApi": "https://github.com/Phala-Network/phala-cloud/blob/main/skills/usecase/verify-attestation.md",
+    "trustCenter": "https://github.com/Phala-Network/trust-center"
+  },
+  "hostedQuoteApiProbe": {
+    "url": "https://cloud-api.phala.com/api/v1/attestations/verify",
+    "dataSent": {
+      "hex": "00"
+    },
+    "authenticationSent": false,
+    "preflightStatus": 204,
+    "accessControlAllowOrigin": null,
+    "postStatus": 400,
+    "result": "Invalid quote rejected; no positive attestation or full-verifier compatibility established",
+    "usableForCurrentBrowserKeyRelease": false
+  },
+  "mandatoryChecks": [
+    "quote_verified",
+    "event_log_verified",
+    "os_image_hash_verified",
+    "acpi_tables_verified",
+    "production OS hash allowlist",
+    "tee_variant dstack-tdx",
+    "TCB UpToDate with no advisories",
+    "approved app/instance/compose/KMS",
+    "fresh nonce/session/HPKE report_data binding",
+    "live HPKE possession proof"
+  ],
+  "activationRequires": [
+    "Nibgate-operated HTTPS full-verifier gateway and private official engine, separate project in existing Railway workspace",
+    "Exact frontend CORS and TLS certificate SPKI review",
+    "Positive real evidence and tampered/replayed evidence acceptance checks",
+    "Operator deployment/spending approval"
+  ],
+  "cloudActionsPerformed": false,
+  "modelRequestsPerformed": 0,
+  "trustAssumption": "Browser trusts Nibgate/Railway to operate the full verifier honestly; TLS/SPKI is endpoint authentication, not code attestation"
+}

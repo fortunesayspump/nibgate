@@ -2,10 +2,12 @@
 
 import { deriveResultKey, hexToBytes } from "./dr-nib-private-crypto";
 
+// Legacy prototype; retained for explicit migration of existing recovery material.
+// The new vault uses random keys; see dr-nib/privacy/PLAN.md.
 // Cross-device recovery derives both secrets from a single EIP-712 signature
-// over the run id, so any device with the same wallet can rebuild the exact
+// over the run id. Reproducing the exact signature is required to rebuild the
 // report key and worker-state key. Nothing derived here is ever sent to a
-// server; the operator only ever holds ciphertext.
+// server by this function. The signature itself must be treated as secret.
 
 const DOMAIN = { name: "Nibgate Private Research", version: "1" } as const;
 const TYPES = {

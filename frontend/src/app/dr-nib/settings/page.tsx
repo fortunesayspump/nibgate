@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import PrivateRecoverySettings from "@/components/dr-nib/PrivateRecoverySettings";
 import { PageHeader } from "@/components/dr-nib/common";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
-      <p className="font-medium">{title}</p>
+      <h2 className="font-medium">{title}</h2>
       <div className="mt-2 space-y-2 text-sm leading-7 opacity-70">{children}</div>
     </section>
   );
@@ -25,6 +26,61 @@ export default function HelpPage() {
         desc="How research runs, what money does, and what to do when something looks stuck."
       />
 
+      <Section title="How private research works">
+        <P>
+          Your browser encrypts research questions, source files and project content before they reach
+          Nibgate&apos;s ordinary backend. A verified Phala confidential worker decrypts authorized content
+          to run the research, then encrypts saved activity, checkpoints, reports and exports.
+          Phala provides the protected computing environment; Dr. Nib is the research agent running inside it.
+        </P>
+        <P>
+          Worker verification uses Phala&apos;s official verifier software. In Nibgate-operated
+          deployments, you trust our verification service to report honestly. It receives hardware
+          evidence, not your research content or project keys; this is not an independent audit.
+        </P>
+        <P>
+          Primary research inference uses a separate verified Phala service. JEV decisions use TypeSafe
+          through OpenRouter with zero data retention (ZDR). If you authorize the hosted research fallback,
+          it also uses OpenRouter ZDR. Those hosted providers receive the context needed for their calls:
+          ZDR governs retention and does not make prompts invisible to the provider.
+        </P>
+        <P>
+          Approved searches and website requests reveal their public queries or URLs to those services.
+          Account identity, timing, sizes and necessary payment metadata remain visible; blockchain
+          transactions are public. A failed worker verification blocks key delivery.
+        </P>
+        <P>
+          Read the <a href="https://docs.nibgate.xyz/dr-nib/confidential" className="underline">privacy overview</a>,{" "}
+          <a href="https://docs.nibgate.xyz/dr-nib/confidential/architecture" className="underline">architecture and data boundaries</a>, or{" "}
+          <a href="https://docs.nibgate.xyz/dr-nib/confidential/models-tools" className="underline">models, tools and payments</a>.
+        </P>
+      </Section>
+
+      <Section title="Unlocking projects on another device">
+        <P>
+          Sign in to the same account and enter your recovery code in Dr. Nib when asked. Your wallet address
+          identifies your account; it is not your encryption key. Keep the code private and save it somewhere
+          secure. Nibgate cannot recover encrypted projects if you lose both the code and every enrolled browser.
+        </P>
+        <P>
+          If you still have an enrolled browser, use Replace recovery code below and save the replacement
+          before confirming. Other devices will need the new code. Read the{" "}
+          <a href="https://docs.nibgate.xyz/dr-nib/confidential/recovery" className="underline">encryption and recovery guide</a>.
+        </P>
+      </Section>
+
+      <PrivateRecoverySettings />
+
+      <Section title="Learn about Phala and zero data retention">
+        <ul className="list-disc space-y-2 pl-5">
+          <li><a href="https://docs.phala.com/phala-cloud/what-is/what-is-phala-cloud" className="underline">What is Phala Cloud?</a> — the confidential computing platform.</li>
+          <li><a href="https://docs.phala.com/phala-cloud/getting-started/attestation" className="underline">Phala attestation guide</a> — how hardware evidence is obtained and verified.</li>
+          <li><a href="https://docs.phala.com/phala-cloud/phala-cloud-api/attestations" className="underline">Phala attestation reference</a> — technical verification details.</li>
+          <li><a href="https://openrouter.ai/docs/guides/features/zdr" className="underline">OpenRouter zero data retention</a> — the policy used for disclosed hosted model routes.</li>
+        </ul>
+        <P>These explain the underlying services. Dr. Nib&apos;s privacy guide describes how the agent uses them and what each service can see.</P>
+      </Section>
+
       <Section title="The run, end to end">
         <P>
           Ask a question on the <Link href="/dr-nib/research" className="underline">Research</Link> page. Dr. Nib
@@ -33,8 +89,8 @@ export default function HelpPage() {
           whatever money is unspent returns to you automatically at settle.
         </P>
         <P>
-          Nothing spends until you approve the plan. Planning itself is free; intake, configuring, and editing
-          the plan cost nothing.
+          Paid research requires confirmed escrow and your approval. Intake, planning and plan edits do not
+          draw from your deposit; their provider costs are sponsored by the operator.
         </P>
       </Section>
 
@@ -52,8 +108,8 @@ export default function HelpPage() {
 
       <Section title="Estimates, caps, and deposits">
         <P>
-          The plan carries a cost <strong>estimate</strong> built from fixed per-stage prices (search, fetch,
-          scoring, writing) scaled by depth and report length. It is the minimum worth funding: approve stays
+          The plan carries a cost <strong>estimate</strong> based on the planned search, reading,
+          judging and writing work, scaled by depth and report length. It is not the final charge. It is the minimum worth funding: approve stays
           locked until the escrow holds at least the estimate.
         </P>
         <P>
@@ -79,6 +135,20 @@ export default function HelpPage() {
         </P>
       </Section>
 
+      <Section title="Sleeping and waking">
+        <P>
+          Your project list, saved chats, reports and receipts open without waking the private worker.
+          Your browser decrypts saved content. Submitting a research question, sending a follow-up
+          or resuming work connects to the worker; if it is asleep, the workspace shows
+          <strong> Waking private worker</strong>, then <strong>Verifying secure connection</strong>.
+        </P>
+        <P>
+          Saved content stays visible during startup. After work finishes, a five-minute idle period
+          keeps short follow-ups warm before shutdown. Reopening a stalled project shows its history;
+          use Resume to continue its saved work.
+        </P>
+      </Section>
+
       <Section title="While it runs">
         <P>
           The run page is a live feed: Dr. Nib&apos;s reads, JEV&apos;s judgements with their probabilities, every
@@ -87,9 +157,10 @@ export default function HelpPage() {
           boundary.
         </P>
         <P>
-          <strong>Paused at the budget cap</strong> means the deposit is spent: the work so far is kept. Raise
-          the cap only where more money is actually escrowed; otherwise end the run and keep the report plus
-          the refund. Pause any time yourself; resume continues from the last finished stage.
+          <strong>Paused at the budget cap</strong> means there is not enough available budget for the next action;
+          some funds may still be reserved for unresolved operations. Completed work is kept. Pause any time
+          yourself; resume continues from the saved checkpoint when the blocking condition is resolved.
+          A settled or refunded deposit cannot fund more work.
         </P>
       </Section>
 
@@ -115,7 +186,7 @@ export default function HelpPage() {
 
       <Section title="Your source files">
         <P>At Configure, add PDF with selectable text, DOCX, XLSX, CSV, TXT, Markdown, or PNG/JPEG/WebP images with readable English text, or a public HTTPS link. Images use local OCR and may misread figures; review the extracted text against the original before approving. Up to five sources, 2 MB each; images are limited to 20 megapixels and PDFs to 100 pages. Scanned PDFs still need OCR first. You can change sources until an escrow job is opened; changing a planned source set returns you to Configure.</P>
-        <P>Originals stay in private R2 storage with owner-only downloads. Extracted text is analyzed by our AI providers during research. Source-only mode disables external retrieval and creator tips. Files freeze once research starts; a fresh run needs its files added again.</P>
+        <P>Source files and extracted content are encrypted outside the verified worker, with owner-authorized access. Model calls receive only the context required under the disclosed inference policy. Source-only mode disables external retrieval and creator tips. Files freeze once research starts; a fresh run needs its files added again.</P>
         <P>Spreadsheet totals are computed decimal column sums grouped by stated currency and, when present, category. CSV dates stay as entered. Repeated rows remain in the sums and are flagged with row references. These are not a reconciliation or financial audit.</P>
       </Section>
 
@@ -152,7 +223,7 @@ export default function HelpPage() {
       <Section title="Models and tools">
         <P>
           The model and every research tool — live web search, scraping, document parsing, code execution —
-          are provided by Nibgate and covered by the run budget. There are no keys to add, here or anywhere.
+          are configured by Nibgate; you do not need to add provider API keys. Receipts show reconciled customer charges with one cumulative row per model or tool. Worker compute and storage are operator-funded, separate from your research charges.
         </P>
       </Section>
     </div>

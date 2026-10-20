@@ -52,7 +52,7 @@ function bibtex(sources) {
   return entries.join('\n\n') + (entries.length ? '\n' : '');
 }
 
-function packet({ report, sources, claims, ledger, escrow, figures }) {
+function packet({ report, sources, claims, ledger, escrow, figures, expenseReceipt }) {
   return {
     version: report?.version ?? null,
     markdown: report?.markdown ?? null,
@@ -63,6 +63,7 @@ function packet({ report, sources, claims, ledger, escrow, figures }) {
     })),
     claims: (claims || []).map((c) => ({ text: c.text, status: c.status })),
     ledger: ledger || null,
+    ...(expenseReceipt?{expenseReceipt}:{}),
     figures: figures || [],
     // Settlement receipt: what was deposited, what came back, and the
     // onchain proof. A money-moving run must export its receipt, not just
@@ -84,11 +85,11 @@ function packet({ report, sources, claims, ledger, escrow, figures }) {
  * refund, and every onchain hash. A run that took money must export its
  * receipt, not just its prose. */
 export function receiptLines({ ledger, escrow } = {}) {
-  const fmt = (n, d = 2) => Number(n ?? 0).toFixed(d);
+  const fmt = (n, d = 6) => Number(n ?? 0).toFixed(d);
   const out = ['', '---', '', '## Settlement receipt', ''];
   out.push(`- Deposited: $${fmt(ledger?.deposited)}`);
-  out.push(`- Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee, 4)} protocol fee, taken from the operator share)` : ''}`);
-  out.push(`- ${escrow?.jobId && !escrow.splitTx && !escrow.splitConfirmed ? "Refund pending confirmation" : "Refunded"}: ${fmt(ledger?.refunded)}`);
+  out.push(`- Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee)} protocol fee, taken from the operator share)` : ''}`);
+  out.push(`- ${escrow?.jobId && !escrow.splitTx && !escrow.splitConfirmed ? "Refund pending confirmation" : "Refunded"}: $${fmt(ledger?.refunded)}`);
   if (escrow?.jobId) {
     out.push(`- Escrow job ${escrow.jobId} · ${escrow.status || 'settled'}`);
     if (escrow.completeTx) out.push(`- Settle tx: ${escrow.completeTx}`);
@@ -254,17 +255,17 @@ export function parseBlocks(lines) {
 /** The settlement receipt as blocks (not raw lines) so rich renderers lay it
  * out as a real section. receiptLines() stays for the .md export. */
 export function receiptBlocks({ ledger, escrow } = {}) {
-  const fmt = (n, d = 2) => Number(n ?? 0).toFixed(d);
+  const fmt = (n, d = 6) => Number(n ?? 0).toFixed(d);
   const items = [
     `Deposited: $${fmt(ledger?.deposited)}`,
-    `Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee, 4)} protocol fee, taken from the operator share)` : ''}`,
-    `Refunded: $${fmt(ledger?.refunded)}`,
+    `Spent: $${fmt(ledger?.spend)}${Number(ledger?.fee) > 0 ? ` (+$${fmt(ledger?.fee)} protocol fee, taken from the operator share)` : ''}`,
+    `${escrow?.jobId && !escrow.splitTx && !escrow.splitConfirmed ? "Refund pending confirmation" : "Refunded"}: $${fmt(ledger?.refunded)}`,
   ];
   if (escrow?.jobId) {
     items.push(`Escrow job ${escrow.jobId} · ${escrow.status || 'settled'}`);
     if (escrow.completeTx) items.push(`Settle tx: ${escrow.completeTx}`);
     if (escrow.splitTx) items.push(`Funds tx: ${escrow.splitTx}`);
-    else items.push('Funds tx: pending (split not yet executed onchain)');
+    else if(!escrow.splitConfirmed) items.push('Funds tx: pending (split not yet executed onchain)');
   } else {
     items.push('Ledger run — no onchain escrow.');
   }

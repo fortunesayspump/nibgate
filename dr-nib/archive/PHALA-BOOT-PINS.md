@@ -14,7 +14,7 @@ The quote alone does **not** tell a browser what the OS image, compose, app ID o
 
 ### Reviewer workstation: exact dstack 0.6.1 verification
 
-This is the runnable Mac path for an **actual Phala guest running dstack 0.6.0+**. A credential-free diagnostic guest passed fresh V1, QVL, and full-verifier checks on 2026-10-16 and was deleted; that one boot does not authorize future boots or private source release. Work in a clean, reviewer-controlled checkout. Docker Desktop on Apple Silicon will emulate the official x86_64 verifier image. The image is the [official 0.6.1 security release](https://github.com/Dstack-TEE/dstack/releases/tag/verifier-v0.6.1); its immutable digest below is also hard-pinned in the candidate generator. The [official one-shot CLI](https://github.com/Dstack-TEE/dstack/blob/v0.6.1/dstack/verifier/src/main.rs) writes a JSON verdict to stdout and exits nonzero on failure. Docker and a network route to Intel/Phala DCAP collateral are prerequisites; no service needs to be deployed.
+This is the runnable Mac path for an **actual Phala guest running dstack 0.6.0+**. A credential-free diagnostic guest passed fresh V1, QVL, and full-verifier checks on 2026-10-16 and was deleted; that one boot does not authorize future boots or private source release. Work in a clean, reviewer-controlled checkout. Docker Desktop on Apple Silicon will emulate the official x86_64 verifier image. The image is the [official 0.6.1 security release](https://github.com/Dstack-TEE/dstack/releases/tag/verifier-v0.6.1); its immutable digest below is also hard-pinned in the candidate generator. The [official one-shot CLI](https://github.com/Dstack-TEE/dstack/blob/v0.6.1/dstack/verifier/src/main.rs) writes a JSON result beside the input as `<input>.verification.json`; retain and validate that file, rather than treating stdout as the verdict. Docker and a network route to Intel/Phala DCAP collateral are prerequisites; no service needs to be deployed.
 
 ```bash
 set -euo pipefail
@@ -38,11 +38,16 @@ console.log(Buffer.concat([digest,Buffer.alloc(32)]).toString('hex'));
 NODE
 jq -e '{attestation: .evidence.attestation} | select(.attestation | type == "string")' \
   review/session.json > review/attest.json
-docker run --rm --platform linux/amd64 \
-  --mount "type=bind,src=$PWD/review,dst=/review" \
+# Copy only public evidence. This also works when a Docker VM cannot bind
+# the workstation /tmp directory; never mount guest.env or a secrets folder.
+DRNIB_REVIEW_CONTAINER="drnib-review-verifier-$(date +%s)"
+docker create --name "$DRNIB_REVIEW_CONTAINER" --platform linux/amd64 \
   ghcr.io/dstack-tee/dstack-verifier:0.6.1@sha256:9f2c07a94efd3d8a1a89268e5faa35e91e3cb345b9c4ab859c86d35142f4f788 \
-  --config /etc/dstack/dstack-verifier.toml --verify /review/attest.json \
-  > review/verdict.json
+  --config /etc/dstack/dstack-verifier.toml --verify /tmp/attest.json
+docker cp review/attest.json "$DRNIB_REVIEW_CONTAINER":/tmp/attest.json
+docker start -a "$DRNIB_REVIEW_CONTAINER" > review/verifier.log 2> review/verifier.err
+docker cp "$DRNIB_REVIEW_CONTAINER":/tmp/attest.json.verification.json review/verdict.json
+docker rm "$DRNIB_REVIEW_CONTAINER"
 jq -e '.is_valid == true' review/verdict.json
 ```
 

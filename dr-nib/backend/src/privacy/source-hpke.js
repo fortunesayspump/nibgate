@@ -42,6 +42,7 @@ export async function sealHpkeSource({recipientPublicKey,context,plaintext}) {
 export async function sealHpkeReport({recipientPublicKey,context,plaintext}) {
   return sealEnvelope({recipientPublicKey,context,plaintext,purpose:'report'});
 }
+export async function sealHpkeToolResult({recipientPublicKey,context,plaintext}) {return sealEnvelope({recipientPublicKey,context,plaintext,purpose:'tool-result'});}
 async function sealEnvelope({recipientPublicKey,context,plaintext,purpose}) {
   const aad=contextBytes(context,purpose);
   if(!(plaintext instanceof Uint8Array)||plaintext.length<1||plaintext.length>MAX_SOURCE)throw new Error('INVALID_SOURCE_PLAINTEXT');
@@ -57,6 +58,7 @@ export async function openHpkeSource({recipientPrivateKey,expectedContext,envelo
 export async function openHpkeReport({recipientPrivateKey,expectedContext,envelope}) {
   return openEnvelope({recipientPrivateKey,expectedContext,envelope,purpose:'report'});
 }
+export async function openHpkeToolResult({recipientPrivateKey,expectedContext,envelope}) {return openEnvelope({recipientPrivateKey,expectedContext,envelope,purpose:'tool-result'});}
 async function openEnvelope({recipientPrivateKey,expectedContext,envelope,purpose}) {
   const aad=contextBytes(expectedContext,purpose);
   validateEnvelope(envelope,{tenantId:expectedContext.tenantId,runId:expectedContext.runId,purpose});

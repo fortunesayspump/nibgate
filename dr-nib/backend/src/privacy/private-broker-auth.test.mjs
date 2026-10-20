@@ -39,3 +39,26 @@ test('broker auth fails closed for missing cookies, unpinned URLs and redirects'
   })})({cookies:{[COOKIE]:'x'}},res,()=>{next++});
   assert.equal(next,0);assert.equal(res.statusCode,503);
 });
+test('account-check timeout configuration stays bounded and rejects invalid startup settings',()=>{
+  assert.doesNotThrow(()=>createPrivateBrokerAuth({env:{PRIVATE_BROKER_AUTH_TIMEOUT_MS:'15000'}}));
+  for(const value of ['0','-1','500','20001','Infinity','15000.5','not-a-number'])
+    assert.throws(()=>createPrivateBrokerAuth({env:{PRIVATE_BROKER_AUTH_TIMEOUT_MS:value}}),/timeout/);
+});
+test('parallel session checks coalesce only while in flight, with no stale grant or cross-session reuse',async()=>{
+  let calls=0,release;let gate=new Promise(resolve=>{release=resolve});let status=200;
+  const auth=createPrivateBrokerAuth({env:{PRIVATE_BROKER_AUTH_URL:'https://testnet-api.nibgate.xyz/api/auth/me',NIBGATE_SESSION_COOKIE:COOKIE},fetchImpl:async()=>{
+    calls++;await gate;return {status,ok:status===200,redirected:false,url:'https://testnet-api.nibgate.xyz/api/auth/me',json:async()=>({authenticated:true,user:{id:'owner'}})};
+  }});
+  let next=0;const invoke=token=>{const res=response();return auth({cookies:{[COOKIE]:token}},res,()=>{next++}).then(()=>res)};
+  const first=invoke('one'),second=invoke('one'),other=invoke('two');
+  assert.equal(calls,2);release();await Promise.all([first,second,other]);assert.equal(next,3);
+  status=401;const denied=await invoke('one');assert.equal(calls,3);assert.equal(next,3);assert.equal(denied.statusCode,401);
+  status=503;assert.equal((await invoke('one')).statusCode,503);assert.equal(next,3);
+});
+
+test('canonical Hub identity path works without granting database or unrelated-cookie access',async()=>{
+ const endpoint='https://testnet-api.nibgate.xyz/auth/me';let seen;
+ const middleware=createPrivateBrokerAuth({env:{PRIVATE_BROKER_AUTH_URL:endpoint,NIBGATE_SESSION_COOKIE:COOKIE},fetchImpl:async(url,init)=>{seen={url:String(url),init};return{status:200,ok:true,url:endpoint,json:async()=>({authenticated:true,user:{id:'owner'}})}}});
+ const req={cookies:{[COOKIE]:'fixture',other:'not-forwarded'}};let next=0;
+ await middleware(req,response(),()=>next++);assert.equal(next,1);assert.equal(seen.url,endpoint);assert.equal(seen.init.headers.cookie,COOKIE+'=fixture');
+});

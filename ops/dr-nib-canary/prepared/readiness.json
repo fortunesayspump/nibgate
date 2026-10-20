@@ -1,0 +1,27 @@
+{
+  "configurationComplete": false,
+  "pending": [
+    "Verified owner account ID",
+    "frontend HTTPS origin",
+    "broker HTTPS origin",
+    "funding HTTPS origin",
+    "guest HTTPS origin",
+    "Reviewed confidential inference gateway origin",
+    "Reviewed guestImage digest",
+    "Reviewed terminalImage digest",
+    "Reviewed gatewayImage digest",
+    "Dedicated canary CVM identity",
+    "Independently reviewed appId",
+    "Independently reviewed instanceId",
+    "Independently reviewed composeHash",
+    "Independently reviewed osHash",
+    "Independently reviewed verifierSpkiSha256",
+    "Independently reviewed aciComposeHash",
+    "Reviewed KMS identity",
+    "Independent release-control review",
+    "Current jev workspace/ZDR/logging evidence (24h expiry)",
+    "Current fallback workspace/ZDR/logging evidence (24h expiry)",
+    "Separate approval of proposed $5 incremental operator allowance"
+  ],
+  "remoteAcceptanceRequired": true
+}

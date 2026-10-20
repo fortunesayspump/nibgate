@@ -5,11 +5,22 @@ import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {spawnSync} from 'node:child_process';
 
+test('legacy enrollment authenticates its route without duplicating auth for unrelated session requests',()=>{
+ const env={...process.env,DRNIB_PRIVATE_BROKER_ONLY:'true',DRNIB_DATABASE_URL:'postgresql://nobody:unused@127.0.0.1:1/unused?schema=drnib'};
+ delete env.HUB_DATABASE_URL;delete env.DATABASE_URL;
+ const entry=new URL('./private-runs.js',import.meta.url).href;
+ const program=`import express from 'express';import request from 'supertest';import assert from 'node:assert/strict';import{createPrivateRunsRouter}from ${JSON.stringify(entry)};
+ let checks=0;const app=express();app.use(createPrivateRunsRouter({authenticate:(_req,res)=>{checks++;res.status(401).json({code:'signed-out'})}}));app.get('/sessions',(_req,res)=>res.json({nextRouter:true}));
+ assert.equal((await request(app).get('/sessions')).status,200);assert.equal(checks,0);assert.equal((await request(app).post('/runs').send({})).status,401);assert.equal(checks,1);`;
+ const child=spawnSync(process.execPath,['--input-type=module','-e',program],{env,cwd:fileURLToPath(new URL('../../',import.meta.url)),encoding:'utf8',timeout:10000});
+ assert.equal(child.status,0,child.stderr);
+});
+
 test('broker-only entrypoint cannot import broad server or operational subsystems',async()=>{
   const source=await readFile(new URL('./private-broker-main.js',import.meta.url),'utf8');
   const imports=[...source.matchAll(/^import\s+.+?from\s+['"]([^'"]+)['"];?$/gm)].map(match=>match[1]);
   assert.deepEqual(imports.sort(),[
-    '../db.js','../env.js','./private-broker-auth.js','./private-broker-config.js','./private-broker.js','./private-runs.js',
+    '../db.js','../env.js','./private-broker-auth.js','./private-broker-config.js','./private-broker.js','./private-runs.js','./private-record-routes.js','./private-record-storage.js',
     'cookie-parser','cors','express','node:path','node:url',
   ].sort());
   for(const blocked of ['../server.js','../queue.js','../worker.js','../routes/exports.js','../routes/x402.js'])

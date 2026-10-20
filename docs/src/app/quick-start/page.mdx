@@ -74,15 +74,15 @@ guide.view()
 Use Sites, Contents, Analytics, and Earnings to confirm the setup is active.
 </Steps>
 
-## MVP unlock model
+## Unlock model
 
-For the first stable package, Nibgate should ship one unlock path well:
+The implemented payment path is:
 
 ```txt
 pay once -> verify receipt/proof -> issue unlock token -> serve content -> report receipt
 ```
 
-The `unlock` policy field already supports metered streaming, metered reading, time passes, and agent quotas in the resource schema; their payment/session adapters are not production-ready yet, so `one_time` is the shipped path.
+The `unlock` policy field already supports metered streaming, metered reading, time passes, and agent quotas in the resource schema; the current helpers do not enforce metering or quotas, so use `one_time` for implemented unlock behavior.
 
 ## Next reads
 

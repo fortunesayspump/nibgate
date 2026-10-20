@@ -5,7 +5,7 @@ import { Callout, Cards } from 'nextra/components'
 JEV is Nibgate's judgment layer: **models propose possibilities, JEV makes constrained decisions**. The deterministic engine (`decide`/`selectMany`) always has the last word; the real JEV decisions model (`~typesafe/jev-latest`, TypeSafe's System One model on OpenRouter) only scores or picks from caller-supplied options — it can never invent candidates, move funds, or render UI by itself.
 
 <Callout type="info">
-Rule of the stack: **deterministic rules first, model only on ambiguity.** Every integration below fires the model solely when local logic is inconclusive, gates the answer on calibrated confidence, and falls back to the safe default (hold, skip, stay silent) on any failure.
+Rule of the stack: **deterministic rules first, model only on ambiguity.** Every integration below fires the model solely when local logic is inconclusive, gates the answer on reported confidence, and falls back to the safe default (hold, skip, stay silent) on any failure.
 </Callout>
 
 ## The three layers
@@ -14,7 +14,7 @@ Rule of the stack: **deterministic rules first, model only on ambiguity.** Every
 |---|---|---|
 | Deterministic engine | `jev/src/decide.ts` | `decide()` (single winner) and `selectMany()` (ordered slates) over scored options with budget + confidence gates. Pure functions — no network, no keys, fully testable. |
 | Decisions client | `jev/src/decisions.ts` | `decisions()` (raw), `chooseOption()` (pick one id), `askNoul()` / `askNoulBatch()` (calibrated 0..1 probabilities). Speaks `POST https://openrouter.ai/api/alpha/decisions`. |
-| Hub endpoints | `backend/src/server/routes/hub-routes.js` | `POST /hub/jev/decide`, `/hub/jev/classify`, `/hub/jev/tags` — validated, rate-limited (30/min/IP), keys server-side. |
+| Hub endpoints | `backend/src/server/routes/hub-routes.js` | `POST /hub/jev/decide`, `/hub/jev/classify`, `/hub/jev/score`, `/hub/jev/tags`, `/hub/jev/batch` — validated, rate-limited (30/min/IP), keys server-side. |
 
 `jev/src/schema.ts` defines the shared types (`JevOption`, `JevPolicy`, `JevDecision`); `jev/src/trace.ts` renders human-readable decision traces.
 
@@ -96,10 +96,10 @@ Only genuinely undecided rows are touched; anything with publisher tags is never
 
 ## Architecture invariants
 
-- **Keys never leave the server.** The extension, SDK browser helpers, and agents all go through the hub endpoints. `OPENROUTER_API_KEY` lives only in hub env.
+- **Keys never leave the server.** These public extension and metadata paths use the Hub. Private Dr. Nib calls its disclosed JEV route from the confidential worker, without sending private judgment context through the ordinary Hub. `OPENROUTER_API_KEY` lives only in hub env.
 - **The model never invents.** Choice ids must match supplied candidates; scores outside 0..1 are clamped; empty answers are rejected before anything acts.
 - **Thresholds before acting:** recipient inference ≥ 0.6, page classification ≥ 0.65, settle-vs-hold ≥ 0.65, tags ≥ 0.6 top-k.
-- **Bounded cost:** ≤12 candidates (decide), ≤24 tags, state ≤4000 chars, 30 req/min per IP — and the model only fires on ambiguity, so steady-state spend is ~$0.00002 per genuinely hard page. Steady, unambiguous traffic costs nothing.
+- **Bounded cost:** ≤12 candidates (decide), ≤24 tags, state ≤4000 chars, 30 req/min per IP — and the model only fires on ambiguity, so usage depends on the selected model, request size and provider billing. Deterministic paths make no model call.
 - **Safe defaults:** hold instead of guessing a recipient, silence instead of rendering on a coin flip, skip instead of writing a tag that missed the bar.
 
 ## Configuration
@@ -107,19 +107,12 @@ Only genuinely undecided rows are touched; anything with publisher tags is never
 | Variable | Where | Default | Purpose |
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | hub env (both nets) | — (required) | Model access; never bundled client-side |
-| `JEV_DECISIONS_MODEL` | hub env | `~typesafe/jev-latest` | OpenRouter model override. The alias can change; inspect the versioned `model` in each response. An October 15, 2026 mainnet run recorded Jev 1.14. |
+| `JEV_DECISIONS_MODEL` | hub env | `~typesafe/jev-latest` | OpenRouter model override. The alias can change; inspect the versioned `model` in each response. Private Dr. Nib uses its separately reviewed, pinned model policy. |
 | `JEV_DECISIONS_URL` | hub env | OpenRouter `/api/alpha/decisions` | Endpoint override |
 | `NIBGATE_METADATA_ENRICH` | hub env | off | Set `1` to run the background tag pass |
 | `NIBGATE_METADATA_ENRICH_INTERVAL_MS` | hub env | `3600000` | Cycle period |
 | `NIBGATE_METADATA_ENRICH_BATCH` | hub env | `8` | Rows per cycle |
 | `NIBGATE_METADATA_ENRICH_INITIAL_DELAY_MS` | hub env | `60000` | Delay after boot |
-
-## Verification
-
-- `node --test test/` in `jev/` — engine + decisions client against stubbed transports (17 tests, no network).
-- `vitest run` in `backend/` — route validation, stubbed-model success paths, and failure mapping for all three endpoints.
-- Extension `tsc --noEmit` + production build; Playwright `extension-random-blogs` for detection/placement on real third-party sites (the model fallback itself is covered by unit tests plus live probes, since it only fires on user taps over ambiguous pages).
-- Live probes you can re-run: `POST /hub/jev/decide` with two wallets (expect the byline pick ~0.99), `/hub/jev/classify` on an article-shaped state (expect ~0.9+), `/hub/jev/tags` on a titled excerpt (expect the on-topic tags first).
 
 ## Why a decisions model, not a chat model
 

@@ -38,7 +38,7 @@ The reader's wallet signs and submits the USDC payment through the Circle Gatewa
 
 ### Funds arrive at the fee wallet
 
-The USDC is transferred to the creator's `GatewayFeeWallet` contract — the payment destination for all of that creator's paid content. The contract is immutable and the split (99% creator / 1% treasury) is enforced on-chain; a keeper sweep pays out to the creator's EOA shortly after. Nibgate never touches the funds.
+The payment is directed to the creator's `GatewayFeeWallet` contract — the payment destination for all of that creator's paid content. The contract is immutable and the split (99% creator / 1% treasury) is enforced on-chain; a keeper sweep pays out to the creator's EOA shortly after. Nibgate never touches the funds.
 
 ### Receipt indexed
 
@@ -104,7 +104,7 @@ The admin dashboard provides detailed revenue tracking:
 }
 ```
 
-Note: `recipient` is the **creator's fee wallet contract** (the payment receiver) and `payer` is the buyer's wallet. The SDK reports `revenue` as the gross price (legacy field name). The hub derives `protocolFee` (1% under hosted pay) from `amount` and stores both — so the creator's net take is always `amount − protocolFee`, matching what the fee wallet contract later distributes on-chain (99% creator / 1% treasury of the wallet balance at sweep time; Circle's own settlement fee, if any, is separate and comes out before the split).
+Note: `recipient` is the **creator's fee wallet contract** (the payment receiver) and `payer` is the buyer's wallet. The SDK reports `revenue` as the gross price (legacy field name). The hub derives `protocolFee` (1% under hosted pay) from `amount` and stores both — so the dashboard can show the expected net amount. Actual payout uses the fee configured onchain at distribution time; Gateway settlement costs, if any, are separate.
 
 ## Reputation scores
 
@@ -119,7 +119,7 @@ Reputation scores are computed from verified interactions:
 Higher reputation scores can lead to better leaderboard placement and increased visibility in Explore.
 
 <Callout type="info">
-Only verified unlocks (with indexed receipts) count toward reputation and leaderboard rankings. This prevents gaming the system with fake transactions.
+Verified payment and rating records contribute to rankings alongside views, content depth and site verification. These signals are distinct: a view is not proof of payment, and a ranking is not a guarantee of source quality.
 </Callout>
 
 ## Next reads

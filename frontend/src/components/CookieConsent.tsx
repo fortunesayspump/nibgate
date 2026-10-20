@@ -68,7 +68,7 @@ export default function CookieConsent() {
       role="dialog"
       aria-live="polite"
       aria-label="Cookie consent"
-      className="fixed bottom-4 left-4 right-4 z-[90] mx-auto max-w-md rounded-2xl border p-5 md:left-6 md:right-auto"
+      className="fixed bottom-4 inset-x-4 z-[90] mx-auto max-w-md rounded-2xl border p-5"
       style={{ background: "var(--nib-surface-raised)", color: "var(--nib-page-fg)", borderColor: "var(--nib-border-soft)", boxShadow: "var(--nib-shadow-3)" }}
     >
       <div className="flex items-center gap-3">

@@ -1,3 +1,4 @@
+import {privateBuildEnabled,listPrivateSources,uploadPrivateSource,removePrivateSource} from './dr-nib-private-records';
 // Dr. Nib is a separate service, but the browser must reach it through the
 // same-origin /drnib-api proxy (see next.config.ts rewrites). A direct
 // absolute URL (localhost:3100, drnib.nibgate.xyz) is a different origin from
@@ -7,6 +8,7 @@
 const BASE = process.env.NEXT_PUBLIC_DRNIB_API_URL || "/drnib-api";
 
 async function req(path: string, opts: RequestInit = {}) {
+  if(privateBuildEnabled())return (await import('./dr-nib-private-client')).privateClientRequest(path,opts);
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
     // The hub SIWE session cookie is the account. Cross-origin (the frontend on
@@ -79,7 +81,7 @@ export const drNibApi = {
     req(`/v1/runs/${id}/intake/finish`, { method: "POST" }),
   configureRun: (
     id: string,
-    body: { depth?: string; budgetCap: number; formats?: string[]; liveWeb?: boolean; tipCreators?: boolean; length?: string; lengthWords?: number },
+    body: { depth?: string; budgetCap: number; formats?: string[]; liveWeb?: boolean; searchEnabled?: boolean; publicResearch?:{approved:true;brief:string}; tipCreators?: boolean; length?: string; lengthWords?: number },
   ) => req(`/v1/runs/${id}/configure`, { method: "POST", body: JSON.stringify(body) }),
   approveRun: (id: string) => req(`/v1/runs/${id}/approve`, { method: "POST" }),
   pauseRun: (id: string) => req(`/v1/runs/${id}/pause`, { method: "POST" }),
@@ -117,6 +119,7 @@ export const drNibApi = {
 export const DRNIB_API_BASE = BASE;
 
 export async function uploadResearchSource(runId: string, file: File, onProgress: (percent: number) => void) {
+  if(privateBuildEnabled())return uploadPrivateSource(runId,file,onProgress);
   if(file.size>2*1024*1024) throw new Error('Choose a file no larger than 2 MB.');
   const contentBase64=await new Promise<string>((resolve,reject)=>{
     const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('Could not read this file.'));reader.readAsDataURL(file);
@@ -131,7 +134,7 @@ export async function uploadResearchSource(runId: string, file: File, onProgress
   });
 }
 export const researchSourceApi={
-  list:(id:string)=>req(`/v1/runs/${id}/sources`),
-  addLink:(id:string,url:string)=>req(`/v1/runs/${id}/sources`,{method:'POST',body:JSON.stringify({url})}),
-  remove:(id:string,sourceId:string)=>req(`/v1/runs/${id}/sources/${sourceId}`,{method:'DELETE'}),
+  list:(id:string)=>privateBuildEnabled()?listPrivateSources(id):req(`/v1/runs/${id}/sources`),
+  addLink:(id:string,url:string)=>privateBuildEnabled()?Promise.reject(Error('Private research currently accepts files only. External links disclose their URL to a retrieval provider.')):req(`/v1/runs/${id}/sources`,{method:'POST',body:JSON.stringify({url})}),
+  remove:(id:string,sourceId:string)=>privateBuildEnabled()?removePrivateSource(id,sourceId):req(`/v1/runs/${id}/sources/${sourceId}`,{method:'DELETE'}),
 };

@@ -4,7 +4,7 @@ import { Callout, Cards } from 'nextra/components'
 
 Nibgate lets creators gate content beyond "free vs paid": whitelisted wallet lists, supporter price tiers, and invite-only posts. This page is the contract behind those controls — one rule that runs identically on Nibshare and Subblogs.
 
-## The three policy knobs
+## Policy fields
 
 Every gated resource (a Nibshare share or a Subblog post) has three policy fields. The exact same shape is used on both rails:
 
@@ -36,48 +36,25 @@ Every gate (page render, media proxy, document, agent) evaluates one rule — `c
 
 The decision runs in this order:
 
-1. **Ban** — entitlement `banned` ⇒ deny. Hard: cannot re-purchase.
-2. **Revoke** — entitlement `revoked` ⇒ deny + prompt to pay again.
-3. **Active paid** — entitlement `active` **and** backed by a real receipt ⇒ grant, regardless of proof age.
-4. **Active free** — entitlement `active` from a free grant ⇒ grant (re-granted each visit).
-5. **Proof fast-path** — an untampered, bound proof ⇒ grant + lazily reconcile the entitlement.
-6. **Otherwise** ⇒ `402` + x402 payment challenge.
+1. **Reachability** — the application rejects unpublished, revoked or expired resources before access checks.
+2. **Invite-only** — require a possessed wallet in the whitelist when `publicAccess` is false.
+3. **Ban / revoke** — deny an entitlement in either state. Revoke permits a new paid grant; ban does not.
+4. **Free resource** — grant public access, or an eligible invite-only read.
+5. **Active paid** — an active entitlement backed by a paid receipt grants without depending on a fresh cached proof.
+6. **Free tier / active free grant** — eligible whitelist-free readers or an existing active free grant can read.
+7. **Proof fast path** — a valid bound proof may grant when no denying entitlement exists.
+8. **Otherwise** — return `402` with a payment challenge.
 
-Rules 3–5 run **before** any proof-freshness check. This is the load-bearing fix: an expired proof (or cleared browser storage) never re-charges a wallet that already paid.
+Entitlement checks run **before** the proof fast path. This is the load-bearing fix: an expired proof (or cleared browser storage) never re-charges a wallet that already paid.
 
-```mermaid
-flowchart TD
-    W["wallet? + entitlement? + paid receipt? + proof?"]
-    B{"banned?"}
-    R{"revoked?"}
-    INV{"invite-only &<br/>not whitelisted?"}
-    LIFETIME{"active + real<br/>paid receipt?"}
-    FREE{"active free<br/>grant?"}
-    PROOF{"valid bound<br/>proof?"}
-    OK["GRANT"]
-    PAY["402 challenge"]
-    BAN["deny — cannot re-pay"]
-    REV["deny — pay again"]
-    INV2["deny — not invited"]
-
-    W --> B
-    B -- yes --> BAN
-    B -- no --> INV
-    INV -- yes --> INV2
-    INV -- no --> R
-    R -- yes --> REV
-    R -- no --> LIFETIME
-    LIFETIME -- yes --> OK
-    LIFETIME -- no --> FREE
-    FREE -- yes --> OK
-    FREE -- no --> PROOF
-    PROOF -- yes --> OK
-    PROOF -- no --> PAY
+```text
+Resource reachable? → possessed wallet → invite membership
+  → ban/revoke checks → free/paid entitlement → valid proof → 402 challenge
 ```
 
 ### Wallet resolution priority
 
-The rule needs to know who is asking. Resolution order: explicit `?wallet=` → SIWE session **or** ownership-signature possession proof → payment-proof payer → `undefined` (anonymous charge path). Media proxies send `?wallet=` automatically via the wallet SDK's `accessPathFor()` helper, so an `<img>` or `<audio>` tag can authenticate even though it cannot carry headers.
+The rule needs to know who is asking. A `?wallet=` value is a claim, not authentication. The application corroborates it with a matching SIWE session or supported ownership signature, or resolves the wallet from a valid resource-bound payment proof. Without possession evidence, it uses the anonymous public-price path. Media elements can use a bound `?proof=`; adding a wallet address alone never grants access.
 
 ### Returning owners without a session (the ownership probe)
 
@@ -95,24 +72,24 @@ A returning owner can arrive with **no SIWE session and no cached proof** — a 
    and retries the access check with header `x-nibgate-ownership-signature`.
 3. The server recovers the signer (`verifyOwnershipSignature`). A match proves possession of the claimed key and the lifetime path re-issues a fresh proof **for free**. A wrong signer, tampered resource binding, or garbage signature fails closed to the ordinary payment challenge.
 
-New buyers never see the extra prompt — the flag only appears when receipts already exist. Verified end-to-end: the probe returns 200 + fresh proof, creates no receipt, and moves nothing from gateway balance.
+New buyers never see the extra prompt — the flag only appears when receipts already exist. A successful ownership probe reissues access without creating a new payment.
 
 ## Entitlements are the source of truth
 
-A **proof is a convenience, never the authority.** Three records back every grant:
+A **proof is a convenience, never the authority.** These records participate in hosted access decisions:
 
 | Record | Role |
 |---|---|
-| `Receipt` | Immutable proof of a **paid** purchase (`amount > 0`). Free grants have none. |
+| `Receipt` | Immutable proof of a **paid** purchase (`amount > 0`). Free-tier grants need no paid receipt. |
 | `Entitlement` | *Current* access state for `(resourceId, wallet)` — `active` / `revoked` / `banned`. This is what the rule reads. |
 | `Event` | Append-only audit log (`view`, `unlock`, `revoke`, `ban`, `invite_only_flip`, `publish`). Note: no `restore` / `grant` / `price_change` event type exists in code. |
 
 Key invariants:
 
 ```text
-active + source='paid'  ⇔  a real receipt (amount > 0) exists
+active + paid receipt  ⇒  paid access, subject to reachability and policy
 revoked / banned        ⇒  not granted, regardless of any proof age
-free grant              ⇒  NOT lifetime — re-granted each visit
+active free grant       ⇒  may continue under the stored entitlement terms
 ```
 
 So lifetime access survives proof expiry, storage clears, and restarts — the receipt + entitlement are in the database, and the server re-issues a fresh proof on every legit visit.
@@ -130,37 +107,37 @@ The TTL only bounds replay surface; it never changes the access decision (rules 
 
 ## Payment idempotency: one grant per payment
 
-x402 has no native payment id — the settlement `txHash` is the only stable identity. Both rails implement a **pre-grant claim** keyed on `(txHash, resourceId)` with a unique database index:
+For settled transactions with a known hash, hosted payment idempotency uses that hash as the receipt nonce. Gateway authorizations can also have provider-specific identifiers while settlement is deferred. Both rails implement a **pre-grant claim** keyed on `(txHash, resourceId)` with a unique database index:
 
 1. Before granting, look up `(paymentNonce=txHash, resourceId)`.
 2. Already there? Return the **stored receipt** — no second grant, no double unlockCount, no double event.
 3. Otherwise create the receipt + entitlement atomically.
 
-A replayed proof is therefore safe by construction — it hits the same row and yields the same response, which is the #1 x402 production failure mode (248 grants per single payment measured on a live endpoint without this guard).
+A replayed proof is therefore safe by construction — it hits the same row and yields the same response, without counting the same payment again.
 
 ## Policy edits: the transition table
 
 Creators can edit any policy field at any time, even after publish. The rule is deterministic and fair — existing acquirers keep the terms they were offered:
 
 <Callout type="info">
-This table assumes a **non-expiring** resource. If the share/post has an `expiresAt`, the reachability gate returns `419` for **everyone** once it passes — including wallets with an active paid entitlement — because it runs before any entitlement check (verified live).
+This table assumes a **non-expiring** resource. If the share/post has an `expiresAt`, the Nibshare reachability gate returns `419` for **everyone** once it passes — including wallets with an active paid entitlement — because it runs before any entitlement check.
 </Callout>
 
 | Starting state | Admin action | Result for a prior *non-whitelisted* buyer |
 |---|---|---|
 | paid, paid once | (nothing) | keeps forever (lifetime) |
 | paid once at $X | price → $Y | keeps at $X (grandfathered) |
-| whitelist free grant | whitelist removed | keeps until last grant's term; must pay on fresh visit |
-| free grant exists | price set | served free till expiry, then `402` |
+| whitelist free grant | whitelist removed | an existing active entitlement may still grant access; removing membership alone is not a revoke |
+| free grant exists | price set | an existing active free entitlement can still grant; revoke it explicitly to remove access |
 | paid → free | price removed | everyone granted free per visit |
-| invite-only off → on | `publicAccess:false` | **denied** — paid and now cut off (gap #11, no refund) |
+| invite-only off → on | `publicAccess:false` | **denied** — paid and now cut off (no automatic refund) |
 | invite-only on → off | `publicAccess:true` | prior paid regain gate access |
 | active paid | `revoke` | `403` "pay again"; may re-purchase |
 | active | `ban` | `403` everywhere; **cannot** re-purchase |
 | revoked | `restore` | back to active — but **no audit event** is written, and whitelist membership stripped by a prior `ban` is not re-added |
 | banned, then restored | `restore` | entitlement active again; hub whitelist entry removed by `ban` stays removed |
 
-### The invite-only flip (gap #11)
+### Changing to invite-only
 
 Flipping `publicAccess` to `false` is the one edit that would silently cut off people who paid. Both rails handle it automatically:
 
@@ -184,7 +161,7 @@ Revoke/ban only change *access*, never money — x402 payments are irreversible 
 
 On the hub, `ban` also strips the wallet from `whitelist[]` (so invite-only shares don't keep re-asserting it); subblogs does not. `restore` never re-adds the whitelist entry. <Callout type="warning">Note: `restore` does not write an audit `Event`, and no `grant`/`price_change`/`restore` event type exists in code.</Callout>
 
-Revoke is **immediate and DB-backed** — there is no TTL window where a stale proof still works, because the ban/revoke check runs before any proof check. `revoke` and `ban` each write an `Event`; `restore` does not (and no `grant`/`price_change` event type exists).
+For gated reads, revoke is **immediate and DB-backed** — there is no TTL window where a stale proof still works, because the ban/revoke check runs before any proof check. `revoke` and `ban` each write an `Event`; `restore` does not (and no `grant`/`price_change` event type exists).
 
 ## Where the rule lives
 

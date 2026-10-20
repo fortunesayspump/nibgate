@@ -1,0 +1,69 @@
+{
+  "format": "drnib-owner-canary-v1",
+  "network": "testnet",
+  "database": "drnib_private_canary",
+  "ownerTenantId": "__REQUIRED_VERIFIED_OWNER_ACCOUNT_ID__",
+  "cvmId": "__REQUIRED_DEDICATED_CANARY_CVM_ID__",
+  "origins": {
+    "frontend": "https://canary.nibgate.example",
+    "broker": "https://broker.nibgate.example",
+    "funding": "https://funding.nibgate.example",
+    "verifier": "https://verify-drnib-canary.nibgate.xyz",
+    "guest": "https://guest.phala.example"
+  },
+  "runtime": {
+    "active": 1,
+    "pending": 8,
+    "idleMs": 300000,
+    "cumulativeRuntimeMs": 3600000
+  },
+  "budgetApproved": false,
+  "proposedBudget": {
+    "totalMicroUsd": 5000000,
+    "aiMicroUsd": 1000000,
+    "phalaMicroUsd": 1000000,
+    "controlPlaneMicroUsd": 2000000,
+    "contingencyMicroUsd": 1000000,
+    "customerComputeChargeMicroUsd": 0
+  },
+  "release": {
+    "guestImage": "__REQUIRED_REBUILT_LOCAL_GUEST_IMAGE_DIGEST__",
+    "terminalImage": "__REQUIRED_REVIEWED_TERMINAL_IMAGE_DIGEST__",
+    "gatewayImage": "__REQUIRED_BUILT_VERIFIER_GATEWAY_IMAGE_DIGEST__",
+    "verifierImageDigest": "sha256:9f2c07a94efd3d8a1a89268e5faa35e91e3cb345b9c4ab859c86d35142f4f788",
+    "appId": "__REQUIRED_REVIEWED_APP_ID__",
+    "instanceId": "__REQUIRED_REVIEWED_INSTANCE_ID__",
+    "composeHash": "__REQUIRED_REVIEWED_COMPOSE_HASH__",
+    "osHash": "__REQUIRED_REVIEWED_OS_HASH__",
+    "kmsId": "__REQUIRED_REVIEWED_KMS_ID__",
+    "verifierSpkiSha256": "__REQUIRED_VERIFIER_TLS_SPKI_HASH__",
+    "aciGatewayOrigin": "__REQUIRED_REVIEWED_CONFIDENTIAL_AI_ORIGIN__",
+    "aciComposeHash": "__REQUIRED_REVIEWED_CONFIDENTIAL_AI_COMPOSE_HASH__",
+    "controls": {
+      "productionOsImage": false,
+      "sshDisabled": false,
+      "debugDisabled": false,
+      "plaintextLogsDisabled": false,
+      "imagesDigestPinned": false
+    }
+  },
+  "hostedReviews": {
+    "jev": {
+      "checkedAt": null,
+      "workspaceId": "__REQUIRED_JEV_WORKSPACE__",
+      "ioLogging": null,
+      "broadcast": null,
+      "zdrVerified": false,
+      "workspaceMatchesKey": false
+    },
+    "fallback": {
+      "checkedAt": null,
+      "workspaceId": "__REQUIRED_FALLBACK_WORKSPACE__",
+      "ioLogging": null,
+      "broadcast": null,
+      "zdrVerified": false,
+      "workspaceMatchesKey": false
+    }
+  },
+  "verifierTrustMode": "operator-hosted"
+}

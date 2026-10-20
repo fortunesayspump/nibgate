@@ -4,33 +4,11 @@ import { Callout } from 'nextra/components'
 
 A Nibshare link is self-describing: an agent handed only `https://nibgate.xyz/ns/<slug>` can learn the terms, discover the endpoints, and pay for the content — no browser, no accounts, no API keys.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant A as Agent
-    participant P as Share page (nibgate.xyz/ns/x)
-    participant API as api.nibgate.xyz
-
-    rect rgb(232, 242, 255)
-    Note over A,API: EVALUATE (read-only, free)
-    A->>P: GET /ns/DxqTvRKJ
-    P-->>A: HTML with nibgate:* meta tags + JSON-LD
-    A->>API: GET /nibshare/DxqTvRKJ/manifest
-    API-->>A: Structured contract (price, status, urls)
-    end
-
-    rect rgb(232, 255, 235)
-    Note over A,API: READ
-    A->>API: GET /ns/DxqTvRKJ
-    alt free share
-        API-->>A: 200 + decrypted body
-    else paid share
-        API-->>A: 402 + PAYMENT-REQUIRED (x402)
-        Note over A: sign EIP-3009 authorization
-        A->>API: retry + PAYMENT-SIGNATURE
-        API-->>A: 200 + body + unlockProof
-    end
-    end
+```text
+Share link → public metadata/manifest → evaluate policy and expiry
+Free public read → body
+Paid read → 402 → payment authorization → retry → body + bound proof
+Invite-only/free-tier reads → prove wallet possession first
 ```
 
 ## Step 1 — Fetch the link
@@ -94,13 +72,13 @@ curl -s https://api.nibgate.xyz/nibshare/DxqTvRKJ/manifest | jq
 }
 ```
 
-This is the agent's cost–benefit step: confirmed price, currency, content type, expiry (or lack of it), and the exact endpoints. If the price is `0`, it can read directly. If it expires, it can decide whether the remaining window is worth paying for.
+This is the agent's cost–benefit step: confirmed price, currency, content type, required expiry, and the exact endpoints. If the price is `0`, it can read directly. If it expires, it can decide whether the remaining window is worth paying for.
 
 ## Step 3 — Read the content
 
 The single read route is `GET /ns/<slug>` (short mirror of `GET /nibshare/:slug/access`):
 
-- **Free share** (`price = "0"`): returns `200` with the decrypted body and media metadata. No proof needed.
+- **Free public share** (`price = "0"`): returns `200` with the decrypted body and media metadata. Invite-only and whitelist-free grants require wallet possession.
 - **Paid share**: responds `402 Payment Required` with an x402 envelope in the `PAYMENT-REQUIRED` header. Sign the challenge (EIP-3009 authorization, no gas) and retry with the `PAYMENT-SIGNATURE` header — the server verifies, settles via Circle Gateway, and returns the body plus `unlockProof` and `payment.txHash`.
 
 The same flow an agent already runs against a subblog works unchanged against a Nibshare link; the only difference is discovery (the manifest URL is embedded in the link page itself rather than a site `/nibgate.json`).
@@ -115,7 +93,7 @@ curl -s https://api.nibgate.xyz/ns/DxqTvRKJ \
 ```
 
 <Callout type="info">
-Nibshare shares are **private**: they are never surfaced in hub discovery, the public ledger, the reputation contract, or the sitemap. The manifest and access endpoints above are public so that anyone holding the link can evaluate and read it — but there is no way to discover the link from Nibgate's public surfaces.
+Nibshare shares are **private**: they are never surfaced in hub discovery, public content discovery, the reputation contract, or the sitemap. The manifest and access endpoints above are public so that anyone holding the link can evaluate and read it — but they are not listed as content in public discovery. Financial activity can still expose privacy-safe aggregate entries and public onchain transactions.
 </Callout>
 
 ## Code reference

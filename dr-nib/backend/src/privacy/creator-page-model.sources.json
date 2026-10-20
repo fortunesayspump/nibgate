@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "extension/src/content/canonical-url.ts": "9a71eb434ea17183fa8dec98de011c08ac03a3a1fc4248bb97e4cf12bfbe72df",
+    "extension/src/content/extract.ts": "bbd78a1271266761c3a460c13d4337516c5930c9a7fbe0ace7877a81190c44f6",
+    "extension/src/content/page-model.ts": "fc2cbbeb491d3343dfcc86f3dcfb22c00d96311938f6be61df8c85eaef82781a",
+    "jev/src/decide.ts": "c2df8028038f87f7d62ea1b4ef8adad2f0bbe3776fbd6f5d8b8d9b4654e77e14",
+    "jev/src/trace.ts": "94585b213614fb1cd6b7ba3161055eaf3cdfd8eb63ed0e3310b7cba2741e583a"
+  },
+  "generatedSha256": "45000af7bc97bb2e478248846ae518e23929fb8200441e4ab18e4c206c43d5aa"
+}

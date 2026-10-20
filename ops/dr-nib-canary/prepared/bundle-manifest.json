@@ -1,0 +1,32 @@
+{
+  "format": "drnib-canary-bundle-v1",
+  "files": {
+    ".railway/railway.ts": "fe92e3df40db9efd17ee988f02e1767e7ae454bea26b288927b0f9080ea2cd36",
+    "verifier/.railway/railway.ts": "5d94a94790819f632279833715fff9a4b24c41550a5b1ddb2a2f404bd5e952cf",
+    "env/broker.env.example": "670b6ff512334d0f17c96cb0cca25c49af84c03136003b6bb5d3a57dd997c800",
+    "env/watchdog.env.example": "c7f2f96b601e6c2403e9a0e8928a03f6e99196b587e4e55edf8dc330c4a19678",
+    "env/funding.env.example": "93b4ae06cdea776e10d0580a70c3b17f3d784c526ec5e6b9d8c8921b97de2ed4",
+    "env/frontend.env.example": "0869c05154deab051d5937c9c6569d4e213421886cc14cdfb190c5b8f9f5b8c2",
+    "env/verifier-gateway.env.example": "630f30c4c62bd0da4bd5c71f3a1b74bbde59df0cfa700568ce363e7ea0e8ba4d",
+    "readiness.json": "00314f7ceed5cc2b55d3dbef341d00766364c41837d12333d859a8d95c682f2c",
+    "release-policy.json": "52d3c814be043826c8664643f86fec81e85b3de842fd80f32c762d715bc540d7",
+    "reviewed-plan.json": "b3a28e6c6dac0842a7baf880339996a7fef25b855926a8183bce43c9a3df5abc",
+    "guest/measured-policy.json": "867c315eaf6c4ea602ed32361adc7cdfb54cdfa431772af1e61bfa8eb1fb606d",
+    "guest/credentials.env.example": "e17f9a457ba26bd25a917bee33fb1ccb705487b759a579c25925eae6a00de2ff",
+    "guest/compose.inputs.json": "153f1bce295b227167dde47f0efc6aa981c63c706b562f3c758389785747fef3",
+    "deployment-inputs.json": "fc09c3d10a47240e686657ac1995b5fa1ae59fb885715cfa7052833e54f0ee1f",
+    "guest/prelaunch-requirements.json": "54250e0d3ed6a9c22203fd1ee096da8a1b3be1b44a89261fc6ea877263476a11",
+    "guest/terminal-seccomp.json": "ca6d1a088eb076d4b53e395b4c30574dd16cf69598c34eea4728cdba61a95b73",
+    "README.md": "c0ebc600f639a5f328f6d210d9bf4116b92d5afae1af0611600078a0afb5322d",
+    "REVIEW.md": "b754985b678af7dbd12cc4b4f090da169e772d5f976e07e69da90c24f71267f3",
+    "REUSED-INPUTS.md": "a3389b3203222131cb37ce1ba591829735ee43adfeb9214556e2f6caa715ceef",
+    "costs.json": "8a95c92f1753a9bc812b09abebef40601c37c0b6a016333e103ec6d92aeb18e8",
+    "local-verification.json": "f628d30989ff621a99ed088df9f2972b25cc3601a46e156aafdaad870d206900",
+    "VERIFIER.md": "dc7694a5ed14ef362281d7eab0a8bf03fb3cb8dce623db5f08bce42dc5e6db8a",
+    "ROLLOUT.md": "ee8fc030608fa6bdce0cc955560dabf554f14aedab812876a109fef709ab3c19",
+    "verifier/compose.local.yaml": "c9b72cd0b9c1511199e00213fdd0e1f17bde9cb882ab04aa93de009e059bd6a5",
+    "verifier/selection.json": "d758c7381bbd9fcffc1c75d7f15956018347fbc84dbc2dacfa107719ec55c619",
+    "database/fresh-canary.sql": "b25e5cd61eb0c461ec7407766f03050c4d2decc91196ff15b586d7334914d28f",
+    "source-inventory.json": "33e80aa45077e508b14b6f59743f49a4a991d7d9b38c042285bdd94436a38abf"
+  }
+}

@@ -1,8 +1,35 @@
-use_default_settings: true
-server:
-  secret_key: "local-dev-only-change-me-in-prod-0123456789abcdef"
-  limiter: false
+use_default_settings:
+  engines:
+    keep_only:
+      - bing
+      - brave
+      - duckduckgo
+      - google
+      - hackernews
+general:
+  enable_metrics: false
 search:
+  safe_search: 1
   formats:
     - html
     - json
+server:
+  secret_key: local-dev-only-change-me-in-prod-0123456789abcdef
+  limiter: false
+  image_proxy: false
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 4.0
+  pool_connections: 10
+  pool_maxsize: 10
+engines:
+  - name: bing
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: google
+    disabled: false
+  - name: hackernews
+    disabled: false

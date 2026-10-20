@@ -7,10 +7,10 @@ Content metadata tells Nibgate what paid resources exist without copying the pro
 ## Supported types
 
 <Cards>
-  <Cards.Card title="Article" href="/content-events#article" />
-  <Cards.Card title="Image" href="/content-events#image" />
-  <Cards.Card title="Music" href="/content-events#music" />
-  <Cards.Card title="Video" href="/content-events#video" />
+  <Cards.Card title="Article" href="/content-events#supported-types" />
+  <Cards.Card title="Image" href="/content-events#supported-types" />
+  <Cards.Card title="Music" href="/content-events#supported-types" />
+  <Cards.Card title="Video" href="/content-events#supported-types" />
   <Cards.Card title="Document" href="/content-events#document" />
 </Cards>
 
@@ -42,7 +42,7 @@ const post = createGate({
 post.content()
 ```
 
-> Note: the package exports `createGate` (and a preconfigured `nibgate.gate(...)`). There is no bare `gate` import.
+> Note: the package exports `createGate` (and a preconfigured `nibgate.gate(...)`). `gate` is also an alias of `createGate` in the current browser entrypoint.
 
 ## Recommended fields
 
@@ -104,7 +104,7 @@ const report = createGate({
 report.content()
 ```
 
-Documents are encrypted at rest. Free documents render in full without proof; on paid posts a truncated preview (12 spreadsheet rows or 1,600 characters of text) is served as a teaser before unlock.
+Hosted Subblog and Nibshare document uploads are encrypted at rest. The generic SDK does not encrypt an integrator’s arbitrary storage automatically. Free documents render in full without proof; on paid posts a truncated preview (12 spreadsheet rows or 1,600 characters of text) is served as a teaser before unlock.
 
 ## Deterministic content id
 
@@ -120,4 +120,4 @@ The creator does not need to mint each content item. The package derives this id
 
 ## Rating handoff
 
-After a wallet or agent unlocks a resource, the package can expose a rating flow in a later adapter. Unlock/payment remains creator-site native; the receipt makes the wallet eligible to rate. The package should resolve the content id, check unlock eligibility from the indexed receipt, and then either submit a rating transaction or create an attested rating proof depending on the site configuration.
+After a wallet or agent unlocks a resource, the package exposes rating helpers. Unlock/payment remains creator-site native; the receipt makes the wallet eligible to rate. The package should resolve the content id, check unlock eligibility from the indexed receipt, and then either submit a rating transaction or create an attested rating proof depending on the site configuration.

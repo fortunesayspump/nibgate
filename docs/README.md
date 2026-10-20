@@ -63,3 +63,21 @@ Reference
 - API reference
 - Examples
 - Roadmap
+
+## Keeping documentation aligned with code
+
+The public site explains implemented behavior. Keep migration acceptance records, test run logs, deployment blockers and historical evidence in the owning engineering directories, not product pages. Label proposed adapters separately from implemented runtime behavior.
+
+| Topic | Implementation to inspect |
+| --- | --- |
+| SDK checkout, tokens and route protection | `packages/nibgate/src/server/{access,proof,fee-wallet}.js`, `src/browser/{access,transfer}.js` |
+| Hosted policies and persistence | `packages/nibgate/src/server/access-policy.js`, Nibshare controller/service, Subblogs access service/routes |
+| Public APIs, events and ratings | `backend/src/server/routes/hub-routes.js`, `backend/src/server/hub/helpers.js` |
+| Fee wallets and held-tip authority | `contracts/{GatewayFeeWallet,TipHoldingFactory,TipHoldingWallet}.sol` |
+| Networks | `packages/internal/src/networks.js` and `scripts/check-network-sync.mjs` |
+| Private research | `dr-nib/privacy/README.md` and the runtime paths it maps |
+| Public machine contracts | Root `AGENTS.md` surface registry |
+
+A generic SDK capability does not imply hosted storage, persistent entitlements or a CMS plugin. Distinguish public metadata from private bodies, a submitted proof from verified settlement, operator-paid compute from customer debits, and hardware-confidential inference from hosted ZDR processing.
+
+Validate a documentation change with the docs build and local route/link checks. When endpoint descriptions change, synchronize OpenAPI, MCP, registry versions and affected agent guides. Publication and live verification are separate release actions; a local edit does not establish deployed parity.

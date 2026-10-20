@@ -78,7 +78,7 @@ Every gated resource should have a stable external id, content type, title, URL/
 
 ### Gate access
 
-Protect the route or resource before serving the paid content.
+Use `accessResponse(request, resource)` for payment verification and unlock-proof issuance. Protect the content route with `protect(resource, handler)` and send the proof on subsequent requests. `protect` alone checks access but does not process a payment retry. Keep the real `NIBGATE_SECRET` server-side; the generic SDK does not supply a persistent entitlement database automatically.
 
 ### Emit events
 

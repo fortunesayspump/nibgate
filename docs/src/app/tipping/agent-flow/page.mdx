@@ -166,9 +166,6 @@ inspect the existing transaction/receipt and reconcile ambiguous settlement with
 the operator. Pending reservations are not automatically cleared or settled
 again. A transport or server error after submission is not evidence that no
 payment occurred. An unconfirmed direct-transfer receipt returns HTTP 402;
-retrying its read-only verification is safe. This change uses the existing
-`PaymentTxClaim` table, with no new schema migration. It does not recover a
-facilitator settlement lost before database completion or add held-tip
-claim/refund recovery.
+retrying its read-only verification is safe. If a facilitator settlement is lost before database completion, the stored proof and transaction require reconciliation. Held-tip claim/refund relays have their own outcome checks.
 
 Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.

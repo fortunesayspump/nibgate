@@ -2,21 +2,23 @@ import { Callout } from 'nextra/components'
 
 # Agent spending
 
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
+
 When retrieval comes back thin, or the brief names a specific public URL that retrieval missed, the run can inspect primary sources, including priced ones, using money from its approved budget. A named URL gets a free HTTP preview even when other search results are plentiful. Its 402 quote joins the evidence record before the agent weighs a purchase; a quote is not evidence of the paid article's contents. The activity record should make the choice legible: what evidence the agent sought, whether it proposed another round or a paid call, how the judge ruled, what it spent, and why it stopped. This page is the full ruleset: what the agent can spend on, the ceilings, how each call is decided, and what stops it.
 
 <Callout type="info">
-No spending key, no spend tools: if `DRNIB_AGENT_PRIVATE_KEY` is unset, paid paths don't exist and the run works the free layer only.
+Paid execution requires `DRNIB_AGENT_PRIVATE_KEY`. The ordinary research data stage omits money tools when it is absent, and the executor refuses paid calls without it; a tool name appearing in a registry does not make it usable.
 </Callout>
 
 ## The wallet
 
-One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Runs never share balances — separation is per-run accounting in the [ledger](/dr-nib/budgets), enforced before anything signs. The operator must keep enough payment-wallet and Gateway float for expected paid calls, plus native gas. Funding a user's escrow does not automatically refill the agent's separate payment wallet; an underfunded wallet refuses a purchase and the unused escrow is refunded.
+One custodial hot wallet serves every run (USDC on Arc, which is also the gas token, so one balance covers value and fees). Customer budgets are separated by per-run accounting in the [ledger](/dr-nib/budgets), but the physical payment-wallet float is shared. Payment helpers check the run balance and per-call quote before signing; this is not a separate custodial wallet for every project. The operator must keep enough payment-wallet and Gateway float for expected paid calls, plus native gas. Funding a user's escrow does not automatically refill the agent's separate payment wallet; an underfunded wallet refuses a purchase. Refund eligibility follows the run's settlement state, not merely the failure of one attempted purchase.
 
 ## How a call gets decided
 
-Every tool call runs propose → judge → execute. The model proposes `{tool, input, why}`; a calibrated decisions model (JEV) picks `execute`, `skip`, or `answer` with cost and history in view; only then does anything run. Nothing executes without a decision row saying so.
+Every proposed tool call in the agent loop follows propose → approval → execute; approval may be deterministic for allowed free reads. The model proposes `{tool, input, why}`; the structured decision model JEV picks `execute`, `skip`, or `answer` with cost and history in view; only then does anything run. Nothing executes without a decision row saying so.
 
-Free read-only tools (search, fetch, public APIs, sandbox) run on a deterministic policy row — schema-checked, budget-capped, no judge round-trip. **Anything that moves money always goes to JEV.** If the judge is unreachable, the run stops instead of running judgeless.
+Free read-only tools (search, fetch, public APIs, sandbox) run on a deterministic policy row — schema-checked, budget-capped, no judge round-trip. **Onchain spending tools always go to JEV.** If the judge is unreachable, the run stops instead of running judgeless.
 
 Each verdict is stapled to the exact canonical bytes it approved and re-checked immediately before execution: a payload change after approval voids the verdict instead of executing on a stale one.
 
@@ -43,13 +45,17 @@ Creator tips require the owner's explicit opt-in at Configure. They run after wr
 
 Free paths come first. An explicit source named for evaluation is previewed even if free results already cover the broader topic. A research brief that asks whether to buy is a choice, not a command to spend. Paid unlocks and x402 responses still face source scoring; paying never buys credibility. Ratings require an unlock receipt. Tool proposals, action/skip decisions, brief reasons, costs and available transaction receipts appear in the activity record. This is an audit of actions, rather than a promise to expose a model's hidden chain of thought.
 
-A source already bought within the same run cannot be bought again in a later round. Its purchased body takes precedence over later 402 previews when the agent reviews evidence or writes the report. The report can cite the run's paid-source acquisition record; Circle Gateway may not return an immediate transaction hash, while the escrow receipt still records the run's total spent and refunded.
+A URL with a successfully recorded purchase in a completed data stage is refused for repurchase in later rounds. Its purchased body takes precedence over later 402 previews when the agent reviews evidence or writes the report. The report can cite the run's paid-source acquisition record; Circle Gateway may not return an immediate transaction hash, while the escrow receipt still records the run's total spent and refunded.
 
 ## Onchain enforcement
 
-Software caps are promises; contracts are guarantees only for funds inside them. A **NibgateSpenderV2 mandate** is deployed and funded on Arc testnet (`0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`) and mainnet (`0xae39444c91aE8F0b8cF0642A18A521b6D312061B`), with a $2/day cap, open recipients and keeper pause. Both deployed workers routed a live 0.02 USDC creator tip through their V2 contract and received a hub receipt on 15 Oct 2026. The owner can enable a recipient restriction if needed. An agent-key compromise can send the contract float to any address up to the cap. Unresolved held tips and Gateway x402 purchases still use the agent EOA so refunds and EIP-3009 signatures work. Those funds are outside the mandate and remain under software caps. Full gate map: [Spending gates](/dr-nib/gates).
+Software gates depend on the trusted backend. Onchain mandate limits apply only to funds and calls governed by that contract. A **NibgateSpenderV2 mandate** is configured on Arc testnet (`0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`) and mainnet (`0xae39444c91aE8F0b8cF0642A18A521b6D312061B`), with a configured daily cap, recipient policy and keeper pause. The documented initial daily cap is $2; read live contract policy before relying on it. The owner can enable a recipient restriction if needed. With open recipients, an agent-key compromise can move contract float up to the contract's live cap. A stolen EOA key can bypass application checks for the EOA balance. Unresolved held tips and Gateway x402 purchases still use the agent EOA so refunds and EIP-3009 signatures work. Those funds are outside the mandate and remain under software caps. Full gate map: [Spending gates](/dr-nib/gates).
 
 ## Funding it
 
 - Local/testnet: set `DRNIB_AGENT_PRIVATE_KEY` and fund the derived address with testnet USDC (Circle faucet). Check its balance before a paid-source demo.
 - Production: same variable on the backend; fund with real USDC when live spend is wanted. A low balance fails before a Gateway deposit, with the wallet amount in USDC; an escrow deposit by itself is not enough to enable external purchases.
+
+## Private spending boundary
+
+The private workflow uses a separate money service, durable reservations and request/response reconciliation rather than giving the research worker a keeper key. Approved external arguments and payment metadata leave the worker; documents and vault keys do not. Private code/terminal execution uses its own isolation policy. Ordinary per-call defaults, hot-wallet behavior and shared memory are not an implicit private API contract. See [private tools and payments](/dr-nib/confidential/models-tools).

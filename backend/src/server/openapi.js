@@ -81,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.12",
+    version: "0.2.13",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -580,7 +580,7 @@ export const openApiSpec = {
       post: {
         tags: ["Ledger"],
         summary: "Track a hub event",
-        description: "Ingests widget/package events (views, resource views, unlocks, payments, ratings) for verified sites. Also available as /api/hub/track for backward compatibility.",
+        description: "Ingests widget/package events for registered sites with a matching public site token. Removed sites are rejected and rate limits apply. Widget verification is a separate discovery health signal; the token does not authenticate a caller origin or prove payment. Legacy alias: /hub/track.",
         requestBody: {
           required: true,
           content: {
@@ -611,7 +611,7 @@ export const openApiSpec = {
       post: {
         tags: ["Ledger"],
         summary: "Track a hub event (legacy)",
-        description: "Legacy alias of /api/hub/evt.",
+        description: "Legacy alias of /hub/evt.",
         responses: {
           "200": { description: "Event accepted" },
         },
@@ -621,7 +621,7 @@ export const openApiSpec = {
       post: {
         tags: ["Reputation"],
         summary: "Prepare an onchain rating",
-        description: "Returns the signing message, content hash, and reputation contract details so a wallet can submit an onchain rating tied to its unlock proof.",
+        description: "Returns the signing message, content hash, and reputation contract details so a wallet can submit an onchain rating. Preparation does not verify purchase eligibility; indexing checks the transaction and applicable unlock evidence.",
         requestBody: {
           required: true,
           content: {
@@ -792,7 +792,7 @@ export const openApiSpec = {
         tags: ["Tips"],
         summary: "Tip a creator not yet on Nibgate (no-key holding box)",
         description:
-          "For unresolved/external creators. Call without a payment proof to get the deterministic per-domain holding box address; fund it with USDC; call again with txHash to record a Tip row with status held. Funds sit onchain in a no-key box (nobody, not even Nibgate, can move them), claimable by the verified site owner and refundable by the payer until claimed. Two rails: direct transfer or Circle Gateway credit. Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged.",
+          "For unresolved/external creators. Call without a payment proof to get the deterministic per-domain holding box address; fund it with USDC; call again with txHash to record a Tip row with status held. Funds sit onchain in a box with no EOA key. Factory owner/keeper keys authorize release/refund; the Hub verifies creator and payer identity offchain, while the contract trusts recipient arguments. Tips are claimable by the verified site owner and refundable by the payer until claimed. Two rails: direct transfer or Circle Gateway credit. Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged.",
         requestBody: {
           required: true,
           content: {

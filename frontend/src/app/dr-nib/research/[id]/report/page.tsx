@@ -6,37 +6,56 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import {privateBuildEnabled} from '@/lib/dr-nib-private-records';
 import { drNibApi } from "@/lib/dr-nib-api";
 import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
 import { TrustChip } from "@/components/dr-nib/common";
 import { explorerTxUrl } from "@nibgate/wallet";
 
-export default function RunReportPage({ params }: { params: Promise<{ id: string }> }) {
+export default function RunReportPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams:Promise<{version?:string|string[]}> }) {
   const { id } = use(params);
+  const requestedVersion=use(searchParams).version;
+  const privateMode=privateBuildEnabled();
+  const [actionsReady,setActionsReady]=useState(!privateMode);
+  useEffect(()=>{
+    if(!privateMode)return;
+    let active=true;
+    const check=()=>drNibApi.health().then((health:any)=>{if(active)setActionsReady(health.research?.acceptingRuns===true)}).catch(()=>{if(active)setActionsReady(false)});
+    void check();const timer=setInterval(check,15000);
+    return()=>{active=false;clearInterval(timer)};
+  },[privateMode,id]);
   const [run, setRun] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [shareFallback,setShareFallback]=useState("");
 
   useEffect(() => {
+    let active=true;
+    setReport(null);
     (async () => {
       try {
         const r: any = await drNibApi.getRun(id);
+        if(!active)return;
         setRun(r);
+        setReport(null);
         setError("");
         if (r.status === "complete" || (r.reports || []).length) {
           try {
-            setReport(await drNibApi.getReport(id));
+            if(requestedVersion!==undefined&&(typeof requestedVersion!=="string"||!/^[1-9][0-9]{0,8}$/.test(requestedVersion)))throw Error("Invalid report version.");
+            const selected=await drNibApi.getReport(id,requestedVersion?Number(requestedVersion):undefined);
+            if(active)setReport(selected);
           } catch {
-            /* report still writing — article lands on retry */
+            if(active)setError("Could not load the requested report version. Retry to read that version.");
           }
         }
       } catch (e: any) {
-        setError(e?.message || "Could not load report.");
+        if(active)setError(e?.message || "Could not load report.");
       }
     })();
-  }, [id, attempt]);
+    return()=>{active=false};
+  }, [id, attempt, requestedVersion]);
 
   if (error) return (
     <div className="mx-auto max-w-2xl py-10 text-center">
@@ -71,9 +90,10 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
     (async () => {
       try {
         await navigator.clipboard.writeText(url);
+        setShareFallback("");
         setLinkCopied(true);
         setTimeout(() => setLinkCopied(false), 2000);
-      } catch { /* clipboard blocked — the URL bar already holds it */ }
+      } catch { setShareFallback(url); }
     })();
   }
   const imageFor = (url: string) => {
@@ -98,16 +118,18 @@ export default function RunReportPage({ params }: { params: Promise<{ id: string
         {report ? (
           <>
             {steer ? <p className="mb-3 text-xs opacity-60">v{report.version} steered by: “{String(steer).slice(0, 160)}”</p> : null}
-            <ReportArticle markdown={report.markdown} sources={sources} />
+            <ReportArticle full markdown={report.markdown} sources={sources} />
             <ReportEvidence claims={run.claims} sources={sources} />
             <ReportQA claims={run.claims} sources={sources} />
             {["complete", "failed", "ended"].includes(run.status) ? (
-            <DiscussThread runId={id} initial={run.metadata?.discuss} sources={sources} />
+            <DiscussThread disabled={!actionsReady} runId={id} initial={run.metadata?.discuss} sources={sources} />
             ) : null}
+            {privateMode&&!actionsReady?<p role="status" className="mt-3 text-xs">Private processing is paused. Saved reports remain available; follow-up questions resume when the reviewed worker is running.</p>:null}
             <div className="mt-4 flex items-center gap-3 border-t border-dark-gray/30 pt-3">
               <button onClick={shareLink} className="text-xs font-medium underline opacity-60 hover:opacity-100" title="Copy a link to this exact report version">
                 {linkCopied ? "✓ Link copied" : "Share this version"}
               </button>
+              {shareFallback?<p role="status" className="break-all text-xs">Copy this link: {shareFallback}</p>:null}
               {esc?.completeTx ? (
                 <a href={explorerTxUrl(esc.completeTx)} target="_blank" rel="noreferrer" className="text-xs font-medium underline opacity-60 hover:opacity-100">
                   Settle tx ↗

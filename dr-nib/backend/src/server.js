@@ -18,6 +18,8 @@ import { initQueue, queueMode } from './queue.js';
 import { requeueOrphans, requeueStalledRuns, startRecoverySweep } from './worker.js';
 import { retryPendingSettlements } from './escrow/settle.js';
 import { researchAvailability } from './readiness.js';
+import {createPrivateRecordsRouter} from './privacy/private-record-routes.js';
+import {createPrivateRecordStorage} from './privacy/private-record-storage.js';
 import {createPrivateRunsRouter} from './privacy/private-runs.js';
 import {createPrivateBrokerRouter} from './privacy/private-broker.js';
 import {configuredPrivateBroker} from './privacy/private-broker-config.js';
@@ -79,6 +81,8 @@ export async function createApp({privateWakeController}={}) {
   };
 
   app.use('/v1/runs', runs);
+  app.use('/v1/private',createPrivateRecordsRouter({store:db,storage:createPrivateRecordStorage(),authenticate:auth.middleware,
+    enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',allowedTenantId:privateBroker.allowedTenantId}));
   app.use('/v1/private', createPrivateRunsRouter({ready:privateBroker.ready,
     allowedTenantId:privateBroker.allowedTenantId,createLimit:privateCreateLimit,authenticate:auth.middleware}));
   app.use('/v1/private', createPrivateBrokerRouter({...privateBroker,authenticate:auth.middleware,isOwner:auth.isOwner}));

@@ -1,0 +1,19 @@
+# Local owner rehearsal: reuse the immutable, previously deployed dependency
+# image only after checking its lockfile and dependency manifests match this
+# checkout. This avoids another large dependency export on a constrained device.
+# The clean Node-base recipe remains Dockerfile for independent release builds.
+FROM docker.io/fortunesayspump/nibgate-private-guest@sha256:46a2e93b6f914a98a92e3de128fa830547f4c391e817b16441d1e17e9674064c
+USER root
+RUN rm -rf /app/dr-nib/backend/src /app/dr-nib/backend/prisma /app/packages/internal/src /app/packages/wallet/src
+COPY dr-nib/backend/prisma /app/dr-nib/backend/prisma
+RUN --network=none node /app/node_modules/.pnpm/prisma@5.22.0/node_modules/prisma/build/index.js generate --schema=/app/dr-nib/backend/prisma/schema.prisma
+COPY dr-nib/backend/package.json /app/dr-nib/backend/package.json
+COPY packages/internal/package.json /app/packages/internal/package.json
+COPY packages/wallet/package.json /app/packages/wallet/package.json
+COPY packages/internal/src /app/packages/internal/src
+COPY packages/wallet/src /app/packages/wallet/src
+COPY dr-nib/backend/src /app/dr-nib/backend/src
+USER node
+WORKDIR /app/dr-nib/backend
+EXPOSE 3102
+CMD ["node", "src/privacy/private-guest-main.js"]

@@ -1,5 +1,3 @@
-import { Callout } from 'nextra/components'
-
 # Dr. Nib research agent
 
 Dr. Nib is a budgeted research agent that turns a question into a cited report. It visibly decides what evidence to pursue, whether another search round is worth its cost, and when to stop and write. You set the scope and a USDC cap before funding; the run page records its queries, source judgments, decisions, spending, and final report. Unspent escrow is returned at settlement.
@@ -8,25 +6,29 @@ When the evidence is thin, Dr. Nib can consider primary APIs or a priced source 
 
 Try it at **https://testnet.nibgate.xyz/dr-nib/research** with test USDC or at **https://nibgate.xyz/dr-nib/research** with real USDC (wallet or Google sign-in required). Check the network and budget before funding.
 
-<Callout type="info">
-Funded research is available on Arc testnet with play money and on Arc mainnet with real USDC. A signed-in mainnet source-only run completed funding, research, report delivery, settlement, and refund on 15 Oct 2026; its seven export formats and free report discussion were also exercised. The deployed Dr. Nib worker has separately purchased a 0.10 USDC mainnet paid article through Circle x402, and both workers routed a 0.02 USDC creator tip through Spender V2 and received hub receipts. These direct tool checks do not yet prove that a funded research run autonomously chose a paid source or tip and recorded it in its own ledger. Independent escrow review and human-scored research-quality comparison also remain open. Development-only ledger runs are not proof of an onchain payment.
-</Callout>
+
+
+## Private research architecture
+
+The [private research architecture](/dr-nib/confidential) uses browser encryption, verified Phala processing and encrypted project storage while retaining the familiar research flow. Phala inference is primary; actual JEV and the disclosed Azure/OpenRouter ZDR fallback process the context they need under their stated provider boundaries. Encryption protects content from ordinary backend/storage access; it does not make public-tool arguments or onchain payments secret.
+
+Read [encryption and recovery](/dr-nib/confidential/recovery), [models and tools](/dr-nib/confidential/models-tools) and [worker lifecycle](/dr-nib/confidential/operations) for how those boundaries work. The ordinary research API/MCP contract described below is distinct from the private project's encryption and key-delivery protocol.
 
 ## The flow, end to end
 
 ```txt
-composer → intake (batches ≤5, 8 questions max) → configure → review → approve → run → report
+composer → intake (batches ≤5, stop threshold: 8) → configure → review → approve → run → report
   topic      scoping Q&A + cap-hit label   depth/cap    plan +     escrow?    stages     cited + badge,
   sent       JEV stop/reframe              formats      estimate   then run   SSE live   matrix + receipt
 ```
 
  1. **Ask** — type the research question and hit Send. The thinking screen opens instantly with your message shown as sent; questions stream in when generated. A project is created straight away, so you can leave and resume later (`?project=`, or automatic for the last touched run). Nothing spends yet.
- 2. **Intake, in batches** — up to 5 questions per screen (easy choices first), progress shown ("3 of 5 done"), prior batches collapsed with your answers labeled. Answer everything, submit once: one thinking per answer streams back, then you press Next when you've read. Intake caps at 8 questions total — if the judge still wants more, the cap wins and the transcript says `cap hit`. **Just plan it** skips the rest any time — unanswered questions stay unanswered, nothing is fabricated.
+ 2. **Intake, in batches** — up to 5 questions per screen (easy choices first), progress shown ("3 of 5 done"), prior batches collapsed with your answers labeled. Answer everything, submit once: one thinking per answer streams back, then you press Next when you've read. Intake checks an eight-question stop threshold between batches; when reached, it stops offering further batches and the transcript says `cap hit`. An already-issued batch can bring the total above eight. **Just plan it** skips the rest any time — unanswered questions stay unanswered, nothing is fabricated.
  3. **JEV runs the stop rule** — after each batch a calibrated decision picks `proceed` (brief is whole), `ask_more` (another batch), or `reframe` (the angle is dead — the next batch opens a different one, and the rejected direction stays on the record). The model proposes, JEV disposes; fallbacks are labeled, never silent.
- 4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length, optional creator tips, and [your own source files](/dr-nib/retrieval). Planning is free. Source-only mode requires a readable supplied file or link and disables external tools. A supplied source can be processed as a [confidential run](/dr-nib/confidential), where the document and the report never exist as plaintext on Nibgate's servers.
+ 4. **Configure** — depth (quick/standard/deep), budget cap, live-web toggle, report length, optional creator tips, and [your own source files](/dr-nib/retrieval). Planning is free. Source-only mode requires a readable supplied file or link and disables external tools. See [private processing](/dr-nib/confidential) for browser encryption and its provider boundaries; ordinary source ingestion and private encrypted ingestion have different data contracts.
  5. **Review** — sub-questions (editable), uncertainties, cost estimate. Fund the [onchain escrow](/dr-nib/escrow) first — any amount from the estimate up to your cap; approve is then gated on it being Funded for at least the estimate.
  6. **Run** — the command-center page: report and sources on the left, the live activity feed on the right (tool calls with their results, queries, verdicts, your Q&A transcript, timestamps, jump-to-latest), guidance box pinned at the bottom. This is an audit of actions and stated reasons, not the model's private chain of thought. Research follows the approved scope; search results alone never trigger a claim that evidence disagrees. Pause/resume any time. Blips never wipe the page (stale banner + retry).
- 7. **Report** — versioned, cited, with source mapping saved per report, sampled claim verification, report Q&A, Markdown-formatted free discussion, owner-only report links, seven export formats and a settlement receipt. Once the budget settles, use **Start fresh run** for further research with a new deposit; refunded money cannot fund a reprompt. Starting fresh copies the topic, so add your source files again.
+ 7. **Report** — versioned, cited, with source mapping saved per report, sampled claim verification, report Q&A, Markdown-formatted discussion (10 ordinary follow-up questions by default), owner-only report links, seven export formats and a settlement receipt. Once the budget settles, use **Start fresh run** for further research with a new deposit; refunded money cannot fund a reprompt. Starting fresh copies the topic, so add your source files again.
 
 ## How a run spends
 
@@ -34,7 +36,7 @@ Research stages draw metered usage from the run's [budget](/dr-nib/budgets). Pla
 
 ## How the agent decides
 
-The data stage is a propose → judge → execute loop with termination enforced in code, not in prompt prose: step/deadline/token/spend budgets, duplicate and stagnation detectors, an evidence checklist the run must cover, and a validated finish tool. Free reads run on deterministic policy; anything moving money always passes JEV, and a silent judge stops the run instead of running judgeless. Full ruleset: [Agent spending](/dr-nib/agent-spending). Enforcement map: [Spending gates](/dr-nib/gates).
+The data stage is a propose → judge → execute loop with termination enforced in code, not in prompt prose: step/deadline/token/spend budgets, duplicate and stagnation detectors, an evidence checklist the run must cover, and a validated finish tool. Free reads run on deterministic policy; onchain spending tools always pass JEV, and a silent judge stops the run instead of running judgeless. Full ruleset: [Agent spending](/dr-nib/agent-spending). Enforcement map: [Spending gates](/dr-nib/gates).
 
 ## Machine access
 

@@ -69,7 +69,7 @@ export function createGuestSessionManager({getRun,runner,model,quoteProvider=get
         // Attestation-only opens also serve owner status/report retrieval after
         // a paid job. executeJob still requires draft before any new AI call.
         if(!isConfidentialRun(run)||run.id!==runId||run.userId!==tenantId||run.deletedAt!=null||
-           !['draft','planning','planned','running','complete'].includes(run.status))throw safeError();
+           !['draft','planning','planned','running','complete','paused','awaiting','ended','failed'].includes(run.status))throw safeError();
         const pair=await generateHpkeRecipient(); // ephemeral, held in guest memory only
         const id=randomUUID();
         const evidence=await quoteProvider({clientNonce,sessionId:id,sessionPublicKey:Buffer.from(pair.publicKey)});
@@ -95,6 +95,20 @@ export function createGuestSessionManager({getRun,runner,model,quoteProvider=get
         s.proven=true;
         return {verified:true,recipientId:s.pair.recipientId,clientNonce:s.clientNonce,sessionId,challengeDigest:proof};
       } catch {throw safeError()}
+    },
+    async action({sessionId,sourceEnvelope,tenantId,runId}) {
+      let s;
+      try {
+        s=session(sessionId);
+        if(!s.proven||s.tenantId!==tenantId||s.runId!==runId||typeof runner.action!=='function')throw safeError();
+        s.processing=true;
+        const run=await getRun(runId);
+        if(!isConfidentialRun(run)||run.id!==runId||run.userId!==tenantId||run.deletedAt!=null)throw safeError();
+        const c=validateHpkeSourceEnvelope(sourceEnvelope,{tenantId,runId});
+        if(c.recipientId!==s.pair.recipientId)throw safeError();
+        return await runner.action({run,sessionId,sourceEnvelope,guestPrivateKey:s.pair.privateKey,guestPublicKey:s.pair.publicKey,model});
+      } catch {throw safeError()}
+      finally {if(s)sessions.delete(sessionId)}
     },
     execute(args){return executeJob(args,false)},
     executeFull(args){return executeJob(args,true)},

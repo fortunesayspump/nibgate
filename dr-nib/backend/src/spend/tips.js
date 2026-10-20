@@ -29,17 +29,7 @@ async function hub(path, body) {
   return data;
 }
 
-/**
- * Tip a page from the run's budget. Returns { receipt, txHash, amount }.
- * Throws on any failure; onchain sends happen only after every check passes.
- *
- * Resolved creators settle instantly (challenge → transfer → verify).
- * External/unresolved pages fall back to the holding box (hold challenge →
- * fund box → verify held): the domain owner claims later, the payer can
- * refund until then. Same hub rails browsers use — the ledger cannot tell a
- * machine tip from a human one.
- */
-export async function tipCreator({ runId, contentUrl, amount, title, recipient, fetchImpl, resolveImpl } = {}) {
+function validateContentUrl(contentUrl){
   if (!contentUrl || typeof contentUrl !== 'string') throw new Error('contentUrl is required');
   // A creator page, not an API endpoint: tipping an /api/ URL banks money
   // against a JSON blob instead of someone's work. Fail fast with direction.
@@ -51,10 +41,31 @@ export async function tipCreator({ runId, contentUrl, amount, title, recipient, 
     if (e.message.startsWith('contentUrl looks like')) throw e;
     throw new Error('contentUrl is not a valid URL');
   }
+}
+
+/**
+ * Tip a page from the run's budget. Returns { receipt, txHash, amount }.
+ * Throws on any failure; onchain sends happen only after every check passes.
+ *
+ * Resolved creators settle instantly (challenge → transfer → verify).
+ * External/unresolved pages fall back to the holding box (hold challenge →
+ * fund box → verify held): the domain owner claims later, the payer can
+ * refund until then. Same hub rails browsers use — the ledger cannot tell a
+ * machine tip from a human one.
+ */
+export async function tipCreator({ runId, contentUrl, amount, title, recipient, fetchImpl, resolveImpl } = {}) {
+  validateContentUrl(contentUrl);
+  const gate=checkAmount('tip',amount);if(!gate.ok)throw Error(gate.error);
+  const {balance}=await budgetState(runId);if(balance<gate.amount)throw Error(`run balance $${balance.toFixed(2)} cannot cover a $${gate.amount.toFixed(2)} tip`);
+  return executePublicTip({contentUrl,amount,title,recipient,fetchImpl,resolveImpl});
+}
+
+/** Public money operation only. The isolated private money service reserves
+ * its own ledger before calling this; no research or document state enters. */
+export async function executePublicTip({contentUrl,amount,title,recipient,fetchImpl,resolveImpl}={}){
+  validateContentUrl(contentUrl);
   const gate = checkAmount('tip', amount);
   if (!gate.ok) throw new Error(gate.error);
-  const { balance } = await budgetState(runId);
-  if (!(balance >= gate.amount)) throw new Error(`run balance $${balance.toFixed(2)} cannot cover a $${gate.amount.toFixed(2)} tip`);
   const post = fetchImpl || hub;
   // A model-supplied recipient is not proof of ownership. Resolve the page
   // through the hub's verified index before making a direct creator payment.

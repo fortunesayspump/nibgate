@@ -1,5 +1,4 @@
 import {createPrivateCapabilitySigner} from './private-capability.js';
-import {wakeAwareGuestHealth} from './private-broker-wake.js';
 import {createConfiguredPhalaWake} from './phala-wake-bootstrap.js';
 import {createPrivateBrokerMoney} from './private-broker-money.js';
 
@@ -36,14 +35,17 @@ export async function configuredPrivateBroker(env=process.env,{wakeController}={
       const value=await response.json();return value?.ok===true?value:null;
     }catch{return null}
   };
-  const awakeHealth=wakeAwareGuestHealth(wakeRequested?wake:undefined,health);
-  const ready=async()=>{try{const value=await awakeHealth();return value?.privateReady===true}catch{return false}};
+  const awakeHealth=health; // Availability reads never start compute.
+  const configuredWake=wakeRequested&&Boolean(wake);
+  const ready=async()=>{if(configuredWake)return true;try{const value=await awakeHealth();return value?.privateReady===true}catch{return false}};
   const fullAllowedTenantId=allowedTenantId;
   const fullReady=async()=>{
     if(env.DRNIB_PRIVATE_FULL_ENABLED!=='true'||typeof fullAllowedTenantId!=='string'||
        !/^[A-Za-z0-9:_-]{1,128}$/.test(fullAllowedTenantId))return false;
+    if(configuredWake)return true;
     try{const value=await awakeHealth();return value?.privateReady===true&&value?.fullReady===true}catch{return false}
   };
-  return {guestBaseURL:url.toString(),signCapability,ready,fullReady,allowedTenantId,fullAllowedTenantId,
+  const workflowReady=async()=>{if(env.DRNIB_PRIVATE_WORKFLOW_ENABLED!=='true')return false;if(configuredWake)return true;try{return (await awakeHealth())?.workflowReady===true}catch{return false}};
+  return {workflowReady,guestBaseURL:url.toString(),signCapability,ready,fullReady,allowedTenantId,fullAllowedTenantId,
     wakeController:wakeRequested?wake:undefined,money:createPrivateBrokerMoney({env})};
 }

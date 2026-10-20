@@ -1,0 +1,102 @@
+{
+  "asOf": "2026-10-20",
+  "currency": "USD",
+  "rates": {
+    "phalaComputeUsdPerHour": "0.116",
+    "phalaDiskUsdPerGbHour": "0.000139",
+    "railwayRamUsdPerGbMinute": "0.000231",
+    "railwayCpuUsdPerVcpuMinute": "0.000463",
+    "railwayDiskUsdPerGbMonth": "0.15",
+    "railwayEgressUsdPerGb": "0.05"
+  },
+  "sources": [
+    "https://cloud.phala.com/about/instance-types",
+    "https://cloud.phala.com/about/pricing",
+    "https://docs.railway.com/pricing/plans",
+    "https://developers.cloudflare.com/r2/pricing/"
+  ],
+  "assumptions": {
+    "phalaShape": "tdx.medium (2 vCPU, 4 GB)",
+    "phalaActiveHours": 1,
+    "phalaRetainedDiskGb": 20,
+    "diskRetentionHours": 24,
+    "controlPlaneAggregateAverageRamGbIncludingDb": 2,
+    "controlPlaneAggregateAverageVcpuIncludingDb": 0.25,
+    "controlPlaneActiveHours": 1,
+    "databaseVolumeGb": 1,
+    "egressGb": 1,
+    "monthlyHours": 720,
+    "dedicatedGpu": false
+  },
+  "scenario": {
+    "phalaCompute": "0.116",
+    "phalaDisk24Hours": "0.066720",
+    "controlCompute1Hour": "0.03466500",
+    "databaseVolume24Hours": "0.005",
+    "egress1Gb": "0.05",
+    "subtotalBeforeAiFrontendR2SubscriptionsTaxes": "0.27238500"
+  },
+  "retainedMonthlyExamples": {
+    "phalaStopped20GbDisk": "2.001600",
+    "controlComputeAtAssumedAverages": "25.00",
+    "databaseVolume1Gb": "0.15"
+  },
+  "proposedIncrementalAllowance": {
+    "aiJevFallback": 1,
+    "phala": 1,
+    "controlPlaneAndStorage": 2,
+    "contingency": 1,
+    "total": 5,
+    "approved": false
+  },
+  "limitations": [
+    "Scenario, not a quote or maximum: RAM/CPU figures are assumed averages, not measurements.",
+    "Dollar reserves are not provider-side hard caps. Lifecycle enforces cumulative runtime, while retained disk continues billing.",
+    "Existing shared service usage, old holds, provider subscription fees, new plan fees, frontend usage, R2 quota/rounding, taxes are excluded from the scenario subtotal.",
+    "R2 Standard includes 10 GB-month, 1 million writes and 10 million reads monthly if remaining account quota permits; excess is billed at published rates with unit rounding.",
+    "Railway subscription minimums are $5 Hobby/$20 Pro, with included usage; do not assume spare credits.",
+    "AI is metered with an operator reservation allowance of $1; current per-model provider pricing and fresh hosted-route privacy evidence remain release inputs.",
+    "Testnet USDC escrow/creator float and keeper gas are separate from operator USD invoices."
+  ],
+  "modelPricingCheckedOn": "2026-10-20",
+  "modelRatesUsdPerMillionTokens": {
+    "phala/gemma-4-26b-a4b-uncensored": {
+      "input": "0.15",
+      "output": "0.70",
+      "source": "https://inference.phala.com/v1/models"
+    },
+    "typesafe/jev-1.13": {
+      "input": "0.042",
+      "output": "0",
+      "source": "https://openrouter.ai/typesafe/jev-1.13",
+      "note": "Decision model; not discoverable as an ordinary chat model in the current chat-model catalog"
+    },
+    "openai/gpt-4o-mini": {
+      "input": "0.15",
+      "output": "0.60",
+      "source": "https://openrouter.ai/api/v1/models",
+      "note": "Actual configured fallback restricts provider to Azure with ZDR; fresh route review remains required"
+    }
+  },
+  "monthlyPlanningExample": {
+    "oneEnvironmentBaseBeforeInferenceAndTraffic": "27.1516",
+    "phalaActiveHoursPerDay": 2,
+    "phalaCompute30Days": "6.96",
+    "oneEnvironmentSubtotal": "34.1116",
+    "twoIdenticalSeparateEnvironmentsSubtotal": "68.2232",
+    "notAQuote": true,
+    "excludes": [
+      "AI inference",
+      "frontend usage",
+      "R2",
+      "traffic",
+      "subscription minimum differences",
+      "tax",
+      "mainnet purchases/tips/gas"
+    ],
+    "notes": [
+      "Two-environment estimate duplicates the full assumed control-plane footprint; a shared verifier could reduce actual use.",
+      "Average CPU/RAM are assumptions, not observed resource consumption."
+    ]
+  }
+}

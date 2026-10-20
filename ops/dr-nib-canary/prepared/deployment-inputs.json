@@ -1,0 +1,567 @@
+{
+  "format": "drnib-canary-input-inventory-v1",
+  "releaseInputs": [
+    "Verified owner account ID",
+    "frontend HTTPS origin",
+    "broker HTTPS origin",
+    "funding HTTPS origin",
+    "guest HTTPS origin",
+    "Reviewed confidential inference gateway origin",
+    "Reviewed guestImage digest",
+    "Reviewed terminalImage digest",
+    "Reviewed gatewayImage digest",
+    "Dedicated canary CVM identity",
+    "Independently reviewed appId",
+    "Independently reviewed instanceId",
+    "Independently reviewed composeHash",
+    "Independently reviewed osHash",
+    "Independently reviewed verifierSpkiSha256",
+    "Independently reviewed aciComposeHash",
+    "Reviewed KMS identity",
+    "Independent release-control review",
+    "Current jev workspace/ZDR/logging evidence (24h expiry)",
+    "Current fallback workspace/ZDR/logging evidence (24h expiry)",
+    "Separate approval of proposed $5 incremental operator allowance"
+  ],
+  "environmentInputs": {
+    "env/broker.env.example": [
+      {
+        "key": "DRNIB_NETWORK",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_MAINNET_ONLY",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_BROKER_ONLY",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_FULL_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WORKFLOW_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_TEST_TENANT_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_GUEST_BASE_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_CVM_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_IDLE_MS",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_MAX_ACTIVE",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_MAX_PENDING",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_RELEASE_POLICY_JSON",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_VERIFIER_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_VERIFIER_SPKI_SHA256",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_BROKER_PRIVATE_KEY_PKCS8_PEM",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PHALA_CLOUD_API_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DEBUG",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "HUB_API_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "NIBGATE_NETWORK",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_BROKER_AUTH_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "NIBGATE_SESSION_COOKIE",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_R2_BUCKET",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "R2_ENDPOINT",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "R2_ACCESS_KEY_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "R2_SECRET_ACCESS_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "CORS_ORIGIN",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_RECORDS_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WEB_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_DATABASE_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      }
+    ],
+    "env/watchdog.env.example": [
+      {
+        "key": "DRNIB_NETWORK",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_MAINNET_ONLY",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_BROKER_ONLY",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_FULL_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WORKFLOW_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_TEST_TENANT_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_GUEST_BASE_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_CVM_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_IDLE_MS",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_MAX_ACTIVE",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_WAKE_MAX_PENDING",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_RELEASE_POLICY_JSON",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_VERIFIER_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_VERIFIER_SPKI_SHA256",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_BROKER_PRIVATE_KEY_PKCS8_PEM",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PHALA_CLOUD_API_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DEBUG",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_DATABASE_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      }
+    ],
+    "env/funding.env.example": [
+      {
+        "key": "HUB_API_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "NIBGATE_NETWORK",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_BROKER_AUTH_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "NIBGATE_SESSION_COOKIE",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_NETWORK",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_MAINNET_ONLY",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_FUNDING_ONLY",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_FUNDING_HOST",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_PAYMENTS_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_EXTERNAL_TOOLS_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_PAID_TOOLS_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_TEST_TENANT_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_DATABASE_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ESCROW_CORE",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ESCROW_SPLITTER",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ESCROW_OPERATOR",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ESCROW_TREASURY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ESCROW_FEE_BPS",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ARC_RPC_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "ESCROW_KEEPER_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_AGENT_PRIVATE_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "CIRCLE_API_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      }
+    ],
+    "env/frontend.env.example": [
+      {
+        "key": "NEXT_PUBLIC_NIBGATE_NETWORK",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_API_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_CONFIDENTIAL",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_FULL_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_FUNDED",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "DRNIB_PRIVATE_API_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_FUNDING_API_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_TRUST_MODE",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_APP_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_INSTANCE_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_COMPOSE_HASH",
+        "requiresProvisioning": true,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_OS_HASH",
+        "requiresProvisioning": true,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_KMS_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_RELEASE_CONTROLS",
+        "requiresProvisioning": true,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_BOOT_MANIFEST_JSON",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      },
+      {
+        "key": "NEXT_PUBLIC_DRNIB_PRIVATE_BOOT_MANIFEST_SHA256",
+        "requiresProvisioning": false,
+        "publicBuildValue": true
+      }
+    ],
+    "env/verifier-gateway.env.example": [
+      {
+        "key": "DRNIB_VERIFIER_UPSTREAM_URL",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_VERIFIER_BROWSER_ORIGINS",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      }
+    ],
+    "guest/credentials.env.example": [
+      {
+        "key": "DRNIB_DATABASE_URL",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_AI_API_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_R2_BUCKET",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "R2_ENDPOINT",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "R2_ACCESS_KEY_ID",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "R2_SECRET_ACCESS_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_HOSTED_JEV_API_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      },
+      {
+        "key": "PRIVATE_OPENROUTER_RESEARCH_API_KEY",
+        "requiresProvisioning": true,
+        "publicBuildValue": false
+      }
+    ]
+  },
+  "additionalInputs": [
+    "Broker Ed25519 public key (matches private signing credential)",
+    "Current approved model input/output price ceilings",
+    "Deployment targets: frontend project, control and verifier projects in the Nibgate Railway workspace",
+    "Isolated Postgres administrator and four distinct role credentials",
+    "Private bucket ACLs, scoped keys and retention policy",
+    "Canonical Arc Testnet primary RPC and optional independent backup",
+    "Canary frontend origin approved by existing wallet/social-login provider",
+    "Phala shape/disk: proposed tdx.medium, 20 GB; verify capacity",
+    "Provider spending alerts and scheduled operator shutdown review"
+  ],
+  "remoteAcceptanceRequired": true
+}

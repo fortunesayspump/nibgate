@@ -1,33 +1,18 @@
-# Roadmap
+# Capabilities and scope
 
-Nibgate is a package-first content unlock layer plus a verified discovery hub, with two hosted creator rails (Subblogs and Nibshare) on top. The roadmap is focused on making that flow simple for creators and trustworthy for humans and agents.
+Nibgate combines creator-owned content integration, hosted publishing, public discovery and private research.
 
-## Shipped
+## Implemented capabilities
 
-- **`@nibgate/sdk` (0.4.x)** published on npm: browser + server entrypoints, x402 unlocks on two rails (Circle Gateway EIP-3009 and direct USDC transfer), `createGate`, content events, ratings, and the shared access-control rule (`canAccess`, `normalizeWhitelist`, `paidCutoffWallets`).
-- **`@nibgate/wallet` (0.4.x)** published on npm: shared Reown AppKit (AppKit + wagmi) wallet provider, SIWE sign-in, and the `<NibgateUnlock>`/`GatewayWallet` single-checkout flow used by the hub header and both rails (`./react` entry). Access follows the wallet: paid content re-verifies from the wallet's receipt on reconnect (no re-pay) and relocks on disconnect.
-- **Subblogs** — the full creator blog rail (`*.nibgate.xyz`) with articles, photos, music, video, documents; free and paid posts; whitelists, invite-only posts, and supporter price tiers; AES-256-GCM encryption at rest for every body and media file; SIWE wallet auth plus email/password admin.
-- **Nibshare** — the hosted quick-share rail at `/ns/<slug>`: a wallet owner publishes an encrypted, optionally paid/invite-only payload with short-link sharing. Not indexed in discovery.
-- **Access control hardening** — the possession rule (a `?wallet=` claim never grants content on its own), pay-before-deny on invite-only, draft/revoked/expired reachability, subblogs author-authz, atomic receipt idempotency (one grant per payment), and whitelist-edit cutoffs. All verified on both backends by a graded e2e stress suite. Revoke/ban flip access only — payments are irreversible x402 transfers to the creator's wallet, so there are no refunds.
-- Stable creator profiles, verified sites, dashboard content, analytics, earnings records, and Explore indexing.
-- Content reputation, creator leaderboards, and site/content ranking surfaces.
+- **Creator SDK:** browser metadata/events, server access checks, Circle Gateway and direct-USDC payment helpers, manifests and rating helpers.
+- **Wallet integration:** shared wallet connection, SIWE sign-in, Gateway deposit/checkout and recovery of submitted payment proofs without creating a second payment.
+- **Subblogs:** hosted articles, galleries, audio, uploaded video and documents; server-side encryption at rest; public, paid and invite-only access.
+- **Nibshare:** expiring, server-encrypted shares with owner analytics and link-based access. Content is not indexed in public discovery.
+- **Discovery and reputation:** public metadata, receipts, accepted rating proofs and content/site/creator rankings.
+- **Dr. Nib:** browser-encrypted private projects, verified Phala orchestration, disclosed JEV and authorized hosted-model processing, bounded tools, checkpoint recovery and escrow receipts. See [private research](/dr-nib/confidential).
 
-## Next
+## Integration boundaries
 
-- Extend the browser/MetaMask UI suite to cover whitelist banner, invite-only free unlock, banned UI, draft 404, tier-switch pricing, and paid-unlock up to the signature step.
-- Wallet-unify follow-ups: ReputationRating raw `window.ethereum`, dead `GatewayWallet.tsx`, widget.js Reown parity.
-- Add suppliers of testnet USDC on Arc so paid unlocks can complete end-to-end in CI without a manual faucet.
+`one_time` is the implemented unlock mode. The resource schema also names metered reading/streaming, time passes and agent quotas; those names do not add enforcement automatically. A creator integration must keep paid payloads behind server-side checks and supply its own protected storage/rendering where needed.
 
-## Later
-
-- Enforce metered unlock modes for video/audio streaming, article sections, time passes, and agent usage quotas (the policy field exists; enforcement is future).
-- Stronger reputation proofs tied to verified unlocks and signed/onchain ratings.
-- Richer agent discovery metadata for paid routes, citations, licenses, and source quality.
-- More package helpers for common frameworks without making the core package framework-specific.
-
-## Out of scope
-
-- Nibgate should not custody creator funds.
-- Nibgate should not require creators to mint every piece of content.
-- Nibgate should not host private paid payloads when the creator origin can remain the source of truth.
-- Nibgate should not fake receipts or unlocks in production flows.
+The SDK is framework-agnostic, but listing a CMS integration pattern does not mean a maintained native plugin exists. Payment availability depends on the configured network, contracts and providers. Hosted access revocation changes future reads; it cannot retract a downloaded copy or reverse a completed transfer.

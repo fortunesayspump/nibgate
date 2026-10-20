@@ -2,6 +2,7 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Pause, Play, Send } from "lucide-react";
 import { drNibApi } from "@/lib/dr-nib-api";
@@ -10,7 +11,13 @@ import { explorerTxUrl } from "@nibgate/wallet";
 import { TrustChip } from "@/components/dr-nib/common";
 import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
 import { SourceManager } from "@/components/dr-nib/SourceManager";
+import {RunWorkDuration} from '@/components/dr-nib/RunWorkDuration';
+import {PrivateExpenseReceipt} from '@/components/dr-nib/PrivateExpenseReceipt';
 import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
+import {privateBuildEnabled,privateFundingEnabled} from '@/lib/dr-nib-private-records';
+import {drNibFeedKey,privateResearchActivity,drNibToolFailed,deduplicateDrNibRows,drNibHasPendingQuestion,drNibQuestionMarker} from '@/lib/dr-nib-feed';
+import {formatDrNibAnswer as formatAnswer} from '@/lib/dr-nib-question-history';
+const PrivateSourceTip=dynamic(()=>import('@/components/dr-nib/PrivateSourceTip').then(module=>module.PrivateSourceTip),{ssr:false});
 
 // One chronological feed from three sources: the agent's reads (intake
 // thinking), the steps with their full outputs, and the tool calls with
@@ -19,7 +26,7 @@ import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/compon
 function buildFeed(run: any): any[] {
   const items: any[] = [];
   if (!run) return items;
-  for (const d of run.decisions || []) {
+  for (const d of deduplicateDrNibRows(run.decisions || [])) {
     if (d.kind === "thinking" && d.output?.text) items.push({ t: "thinking", at: d.createdAt, text: d.output.text });
     // Every question asked and every answer given, intake and mid-run alike:
     // the transcript is the run's memory and the owner should see all of it.
@@ -28,14 +35,18 @@ function buildFeed(run: any): any[] {
     // Technical by design — this is the audit trail, not a summary.
     if (d.kind === "decision" || d.kind === "round-review") items.push({ t: "judge", at: d.createdAt, d });
   }
-  for (const s of run.steps || []) items.push({ t: "step", at: s.createdAt, step: s });
-  for (const e of run.events || []) {
+  for (const s of deduplicateDrNibRows(run.steps || [])) items.push({ t: "step", at: s.createdAt, step: s });
+  for (const e of deduplicateDrNibRows(run.events || [])) {
     if (e.type === "tool.call") items.push({ t: "tool", at: e.at, e });
     else if (e.type === "agent.decision") items.push({t:"agent-decision",at:e.at,e});
     else if ((e.type === "thinking" || e.type === "thinking.fallback") && e.text) items.push({ t: "progress-note", at: e.at, e });
-    else if (e.type === "awaiting") items.push({ t: "parked", at: e.at, e });
+    else if (e.type === "awaiting" && !(run.decisions??[]).some((d:any)=>d.kind==='question'&&d.answer!=null&&(d.questionId??d.question?.id)===e.question?.id)) items.push({ t: "parked", at: e.at, e });
     else if (e.type === "guidance.applied") items.push({ t: "note", at: e.at, e });
     else if (e.type === "failed" || e.type === "complete") items.push({ t: "marker", at: e.at, e });
+  }
+  if(privateBuildEnabled()&&run.status==='complete'&&run.claims?.length){
+    const supported=run.claims.filter((c:any)=>(c.status??c.verdict)==='supported').length;
+    items.push({t:'verification-summary',at:run.reports?.at(-1)?.createdAt??run.updatedAt,supported,total:run.claims.length});
   }
   items.sort((a, b) => +new Date(a.at || 0) - +new Date(b.at || 0));
   return items;
@@ -44,7 +55,14 @@ function buildFeed(run: any): any[] {
 function ToolResult({ e }: { e: any }) {
   const r = e.result;
   if (!r) return null;
-  if (e.tool === "run_code") {
+  if(r.declined)return <p className="mt-1 text-[11px] opacity-70">Skipped by you; no payment sent.</p>;
+  if(e.tool==='tip_creator'&&r.ok)return <p className="mt-1 text-[11px] opacity-70">→ Creator tip {r.output?.held?'deposited for creator claim':'confirmed'}.</p>;
+  if(r.output?.contentUnavailable)return <p className="mt-1 text-[11px] opacity-70">Payment recorded; content delivery needs recovery.</p>;
+  if(e.tool==='compute'&&typeof r.result==='number')return <p className="mt-1 font-mono text-[11px] opacity-70">→ {r.result}</p>;
+  if(e.tool==='public_research'&&Number.isSafeInteger(r.count))return <p className="mt-1 font-mono text-[11px] opacity-70">→ {r.count} retained public source{r.count===1?'':'s'}</p>;
+  if(e.tool==='search_evidence'&&Array.isArray(r.items))return <details className="mt-1"><summary className="cursor-pointer text-[11px] opacity-70">{r.items.length} passage previews · {r.count??r.items.length} matching chunks{r.truncated?' · shortened':''}</summary>{r.items.map((item:any,i:number)=><blockquote key={`${item.sourceId}-${item.index}-${i}`} className="mt-2 border-l-2 border-dark-gray/40 pl-2 text-[12px] leading-5"><p className="font-mono text-[10px] opacity-60">Source {item.sourceId} · chunk {item.index+1}</p>{item.text}</blockquote>)}</details>;
+  if(e.tool==='run_code'&&r.runtime==='quickjs-wasm')return <pre className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{JSON.stringify(r.result,null,2)}</pre>;
+  if (e.tool === "run_code" || e.tool === "run_terminal") {
     return (
       <details className="mt-1">
         <summary className="cursor-pointer text-[11px] opacity-60">exit {r.exitCode ?? "?"} — stdout</summary>
@@ -56,7 +74,7 @@ function ToolResult({ e }: { e: any }) {
   if (e.tool === "http_request") {
     return <p className="mt-1 font-mono text-[11px] opacity-70">→ {r.status ?? "?"} · {r.bytes ?? 0} bytes</p>;
   }
-  const items: any[] = r.items || [];
+  const items: any[] = r.items || r.output?.sources || r.output?.documents || [];
   if (!items.length) return <p className="mt-1 font-mono text-[11px] opacity-70">→ {r.hits ?? r.pages ?? r.searched ?? 0} result{(r.hits ?? r.pages ?? 0) === 1 ? "" : "s"}</p>;
   return (
     <details className="mt-1" open={false}>
@@ -78,6 +96,10 @@ function ToolResult({ e }: { e: any }) {
 function JudgeRow({ d, enter }: { d: any; enter: string }) {
   const out = d.output || {};
   const label: Record<string, string> = {
+    "intake-gate": "Clarify the brief",
+    "source-review": "Review the evidence",
+    "source-context-review": "Review the requested article",
+    "agent-tool": "Choose the next action",
     "intake-stop": "Intake call",
     "midrun-ask": "Branch call",
     "source-trust": "Trust call",
@@ -106,6 +128,10 @@ function JudgeRow({ d, enter }: { d: any; enter: string }) {
     );
   }
   const pick = out.decision || d.answer?.picked || "";
+  const proposal=d.context?.proposal??d.question?.state?.proposal;
+  const candidateIndex=d.step==='intake-gate'?String(d.prompt??'').match(/candidate intake question (\d+)/)?.[1]:undefined;
+  const candidate=d.context?.candidate??(candidateIndex!==undefined?d.question?.state?.candidates?.[Number(candidateIndex)]:null);
+  const readablePick=d.step==='intake-gate'&&pick==='skip'?'No extra question needed':d.step==='agent-tool'&&pick==='answer'?'Write the report':pick;
   const probs = out.probabilities ?? out.probability ?? null;
   const probText = probs == null ? "" : typeof probs === "object"
     ? Object.entries(probs).map(([k, v]) => `${k} ${typeof v === "number" ? v.toFixed(2) : v}`).join(" · ")
@@ -114,7 +140,7 @@ function JudgeRow({ d, enter }: { d: any; enter: string }) {
     <div className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
       <p className="font-mono text-[12px]">
         <span className="opacity-70">◈ {label[d.step] || d.step || "Judgement"}</span>
-        {pick ? <span className="font-medium"> → {String(pick)}</span> : null}
+        {readablePick ? <span className="font-medium"> → {String(readablePick)}</span> : null}
         {/* A cap override is not a judgement: JEV said ask_more and the
             question budget said stop. Without this the owner sees
             "ask_more 0.70 → proceed" and reads it as the judge being
@@ -122,11 +148,15 @@ function JudgeRow({ d, enter }: { d: any; enter: string }) {
         {out.capped ? <span className="opacity-60"> · cap hit ({out.cap} questions)</span> : null}
         <FeedTime at={d.createdAt} />
       </p>
+      {proposal&&<p className="mt-1 text-[12px] leading-5">Proposed action: {String(proposal.tool)}. {String(proposal.why??'')}</p>}
+      {candidate?.prompt&&<p className="mt-1 text-[12px] leading-5">Considered question: {String(candidate.prompt)}</p>}
+      {d.step==='source-review'&&d.prompt&&<p className="mt-1 text-[12px] leading-5">{String(d.prompt)}</p>}
       {probText ? <p className="mt-0.5 font-mono text-[11px] opacity-60">{probText}</p> : null}
-      {out.model ? <p className="font-mono text-[11px] opacity-50">{String(out.model)}{out.source && out.source !== out.model ? ` · ${out.source}` : ""}{Number(out.usage?.costUsd) > 0 ? ` · $${Number(out.usage.costUsd).toFixed(4)}` : ""}</p> : null}
+      {out.model ? <p className="font-mono text-[11px] opacity-50">{String(out.model)}{out.source && out.source !== out.model ? ` · ${out.source}` : ""}{out.usage?.costAllocation==='included-in-request'?' · included in the same JEV request':typeof out.usage?.costUsd==='number'?` · $${Number(out.usage.costUsd).toFixed(6)}`:''}</p> : null}
       <details className="mt-1">
         <summary className="cursor-pointer font-mono text-[11px] opacity-60">prompt + output</summary>
         {d.prompt ? <p className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{String(d.prompt).slice(0, 800)}</p> : null}
+        {d.question?.state&&<pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{JSON.stringify(d.question.state,null,1)}</pre>}
         <pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[11px] opacity-70">{JSON.stringify(out, null, 1).slice(0, 2000)}</pre>
       </details>
     </div>
@@ -149,7 +179,7 @@ function sourceImage(run: any, url: string): string | null {
 // judgement, step, and tool call with its costs. The ops audit in one file.
 function chatTranscript(run: any): string {
   const L: string[] = [];
-  const money = (v: any) => (Number(v) > 0 ? ` $${Number(v).toFixed(4)}` : "");
+  const money = (v: any) => (typeof v==='number'&&Number.isFinite(v)&&v>=0 ? ` $${v.toFixed(6)}` : "");
   L.push(`# Dr. Nib run: ${run.brief?.topic || run.title || run.id}`);
   L.push(`- status: ${run.status} · spent $${Number(run.spent || 0).toFixed(2)} of $${Number(run.budgetCap || 0).toFixed(2)} · report v${run.versions || 0}`);
   L.push(`- run: ${run.id}`);
@@ -159,6 +189,7 @@ function chatTranscript(run: any): string {
     L.push(`\n## Questions & answers`);
     for (const d of qa) {
       L.push(`\n### [${d.step === "midrun" ? "mid-run" : "intake"}] ${d.prompt || d.question?.prompt || ""}`);
+      if(d.question?.externalRequest){const request=d.question.externalRequest;L.push(`${request.tool}: ${request.url??request.query??""}`);}
       L.push(d.answer != null ? `You: ${formatAnswer(d) || "(skipped)"}` : `(unanswered)`);
     }
   }
@@ -193,6 +224,8 @@ function chatTranscript(run: any): string {
     }
   }
   const events: any[] = run.events || [];
+  const usageNotes=events.filter((e:any)=>e.origin==='usage'&&typeof e.costUsd==='number');
+  if(usageNotes.length){L.push('\n## Model response expenses');for(const e of usageNotes)L.push(`- ${e.phase}: ${e.model}${money(e.costUsd)}${e.billingKind==='platform'?' · sponsored — $0 charged to you':''}`);}
   const tools = events.filter((e: any) => e.type === "tool.call");
   if (tools.length) {
     L.push(`\n## Tool calls`);
@@ -216,39 +249,11 @@ function chatTranscript(run: any): string {
     const esc = (run.metadata && run.metadata.escrow) || null;
     if (deposited > 0 || refunded > 0 || esc?.jobId) {
       L.push(`\n## Settlement`);
-      L.push(`- deposited $${deposited.toFixed(2)} · spent $${spent.toFixed(2)}${fee > 0 ? ` (+$${fee.toFixed(4)} fee)` : ""} · refunded $${refunded.toFixed(2)}`);
+      L.push(`- deposited $${deposited.toFixed(2)} · spent $${spent.toFixed(6)}${fee > 0 ? ` ($${fee.toFixed(6)} platform share included)` : ""} · refunded $${refunded.toFixed(6)}`);
       if (esc?.jobId) L.push(`- escrow job ${esc.jobId} · ${esc.status || "unknown"}${esc.completeTx ? ` · settle tx ${esc.completeTx}` : ""}`);
     }
   }
   return L.join("\n");
-}
-
-// An answer is one of several shapes (typed text, picked options, checked
-// options) — render what the owner actually said, not the JSON. optionIds
-// is the shape the intake UI posts; ignoring it rendered real answers as
-// "(empty answer)".
-function formatAnswer(d: any): string {
-  const a = d.answer;
-  if (a == null) return "";
-  if (typeof a.text === "string" && a.text.trim()) {
-    const ids = optionLabels(d, a.optionIds);
-    return [...ids, `"${a.text.trim()}"`].filter(Boolean).join(", ");
-  }
-  const ids = optionLabels(d, a.optionIds);
-  if (ids.length) return ids.join(", ");
-  const q = d.question || {};
-  const opts: any[] = Array.isArray(q.options) ? q.options : [];
-  const label = (id: string) => opts.find((o) => o.id === id)?.label || id;
-  if (typeof a.picked === "string") return label(a.picked);
-  if (Array.isArray(a.picked)) return a.picked.map(label).join(", ");
-  if (typeof a === "string") return a;
-  return "";
-}
-
-function optionLabels(d: any, ids: any): string[] {
-  if (!Array.isArray(ids)) return [];
-  const opts: any[] = Array.isArray(d.question?.options) ? d.question.options : [];
-  return ids.map((id: string) => opts.find((o) => o.id === id)?.label || id).filter(Boolean);
 }
 
 function StepDetail({ step, open }: { step: any; open: boolean }) {
@@ -380,23 +385,47 @@ function SettlementReceipt({ run, onRefresh }: { run: any; onRefresh: () => Prom
   const refunded = Number(run.refunded ?? 0);
   const tx = esc?.completeTx as string | undefined;
   const fundsTx = esc?.splitTx as string | undefined;
+  const refreshReceipt=useRef(onRefresh);
+  refreshReceipt.current=onRefresh;
+  const receiptPending=privateBuildEnabled()&&privateFundingEnabled()&&(!run.settledAt||!esc?.splitConfirmed||run.metadata?.privateFundingUnavailable===true);
+  useEffect(()=>{
+    if(!receiptPending)return;
+    let cancelled=false,attempts=0,timer:ReturnType<typeof setTimeout>;
+    const check=async()=>{
+      if(cancelled)return;
+      try{await refreshReceipt.current();}catch{/* Keep the saved report and manual retry available. */}
+      if(!cancelled&&++attempts<12)timer=setTimeout(check,10000);
+    };
+    timer=setTimeout(check,5000);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[run.id,receiptPending]);
+  if(privateBuildEnabled()&&!privateFundingEnabled()){
+    const usage=run.aiUsage;
+    const valid=usage?.format==='drnib-private-usage-summary-v2'&&['verifiedMicroUsd','reportedMicroUsd','estimatedMicroUsd','reservedMicroUsd'].every(k=>Number.isSafeInteger(usage[k])&&usage[k]>=0);
+    return <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5"><p className="text-sm font-medium">Owner test usage</p><p className="mt-2 text-[13px] leading-6">{valid?<>Receipt-priced AI usage ${(usage.verifiedMicroUsd/1000000).toFixed(4)}; provider-reported JEV ${(usage.reportedMicroUsd/1000000).toFixed(4)}.{usage.estimatedMicroUsd>0?<> Historical ceiling estimates ${(usage.estimatedMicroUsd/1000000).toFixed(4)}.</>:null}{usage.reservedMicroUsd>0?<> Uncertain holds ${(usage.reservedMicroUsd/1000000).toFixed(4)}; these are not a confirmed bill.</>:null}</>:<>Recorded allowance total ${spent.toFixed(4)} may include historical estimates and uncertain holds; it is not a customer invoice.</>} The shared owner test allowance applies; no wallet deposit or refund is involved.</p></section>;
+  }
+  if(privateBuildEnabled()&&privateFundingEnabled()&&run.metadata?.privateFundingUnavailable){
+    return <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5"><p className="text-sm font-medium">Receipt temporarily unavailable</p><p role="status" className="mt-2 text-[13px] leading-6">We could not check the payment service. Deposit, charges and refund status are unavailable; your saved report is still accessible.</p><button onClick={()=>void onRefresh()} className="mt-3 rounded-lg border border-current px-3 py-2 text-xs">Check receipt again</button></section>;
+  }
   return (
     <section className="mt-4 rounded-2xl border border-dark-gray/50 bg-white p-5">
       <p className="text-sm font-medium">Receipt</p>
-      {!run.settledAt && <p role="status" className="mt-2 text-xs">Stopping after the current stage. Its cost is recorded before the remaining balance is refunded.</p>}
+      {!run.settledAt && !esc?.splitConfirmed && <p role="status" className="mt-2 text-xs">Settlement is pending. Completed usage is recorded before the remaining balance is refunded.</p>}
+      {esc?.waivedCalls>0&&<p className="mt-2 text-xs">{esc.waivedCalls} unconfirmed operation(s) were excluded from your charge when the run ended. Any provider cost for those calls is covered by the platform.</p>}
       <p className="mt-2 text-[13px] leading-6">
         Deposited ${deposited.toFixed(2)}
-        {" · "}spent ${spent.toFixed(2)}{fee > 0 ? ` ($${fee.toFixed(3)} platform share included)` : ""}
-        {" · "}{esc?.jobId && !fundsTx && !esc.splitConfirmed ? "refund pending confirmation" : "refunded"} ${refunded.toFixed(2)}
+        {" · "}spent ${spent.toFixed(6)}{fee > 0 ? ` ($${fee.toFixed(6)} platform share included)` : ""}
+        {" · "}{esc?.jobId && !fundsTx && !esc.splitConfirmed ? "refund pending confirmation" : "refunded"} ${refunded.toFixed(6)}
       </p>
+      {privateBuildEnabled()&&<PrivateExpenseReceipt receipt={run.expenseReceipt}/>}
       {esc?.jobId && !fundsTx && !esc.splitConfirmed && (
         <div className="mt-3">
-          <p className="text-xs opacity-70">The report is ready. Your refund is still awaiting an onchain transaction; settlement retries automatically.</p>
+          <p className="text-xs opacity-70">Your refund is awaiting onchain confirmation. The payment service retries automatically; you can also check now.</p>
           <button disabled={retrying} onClick={async () => {
             setRetrying(true); setRetryMessage("");
             try {
               const result = await drNibApi.completeEscrow(run.id);
-              setRetryMessage(result.pending ? "Settlement is still pending. We'll keep retrying." : "Settlement confirmed.");
+                setRetryMessage(result.pending ? "Settlement is still pending. The payment service will retry automatically." : "Settlement confirmed.");
               await onRefresh();
             } catch { setRetryMessage("Settlement could not complete yet. Your funds remain in escrow; please try again later."); }
             finally { setRetrying(false); }
@@ -426,6 +455,16 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
 function ServerRunDetailPage({ id }: { id: string }) {
   const router = useRouter();
+  const privateMode=privateBuildEnabled();
+  const [privateActionsReady,setPrivateActionsReady]=useState(!privateMode);
+  useEffect(()=>{
+    if(!privateMode)return;
+    let active=true;
+    const check=()=>drNibApi.health().then((health:any)=>{if(active)setPrivateActionsReady(health.research?.acceptingRuns===true)}).catch(()=>{if(active)setPrivateActionsReady(false)});
+    void check();const timer=setInterval(check,15000);
+    return()=>{active=false;clearInterval(timer)};
+  },[privateMode,id]);
+  const privateProcessingPaused=privateMode&&!privateActionsReady;
   const [run, setRun] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState("");
@@ -439,8 +478,13 @@ function ServerRunDetailPage({ id }: { id: string }) {
   // a wipe; clears on the next successful read.
   const [staleWarn, setStaleWarn] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [exportBusy,setExportBusy]=useState<string|null>(null);
   const [actionError,setActionError]=useState("");
   const [actionBusy,setActionBusy]=useState(false);
+  const [recoveryDiagnostics,setRecoveryDiagnostics]=useState<string[]>([]);
+  const [recoveryInspectBusy,setRecoveryInspectBusy]=useState(false);
+  const [pauseRequested,setPauseRequested]=useState(false);
+  useEffect(()=>{if(run?.status==='paused'||['complete','ended','failed'].includes(run?.status))setPauseRequested(false)},[run?.status]);
   async function changeRun(action:()=>Promise<unknown>){
     if(actionBusy)return;setActionBusy(true);setActionError("");
     try{await action();await load()}catch(e:any){setActionError(e?.message || "The action could not complete. Retry in a moment.")}finally{setActionBusy(false)}
@@ -554,9 +598,9 @@ function ServerRunDetailPage({ id }: { id: string }) {
     }
   }
 
-  async function load() {
+  async function load(privateSnapshot?:any) {
     try {
-      const r = await drNibApi.getRun(id);
+      const r = privateBuildEnabled()&&privateSnapshot?.id===id?await (await import('@/lib/dr-nib-private-client')).privateSnapshotRun(privateSnapshot):await drNibApi.getRun(id);
       setRun(r);
       loadedOnce.current = true;
       // A successful read clears both the first-load error and any
@@ -564,7 +608,10 @@ function ServerRunDetailPage({ id }: { id: string }) {
       setError("");
       setStaleWarn(false);
       if (r?.status === "planned") void loadEscrow(r);
-      try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); }
+      if(privateBuildEnabled()){
+        const reports=Array.isArray(r.reports)?r.reports:[];
+        setReport((reportVersion?reports.find((item:any)=>item.version===reportVersion):reports.at(-1))??null);
+      }else try { setReport(await drNibApi.getReport(id, reportVersion ?? undefined)); }
       catch (e: any) {
         // A planned or unfinished run has no report yet. Its expected 404 is
         // not a lost connection and must not raise the stale-state banner.
@@ -608,6 +655,8 @@ function ServerRunDetailPage({ id }: { id: string }) {
 
   // Exports render on demand from the finished report and download directly.
   async function downloadExport(format: string) {
+    if(exportBusy)return;
+    setExportBusy(format);
     setExportError("");
     try {
       const out = await drNibApi.createExport(id, format);
@@ -635,6 +684,8 @@ function ServerRunDetailPage({ id }: { id: string }) {
       URL.revokeObjectURL(url);
     } catch (e: any) {
       setExportError(e?.message || "Export failed.");
+    } finally {
+      setExportBusy(null);
     }
   }
 
@@ -728,13 +779,14 @@ function ServerRunDetailPage({ id }: { id: string }) {
     const el = feedRef.current;
     if (el) { el.scrollTop = el.scrollHeight; tailRef.current = true; setAtTail(true); }
   }
-  // New arrivals slide in; refetches never replay. Keys are chronological, so
-  // anything past the previous count is new.
+  // New arrivals slide in by message identity. Replayed checkpoints and late
+  // historical events must not remount the messages already on screen.
   const feedItems = buildFeed(run);
-  const seenFeedCount = useRef(0);
+  const seenFeedKeys = useRef(new Set<string>());
   useEffect(() => {
-    seenFeedCount.current = feedItems.length;
-  }, [feedItems.length]);
+    for(const item of feedItems)seenFeedKeys.current.add(drNibFeedKey(item));
+  }, [feedItems]);
+  const privateActivity=privateMode&&!privateProcessingPaused?privateResearchActivity(run):null;
   useEffect(() => {
     const el = feedRef.current;
     if (el && tailRef.current) el.scrollTop = el.scrollHeight;
@@ -755,6 +807,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
     const unsub = subscribeRunEvents(
       id,
       (e: any) => {
+        setStreamLive(true);
         if (e?.type === "token" && typeof e?.delta === "string") {
           const section = Number(e.section) || 0;
           const of = Number(e.of) || 0;
@@ -764,16 +817,26 @@ function ServerRunDetailPage({ id }: { id: string }) {
           }));
           return;
         }
-        load();
+        void load(e?.type==='private.snapshot'?e.privateSnapshot:undefined);
       },
       () => {
         setStreamLive(false);
-        if (!poll) poll = setInterval(load, 5000);
+        if (!privateBuildEnabled()&&!poll) poll = setInterval(load, 5000);
       },
     );
     return () => { unsub(); if (poll) clearInterval(poll); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const settlementPending=privateBuildEnabled()&&privateFundingEnabled()&&['complete','ended','failed'].includes(run?.status)&&!!run?.metadata?.escrow?.jobId&&!run?.settledAt&&!run?.metadata?.escrow?.splitConfirmed;
+  useEffect(()=>{
+    if(!settlementPending)return;
+    let stopped=false,timer:ReturnType<typeof setTimeout>;
+    const check=async()=>{await load();if(!stopped)timer=setTimeout(check,15000);};
+    timer=setTimeout(check,5000);
+    return()=>{stopped=true;clearTimeout(timer);};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[id,settlementPending]);
 
   if (error) return (
     <div className="mx-auto max-w-2xl py-10 text-center">
@@ -820,7 +883,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
 
   const statusStyle: Record<string, string> = {
     running: "bg-black text-white",
-    awaiting: "bg-white text-black border-2 border-black",
+    awaiting: drNibHasPendingQuestion(run) ? "bg-amber-100 text-amber-950 border border-amber-400" : "bg-black/10 text-black",
     paused: "bg-black/10 text-black",
     complete: "bg-emerald-100 text-emerald-900 border border-emerald-300",
     failed: "bg-red-100 text-red-800 border border-red-300",
@@ -833,8 +896,8 @@ function ServerRunDetailPage({ id }: { id: string }) {
     running: (run.steps || []).length === 0
       ? "Approved — starting the first pass now."
       : "Running — steps, sources, and the report appear below as they land.",
-    awaiting: "Parked — Dr. Nib needs one answer from you to continue.",
-    paused: run.pauseReason === "cap"
+    awaiting: drNibHasPendingQuestion(run)?"Waiting for your answer — the question is below the activity feed.":"Checking the saved continuation. No answer is needed until a current question is shown.",
+    paused: run.pauseReason === "uncertain" ? "Saved work needs a recovery check. Your deposit remains in escrow." : run.pauseReason === "cap"
       ? "Parked at the budget cap — raise it to continue."
       : "Paused by you — resume when ready.",
     complete: "Research complete — review the report and its evidence checks below.",
@@ -844,6 +907,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
 
   return (
     <div>
+      {run.metadata?.privateActionError&&<p role="alert" className="mb-4 border border-dark-gray/50 p-3 text-sm">{run.metadata.privateActionError}</p>}
       {staleWarn && (
         <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm">
           <span>Connection hiccup — showing the last loaded state. It refreshes on its own.</span>
@@ -868,26 +932,34 @@ function ServerRunDetailPage({ id }: { id: string }) {
           </Link>
           <span className="flex items-center gap-2">
             {run.status === "running" && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black" />}
-            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase ${pill}`}>{run.status}</span>
+            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase ${pill}`}>{privateProcessingPaused&&['running','planning'].includes(run.status)?'worker paused':run.metadata?.privateActionPending&&run.metadata?.privateRecoveryRequestId?'checking saved work':drNibHasPendingQuestion(run)?'action needed':run.status==='awaiting'?'checking saved work':run.status}</span>
           </span>
         </div>
         <div className="px-4 py-4 md:px-5">
-          <h1 className="text-xl font-medium leading-snug md:text-2xl">{topic}</h1>
+          <h1 className="text-base font-medium leading-relaxed md:text-lg">{topic}</h1>
           <p className="mt-1.5 text-xs opacity-60">
-            {run.brief?.depth || "standard"} depth · ${(run.plan?.estimate ?? 0).toFixed(2)} est · ${spent.toFixed(2)} of ${cap.toFixed(2)} spent · {(run.sources || []).length} sources
+            {run.brief?.depth || "standard"} depth · ${(run.plan?.estimate ?? 0).toFixed(2)} est · {run.metadata?.privateFundingUnavailable?'expenses unavailable':`$${spent.toFixed(6)} of $${cap.toFixed(2)} spent`} · {(run.sources || []).length} sources
           </p>
-          {banner[run.status] && <p className="mt-2.5 border-l-2 border-black/60 pl-3 text-sm leading-6">{banner[run.status]}</p>}
+          <RunWorkDuration run={run} workerPaused={privateProcessingPaused}/>
+          {privateMode&&process.env.NEXT_PUBLIC_DRNIB_HOSTED_RESEARCH_FALLBACK==='true'?<p role="note" className="mt-2 text-xs leading-5">Phala is primary. OpenRouter/Azure may receive research context under zero retention when fallback is needed; that inference is provider-visible. Decryption and saved state stay in the private worker. JEV is unchanged.</p>:null}
+          {drNibHasPendingQuestion(run) && !privateProcessingPaused ? <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950"><p className="flex items-center gap-2 text-sm font-medium"><Pause size={16} aria-hidden="true" /> Waiting for your {run.pendingQuestion.externalRequest ? "approval" : "answer"}</p><a href="#drnib-pending-action" className="rounded-lg px-2 py-1 text-sm font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800">Review {run.pendingQuestion.externalRequest ? "request" : "question"} ↓</a></div> : banner[run.status] && <p className="mt-2.5 border-l-2 border-black/60 pl-3 text-sm leading-6">{privateProcessingPaused&&!['complete','failed','ended'].includes(run.status)?"Private processing is paused. Saved work remains available; resume only after the reviewed worker is running. Check the receipt for the current escrow balance.":run.metadata?.privateActionPending&&run.metadata?.privateRecoveryRequestId?"Checking the saved journal before continuing research.":banner[run.status]}</p>}
           {(["running","planning","paused"]).includes(run.status) && (
             <div className="mt-3 flex gap-2">
               {(run.status === "running" || run.status === "planning") && (
-                <button disabled={actionBusy} onClick={() => void changeRun(()=>drNibApi.pauseRun(id))} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"><Pause size={14} aria-hidden="true" /> Pause</button>
+                <button disabled={actionBusy||pauseRequested||privateProcessingPaused} onClick={() => void changeRun(async()=>{const result=await drNibApi.pauseRun(id);if(result.queued)setPauseRequested(true);return result;})} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"><Pause size={14} aria-hidden="true" /> {pauseRequested?(privateProcessingPaused?'Pause queued for recovery':'Pausing after the current operation…'):'Pause'}</button>
               )}
-              {run.status === "paused" && (
-                <button disabled={actionBusy} onClick={() => void changeRun(()=>drNibApi.resumeRun(id))} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"><Play size={14} aria-hidden="true" /> Resume</button>
+              {run.status === "paused" && !run.metadata?.privateRecoveryRequestId && !run.metadata?.privateUncertainRequestId && (
+                <button disabled={actionBusy||privateProcessingPaused} onClick={() => void changeRun(()=>drNibApi.resumeRun(id))} className="inline-flex items-center gap-2 border border-black bg-black px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"><Play size={14} aria-hidden="true" /> Resume</button>
               )}
             </div>
           )}
           {actionError && <p role="alert" className="mt-2 text-xs text-red-700">{actionError}</p>}
+          {privateMode&&(run.metadata?.privateRecoveryRequestId||run.metadata?.privateUncertainRequestId)&&<div className="mt-3 rounded-lg border border-amber-300 p-3">
+            <p role="status" className="text-xs leading-5">{run.metadata?.privateActionPending?"Checking saved work with the private worker. Your deposit stays in escrow.":run.metadata?.privateRecoveryRequestId?"Saved work is paused. Check the encrypted journal to resume safely. Unresolved operations stay blocked to prevent duplicate charges.":"Saved work is paused while the previous worker releases this action. We check automatically; you can also refresh its recovery status. Your deposit stays in escrow."}</p>
+            <button disabled={actionBusy||!!run.metadata?.privateActionPending||(!!run.metadata?.privateRecoveryRequestId&&privateProcessingPaused)} onClick={()=>void changeRun(()=>run.metadata?.privateRecoveryRequestId?drNibApi.resumeRun(id):load())} className="mt-2 rounded-lg border border-current px-3 py-2 text-xs disabled:opacity-50">{actionBusy||run.metadata?.privateActionPending?"Checking saved work…":run.metadata?.privateRecoveryRequestId?"Check saved work & resume":"Check recovery status"}</button>
+            <button disabled={recoveryInspectBusy} onClick={()=>{setRecoveryInspectBusy(true);void import('@/lib/dr-nib-private-records').then(m=>m.privateRecoveryDiagnostics(id)).then(setRecoveryDiagnostics).catch(()=>setActionError('Saved-operation details are unavailable. Retry without replacing project keys.')).finally(()=>setRecoveryInspectBusy(false));}} className="ml-2 mt-2 rounded-lg border border-current px-3 py-2 text-xs disabled:opacity-50">{recoveryInspectBusy?'Reading saved operations…':'Inspect saved operations'}</button>
+            {recoveryDiagnostics.length>0&&<details open className="mt-3 text-xs"><summary>Saved operation diagnostics</summary><div className="mt-2 max-h-80 overflow-auto">{recoveryDiagnostics.map((item,index)=><pre key={index} className="mb-3 whitespace-pre-wrap break-words">{item}</pre>)}</div></details>}
+          </div>}
           {(["intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"] as string[]).includes(run.status) && (
             <div className="mt-3">
               <button onClick={endRun} disabled={endBusy} className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{endBusy ? "Ending…" : endArmed ? "Click again to end + refund" : "End run"}</button>
@@ -895,7 +967,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
           )}
           {(["complete", "ended", "failed"] as string[]).includes(run.status) && (
             <div className="mt-3">
-              <button onClick={duplicateRun} disabled={dupBusy} title="Start a fresh run on the same topic" className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{dupBusy ? "Duplicating…" : "Duplicate run"}</button>
+              <button onClick={duplicateRun} disabled={dupBusy || privateProcessingPaused} title="Start a fresh run on the same topic" className="inline-flex items-center gap-2 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white disabled:opacity-50">{dupBusy ? "Duplicating…" : "Duplicate run"}</button>
             </div>
           )}
         </div>
@@ -918,7 +990,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
               )}
               {escrowConfigured === true && !escrowFunded && (
                 <>
-                  <EscrowDeposit runId={id} budgetCap={Number(run.budgetCap || 0)} estimate={Number(run.plan?.estimate ?? 0.2)} onFunded={() => loadEscrow()} />
+                  <EscrowDeposit runId={id} budgetCap={Number(run.budgetCap || 0)} estimate={privateFundingEnabled()?Math.max(Number(run.plan?.estimate??0),Number(run.plan?.minimumFunding??0)):Number(run.plan?.estimate??0.2)} onFunded={() => loadEscrow()} />
                   {escrowStale && (
                     <p className="mt-2 text-xs text-red-700">
                       Escrow status isn&apos;t refreshing — anything you&apos;ve signed so far still stands.{" "}
@@ -964,11 +1036,11 @@ function ServerRunDetailPage({ id }: { id: string }) {
               ) : (
                 <>
                   <div className="mt-3 space-y-2" aria-hidden="true">
-                    <div className="h-3 w-3/4 animate-pulse rounded bg-black/10" />
+                    <div className={`h-3 w-3/4 rounded bg-black/10 ${run.status==='running'&&!privateProcessingPaused?'animate-pulse':''}`} />
                     <div className="h-3 w-full animate-pulse rounded bg-black/10" />
-                    <div className="h-3 w-5/6 animate-pulse rounded bg-black/10" />
+                    <div className={`h-3 w-5/6 rounded bg-black/10 ${run.status==='running'&&!privateProcessingPaused?'animate-pulse':''}`} />
                   </div>
-                  <p className="mt-3 text-xs opacity-60">Research is still moving — sections land here as steps complete.</p>
+                  <p className="mt-3 text-xs opacity-60">{privateProcessingPaused||run.status==='paused'?"Research is paused. Saved sections will appear here when work resumes.":"Research is still moving — sections land here as steps complete."}</p>
                 </>
               )}
             </section>
@@ -1014,10 +1086,11 @@ function ServerRunDetailPage({ id }: { id: string }) {
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {["md", "json", "bibtex", "pdf", "word", "excel", "powerpoint"].map((f) => (
-                    <button key={f} onClick={() => downloadExport(f)} className="border border-dark-gray/60 px-2.5 py-1 text-[11px] font-medium uppercase">{f}</button>
+                    <button key={f} disabled={privateProcessingPaused||exportBusy!==null} onClick={() => downloadExport(f)} className="border border-dark-gray/60 px-2.5 py-1 text-[11px] font-medium uppercase disabled:opacity-50">{exportBusy===f?`Preparing ${f}…`:f}</button>
                   ))}
                 </div>
               </div>
+              {privateProcessingPaused?<p role="status" className="mb-2 text-xs opacity-70">Private processing is paused. Your saved report and discussion remain available; new exports and model actions resume when the reviewed worker is running.</p>:null}
               {exportError ? <p className="mb-2 text-xs text-red-700">{exportError}</p> : null}
               {shareFallback ? <p className="mb-2 break-all text-xs opacity-70">Copy this link: {shareFallback}</p> : null}
               {(() => {
@@ -1028,7 +1101,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
               <ReportEvidence claims={run.claims} sources={run.sources || []} />
               <ReportQA claims={run.claims} sources={run.sources || []} />
               {["complete", "failed", "ended"].includes(run.status) ? (
-                <DiscussThread runId={id} initial={run.metadata?.discuss} sources={report.citations?.length ? report.citations : run.sources || []} />
+                <DiscussThread runId={id} disabled={privateProcessingPaused} initial={run.metadata?.discuss} sources={report.citations?.length ? report.citations : run.sources || []} />
               ) : null}
             </section>
           )}
@@ -1061,6 +1134,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
                         <span className="break-all text-[11px] opacity-60">{s.domain || s.url}</span>
                         {typeof s.trust === "number" ? <TrustChip trust={s.trust >= 0.7 ? "high" : s.trust >= 0.4 ? "medium" : "low"} /> : null}
                       </div>
+                      {privateBuildEnabled()&&run.brief?.tipCreators===true&&s.provider==='public-web'?<PrivateSourceTip url={s.url} runId={run.id}/>:null}
                     </div>
                   </li>
                 ))}
@@ -1071,9 +1145,10 @@ function ServerRunDetailPage({ id }: { id: string }) {
           <section className="mt-4 border border-dark-gray/50 bg-white p-4">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-sm font-medium">Run budget</p>
-              <p className="text-xs opacity-60">${spent.toFixed(2)} of ${cap.toFixed(2)}</p>
+              <p className="text-xs opacity-60">{run.metadata?.privateFundingUnavailable?'Expenses unavailable':`$${spent.toFixed(6)} of $${cap.toFixed(2)}`}</p>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>
+            {!run.metadata?.privateFundingUnavailable?<div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--nib-teal)" }} /></div>:null}
+            {privateMode&&!["complete","ended","failed"].includes(run.status)&&<PrivateExpenseReceipt receipt={run.expenseReceipt}/>}
             {(["intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"] as string[]).includes(run.status) && (
               escrowConfigured === true && !escrowFunded ? (
                 <div className="mt-3 border border-dark-gray/40 bg-white p-3">
@@ -1119,22 +1194,24 @@ function ServerRunDetailPage({ id }: { id: string }) {
                 </button>
                 <span className="flex items-center gap-1.5 text-[11px] opacity-60">
                   <span className={`h-1.5 w-1.5 rounded-full ${streamLive ? "animate-pulse bg-black" : "bg-black/30"}`} />
-                  {streamLive ? "Live" : "Polling"}
+                  {privateMode?(run?.status==='planned'?"Waiting for funding and approval":streamLive?"Updates connected":"Checking saved progress"):streamLive?"Live":"Polling"}
                 </span>
               </span>
             </div>
+            {run.metadata?.privateQuestionHistoryUnavailable&&<p role="status" className="border-b border-dark-gray/30 px-4 py-2 text-xs">Some saved answers could not be loaded. Refresh to retry; your research is unchanged.</p>}
             <div ref={feedRef} onScroll={onFeedScroll}
               className="relative min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {(() => {
                 const items = feedItems;
-                if (!items.length) return <p className="text-sm opacity-60">{run.status === "awaiting" ? "Parked — the question in the box below unblocks it." : "No steps yet — approve the plan to start."}</p>;
+                if (!items.length) return <p className="text-sm opacity-60">{drNibHasPendingQuestion(run) ? "Answer the question below to continue." : "No activity to display yet."}</p>;
                 return items.map((item: any, i: number) => {
                   const last = i === items.length - 1;
                   // Fresh arrivals slide in; everything already seen renders static.
-                  const enter = i >= seenFeedCount.current ? " drnib-feed-enter" : "";
+                  const itemKey=drNibFeedKey(item);
+                  const enter = !seenFeedKeys.current.has(itemKey) ? " drnib-feed-enter" : "";
                     if (item.t === "thinking") {
                     return (
-                      <div key={`th-${i}`} className={`border-l-2 border-black/40 pl-3${enter}`}>
+                      <div key={itemKey} className={`border-l-2 border-black/40 pl-3${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">Dr. Nib&apos;s read<FeedTime at={item.at} /></p>
                         <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.text}</p>
                       </div>
@@ -1143,26 +1220,28 @@ function ServerRunDetailPage({ id }: { id: string }) {
                   if (item.t === "progress-note") {
                     const phase = String(item.e.phase || "research").replace(/^stage-/, "").replaceAll("-", " ");
                     return (
-                      <div key={`note-${i}`} className={`border-l-2 border-black/40 pl-3${enter}`}>
+                      <div key={itemKey} className={`${item.e.origin==='model-summary'?'rounded-xl border border-current/20 bg-white p-3':'border-l-2 border-black/40 pl-3'}${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
-                          Research note · {phase}{item.e.type === "thinking.fallback" ? " · fallback" : ""}<FeedTime at={item.at} />
+                          {item.e.origin==='usage'?'Model response':item.e.origin==='model-summary'?'Dr. Nib':item.e.origin==='judge'?'JEV decision':item.e.origin==='tool'?'Tool observation':item.e.origin==='verification'?'Evidence check':'Research note'} · {phase}{item.e.type === "thinking.fallback" ? " · fallback" : ""}<FeedTime at={item.at} />
                         </p>
-                        <p className="mt-0.5 text-[13px] italic leading-6 opacity-80">{item.e.text}</p>
+                        <p className={`mt-0.5 text-[13px] leading-6 ${item.e.origin==='model-summary'?'opacity-95':'italic opacity-80'}`}>{item.e.text}</p>
+                        {typeof item.e.costUsd==='number'&&Number.isFinite(item.e.costUsd)?<p className="mt-1 font-mono text-[11px] opacity-60">{item.e.model?`${item.e.model} · `:''}Usage ${item.e.costUsd.toFixed(6)}{item.e.billingKind==='platform'?' · sponsored — $0 charged to you':item.e.billingKind==='owner-test'?' · owner test allowance':''}</p>:null}
                       </div>
                     );
                   }
                   if (item.t === "judge") {
-                    return <JudgeRow key={`jg-${i}`} d={item.d} enter={enter} />;
+                    return <JudgeRow key={itemKey} d={item.d} enter={enter} />;
                   }
                   if (item.t === "qa") {
                      const ans = formatAnswer(item.d);
                      const skipped = item.d.answer != null && !ans;
                      return (
-                       <div key={`qa-${i}`} className={`rounded-xl border-2 border-black bg-white p-3${enter}`}>
+                       <div key={itemKey} className={`rounded-xl border-2 border-black bg-white p-3${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">
-                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : skipped ? " · skipped" : ""}<FeedTime at={item.at} />
+                          {item.d.step === "midrun" ? "Mid-run question" : "Intake question"}{item.d.answer == null ? " · unanswered" : skipped ? " · skipped" : " · answered"}<FeedTime at={item.d.historyNoTimestamp?undefined:item.at} />
                         </p>
                          <p className="mt-1 text-[13px] font-medium leading-6">{item.d.prompt || item.d.question?.prompt}</p>
+                         {item.d.question?.externalRequest&&<p className="mt-1 break-all font-mono text-[11px] opacity-70">{item.d.question.externalRequest.tool} · {item.d.question.externalRequest.url??item.d.question.externalRequest.query}</p>}
                          {item.d.answer != null ? (
                            <p className="mt-1.5 border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">{skipped ? <span className="opacity-50">Skipped — no answer recorded</span> : `You: ${ans}`}</p>
                          ) : null}
@@ -1171,42 +1250,48 @@ function ServerRunDetailPage({ id }: { id: string }) {
                    }
                   if (item.t === "tool") {
                     return (
-                      <div key={`tool-${i}`} className={`rounded-xl border border-dark-gray/40 bg-white p-2.5${enter}`}>
+                      <div key={itemKey} className={`rounded-xl border border-dark-gray/40 bg-white p-2.5${enter}`}>
                         <p className="flex flex-wrap items-baseline gap-x-2 font-mono text-[12px]">
-                          <span className={item.e.ok ? "opacity-70" : "text-red-700"}>{item.e.ok ? "→" : "✗"} {item.e.tool}</span>
+                          <span className={drNibToolFailed(item.e) ? "text-red-700" : "opacity-70"}>{drNibToolFailed(item.e) ? "✗" : "→"} {item.e.tool}</span>
                           {item.e.detail ? <span className="break-all opacity-60">{item.e.detail}</span> : null}
-                          {Number(item.e.costUsd) > 0 ? <span className="opacity-50">${Number(item.e.costUsd).toFixed(3)}</span> : null}
+                          {typeof item.e.costUsd==='number'&&Number.isFinite(item.e.costUsd) ? <span className="opacity-50">${Number(item.e.costUsd).toFixed(6)}</span> : null}
                         </p>
-                        {!item.e.ok && item.e.error ? <p className="mt-1 font-mono text-[11px] text-red-700">{item.e.error}</p> : null}
+                        {drNibToolFailed(item.e) && item.e.error ? <p className="mt-1 font-mono text-[11px] text-red-700">{item.e.error}</p> : null}
                         <ToolResult e={item.e} />
                       </div>
                     );
                   }
                   if (item.t === "parked") {
                     return (
-                      <div key={`park-${i}`} className={`rounded-xl border-2 border-black bg-white p-2.5${enter}`}>
-                        <p className="text-[12px] font-medium">△ Parked with a question — answer it in the box below.</p>
+                      <div key={itemKey} className={`rounded-xl border-2 border-black bg-white p-2.5${enter}`}>
+                        <p className="text-[12px] font-medium">△ {drNibQuestionMarker(run,item.e)}</p>
+                        {typeof item.e.question?.prompt==='string'&&<p className="mt-1 text-xs opacity-70">{item.e.question.prompt}</p>}
                       </div>
                     );
                   }
                   if (item.t === "note") {
                     const text = item.e.guidance?.text || item.e.guidance || "";
                     return (
-                      <div key={`note-${i}`} className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
+                      <div key={itemKey} className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
                         <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">You steered<FeedTime at={item.at} /></p>
                         {text ? <p className="mt-1 text-[13px] leading-6">“{String(text).slice(0, 500)}”</p> : null}
                       </div>
                     );
                   }
                   if(item.t === "agent-decision") {
-                    return <div key={`agent-${i}`} className={`rounded-xl border border-dark-gray/40 bg-white p-3 text-xs${enter}`}><p className="font-medium">{item.e.tool} · {item.e.decision}</p><p className="mt-1 leading-5">{item.e.why || "No action proposed."}</p><p className="mt-1 opacity-60">Decision: {item.e.source}{item.e.confidence != null ? ` · confidence ${Math.round(item.e.confidence*100)}%` : ""} · ${Number(item.e.costUsd || 0).toFixed(4)}</p></div>;
+                    return <div key={itemKey} className={`rounded-xl border border-dark-gray/40 bg-white p-3 text-xs${enter}`}><p className="font-medium">{item.e.tool} · {item.e.decision}</p><p className="mt-1 leading-5">{item.e.why || "No action proposed."}</p><p className="mt-1 opacity-60">Decision: {item.e.source}{item.e.confidence != null ? ` · confidence ${Math.round(item.e.confidence*100)}%` : ""} · ${Number(item.e.costUsd || 0).toFixed(4)}</p></div>;
                   }
+                  if(item.t==='verification-summary')return <div key={itemKey} className={`rounded-xl border border-dark-gray/40 bg-white p-3 text-xs${enter}`}><p className="font-medium">Evidence check: {item.supported}/{item.total} sampled claims supported</p><p className="mt-1 leading-5">These checks compare sampled claims with their cited source passages. They do not verify every sentence or establish real-world causation.</p></div>;
                   if (item.t === "marker") {
-                    return <p key={`mk-${i}`} className={`text-center text-[11px] uppercase tracking-wider opacity-50${enter}`}>— {item.e.type} —</p>;
+                    return <p key={itemKey} className={`text-center text-[11px] uppercase tracking-wider opacity-50${enter}`}>— {item.e.type} —</p>;
                   }
                   return <div key={item.step.id} className={enter ? "drnib-feed-enter" : undefined}><StepDetail step={item.step} open={last && item.step.status !== "done"} /></div>;
                 });
               })()}
+              {privateActivity&&<div role="status" aria-live="polite" className="border border-dark-gray/40 bg-gray p-3 drnib-feed-enter" key={`active-${privateActivity.phase}`}>
+                <p className="flex items-center gap-2 text-xs"><Loader2 size={14} className="animate-spin" aria-hidden="true"/><span className="drnib-stream-caret">{privateActivity.label}…</span></p>
+                <div className="drnib-shimmer-track relative mt-3 h-1 overflow-hidden rounded bg-black/5" aria-hidden="true"/>
+              </div>}
               {!atTail && feedItems.length > 0 && (
                 <div className="sticky bottom-1 flex justify-center">
                   <button onClick={jumpToLatest} className="rounded-full border border-dark-gray/60 bg-white px-4 py-1.5 text-xs font-medium shadow hover:bg-black hover:text-white">
@@ -1219,8 +1304,8 @@ function ServerRunDetailPage({ id }: { id: string }) {
               {["ended", "complete", "failed"].includes(run.status) && run.settledAt ? (
                 <div className="rounded-xl border border-dark-gray/50 bg-white p-3">
                   <p className="text-sm font-medium">Continue with a fresh budget</p>
-                  <p className="mt-1 text-xs opacity-70">This budget is settled. Start a fresh run on the same topic, add your sources again, and adjust the brief before approving a new deposit.</p>
-                  <button onClick={duplicateRun} disabled={dupBusy} className="mt-3 border border-black px-3 py-2 text-xs disabled:opacity-50">{dupBusy ? "Opening…" : "Start fresh run"}</button>
+                  <p className="mt-1 text-xs opacity-70">This run’s escrow has been settled and any unused deposit refunded. Further research needs a fresh budget.{report?" You can still discuss and export this report.":" Your saved results remain available."}</p>
+                  <button onClick={duplicateRun} disabled={dupBusy || privateProcessingPaused} className="mt-3 border border-black px-3 py-2 text-xs disabled:opacity-50">{dupBusy ? "Opening…" : "Start fresh run"}</button>
                 </div>
               ) : ["ended", "complete", "failed"].includes(run.status) ? (
                 <div className="border-2 border-black bg-white p-3">
@@ -1240,31 +1325,33 @@ function ServerRunDetailPage({ id }: { id: string }) {
                       }}
                       rows={1} placeholder='e.g. "redo the search with shorter queries, then hit public APIs"'
                       className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2 pb-9 text-sm outline-none" />
-                    <button onClick={sendReprompt} disabled={repromptBusy || !reprompt.trim()} aria-label="Send reprompt"
+                    <button onClick={sendReprompt} disabled={privateProcessingPaused || repromptBusy || !reprompt.trim()} aria-label="Send reprompt"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
                       <Send size={14} aria-hidden="true" />
                     </button>
                   </div>
                   {repromptError && <p className="mt-1.5 text-[11px] text-red-700">{repromptError}</p>}
                 </div>
-              ) : run.status === "awaiting" && run.pendingQuestion ? (
-                <div className="border-2 border-black bg-white p-3">
-                  <p className="text-xs font-medium uppercase tracking-wider opacity-60">△ Waiting on you</p>
-                  <p className="mt-1 text-[15px] font-medium leading-7">{run.pendingQuestion.prompt}</p>
+              ) : drNibHasPendingQuestion(run) ? (
+                <section id="drnib-pending-action" tabIndex={-1} aria-labelledby="drnib-pending-action-title" className="scroll-mt-24 rounded-xl border border-amber-300 border-l-4 border-l-amber-500 bg-amber-50 p-4 text-amber-950 shadow-sm">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-950"><Pause size={15} aria-hidden="true" /> Action needed · {run.pendingQuestion.externalRequest ? "Approval" : "Your answer"}</p>
+                  <h3 id="drnib-pending-action-title" className="mt-2 text-[15px] font-semibold leading-7 text-amber-950">{run.pendingQuestion.prompt}</h3>
+                  <p className="mt-1 text-xs leading-5 text-amber-950">This research step is paused until you {run.pendingQuestion.externalRequest ? "approve or skip this request" : "answer"}.</p>
                   {run.pendingQuestion.why && <p className="mt-0.5 text-xs opacity-70">{run.pendingQuestion.why}</p>}
+                  {privateMode&&run.pendingQuestion.externalRequest&&<div className="mt-3 rounded-lg border border-dark-gray/40 p-3"><p className="text-xs leading-5">Nibgate’s payment service and the named provider can see this exact request and its response. Review it before approving. Your project keys are never sent.</p><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all text-[11px] leading-5">{JSON.stringify(run.pendingQuestion.externalRequest,null,2)}</pre></div>}
                   {Array.isArray(run.pendingQuestion.options) && run.pendingQuestion.options.length > 0 && (
                     <div className="mt-2 space-y-2">
                       {run.pendingQuestion.options.map((o: any) => (
-                        <button key={o.id || o.label} onClick={() => answerAwaiting(o.id)} disabled={awaitingBusy} data-testid="awaiting-option"
-                          className="flex w-full items-center gap-3 border border-dark-gray/50 bg-white px-4 py-2.5 text-left text-sm hover:border-black disabled:opacity-50">
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-dark-gray/60" />
+                        <button key={o.id || o.label} onClick={() => answerAwaiting(o.id)} disabled={awaitingBusy||privateProcessingPaused} data-testid="awaiting-option"
+                          className={`flex w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800 disabled:opacity-50 ${run.pendingQuestion.externalRequest && o.id === "approve" ? "border-amber-950 bg-amber-950 text-amber-50 hover:bg-amber-900" : "border-amber-400 bg-amber-50 text-amber-950 hover:border-amber-800 hover:bg-amber-100"}`}>
+                          {!run.pendingQuestion.externalRequest && <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-amber-800" />}
                           {o.label || o.id}
                         </button>
                       ))}
                     </div>
                   )}
-                  <div className="relative mt-2">
-                    <textarea id="drnib-awaiting-box" value={awaitingText} onChange={(e) => setAwaitingText(e.target.value)}
+                  {!(privateMode&&run.pendingQuestion.externalRequest)&&<div className="relative mt-2">
+                    <textarea id="drnib-awaiting-box" aria-label="Your answer" value={awaitingText} onChange={(e) => setAwaitingText(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); answerAwaiting(); } }}
                       onInput={(e) => {
                         const el = e.currentTarget;
@@ -1272,17 +1359,24 @@ function ServerRunDetailPage({ id }: { id: string }) {
                         el.style.height = `${Math.min(el.scrollHeight, 130)}px`;
                       }}
                       rows={1} placeholder='Answer, or type "either"'
-                      className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2 pb-9 text-sm outline-none" />
-                      <button onClick={() => answerAwaiting()} disabled={awaitingBusy || !awaitingText.trim()} aria-label="Send answer"
+                      className="w-full resize-none rounded-xl border border-amber-400 bg-amber-50 text-amber-950 px-3 py-2 pb-9 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-800" />
+                      <button onClick={() => answerAwaiting()} disabled={awaitingBusy || privateProcessingPaused|| !awaitingText.trim()} aria-label="Send answer"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">
                       <Send size={14} aria-hidden="true" />
                     </button>
-                  </div>
-                  {awaitingError && <p className="mt-1.5 text-[11px] text-red-700">{awaitingError}</p>}
+                  </div>}
+                  {awaitingBusy && <p role="status" className="mt-2 flex items-center gap-2 text-xs"><Loader2 size={14} aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> Submitting your response…</p>}
+                  {privateProcessingPaused&&<p className="mt-2 text-xs">Private processing is paused. Resume the reviewed worker before submitting an answer or approving a tool.</p>}
+                  {awaitingError && <p role="alert" className="mt-2 text-xs text-red-800">{awaitingError}</p>}
+                </section>
+              ) : run.status === "awaiting" ? (
+                <div role="status" className="border border-dark-gray/40 bg-white p-3 text-xs leading-5">
+                  <p>The saved continuation is being checked. There is no current question to answer.</p>
+                  <button disabled={actionBusy} onClick={()=>void load()} className="mt-2 border border-current px-3 py-2 disabled:opacity-50">Refresh saved question</button>
                 </div>
               ) : run.status === "planned" ? (
                 <div className="border-2 border-black bg-white p-3">
-                  <p className="text-xs font-medium uppercase tracking-wider opacity-60">△ Not funded yet</p>
+                  <p className="text-xs font-medium uppercase tracking-wider opacity-60">{escrowFunded ? "Ready to start" : "△ Not funded yet"}</p>
                   <p className="mt-1 text-sm leading-6">
                     {escrowConfigured === true && !escrowFunded
                       ? "Fund the escrow in the review box above — steering opens once the run starts."
@@ -1292,6 +1386,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
               ) : ["intake", "intake-done", "planning"].includes(run.status) ? (
                 <div className="border border-dark-gray/40 bg-white p-3">
                   <p className="mt-1 text-sm leading-6 opacity-70">Still preparing — the run page comes alive once you approve the plan.</p>
+                  {privateBuildEnabled()&&['draft','intake','intake-done'].includes(run.status)&&<Link href={`/dr-nib/research?project=${id}`} className="mt-3 inline-block rounded-lg border border-current px-3 py-2 text-sm">Continue setup</Link>}
                 </div>
               ) : (
                 <>

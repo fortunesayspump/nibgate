@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./private-report-citations.js": "./src/private-report-citations.js",
+    "./private-tools.js": "./src/private-tools.js",
     "./db": "./src/db.js",
     "./db.js": "./src/db.js",
     "./auth": "./src/auth.js",

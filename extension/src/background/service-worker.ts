@@ -1,3 +1,4 @@
+import {isTippableUrl} from '../content/guard';
 // Background service worker: owns API calls + payment flow.
 // Keys never touch content scripts. Network selected by the user.
 import { challengeTip, submitTipProof, resolveContent, heldTipsForDomain, tipStatsForDomain, refundHeldTip, inferRecipient, decideSettleOrHold, classifyPage, CHAIN_ID, type TipResolution } from '../lib/api-client';
@@ -125,10 +126,12 @@ chrome.runtime.onConnect?.addListener((port) => {
 });
 
 chrome.tabs?.onUpdated?.addListener((tabId, info, tab) => {
-  if (info.status !== 'complete' || !tab.url?.startsWith('http')) return;
+  if (info.status !== 'complete' || !tab.url || !isTippableUrl(tab.url)) return;
   setTimeout(async () => {
     try {
-      if (announcedTabs.get(tabId) === tab.url) return;
+      const current=await chrome.tabs.get(tabId);
+      if(!current.url||current.url!==tab.url||!isTippableUrl(current.url))return;
+      if (announcedTabs.get(tabId) === current.url) return;
       if (!(await siteAccessGranted())) return;
       await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
     } catch {}
@@ -160,7 +163,7 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
       if (granted) {
         try {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (tab?.id != null && /^https?:/.test(tab.url || '')) {
+          if (tab?.id != null && isTippableUrl(tab.url || '')) {
             await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
           }
         } catch {}

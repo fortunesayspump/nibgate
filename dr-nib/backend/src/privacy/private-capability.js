@@ -1,16 +1,18 @@
 import {randomUUID} from 'node:crypto';
 
-const SCOPES=new Set(['sessions:open','sessions:prove','sessions:execute','sessions:full-execute','reports:read','jobs:read']);
+const SCOPES=new Set(['sessions:open','sessions:action','sessions:prove','sessions:execute','sessions:full-execute','reports:read','jobs:read','tools:check']);
 const RUN_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TENANT_ID=/^[A-Za-z0-9:_-]{1,128}$/;
 const ISSUER='drnib-private-broker';
 const AUDIENCE='drnib-phala-guest';
 function requestScope(req){
   const path=new URL(req.url,'http://guest.invalid').pathname;
+  if(req.method==='POST'&&path==='/v1/private/tools/check')return 'tools:check';
   if(req.method==='POST'&&path==='/v1/private/sessions')return 'sessions:open';
   if(req.method==='POST'&&/^\/v1\/private\/sessions\/[0-9a-f-]{36}\/prove$/.test(path))return 'sessions:prove';
   if(req.method==='POST'&&/^\/v1\/private\/sessions\/[0-9a-f-]{36}\/execute$/.test(path))return 'sessions:execute';
   if(req.method==='POST'&&/^\/v1\/private\/sessions\/[0-9a-f-]{36}\/full-execute$/.test(path))return 'sessions:full-execute';
+  if(req.method==='POST'&&/^\/v1\/private\/sessions\/[0-9a-f-]{36}\/action$/.test(path))return 'sessions:action';
   if(req.method==='GET'&&/^\/v1\/private\/reports\/[0-9a-f-]{36}$/.test(path))return 'reports:read';
   if(req.method==='GET'&&/^\/v1\/private\/runs\/[0-9a-f-]{36}\/job$/.test(path))return 'jobs:read';
   return null;

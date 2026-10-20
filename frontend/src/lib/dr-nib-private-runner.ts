@@ -1,13 +1,11 @@
 "use client";
+import { privateConnectionProgress } from './dr-nib-private-connection';
 
 // Confidential research runner for the normal Dr. Nib flow.
 //
-// The intake/planning UI stays on the ordinary backend (it only ever sees the
-// text the user typed). Everything sensitive — the supplied document, the
-// model's reading of it, and the report — is sealed in the browser to the
-// attested guest and only ever leaves as HPKE ciphertext. The broker and the
-// normal backend hold ciphertext + metadata; neither can read the source or the
-// report. This module is the one place that orchestrates that exchange.
+// Intake, planning and research content are sealed to the verified guest.
+// Saved project objects remain encrypted in storage and decrypt in the browser.
+// Only a new private operation opens a worker session; reading saved work does not.
 
 import {
   createPrivateRun,
@@ -118,6 +116,11 @@ async function readSourceField(
  * keys in tab memory only.
  */
 export async function runConfidentialResearch(args: RunConfidentialArgs): Promise<ConfidentialRunOutcome> {
+  let runId: string | undefined;
+  try { return await performConfidentialResearch(args, id => { runId = id; }); }
+  finally { if (runId) privateConnectionProgress(runId, null); }
+}
+async function performConfidentialResearch(args: RunConfidentialArgs, onRun: (id: string) => void): Promise<ConfidentialRunOutcome> {
   const verification = configuredPrivateVerification();
   if (!verification) throw Error("Confidential research is not configured for this build.");
 
@@ -131,6 +134,7 @@ export async function runConfidentialResearch(args: RunConfidentialArgs): Promis
 
   stage("Creating confidential run");
   const run = args.run ?? (await createPrivateRun());
+  onRun(run.id);
 
   stage("Requesting fresh guest evidence");
   const nonce = freshNonce();
@@ -159,6 +163,7 @@ export async function runConfidentialResearch(args: RunConfidentialArgs): Promis
       !equalHex(proof.challengeDigest as string, await proofDigest(session.sessionId, challenge)))
     throw Error("Guest could not prove possession of its attested key.");
 
+  privateConnectionProgress(run.id, null);
   stage("Encrypting source in this browser");
   const resultKey = args.resultKey ?? (await generateResultKey());
   const input = { question, title, ...sourceField, browserPublicKey: bytesToBase64(resultKey.publicKey) };

@@ -1,0 +1,20 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {availablePrivateModels,PRIVATE_MODEL_CANDIDATES}from './private-model-catalog.mjs';
+const nowMs=1700000000000;
+const gemma=PRIVATE_MODEL_CANDIDATES[0],qwen=PRIVATE_MODEL_CANDIDATES[1];
+const model=c=>({id:c.id,is_tee:true,max_output_length:16384,supported_parameters:['max_tokens','response_format'],pricing:{prompt:(c.input/1e12).toFixed(12),completion:(c.output/1e12).toFixed(12)}});
+const session=c=>({session_id:'a'.repeat(64),expires_at:nowMs/1000+60,claims:{extra:{canonical_model_id:c.id}}});
+const input=()=>({models:[model(gemma),model(qwen)],sessions:[session(gemma),session(qwen)],qualityApproved:[gemma.id,qwen.id],remainingMicroUsd:85000,inputTokens:120000,outputTokens:8192,nowMs});
+test('qualified, attested-compatible available models are ranked inside the existing reservation budget',()=>{const out=availablePrivateModels(input());assert.deepEqual(out.map(m=>m.id),[gemma.id,qwen.id]);assert.ok(out[0].reservedMicroUsd<out[1].reservedMicroUsd);});
+test('unqualified, stale, aliased, overpriced and over-budget routes are excluded',()=>{
+ const i=input();
+ assert.deepEqual(availablePrivateModels({...i,qualityApproved:[]}),[]);
+ assert.deepEqual(availablePrivateModels({...i,sessions:i.sessions.map(s=>({...s,expires_at:nowMs/1000}))}),[]);
+ assert.deepEqual(availablePrivateModels({...i,sessions:i.sessions.map(s=>({...s,claims:{extra:{canonical_model_id:'unverified-alias'}}}))}),[]);
+ assert.deepEqual(availablePrivateModels({...i,models:i.models.map(m=>({...m,pricing:{prompt:'1',completion:'1'}}))}),[]);
+ assert.deepEqual(availablePrivateModels({...i,remainingMicroUsd:0}),[]);
+ assert.deepEqual(availablePrivateModels({...i,models:i.models.map(m=>({...m,is_tee:false}))}),[]);
+ assert.deepEqual(availablePrivateModels({...i,models:i.models.map(m=>({...m,supported_parameters:[]}))}),[]);
+ assert.deepEqual(availablePrivateModels({...i,cooldowns:{[gemma.id]:nowMs+60000}}).map(m=>m.id),[qwen.id]);
+});
+test('an unresolved action cannot switch models to evade its reservation',()=>{assert.throws(()=>availablePrivateModels({...input(),uncertainAction:true}),{message:'PRIVATE_WORKFLOW_ACTION_UNCERTAIN'});});

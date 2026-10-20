@@ -1,8 +1,8 @@
-import { Callout } from 'nextra/components'
-
 # Retrieval bench
 
-Where the agent's evidence comes from when it hasn't spent a cent: 11 keyless indexes plus keyed providers when configured, model-driven web search over the run's own LLM key, document parsing for the files the web is actually made of, and honest reporting when a door is closed.
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
+
+Where the agent's evidence comes from when it hasn't spent a cent: ten keyless indexes, optional configured SearXNG and keyed providers, model-driven web search over the run's own LLM key, document parsing for the files the web is actually made of, and honest reporting when a door is closed.
 
 **Reference:** `dr-nib/backend/src/retrieval/`.
 
@@ -12,7 +12,7 @@ At Configure, **Your sources** accepts PDF with selectable text, DOCX, XLSX, CSV
 
 You can add or remove sources while preparing or reviewing a plan. Changing a planned source set discards that plan and returns you to Configure. Once an escrow job is opened or research starts, sources lock; end the run and create a new project for a different source set.
 
-Originals use the private `nibgate-research` R2 bucket, separated by `testnet/` and `mainnet/` prefixes. They have no public bucket URL. Extracted text is also kept in the project database and sent to research AI providers when the research runs; private storage does not mean local-only AI processing. A [confidential run](/dr-nib/confidential) is the exception: the source and the report stay sealed and are processed only inside a measured confidential VM. Upload only documents you are authorized to process. Reports containing uploaded inputs use authenticated downloads rather than public R2 export links.
+Originals use the private `nibgate-research` R2 bucket, separated by `testnet/` and `mainnet/` prefixes. They have no public bucket URL. Extracted text is also kept in the project database and sent to research AI providers when the research runs; private storage does not mean local-only AI processing. The [private processing path](/dr-nib/confidential) instead encrypts content in the browser before ordinary API ingress; it has a separate vault and key-delivery contract. Upload only documents you are authorized to process. Reports containing uploaded inputs use authenticated downloads rather than public R2 export links.
 
 Choose **user sources only** to disable external search, API calls and creator tips. This mode requires at least one readable attachment. Changing sources after reviewing a plan invalidates it; sources freeze once execution starts. Starting a fresh run on the same topic does not automatically copy the files. Removing an input excludes it from research; originals remain in private storage for project history.
 
@@ -20,7 +20,7 @@ PDF evidence retains page markers; spreadsheet evidence retains sheet/row marker
 
 ## Free indexes (no key, no signup)
 
-GDELT (paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR, Stack Exchange, Hacker News, Polymarket, arXiv, plus a self-hosted SearXNG instance. Tavily/Exa slots accept keys when configured. No separate search key is needed for model-driven search: the OpenRouter `web_search` server tool rides the existing LLM key — the model picks its own queries (Exa engine, ~$0.007 + tokens per search) and only cited `url_citation` annotations become results, circuit-broken like every other provider. Queries are keyword-ified per provider; provider failures are tagged by name so the trail shows *which* source failed, not just that something did.
+The ordinary registry includes GDELT (paced), Wikipedia, OpenAlex, Semantic Scholar, Crossref, SEC EDGAR, Stack Exchange, Hacker News and Polymarket; arXiv joins when academic search is enabled. A self-hosted SearXNG joins when configured. Creator-preferred discovery additionally queries Hub metadata and Mwmbl, with relevance still taking precedence over creator preference. Tavily/Exa slots accept keys when configured. No separate search key is needed for model-driven search: the OpenRouter `web_search` server tool rides the existing LLM key — the model picks its own queries (Exa engine by default, a $0.007 search-cost estimate plus reported token usage) and only cited `url_citation` annotations become results, circuit-broken like every other provider. Queries are keyword-ified per provider; provider failures are tagged by name so the trail shows *which* source failed, not just that something did.
 
 ## Documents, not just pages
 
@@ -39,4 +39,8 @@ When a site blocks machine reading, the run records `blocked-bot-check` with the
 
 ## How it feeds the loop
 
-Search fans each sub-question across the bench; fetch opens ranked pages; JEV scores every source for relevance and trust before it joins the scorable set. Paid content that clears scoring joins on equal footing — paying never buys credibility. When the bench comes back thin, the loop's data stage escalates to direct tools. User-named public URLs are previewed separately; a 402 quote establishes price, network and asset, while only an approved purchase can supply the locked body as evidence. Payment proof fields are removed before the paid response reaches the research model. If another round receives a 402 for the same URL after purchase, the bought body remains the evidence for both writing and claim verification.
+Search fans each sub-question across the bench; fetch opens ranked pages; Source selection narrows the candidates; JEV judges trust and evidence grade for the selected top sources. The depth controls how many sources are considered. Paid content that clears scoring joins on equal footing — paying never buys credibility. When the bench comes back thin, the loop's data stage escalates to direct tools. User-named public URLs are previewed separately; a 402 quote establishes price, network and asset, while only an approved purchase can supply the locked body as evidence. Payment proof fields are removed before the paid response reaches the research model. If another round receives a 402 for the same URL after purchase, the bought body remains the evidence for both writing and claim verification.
+
+## Private retrieval boundary
+
+The private worker reuses the retrieval registry through approved public tools rather than sending uploaded documents to the ordinary research service. External providers receive the approved query or exact URL; source-only mode blocks external discovery. The private terminal has no direct Internet access and reads approved cached responses, unlike the ordinary Railway sandbox's outbound-public networking. See [private tools](/dr-nib/confidential/models-tools).

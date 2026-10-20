@@ -114,7 +114,7 @@ function fallbackQuestions(brief) {
  * Write the report from the run's own scored sources. High intensity, and bound
  * by the evidence: the prompt above refuses claims the sources do not carry.
  */
-export async function generateReport({ brief, sources = [], guidance, runId, version, fetchImpl, onToken, targetWords = 1200 } = {}) {
+export async function generateReport({ brief, sources = [], guidance, runId, version, fetchImpl, onToken, targetWords = 1200, includeAbstract = true } = {}) {
   const fallback = (llmError) => ({
     ok: true,
     source: 'fallback',
@@ -130,7 +130,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
       try {
         const { text, usage, model } = await reportChat({
           effort: attempt === 1 ? 'high' : 'medium',
-          messages: reportMessages({ brief, sources, guidance, targetWords: Math.max(150, targetWords - 175) }), fetchImpl,
+          messages: reportMessages({ brief, sources, guidance, targetWords: Math.max(150, targetWords - (includeAbstract?175:0)) }), fetchImpl,
           temperature: attempt === 1 ? 0.4 : 0.2,
           maxTokens: 4000,
           ...(typeof onToken === 'function' ? { onToken } : {}),
@@ -144,7 +144,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         let outUsage = attemptUsage;
         // Same floor as the long path, one bounded pass: a short brief
         // report gets one deepening call, not an unbounded loop.
-        const floor = Math.round(Math.max(150, Number(targetWords) - 175) * FLOOR_RATIO);
+        const floor = Math.round(Math.max(150, Number(targetWords) - (includeAbstract?175:0)) * FLOOR_RATIO);
         if (countWords(markdown) < floor && (sources || []).length > 0) {
           try {
             const deep = await reportChat({
@@ -172,7 +172,7 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         const assembled = [markdown];
         let absModel = null;
         try {
-          const abs = await generateAbstract({ brief, reportText: markdown, fetchImpl });
+          const abs = includeAbstract?await generateAbstract({ brief, reportText: markdown, fetchImpl }):{abstract:null,usage:null};
           outUsage = addUsage(outUsage, abs.usage);
           if (abs.model) absModel = abs.model;
           if (abs.abstract) {
@@ -267,7 +267,7 @@ function addUsage(total, usage) {
  * the sections actually found. `getEvidence` maps a section argument to that
  * section's sources; the worker supplies it from the run's collected docs.
  */
-export async function generateReportLong({ brief, sections = [], getEvidence, allSources = [], guidance, runId, version, fetchImpl, onToken } = {}) {
+export async function generateReportLong({ brief, sections = [], getEvidence, allSources = [], guidance, runId, version, fetchImpl, onToken, requireGeneratedSections=false } = {}) {
   const resolved = resolveLength({ length: brief?.length, lengthWords: brief?.lengthWords });
   const capped = sections.slice(0, resolved.sections);
   const perSection = Math.round(resolved.words / Math.max(1, capped.length));
@@ -311,6 +311,7 @@ export async function generateReportLong({ brief, sections = [], getEvidence, al
     });
     return { i, section, out, evidence };
   });
+  if(requireGeneratedSections&&sectionOuts.some(item=>item.out.source!=='llm'))throw Error('PRIVATE_REPORT_GENERATION_FAILED');
   // Length is a floor, not a wish: if the assembled sections fall short,
   // deepen the best-evidenced sections (never the thin ones — those were
   // told to stay short) until the floor is met or the expansion budget is
@@ -656,7 +657,7 @@ function repeatsPriorGround(prompt, answered = []) {
  * batch that repeats itself is worse than no batch. Anything off-spec falls
  * back to an empty list and the caller uses the bank.
  */
-export async function generateIntakeBatch({ topic, answered = [], count = 5, reframe = null, fetchImpl, signal } = {}) {
+export async function generateIntakeBatch({ topic, answered = [], count = 5, reframe = null, fetchImpl, signal, allowEmpty = false } = {}) {
   const n = Math.max(1, Math.min(Number(count) || 5, 5));
   const fallback = (llmError) => ({ ok: true, source: 'fallback', model: null, usage: null, llmError: llmError || null, questions: [] });
   if (!isLlmConfigured()) return fallback(null);
@@ -672,6 +673,7 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
     });
     const raw = Array.isArray(data?.questions) ? data.questions : null;
     if (!raw) return fallback('model returned no question list');
+    if (allowEmpty === true && raw.length === 0) return { ok: true, source: 'llm', model, usage, questions: [] };
     const seen = [...answered.map((a) => a.prompt || a.key)];
     const questions = [];
     for (const q of raw.slice(0, n)) {

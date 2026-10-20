@@ -7,11 +7,11 @@
  * https://docs.phala.com/phala-cloud/references/cloud-js-sdk/cvm-query
  * https://docs.phala.com/phala-cloud/references/cloud-js-sdk/watch-cvm-state
  */
-export function createPhalaLifecycleApi({client, cvmId, watchTimeoutSeconds=120, maxRetries=2}={}) {
+export function createPhalaLifecycleApi({client, cvmId, watchTimeoutSeconds=120, maxRetries=2, conflictWaitMs=30000, pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}) {
   if (!client || ['getCvmState','startCvm','shutdownCvm','stopCvm','watchCvmState'].some(name=>typeof client[name]!=='function') ||
       typeof cvmId!=='string' || !/^[A-Za-z0-9:_-]{1,128}$/.test(cvmId) ||
       !Number.isInteger(watchTimeoutSeconds) || watchTimeoutSeconds<10 || watchTimeoutSeconds>600 ||
-      !Number.isInteger(maxRetries) || maxRetries<0 || maxRetries>10) throw new Error('PHALA_LIFECYCLE_CONFIG_INVALID');
+      !Number.isInteger(maxRetries) || maxRetries<0 || maxRetries>10 || !Number.isSafeInteger(conflictWaitMs)||conflictWaitMs<1||conflictWaitMs>120000||typeof pause!=='function') throw new Error('PHALA_LIFECYCLE_CONFIG_INVALID');
   const id=cvmId;
   async function state() {
     const result=await client.getCvmState({id});
@@ -27,9 +27,18 @@ export function createPhalaLifecycleApi({client, cvmId, watchTimeoutSeconds=120,
     return true;
   }
   async function ensureRunning(signal) {
-    const current=await state();
-    if (current==='stopped') await client.startCvm({id});
-    else if (current!=='running' && current!=='starting') throw new Error('PHALA_CVM_STATE_UNKNOWN');
+    let current=await state();const deadline=Date.now()+conflictWaitMs;
+    while(current==='stopped'){
+      signal?.throwIfAborted();
+      try{await client.startCvm({id});break;}
+      catch(error){
+        // Only a positively rejected conflict is safe to retry. A transport
+        // failure may hide an accepted start and must be reconciled by caller.
+        if(error?.status!==409||Date.now()>=deadline)throw error;
+        await pause(1000);current=await state();
+      }
+    }
+    if (!['running','starting','stopped'].includes(current))throw new Error('PHALA_CVM_STATE_UNKNOWN');
     if (current!=='running') await waitFor('running',signal);
     return true;
   }
@@ -51,4 +60,33 @@ export function createPhalaLifecycleApi({client, cvmId, watchTimeoutSeconds=120,
     return true;
   }
   return Object.freeze({state,ensureRunning,gracefulShutdown,forceStop});
+}
+
+// The installed SDK's rich state decoder rejects nullable progress metadata
+// returned by the live API, and its standalone SSE helper omits some auth
+// options. Use official SDK transport for the documented lifecycle endpoints,
+// read only the status we need, and independently poll/confirm it. No VM state
+// response or progress text is accepted as attestation or key-release evidence.
+export function adaptOfficialPhalaLifecycleClient(client){
+  if(typeof client?.get!=='function'||typeof client?.post!=='function')throw Error('PHALA_LIFECYCLE_CONFIG_INVALID');
+  const path=id=>{if(!/^[A-Za-z0-9:_-]{1,128}$/.test(id||''))throw Error('PHALA_LIFECYCLE_CONFIG_INVALID');return '/cvms/'+encodeURIComponent(id);};
+  const state=async({id})=>{const result=await client.get(path(id)+'/state');if(typeof result?.status!=='string')throw Error('PHALA_CVM_STATE_UNKNOWN');return {status:result.status};};
+  return {
+    getCvmState:state,
+    startCvm:({id})=>client.post(path(id)+'/start'),
+    shutdownCvm:({id})=>client.post(path(id)+'/shutdown'),
+    stopCvm:({id})=>client.post(path(id)+'/stop'),
+    async watchCvmState({id,target,timeout=120,signal}){
+      const deadline=Date.now()+timeout*1000;
+      while(Date.now()<deadline){
+        signal?.throwIfAborted();const value=await state({id});if(value.status.toLowerCase()===target)return value;
+        await new Promise((resolve,reject)=>{const done=()=>{signal?.removeEventListener('abort',abort);resolve();};const timer=setTimeout(done,1000);const abort=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);reject(Error('PHALA_WATCH_ABORTED'));};signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();});
+      }
+      throw Error('PHALA_CVM_TARGET_NOT_REACHED');
+    }
+  };
+}
+export async function createOfficialPhalaLifecycleClient(options){
+  const {createClient}=await import('@phala/cloud');
+  return adaptOfficialPhalaLifecycleClient(createClient(options));
 }

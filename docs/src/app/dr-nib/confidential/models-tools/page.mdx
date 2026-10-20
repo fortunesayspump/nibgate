@@ -1,0 +1,48 @@
+# Models, tools and payments
+
+The private worker preserves the research process: propose an action, let actual JEV judge it, enforce hard policy/budget limits, execute, review findings, write and verify. A successful transport or model label alone does not establish quality or privacy.
+
+## Model routing
+
+| Role | Route | Privacy/accounting |
+| --- | --- | --- |
+| Primary generation | Verified Phala Gemma route under the approved model policy | Confidential serving checks and receipt-reported usage |
+| Judgment | TypeSafe JEV 1.13 through the native OpenRouter Decisions route, pinned to TypeSafe | Selected context provider-visible; ZDR required; provider-reported usage |
+| Authorized generation fallback | OpenRouter GPT-4o mini pinned to Azure | Research context provider-visible; ZDR required; provider-reported usage |
+
+Hosted routes require denied data collection, required parameters and disabled implicit provider fallback. Current workspace logging/broadcast reviews expire after 24 hours. Missing or expired policy must fail closed; availability is not permission to weaken retention or attestation requirements.
+
+See [Phala Cloud](https://docs.phala.com/phala-cloud/what-is/what-is-phala-cloud) for the confidential computing platform and [OpenRouter’s ZDR policy](https://openrouter.ai/docs/guides/features/zdr) for hosted-route retention rules.
+
+Strict confidential inference and the explicitly authorized hosted-fallback policy are different contracts. The client must disclose hosted research before execution and identify actual fallback responses in activity. Invalid attestation/receipts, unknown completions or an unresolved tool outcome cannot trigger blind duplicate execution.
+
+JEV remains the actual model rather than a substitute judge. It supplies structured choices, probabilities and scores. The ordinary Hub is not a proxy for private JEV context. Source checks and report generation also use deterministic limits and validation; JEV does not override owner scope, funding or hard tool limits.
+
+## Tools and external visibility
+
+| Tool boundary | What can leave |
+| --- | --- |
+| Source parsing/OCR | Runs in the reviewed worker; no ordinary external parsing fallback |
+| Search and web fetch | Approved public query or exact URL; no automatic upload of document bodies or keys |
+| Creator discovery | Reuses existing Hub metadata and extension detection; relevant sources come before spending incentives |
+| Paid article/API access | Approved request plus necessary payment metadata, within limits and disclosure |
+| Terminal/code | Isolated bounded execution; no worker environment, wallet secrets or dstack socket |
+| Tips and settlement | Recipient, amount, opaque references and public transaction data |
+
+The terminal uses gVisor and has no direct Internet access. Curl/supported HTTP clients consume an exact-request cache of approved public responses. It is a real terminal with restricted egress, not an unrestricted way around tool approvals.
+
+When tips are enabled, eligible useful creator sources receive budget-protected consideration after writing. JEV chooses an affordable amount while preserving the rest of the run budget; irrelevant sources are not purchased or cited just to tip. A tip held in the Hub claimbox is not claimed creator income. Paid actions must match the configured network, supported payment route and approved spending limits.
+
+## Chat and report quality
+
+Encrypted activity shows concise model-authored findings, intended actions, JEV decisions, tool results, answered questions and costs. Retrieval failures, skipped work and unavailable full text belong in activity. Material scientific/evidence limitations still belong in the report.
+
+Reports preserve citation mapping and bounded source-support checks. Exact-quote validation can recover through numbered passages and bounded revision. Unknown does not mean false, and eight supported samples do not certify every sentence or recommendation. Check the cited sources before relying on an important conclusion.
+
+## Spending and receipts
+
+Confirmed escrow precedes paid research. A conservative durable reservation is made before dispatch; actual model/tool usage is reconciled afterward. An unknown provider outcome remains held until evidence supports reconciliation. A supported rejected request may remain operator-covered without blocking safe recovery or being charged to the customer.
+
+The receipt has one cumulative row per model/tool plus individual records. Customer charges, sponsored calls, operator-covered costs, pending refunds and unresolved holds stay distinct. Settlement returns the unused deposit; the 1% protocol share comes from the operator's earned share rather than an extra deduction from the refund. Confirmed transactions and six-decimal amounts appear in the receipt and supported exports.
+
+Compute/storage are currently operator-funded and not allocated per run. A zero customer charge is not a zero provider bill. The expense receipt is not a tax invoice. See [budgets](/dr-nib/budgets) and [operations](/dr-nib/confidential/operations).

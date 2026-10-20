@@ -7,7 +7,7 @@ import {withPrivateBrokerWake} from './private-broker-wake.js';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_RESPONSE=5*1024*1024;
 function fail(res,status=503){return res.status(status).json({code:'PRIVATE_BROKER_UNAVAILABLE'})}
-function exact(value,keys){return value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).sort().join(',')===keys}
+function exact(value,keys){return value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).sort().join(',')===keys.split(',').sort().join(',')}
 // Receipt-bound usage the measured guest reports on a finished execute. The
 // broker meters from this; it is never forwarded to the client.
 function validJobUsage(usage){
@@ -31,7 +31,7 @@ const sameOwner=(user,run)=>Boolean(user)&&Boolean(run)&&user.id===run.userId;
  * parses private files nor sees document keys. `ready` must include fresh guest
  * readiness; default is deliberately closed. The signing key is provisioned
  * separately after authorization and is never sent to the guest. */
-export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,ready=async()=>false,fullReady=async()=>false,allowedTenantId,fullAllowedTenantId,wakeController,fetchImpl=fetch,authenticate=unavailable,isOwner=sameOwner,money=null}={}){
+export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,ready=async()=>false,fullReady=async()=>false,workflowReady=async()=>false,allowedTenantId,fullAllowedTenantId,wakeController,fetchImpl=fetch,authenticate=unavailable,isOwner=sameOwner,money=null}={}){
   const router=Router();
   router.use((req,res,next)=>authenticate(req,res,next));
   const guest=typeof guestBaseURL==='string'?new URL(guestBaseURL):null;
@@ -45,13 +45,13 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
     let executeUsage=null;
     try{
       if(!guest||typeof signCapability!=='function'||await ready()!==true||
-         scope==='sessions:full-execute'&&await fullReady()!==true)return fail(res);
-      const reply=await withPrivateBrokerWake(wakeController,async wakeSignal=>{
+         scope==='sessions:full-execute'&&await fullReady()!==true||scope==='sessions:action'&&await workflowReady()!==true)return fail(res);
+      const reply=await withPrivateBrokerWake(req.method==='GET'?undefined:wakeController,async wakeSignal=>{
         if(wakeSignal?.aborted)return {status:503};
         const token=await signCapability({tenantId:run.userId,runId:run.id,scope});
         const endpoint=new URL(path,guest);
         if(endpoint.origin!==guest.origin)return {status:503};
-        const timeout=AbortSignal.timeout(['sessions:execute','sessions:full-execute'].includes(scope)?180_000:60_000);
+        const timeout=AbortSignal.timeout(['sessions:execute','sessions:full-execute','sessions:action'].includes(scope)?180_000:60_000);
         const signal=wakeSignal?AbortSignal.any([wakeSignal,timeout]):timeout;
         const upstream=await fetchImpl(endpoint,{method:req.method,redirect:'error',headers:{authorization:`Bearer ${token}`,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}) ,signal});
         if(upstream.redirected===true||upstream.url&&new URL(upstream.url).origin!==guest.origin)return {status:503};
@@ -82,6 +82,11 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
               value=rest;
             }
           }
+        }else if(scope==='sessions:action'){
+          if(value?.requestId!==body.sourceEnvelope.context.objectId||!['complete','processing','uncertain','failed'].includes(value.state))return {status:503};
+          if(['complete','failed'].includes(value.state)||value.state==='uncertain'&&value.envelope!==undefined){
+            if(!exact(value,'envelope,requestId,state')||value.envelope?.context?.tenantId!==run.userId||value.envelope?.context?.runId!==run.id||value.envelope?.context?.objectId!==value.requestId||value.envelope?.context?.purpose!=='event')return {status:503};
+          }else if(!exact(value,'requestId,state'))return {status:503};
         }else if(scope==='jobs:read'){
           if(value?.state==='complete'){
             if(!exact(value,'reportId,state')||!UUID.test(value.reportId))return {status:503};
@@ -105,6 +110,18 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
       return reply?.value===undefined?fail(res,reply?.status):res.status(reply.status).json(reply.value);
     }catch{return fail(res)}
   }
+  // Explicit authenticated wake is separate from no-wake availability/status reads.
+  for(const method of ['get','post'])router[method]('/runs/:runId/wake',async(req,res)=>{
+    try{
+      if(!await owned(req,req.params.runId))return fail(res,404);
+      if(method==='post'&&!exact(req.body,''))return fail(res,400);
+      if(method==='post'&&wakeController&&await workflowReady()!==true)return fail(res);
+      const value=wakeController
+        ?await (method==='post'?wakeController.requestWake(req.params.runId):wakeController.status())
+        :{phase:'ready',enabled:false};
+      return res.status(method==='post'&&value.phase!=='ready'?202:200).json(value);
+    }catch{return fail(res);}
+  });
   router.post('/sessions',async(req,res)=>{
     try{
       if(!exact(req.body,'clientNonce,runId')||typeof req.body.clientNonce!=='string'||! /^[0-9a-f]{64}$/.test(req.body.clientNonce))return fail(res,400);
@@ -112,7 +129,7 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
       return forward(req,res,{run,scope:'sessions:open',path:'/v1/private/sessions',body:req.body});
     }catch{return fail(res)}
   });
-  for(const [action,scope,key] of [['prove','sessions:prove','challengeEnvelope'],['execute','sessions:execute','sourceEnvelope']]){
+  for(const [action,scope,key] of [['prove','sessions:prove','challengeEnvelope'],['execute','sessions:execute','sourceEnvelope'],['action','sessions:action','sourceEnvelope']]){
     router.post(`/sessions/:id/${action}`,async(req,res)=>{
       try{
         if(!UUID.test(req.params.id)||!exact(req.body,`${key},runId`))return fail(res,400);

@@ -14,7 +14,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 export type PrivateContext = {
   tenantId: string; runId: string; objectId: string; revision: 1;
-  purpose: "source" | "report"; recipientId: string;
+  purpose: "source" | "report" | "tool-result"; recipientId: string;
 };
 export type PrivateEnvelope = {
   version: 2; algorithm: "HPKE-P256-HKDF-SHA256-AES128GCM";
@@ -55,7 +55,7 @@ export async function recipientId(publicKey: Uint8Array): Promise<string> {
   if (publicKey.length !== 65 || publicKey[0] !== 4) throw new Error("Invalid P-256 public key");
   return sha256(publicKey);
 }
-export function contextBytes(context: PrivateContext, purpose: "source" | "report"): Uint8Array {
+export function contextBytes(context: PrivateContext, purpose: "source" | "report" | "tool-result"): Uint8Array {
   if (!context || Object.keys(context).sort().join(",") !== "objectId,purpose,recipientId,revision,runId,tenantId" ||
       !/^[A-Za-z0-9:_-]{1,128}$/.test(context.tenantId) || !uuidPattern.test(context.runId) ||
       !uuidPattern.test(context.objectId) || context.revision !== 1 || context.purpose !== purpose ||
@@ -105,6 +105,14 @@ export async function openReport(privateKey: Awaited<ReturnType<typeof generateR
 export function equalHex(a: string, b: string): boolean {
   // Comparison here is against public identifiers, not secret MACs.
   return typeof a === "string" && typeof b === "string" && a.toLowerCase() === b.toLowerCase();
+}
+
+export async function openToolResult(privateKey:Awaited<ReturnType<typeof deriveResultKey>>['privateKey'],envelope:PrivateEnvelope,expected:{tenantId:string;runId:string;objectId:string;recipientId:string}){
+  if(!envelope||Object.keys(envelope).sort().join(',')!=='algorithm,ciphertext,context,encapsulatedSecret,version'||envelope.version!==2||envelope.algorithm!=='HPKE-P256-HKDF-SHA256-AES128GCM')throw Error('Invalid tool result');
+  const aad=contextBytes(envelope.context,'tool-result');
+  if(!Object.entries(expected).every(([k,v])=>envelope.context[k as keyof PrivateContext]===v))throw Error('Tool result identity mismatch');
+  const plain=await suite.Open(privateKey,base64ToBytes(envelope.encapsulatedSecret,suite.KEM.Nenc),base64ToBytes(envelope.ciphertext,undefined,128000+16),{aad,info:enc.encode('drnib-tool-result-hpke-v2')});
+  try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(plain))}finally{plain.fill(0)}
 }
 export async function proofDigest(sessionId: string, challenge: Uint8Array): Promise<string> {
   const data = new Uint8Array(enc.encode("drnib-proof-v1\0").length + 16 + challenge.length);

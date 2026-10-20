@@ -1,0 +1,7 @@
+{
+  "baseScriptSha256": "982181610f70be9087b1c69b36b719b47b82d37fcef8acc9289ed3bb3095ffe8",
+  "terminalSeccompPath": "/etc/drnib-terminal-seccomp.json",
+  "terminalSeccompSha256": "ca6d1a088eb076d4b53e395b4c30574dd16cf69598c34eea4728cdba61a95b73",
+  "install": "Measured pre-launch script, before Docker Compose starts",
+  "reviewRequired": true
+}

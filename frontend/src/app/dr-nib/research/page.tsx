@@ -1,4 +1,5 @@
 "use client";
+import {privateBuildEnabled,privateFundingEnabled,getPrivateManifest} from '@/lib/dr-nib-private-records';
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -17,6 +18,19 @@ const SAMPLES = [
 ];
 
 type Phase = "composer" | "creating" | "questions" | "configure" | "review";
+function PrivateRunningActivity({runId}:{runId:string}) {
+  const [snapshot,setSnapshot]=useState<any>(null),[reconnecting,setReconnecting]=useState(false);
+  useEffect(()=>{
+    let stopped=false,timer:ReturnType<typeof setTimeout>;
+    const poll=async()=>{try{const {value}=await getPrivateManifest(runId,true);if(!stopped){setSnapshot(value);setReconnecting(false)}}catch{if(!stopped)setReconnecting(true)}finally{if(!stopped)timer=setTimeout(poll,4000)}};
+    void poll();return()=>{stopped=true;clearTimeout(timer)};
+  },[runId]);
+  return <div role="status" aria-live="polite" className="mt-4 space-y-2 rounded border border-dark-gray/40 p-3 text-left text-xs">
+    <p className="font-medium">Agent activity{reconnecting?' · reconnecting…':''}</p>
+    {(snapshot?.events??[]).filter((e:any)=>e.type==='thinking'||e.type==='tool.call').slice(-6).map((e:any,i:number)=><p key={`${e.at}-${i}`}>{e.type==='tool.call'?`${e.tool}: ${e.result?.summary??'completed'}`:e.text}</p>)}
+    {(snapshot?.decisions??[]).filter((d:any)=>d.kind==='decision').slice(-6).map((d:any)=><p key={d.id} className="font-mono">{d.output?.model} · {d.step}: {d.output?.decision??(typeof d.output?.probability==='number'?`p=${d.output.probability.toFixed(2)}`:d.type)}</p>)}
+  </div>;
+}
 type Item = { seq: number; question: IntakeQuestion; answer?: IntakeAnswer; thinking?: string };
 
 function cleanAnswer(a: IntakeAnswer, q: IntakeQuestion, other: boolean): IntakeAnswer {
@@ -46,11 +60,14 @@ export default function ResearchNewPage() {
   const confidential = false;
   const [availability, setAvailability] = useState<"checking" | "ready" | "preview" | "unavailable">("checking");
   const [availabilityAttempt, setAvailabilityAttempt] = useState(0);
+  const [availabilityReason,setAvailabilityReason]=useState<string|null>(null);
+  const [privateWebEnabled,setPrivateWebEnabled]=useState(false);
+  const [publicSearchBrief,setPublicSearchBrief]=useState<string|null>(null);
   useEffect(() => {
     let cancelled = false;
     drNibApi.health().then((health) => {
-      if (!cancelled) setAvailability(health.research?.acceptingRuns === false ? (health.research.reason === "mainnet-funding-not-ready" ? "preview" : "unavailable") : "ready");
-    }).catch(() => { if (!cancelled) setAvailability("unavailable"); });
+      if (!cancelled) {setPrivateWebEnabled(health.publicRetrieval===true);setAvailabilityReason(health.research?.reason??null);setAvailability(health.research?.acceptingRuns === false ? (health.research.reason === "mainnet-funding-not-ready" ? "preview" : "unavailable") : "ready");}
+    }).catch(() => { if (!cancelled) {setAvailabilityReason('connection-failed');setAvailability("unavailable");} });
     return () => { cancelled = true; };
   }, [availabilityAttempt]);
   // Dr. Nib is wallet-gated through the same shared hub session as the header.
@@ -75,7 +92,8 @@ export default function ResearchNewPage() {
   // instantly on click (optimistic), the stream lands into it when it arrives.
   const [loadingAnswer, setLoadingAnswer] = useState(false);
   const [depth, setDepth] = useState("standard");
-  const [liveWeb, setLiveWeb] = useState(true);
+  const [searchEnabled, setSearchEnabled] = useState(false);
+  const [liveWeb, setLiveWeb] = useState(!privateBuildEnabled());
   const [tipCreators, setTipCreators] = useState(false);
   const [formats, setFormats] = useState<string[]>(["pdf"]);
   const [budgetCap, setBudgetCap] = useState(2.5);
@@ -146,7 +164,9 @@ export default function ResearchNewPage() {
     const brief = run.brief || {};
     setDepth(brief.depth || run.depth || "standard");
     setBudgetCap(Number(run.budgetCap) || 2.5);
-    setLiveWeb(brief.liveWeb !== false);
+    setLiveWeb(privateBuildEnabled()?brief.liveWeb===true:brief.liveWeb!==false);
+    setPublicSearchBrief(brief.publicResearch?.brief??null);
+    setSearchEnabled(brief.searchEnabled!==false&&brief.publicResearch?.approved===true);
     setTipCreators(brief.tipCreators === true);
     setFormats(Array.isArray(brief.formats) && brief.formats.length ? brief.formats : ["pdf"]);
     setLength(brief.length || "standard");
@@ -168,13 +188,26 @@ export default function ResearchNewPage() {
             const loaded: Item[] = (run.decisions || [])
               .filter((d: any) => d.kind === "question")
               .map((d: any) => ({ seq: d.seq, question: d.question, answer: d.answer || undefined }));
-            setProject({ id: run.id, title: run.title, description: run.description, status: run.status, metadata: run.metadata });
+            setProject(run);
             setTopic(run.brief?.topic || "");
             restoreConfiguration(run);
             setItems(loaded);
             const firstUnanswered = loaded.findIndex((it) => !it.answer);
             setIdx(firstUnanswered === -1 ? Math.max(0, loaded.length - 1) : firstUnanswered);
             setPhase("configure");
+            void loadEscrow(run.id);
+            return;
+          }
+          if (explicit && run.status === "planned") {
+            // Reopen the existing review, including its editable steps and
+            // funding gate, without paying for another planning call.
+            setProject(run);
+            setTopic(run.brief?.topic || "");
+            restoreConfiguration(run);
+            setEstimate(Number(run.plan?.estimate ?? 0.2));
+            setSubQuestions(Array.isArray(run.plan?.sub_questions) ? run.plan.sub_questions.map(String) : []);
+            setPlanSource(typeof run.plan?.source === "string" ? run.plan.source : null);
+            setPhase("review");
             void loadEscrow(run.id);
             return;
           }
@@ -189,21 +222,21 @@ export default function ResearchNewPage() {
         const loaded: Item[] = (run.decisions || [])
           .filter((d: any) => d.kind === "question")
           .map((d: any) => ({ seq: d.seq, question: d.question, answer: d.answer || undefined }));
-        setProject({ id: run.id, title: run.title, description: run.description, status: run.status, metadata: run.metadata });
+        setProject(run);
         setTopic(run.brief?.topic || "");
         setItems(loaded);
         const firstUnanswered = loaded.findIndex((it) => !it.answer);
         setIdx(firstUnanswered === -1 ? Math.max(0, loaded.length - 1) : firstUnanswered);
         setPhase(loaded.length ? "questions" : "composer");
         rememberRun(run.id);
-      } catch {
-        // Dead id (deleted elsewhere): forget it so the next visit doesn't
-        // retry a ghost. Backend-down stays on the composer untouched.
-        if (!explicit) rememberRun(null);
+      } catch (error) {
+        // Authentication/startup failures must retain the resume pointer.
+        // Only a definitive missing project permits forgetting it.
+        if (!explicit && (error as {status?:number})?.status === 404) rememberRun(null);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [connectedAddress]);
 
   // Notices from fail() are errors: they persist until dismissed or the next
   // action clears them. A 3-second flash is fine for hints ("type first"),
@@ -259,7 +292,8 @@ export default function ResearchNewPage() {
     setPhase("creating");
     setNotice("");
     try {
-      const run: any = await drNibApi.createProject(t);
+      const retryIntake=privateBuildEnabled()&&project?.id&&['draft','intake'].includes(project.status)&&!items.length&&project.brief?.topic===t;
+      const run: any = retryIntake?await (await import('@/lib/dr-nib-private-actions')).privateAction(project.id,'intake'):await drNibApi.createProject(t);
       setNeedsSignIn(false);
       setProject(run);
       rememberRun(run?.id || null);
@@ -267,6 +301,11 @@ export default function ResearchNewPage() {
         ? run.questions
         : run.question ? [{ ...run.question, seq: 0 }] : [];
       if (!first.length) {
+        if(privateBuildEnabled()&&run.status==='intake-done'){
+          setItems([]);
+          setPhase('configure');
+          return;
+        }
         // A run with no questions is a dead questions screen (blank, no
         // recovery). Send the user back with the reason on screen.
         setPhase("composer");
@@ -279,6 +318,10 @@ export default function ResearchNewPage() {
       setPhase("questions");
     } catch (e: any) {
       // Back to composer on failure — the thinking screen must never strand.
+      if(privateBuildEnabled()&&typeof e?.privateRunId==='string'){
+        rememberRun(e.privateRunId);
+        setProject({id:e.privateRunId,status:'intake',brief:{topic:t}});
+      }
       setPhase("composer");
       fail(e, "Could not reach Dr. Nib");
     }
@@ -497,10 +540,13 @@ export default function ResearchNewPage() {
     setBusy(true);
     setNotice("");
     try {
+      if(privateBuildEnabled()&&liveWeb&&searchEnabled&&(publicSearchBrief??'').trim().length<3)throw Error('Enter the search terms you want to send to web search.');
       await drNibApi.configureRun(project.id, {
         depth, budgetCap, formats,
         liveWeb: confidential ? false : liveWeb,
-        tipCreators: confidential ? false : tipCreators,
+        ...(privateBuildEnabled()?{searchEnabled:liveWeb&&searchEnabled}:{}),
+        ...(privateBuildEnabled()&&liveWeb&&searchEnabled?{publicResearch:{approved:true as const,brief:(publicSearchBrief??'').trim()}}:{}),
+        tipCreators,
         length, ...(length === "custom" ? { lengthWords } : {}),
       });
       // Planning is an LLM call away — replans especially can take a minute.
@@ -514,6 +560,7 @@ export default function ResearchNewPage() {
         waitMs = Math.min(30000, waitMs * 1.5);
         const full: any = await drNibApi.getRun(project.id);
         if (full.status === "planned" || full.status === "running" || full.status === "complete") {
+          setProject(full);
           setEstimate(Number(full.plan?.estimate ?? 0.2));
           setSubQuestions(Array.isArray(full.plan?.sub_questions) ? full.plan.sub_questions.map(String) : []);
           setPlanSource(typeof full.plan?.source === "string" ? full.plan.source : null);
@@ -639,7 +686,7 @@ export default function ResearchNewPage() {
   if (phase === "composer" && availability === "unavailable") return (
     <section className="mx-auto max-w-xl py-16 text-center">
       <h1 className="text-2xl font-medium">Research is temporarily unavailable</h1>
-      <p className="mt-3 text-sm opacity-70">We could not check the research service. Your saved projects are unchanged.</p>
+      <p className="mt-3 text-sm opacity-70">{privateBuildEnabled()?(availabilityReason==='private-setup-paused'?'Private research is paused while the worker setup is being verified. Your wallet sign-in and saved projects are unchanged.':availabilityReason==='private-worker-paused'?'Private research is paused to keep this owner test within its infrastructure limit. Wallet sign-in and encrypted saved projects remain available.':availabilityReason==='private-release-unreviewed'?'The private worker needs a reviewed release before it can receive project keys. Your saved projects are unchanged.':'The local private service could not be reached. Your wallet sign-in and saved projects are unchanged.'):'We could not check the research service. Your saved projects are unchanged.'}</p>
       <button className="mt-5 rounded-xl border border-current px-5 py-2 text-sm" onClick={() => { setAvailability("checking"); setAvailabilityAttempt(value => value + 1); }}>Try again</button>
     </section>
   );
@@ -668,7 +715,7 @@ export default function ResearchNewPage() {
       {phase === "composer" && (
         <section className="mx-auto max-w-2xl py-8 text-center md:py-12">
           <h2 className="nibgate-display-title text-3xl font-medium md:text-4xl">What should Dr. Nib research?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm opacity-60">Ask a question. A project is created straight away, so you can stop and pick it up later — nothing spends until you approve the plan.</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm opacity-60">{privateBuildEnabled() ? privateFundingEnabled()?"Ask a question. Your encrypted project is saved for later. Questions and planning are sponsored; research starts after you fund and approve the plan.":"Ask a question. Your encrypted project is saved for later. Questions and planning use the owner test allowance; report writing starts after you approve the plan." : "Ask a question. A project is created straight away, so you can stop and pick it up later — nothing spends until you approve the plan."}</p>
           <div className="relative mt-6">
             <textarea value={topic} onChange={(e) => setTopic(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -809,7 +856,7 @@ export default function ResearchNewPage() {
       {phase === "configure" && (
         <section className="mx-auto max-w-2xl py-6">
           <h2 className="nibgate-display-title text-2xl font-medium md:text-3xl">Configure the run</h2>
-          <p className="mt-2 text-sm opacity-60">Set the bounds. Planning is free — money moves only when you approve.</p>
+          <p className="mt-2 text-sm opacity-60">{privateBuildEnabled()&&!privateFundingEnabled()?"Set the bounds for private research. This owner preview has no wallet payment or escrow.":"Set the bounds. Planning is free — money moves only when you approve."}</p>
           {project?.id && (confidential
             ? <ConfidentialSourceManager runId={project.id} onBusyChange={setSourcesBusy} />
             : <SourceManager runId={project.id} onBusyChange={setSourcesBusy} />)}
@@ -831,12 +878,15 @@ export default function ResearchNewPage() {
             {confidential ? (
               <span className="opacity-60">Confidential runs research the document you supply inside the verified worker — no live web, no onchain escrow on this path.</span>
             ) : (<>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} onChange={(e) => setLiveWeb(e.target.checked)} /> Live web search</label>
-            <label className="flex items-center gap-2" title="Tip the decisive sources up to $1 each after scoring — proposed by the model, judged before signing">
-              <input type="checkbox" checked={tipCreators} onChange={(e) => setTipCreators(e.target.checked)} /> Tip decisive creators
+            <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} disabled={privateBuildEnabled()&&!privateWebEnabled} onChange={(e) => setLiveWeb(e.target.checked)} /> {privateBuildEnabled()?"Allow public URL reads and tools":"Live web search"}</label>
+            {privateBuildEnabled()&&liveWeb?<label className="flex items-center gap-2"><input type="checkbox" checked={searchEnabled} onChange={e=>setSearchEnabled(e.target.checked)} /> Also allow web and Hub search</label>:null}
+            {privateBuildEnabled()&&liveWeb&&searchEnabled?<label className="block text-xs">Search terms<input type="search" autoComplete="off" value={publicSearchBrief??''} maxLength={400} onChange={event=>setPublicSearchBrief(event.target.value)} className="mt-1 block w-full rounded border border-dark-gray/40 bg-white p-2"/><span className="mt-1 block opacity-60">Public search tools receive these terms and selected public URLs. JEV receives selected research context through OpenRouter and TypeSafe, with zero retention required.</span></label>:null}
+            <label className="flex items-center gap-2" title={privateBuildEnabled()?"Seek relevant creator work and propose JEV-judged tips after the report; up to 20% of the budget, with the research estimate reserved. Review the public URL and amount before payment.":"Tip the decisive sources up to $1 each after scoring — proposed by the model, judged before signing"}>
+              <input type="checkbox" checked={tipCreators} disabled={privateBuildEnabled()&&!privateWebEnabled} onChange={(e) => setTipCreators(e.target.checked)} /> Tip cited creators
             </label>
-            <span className="opacity-60">Runs are funded by an onchain escrow deposit — approve stays locked until it lands.</span>
+            <span className="opacity-60">{privateBuildEnabled()?privateFundingEnabled()?"Research uses your onchain escrow deposit. Planning and writing run in verified processing; JEV receives selected context through OpenRouter/TypeSafe with zero retention required. Creator tips use escrow after your approval of the public page and amount; research keeps its reserve.":"Research uses the owner test limit. Planning and writing run in verified processing; JEV receives selected context through OpenRouter/TypeSafe with zero retention required. Creator tips use escrow after your approval of the public page and amount; research keeps its reserve.":"Runs are funded by an onchain escrow deposit — approve stays locked until it lands."}</span>
             </>)}
+            {privateBuildEnabled()&&process.env.NEXT_PUBLIC_DRNIB_HOSTED_RESEARCH_FALLBACK==='true'?<p role="note" className="w-full text-xs leading-5">Phala processes research first. If unavailable, OpenRouter and the approved Azure model may process your research context with zero retention required. This fallback is provider-visible, not hardware-attested inference. Project decryption and saved state remain in the private worker. JEV keeps its disclosed OpenRouter/TypeSafe route.</p>:null}
             <span className="opacity-60">Outputs:</span>
             {["pdf", "word", "excel", "powerpoint"].map((f) => (
               <button key={f} onClick={() => setFormats((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]))} className={`border px-2.5 py-1 text-xs uppercase ${formats.includes(f) ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{f}</button>
@@ -891,7 +941,7 @@ export default function ResearchNewPage() {
                 <p className="mt-3 text-sm">Run {project?.id?.slice(0, 8)} · nothing charged on this test path</p>
               </>
             ) : (<>
-            <p className="mt-3 text-xs opacity-60">Depth: {depth} · Cap: ${budgetCap.toFixed(2)} · {liveWeb ? "live web" : "curated only"} · {formats.join(", ")}</p>
+            <p className="mt-3 text-xs opacity-60">Depth: {depth} · Cap: ${budgetCap.toFixed(2)} · {liveWeb ? (privateBuildEnabled()&&!searchEnabled?"public URL reads · search off":"live web") : "uploaded sources only"} · {formats.join(", ")}</p>
             <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ${Number(lengthWords || 0).toLocaleString()}+ words minimum` : `${length} · ${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"}+ words minimum`}</p>
             <p className="mt-3 text-sm">Estimated cost: <strong>${(estimate ?? 0.2).toFixed(2)}</strong> · Run {project?.id?.slice(0, 8)}</p>
             </>)}
@@ -973,7 +1023,7 @@ export default function ResearchNewPage() {
           {!confidential && <>
           {escrowConfigured === true && project && !escrowFunded && planSource !== "fallback" && (
             <>
-              <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={estimate} onFunded={() => setEscrowFunded(true)} />
+              <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={privateFundingEnabled()?Math.max(Number(estimate??0),Number(project.plan?.minimumFunding??0)):estimate} onFunded={() => setEscrowFunded(true)} />
               {escrowStale && (
                 <p className="mt-2 text-xs text-red-700">
                   Escrow status isn&apos;t refreshing — anything you&apos;ve signed so far still stands.{" "}
@@ -987,10 +1037,10 @@ export default function ResearchNewPage() {
           )}
           {escrowConfigured === false && (
             <div className="mt-4 border border-dark-gray/50 bg-white p-4 text-sm">
-              <p className="text-xs font-medium uppercase tracking-wider opacity-60">No onchain escrow on this network</p>
+              <p className="text-xs font-medium uppercase tracking-wider opacity-60">{privateBuildEnabled()&&!privateFundingEnabled()?"Private owner preview":"No onchain escrow on this network"}</p>
               <p className="mt-1 leading-6">
-                Approve authorizes a <strong>${Number(budgetCap || 0).toFixed(2)} ledger allowance</strong> — no wallet
-                signature, no money moves now. Stages draw from the allowance.
+                {privateBuildEnabled()&&!privateFundingEnabled()?<>Approve starts real confidential processing within the configured owner test limits. It does not authorize a wallet payment or ledger allowance.</>:<>Approve authorizes a <strong>${Number(budgetCap || 0).toFixed(2)} ledger allowance</strong> — no wallet
+                signature, no money moves now. Stages draw from the allowance.</>}
               </p>
             </div>
           )}
@@ -1007,16 +1057,17 @@ export default function ResearchNewPage() {
             </div>
           )}
           <p className="mt-4 text-xs leading-5 opacity-60">
-            {escrowConfigured === true
+            {privateBuildEnabled()&&!privateFundingEnabled() ? "Private owner test — no wallet payment or escrow." : escrowConfigured === true
               ? "Approving starts the run against the amount you fund onchain. Stages draw from that deposit; whatever isn't spent returns to your wallet at settle."
               : escrowConfigured === false
                 ? "Ledger allowance path — nothing to sign, nothing to fund."
                 : "Waiting on the escrow check before approve unlocks."}
           </p>
           </>}
+          {privateBuildEnabled()&&busy&&project?.id?<PrivateRunningActivity runId={project.id}/>:null}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project || planSource === "fallback" || (!confidential && (escrowConfigured === null || (escrowConfigured === true && !escrowFunded)))} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={confidential ? undefined : planSource === "fallback" ? "Retry planning before funding" : escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? "Starting…" : confidential ? "Approve & continue" : "Approve & run"}</button>
+            <button onClick={approve} disabled={busy || !project || planSource === "fallback" || (!confidential && (escrowConfigured === null || (escrowConfigured === true && !escrowFunded)))} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={confidential ? undefined : planSource === "fallback" ? "Retry planning before funding" : escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? (privateBuildEnabled()?"Researching and verifying…":"Starting…") : confidential ? "Approve & continue" : "Approve & run"}</button>
           </div>
         </section>
       )}

@@ -2,54 +2,45 @@ import { Callout } from 'nextra/components'
 
 # Protocol & architecture
 
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
+
 Dr. Nib is a research agent *and* the protocol underneath it: a budgeted, auditable agent that buys what it needs, inside policy, and can be commissioned by other agents. This page is the box-and-arrow view — the services, the run lifecycle, the money rails, and where each guarantee is enforced.
 
 ## The pieces
 
-```mermaid
-flowchart LR
-    U[User / agent] -->|SIWE session or MCP| FE[Hub frontend /dr-nib]
-    FE -->|same-origin /drnib-api| API[Dr. Nib service]
-    API -->|enqueue stages| W[Worker]
-    W -->|decisions| HUB[Hub API\nJEV · auth · tip rail]
-    W -->|state, evidence, ledger| PG[(Postgres\ndrnib schema)]
-    W -->|deliverables| R2[(R2 bucket)]
-    W -->|USDC| ARC[(Arc chain\nescrow · spender)]
-    API -->|SIWE lookup| HUBAUTH[Hub auth/DB]
+```text
+Browser / trusted machine client
+  → ordinary Dr. Nib API → scheduled worker
+                             ├─ Hub judgment / public payment rails
+                             ├─ Postgres: state, evidence and ledger
+                             ├─ private R2: supplied-source originals
+                             └─ Arc: escrow and spending contracts
 ```
 
 - **Hub frontend** — the `/dr-nib` UI (research, projects, sources, help). It talks to the service through a same-origin proxy so the hub's session cookie just works.
 - **Dr. Nib service** — the Express API plus the worker that runs pipeline stages. It has no accounts of its own: identity is the hub's wallet session.
 - **Hub API** — the decision seat (JEV), and the rails the agent spends through (tip challenge/verify, x402).
 - **Postgres** — runs, evidence, claims, reports, and the append-only ledger, in the service's own `drnib` schema.
-- **R2** — rendered deliverables and private supplied-source originals. Originals use `nibgate-research`, with `testnet/` and `mainnet/` object prefixes, no public bucket domains, and owner-authenticated downloads.
+- **R2** — private supplied-source originals. New ordinary exports are rendered and returned through the authenticated API rather than published to object storage. Originals use `nibgate-research`, with `testnet/` and `mainnet/` object prefixes, no public bucket domains, and owner-authenticated downloads.
 - **Arc** — the onchain guarantees: run escrow and the spend mandate.
 
 **Reference:** `dr-nib/backend/src/server.js`, `routes/`, `worker.js`, `db.js`, `env.js`; `dr-nib/ARCHITECTURE.md`.
 
 ## Identity is the wallet
 
-There is no Dr. Nib login. The browser API reads the hub's SIWE session cookie and validates it against the hub's own `Session`/`User` tables (`HUB_DATABASE_URL`) using the same code path the hub uses. Mutating routes verify ownership; supported idempotency keys protect retried requests, and stage checkpoints prevent duplicate charging. MCP uses a trusted service key: its caller names the owner wallet, but the wallet string is not a signature or a separate authentication check. Keep the key only in trusted server-side integrations; give individual users the session-authenticated browser API.
+There is no Dr. Nib login. The browser API reads the hub's SIWE session cookie and validates it against the hub's own `Session`/`User` tables (`HUB_DATABASE_URL`) using the same code path the hub uses. Mutating routes verify ownership; supported idempotency keys protect retried requests, completed stage checkpoints skip completed work, and stable stage charge references deduplicate recorded ledger draws. This does not establish exactly-once provider execution for an in-flight ordinary call whose result was lost. MCP uses a trusted service key: its caller names the owner wallet, but the wallet string is not a signature or a separate authentication check. Keep the key only in trusted server-side integrations; give individual users the session-authenticated browser API.
 
 ## The run lifecycle
 
-```mermaid
-stateDiagram-v2
-    [*] --> intake
-    intake --> planned: brief complete (JEV)
-    planned --> running: configure + approve
-    running --> awaiting: run parks a question
-    awaiting --> running: answer
-    running --> paused: user pause / cap hit / JEV down
-    paused --> running: resume / raise cap
-    running --> complete: report written
-    running --> failed: crash
-    running --> ended: user ends
-    complete --> [*]
-    ended --> [*]
+```text
+intake → configure / plan → review / fund / approve → running
+                                                     ├─ awaiting an answer → resume
+                                                     ├─ paused → resume or end
+                                                     ├─ report complete → settlement
+                                                     └─ failure / explicit end → settlement
 ```
 
-Stages are durable: state checkpoints to Postgres, the worker is stateless and survives restarts, and the event feed is replayable by `seq` — a client that disconnects at step five reconnects at step six. Pause is cooperative (checked between steps); the run outlives the HTTP request that started it.
+Completed stages and ordered events are durable in Postgres. With Redis configured, BullMQ schedules work; without it, the service uses in-process scheduling with persisted recovery sweeps. Stage leases and checkpoints support restart recovery, but in-flight work can fail or require recovery. The event feed replays by sequence so reconnecting clients can recover saved activity. Pause is cooperative (checked between steps); the run outlives the HTTP request that started it.
 
 <Callout type="info">
 **JEV down ≠ model decides.** If the decision seat is unreachable, the run parks with `pauseReason: 'jev'` and the balance untouched. It resumes when the seat is back. See [How JEV decides](/dr-nib/jev).
@@ -57,7 +48,7 @@ Stages are durable: state checkpoints to Postgres, the worker is stateless and s
 
 ## The two loops
 
-1. **Intake loop** — batched questions (5 per screen, 8 total), each answer folded into a living brief. JEV owns the stop rule (`proceed` / `ask_more` / `reframe`); the 8-question cap can override with a visible `cap hit` label.
+1. **Intake loop** — batched questions (up to 5 per batch, usually 3 generated; an eight-question stop threshold is checked between batches), each answer folded into a living brief. JEV owns the stop rule (`proceed` / `ask_more` / `reframe`); the stop threshold can end intake with a visible `cap hit` label. A batch already issued is not truncated, so eight is not a strict total-question maximum.
 2. **Research loop** — per round: search → fetch → score → review. The data stage adds a propose → judge → execute loop (model proposes tools, JEV decides, tools execute). Termination is enforced in code with explicit budgets and stop reasons, never requested in prompt prose. See [Agent loop](/dr-nib/agent-loop).
 
 ## Money, and where it's enforced
@@ -69,9 +60,9 @@ The ledger is the source of truth; contracts are the guarantee:
 | Ledger | per-stage drawdown, 1% fee, raise-only caps (never past the onchain deposit), settle/refund | `dr-nib/backend/src/money.js`, `budgets` |
 | Software caps | per-call ceilings, run-balance gate, verdict binding, dual-RPC | `spend/policy.js`, `spend/guard.js` |
 | Spend mandate | onchain daily cap + keeper pause for direct transfers; recipients open by default | `NibgateSpenderV2` (Arc testnet and mainnet) |
-| Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` (funded lifecycle verified on Arc testnet and mainnet) |
+| Run escrow | the deposited budget (≥ estimate, one-shot) locked onchain, atomic split at settle | ERC-8183 core + `NibgateRunSplitter` |
 
-A run never overspends — it pauses at the cap and asks. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. Both public network apps require escrow; ledger-only mode is for development. See [Budgets & refunds](/dr-nib/budgets), [Onchain escrow](/dr-nib/escrow), and [Spending gates](/dr-nib/gates).
+Customer ledger draws that exceed the balance/cap are refused. Ordinary stages charge after provider work completes, so the operator's upstream cost is not guaranteed to fit the remaining customer cap. On one-shot escrow deposits an exhausted run ends (report kept) or restarts bigger as a new run. The remainder returns at settle. Both public network apps require escrow; ledger-only mode is for development. See [Budgets & refunds](/dr-nib/budgets), [Onchain escrow](/dr-nib/escrow), and [Spending gates](/dr-nib/gates).
 
 ## Machine parity
 
@@ -81,7 +72,7 @@ There are **two separate MCP servers**: the published Nibgate Hub MCP at `https:
 
 ## Deliverables
 
-All new report exports return authenticated inline/base64 downloads, including reports based only on a typed brief. Research reports are not published to the public media CDN. Copied report links are account links requiring the owner's sign-in; public report sharing is not implemented.
+All new report exports return authenticated inline/base64 downloads, including reports based only on a typed brief. Research reports are not published to the public media CDN. Copied report links require the owner's sign-in; they are account links rather than public publication URLs.
 
 ## Supplied-source API and MCP
 
@@ -92,3 +83,7 @@ Dr. Nib MCP 0.2.7 provides `attach_source`, `list_supplied_sources` and `read_su
 Settled budgets cannot fund a reprompt. Start a fresh project and fund a new deposit; upload its inputs again. An active stage drains before End refunds the remainder.
 
 A finished run keeps its research as raw markdown and generates deliverables from it, never by re-running: **Markdown, JSON (+escrow receipt block), BibTeX, PDF, Word, Excel (+escrow columns on Ledger), PowerPoint**. Binary formats are rendered by the service and returned as base64 through the authenticated API; text formats come back inline. The format is chosen *after* the research exists — choosing a format before there is anything to export is guessing. Reports carry a coverage badge + claim×source matrix from the verify pass, and have version-pinned account links. Sources are numbered in an immutable per-report snapshot so browser citations and exports keep the same mapping.
+
+## Private implementation differences
+
+The [private architecture](/dr-nib/confidential/architecture) separates a ciphertext broker, attested worker and money service. It calls JEV directly through the disclosed hosted ZDR route, encrypts project state/activity and reserves model operations before dispatch. It uses encrypted operation journals to restore known completed results and fence unknown outcomes. Its ordinary-API guard prevents these routes, MCP tools and shared lesson storage from processing private projects as plaintext.

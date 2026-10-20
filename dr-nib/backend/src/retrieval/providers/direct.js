@@ -13,6 +13,7 @@ import { extractText as extractPdfText } from 'unpdf';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
+import { JSDOM } from 'jsdom';
 import { mapLimit } from '../util.js';
 import { publicFetch } from '../../tools/http.js';
 
@@ -234,12 +235,12 @@ function looksBlocked(html) {
  * Extract readable text from URLs directly. Free; metered at zero.
  * @returns {Promise<{documents:Array, skipped:Array, costUsd:0}>}
  */
-export async function directExtract({ urls, maxChars = 20000, timeoutMs = 12000 } = {}, { fetchImpl = publicFetch } = {}) {
+export async function directExtract({ urls, maxChars = 20000, timeoutMs = 12000 } = {}, { fetchImpl = publicFetch, assessPage,onDocument } = {}) {
   const list = Array.isArray(urls) ? urls.filter(Boolean).slice(0, 20) : [];
   // Pages are independent: fetch up to 6 at once instead of one by one.
   // The old serial loop turned 12 slow pages into minutes; the per-URL
   // timeout still bounds the worst case.
-  const settled = await mapLimit(list, 6, (url) => extractOne(url, { maxChars, timeoutMs, fetchImpl }));
+  const settled = await mapLimit(list, 6, async url => {const result=await extractOne(url, { maxChars, timeoutMs, fetchImpl, assessPage });if(result.document&&typeof onDocument==='function')onDocument(result.document);return result;});
   const documents = [];
   const skipped = [];
   for (const r of settled) {
@@ -249,7 +250,7 @@ export async function directExtract({ urls, maxChars = 20000, timeoutMs = 12000 
   return { documents, skipped, costUsd: 0 };
 }
 
-async function extractOne(url, { maxChars, timeoutMs, fetchImpl }) {
+async function extractOne(url, { maxChars, timeoutMs, fetchImpl, assessPage }) {
   const skip = (reason) => ({ url, reason });
   try {
     const allowed = await robotsAllows(url, fetchImpl);
@@ -303,9 +304,28 @@ async function extractOne(url, { maxChars, timeoutMs, fetchImpl }) {
     const html = raw;
     if (looksPaywalled(html)) return skip('paywalled');
     if (looksBlocked(html)) return skip('blocked-bot-check');
-    const text = htmlToText(html).slice(0, maxChars);
+    // A documentation fragment identifies the requested section, which may be
+    // far beyond the beginning of a long page. Scripts/resources stay disabled.
+    let sectionHtml;
+    const fragment = new URL(url).hash.slice(1);
+    if(fragment){
+      let dom;
+      try{
+        dom=new JSDOM(html);
+        const target=dom.window.document.getElementById(decodeURIComponent(fragment));
+        const section=target?.closest('section,article,.section');
+        if(section)sectionHtml=section.outerHTML;
+      }catch{/* A malformed/absent fragment retains normal page extraction. */}
+      finally{dom?.window.close();}
+    }
+    const text = htmlToText(sectionHtml??html).slice(0, maxChars);
     if (text.length < 200) return skip('no-readable-text');
     const doc = { url, title: titleOf(html), text, provider: 'direct', costUsd: 0 };
+    if(typeof assessPage==='function'){
+      const {readableText,...assessment}=await assessPage({url,html});
+      if(!sectionHtml&&typeof readableText==='string'&&readableText.trim().length>=200)doc.text=readableText.slice(0,maxChars);
+      doc.creatorAssessment=assessment;
+    }
     const image = leadImage(html, url);
     if (image) doc.image = image;
     return { url, document: doc };

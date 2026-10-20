@@ -5,7 +5,7 @@ import { Callout, Cards, Steps } from 'nextra/components'
 Nibgate reputation starts with content. A creator should not earn abstract trust points just for existing; trust should come from paid unlocks, receipts, verified source health, and onchain ratings attached to actual resources.
 
 <Callout type="important">
-Current MVP reputation uses analytics as context, but reputation-critical inputs are proof-gated. Payment/unlock receipts need provider proof, and ratings are accepted through indexed onchain rating events after unlock eligibility is proven.
+Current MVP reputation uses analytics as context, but reputation-critical inputs are proof-gated. The explicit onchain indexing route verifies a mined rating transaction and checks applicable unlock evidence. Generic event ingestion also has signed/receipt-associated rating paths; a display score alone does not certify every contributing event.
 </Callout>
 
 <Callout type="info">
@@ -59,7 +59,7 @@ The default unlock path does not need to go through a Nibgate payment contract. 
 
 ## Onchain rating model
 
-The rating itself is an onchain event after eligibility is proven. The package submits the rating transaction from the visitor or agent wallet, then the Nibgate backend indexes the event and accepts it only when that wallet has a matching unlock receipt/proof for the content.
+The rating itself is an onchain event after eligibility is proven. The package can submit the rating transaction from the visitor or agent wallet. The explicit indexing route verifies the transaction and matches the content/rater before applying the unlock-reference checks. Preparing the message alone does not check purchase eligibility.
 
 ```solidity
 rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, string calldata unlockRef)
@@ -128,21 +128,13 @@ Supporting signals can include:
 
 A site has a verification state — `verified`, `missing_widget` (widget marker no longer on the homepage), `failed` (unreachable or invalid), or soft-deleted (`deletedAt`) — plus content-level freshness and quality signals.
 
-Site reputation should be a weighted rollup from content ratings on that domain plus source health signals like active widget checks, valid ownership, payment consistency, and content freshness.
+The current site score combines the average content reputation score (weight 0.78), verification and content-depth bonuses, bounded to 1–100. This differs from the 0–5 star display returned by the rating-stats endpoint.
 
 ## Creator reputation
 
 Creator reputation is a 1-100 score attached to the wallet/account that owns verified sites.
 
-It should roll up from:
-
-- content star ratings
-- site reputation
-- number of verified useful resources
-- unlock success
-- payment receipt quality
-- buyer/agent rating history
-- penalties from broken, removed, or misleading content
+The current creator score combines average content reputation (weight 0.76), verified-site depth and content depth, bounded to 1–100. It is not a separately audited assessment of the creator or every payment.
 
 ## Agent ratings
 

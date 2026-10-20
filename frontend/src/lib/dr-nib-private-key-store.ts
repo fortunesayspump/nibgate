@@ -1,9 +1,11 @@
 "use client";
 
+// Legacy prototype cache, retained for migration. Its pruning behavior is not
+// suitable as the only durable key store; see dr-nib/privacy/PLAN.md.
 // Browser-local persistence for confidential reports. The report key is a
 // non-extractable HPKE CryptoKey pair; CryptoKey is structured-cloneable, so it
 // is stored in IndexedDB as an object and never leaves this browser profile.
-// The operator holds only the ciphertext envelope and can never decrypt it.
+// This does not protect keys from malicious same-origin JavaScript or device access.
 
 export type PrivateResultKey = {
   publicKey: Uint8Array;

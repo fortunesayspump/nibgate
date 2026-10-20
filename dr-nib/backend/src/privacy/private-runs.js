@@ -10,8 +10,8 @@ const unavailable=(_req,res)=>res.status(503).json({code:'PRIVATE_MODE_UNAVAILAB
 export function createPrivateRunsRouter({store=db,enabled=()=>process.env.DRNIB_PRIVATE_ENABLED==='true',ready=async()=>false,
   allowedTenantId,createLimit=async()=>({ok:false}),authenticate=unavailable}={}){
   const router=Router();
-  router.use((req,res,next)=>authenticate(req,res,next));
-  router.post('/runs',async(req,res)=>{
+  // Unmatched broker paths must not make a redundant Hub auth round trip.
+  router.post('/runs',(req,res,next)=>authenticate(req,res,next),async(req,res)=>{
     try{
       if(!enabled())return res.status(503).json({code:'PRIVATE_MODE_UNAVAILABLE'});
       const admitted=await privateRunCreateAdmission({user:req.user,body:req.body,allowedTenantId,createLimit,ready});

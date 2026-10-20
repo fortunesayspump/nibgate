@@ -1,3 +1,4 @@
+import { privateConnectionProgress } from './dr-nib-private-connection';
 import type { PrivateEnvelope } from "./dr-nib-private-crypto";
 import type { GuestSession } from "./dr-nib-private-verifier";
 
@@ -47,9 +48,9 @@ async function requestWithStatus(path: string, options: RequestInit = {}): Promi
       signal: options.signal ?? AbortSignal.timeout(30_000),
       headers: { "content-type": "application/json", "accept": "application/json", ...options.headers },
     });
-  } catch { throw Error("Private worker connection failed. Check private run status before retrying."); }
+  } catch { throw Object.assign(Error("Private worker connection failed. Check private run status before retrying."),{privateConnectionRetryable:true}); }
   if (response.status === 401) throw Error("Sign in to Nibgate before starting private research.");
-  if (response.status === 503) throw Error("Private worker is unavailable. It may still be starting. Retry when it is ready.");
+  if (response.status === 503) throw Object.assign(Error("Private worker is unavailable. It may still be starting. Retry when it is ready."),{privateConnectionRetryable:true});
   if (response.status === 429) throw Error("Private worker is busy. Please wait before retrying.");
   if (!response.ok) throw Error(`Private research request failed (${response.status}). No ordinary processing was started.`);
   if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("application/json"))
@@ -70,12 +71,38 @@ export async function createPrivateRun(): Promise<{ id: string; tenantId: string
   return { id: run.id, tenantId: run.tenantId };
 }
 
+async function wakePrivateWorker(runId: string): Promise<void> {
+  const path = `/runs/${runId}/wake`;
+  privateConnectionProgress(runId, 'connecting');
+  let value = await request(path, { method: "POST", body: "{}" }) as { phase?: string };
+  const deadline = Date.now() + 300_000;
+  while (value.phase !== "ready") {
+    if (!["starting", "draining"].includes(value.phase ?? "") || Date.now() >= deadline)
+      throw Error("Private worker startup needs recovery. Your saved work and escrow are preserved.");
+    privateConnectionProgress(runId, value.phase as 'starting' | 'draining');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    value = await request(path) as { phase?: string };
+  }
+}
+
 export async function openGuestSession(runId: string, clientNonce: string): Promise<GuestSession> {
-  const data = await request("/sessions", { method: "POST", body: JSON.stringify({ runId, clientNonce }) });
+  if (!UUID.test(runId)) throw Error("Invalid private run ID");
+  try { await wakePrivateWorker(runId); }
+  catch (error) { privateConnectionProgress(runId, null); throw error; }
+  privateConnectionProgress(runId, 'verifying');
+  // Only recipient-evidence opening is retried: no project key or inference
+  // command has been sent. Quote/identity validation still fails closed.
+  let data:unknown;
+  try {data=await request("/sessions",{method:"POST",body:JSON.stringify({runId,clientNonce})});}
+  catch(error){
+    if((error as {privateConnectionRetryable?:boolean})?.privateConnectionRetryable!==true){privateConnectionProgress(runId, null);throw error;}
+    try { data=await request("/sessions",{method:"POST",body:JSON.stringify({runId,clientNonce})}); }
+    catch (retryError) { privateConnectionProgress(runId, null); throw retryError; }
+  }
   const session = data as GuestSession;
   if (!session || typeof session.sessionId !== "string" || !UUID.test(session.sessionId) ||
       typeof session.clientNonce !== "string" || typeof session.recipientId !== "string" ||
-      typeof session.recipientPublicKey !== "string" || !session.evidence) throw Error("Private guest session was invalid.");
+      typeof session.recipientPublicKey !== "string" || !session.evidence) { privateConnectionProgress(runId, null); throw Error("Private guest session was invalid."); }
   return session;
 }
 

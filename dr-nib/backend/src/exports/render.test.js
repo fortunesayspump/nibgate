@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { BINARY_FORMATS, RENDERABLE, parseBlocks, parseInline, renderExport } from './render.js';
+import { receiptLines, receiptBlocks, BINARY_FORMATS, RENDERABLE, parseBlocks, parseInline, renderExport } from './render.js';
 
 const ctx = {
   report: { version: 3, markdown: '# Findings\n\nArc **settles** in under a *second* [1]. See [docs](https://a.example/x).\n\n## Fees\n\n| Net | Fee |\n| --- | --- |\n| Arc | 0.001 |\n\n- fast finality\n- cheap fees\n\n1. first\n2. second\n\n> A quoted takeaway.\n' },
@@ -152,4 +152,19 @@ describe('export renderers', () => {
     expect(body).toContain('Figure 1');
     expect(body).not.toContain('```chart');
   });
+});
+
+
+describe('exact settlement amounts',()=>{
+ it('keeps sub-cent spend and refunds exact in text and rich exports',()=>{
+  const args={ledger:{deposited:.25,spend:.011718,fee:.000117,refunded:.238282},escrow:{jobId:'53',status:'Completed',splitConfirmed:true}};
+  for(const receipt of [receiptLines(args).join('\n'),JSON.stringify(receiptBlocks(args))]){
+   expect(receipt).toContain('$0.011718');expect(receipt).toContain('$0.238282');expect(receipt).toContain('$0.000117');expect(receipt).not.toContain('pending');
+  }
+ });
+ it('labels an unconfirmed refund consistently across exports',()=>{
+  const args={ledger:{refunded:.25},escrow:{jobId:'53'}};
+  expect(receiptLines(args).join('\n')).toContain('Refund pending confirmation: $0.250000');
+  expect(JSON.stringify(receiptBlocks(args))).toContain('Refund pending confirmation: $0.250000');
+ });
 });

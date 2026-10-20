@@ -15,7 +15,7 @@ Nibgate runs two parallel stacks on Arc. **Mainnet is the production surface** â
 | Nibshare links | `https://nibgate.xyz/ns/{slug}` | `https://testnet.nibgate.xyz/ns/{slug}` |
 | Docs (this site) | `https://docs.nibgate.xyz` | same (docs are network-agnostic) |
 
-Every new Subblog is reachable on both networks from creation: `<name>.nibgate.xyz` and `<name>.testnet.nibgate.xyz` serve the same site row on their respective stacks.
+Subblog host conventions are `<name>.nibgate.xyz` and `<name>.testnet.nibgate.xyz`. Routing, database connections and identity synchronization must be configured on the corresponding stacks; a host convention alone does not deploy a second instance.
 
 ## What syncs across stacks
 

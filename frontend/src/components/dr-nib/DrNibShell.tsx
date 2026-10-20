@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PrivateWorkerStatus from "./PrivateWorkerStatus";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Library, ListChecks, Menu, Microscope, CircleHelp, X, ChevronsLeft, ChevronsRight } from "lucide-react";
@@ -116,6 +117,7 @@ export default function DrNibShell({ children }: { children: React.ReactNode }) 
       </nav>
       <main ref={mainRef} className="flex flex-col overflow-y-auto dashboard-main-content" style={{ background: 'var(--nib-page-bg)' }}>
         <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6 xl:p-8">
+          <PrivateWorkerStatus />
           {children}
         </div>
       </main>

@@ -1,5 +1,6 @@
-import {createPhalaLifecycleApi} from './phala-lifecycle-api.js';
-import {createPhalaWakeController} from './phala-wake-controller.js';
+import {createPhalaLifecycleApi,createOfficialPhalaLifecycleClient} from './phala-lifecycle-api.js';
+import {createDurablePhalaWake} from './phala-durable-wake.js';
+import {createPrivateLifecycleStore} from './private-lifecycle-store.js';
 import {createBrokerAttestationPreflight} from './phala-broker-attestation.js';
 import {createPinnedDstackVerifier} from './phala-verifier.js';
 
@@ -37,7 +38,7 @@ function guestURL(value){
  * the exact official SDK declared in package.json. No configuration enables
  * guest key release without a fresh full verifier + live HPKE proof. */
 export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,tenantId,signCapability,
-  fetchImpl=fetch,clientFactory,verifierFactory=createPinnedDstackVerifier}={}){
+  fetchImpl=fetch,clientFactory,lifecycleStore,verifierFactory=createPinnedDstackVerifier}={}){
   if(env.DRNIB_PRIVATE_WAKE_ENABLED!=='true')return null;
   if(typeof signCapability!=='function'||typeof tenantId!=='string'||!CVM.test(tenantId)||
      typeof env.PHALA_CLOUD_API_KEY!=='string'||! /^phak_[A-Za-z0-9_-]{8,256}$/.test(env.PHALA_CLOUD_API_KEY)||
@@ -49,16 +50,15 @@ export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,te
   const guest=guestURL(guestBaseURL);
   const idleMs=positiveInt(env.DRNIB_PRIVATE_WAKE_IDLE_MS,15_000,300_000);
   const maxRuntimeMs=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS,30_000,3_600_000);
+  const maxActive=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_ACTIVE??'4',1,8);
+  const maxPending=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_PENDING??'64',1,256);
   const policy=releasePolicy(env.DRNIB_PRIVATE_RELEASE_POLICY_JSON);
   // Validate verifier URL and SPKI pin before constructing a cloud client.
   if(typeof verifierFactory!=='function')throw unavailable();
   const verifier=verifierFactory({url:env.DRNIB_PRIVATE_VERIFIER_URL,
     spkiSha256:env.DRNIB_PRIVATE_VERIFIER_SPKI_SHA256});
   if(typeof verifier?.verifyEvidence!=='function')throw unavailable();
-  const factory=clientFactory??(async options=>{
-    const {createClient}=await import('@phala/cloud');
-    return createClient(options);
-  });
+  const factory=clientFactory??createOfficialPhalaLifecycleClient;
   if(typeof factory!=='function')throw unavailable();
   let client;
   try{client=await factory({apiKey:env.PHALA_CLOUD_API_KEY,
@@ -75,5 +75,8 @@ export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,te
   };
   const verifyAttestation=createBrokerAttestationPreflight({guestBaseURL:guest.toString(),tenantId,
     signCapability,verifyEvidence:verifier.verifyEvidence,policy,fetchImpl});
-  return createPhalaWakeController({api,guestReady,verifyAttestation,idleMs,maxRuntimeMs});
+  const store=lifecycleStore??createPrivateLifecycleStore({db:(await import('../db.js')).db,cvmId:env.DRNIB_PRIVATE_CVM_ID,tenantId});
+  const controller=createDurablePhalaWake({store,api,guestReady,verifyAttestation,idleMs,maxRuntimeMs,maxActive,maxPending});
+  await controller.status(); // Require migration/grants before advertising availability.
+  return controller.start();
 }

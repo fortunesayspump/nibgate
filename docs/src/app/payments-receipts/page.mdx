@@ -10,10 +10,10 @@ Nibgate earnings are payment analytics, not withdrawals. Funds flow to the creat
 
 ## Payment model
 
-With hosted pay enabled, the hub resolves each creator's payment destination to their `GatewayFeeWallet` contract (deployed deterministically per creator). A creator can run multiple sites, and every site resolves to the same fee wallet for that creator.
+With hosted pay enabled, the hub resolves each creator's payment destination to their `GatewayFeeWallet` contract (deployed deterministically per creator). The derivation is per recipient address: sites and posts using the same recipient share a fee wallet; different payout recipients get different fee wallets.
 
 <Callout type="important">
-Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock. Receipts store the gross `amount` plus a derived `protocolFee` (1% under hosted pay), so analytics match the fee wallet contract's on-chain 99/1 split — see [Revenue model](/revenue-model).
+Nibgate does not need to custody funds to show earnings. It records payment events and receipt references after the creator site completes an unlock. Receipts store the gross `amount` plus a derived `protocolFee` (1% under hosted pay), to report the expected split; onchain distribution uses the fee at distribution time — see [Revenue model](/revenue-model).
 </Callout>
 
 ## Unlock model
@@ -24,7 +24,7 @@ One reliable path powers every rail:
 one resource -> one payment -> one verified unlock receipt -> one entitlement -> one unlock proof
 ```
 
-The entitlement is **lifetime** for paid unlocks: once a receipt exists, the wallet keeps access even after the proof expires or browser storage clears (the server re-issues a fresh proof on every legit visit). Free grants are re-granted per visit and are *not* lifetime. Metered streaming, metered reading, passes, and agent quotas are future unlock strategies; they should still produce receipt events that can be indexed by Nibgate.
+On hosted Nibshare and Subblogs, a paid entitlement persists while the resource remains reachable and access has not been revoked or banned: once a receipt exists, the wallet keeps access even after the proof expires or browser storage clears (the server re-issues a fresh proof on every legit visit). Existing active free entitlements may also continue granting access; removing a whitelist entry alone does not revoke the entitlement. The generic SDK does not add a persistent entitlement store automatically. Metered streaming, metered reading, passes, and agent quotas are future unlock strategies; they should still produce receipt events that can be indexed by Nibgate.
 
 ## Unlock proofs (the short-lived cache)
 
@@ -33,11 +33,11 @@ Proofs are the browser/agent cache over the database; they are bindable and shor
 - **Nibshare — server-minted**: `{wallet}.{iat}.{exp}.{mac}`, `mac = HMAC-SHA256("nibshare:{shareId}:{wallet}:{iat}:{exp}")` keyed by `NIBGATE_GATEWAY_SECRET`/`NIBGATE_PROOF_SECRET`. 12h window.
 - **Subblogs — SDK-signed**: unlock token minted by `createNibgateServer(...)` after proof verification, 12h TTL.
 
-An expired proof is **harmless** — entitlements + receipts are checked *before* proof freshness, so the server simply re-mints on the next legit visit. The `x-nibgate-payment-proof` header carries the proof to media/document routes; `?wallet=` on the query can authenticate `<img>`/`<audio>` tags that cannot send headers.
+An expired proof is **harmless** — entitlements + receipts are checked *before* proof freshness, so the server simply re-mints on the next legit visit. The `x-nibgate-payment-proof` header carries the proof to media/document routes; `?proof=` supports media elements that cannot send headers. A `?wallet=` value alone is only a claim; the server must corroborate possession with a matching session or supported ownership signature before granting wallet-based access.
 
 ## Payment idempotency: one grant per payment
 
-x402 has no native payment id — the settlement `txHash` is the only stable identity. Both backends enforce a unique `(paymentNonce=txHash, resourceId)` index and do find-or-create on grant. A replayed proof hits the stored receipt and returns `{receipt, replay: true}` — no second grant, no double unlock count, no double event. This is the #1 x402 production failure mode (248 grants per single payment measured on a live endpoint without the guard).
+When a settlement `txHash` is available, hosted receipt idempotency uses it as the payment nonce. Gateway responses may also carry an authorization/payment identifier while settlement is deferred. Both backends enforce a unique `(paymentNonce=txHash, resourceId)` index and do find-or-create on grant. A replayed proof hits the stored receipt and returns `{receipt, replay: true}` — no second grant, no double unlock count, no double event. This prevents repeated verification of the same settled transaction from creating duplicate receipts.
 
 ## Receipt types
 
@@ -81,31 +81,35 @@ The server verifies on-chain (`createTransferVerifier`): the transaction mined s
 
 ```ts
 import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'
+import { encodeFunctionData, parseUnits, parseAbi } from 'viem'
+
+const usdcTransferAbi = parseAbi(['function transfer(address to, uint256 amount) returns (bool)'])
 
 const result = await payWithTransfer(resource, {
   accessPath: '/api/nibgate/access',
   checkout: createTransferCheckout(resource, {
     // Broadcast the transfer from the connected wallet; return the txHash.
-    sendTransfer: async ({ recipient, amount, currency }) =>
-      (await walletClient.sendTransaction({
+    sendTransfer: async ({ recipient, amount }) =>
+      ({ txHash: await walletClient.sendTransaction({
         account,
-        to: recipient,
+        to: '0x3600000000000000000000000000000000000000', // USDC token contract
         value: 0n,
-        data: encodeFunctionData({ abi: usdcTransferAbi, args: [recipient, parseUnits(amount, 6)] })
-      }))
-  })
+        data: encodeFunctionData({ abi: usdcTransferAbi, functionName: 'transfer', args: [recipient, parseUnits(amount, 6)] })
+      }) })
+  }).pay,
+  signOwnership: ({ message }) => walletClient.signMessage({ account, message })
 })
 ```
 
 ### Enabling hub event reporting
 
-After a successful x402 payment, the SDK automatically emits `payment_completed` and `unlock_completed` events to the Hub — **if** the creator site has these env vars set:
+After successful Gateway payment through `accessResponse` or `payAndUnlockResponse`, the SDK emits `payment_completed` and `unlock_completed` events to the Hub — **if** the creator site has these env vars set:
 
 | Env var | Purpose |
 |---------|---------|
 | `NIBGATE_SITE_ID` | Hub website UUID |
 | `NIBGATE_SITE_TOKEN` | Hub website verify token |
-| `NIBGATE_API_BASE` | Hub API URL (e.g. `https://nibgate.xyz`) |
+| `NIBGATE_API_BASE` | Hub API URL (e.g. `https://api.nibgate.xyz`) |
 
 Without these, x402 payments still work and return unlock proofs, but unlock counts and revenue on Explore do not update.
 
@@ -117,7 +121,7 @@ Use this when the payment can link to an Arc testnet transaction hash or Arcscan
 
 The hub backend exposes Circle Gateway helper status on both rails via the shared `packages/internal/src/payments.js`:
 
-- `POST /api/nibshare/gateway/balance` (hub) and `GET /api/nibgate/gateway/balances` (subblogs) — return the depositor's testnet USDC balance (needs `CIRCLE_API_KEY` set on the backend; response shows `{ balance: "0.00 USDC" }`).
+- `POST /nibshare/gateway/balance` (hub) and `GET /api/nibgate/gateway/balances` (subblogs) — return the depositor's balance on the configured Gateway network; the response shape and required authorization depend on the surface.
 - Browser deposits use the selected wallet to approve USDC and deposit it into the Gateway contract. Nibgate does not custody the wallet.
 
 The SDK 0.4.40 and wallet 0.4.31 shared React and browser/CDN deposit flow waits for a successful

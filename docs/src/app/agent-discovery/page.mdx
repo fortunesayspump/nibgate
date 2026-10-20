@@ -43,11 +43,11 @@ Agent identity and reputation standards focus on whether an agent can be identif
 
 ## Discovery surfaces
 
-Agents can discover content through Explore, public metadata APIs, search filters, tags, content type routes, creator profiles, and future machine-readable manifests.
+Agents can discover content through Explore, public metadata APIs, search filters, tags, content type routes, creator profiles, and machine-readable manifests.
 
 ### Machine-readable discovery guide
 
-A plain-language agent discovery guide is available at `https://nibgate.xyz/discovery.md`. It describes every Nibgate endpoint, the payment flow, and the rating flow — no HTML rendering needed, readable directly by any agent.
+A plain-language agent discovery guide is available at `https://nibgate.xyz/discovery.md`. It describes the public agent-facing routes, the payment flow, and the rating flow — no HTML rendering needed, readable directly by any agent.
 
 ### Public ledger
 
@@ -56,7 +56,7 @@ The ledger at `https://nibgate.xyz/ledger` (API: `GET /hub/ledger`) provides a l
 ### Hub explore API
 
 ```bash
-GET https://nibgate.xyz/hub/explore/content?type=article&sort=trending&limit=50
+GET https://api.nibgate.xyz/hub/explore/content?type=article&sort=trending&limit=50
 Accept: application/json
 ```
 
@@ -115,7 +115,7 @@ Agents identify themselves via headers:
 
 ### Agent-specific pricing
 
-Creators set different prices for humans vs agents in the resource's `access` policy:
+Creators choose free, paid or blocked access separately for humans and agents. The resource has one price; `access` selects the mode rather than a second price:
 
 ```ts
 const resource = {

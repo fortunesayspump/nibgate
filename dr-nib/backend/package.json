@@ -12,6 +12,8 @@
     "start": "node src/server.js",
     "start:prod": "prisma generate --schema=./prisma/schema.prisma && node src/server.js",
     "start:private-broker": "prisma generate --schema=./prisma/schema.prisma && node src/privacy/private-broker-main.js",
+    "start:private-funding": "prisma generate --schema=./prisma/schema.prisma && node src/privacy/private-funding-main.js",
+    "start:private-watchdog": "prisma generate --schema=./prisma/schema.prisma && node src/privacy/phala-wake-watchdog.js",
     "worker": "node src/worker.js",
     "worker:prod": "prisma generate --schema=./prisma/schema.prisma && node src/worker.js",
     "db:push": "npx prisma db push --schema=./prisma/schema.prisma",
@@ -45,12 +47,15 @@
     "mammoth": "^1.13.0",
     "pdfkit": "^0.20.2",
     "pptxgenjs": "^4.0.1",
+    "quickjs-emscripten": "0.32.0",
     "railway": "^3.12.0",
     "sharp": "0.35.5",
     "tesseract.js": "7.0.0",
     "unpdf": "^1.8.1",
     "viem": "^2.54.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "jsdom": "26.1.0",
+    "@mozilla/readability": "0.6.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",

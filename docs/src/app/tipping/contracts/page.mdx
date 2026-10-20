@@ -6,16 +6,12 @@ The no-key per-domain boxes behind held tips. One factory per network deploys id
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    H["Hub (offchain)"] -->|"release(domain, creator)"| K["keeper → factory.release()"]
-    H -->|"refund(domain, payer, amount)"| K
-    F["TipHoldingFactory"] -->|"deploy-if-needed (CREATE2)"| B["TipHoldingWallet (per domain)"]
-    K --> B
-    B -->|"net (release)"| C["creator"]
-    B -->|"cut (release)"| T["treasury"]
-    B -->|"full, no fee (refund)"| P["payer"]
-    O["owner (treasury)"] -->|"setKeeper / setOwner"| F
+```text
+Payer → deterministic per-domain contract
+Hub authorization → factory owner/keeper relay
+  ├─ release(domain, creator) → creator + treasury split
+  └─ refund(domain, payer, amount) → payer
+Factory owner → rotate keeper/owner
 ```
 
 Nothing holds a key to a box. The wallets have no owner-only withdrawal: the only exits are `release` (creator + treasury split) and `refund` (payer in full), and both are callable solely by the factory during a factory-level call.
@@ -28,7 +24,7 @@ Nothing holds a key to a box. The wallets have no owner-only withdrawal: the onl
 | Keeper | hub key (`0x796a…`) | hub hot key (`0x0Ac8…`) | `release`, `refund` on the factory |
 | Anyone | — | — | `deploy`, `predict`, `walletFor` (permissionless reads/deploys) |
 
-The owner stays authoritative but cannot extract funds — there is no owner-withdraw function. The keeper only acts on hub-verified requests.
+There is no direct owner-withdraw function, but both the owner and keeper may call `release` and `refund` with recipient arguments. The contract does not verify website ownership, payer signatures or Hub receipt rows itself. Correct recipient authorization depends on the Hub and these privileged keys.
 
 ## Addresses
 
@@ -81,14 +77,14 @@ Key reverts: `factory-only` (direct calls to a wallet), `owner-or-keeper` (stran
 
 ## Gas notes
 
-A first touch of a domain deploys the box: ~979k gas (~$0.02 at 20 gwei). Later operations on the same box are ~65k gas (~$0.001). USDC transfers run ~49k gas (~$0.001). **Keep the keeper funded** — claims and refunds fail without relayer gas.
+A first touch of a domain deploys the box: deployment gas in addition to the release/refund call. Later operations reuse the deployed box. Actual costs depend on gas used and the configured network’s gas price. **Keep the keeper funded** — claims and refunds fail without relayer gas.
 
 ## Security properties
 
-- **No custody:** funds rest in boxes no key controls; the hub only ever records rows and relays hub-verified calls.
-- **Payer-only refunds:** the contract sends to the `payer` argument the hub computed from its `held` rows; a valid signature can never redirect funds to a third party.
+- **Contract-held funds with privileged relays:** boxes have no EOA private key. The factory owner/keeper authorizes exits; Hub checks bind the supplied recipients to verified claims and payer records.
+- **Payer refund policy:** the Hub verifies the payer and computes the refund from held rows. The wallet contract trusts the factory’s `payer` argument; it does not independently enforce original-payer identity.
 - **Atomic splits:** `release` pays creator and treasury in one transaction — no half-paid state.
-- **No double-spend:** a released box is empty (`refund` reverts `empty` afterwards); a refunded hold leaves its rows `refunded`, excluded from future claim sweeps.
+- **Balance bounds and indexing:** a release distributes the current balance; a refund is capped by the current balance. The Hub tracks claimed/refunded rows. Database and chain completion are separate, so uncertain relay outcomes require reconciliation before another relay.
 - **Single-wallet binding:** the hub records one verified wallet per domain; a later different wallet returns `409`, never auto-release.
 
 See [Nib Tips](/tipping) for the product flows and the [agent flow](/tipping/agent-flow) for exact request shapes.

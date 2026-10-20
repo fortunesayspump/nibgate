@@ -361,6 +361,10 @@ async function openTipWindow(content: CardInput['content'], pageWallet: string) 
 async function main() {
   const shared = window as any;
   shared.__nibgateCardCleanup?.();
+  if(!isTippableUrl(window.location.href)){
+    document.querySelectorAll(`[${HOST_ATTR}]`).forEach(el=>el.remove());
+    return;
+  }
   if (shared.__nibgateCardResume) window.removeEventListener('pageshow', shared.__nibgateCardResume);
   shared.__nibgateCardResume = (event: PageTransitionEvent) => { if (event.persisted) void main(); };
   window.addEventListener('pageshow', shared.__nibgateCardResume);

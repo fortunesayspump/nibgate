@@ -93,3 +93,12 @@ test('late creator metadata triggers reassessment without changing article text'
     assert.ok(f.host());
   } finally { f.close(); }
 });
+
+for(const url of ['https://nibgate.xyz/explore','https://testnet.nibgate.xyz/explore','https://docs.nibgate.xyz/guide','http://localhost:3001/explore','http://127.0.0.1:3001/dr-nib/research','http://[::1]:3001/explore']){
+ test(`automatic controls and assessment stay off first-party app ${url}`,async()=>{
+  const f=fixture(article(),'',url);try{await f.tick(11000);assert.equal(f.host(),null);assert.equal(f.messages.length,0)}finally{f.close()}
+ });
+}
+test('a similarly named external creator is not treated as Nibgate',async()=>{
+ const f=fixture(article(),'','https://nibgate.xyz.creator.example/tutorial');try{await f.tick(0);assert.ok(f.host())}finally{f.close()}
+});

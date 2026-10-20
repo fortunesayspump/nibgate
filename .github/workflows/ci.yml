@@ -77,7 +77,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Agent trajectory evals (loop, stops, lessons)
-        run: pnpm --filter @nibgate/drnib-backend eval:agent
+        run: pnpm --filter @nibgate/dr-nib-backend eval:agent
 
   extension:
     runs-on: ubuntu-latest

@@ -2,7 +2,9 @@ import { Callout } from 'nextra/components'
 
 # Content encryption
 
-All Subblogs content — **free and paid** — is encrypted **at rest**: the blog row and object storage never hold a post body, gallery image, audio file, uploaded video, or document as plaintext, so a database or storage leak does not expose the content. Only the starred cover image is stored in the clear.
+This page describes server-side storage encryption for creator content. Dr. Nib's [private research architecture](/dr-nib/confidential) instead encrypts research inputs in the browser and releases processing keys only to a verified worker; its hosted-model disclosures and vault recovery are separate.
+
+All Subblogs content — **free and paid** — is encrypted **at rest**: the blog row and object storage never hold a post body, gallery image, audio file, uploaded video, or document as plaintext, so new encrypted records keep protected content out of plaintext storage. Covers, public previews, metadata and external embeds remain public; legacy records may retain earlier storage formats.
 
 All cryptography lives in `@nibgate/sdk/server` (`packages/nibgate/src/server/crypto.js`). The subblog backend uses these primitives, never its own crypto.
 
@@ -10,45 +12,20 @@ Encryption is **confidentiality at rest, not access control**. Free posts are de
 
 ## The lifecycle at a glance
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant E as Editor (admin UI)
-    participant B as Subblog backend
-    participant V as Viewer (browser/agent)
-
-    rect rgb(232, 242, 255)
-    Note over E,B: PHASE 1 · UPLOAD — encrypt before storage
-    E->>B: POST /api/upload (multipart)
-    B-->>E: 200 + storageRef + encryptedKey (base64)
-    Note over E,B: ciphertext .bin → R2 · keys only in DB
-    end
-
-    rect rgb(255, 244, 230)
-    Note over V,B: PHASE 2 · FREE READ — server decrypts, no proof
-    V->>B: GET /writing/:slug
-    B-->>V: bodyMarkdown (decrypted server-side)<br/>media streamed via /api/nibgate/media proxy
-    end
-
-    rect rgb(232, 255, 235)
-    Note over V,B: PHASE 3 · PAID READ — proof-gated
-    V->>B: GET /api/nibgate/media/:postId/photo?index=N
-    B-->>V: 402 + x402 payment challenge
-    V->>B: retry + x-nibgate-payment-proof header
-    Note over E,B: fetch .bin from R2 → decrypt server-side
-    B-->>V: 200 plaintext · Cache-Control: private
-    end
+```text
+Upload → server encrypts with content key → ciphertext storage + wrapped key
+Read → access decision → server unwraps/decrypts → authorized plaintext response
 ```
 
 ## Threat model
 
 Encryption protects against:
 
-- A leaked `blogPost` table or R2 bucket — ciphertext only, no keys in storage.
+- A leak of newly encrypted content rows or ciphertext blobs without the backend KEK. Wrapped keys do not help an attacker without that secret; legacy raw-key rows do not have the same protection.
 - A public object-storage URL guessing game — encrypted blobs are served as `application/octet-stream` and the plaintext never lives at a stable public URL.
 - Tampering — AES-GCM authenticates ciphertext; a modified blob fails `decryptBytes` with an auth-tag error before any plaintext is produced.
 
-It does **not** prevent: screenshotting during a legitimate viewing session, or a determined user re-reading content they already paid for. Encryption is confidentiality-at-rest, not DRM.
+The server receives plaintext and holds decryption authority. A compromised server or stolen KEK can decrypt content; this is not Dr. Nib’s client-encrypted trust model. It also does **not** prevent screenshotting during a legitimate viewing session, or a determined user re-reading content they already paid for. Encryption is confidentiality-at-rest, not DRM.
 
 ## Primitives
 
@@ -90,19 +67,9 @@ Video posts that use a YouTube URL only store the external `videoUrl` — the ac
 
 The editor uploads all post media to the **encrypted** upload route (`POST /api/upload`, `subblogs/backend/src/routes/v1/upload.route.js:78`). The route always encrypts when R2 is configured — there is no `?encrypted=1` flag anymore. The image optimization pipeline runs **before** encryption, so encrypted blobs are already WebP; the ciphertext then replaces the file bytes.
 
-```mermaid
-flowchart TD
-    E["Editor (admin UI)<br/>POST /api/upload (multipart)"]
-    O["optimize: auto-rotate, resize ≤2560px, WebP q90"]
-    K["generateContentKey() → 32-byte random AES-256 key"]
-    C["AES-256-GCM encryptBytes<br/>packCipherBlob → iv ‖ tag ‖ ciphertext"]
-    W["wrapContentKey(DEK)<br/>KEK-wrapped envelope"]
-    U["putBlob .bin → R2<br/>key: blog/{siteId}/enc/media/{ts}-{rand}.bin"]
-    D["post row keeps per item:<br/>storageRef + wrapped encryptedKey + contentType + caption"]
-
-    E --> O --> K --> C --> W --> U
-    U -->|"returns storageRef + wrapped encryptedKey"| E
-    E --> D
+```text
+Editor upload → optimize images → random content key → AES-256-GCM
+  → ciphertext in R2 + envelope-wrapped key returned to the owner editor
 ```
 
 The route returns a `storageRef` (the R2 object key) plus the KEK-wrapped key; the post's `media` JSON stores **only** `{ storageRef, encryptedKey, contentType, caption }` per item (`normalizeMediaForStorage`, `subblogs/backend/src/services/blog.service.js:26`). No plaintext URL or raw key is ever persisted for gallery media, audio, video, or documents. When R2 is not configured (local dev only), the route falls back to a plaintext file under `/uploads/` and returns `{ url }` — encryption is on the same switch as R2 (`ENCRYPT_ENABLED`).
@@ -111,15 +78,9 @@ The route returns a `storageRef` (the R2 object key) plus the KEK-wrapped key; t
 
 The cover is the one image a gallery must show without payment — it anchors the feed card, the post page hero, and the lock teaser. It is produced by `extractCoverFromMedia` (`subblogs/backend/src/services/blog.service.js:62`): the starred image's `storageRef` is sent as `coverKey`, the server decrypts that single blob, sniffs its real mime from magic bytes, re-uploads the plaintext, and drops the item from the gallery.
 
-```mermaid
-flowchart TD
-    A["Editor stars an image<br/>coverKey = item.storageRef"] --> C["extractCoverFromMedia(media, coverKey, siteId)"]
-    C --> D["find item where storageRef === coverKey"]
-    D --> E["getBlob + unpackCipherBlob + decryptBytes"]
-    E --> F["sniff mime from magic bytes<br/>(JPEG/PNG/GIF/WebP)"]
-    F --> G["re-upload plaintext as<br/>blog/{siteId}/{ts}-{rand}.{ext}"]
-    G --> H["coverUrl = public URL<br/>cover item spliced out of gallery"]
-    H --> I["post row: coverUrl + remaining encrypted media"]
+```text
+Starred encrypted gallery image → server unwraps/decrypts
+  → publish plaintext cover WebP → remove that image from the private gallery
 ```
 
 Extraction runs on both create and update whenever a cover is starred and R2 is enabled (`blog.service.js:169`, `:255`) — it is not limited to paid posts. Unpaired `coverKey`s (no matching `storageRef`) fall through silently and leave the gallery untouched.
@@ -145,28 +106,9 @@ Documents follow the same split (`nibgate.route.js:256`, `:271`): free documents
 
 The media route is where the encryption actually pays off:
 
-```mermaid
-flowchart TD
-    V["Viewer (browser/agent)"]
-    B["Subblog backend"]
-    R["R2 object storage"]
-    M{"media[index] has<br/>storageRef + encryptedKey?"}
-    N["404 Not found"]
-    P{"post is paid?"}
-    U{"valid unlock proof in<br/>x-nibgate-payment-proof header?"}
-    CH["402 + payment challenge"]
-    G["getBlob(storageRef)<br/>unpackCipherBlob + decryptBytes(base64 key)"]
-
-    V -->|"GET /api/nibgate/media/:postId/photo?index=N"| B
-    B -->|"resolve media[index] → storageRef + encryptedKey"| M
-    M -- no --> N
-    M -- yes --> P
-    P -- no (free post) --> G
-    P -- yes --> U
-    U -- no proof --> CH
-    U -- yes --> G
-    G -->|"getBlob(storageRef)"| R
-    G -->|"200 plaintext · Cache-Control: private, max-age=300"| V
+```text
+Media request → reachability and access checks → resolve encrypted blob
+  → unwrap key → authenticate/decrypt → stream private response
 ```
 
 The unlock proof is carried in the `x-nibgate-payment-proof` request header and verified by `isUnlocked` (`packages/nibgate/src/server/access.js:45`). The `private` cache directive keeps plaintext out of shared/proxy caches; there is no public object URL for it.

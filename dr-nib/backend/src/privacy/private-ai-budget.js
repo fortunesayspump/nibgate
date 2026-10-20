@@ -98,7 +98,11 @@ export function createPostgresPrivateAiBudgetLedger(db){
         if(!run||run.deletedAt||run.userId!==tenantId||tenantId!==ownerUserId||!isConfidentialRun(run))throw fail('PRIVATE_AI_OWNER_ONLY');
         if(await tx.privateAiBudgetReservation.findUnique({where:{runId},select:{id:true}}))throw fail('PRIVATE_AI_ALREADY_RESERVED');
         const sum=await tx.privateAiBudgetReservation.aggregate({where:{monthKey:month},_sum:{committedMicroUsd:true}});
-        const spent=BigInt(sum?._sum?.committedMicroUsd??0);
+        // Old installations without 0009 cannot dispatch workflow calls. Keep
+        // 0008 compatible while combining totals whenever its table exists.
+        const workflowTable=tx.privateInferenceCall?await tx.$queryRaw`SELECT to_regclass(format('%I.%I',current_schema(),'PrivateInferenceCall'))::text AS name`:null;
+        const workflow=workflowTable?.[0]?.name?await tx.privateInferenceCall.aggregate({where:{monthKey:month},_sum:{committedMicroUsd:true}}):null;
+        const spent=BigInt(sum?._sum?.committedMicroUsd??0)+BigInt(workflow?._sum?.committedMicroUsd??0);
         if(spent<0n||spent>monthlyAiCapMicroUsd||amount>monthlyAiCapMicroUsd-spent)throw fail('PRIVATE_AI_MONTHLY_CAP');
         await tx.privateAiBudgetReservation.create({data:{runId,tenantId,monthKey:month,model,maxCalls,
           maxPromptBytesPerCall,maxOutputTokensPerCall,reservedMicroUsd:amount,committedMicroUsd:amount,status:'reserved'}});

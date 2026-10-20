@@ -91,11 +91,11 @@ Paid posts use USDC gating. Each paid post can have its own price. The payment f
 
 1. A visitor lands on a paid post.
 2. The unlock UI shows the price and a connect/pay button.
-3. The visitor pays USDC through the Circle Gateway on ARC testnet.
-4. The content is unlocked and the creator receives the funds.
+3. The visitor pays USDC on the configured Arc network through Gateway or the supported direct-transfer checkout.
+4. The server verifies the payment and unlocks the content. Hosted-pay revenue reaches the resolved fee wallet, then distribution pays the creator and protocol shares.
 
 <Callout type="important">
-You set the price per post in the admin dashboard. Funds go directly to your connected wallet via the Circle Gateway — Nibgate does not custody earnings.
+You set the price per post in the admin dashboard. With hosted pay enabled, payments route through the recipient’s fee wallet contract. Gateway credit must become withdrawable before distribution; a successful unlock does not mean the creator EOA has already received its payout.
 </Callout>
 
 ## Cover images, excerpts, and tags

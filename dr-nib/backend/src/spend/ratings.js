@@ -65,14 +65,21 @@ async function resolveContentId(url, fetchImpl) {
  * the wallet signs only after every check passes.
  */
 export async function rateContent({ runId, contentId, url, stars, unlockRef, fetchImpl } = {}) {
+  if(!isSpendConfigured())throw Error('agent spending is not configured on this deployment');
+  if(!Number.isFinite(Number(stars))||Number(stars)<1||Number(stars)>5)throw Error('stars must be 1-5');
+  if(!unlockRef||!String(unlockRef).trim())throw Error('rating needs unlockRef (the unlock_content payment tx) — ratings without an unlock receipt do not count, unlock the piece first');
+  const {balance}=await budgetState(runId);if(balance<MIN_BALANCE_USD)throw Error(`run balance $${Number(balance).toFixed(2)} is below the $${MIN_BALANCE_USD.toFixed(2)} rating dust gate`);
+  return executePublicRating({contentId,url,stars,unlockRef,fetchImpl});
+}
+
+/** Public Hub metadata only; private run admission belongs to the money service. */
+export async function executePublicRating({contentId,url,stars,unlockRef,fetchImpl}={}){
   if (!isSpendConfigured()) throw new Error('agent spending is not configured on this deployment');
   const s = Number(stars);
   if (!Number.isFinite(s) || s < 1 || s > 5) throw new Error('stars must be 1-5');
   if (!unlockRef || !String(unlockRef).trim()) {
     throw new Error('rating needs unlockRef (the unlock_content payment tx) — ratings without an unlock receipt do not count, unlock the piece first');
   }
-  const { balance } = await budgetState(runId);
-  if (!(balance >= MIN_BALANCE_USD)) throw new Error(`run balance $${Number(balance).toFixed(2)} is below the $${MIN_BALANCE_USD.toFixed(2)} rating dust gate`);
   const id = contentId || (url ? await resolveContentId(url, fetchImpl) : null);
   if (!id) throw new Error('contentId or url is required');
   const f = fetchImpl || fetch;

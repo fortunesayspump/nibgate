@@ -21,7 +21,7 @@ There is **no** plaintext body or media object. `ciphertextUrl` (`https://pub-â€
 |---|---|---|
 | Money | x402 payment, USDC settlement | **Arc** testnet (`eip155:5042002`) / mainnet (`eip155:5042`) via Circle Gateway |
 | Keys/access | content key K, entitlements, decryptMode | **Nibgate backend** (server-mode only) |
-| Integrity | `contentHash` keccak256 commitment | Arc on-chain + DB |
+| Integrity | `contentHash` keccak256 commitment | Stored in the share DB row; not automatically published onchain |
 | Bytes | ciphertext | **Cloudflare R2** (`storageProvider: 'nibgate'`) |
 
 `decryptMode` is always `'server'` and `keyProvider` always `'server'`: K never leaves
@@ -42,7 +42,7 @@ ciphertext. The client-mode / Lit paths are planned, not implemented.
 
 ## Upload path
 
-1. Client uploads raw media to `POST /api/uploads/content?encrypted=1` (cookie auth).
+1. Client uploads raw media to `POST /uploads/content?encrypted=1` (cookie auth).
    Images are optimized to WebP (sharp: rotate, â‰¤2560px, q90) before encryption.
 2. Server encrypts with AES-256-GCM, stores the `.bin` under `nibshare/{userId}/enc/media/`,
    and writes a public WebP preview at `nibshare/{userId}/public/preview/` (images only).
@@ -64,7 +64,7 @@ R2_PUBLIC_URL         # required (public CDN base for previews + ciphertextUrl)
 | Content | Cap | Enforcement |
 |---|---|---|
 | Nibshare body (text/article) | 512 KB | `POST /nibshare` |
-| Nibshare media per item | 30 MB | `POST /api/uploads/content` |
+| Nibshare media per item | 30 MB | `POST /uploads/content` |
 
 The future Arweave/Lit tier plan (permanent storage, creator-paid fees, decentralized
 keys) is tracked separately in `STORAGE-TIER-PLAN.md`; none of it is live yet.

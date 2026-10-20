@@ -1,9 +1,8 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { WagmiProvider } from 'wagmi'
-import { useAppKitState } from '@reown/appkit/react'
 import { createNibgateWallet } from './appkit.js'
 import { ArcConnectionNotice } from './ArcConnectionNotice.jsx'
 
@@ -18,18 +17,16 @@ const APPKIT_CONNECTION_KEY = '@appkit/connection_status'
 // an existing session, so a wiped cache degrades gracefully to the connect
 // button instead of crashing the page.
 function useAutoReconnect() {
-  const { activeChain, connectingWallet, initialized, loading } = useAppKitState()
-  const [appkitConnected, setAppkitConnected] = useState(false)
-
-  useEffect(() => {
-    try {
-      setAppkitConnected(localStorage.getItem(APPKIT_CONNECTION_KEY) === 'connected')
-    } catch {
-      setAppkitConnected(false)
-    }
-  }, [])
-
-  return appkitConnected && initialized && !loading && !connectingWallet && Boolean(activeChain)
+  // Wagmi Hydrate consumes reconnectOnMount only in its first mount effect.
+  // Waiting for an AppKit effect/activeChain made this permanently false on
+  // reload, even with a valid saved session. Read only the existing marker;
+  // absent/cleared storage still never triggers unsolicited authorization.
+  const [connected]=useState(()=>{
+    if(typeof window==='undefined')return false;
+    try{return localStorage.getItem(APPKIT_CONNECTION_KEY)==='connected';}
+    catch{return false;}
+  });
+  return connected;
 }
 
 export function NibgateWalletProvider({ children, ...options }) {

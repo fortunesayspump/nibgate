@@ -12,6 +12,16 @@
 // (see prompts.js) and never decides anything — the model here generates, JEV
 // decides. Callers own thresholds and fallbacks.
 import { costUsd, defaultEffort, EFFORTS, fallbackModels, routerModel } from './pricing.js';
+import {AsyncLocalStorage} from 'node:async_hooks';
+const privateLlmScope=new AsyncLocalStorage();
+// The measured guest reuses generation/validation without inheriting an
+// ordinary HTTP transport, API key, router or fallback. The port itself must
+// still verify the channel and signed receipt for every inference.
+export async function withPrivateLlmPort(port,operation){
+  if(port?.privateVerifiedTransport!=='phala-aci-v1'||typeof port.chat!=='function'||typeof operation!=='function')throw Error('Private generation unavailable');
+  const scope={port,active:true};
+  return privateLlmScope.run(scope,async()=>{try{return await operation()}finally{scope.active=false}});
+}
 
 export function llmConfig() {
   const baseUrl = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
@@ -25,6 +35,8 @@ export function llmConfig() {
 }
 
 export function isLlmConfigured() {
+  const scope=privateLlmScope.getStore();
+  if(scope){if(!scope.active)throw Error('Private generation scope expired');return true;}
   return Boolean(llmConfig().apiKey);
 }
 
@@ -116,6 +128,8 @@ function parseSseBlock(block) {
  * @returns {Promise<{text:string, model:string, effort:string, usage:object, raw:object}>}
  */
 export async function chat(opts) {
+  const scope=privateLlmScope.getStore();
+  if(scope){if(!scope.active)throw Error('Private generation scope expired');return scope.port.chat(opts);}
   const {
     model = routerModel(),
     effort = defaultEffort(),

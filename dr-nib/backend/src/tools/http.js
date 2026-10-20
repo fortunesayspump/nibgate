@@ -118,6 +118,8 @@ export async function publicFetch(raw, options = {}, fetchImpl = fetch) {
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const response = await checkedFetch(current, {...options, redirect:'manual'}, fetchImpl, MAX_FETCH_BYTES);
     if (![301,302,303,307,308].includes(response.status)) return response;
+    if(options.redirect==='manual')return response;
+    if(options.redirect==='error')throw Error('redirect-refused');
     const location=response.headers.get('location');
     if(!location || hop===MAX_REDIRECTS) throw new Error('redirect-limit');
     current=await assertPublicUrl(new URL(location,current.url).toString());

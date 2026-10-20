@@ -154,7 +154,7 @@ Once the receipt is indexed and verified, that wallet or agent becomes eligible 
 
 ### Rating is submitted
 
-The eligible wallet signs a deterministic Nibgate rating message in the MVP. Later, that can become an onchain rating transaction indexed by Nibgate. Analytics events can support ranking and context, but signed/onchain proof is what should drive trust.
+The wallet can submit an onchain rating transaction and have it indexed through the reputation API. The prepare endpoint supplies the canonical content hash and contract configuration; the index endpoint verifies the transaction. Analytics events can support ranking and context, but signed/onchain proof is what should drive trust.
 
 ### Reputation updates
 

@@ -1,0 +1,31 @@
+# Local transport rehearsal only; never a production trust endpoint.
+# Explicit image pulls/start are operator actions. No cloud credentials required.
+name: drnib-official-verifier-local
+services:
+  engine:
+    image: ghcr.io/dstack-tee/dstack-verifier:0.6.1@sha256:9f2c07a94efd3d8a1a89268e5faa35e91e3cb345b9c4ab859c86d35142f4f788
+    pull_policy: never
+    platform: linux/amd64
+    restart: "no"
+    cpus: 1
+    mem_limit: 1g
+    volumes:
+      - verifier-cache:/tmp/dstack-verifier/cache
+    networks:
+      default:
+        aliases: [private-verifier.railway.internal]
+  gateway:
+    image: drnib-private-verifier-gateway:local-canary-v2
+    pull_policy: never
+    platform: linux/amd64
+    restart: "no"
+    cpus: 0.25
+    mem_limit: 128m
+    depends_on: [engine]
+    ports: ["127.0.0.1:18080:8080"]
+    environment:
+      PORT: "8080"
+      DRNIB_VERIFIER_UPSTREAM_URL: http://private-verifier.railway.internal:8080/verify
+      DRNIB_VERIFIER_BROWSER_ORIGINS: https://drnib-canary.nibgate.xyz
+volumes:
+  verifier-cache:

@@ -77,14 +77,17 @@ const server = createNibgateServer({
 
 export const GET = server.protect({
   id: "track_drop_01", title: "Midnight Session", type: "music", price: "0.10", path: "/music/midnight-session"
-}, () => streamAudioFileFromR2()) // decrypted only after proof
+}, () => streamAudioFileFromR2()) // handler runs only with allowed access
+
+// Checkout route: verify payment and return the unlock proof.
+export const POST = (request: Request) => server.accessResponse(request, track.resource)
 ```
 
-The `<audio>` element streams through a proof-gated media proxy (`/api/nibgate/media/:id/audio`) — see [Content encryption](/encryption).
+The protected GET checks an existing proof; it does not settle a payment itself. Complete checkout through the POST access route, then send the returned proof on the media request. Encryption/decryption in `streamAudioFileFromR2` is application-owned. Hosted Subblogs use a proof-gated media proxy (`/api/nibgate/media/:id/audio`) — see [Content encryption](/encryption).
 
 ## Video course
 
-Index the public course page, then gate individual lessons, downloads, or bonus clips behind unlocks. Uploaded video files are encrypted at rest and streamed via the media proxy only after proof.
+Index the public course page, then gate individual lessons, downloads, or bonus clips behind unlocks. Hosted Subblogs encrypt uploaded video at rest and serve it through a protected media proxy. A generic SDK integration must implement that storage and streaming layer itself.
 
 ```ts
 import { createGate } from "@nibgate/sdk"
@@ -121,17 +124,23 @@ const server = createNibgateServer({
   network: "eip155:5042002"
 })
 
-export const GET = server.protect({
+const dataset = {
   id: "dataset_market_scraper",
   title: "Market scraper dataset",
   type: "document",
   price: "0.25",
   path: "/api/datasets/market",
   access: { humans: "paid", agents: "paid" }
-}, () => Response.json(buildDataset()))
+}
+
+export const GET = (request: Request) => server.accessResponse(
+  request, dataset, () => Response.json(buildDataset())
+)
 ```
 
-An agent pays via `GatewayClient` (see [x402 gateway receipt](/payments-receipts#x402-gateway-receipt)) and receives the JSON body after the challenge/retry cycle.
+On the payment retry, `accessResponse` returns an unlock proof. Replay that proof in `x-nibgate-payment-proof` on the GET to receive the dataset. Unlike `accessResponse`, `protect` only checks an existing token or free access and otherwise returns a challenge; it does not settle payments.
+
+An agent pays via `GatewayClient` (see [x402 gateway receipt](/payments-receipts#x402-gateway-receipt)) then replays the returned unlock proof to retrieve the JSON body.
 
 ## Example checklist
 

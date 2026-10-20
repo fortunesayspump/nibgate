@@ -79,7 +79,7 @@ const footerMenus = [
   },
 ];
 
-export default function Footer({ showThemeToggle = false }: { showThemeToggle?: boolean }) {
+export default function Footer({ showThemeToggle = false, showExtension = true }: { showThemeToggle?: boolean; showExtension?: boolean }) {
   return (
     <footer className="app__footer footer">
       <nav className="footer-menu" aria-label="Footer menu">
@@ -90,7 +90,7 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
                 <p className="footer-menu__column-heading">{menu.title}</p>
               </div>
               <ul className="footer-menu__list" id={menu.id} data-footer-menu-list>
-                {menu.links.map(([label, href]) => {
+                {menu.links.filter(([label]) => showExtension || label !== "Browser extension").map(([label, href]) => {
                   const isExternal = href.startsWith("http") || href.startsWith("mailto:");
                   return (
                     <li key={label} className="footer-menu__item">
@@ -178,7 +178,7 @@ export default function Footer({ showThemeToggle = false }: { showThemeToggle?: 
               <div className="sign-up-form__inner">
                 <h2 className="sign-up-form__heading heading-three">This Week in Nibgate</h2>
                 <p className="sign-up-form__sub-heading">
-                  Sign up for product notes, creator examples, and mainnet / Nib Tip / extension updates.
+                  {showExtension?"Sign up for product notes, creator examples, and mainnet / Nib Tip / extension updates.":"Sign up for product notes, creator examples, and mainnet / Nib Tip updates."}
                 </p>
                 <NewsletterForm />
               </div>

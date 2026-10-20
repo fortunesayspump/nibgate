@@ -240,3 +240,11 @@ facilitator settlement lost before database completion or add held-tip
 claim/refund recovery.
 
 Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
+
+## Dr. Nib privacy scope
+
+Dr. Nib's private architecture uses browser encryption, verified Phala orchestration and encrypted persistence. Nibgate-operated verification uses the official dstack-verifier and trusts Nibgate's verification service; it is not independent operator verification. Research uses disclosed hosted JEV and authorized OpenRouter/Azure ZDR inference. Ordinary research API/MCP access does not provide this private-project encryption contract; do not send private vault keys or recovery codes to Hub discovery, payment tools or ordinary research endpoints. Saved private project lists, history and reports load without starting the confidential worker; new private actions and explicit resume wake it. See [privacy architecture and data boundaries](https://docs.nibgate.xyz/dr-nib/confidential).
+
+### Held-tip authorization boundary
+
+A holding box has no EOA private key. Its factory owner/keeper can authorize release and refund with recipient arguments; website ownership and original-payer checks are enforced by the Hub, not independently by the wallet contract. Keep the original payment evidence and reconcile an uncertain relay outcome before submitting another relay. See https://docs.nibgate.xyz/tipping/contracts.

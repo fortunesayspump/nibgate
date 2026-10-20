@@ -1,4 +1,4 @@
-# Dr. Nib — the tameion for AI spend
+# Dr. Nib — budgeted research agent
 
 **Ask a question, set a USDC budget, get a cited report with receipts.**
 Dr. Nib is a research agent *and* the business version of itself: the
@@ -8,6 +8,12 @@ generalize to any budget an agent touches.
 ## Current release scope
 
 Funded research is available on Arc testnet and mainnet. The mainnet core and splitter are deployed, the keeper is funded, and the API and worker have the escrow settings; live health reports `acceptingRuns: true`. A signed-in mainnet browser run completed funding, research, report delivery, onchain settlement, and refund on 15 Oct 2026. External escrow review has not been evidenced. Private R2 originals and owner-only previews passed live write/read checks. See `docs/src/app/dr-nib/` for supported behavior and limits, and `TESTS.md` for dated evidence. Historical FLOW/UX documents contain proposals, not shipped-feature guarantees.
+
+## Privacy migration
+
+The implemented private flow encrypts in the browser, processes in a verified Phala worker and persists encrypted results. Phala inference is primary; actual JEV and the authorized Azure/OpenRouter ZDR fallback process disclosed provider-visible context. Targeted real funded reports, recovery, testnet creator spending, exports and settlement/refund passed. Public production cutover remains gated; ordinary API/MCP inputs are not implicitly private.
+
+Start with [privacy/README.md](privacy/README.md) for the documentation map, [current acceptance](privacy/STATUS.md), [remaining production work](privacy/PLAN.md) and [operations](privacy/PRODUCTION.md). Historical experiments and checkpoint logs are preserved under [archive/](archive/README.md). Keep runtime module paths stable; documentation cleanup is not a new image release.
 
 ## Why it exists
 
@@ -112,7 +118,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Gate 1 — wallet policy | **Pending** | no vendor deployable on Arc (CDP dead); the `NibgateSpenderV2` onchain cap is the practical substitute (`GATES.md`) |
 | Gate 2 — spend mandate (onchain cap) | Live direct-tip proof on both networks | Testnet `NibgateSpenderV2` `0x8F636a1a…` was funded with 1 test USDC. Mainnet V2 `0xae39444c…` was funded with 0.05 USDC. Each deployed worker routed a 0.02 USDC creator tip through V2 and received a hub receipt. Recipients are open; held tips and Gateway purchases remain EOA-funded. |
 | Frontend UI | Done | `/dr-nib` research / projects / sources / help + detail on testnet and mainnet; review labels unfundable placeholder plans. Settlement receipt, coverage badge + claim×source matrix, version-pinned owner-only report links, version steer display, report Q&A, duplicate runs, feed timestamps + jump-to-latest |
-| Confidential worker (opt-in) | **Preview** | supplied sources + report processed only in a measured Phala guest (browser-sealed HPKE, receipt-bound metering); off by default, fail-closed; no completed live run yet. `CONFIDENTIAL-IMPLEMENTATION.md` |
+| Confidential worker (opt-in) | **Preview** | Browser encryption, verified Phala orchestration and encrypted persistence; disclosed hosted JEV/ZDR research exceptions; funded workflow/recovery/export tests pass. Public production cutover and mainnet private paid-source execution remain gated. [privacy status](privacy/STATUS.md) |
 | **Live end-to-end evidence** | Testnet and mainnet funded lifecycles verified | Funded testnet browser runs 28/29 and QA run 33, seven exports, multi-round JEV decisions and onchain split/refunds verified. Mainnet signed-in intake, private CSV upload, model planning, owner-visible report, JEV write choice, settlement, and 0.410249 USDC refund verified in run `3d7ea349-1510-43d4-a2d8-2dc4fc598f62`. Separate deployed-worker checks proved direct creator tips on both networks and a mainnet x402 article purchase. Autonomous paid-source selection and tipping inside a funded run, plus human-scored quality, remain unproven; see dated `TESTS.md`. QA artifacts remain in ignored `e2e/`. |
 
 `ARCHITECTURE.md` remains the design reference; the historical build order

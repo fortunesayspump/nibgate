@@ -102,12 +102,10 @@ waits until it accumulates past the threshold.
 ### Recover
 `deployIfNeeded(fw1)` materializes the contract at fw2's address (creator = fw1
 — pinned by derivation), then `distribute()` moves the full balance to fw1.
-The next normal sweep pays the real creator 99% + treasury 1%.
+The next normal sweep distributes the first-generation wallet’s balance. Each generation applies its own configured fee, so a misrouted payment can incur a fee at both distributions.
 </Steps>
 
-This ran live on Arc testnet: two ghost wallets holding 1.5 USDC combined were
-detected, deployed, distributed and swept automatically within one keeper cycle
-of the feature deploying.
+Recovery is limited to the configured wallet generations and minimum-balance threshold; it is not a general recovery mechanism for arbitrary recipient mistakes.
 
 ## Exploitability checklist
 
@@ -116,6 +114,6 @@ of the feature deploying.
 | Replay someone else's direct-rail txHash | Ownership signature binds payer + resource (`x-nibgate-tx-owner`); hosted surfaces additionally claim each txHash single-use per content id |
 | Client lies about who should be paid | Hub-side recipient pinning: tracked content records override request-supplied recipients |
 | Fee raised retroactively | `feeBps` mutable only by immutable `feeSetter`, hard-capped by `maxFeeBps` frozen at deploy; timelock for governance changes |
-| Keeper key stolen | Holds no funds and no rights — sweep/distribute are permissionless anyway; worst case is gas spam |
+| Keeper key stolen | Fee-wallet sweeping is permissionless. If the same hot key is also a holding-factory keeper, it separately controls held-tip release/refund relays |
 | Contract at payTo replaced by attacker | Impossible — address is factory-derived; early deployment through the factory creates the identical legitimate wallet |
 | Funds stranded if Nibgate disappears | `distribute()` is permissionless and the split is immutable bytecode; liveness never depends on the operator |

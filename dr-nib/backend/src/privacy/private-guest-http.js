@@ -45,13 +45,13 @@ function publicSession(opened,nonce){
  * audience-bound broker capability; this module deliberately has no permissive
  * default. Nibgate cookies are not accepted by the CVM. Production wiring and
  * egress policy remain separate release gates. */
-export function createPrivateGuestHttpServer({sessions,authenticate,getReport,getJobStatus,diagnosticEvidence,privateReady=false,fullReady=false}){
+export function createPrivateGuestHttpServer({sessions,authenticate,getReport,getJobStatus,diagnosticEvidence,checkTools,privateReady=false,fullReady=false,workflowReady=false}){
   if(typeof sessions?.open!=='function'||typeof sessions?.prove!=='function'||typeof sessions?.execute!=='function'||
      typeof authenticate!=='function'||typeof getReport!=='function')throw new Error('PRIVATE_GUEST_UNAVAILABLE');
   return createServer(async(req,res)=>{
     try{
       const url=new URL(req.url,'http://private-guest.invalid');
-      if(url.pathname==='/health'&&req.method==='GET')return send(res,200,{ok:true,privateReady:privateReady===true,fullReady:fullReady===true});
+      if(url.pathname==='/health'&&req.method==='GET')return send(res,200,{ok:true,privateReady:privateReady===true,fullReady:fullReady===true,...(workflowReady?{workflowReady:true}:{})});
       if(url.pathname==='/v1/private/attestation'&&req.method==='GET'){
         if(typeof diagnosticEvidence!=='function'||url.searchParams.size!==1||! /^[0-9a-f]{64}$/.test(url.searchParams.get('nonce')||''))return fail(res,400);
         const evidence=await diagnosticEvidence(Buffer.from(url.searchParams.get('nonce'),'hex'));
@@ -61,6 +61,12 @@ export function createPrivateGuestHttpServer({sessions,authenticate,getReport,ge
       const identity=await authenticate(req);
       if(!identity||typeof identity.tenantId!=='string'||!identity.tenantId||typeof identity.runId!=='string'||!identity.runId)
         return fail(res,401);
+      if(req.method==='POST'&&url.pathname==='/v1/private/tools/check'){
+        if(typeof checkTools!=='function'||url.searchParams.size)return fail(res,404);
+        const data=await body(req);if(Object.keys(data).length)return fail(res,400);
+        const result=await checkTools();if(!result||!(result.ready===false&&Object.keys(result).join(',')==='ready'||result.ready===true&&Object.keys(result).sort().join(',')==='checks,engine,modelCalls,paymentCalls,ready'&&result.engine==='gvisor'&&result.modelCalls===0&&result.paymentCalls===0&&JSON.stringify(result.checks)===JSON.stringify(['python-numpy-pandas-node','persisted-text-artifact','filesystem-environment-network-isolation','curl-python-https-cache-and-denied-path'])))return fail(res);
+        return send(res,200,result);
+      }
       if(req.method==='POST'&&url.pathname==='/v1/private/sessions'){
         const data=await body(req);
         if(Object.keys(data).sort().join(',')!=='clientNonce,runId'||data.runId!==identity.runId||
@@ -68,7 +74,7 @@ export function createPrivateGuestHttpServer({sessions,authenticate,getReport,ge
         const opened=await sessions.open({tenantId:identity.tenantId,runId:identity.runId,clientNonce:Buffer.from(data.clientNonce,'hex')});
         return send(res,201,publicSession(opened,data.clientNonce));
       }
-      const sessionPath=url.pathname.match(/^\/v1\/private\/sessions\/([0-9a-f-]{36})\/(prove|execute|full-execute)$/);
+      const sessionPath=url.pathname.match(/^\/v1\/private\/sessions\/([0-9a-f-]{36})\/(prove|execute|full-execute|action)$/);
       if(req.method==='POST'&&sessionPath&&UUID.test(sessionPath[1])){
         const data=await body(req);
         if(sessionPath[2]==='prove'){
@@ -79,6 +85,14 @@ export function createPrivateGuestHttpServer({sessions,authenticate,getReport,ge
              typeof proof.clientNonce!=='string'||! /^[0-9a-f]{64}$/.test(proof.clientNonce)||
              typeof proof.challengeDigest!=='string'||! /^[0-9a-f]{64}$/.test(proof.challengeDigest))return fail(res);
           return send(res,200,{verified:true,recipientId:proof.recipientId,clientNonce:proof.clientNonce,sessionId:proof.sessionId,challengeDigest:proof.challengeDigest});
+        }
+        if(sessionPath[2]==='action'){
+          if(!workflowReady||typeof sessions.action!=='function')return fail(res);
+          if(Object.keys(data).join(',')!=='sourceEnvelope')return fail(res,400);
+          const result=await sessions.action({sessionId:sessionPath[1],sourceEnvelope:data.sourceEnvelope,tenantId:identity.tenantId,runId:identity.runId});
+          if(!result||!UUID.test(result.requestId)||!['complete','processing','uncertain','failed'].includes(result.state))return fail(res);
+          if((['complete','failed'].includes(result.state)||result.state==='uncertain'&&result.envelope!==undefined)&&(!result.envelope||Object.keys(result).sort().join(',')!=='envelope,requestId,state'))return fail(res);
+          return send(res,result.state==='complete'?200:202,result);
         }
         const full=sessionPath[2]==='full-execute';
         if(full&&(fullReady!==true||typeof sessions.executeFull!=='function'))return fail(res);

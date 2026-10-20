@@ -41,7 +41,7 @@ price — non-whitelisted wallets get 403 before any payment.
 
 - a plain string (legacy text body), or
 - an object `{ type: 'article', markdown, media }` where `media` is an array of
-  encrypted media items produced by `POST /api/uploads/content?encrypted=1`
+  encrypted media items produced by `POST /uploads/content?encrypted=1`
   (`{ storageRef, encryptedKey, contentType, name, size }`).
 
 Encryption is always **server-side**: the server generates the content key
@@ -84,7 +84,7 @@ accessible. The slug and share URL remain the same.
 
 ## Uploading media
 
-`POST /api/uploads/content?encrypted=1` (multipart, cookie auth)
+`POST /uploads/content?encrypted=1` (multipart, cookie auth)
 
 Accepts images, audio, video, and documents. Images are optimized to WebP first
 (sharp: rotate, ≤2560px, q90), then AES-256-GCM encrypted and stored as a

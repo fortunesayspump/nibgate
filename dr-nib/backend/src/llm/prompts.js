@@ -24,6 +24,7 @@ export function briefSummary(brief = {}) {
   if (brief.language) lines.push(`Report language: ${brief.language}`);
   if (brief.perspective) lines.push(`Perspective: ${brief.perspective}`);
   if (brief.liveWeb === false) lines.push('Source policy: user-provided sources only (no live web search).');
+  if (brief.searchEnabled===false&&brief.liveWeb===true) lines.push('Source policy: exact owner-approved public URL reads only; web and Hub search are disabled.');
   if (brief.guidance) lines.push(`User steering: ${brief.guidance}`);
   if (brief.exclude) lines.push(`Exclude: ${brief.exclude}`);
   return lines.join('\n') || 'Topic: (unspecified)';
@@ -77,7 +78,7 @@ Evidence collected for this run (the ONLY material you may rely on):
 
 ${evidence || '(no sources were collected)'}
 
-Write about ${targetWords} words for the entire body, excluding the separately assembled abstract and references. Stay concise; do not repeat findings to fill space. Rules:
+Write about ${targetWords} words for the entire body, excluding the separately assembled abstract and references. Stay concise; do not repeat findings to fill space. ${brief.qualityPolicyVersion>=2?"The configured word target is for the body; stay within about 10% above it. A source assertion is not automatically a factual guarantee. Preserve preconditions, exceptions and scope; reconcile conflicting sources, prioritizing official specifications for protocol behavior. Never turn ordinary exception cleanup into a guarantee under process termination, crashes or forced exit. Do not repeat an overbroad claim from a tutorial as established fact. ":""}Rules:
 - Answer every explicit deliverable in the brief, even if the plan omitted it. For numeric document analysis, show each requested grouping separately, keep currencies separate, and explain any duplicate rows without silently removing them.
 - Every factual claim must cite its source as [n].
 - If a source was bought, state its documented acquisition price and decision, but do not state a remaining run balance, refund, or budget share based on that price. The separate settlement receipt supplies final totals.
@@ -211,12 +212,13 @@ Write the conclusion in about ${targetWords} words. Do not append a references l
 /** Round review: distill what a retrieval round established, and propose what to ask next. */
 export function roundReviewMessages({ brief, round, sources = [] } = {}) {
   const system = `${RESEARCH_SYSTEM} You are reviewing one round of research. Return JSON only.`;
+  const reviewLimit=Math.min(12000,Math.max(800,Math.floor(24000/Math.max(1,sources.length))));
   const user = `Brief:
 ${briefSummary(brief)}
 
 Round ${round} collected these sources (title — url — excerpt):
 
-${sources.map((s, i) => `${i + 1}. ${s.title || s.url}\n   ${s.url}\n   ${(s.excerpt || s.text || '').slice(0, 1500)}`).join('\n\n') || '(no sources collected this round)'}
+${sources.map((s, i) => `${i + 1}. ${s.title || s.url}\n   ${s.url}\n   ${brief.qualityPolicyVersion>=2?`Evidence status: ${s.evidenceKind??'retrieved-text'}; ${s.availableCharacters??String(s.text??'').length} characters already stored; showing up to ${reviewLimit}. Omitted text remains available to local search_evidence, not evidence of absence.\n${String(s.text??s.excerpt??'').slice(0,reviewLimit)}`:(s.excerpt || s.text || '').slice(0,1500)}`).join('\n\n') || '(no sources collected this round)'}${brief.qualityPolicyVersion>=2?'\nReview the stored text above. Do not request another fetch merely because a prior preview was shortened. Search excerpts are not full pages; retrieved-text and owner-approved-public-response are already fetched. A source may overstate a guarantee: compare conditions and exceptions against authoritative evidence rather than endorsing every source sentence. Keep retrieval difficulties and operational next steps in chat.':''}
 
 Return JSON with this exact shape:
 {

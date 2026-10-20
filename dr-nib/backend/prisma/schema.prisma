@@ -50,6 +50,8 @@ model ResearchRun {
   decisions   ResearchDecision[]
   events      ResearchEvent[]
   privateObjects PrivateWorkerObject[]
+  privateClientObjects PrivateClientObject[]
+  privateToolCalls PrivateToolCall[]
 
   @@index([userId, updatedAt])
   @@index([status, updatedAt])
@@ -183,7 +185,8 @@ model ResearchExport {
 /// kind: deposit (funds held against the cap, including raises) | spend (drawn
 /// down by a stage) | fee (the platform's cut, taken as spends happen) |
 /// refund (unspent remainder returned when a run settles). Amounts are never
-/// negative; balance is deposits − spends − fees − refunds.
+/// negative. Ordinary balance subtracts fees separately; private settlement
+/// includes the fee within spend, so its balance is deposits − spends − refunds.
 model BudgetLedger {
   id        String   @id @default(uuid())
   runId     String
@@ -288,4 +291,106 @@ model AgentLesson {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// Opaque client-controlled recovery envelopes. No unwrapped key belongs here.
+model PrivateVaultRecord {
+  userId String @id
+  vaultId String @unique
+  revision Int @default(1)
+  recoveryEnvelope Json
+  passkey Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Ciphertext uploaded by clients. Sources may use private object storage;
+/// small manifests and wrapped project keys stay inline. Revisions are CAS.
+model PrivateClientObject {
+  id String @id @default(uuid())
+  runId String
+  run ResearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  vaultId String
+  objectId String
+  kind String
+  revision Int
+  envelope Json?
+  objectKey String?
+  digest String
+  removed Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([runId, objectId])
+  @@index([runId, kind, removed])
+}
+
+/// Request idempotency and ciphertext-only result for confidential commands.
+model PrivateActionReceipt {
+ id String @id @default(uuid())
+ runId String
+ requestId String
+ digest String
+ status String
+ reply Json?
+ leaseOwner String?
+ leaseUntil DateTime?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@unique([runId, requestId])
+ @@index([runId, status])
+}
+/// Provider-call admission keyed to the action, separate from the legacy
+/// source-only job reservation so an uncertain call is never replayed.
+model PrivateInferenceCall {
+ id String @id
+ runId String
+ actionId String
+ model String
+ billingKind String @default("owner-test")
+ costBasis String @default("legacy-ceiling")
+ usageEvidence Json?
+ reservedMicroUsd BigInt
+ committedMicroUsd BigInt
+ status String
+ monthKey String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@index([monthKey, status])
+ @@index([runId, actionId])
+ @@index([runId, billingKind])
+}
+
+/// Only explicitly approved public requests and ciphertext result delivery.
+/// No research document, prompt, wallet key or project decryption key.
+model PrivateToolCall {
+ id String @id
+ runId String
+ run ResearchRun @relation(fields:[runId],references:[id],onDelete:Cascade)
+ questionId String
+ tool String
+ request Json
+ requestDigest String
+ manifestRevision Int
+ recipientPublicKey String
+ recipientId String
+ status String @default("approved")
+ reservedMicroUsd BigInt
+ committedMicroUsd BigInt @default(0)
+ costBasis String @default("reservation")
+ paymentEvidence Json?
+ resultEnvelope Json?
+ resultDigest String?
+ txHash String?
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@unique([runId,questionId])
+ @@index([runId,status])
+}
+
+/// Ordinary ciphertext-free lifecycle metadata. Holds contain only random IDs
+/// and expiry times; never content keys, prompts or provider credentials.
+model PrivateWorkerLifecycle {
+ id String @id
+ state Json
+ updatedAt DateTime @default(now()) @db.Timestamptz(6)
 }

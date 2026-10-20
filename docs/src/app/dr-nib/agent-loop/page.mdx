@@ -1,42 +1,34 @@
-import { Callout } from 'nextra/components'
-
 # Agent loop
 
-Dr. Nib's research agent chooses what evidence to pursue next, whether another round or a priced source is worth the remaining budget, and when to stop and write. Its activity feed shows brief research notes for completed stages alongside proposals, verdicts, reasons, and costs; it does not expose private model chain of thought or raw reasoning tokens. The model proposes, a calibrated decisions model (JEV) disposes, tools execute. Termination is enforced in code with explicit bounds, never requested in prompt prose.
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
 
-```mermaid
-flowchart TD
-    T[Task + checklist] --> P[Propose: model emits tool call]
-    P --> S{Schema check}
-    S -- malformed --> P
-    S --> D[Dedupe + streak + coverage checks]
-    D -- duplicate/stagnant/covered --> F[Synthesize from evidence]
-    D --> J{JEV verdict}
-    J -- skip --> P
-    J -- answer --> F
-    J -- execute --> X[Execute: metered + audited]
-    X --> O{Observation novel?}
-    O -- redundant --> F
-    O --> P
-    F --> A[Answer + stop reason]
+Dr. Nib's research agent chooses what evidence to pursue next, whether another round or a priced source is worth the remaining budget, and when to stop and write. Its activity feed shows brief research notes for completed stages alongside proposals, verdicts, reasons, and costs; it does not expose private model chain of thought or raw reasoning tokens. The model proposes, the structured decision model JEV disposes, tools execute. Termination is enforced in code with explicit bounds, never requested in prompt prose.
+
+```text
+Task + evidence checklist
+  → propose a tool
+  → validate schema, scope, duplicates and limits
+  → deterministic free-read approval or JEV judgment
+  → execute and record the result
+  → review coverage / continue / synthesize and stop
 ```
 
 **Reference:** `dr-nib/backend/src/agent/loop.js`, `stops.js`, `self.js`, `limits.js`.
 
 ## One turn, precisely
 
-1. **Budgets first.** Deadline, spend cap, and token budget are checked *before* any call — checking after the fact is how you overspend at the limit.
-2. **Self-model.** Every turn injects a fresh snapshot: identity, network, exactly which tools are wired right now, chain RPC + USDC address, wallet balance, run budget left *plus its cap, the plan estimate, elapsed minutes, and run status*, steps left. Reasoning from a stale snapshot is how agents promise spends they cannot make.
+1. **Budgets first.** Deadline, accumulated tool spending and token totals are checked before the next loop iteration. The next call and final synthesis can add usage; these cumulative checks are not a provider-enforced hard token/dollar limit. Payment tools separately check their quote, per-call ceiling and run balance before signing.
+2. **Self-model.** Every turn injects a fresh snapshot: identity, network, the tool registry and separate sandbox/spending availability flags, chain RPC + USDC address, wallet balance, run budget left *plus its cap, the plan estimate, elapsed minutes, and run status*, steps left. Reasoning from a stale snapshot is how agents promise spends they cannot make.
 3. **Checklist focus.** One LLM call per run extracts up to 5 bare measurable facts the task needs ("base fee gwei", not "current testnet fee"). Each turn aims at the first uncovered item, so multi-part tasks get one immediate ask instead of overwhelm.
 4. **Propose.** The model returns one tool call, up to 3 independent free calls as a batch, `submit_answer` with a validated final answer, or `done`. Malformed JSON gets one minimal-context retry, then counts as a failed step — two in a row stops the run.
 5. **Schema + duplicate gates.** Unknown tools and missing inputs die free with actionable feedback. Only *successful* executions poison the fingerprint (canonical key order, so reordered args can't dodge it); failures stay retryable.
-6. **Judge.** Free reads run on a deterministic policy row. Anything moving money always goes to JEV with cost, history, and still-missing items in view. The verdict staples the canonical call fingerprint and is re-checked immediately before execution — a payload change after approval voids it.
+6. **Judge.** Free reads run on a deterministic policy row. Onchain spending tools always go to JEV with cost, history, and still-missing items in view. The verdict staples the canonical call fingerprint and is re-checked immediately before execution — a payload change after approval voids it.
 7. **Execute.** Metered, audited (`tool.call` events carry cost + result summary), throws become failed steps rather than dead runs.
 8. **Learn.** Successes feed coverage and novelty checks; failures shape the next proposal's history. Every 3rd step re-plans from the trajectory so far.
 
 ## Stop reasons
 
-The run returns the *first* triggering condition — thresholds tune from this field, not vibes:
+The loop records why it stopped; the surrounding research workflow handles that result:
 
 | Stop | Meaning |
 |---|---|
@@ -53,17 +45,17 @@ The run returns the *first* triggering condition — thresholds tune from this f
 | `max-steps` / `deadline` / `cost-budget` / `token-budget` | hard envelopes |
 | `verdict-void` | payload changed after approval |
 
-## Budgets (defaults)
+## Standalone loop defaults
 
 | Envelope | Default | Source |
 |---|---|---|
-| Max steps | 6 | harness default (research loops run deeper than support bots) |
+| Max steps | 6 | standalone default; ordinary direct-evidence and gratitude stages pass 3 |
 | Wall clock | 10 min | operational ceiling |
-| Tool spend | $1 | sandbox + chain spend per task |
-| LLM tokens | 120k in+out | production envelope |
+| Tool spend | $1 | accumulated tool-cost stop threshold; payment gates also apply |
+| LLM tokens | 120k in+out | accumulated loop threshold, including recorded model usage |
 | Failure budget | 3 consecutive | escalate, don't spiral |
 
-All thresholds live named in one place with their provenance (`limits.js`) — standard-backed where a standard exists, labeled heuristic where tuned from traces.
+These defaults come from the ordinary tool loop's `agent/limits.js` and can be overridden by its caller. They are not the whole research-run duration or private-agent limits. Quick/standard/deep research separately allows 1/2/4 follow-up retrieval rounds after its initial round.
 
 ## Report completion
 
@@ -72,8 +64,12 @@ Report-writing calls reserve additional output-token headroom for reasoning as w
 ## Memory, two levels
 
 - **In-run:** shaped history (tool + literal input + outcome), coverage state, novelty window, re-plans.
-- **Across runs:** failed trajectories distill one verbal lesson into an episodic store, injected into similar future tasks. Lessons are advisory — a run never dies because scaffolding did.
+- **Across ordinary loop tasks:** selected failure outcomes can produce advisory lessons, stored in the shared ordinary database with a local-file fallback and reused by task similarity. This is not an owner-private memory store and is not imported by the confidential workflow.
 
 ## Failure posture
 
-Provider 403/429/5xx stop fast with the human fix named (not a JSON dump). Evaluator outage stops the run. Telemetry failures become failed steps. The finale guarantees a non-empty answer: model synthesis first, deterministic evidence extract as backstop.
+Proposer failure, judge outage and tool failure produce distinct stop/result records. A transient ordinary judge transport failure or HTTP 502/503/504 permits one retry; other judge HTTP responses do not. The loop still attempts a final bounded synthesis, then uses an evidence extract or an explicit no-evidence answer if synthesis fails. This non-empty loop answer is not a guarantee of a successful research report. Ordinary stage exceptions can mark a run failed; private unknown-outcome recovery follows its separate checkpoint and reservation rules.
+
+## Private workflow loop
+
+The private agent uses `private-research-agent.js`, encrypted activity and durable operation journals. It applies the approved source/tool scope, calls actual hosted JEV, enforces bounded proposals and validates report evidence. Its loop bound is depth rounds plus three; exact public requests and payments pass the private disclosure/approval path. Private completed operations restore without repurchase, while unknown outcomes stay fenced. The ordinary loop's shared episodic lessons, Railway sandbox assumptions and default constants do not carry over. See [models and tools](/dr-nib/confidential/models-tools).

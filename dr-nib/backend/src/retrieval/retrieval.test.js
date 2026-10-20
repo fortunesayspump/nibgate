@@ -348,3 +348,52 @@ describe('provider circuit', () => {
     vi.unstubAllEnvs();
   });
 });
+
+describe('bounded shared public discovery',()=>{
+ it('uses the optional keyless creator index once, retaining safe bounded results',async()=>{
+  const {mwmblSearch}=await import('./providers/mwmbl.js');
+  const fetchImpl=vi.fn(async()=>jsonResponse([
+   {url:'https://author.example/post',title:[{value:'Original '},{value:'tutorial'}],extract:[{value:'A practical explanation.'}]},
+   {url:'javascript:alert(1)',title:[{value:'unsafe'}]},
+   {url:'https://user:password@author.example/private',title:[{value:'credentials'}]},
+  ]));
+  const result=await mwmblSearch({query:'context managers',maxResults:1},{fetchImpl});
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(String(fetchImpl.mock.calls[0][0])).toBe('https://api.mwmbl.org/api/v1/search/?s=context%20managers');
+  expect(result.costUsd).toBe(0);
+  expect(result.results).toEqual([expect.objectContaining({url:'https://author.example/post',title:'Original tutorial',provider:'mwmbl',snippet:'A practical explanation.'})]);
+  await expect(mwmblSearch({query:'x'},{fetchImpl:async()=>jsonResponse({unexpected:true})})).rejects.toThrow('response invalid');
+  await expect(mwmblSearch({query:'x'},{fetchImpl:async()=>({ok:true,text:async()=>'x'.repeat(1048577)})})).rejects.toThrow('response too large');
+ });
+ it('never admits keyed or model providers in free mode and retains completed results at its deadline',async()=>{
+  const {__resetCircuits}=await import('./circuit.js');__resetCircuits();
+  vi.stubEnv('TAVILY_API_KEY','synthetic');vi.stubEnv('EXA_API_KEY','synthetic');vi.stubEnv('OPENROUTER_API_KEY','synthetic');vi.stubEnv('SEARXNG_URL','https://shared-search.example.com');
+  const urls=[],fetchImpl=async url=>{urls.push(String(url));if(String(url).includes('wikipedia'))return new Promise(()=>{});return jsonResponse(String(url).includes('shared-search.example.com')?{results:[{url:'https://creator.example.com/tutorial',title:'Original tutorial',content:'Public original creator content.'}]}:{});};
+  const started=Date.now(),out=await searchAll({query:'public tutorial',includePaid:false,includeAcademic:false},{fetchImpl,deadlineMs:100});
+  expect(Date.now()-started).toBeLessThan(1000);expect(out.results.some(r=>r.url==='https://creator.example.com/tutorial')).toBe(true);expect(out.costUsd).toBe(0);expect(urls.some(url=>/tavily\.com|exa\.ai|openrouter\.ai/.test(url))).toBe(false);
+  await expect(searchAll({query:'public tutorial'},{fetchImpl,deadlineMs:100})).rejects.toThrow('Invalid bounded free-search configuration');__resetCircuits();
+ });
+});
+
+describe('existing public Hub creator discovery',()=>{
+ it('queries the canonical Hub once with the exact public query and filters unsafe metadata',async()=>{
+  vi.stubEnv('HUB_API_URL','https://testnet-api.nibgate.xyz');
+  const {hubSearch}=await import('./providers/hub.js');
+  const fetchImpl=vi.fn(async()=>jsonResponse({success:true,content:[{url:'https://author.example/post',title:'Original tutorial',description:'A useful article.'},{url:'https://user:secret@author.example/private',title:'Unsafe'},{url:'javascript:alert(1)',title:'Unsafe'}]}));
+  const result=await hubSearch({query:'Python context managers',maxResults:3},{fetchImpl});
+  const sent=new URL(fetchImpl.mock.calls[0][0]);expect(sent.origin+sent.pathname).toBe('https://testnet-api.nibgate.xyz/hub/explore/content');expect(sent.searchParams.get('q')).toBe('Python context managers');expect(fetchImpl).toHaveBeenCalledTimes(1);expect(result.costUsd).toBe(0);expect(result.results).toEqual([expect.objectContaining({provider:'nibgate-hub',url:'https://author.example/post'})]);
+  await expect(hubSearch({query:'x'.repeat(401)},{fetchImpl})).rejects.toThrow('query invalid');
+  await expect(hubSearch({query:'public guide'},{fetchImpl:async()=>jsonResponse({content:[]})})).rejects.toThrow('response invalid');
+  vi.stubEnv('HUB_API_URL','http://127.0.0.1:9999');await expect(hubSearch({query:'public guide'},{fetchImpl})).rejects.toThrow('origin invalid');
+  vi.unstubAllEnvs();
+ });
+ it('only adds Hub when creator discovery is opted in and retains web results after Hub failure',async()=>{
+  const {__resetCircuits}=await import('./circuit.js');__resetCircuits();
+  vi.stubEnv('HUB_API_URL','https://api.nibgate.xyz');
+  const {searchAll}=await import('./index.js');const urls=[];
+  const fetchImpl=async url=>{urls.push(String(url));if(String(url).includes('/hub/explore/content'))throw Error('Hub temporarily unavailable');return jsonResponse({});};
+  await searchAll({query:'public guide',includePaid:false,includeAcademic:false},{fetchImpl,deadlineMs:100});expect(urls.some(u=>u.includes('/hub/explore/content'))).toBe(false);
+  urls.length=0;const out=await searchAll({query:'public guide',includePaid:false,includeAcademic:false,preferCreators:true},{fetchImpl,deadlineMs:100});
+  expect(urls.filter(u=>u.includes('/hub/explore/content'))).toHaveLength(1);expect(out.providers).toContainEqual(expect.objectContaining({name:'nibgate-hub',ok:false}));expect(out.costUsd).toBe(0);__resetCircuits();vi.unstubAllEnvs();
+ });
+});

@@ -40,7 +40,8 @@
     "workspace:check": "node scripts/check-workspace-integrity.mjs",
     "test:regressions": "node --test scripts/*.test.mjs",
     "test:tip-postgres": "node scripts/test-tip-postgres.mjs",
-    "test:drnib-postgres": "node scripts/test-drnib-postgres.mjs"
+    "test:drnib-postgres": "node scripts/test-drnib-postgres.mjs",
+    "test:drnib-privacy": "node --test dr-nib/backend/src/privacy/*.test.mjs dr-nib/tools/*.test.mjs scripts/drnib-private-vault.test.mjs scripts/drnib-private-objects.test.mjs scripts/drnib-private-public-tip.test.mjs"
   },
   "pnpm": {
     "overrides": {

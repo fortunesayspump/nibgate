@@ -13,7 +13,7 @@ export default function ExploreLayout({
         <main className="explore-body explore-main" role="main">
           {children}
         </main>
-        <Footer showThemeToggle={true} />
+        <Footer showThemeToggle={true} showExtension={false} />
       </div>
     </>
   );

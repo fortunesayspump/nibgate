@@ -11,6 +11,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 import { drNibApi } from "@/lib/dr-nib-api";
+import {privateBuildEnabled,privateFundingEnabled} from "@/lib/dr-nib-private-records";
 
 /** [12] and [1, 2] in text become superscript citation chips. When `sources`
  *  are provided the chip links straight to the cited source URL; otherwise it
@@ -77,7 +78,7 @@ const mdComponents = {
   th: ({ children }: any) => <th className="border-b border-dark-gray/40 px-3 py-1.5 text-left font-semibold">{children}</th>,
   td: ({ children }: any) => <td className="border-b border-dark-gray/20 px-3 py-1.5 align-top">{children}</td>,
   input: ({ checked }: any) => <input type="checkbox" checked={!!checked} readOnly className="mr-1.5 align-middle" />,
-  img: ({ src, alt }: any) => (
+  img: ({ src, alt }: any) => process.env.NEXT_PUBLIC_DRNIB_PRIVATE_CONFIDENTIAL === "true" ? <span>{alt || "External image omitted"}</span> : (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt || "Report image"} loading="lazy" className="mt-2.5 max-h-80 w-auto rounded-xl border border-dark-gray/40" />
   ),
@@ -231,7 +232,7 @@ function citeFor(sources: { url?: string }[]) {  return ({ children, ...props }:
   };
 }
 
-export function ReportArticle({ markdown, sources }: { markdown: string; sources?: { url?: string }[] }) {  const [open, setOpen] = useState(false);
+export function ReportArticle({ markdown, sources, full=false }: { markdown: string; sources?: { url?: string }[]; full?:boolean }) {  const [open, setOpen] = useState(false);
   const normalized = useMemo(() => normalizeReportMd(markdown), [markdown]);
   const components = useMemo(
     () => ({ ...mdComponents, cite: citeFor(Array.isArray(sources) ? sources : []), figureChart: FigureChart }),
@@ -240,21 +241,21 @@ export function ReportArticle({ markdown, sources }: { markdown: string; sources
   return (
     <div>
       <article className="relative text-sm">
-        <div className={open ? undefined : "max-h-[340px] overflow-hidden"}>
+        <div className={open||full ? undefined : "max-h-[340px] overflow-hidden"}>
           <ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations, remarkChartFigures]} components={components}>
             {normalized}
           </ReactMarkdown>
         </div>
-        {!open && (
+        {!open && !full && (
           <div className="drnib-fade-mask pointer-events-none absolute inset-x-0 bottom-0 h-28" aria-hidden="true" />
         )}
       </article>
-      <button
+      {!full&&<button
         onClick={() => setOpen((v) => !v)}
         className="mt-3 border border-dark-gray/60 px-4 py-1.5 text-sm font-medium hover:bg-black hover:text-white"
       >
         {open ? "Show less ↑" : "Read full report ↓"}
-      </button>
+      </button>}
     </div>
   );
 }
@@ -339,26 +340,26 @@ export function DiscussionMarkdown({ markdown, sources = [] }: { markdown: strin
   return <div className="break-words"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCitations]} components={components}>{normalizeReportMd(markdown)}</ReactMarkdown></div>;
 }
 
-export function DiscussThread({ runId, initial, sources = [] }: { runId: string; initial?: any; sources?: { url?: string }[] }) {
+export function DiscussThread({ runId, initial, sources = [], disabled=false }: { runId: string; initial?: any; sources?: { url?: string }[];disabled?:boolean }) {
   const max = Number(initial?.max ?? 10);
   const [used, setUsed] = useState<number>(Number(initial?.used ?? 0));
   // The server stores { used, tokens, log } — remaining derives from the
   // allowance until the first answer returns the authoritative count.
   const [remaining, setRemaining] = useState<number>(Number(initial?.remaining ?? Math.max(0, max - (Number(initial?.used ?? 0)))));
-  const [thread, setThread] = useState<{ q: string; a: string }[]>(
-    Array.isArray(initial?.log) ? initial.log.map((t: any) => ({ q: String(t.q || ""), a: String(t.a || "") })) : []
+  const [thread, setThread] = useState<{ q: string; a: string; model?:string; usage?:{costUsd:number;billingKind:string} }[]>(
+    Array.isArray(initial?.log) ? initial.log.map((t: any) => ({ q: String(t.q || ""), a: String(t.a || ""),model:t.model,usage:t.usage })) : []
   );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function ask() {
     const question = draft.trim();
-    if (!question || busy || remaining <= 0) return;
+    if (disabled || !question || busy || remaining <= 0) return;
     setBusy(true);
     setError("");
     try {
       const out: any = await drNibApi.discussReport(runId, question);
-      setThread((h) => [...h, { q: question, a: String(out.answer || "") }]);
+      setThread((h) => [...h, { q: question, a: String(out.answer || ""),model:out.model,usage:out.usage }]);
       setRemaining(Number(out.remaining ?? 0));
       setUsed(Number(out.used ?? used + 1));
       setDraft("");
@@ -371,7 +372,7 @@ export function DiscussThread({ runId, initial, sources = [] }: { runId: string;
   return (
     <div className="mt-4">
       <p className="text-xs font-medium uppercase tracking-wider opacity-60">
-        Discuss this report{max > 0 ? ` · ${remaining} of ${max} free follow-ups left` : ""}
+        Discuss this report{max > 0 ? ` · ${remaining} of ${max} ${privateBuildEnabled()&&!privateFundingEnabled()?"":"free "}follow-ups left` : ""}
       </p>
       {thread.length > 0 && (
         <ul className="mt-2 space-y-2">
@@ -379,6 +380,7 @@ export function DiscussThread({ runId, initial, sources = [] }: { runId: string;
             <li key={i} className="border-l-2 border-black/60 pl-2.5 text-[13px] leading-6">
               <p className="text-xs font-medium opacity-60">{h.q}</p>
               <DiscussionMarkdown markdown={h.a} sources={sources} />
+              {typeof h.usage?.costUsd==='number'&&Number.isFinite(h.usage.costUsd)?<p className="mt-1 font-mono text-[10px] opacity-60">{h.model?`${h.model} · `:''}Usage ${h.usage.costUsd.toFixed(6)}{h.usage.billingKind==='platform'?' · sponsored — $0 charged to you':''}</p>:null}
             </li>
           ))}
         </ul>
@@ -391,22 +393,22 @@ export function DiscussThread({ runId, initial, sources = [] }: { runId: string;
             onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
             placeholder="Ask a follow-up about this report…"
             aria-label="Ask a follow-up about this report"
-            disabled={busy}
+            disabled={disabled || busy}
             className="w-full border border-dark-gray/50 bg-white px-3 py-2 text-xs"
           />
           <button
             onClick={ask}
-            disabled={busy || !draft.trim()}
+            disabled={disabled || busy || !draft.trim()}
             className="shrink-0 bg-black px-4 py-2 text-xs font-medium text-white disabled:opacity-40"
           >
             {busy ? "…" : "Ask"}
           </button>
         </div>
       ) : (
-        <p className="mt-2 text-xs opacity-60">Free follow-ups used up ({used} of {max}) — reprompt the run for a deeper pass.</p>
+        <p className="mt-2 text-xs opacity-60">{privateBuildEnabled()&&!privateFundingEnabled()?"Private discussion limit reached":"Free follow-ups used up"} ({used} of {max}) — reprompt the run for a deeper pass.</p>
       )}
       {error ? <p className="mt-1.5 text-xs text-red-700">{error}</p> : null}
-      <p className="mt-1.5 text-[11px] opacity-50">Free — no budget drawn, no deposit needed. Answers come from this report and its sources only.</p>
+      <p className="mt-1.5 text-[11px] opacity-50">{privateBuildEnabled()&&!privateFundingEnabled()?"Follow-ups use the shared owner test allowance. Answers come from this report only.":"Free — no budget drawn, no deposit needed. Answers come from this report and its sources only."}</p>
     </div>
   );
 }
@@ -418,7 +420,7 @@ export function DiscussThread({ runId, initial, sources = [] }: { runId: string;
 export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?: string; title?: string; domain?: string; trust?: number; relevance?: number }[] }) {
   const list: any[] = Array.isArray(claims) ? claims : [];
   const srcs: any[] = Array.isArray(sources) ? sources : [];
-  const [history, setHistory] = useState<{ q: string; a: string }[]>([]);
+  const [history, setHistory] = useState<{ q: string; a: string; model?:string; usage?:{costUsd:number;billingKind:string} }[]>([]);
   const [picked, setPicked] = useState("");
   if (!list.length) return null;
   const withEv = list.filter((c) => Array.isArray(c.passages) && c.passages.length > 0);

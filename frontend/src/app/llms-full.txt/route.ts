@@ -68,6 +68,10 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 
 Mainnet and testnet tip verification: reuse the original proof and exact request. A completed matching proof recovers the existing receipt; HTTP 409 pending/conflicting proofs require reconciliation, not another payment.
 
+## Dr. Nib privacy scope
+
+The private architecture uses browser encryption, a verified Phala worker and encrypted persistence. Nibgate-operated attestation uses the official dstack-verifier; its verdict is an operator-trusted service, not independent operator verification. Actual JEV and authorized Azure/OpenRouter ZDR fallback are provider-visible exceptions. Ordinary research API/MCP access does not inherit the private encryption contract. Never send vault/recovery secrets to ordinary discovery or payment tools. Full architecture, recovery and operations: https://docs.nibgate.xyz/dr-nib/confidential.
+
 ## API endpoints
 
 - ${api}/hub/explore/content?limit=100 — Explore feed of verified content.

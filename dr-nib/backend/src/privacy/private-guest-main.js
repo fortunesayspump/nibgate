@@ -1,3 +1,12 @@
+import {createPrivateTerminalCheck} from './private-terminal-check.js';
+import {createPrivateActionRunner} from './private-action-runner.js';
+import {createPrivateWorkflow} from './private-workflow.js';
+import {createPrivateWorkflowAi} from './private-workflow-ai.js';
+import {createPrivateModelPool,privateModelPoolPolicy} from './private-model-pool.js';
+import {createOpenRouterZdrPort,OPENROUTER_ZDR_MODEL} from './openrouter-zdr-port.js';
+import {createHostedJevPort} from './hosted-jev-port.js';
+import {privateResearchEstimate} from './private-research-estimate.js';
+import {createPrivateRecordStorage} from './private-record-storage.js';
 import {randomUUID} from 'node:crypto';
 import {createPrivateGuestHttpServer} from './private-guest-http.js';
 import {getPhalaSessionEvidence} from './phala-quote.js';
@@ -65,6 +74,16 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   // normally unset and a live attested session is discovered per job instead.
   const pinnedSessionId=typeof env.PRIVATE_ACI_SESSION_ID==='string'&&env.PRIVATE_ACI_SESSION_ID.trim()
     ?env.PRIVATE_ACI_SESSION_ID.trim():undefined;
+  const workflowRequested=env.DRNIB_PRIVATE_WORKFLOW_ENABLED==='true';
+  const fundingRequired=env.DRNIB_PRIVATE_FUNDING_REQUIRED==='true';
+  const hostedJevRequested=env.DRNIB_PRIVATE_HOSTED_JEV_ENABLED==='true';
+  let hostedJevPolicy=null;
+  if(hostedJevRequested){
+    const reviewedAt=Date.parse(required(env,'PRIVATE_HOSTED_JEV_LOGGING_REVIEWED_AT'));
+    if(env.PRIVATE_HOSTED_JEV_CONTEXT_DISCLOSURE!=='openrouter-and-typesafe'||env.PRIVATE_HOSTED_JEV_ZDR_VERIFIED!=='true'||
+      !Number.isFinite(reviewedAt)||reviewedAt>Date.now()||Date.now()-reviewedAt>24*3600000)throw new Error('Hosted JEV privacy review unavailable');
+    hostedJevPolicy={contextDisclosure:'openrouter-and-typesafe',decisionsZdrRoutingVerified:true,loggingReviewExpiresAtMs:reviewedAt+24*3600000};
+  }
   const fullRequested=env.DRNIB_PRIVATE_FULL_ENABLED==='true';
   const allowedTenantId=required(env,'DRNIB_PRIVATE_TEST_TENANT_ID');
   if(!/^[A-Za-z0-9:_-]{1,128}$/.test(allowedTenantId))throw new Error('Private test tenant unavailable');
@@ -72,6 +91,11 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const monthlyInfraCeilingMicroUsd=positiveInteger(env,'DRNIB_PRIVATE_INFRA_MONTHLY_CEILING_MICRO_USD');
   const inputMicroUsdPerMillion=positiveInteger(env,'DRNIB_PRIVATE_AI_INPUT_PRICE_CEILING_MICRO_USD_PER_M');
   const outputMicroUsdPerMillion=positiveInteger(env,'DRNIB_PRIVATE_AI_OUTPUT_PRICE_CEILING_MICRO_USD_PER_M');
+  const modelPool=privateModelPoolPolicy(required(env,'PRIVATE_AI_MODEL_POOL'));
+  const hostedResearch=env.PRIVATE_AI_MODEL_POOL==='phala-openrouter-zdr-canary-v1';
+  if(hostedResearch&&!hostedJevPolicy)throw Error('HOSTED_RESEARCH_POLICY_INVALID');
+  if(modelPool&&!modelPool.some(candidate=>candidate.model===model))throw Error('PRIVATE_MODEL_POOL_INVALID');
+  if(modelPool&&pinnedSessionId)throw Error('PRIVATE_MODEL_POOL_INVALID');
   const [{PrismaClient},{importSPKI}]=await Promise.all([import('@prisma/client'),import('jose')]);
   const db=new PrismaClient({datasourceUrl:databaseUrl});
   const publicKey=await importSPKI(publicKeyPem,'EdDSA');
@@ -89,6 +113,21 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
       if(typeof db.privateWorkerObject?.create!=='function')throw new Error('Private worker schema unavailable');
       const rows=await db.$queryRaw`SELECT to_regclass(format('%I.%I',current_schema(),'PrivateWorkerObject'))::text AS name`;
       if(!Array.isArray(rows)||typeof rows[0]?.name!=='string'||!rows[0].name)throw new Error('Private worker migration missing');
+    }
+    if(workflowRequested){
+      const rows=await db.$queryRaw`SELECT to_regclass(format('%I.%I',current_schema(),'PrivateActionReceipt'))::text AS actions, to_regclass(format('%I.%I',current_schema(),'PrivateInferenceCall'))::text AS calls, to_regclass(format('%I.%I',current_schema(),'PrivateClientObject'))::text AS objects`;
+      if(!rows[0]?.actions||!rows[0]?.calls||!rows[0]?.objects||!createPrivateRecordStorage(env).ready())throw new Error('Private workflow dependencies unavailable');
+      const billing=await db.$queryRaw`SELECT column_name AS name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='PrivateInferenceCall' AND column_name IN ('billingKind','costBasis','usageEvidence')`;
+      if(billing.length!==3)throw Error('Private billing migration unavailable');
+      const tools=await db.$queryRaw`SELECT to_regclass(format('%I.%I',current_schema(),'PrivateToolCall'))::text AS name`;
+      const leases=await db.$queryRaw`SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='PrivateActionReceipt' AND column_name IN ('leaseOwner','leaseUntil')`;
+      if(!tools[0]?.name||leases.length!==2)throw Error('Private checkpoint/tool migration unavailable');
+    }
+    if(hostedJevRequested){
+      const response=await fetch('https://openrouter.ai/api/v1/key',{headers:{authorization:`Bearer ${required(env,'PRIVATE_HOSTED_JEV_API_KEY')}`},redirect:'error',signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw new Error('Hosted JEV credential unavailable');
+      const data=await response.json();
+      if(data.data?.workspace_id!==required(env,'PRIVATE_HOSTED_JEV_WORKSPACE_ID'))throw new Error('Hosted JEV workspace changed');
     }
     const channel=await connectVerified();
     await channel.close(); // no inference request or paid tokens at readiness
@@ -143,6 +182,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
         model:u.model,inputTokens:u.inputTokens,outputTokens:u.outputTokens,costMicroUsd:u.costMicroUsd})))})};
   };
   const paidJob=async(job,maxCalls,build)=>{
+    if(fundingRequired)throw Error('PRIVATE_RUN_FUNDING_REQUIRED');
     const usageSink=[];
     const value=await budget.run({runId:job.run.id,tenantId:job.run.userId,model,
       maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,
@@ -152,6 +192,20 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const runner={execute:job=>paidJob(job,1,port=>({run:item=>createPrivateDemoRunner({aiPort:port,
     reportSink:createCiphertextReportSink(db)}).execute(item)})),
     ...(fullRequested?{executeFull:job=>paidJob(job,3,port=>createPrivateSourceOnlySessionJob({db,aiPort:port,model}))}:{})};
+  if(workflowRequested){
+    const workflowPort=createPhalaAiPort({approvedModels:[model],connectVerified,maxPromptChars:150000,maxOutputTokens:16384});
+    const fallbackInfer=hostedResearch?createPrivateWorkflowAi({db,model:OPENROUTER_ZDR_MODEL,monthlyCapMicroUsd:monthlyAiCapMicroUsd,inputPricePerMillion:150000,outputPricePerMillion:600000,fundingRequired,hostedZdr:true,
+      aiPort:createOpenRouterZdrPort({apiKey:required(env,'PRIVATE_OPENROUTER_RESEARCH_API_KEY'),reviewExpiresAtMs:hostedJevPolicy.loggingReviewExpiresAtMs})}):undefined;
+    const infer=modelPool?createPrivateModelPool({db,monthlyCapMicroUsd:monthlyAiCapMicroUsd,fundingRequired,fallbackInfer,
+      createPort:selected=>createPhalaAiPort({approvedModels:[selected],maxPromptChars:150000,maxOutputTokens:16384,
+        connectVerified:createAciChannelFactory({baseURL,apiKey,expectedComposeHash:composeHash,approvedModels:[selected],selectSession,connect:connectAci})})}):
+      createPrivateWorkflowAi({db,aiPort:workflowPort,model,monthlyCapMicroUsd:monthlyAiCapMicroUsd,
+        inputPricePerMillion:inputMicroUsdPerMillion,outputPricePerMillion:outputMicroUsdPerMillion,fundingRequired});
+    const judge=hostedJevRequested?createHostedJevPort({db,apiKey:required(env,'PRIVATE_HOSTED_JEV_API_KEY'),monthlyCapMicroUsd:monthlyAiCapMicroUsd,policy:hostedJevPolicy,fundingRequired}):undefined;
+    const estimateInput=modelPool?Math.max(...modelPool.map(candidate=>candidate.inputPricePerMillion)):inputMicroUsdPerMillion;
+    const estimateOutput=modelPool?Math.max(...modelPool.map(candidate=>candidate.outputPricePerMillion)):outputMicroUsdPerMillion;
+    runner.action=createPrivateActionRunner({db,storage:createPrivateRecordStorage(env),allowHostedResearchFallback:hostedResearch,workflow:createPrivateWorkflow({infer,judge,estimate:options=>privateResearchEstimate({...options,inputPricePerMillion:estimateInput,outputPricePerMillion:estimateOutput,hostedJev:!!judge})})});
+  }
   const withRunLock=(runId,action)=>db.$transaction(async tx=>{
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${runId}))::text AS locked`;
     return action(tx);
@@ -168,8 +222,8 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   // verification only. Off by default; the normal release keeps it disabled.
   const reviewAttestationEnabled=env.DRNIB_PRIVATE_REVIEW_ATTESTATION_ENABLED==='true';
   const server=createPrivateGuestHttpServer({sessions,authenticate,getReport,getJobStatus:executionJournal.status,
-    ...(reviewAttestationEnabled?{diagnosticEvidence}:{}),
-    privateReady:true,fullReady:fullRequested});
+    ...(reviewAttestationEnabled?{diagnosticEvidence,...(env.DRNIB_PRIVATE_TERMINAL_SOCKET==='/run/drnib-terminal/service.sock'?{checkTools:createPrivateTerminalCheck()}:{} )}:{}),
+    privateReady:true,fullReady:fullRequested&&!fundingRequired,workflowReady:workflowRequested});
   server.on('close',()=>void db.$disconnect());
   return server;
 }

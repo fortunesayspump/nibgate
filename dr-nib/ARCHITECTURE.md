@@ -1,10 +1,12 @@
-# Dr. Nib — backend architecture
+# Dr. Nib service architecture
 
 *Separate service (`dr-nib/backend/`), separately hosted. Frontend lives
 in the hub. This is a worker + API architecture — not a cron job, not a
 script.*
 
-## 1. System overview
+The ordinary deployed pipeline is described below. The canonical private design, data boundaries and model exceptions are in [privacy/ARCHITECTURE.md](privacy/ARCHITECTURE.md); production gates are in [privacy/PLAN.md](privacy/PLAN.md). A private implementation is not evidence of a public cutover.
+
+## 1. Ordinary deployment overview
 
 ```
 hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hub/jev/*
@@ -24,21 +26,13 @@ hub frontend (/dr-nib) ──HTTPS/SSE──▶ dr-nib/backend ──▶ hub /hu
 - **Redis**: BullMQ queues, rate limits, idempotency keys.
 - **R2**: rendered exports (same bucket conventions as hub media).
 
-### Confidential boundary (opt-in)
+### Private worker boundary (owner-scoped local canary)
 
-An ordinary run sends the supplied source and the report through this backend. A **confidential run** bypasses the plaintext path entirely:
+The private client encrypts uploads, intake, guidance and project state before ordinary backend ingress. After independent boot verification and recipient-key proof, the measured Phala worker decrypts, runs the journaled workflow and encrypts reports, activity and exports before persistence. The ordinary broker authenticates owners and stores ciphertext plus metadata. Project keys never become ordinary backend credentials.
 
-```
-browser ──HPKE ciphertext──▶ broker ──ciphertext──▶ measured guest (Phala CVM) ──▶ confidential model (attested + ZDR)
-   ▲                                                                                        │
-   └──────────────────── sealed report (result key) ◀──── sealed report ◀───────────────────┘
-                          broker validates the signed ACI receipt, draws the run budget
-```
+Phala model serving is primary and independently checked through the ACI channel and response receipts. The actual JEV model remains the disclosed OpenRouter/TypeSafe ZDR decision route. Explicit owner-approved hosted fallback mode can call Azure GPT-4o mini through OpenRouter from inside the worker, with required ZDR, fixed provider and no implicit provider fallback. That route processes research plaintext and is clearly labeled provider-visible, not hardware-attested inference. It does not move decryption or saved state out of the private worker.
 
-- The backend and broker hold **ciphertext + metadata only**; the topic/intake stay ordinary.
-- The browser verifies a fresh attestation and key possession before sealing anything, then HPKE-seals the source (P-256 / HKDF-SHA256 / AES-128-GCM).
-- Work is bounded to source-only `plan → write` (no live web, no server-side tools) and metered from receipt-bound usage.
-- It is **off by default** and fail-closed: a build must enable the flow *and* ship a reviewed attestation configuration. Full design and status: `CONFIDENTIAL-IMPLEMENTATION.md`; docs page: `/dr-nib/confidential`.
+The full private preview includes encrypted intake, planning, funding admission, bounded public tools and terminal, JEV decisions, report checks, exports and settlement. Checkpoints preserve completed calls. Definite 429 recovery can retain billing uncertainty as operator-funded allowance while retrying the rejected operation; unknown responses and tool outcomes remain fenced. Global caps still include retained exposure. This owner-scoped candidate is not production acceptance. See [privacy/STATUS.md](privacy/STATUS.md) and `/dr-nib/confidential` for current evidence and limitations.
 
 ## 2. API surface (`/v1`)
 

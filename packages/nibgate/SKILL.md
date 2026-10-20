@@ -214,7 +214,7 @@ The browser flow:
 4. Server verifies and returns unlock proof
 5. The unlock proof is wallet-bound: it is stored in localStorage but the unlock UI only replays it while a wallet is connected, and it is cleared on disconnect
 
-**Access follows the wallet, not the device.** Once a wallet pays, it has a lifetime entitlement backed by its receipt. Reconnect the wallet on any device and the server re-verifies the receipt and ban status and re-serves the content — no re-pay. Disconnecting relocks the content (payload torn down, proof cleared).
+**Access follows the wallet, not the device.** Hosted Nibshare/Subblogs retain a paid entitlement backed by the receipt while the resource remains reachable and current policy permits access. Share expiry, revoke/ban and invite-only restrictions still apply. Generic SDK integrations must provide their own persistent entitlement store. Reconnect the wallet on any device and the server re-verifies the receipt and ban status and re-serves the content — no re-pay. Disconnecting relocks the content (payload torn down, proof cleared).
 
 For custom flows, use `checkResourceAccess(resource, options)` directly.
 
@@ -382,19 +382,23 @@ sent on the retry as the `x-nibgate-tx-owner` header. A mismatched signer return
 
 ```ts
 import { payWithTransfer, createTransferCheckout } from '@nibgate/sdk'
+import { encodeFunctionData, parseUnits, parseAbi } from 'viem'
+
+const usdcTransferAbi = parseAbi(['function transfer(address to, uint256 amount) returns (bool)'])
 
 await payWithTransfer(resource, {
   accessPath: '/api/nibgate/access',
   checkout: createTransferCheckout(resource, {
     // Broadcast the transfer from the connected wallet; return the txHash.
     sendTransfer: async ({ recipient, amount }) =>
-      (await walletClient.sendTransaction({
+      ({ txHash: await walletClient.sendTransaction({
         account,
-        to: recipient,
+        to: '0x3600000000000000000000000000000000000000', // USDC token contract
         value: 0n,
-        data: encodeFunctionData({ abi: usdcTransferAbi, args: [recipient, parseUnits(amount, 6)] })
-      }))
-  })
+        data: encodeFunctionData({ abi: usdcTransferAbi, functionName: 'transfer', args: [recipient, parseUnits(amount, 6)] })
+      }) })
+  }).pay,
+  signOwnership: ({ message }) => walletClient.signMessage({ account, message })
 })
 ```
 
@@ -465,7 +469,7 @@ AI agents can discover and purchase content on Nibgate through the same x402 pro
 1. **Discover** — agent hits the Hub's explore API or polls creator `/nibgate.json` manifests:
 
    ```bash
-   GET https://nibgate.xyz/hub/explore/content?type=article&limit=100
+   GET https://api.nibgate.xyz/hub/explore/content?type=article&limit=100
    Accept: application/json
    ```
 
@@ -615,7 +619,7 @@ Hardcoded content, MDX files, Markdown files, static JSON files, and repo-local 
 NIBGATE_SITE_ORIGIN=https://creator.example
 NIBGATE_SITE_ID=site_...             # Hub website UUID — required for emitHubEvent to report unlocks
 NIBGATE_SITE_TOKEN=ngv_...           # Hub website verify token — required for emitHubEvent
-NIBGATE_API_BASE=https://nibgate.xyz # Hub API base — required for emitHubEvent
+NIBGATE_API_BASE=https://api.nibgate.xyz # Hub API base — required for emitHubEvent
 NIBGATE_SECRET=server_only_unlock_secret
 NIBGATE_PAYMENT_MODE=circle-gateway
 NIBGATE_PAYMENT_NETWORK=eip155:5042002
@@ -887,3 +891,7 @@ same keys under `pnpm.overrides` when using pnpm 10):
 This keeps fresh installations on the tested connector/core and x402 peer graph.
 
 Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
+
+### Held-tip authorization boundary
+
+A holding box has no EOA private key. Its factory owner/keeper can authorize release and refund with recipient arguments; website ownership and original-payer checks are enforced by the Hub, not independently by the wallet contract. Keep the original payment evidence and reconcile an uncertain relay outcome before submitting another relay. See https://docs.nibgate.xyz/tipping/contracts.

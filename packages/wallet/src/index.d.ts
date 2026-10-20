@@ -109,7 +109,7 @@ export type EnsureArcNetworkOptions = {
   currentChainId?: number;
   wait?: boolean;
   timeoutMs?: number;
-  onSwitch?: () => void;
+  onSwitch?: () => void; repairOnFailure?: boolean;
 };
 
 export type EnsureArcNetworkResult = {

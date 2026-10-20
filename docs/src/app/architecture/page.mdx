@@ -41,7 +41,7 @@ The wallet package (`@nibgate/wallet/react`) supplies the shared Reown wallet mo
 
 ## The shared access rule
 
-Both hosted rails and the SDK run **one** access decision (`canAccess` in `@nibgate/sdk/server`, `packages/nibgate/src/server/access-policy.js`) over three policy knobs — `price`, `whitelist`/`whitelistPrice`, and `publicAccess`. The rule's order is: ban → invite-only deny → active paid entitlement → active free grant → valid bound proof → `402` challenge. A bare `?wallet=` is a client claim, never an identity; possession comes from a bound unlock proof or a SIWE session wallet. Full detail: [Whitelists & access control](/access-control).
+Nibshare and Subblogs assemble database facts and call the SDK’s `canAccess` rule over price, whitelist/tier and invite-only policy. The order is reachability → invite membership → ban/revoke → free/paid grants → valid proof → payment challenge. A generic SDK integration must wire its own persistence and policy facts; `protect` alone is a token/access-mode check, not a database-backed entitlement service. A bare `?wallet=` is a client claim, never an identity; possession comes from a bound unlock proof or a SIWE session wallet. Full detail: [Whitelists & access control](/access-control).
 
 ## Encryption at rest
 
@@ -53,7 +53,7 @@ The widget proves the registered origin can serve the Nibgate token. It also str
 
 ## Nibgate hub
 
-The hub receives verified metadata and events. It powers the creator dashboard, Explore, content analytics, earnings analytics, and future reputation surfaces.
+The hub receives verified metadata and events. It powers the creator dashboard, Explore, content analytics, earnings analytics, and reputation surfaces.
 
 ## End-to-end flow
 
@@ -98,3 +98,7 @@ Nibgate then indexes receipts and rating events and computes:
 - content reputation as `0.0-5.0` stars
 - site reputation as `1-100`
 - creator reputation as `1-100`
+
+## Private research boundary
+
+Dr. Nib's [private research architecture](/dr-nib/confidential/architecture) separates browser encryption, a ciphertext broker, verified Phala orchestration, encrypted state and a restricted money service. It is distinct from creator/server-side storage encryption. Actual JEV and authorized Azure/OpenRouter ZDR research processing receive disclosed context; ordinary Hub/MCP access does not unlock private projects.

@@ -1,0 +1,9 @@
+// Explicit source-only build context; archive with --no-xattrs and
+// --no-mac-metadata. Never include local environment/credential files. Only directories bearing our marker are reset.
+import {mkdir,readFile,writeFile,readdir,copyFile,rm,lstat}from'node:fs/promises';import {resolve,join}from'node:path';import {fileURLToPath}from'node:url';
+const root=fileURLToPath(new URL('..',import.meta.url)),target=process.argv[2];if(!target?.startsWith('/tmp/drnib-')||target.includes('..')||resolve(target)!==target)throw Error('Use a dedicated /tmp/drnib- context');
+try{if((await lstat(target)).isSymbolicLink())throw Error('Unsafe context link');const marker=await readFile(join(target,'.drnib-build-context'),'utf8');if(marker!==root)throw Error('Unowned build context');await rm(target,{recursive:true});}catch(error){if(error.code!=='ENOENT')throw error;}
+await mkdir(target,{recursive:true,mode:0o700});await writeFile(join(target,'.drnib-build-context'),root,{mode:0o600});
+async function copy(path){const source=join(root,path),info=await lstat(source);if(info.isSymbolicLink())throw Error('Unexpected source symlink');if(info.isDirectory()){await mkdir(join(target,path),{recursive:true});for(const e of await readdir(source)){if(e==='node_modules'||e==='.git'||e.startsWith('.env'))throw Error('Unsafe source directory');await copy(path+'/'+e)}}else if(info.isFile()){await mkdir(resolve(target,path,'..'),{recursive:true});await copyFile(source,join(target,path));}else throw Error('Unsupported source');}
+for(const path of ['package.json','pnpm-lock.yaml','pnpm-workspace.yaml','dr-nib/backend/package.json','dr-nib/backend/prisma','dr-nib/backend/src','packages/internal/package.json','packages/internal/src','packages/wallet/package.json','packages/wallet/src','dr-nib/private-terminal','dr-nib/private-guest/Dockerfile'])await copy(path);
+console.log(target);

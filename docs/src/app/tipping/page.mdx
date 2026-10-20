@@ -22,7 +22,7 @@ Whether a tip lands instantly or is held depends on one thing: **can we resolve 
 | Example | A subblog post, a verified creator site | Any random external URL |
 
 <Callout type="important">
-Refunds only ever apply to **held** tips. A resolved creator is paid instantly (`settled`) and a claimed tip is already released — neither can be refunded. Holding exists purely for creators who aren't on Nibgate yet.
+Refunds only ever apply to **held** tips. A resolved tip is recorded after successful verification (`settled`); Gateway withdrawal and fee-wallet distribution may still be pending. Neither a settled nor a claimed tip has a platform refund path. Holding exists purely for creators who aren't on Nibgate yet.
 </Callout>
 
 ## Where each path fires
@@ -37,39 +37,11 @@ The UI and SDKs route by one rule: **if the hub can resolve a recipient wallet f
 The hold path keys money to a **domain**, not a page. Only hold tips for domains a real creator site can later verify and claim. Holding for a made-up or platform-owned domain strands the funds except via payer refund.
 </Callout>
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant P as Payer (reader / agent)
-    participant H as Hub
-    participant G as Circle Gateway / USDC
-    participant B as Domain holding box
-    participant C as Creator
-
-    rect rgb(232, 255, 235)
-    Note over P,C: RESOLVED creator — settles instantly
-    P->>H: POST /hub/tips/challenge (contentUrl, amount)
-    H-->>P: challenge (payTo = creator payee, feeBps)
-    P->>G: pay USDC
-    P->>H: POST /hub/tips/verify (proof)
-    H-->>C: funds at creator payee · status settled
-    end
-
-    rect rgb(255, 244, 230)
-    Note over P,B: UNRESOLVED / external creator — held in a no-key box
-    P->>H: POST /hub/tips/hold (contentUrl, amount)
-    H-->>P: deterministic box address
-    P->>B: transfer USDC to box
-    P->>H: POST /hub/tips/hold (txHash)
-    H-->>P: status held
-    end
-
-    rect rgb(232, 242, 255)
-    Note over C,B: Later — creator claims, or payer refunds
-    C->>H: POST /hub/tips/claim (siteId + verifyToken)
-    H->>B: keeper release(domain, creator)
-    B-->>C: net minus held-tier cut · treasury cut
-    end
+```text
+Resolved: challenge → pay → verify → settled receipt
+Unresolved: box challenge → fund → verify → held receipt
+Claim: Hub verifies creator → privileged factory release → creator/treasury
+Refund: Hub verifies payer → privileged factory refund → original payer
 ```
 
 ## Endpoints
@@ -120,7 +92,7 @@ The signature is a **wallet-control proof**, not an authorization to move funds 
 
 ## The on-chain holding box
 
-Held funds live in a **deterministic, no-key contract address** derived per domain (CREATE2 from `keccak256(domain)`). Nobody — not Nibgate, not any keeper key — can move funds out except through `release` (to the verified owner) or `refund` (back to the payer). The hub never custodies the money. Full internals live on the [holding contracts](/tipping/contracts) page.
+Held funds live in a **deterministic, no-key contract address** derived per domain (CREATE2 from `keccak256(domain)`). The box has no EOA private key, but its factory owner/keeper authorizes `release` and `refund`. The Hub verifies creator ownership and payer identity offchain; the contracts trust the relayer’s recipient arguments. Held funds therefore depend on that authorization boundary. Full internals live on the [holding contracts](/tipping/contracts) page.
 
 | | Testnet | Mainnet |
 |---|---|---|
@@ -131,7 +103,7 @@ Held funds live in a **deterministic, no-key contract address** derived per doma
 | Gateway domain | 26 | 26 |
 
 - The box address is predicted offchain with the same inputs (factory address + wallet init-code hash) the factory's `predict()` uses, so payers can safely fund a box that has no code yet — the factory materializes the same address on first use.
-- Each domain's box is deployed on first use (claim or refund). A brand-new box costs the relayer ~$0.02 of gas to deploy; subsequent operations on the same domain are ~$0.001. **The mainnet keeper must stay funded** or claims and refunds start failing.
+- Each domain's box is deployed on first use (claim or refund). The first release or refund also pays deployment gas; subsequent operations reuse the box. Actual fees depend on the network and transaction. **The mainnet keeper must stay funded** or claims and refunds start failing.
 - Holds paid over the Circle Gateway rail land as Gateway ledger credit for the box first; the hub collects it on-chain (the box's ERC-1271 self-withdrawal) before releasing or refunding. If the credit is still settling, claim/refund return `202 pending-settlement` — retry shortly.
 
 ## Fees
@@ -224,35 +196,12 @@ fields supplied by the tipper/extension and metadata recoverable from matching
 indexed content. JEV can enrich eligible indexed content; it is not a universal
 metadata or cover-image generator.
 
-## Coverage record: deployed · tested · documented
-
-### Deployed
-
-- Testnet `TipHoldingFactory` `0xf127a645d7c02a12e0a93b135f8acf9c3332e518` (owner `0x796a…`, keeper hub key) on Arc testnet.
-- Mainnet `TipHoldingFactory` `0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87` (owner treasury `0x558e…`, keeper hub hot key) on Arc mainnet.
-- Hub `POST /hub/tips/challenge`, `/hub/tips/verify`, `/hub/tips/hold`, `GET /hub/tips/held`, `POST /hub/tips/claim`, and `POST /hub/tips/refund` are deployed on both hubs. The exact-host checker response changes and ledger-held visibility described here are source updates awaiting deployment.
-- `@nibgate/sdk@0.4.34` published with `tipContent`/`holdTipContent`/`refundTip` (browser) and holding/refund calldata builders (server). The extension holds on unresolved pages and refunds from activity detail; `useNibgateTip()` does both in React.
-
-### Tested
-
-- Forge: 14/14 (release/refund happy paths, keeper paths, non-owner reverts, empty-box reverts, owner rotation).
-- SDK vitest: 115/115, including a hermetic Gateway-facilitator stub and browser hold/refund helper tests.
-- Extension `tsc --noEmit` clean; extension build clean.
-- Live end-to-end on both networks: hold → fund → refund (box emptied, rows `refunded`, negative ledger row), direct challenge → verify (`settled`), nibshare tip (`settled`), subblog hold → claim (`released`, box emptied).
-
-### Documented
-
-- This page (flows, fees, claiming, refunds, SDK, ledger, and pending-tip checker), the [agent flow](/tipping/agent-flow) page, and the [holding contracts](/tipping/contracts) page on the docs site.
-- Agent surfaces in source are aligned to OpenAPI/MCP v0.2.11, and production reports v0.2.11 — publish the registry record, the frontend agent docs, and the API/MCP service together on every version bump, never one without the others.
-
 ## Trust model
 
-- **Non-custodial:** held funds sit at a deterministic address, movable only by on-chain `release`/`refund`.
-- **Keeper relays, never redirects:** the keeper can only trigger `release(domain, creator)` (fee split) or `refund(domain, payer)` (full, payer-only).
-- **Owner is authoritative:** the factory owner can rotate the keeper but not extract funds.
-- **Refund safety:** a refund proof can only return funds to the signer; there is no path to a third party.
-
-See [Architecture](/architecture) for how the hub, keeper, and contracts fit together.
+- **Box custody:** funds reside at a deterministic contract address with no EOA key. Factory owner/keeper permissions control release and refund.
+- **Recipient authorization:** the Hub checks domain ownership, payer identity and receipt state; contracts trust the recipient arguments supplied by the authorized factory caller.
+- **Fees:** a claim splits the current box balance under its immutable held-tier fee; refunds use the supplied payer and are capped by the available balance.
+- **Pending outcomes:** preserve the original transaction and reconcile an uncertain result before another relay. A database receipt and a chain transfer are separate observations.
 
 ## Payment confirmation and safe retries
 
@@ -281,9 +230,6 @@ inspect the existing transaction/receipt and reconcile ambiguous settlement with
 the operator. Pending reservations are not automatically cleared or settled
 again. A transport or server error after submission is not evidence that no
 payment occurred. An unconfirmed direct-transfer receipt returns HTTP 402;
-retrying its read-only verification is safe. This change uses the existing
-`PaymentTxClaim` table, with no new schema migration. It does not recover a
-facilitator settlement lost before database completion or add held-tip
-claim/refund recovery.
+retrying its read-only verification is safe. If a facilitator settlement is lost before database completion, the stored proof and transaction require reconciliation. Held-tip claim/refund relays have their own outcome checks.
 
 Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.

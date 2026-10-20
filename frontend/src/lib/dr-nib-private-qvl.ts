@@ -175,7 +175,7 @@ export function checkReviewedQuoteClaims(result: QvlVerifiedReport, manifest: Re
   for (const key of ["mrTd", "mrConfigId", "mrOwner", "mrOwnerConfig", "rtMr0", "rtMr1", "rtMr2", "rtMr3", "tdAttributes", "xfam"] as const) {
     const claim = report[key];
     if (!(claim instanceof Uint8Array) || !equalHex(bytesToHex(claim), m[key]))
-      throw Error("TDX quote differs from the reviewed boot measurements");
+      throw Error(`TDX quote differs from the reviewed boot measurements (${key}; reviewed release ${manifest.composeHash.slice(0,12)}). Reload the app after an approved worker update.`);
   }
   if (!(report.reportData instanceof Uint8Array) ||
       !equalHex(bytesToHex(report.reportData), reportDataHex))

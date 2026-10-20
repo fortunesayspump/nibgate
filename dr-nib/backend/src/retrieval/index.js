@@ -21,6 +21,8 @@ import { edgarSearch } from './providers/edgar.js';
 import { stackexchangeSearch } from './providers/stackexchange.js';
 import { gdeltSearch } from './providers/gdelt.js';
 import { hnSearch } from './providers/hn.js';
+import { mwmblSearch } from './providers/mwmbl.js';
+import { hubSearch } from './providers/hub.js';
 import { polymarketSearch } from './providers/polymarket.js';
 import { semanticscholarSearch } from './providers/semanticscholar.js';
 import { crossrefSearch } from './providers/crossref.js';
@@ -55,8 +57,12 @@ export function retrievalStatus() {
  *   `providers` reports each provider's outcome (count, cost, or error) so a
  *   disagreement is visible downstream rather than flattened.
  */
-export async function searchAll(input, { fetchImpl } = {}) {
-  const { query, maxResults = 8, searchDepth, type, timeRange, includeDomains, excludeDomains, includeContent = false, includeAcademic = true, includeFree = true } = input || {};
+export async function searchAll(input, { fetchImpl,deadlineMs } = {}) {
+  const { query, maxResults = 8, searchDepth, type, timeRange, includeDomains, excludeDomains, includeContent = false, includeAcademic = true, includeFree = true, includePaid = true, preferCreators = false } = input || {};
+  if(typeof preferCreators!=='boolean')throw Error('Invalid creator discovery configuration');
+  if(typeof includePaid!=='boolean'||deadlineMs!==undefined&&(includePaid||!Number.isInteger(deadlineMs)||deadlineMs<100||deadlineMs>15000))throw Error('Invalid bounded free-search configuration');
+  const deadlineController=deadlineMs===undefined?null:new AbortController();
+  if(deadlineController){const transport=fetchImpl??fetch;fetchImpl=(url,options={})=>transport(url,{...options,signal:AbortSignal.any([deadlineController.signal,...(options.signal?[options.signal]:[])])});}
   const status = retrievalStatus();
   const calls = [];
   const freeCall = (name, fn, args) => {
@@ -75,7 +81,7 @@ export async function searchAll(input, { fetchImpl } = {}) {
     }
   };
 
-  if (status.tavily) {
+  if (status.tavily && includePaid) {
     const gate = circuitAllows('tavily');
     if (!gate.allowed) {
       calls.push(Promise.resolve({ name: 'tavily', skipped: 'circuit-open', retryAfterMs: gate.retryAfterMs }));
@@ -91,7 +97,7 @@ export async function searchAll(input, { fetchImpl } = {}) {
       );
     }
   }
-  if (status.exa) {
+  if (status.exa && includePaid) {
     const gate = circuitAllows('exa');
     if (!gate.allowed) {
       calls.push(Promise.resolve({ name: 'exa', skipped: 'circuit-open', retryAfterMs: gate.retryAfterMs }));
@@ -111,7 +117,7 @@ export async function searchAll(input, { fetchImpl } = {}) {
   // queries and OpenRouter executes them server-side. Same circuit-breaker
   // treatment as the keyed pair; zero annotations is an empty result, and
   // a model without tool support 400s into a disagreement, never a crash.
-  if (status.openrouter) {
+  if (status.openrouter && includePaid) {
     const gate = circuitAllows('openrouter');
     if (!gate.allowed) {
       calls.push(Promise.resolve({ name: 'openrouter', skipped: 'circuit-open', retryAfterMs: gate.retryAfterMs }));
@@ -128,6 +134,10 @@ export async function searchAll(input, { fetchImpl } = {}) {
   // small and circuit-broken like the keyed pair; empties are disagreements,
   // not failures.
   if (includeFree) {
+    if(preferCreators){
+      freeCall('nibgate-hub',hubSearch,{query,maxResults});
+      freeCall('mwmbl',mwmblSearch,{query,maxResults});
+    }
     freeCall('wikipedia', wikipediaSearch, { query, maxResults: 4 });
     freeCall('openalex', openalexSearch, { query, maxResults: 4 });
     freeCall('semanticscholar', semanticscholarSearch, { query, maxResults: 4 });
@@ -161,7 +171,14 @@ export async function searchAll(input, { fetchImpl } = {}) {
     return { results: [], costUsd: 0, providers: [], fallback: true };
   }
 
-  const settled = await Promise.allSettled(calls);
+  let settled;
+  if(deadlineController){
+    const completed=Array(calls.length);let timer;
+    const tracked=calls.map((call,i)=>Promise.resolve(call).then(value=>{completed[i]={status:'fulfilled',value}},reason=>{completed[i]={status:'rejected',reason}}));
+    try{await Promise.race([Promise.all(tracked),new Promise(resolve=>{timer=setTimeout(resolve,deadlineMs)})]);}
+    finally{clearTimeout(timer);deadlineController.abort();}
+    settled=Array.from({length:calls.length},(_,i)=>completed[i]??{status:'rejected',reason:Error('Free search deadline reached')});
+  }else settled=await Promise.allSettled(calls);
   const providers = [];
   const gathered = [];
   let costUsd = 0;

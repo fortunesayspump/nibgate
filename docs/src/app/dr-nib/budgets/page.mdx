@@ -2,12 +2,14 @@ import { Callout } from 'nextra/components'
 
 # Budgets & refunds
 
-Every Dr. Nib run holds its own budget in USDC. The rules are simple and absolute:
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
 
-- **Cap first.** You set the cap at configure time. Nothing executes until you approve the plan against it.
+Every Dr. Nib run holds its own budget in USDC. The cap bounds customer ledger debits; it is distinct from the operator's upstream provider bill:
+
+- **Cap first.** You set the cap at configure time. Funded research waits for plan approval; intake and planning can already use operator-sponsored model calls.
 - **Planning is free.** Planning calls do not draw from the research ledger. A zero-cost tool result is recorded as zero, rather than charged at an estimated table rate.
-- **Draw per stage.** Search, fetch, scoring, writing, verify — each stage draws its cost, accruing a **1% platform fee** as money moves, never up front. Agent purchases (tips, paid unlocks, x402 calls) draw the same way with their transaction hashes on the record. The fee is operator-side: at split the contract takes it from the operator's earned share, so your refund is never reduced by it.
-- **Never overspend.** If the next stage would pass the cap, the run **pauses** with the balance intact. On ledger runs raise the cap or end it — your call. On one-shot escrow deposits raising past the deposit is impossible, so an exhausted run ends (report kept) or restarts bigger as a new run.
+- **Draw per stage.** Search, fetch, scoring, writing and verification draw their reported costs, accruing a **1% platform fee** as money moves, never up front. Agent purchases (tips, paid unlocks, x402 calls) contribute to the stage charge, with available payment references retained in tool/stage records. A ledger stage reference is not necessarily an onchain transaction hash. The fee is operator-side: at split the contract takes it from the operator's earned share, so your refund is never reduced by it.
+- **Bound customer charges.** A draw that exceeds the available ledger balance or cap is refused and parks the run. Ordinary provider stages are charged after completion; this gate does not guarantee that upstream provider costs never exceed the remaining customer balance. On ledger runs raise the cap or end it — your call. On one-shot escrow deposits raising past the deposit is impossible, so an exhausted run ends (report kept) or restarts bigger as a new run.
 - **Remainder returns.** When a run completes, fails, or is ended, whatever is unspent becomes refundable. The receipt says pending until the onchain split is confirmed; temporary keeper or RPC failures retry every minute, and the owner can retry from the receipt. Terminal runs show a settlement receipt (deposited / spent / refunded + settle tx + funds tx).
 
 <Callout type="info">
@@ -26,18 +28,24 @@ The budget ledger is append-only and is the only source of truth for a balance:
 | `fee` | the 1% platform cut on every draw — operator-side: at split the contract takes it from the earned share, so fee rows are treasury-receivable memos, never subtracted from your balance |
 | `refund` | the remainder, written once at settle |
 
-Nothing is ever edited or deleted. Balance = deposited − spent − refunded, always. A refund ledger row records the amount due; the receipt separately confirms whether the onchain split has executed.
+The application appends ledger entries; this is not a cryptographically immutable ledger against database administrators. Balance = deposited − spent − refunded. A refund ledger row records the amount due; the receipt separately confirms whether the onchain split has executed.
 
 End is cooperative: if a stage is active, it finishes and records its cost before the remaining balance is refunded. The run can show an ended status while settlement is still pending. Ledger writes and refunds are serialized across API and worker processes. A settled budget cannot be reused by reprompting or raising its cap; start a fresh funded run instead.
 
 ## Raising the cap
 
-Out of budget mid-run? On ledger runs, raise it (raise-only, always) and a paused run continues from the same stage — finished stages are never charged twice. On escrowed runs the deposit is one-shot, so raising past it is refused outright. The approve step also refuses a plan whose estimate exceeds the balance, so a run can't start already broke.
+Out of budget mid-run? On ledger runs, raise it (raise-only, always) and a paused run continues from the same stage — finished stages are not charged again when their completion checkpoint and stable ledger reference are present. On escrowed runs the deposit is one-shot, so raising past it is refused outright. The approve step also refuses a plan whose estimate exceeds the balance, so a run can't start already broke.
 
 ## Audit
 
-`reconcile_run` (MCP) checks both directions: every ledger-claimed transaction must resolve to a mined Transfer, and every agent-wallet outflow — EOA and spender-mandate alike — must resolve to a ledger row. Gateway deposits (still the agent's money) are reported separately so they never read as missing.
+`reconcile_run` (MCP) compares transaction-hash spend references with ERC-20 Transfer logs from the shared agent EOA and configured spender mandate. It reports unmatched ledger hashes, unmatched chain outflows and Gateway deposits separately. Stage-only references are not transaction hashes; this helper does not prove exact amount/recipient attribution for every aggregate stage charge, provider bill or gas expense. A clean hash match is not a complete financial audit.
 
 ## Onchain escrow in the public app
 
 The public testnet and mainnet apps require an [onchain escrow](/dr-nib/escrow) at review: any amount from the plan estimate up locks in a contract (one-shot, no top-ups), the working cap aligns down to what landed, and the remainder returns to your wallet when the settlement split confirms. Development-only ledger allowances do not move user funds.
+
+## Private workflow accounting
+
+The [private worker](/dr-nib/confidential/models-tools) reserves each model operation before dispatch under a shared durable budget lock. Actual serving model, tokens, cost basis and supported receipt/provider evidence reconcile that reservation. Unknown outcomes remain held and prevent duplicate execution; supported rejected requests can remain operator-covered without becoming customer charges. This differs from ordinary post-stage charging.
+
+Unreported ordinary provider usage is operator-absorbed rather than billed at a fictional table rate. Ordinary sandbox cost is a runtime estimate from its configured rate assumptions, not a provider invoice. The receipt must keep charges, estimates, sponsorship, operator costs and unresolved commitments distinguishable.

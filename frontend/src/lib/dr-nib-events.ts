@@ -9,6 +9,7 @@
 // fallback, used only when the stream itself errors.
 
 import { DRNIB_API_BASE } from "./dr-nib-api";
+import {subscribePrivateActionUpdates} from './dr-nib-private-action-updates';
 
 export type RunEvent = {
   type: string;
@@ -28,6 +29,22 @@ export function subscribeRunEvents(
   onEvent: (event: RunEvent) => void,
   onError?: () => void,
 ): () => void {
+  if(process.env.NEXT_PUBLIC_DRNIB_PRIVATE_CONFIDENTIAL==='true'){
+    let stopped=false,reconnecting=false,timer:ReturnType<typeof setTimeout>|undefined,lastSnapshot='',delay=5000;
+    const poll=async()=>{try{
+      const {getPrivateManifest}=await import('./dr-nib-private-records');
+      const {value}=await getPrivateManifest(runId,true);
+      if(stopped)return;
+      delay=value.status==='running'?2000:5000;
+      // One refresh per authenticated snapshot, rather than one full reload
+      // per historical row. Counts can shrink after a failed action, so an
+      // array cursor also loses later events on reconnect.
+      const snapshot=JSON.stringify(value);
+      if(snapshot!==lastSnapshot||reconnecting){lastSnapshot=snapshot;reconnecting=false;onEvent({type:'private.snapshot',privateSnapshot:value});}
+    }catch{delay=5000;if(!stopped&&!reconnecting){reconnecting=true;onError?.()}}finally{if(!stopped)timer=setTimeout(poll,delay)}};
+    const unsubscribe=subscribePrivateActionUpdates(id=>{if(!stopped&&id===runId)onEvent({type:'private.action-settled'});});
+    void poll();return()=>{stopped=true;clearTimeout(timer);unsubscribe()};
+  }
   if (typeof window === "undefined" || typeof EventSource === "undefined") {
     onError?.();
     return () => {};

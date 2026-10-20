@@ -32,7 +32,7 @@ Current build (`backend/src/server/nibshare/routes.js`, `controller.js`, `servic
 - **Encryption:** the content key is generated **server-side** (`generateContentKey`),
   the body is encrypted with AES-256-GCM (`encryptBytes`), and the ciphertext is
   uploaded as a blob at `nibshare/{id}/body.bin` (`putBlob`). `keyProvider: 'server'`,
-  `decryptMode: 'server'` — the key lives in the backend row (`encryptedKey`, base64)
+  `decryptMode: 'server'` — the envelope-wrapped key lives in the backend row (`encryptedKey`)
   and the body is decrypted server-side on unlock. No key or ciphertext is ever vended
   to the browser.
 - **Integrity:** `contentHash = keccak256("nibshare:v1|{ownerWallet}|{storageRef}|{plaintext}")`
@@ -45,7 +45,7 @@ Current build (`backend/src/server/nibshare/routes.js`, `controller.js`, `servic
   unlock through the same x402 / Gateway rail, then stream any embedded media through
   the encrypted-media proxy.
 - **Embedded media:** the editor uploads images/audio/video/documents to
-  `POST /api/uploads/content?encrypted=1` (`backend/src/server/routes/upload-routes.js`).
+  `POST /uploads/content?encrypted=1` (`backend/src/server/routes/upload-routes.js`).
   Files are optimized (images → WebP) and AES-256-GCM encrypted to
   `nibshare/{userId}/enc/media/…bin`; images also get a public `previewUrl` WebP for
   the share card. The article body is stored as
@@ -78,23 +78,19 @@ is decided by one switch on each share:
 Today only `server` mode is implemented: the backend decrypts and returns the body
 inside the unlock response (with a 1-hour `sessionId`/`expiresAt`), and a wallet's
 access is revoked by flipping its `NibShareEntitlement` to `revoked` — or the whole
-share to `status: revoked`. Because the viewer never durably holds the key or
-plaintext, a revoked wallet is refused going forward. This is the hard-revocation
+share to `status: revoked`. A revoked wallet is refused on future requests. Previously downloaded plaintext cannot be retracted. This is the hard-revocation
 mode; `client` mode is the design target for fully decentralized storage, not yet
 shipped.
 
 ### Expiry
 
-`expiresAt` stops NEW unlocks and (in `server` mode) new sessions. It never revokes
-entitlements already granted. Hard "everyone loses access at midnight" requires
-`server` mode + revoking entitlements — there is no way to do it on permanent
-decentralized storage.
+`expiresAt` is required and must be within seven days. Once reached, the controller rejects subsequent access, unlock and media requests with HTTP 419, including prior payers. Receipt and entitlement rows remain stored; downloaded copies cannot be retracted.
 
 ## Core flow
 
 ```
 Creator: connect wallet -> write -> set price/expiry/whitelist
-   -> media uploaded encrypted via /api/uploads/content?encrypted=1
+   -> media uploaded encrypted via /uploads/content?encrypted=1
    -> server encrypts body (AES-GCM, server-generated key)
    -> ciphertext to R2 (nibshare/{id}/body.bin), metadata row created
    -> short link  nibgate.xyz/ns/<slug>
@@ -110,7 +106,7 @@ Viewer (human or agent): open /ns/<slug> (or POST /nibshare/:slug/meta -> 402 te
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/api/uploads/content?encrypted=1` | wallet-signature session | Upload + encrypt media for a share body (images → WebP first) |
+| POST | `/uploads/content?encrypted=1` | wallet-signature session | Upload + encrypt media for a share body (images → WebP first) |
 | POST | `/nibshare` | wallet-signature session | Create a share (server encrypts body, stores ciphertext in R2) |
 | GET | `/nibshare/:slug/edit` | owner | Read editable metadata and decrypted body |
 | PUT | `/nibshare/:slug` | owner | Patch supplied fields; body edits get a fresh encrypted object |

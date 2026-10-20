@@ -5,6 +5,7 @@ import { equalHex, expectedReportData } from "./dr-nib-private-crypto";
 // inspectable client build. Until all values are reviewed, admission is off.
 const release = {
   verifierUrl: process.env.NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_URL,
+  verifierTrustMode: process.env.NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_TRUST_MODE,
   appId: process.env.NEXT_PUBLIC_DRNIB_PRIVATE_APP_ID,
   instanceId: process.env.NEXT_PUBLIC_DRNIB_PRIVATE_INSTANCE_ID,
   composeHash: process.env.NEXT_PUBLIC_DRNIB_PRIVATE_COMPOSE_HASH,
@@ -23,6 +24,7 @@ export type GuestSession = {
   evidence: { attestation: string } | { quote: string; eventLog: string; vmConfig: string };
 };
 export type PrivatePolicy = {
+  verifierTrustMode?: "independent" | "operator-hosted";
   verifierUrl: string; appId: string; instanceId?: string;
   composeHash: string; osHash: string; kmsId: string;
 };
@@ -54,8 +56,10 @@ async function readLimitedJson(response: Response, maxBytes: number): Promise<Re
 export function configuredPrivatePolicy(): PrivatePolicy | null {
   try {
     const url = new URL(release.verifierUrl || "");
+    const trustMode = release.verifierTrustMode || "independent";
+    if (trustMode !== "independent" && trustMode !== "operator-hosted") return null;
     if (url.protocol !== "https:" || url.pathname !== "/verify" || url.search || url.hash || url.username || url.password ||
-        url.hostname === "nibgate.xyz" || url.hostname.endsWith(".nibgate.xyz") ||
+        (trustMode === "independent" && (url.hostname === "nibgate.xyz" || url.hostname.endsWith(".nibgate.xyz"))) ||
         !release.appId || !hex20.test(release.appId) ||
         (release.instanceId && !hex20.test(release.instanceId)) ||
         !release.composeHash || !hex32.test(release.composeHash) ||
@@ -68,7 +72,7 @@ export function configuredPrivatePolicy(): PrivatePolicy | null {
     const c = controls as Record<string, unknown>;
     if (c.sshDisabled !== true || c.debugDisabled !== true || c.plaintextLogsDisabled !== true ||
         c.imagesDigestPinned !== true || c.productionOsImage !== true) return null;
-    return { verifierUrl: url.toString(), appId: release.appId.toLowerCase(),
+    return { verifierTrustMode: trustMode, verifierUrl: url.toString(), appId: release.appId.toLowerCase(),
       instanceId: release.instanceId?.toLowerCase(), composeHash: release.composeHash.toLowerCase(),
       osHash: release.osHash.toLowerCase(), kmsId: release.kmsId.toLowerCase() };
   } catch { return null; }
@@ -95,16 +99,17 @@ export async function verifyGuestEvidence({ session, nonce, publicKey, policy }:
   if (new TextEncoder().encode(body).length > MAX_EVIDENCE) throw Error("Guest evidence is too large");
   let response: Response;
   try {
-    // Direct independent verifier call. A Nibgate proxy or guest-reported
-    // verdict would make the operator the verifier. CORS failure is fatal.
+    // The verifier is fixed by the reviewed client build, never by the guest.
+    // Operator-hosted mode explicitly trusts its service operator for the verdict.
+    // CORS failure is fatal in either trust mode.
     response = await fetch(policy.verifierUrl, {
       method: "POST", mode: "cors", credentials: "omit", cache: "no-store", redirect: "error",
       referrerPolicy: "no-referrer", headers: { "content-type": "application/json", "accept": "application/json" },
       body, signal: AbortSignal.timeout(10_000),
     });
-  } catch { throw Error("Independent attestation verifier is unavailable"); }
+  } catch { throw Error("Attestation verifier is unavailable"); }
   if (!response.ok || !(response.headers.get("content-type") || "").toLowerCase().startsWith("application/json"))
-    throw Error("Independent attestation verifier rejected this session");
+    throw Error("Attestation verifier rejected this session");
   if (Number(response.headers.get("content-length")) > 1024 * 1024) throw Error("Verifier response is too large");
   const verdict = await readLimitedJson(response, 1024 * 1024);
   const d = verdict.details as Record<string, unknown> | undefined;

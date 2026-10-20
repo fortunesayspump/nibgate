@@ -10,12 +10,14 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Eip1193Provider } from "@nibgate/wallet";
-import { useAppKitAccount, useAppKitProvider, useWalletInfo } from "@nibgate/wallet/react";
+import { useAppKitAccount, useAppKitProvider, useWalletInfo, useNibgateConnect } from "@nibgate/wallet/react";
 import { createPublicClient, createWalletClient, custom, encodeFunctionData, formatUnits } from "viem";
 import { activeArcChain } from "@nibgate/wallet/chain";
 import { ensureArcNetwork, repairArcNetwork } from "@nibgate/wallet/network";
 import { getWalletErrorMessage, WALLET_ERRORS } from "@nibgate/wallet/errors";
 import { createdJobFromReceipt, requireSuccessfulReceipt } from "@/lib/escrow-receipt";
+import {privateFundingEnabled,requirePrivateInputs} from "@/lib/dr-nib-private-records";
+import {readEscrowWalletDiagnostics} from "@/lib/dr-nib-wallet-diagnostics";
 import { drNibApi } from "@/lib/dr-nib-api";
 
 const USDC = "0x3600000000000000000000000000000000000000";
@@ -36,6 +38,7 @@ type Step = "idle" | "switching" | "creating" | "budget" | "approving" | "fundin
 
 export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId: string; budgetCap: number; estimate?: number | null; onFunded: () => void }) {
   const { address } = useAppKitAccount();
+  const {connect,busy:connectingWallet,error:walletConnectError}=useNibgateConnect();
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
   const { walletInfo } = useWalletInfo();
   // Active wallet name (MetaMask extension vs WalletConnect phone vs
@@ -157,36 +160,13 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
   async function runDiag() {
     if (!walletProvider?.request || !address) return;
     const req: any = (walletProvider as any).request.bind(walletProvider);
-    const withTimeout = <T,>(p: Promise<T>, ms = 9000): Promise<T | null> =>
-      Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
     const d: ConnDiag = { rpcOk: null, gas: null, usdc: null, syncing: null, blockNum: null };
     try {
-      const bn = await withTimeout(req({ method: "eth_blockNumber" }));
-      d.rpcOk = bn != null;
-      if (bn != null) {
-        try { d.blockNum = Number(bn); } catch { /* ignore */ }
-        // A node that is still syncing (or far behind) answers reads but
-        // rejects broadcasts — the exact shape of an "everything looks fine
-        // but every send dies" failure. Name it when present.
-        const [sync, gasRaw, usdcRaw] = await Promise.all([
-          withTimeout(req({ method: "eth_syncing" })),
-          withTimeout(req({ method: "eth_getBalance", params: [address, "latest"] })),
-          withTimeout(req({
-            method: "eth_call",
-            params: [{ to: USDC, data: encodeFunctionData({ abi: USDC_ABI, functionName: "balanceOf", args: [address as `0x${string}`] }) }, "latest"],
-          })),
-        ]);
-        d.syncing = sync != null && sync !== false;
-        if (gasRaw != null) {
-          try { d.gas = formatUnits(BigInt(gasRaw as string), 18); } catch { /* ignore */ }
-        }
-        if (usdcRaw != null && String(usdcRaw).length > 2) {
-          try { d.usdc = formatUnits(BigInt(usdcRaw as string), 6); } catch { /* ignore */ }
-        }
-      }
-    } catch {
-      d.rpcOk = false;
-    }
+      const result=await readEscrowWalletDiagnostics(req,address,encodeFunctionData({abi:USDC_ABI,functionName:'balanceOf',args:[address as `0x${string}`]}));
+      d.rpcOk=true;d.blockNum=Number(result.blockNumber);d.syncing=result.syncing===null?null:result.syncing!==false;
+      try{if(result.gas!=null)d.gas=formatUnits(BigInt(result.gas),18);}catch{}
+      try{if(result.usdc!=null)d.usdc=formatUnits(BigInt(result.usdc),6);}catch{}
+    } catch {d.rpcOk=false;}
     setDiag(d);
   }
   useEffect(() => {
@@ -219,19 +199,18 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
     if (!validDeposit) { setError(`Choose a deposit between ${minimum.toFixed(2)} and your ${Number(budgetCap).toFixed(2)} USDC budget cap.`); return; }
     const amount = BigInt(Math.round(chosen * 1e6));
     try {
+      if(privateFundingEnabled())await requirePrivateInputs(runId);
       const provider = walletProvider;
       if (!provider?.request) throw new Error("Wallet provider is not available.");
       // A dead wallet RPC fails every broadcast while everything else looks
       // fine — refuse early with the repair path instead of burning
       // signatures into reverts/timeouts.
-      if (diag.rpcOk === false) {
-        throw new Error(`Your wallet's ${chain.name} connection is not responding. Check the connection or reconnect your wallet, then try again.`);
-      }
       // Busy from the first await: the network switch can take seconds (or
       // pop a wallet prompt), and until now the button sat idle through all
       // of it looking dead (seen live on Fund).
       setStep("switching");
       await ensureArcNetwork(provider);
+      await readChain();
       // Belt and suspenders: a tx signed with the wrong chainId is rejected
       // by the RPC with a cryptic error (seen live on Fund). Verify the
       // wallet is really where we think before asking for signatures.
@@ -331,7 +310,9 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
       for (let i = 0; i < 12; i++) {
         await new Promise((r) => setTimeout(r, waitMs));
         waitMs = Math.min(15000, waitMs * 1.4);
-        const st: any = await drNibApi.getEscrow(runId);
+        // The deposit receipt already succeeded. A transient status failure
+        // must not turn it into a failed deposit or trigger another payment.
+        const st: any = await drNibApi.getEscrow(runId).catch(()=>null);
         if (st?.job?.chain?.status === "Funded") {
           setStep("funded");
           onFunded();
@@ -418,7 +399,8 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
           className="w-32 border border-dark-gray/50 bg-white px-3 py-1.5 text-sm" />
         <span className="text-xs opacity-60">min ${minimum.toFixed(2)} (plan estimate){Number(budgetCap) > minimum ? ` · cap $${Number(budgetCap).toFixed(2)}` : ""}</span>
       </div>
-      <button onClick={run} disabled={busy || !validDeposit} className="mt-3 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
+      {!address&&<div className="mt-3 text-sm"><p>Your Nibgate sign-in is active separately from your wallet connection. Reconnect the wallet to fund escrow.</p><button onClick={()=>void connect()} disabled={connectingWallet} className="mt-2 border border-dark-gray/60 px-4 py-2 text-sm disabled:opacity-50">{connectingWallet?'Connecting wallet…':'Reconnect wallet for escrow'}</button>{walletConnectError&&<p role="status" className="mt-2 text-xs text-red-700">{walletConnectError}</p>}</div>}
+      <button onClick={run} disabled={busy || !validDeposit || !address} className="mt-3 inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50"
         title={!validDeposit ? `Choose ${minimum.toFixed(2)}–${Number(budgetCap).toFixed(2)}` : undefined}>
         {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
         {labels[step]}

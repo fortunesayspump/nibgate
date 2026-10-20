@@ -26,7 +26,7 @@ test('disabled flag never imports SDK, constructs credentials or contacts host',
 test('missing or unsafe configuration fails before SDK construction, including debug logging',async()=>{
   for(const change of [
     {PHALA_CLOUD_API_KEY:''},{DRNIB_PRIVATE_CVM_ID:''},{DRNIB_PRIVATE_WAKE_IDLE_MS:'0'},
-    {DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS:'99999999'},{DRNIB_PRIVATE_VERIFIER_URL:'http://verifier.example/verify'},
+    {DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS:'99999999'},{DRNIB_PRIVATE_WAKE_MAX_ACTIVE:'0'},{DRNIB_PRIVATE_WAKE_MAX_PENDING:'257'},{DRNIB_PRIVATE_VERIFIER_URL:'http://verifier.example/verify'},
     {DRNIB_PRIVATE_VERIFIER_SPKI_SHA256:'x'},
     {DRNIB_PRIVATE_RELEASE_POLICY_JSON:JSON.stringify({...policy,reviewedReleaseControls:{...policy.reviewedReleaseControls,sshDisabled:false}})},
     {DEBUG:'phala::api-client'},{DEBUG:'*'},{DEBUG:'other-namespace'},
@@ -37,9 +37,10 @@ test('missing or unsafe configuration fails before SDK construction, including d
   }
 });
 test('configured bootstrap uses explicit official SDK options and starts only on owner readiness',async()=>{
-  const f=fakeClient();let supplied;
+  const f=fakeClient();let supplied;let state;
+  const lifecycleStore={mutate:async(initial,fn)=>{state??=structuredClone(initial);return fn(state,Date.now(),false)}};
   const controller=await createConfiguredPhalaWake({...common,env:env(),
-    clientFactory:async options=>{supplied=options;return f.client},
+    lifecycleStore,clientFactory:async options=>{supplied=options;return f.client},
     verifierFactory:()=>({verifyEvidence:async()=>({is_valid:false})}),
     fetchImpl:async(url)=>{
       assert.equal(new URL(url).pathname,'/health');
@@ -48,8 +49,8 @@ test('configured bootstrap uses explicit official SDK options and starts only on
   assert.deepEqual(supplied,{apiKey:env().PHALA_CLOUD_API_KEY,baseURL:'https://cloud-api.phala.com/api/v1',
     version:'2026-06-23',timeout:60000});
   assert.deepEqual(f.calls,[]);
-  assert.equal(await controller.ensureReady(),true);
-  assert.deepEqual(f.calls,['start']);
+  assert.equal((await controller.status()).phase,'stopped');
+  assert.deepEqual(f.calls,[]);
   await controller.close();
-  assert.deepEqual(f.calls,['start','stop']);
+  assert.deepEqual(f.calls,[]);
 });

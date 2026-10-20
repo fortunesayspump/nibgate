@@ -1,0 +1,33 @@
+# Encryption, devices and recovery
+
+Wallet or Google sign-in authorizes access to encrypted records. A wallet address is public and is not an encryption key. Dr. Nib uses random browser-vault and project-key material; changing a login method does not make research content readable without the appropriate vault unlock.
+
+## Enrolled browsers and recovery codes
+
+An enrolled browser keeps a random non-extractable vault key in IndexedDB. Independent random project seeds protect project content. A separately saved random recovery code can unlock the encrypted vault record in a fresh browser after normal account sign-in.
+
+Save the code privately. Nibgate should never ask you to paste it into chat, support messages, logs or a research prompt. If every enrolled device and the saved recovery code are lost, Nibgate cannot recover the content. 
+
+From an already enrolled browser, Help supports replacing a lost recovery code. The operation preserves project seeds and content, includes deleted projects and atomically replaces encrypted wrappers and the recovery record. Old/pending local keys remain available until the server commit is confirmed. Only treat replacement as complete after the app confirms it.
+
+A new browser must complete both account sign-in and vault recovery before it can read encrypted projects. Wallet extensions have their own browser permissions, including Incognito access; those settings are separate from project encryption.
+
+## Pauses and failures
+
+| Situation | Expected behavior |
+| --- | --- |
+| User pauses or a question needs an answer | Checkpoint work, show the actual question/reply history, stop research until resumed |
+| Tab reload or temporary disconnect | Read encrypted saved state and reconnect; do not erase completed work |
+| Worker restart | Verify the fresh worker and restore authenticated completed operations before doing new work |
+| Known completed model/tool/payment operation | Reuse its recorded result and charge; do not purchase it again |
+| Lost response or uncertain payment outcome | Preserve reservation/checkpoint and reconcile before replay |
+| Definite supported rate-limit rejection | Apply bounded recovery; any unresolved provider cost remains operator exposure rather than a fabricated zero bill |
+| Resumable infrastructure failure | Preserve escrow; do not terminate and refund merely because recovery is needed |
+
+Processing keys are delivered by an authorized browser after verification. A live worker can use keys already delivered for its authorized action while they remain in memory. After a stop/crash loses in-memory keys, the user may need to reconnect and unlock before processing resumes. Nibgate does not hold an operator master decryption key.
+
+Active-work duration excludes recorded owner waits and offline gaps. Activity is encrypted project history, including model-authored summaries, decisions and tool observations. It is not a transcript of hidden internal reasoning.
+
+## Existing projects
+
+Encryption follows the processing path used when a project is created. Changing a UI setting does not retroactively encrypt previously stored plaintext. Ordinary API/MCP access is not an alternate way to bypass a private project's vault.

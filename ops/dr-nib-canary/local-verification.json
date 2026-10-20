@@ -1,0 +1,94 @@
+{
+  "checkedOn": "2026-10-20",
+  "scope": "offline-local-canary-preparation",
+  "tests": {
+    "passed": 479,
+    "failed": 0,
+    "includes": [
+      "privacy regressions",
+      "client recovery/no-wake behavior",
+      "canary config and split IaC evaluation",
+      "bundle tamper/overwrite checks",
+      "disposable PostgreSQL roles/schema",
+      "release-compose and measured prelaunch contracts",
+      "safe public-input reuse and credential-bearing RPC rejection"
+    ]
+  },
+  "images": {
+    "guest": {
+      "localTag": "nibgate-private-guest:canary-local-20261020-v3",
+      "localImageId": "sha256:54adb5de0425f7d506f69fd24f015849f09a8b8331b809b3ebcb52dca9d03d6b",
+      "publishedByThisWork": false
+    },
+    "terminal": {
+      "localTag": "nibgate-private-terminal:local-v5-20261019",
+      "localImageId": "sha256:8920b68806373994f288c11bff7fd8030c5bd38ba99943df17120a17c43f77e2",
+      "publishedByThisWork": false
+    },
+    "verifierGateway": {
+      "localTag": "drnib-private-verifier-gateway:local-canary-v2",
+      "localImageId": "sha256:d02621f6ebb463ed072c0ffa8bdcd875eded76d0a53810e8fcbd2e7b6bb454f7",
+      "publishedByThisWork": false
+    }
+  },
+  "guest": {
+    "sourceFilesVerified": 392,
+    "filesystemLayers": 25,
+    "runtimeImports": "passed",
+    "generatedSchema": "passed",
+    "quickJsExecution": "passed",
+    "network": "none"
+  },
+  "terminal": {
+    "exactSource": "passed",
+    "pinnedRunscVersion": "passed",
+    "pythonNumpyPandas": "passed",
+    "network": "none",
+    "freshPhalaGvisorAcceptance": false
+  },
+  "verifierGateway": {
+    "containerHealthAndOriginRejection": "passed",
+    "loopbackTransportTests": "passed",
+    "freshHardwareQuoteAcceptance": false
+  },
+  "noPush": true,
+  "noDeployment": true,
+  "noInference": true,
+  "noNewPayment": true,
+  "limitations": [
+    "Guest packaging reused dependencies from the checked immutable parent; independent clean build/provenance review remains required.",
+    "Local image IDs are not published registry manifest digests or hardware attestation pins.",
+    "Remote canary acceptance, wake timing and cloud spending approval remain outstanding."
+  ],
+  "officialVerifierReview": {
+    "checkedOn": "2026-10-20",
+    "focusedTestsPassed": 21,
+    "focusedTestsFailed": 0,
+    "officialReleaseDigestMatched": true,
+    "composeYamlAndExposureChecks": "passed",
+    "composePluginAvailable": false,
+    "officialEngineCached": false,
+    "officialEngineStarted": false,
+    "livePositiveFullVerification": "not-performed",
+    "hostedQuoteApiSyntheticRejection": 400,
+    "hostedQuoteApiCorsAllowed": false,
+    "cloudDeploymentPerformed": false
+  },
+  "operatorHostedVerifierPreparation": {
+    "checkedOn": "2026-10-20",
+    "focusedTestsPassed": 25,
+    "clientWorkflowTestsPassed": 56,
+    "testCountsOverlap": true,
+    "frontendTypeCheck": "passed",
+    "changedMdxCompilation": "passed",
+    "remoteAcceptanceRequired": true,
+    "gatewayImageBuiltLocally": true,
+    "gatewayImagePlatform": "linux/amd64",
+    "trustMode": "operator-hosted",
+    "verifierOperator": "Nibgate",
+    "externalOperatorRequired": false,
+    "guestRuntimeSourceChanged": false,
+    "cloudDeploymentPerformed": false,
+    "modelRequestsPerformed": 0
+  }
+}

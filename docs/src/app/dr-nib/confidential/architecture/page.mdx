@@ -1,0 +1,41 @@
+# Architecture and data boundaries
+
+The private flow separates content processing, ciphertext coordination and money. Each component receives only the data required for its job. See [the privacy overview](/dr-nib/confidential) for the complete privacy boundary.
+
+<img src="/images/dr-nib-private-architecture.svg" width="1000" height="625" alt="Browser-encrypted inputs pass through a ciphertext broker to a verified Phala worker, with encrypted storage, approved public tools, a separate money service and disclosed inference providers." />
+
+## Processing sequence
+
+1. Normal wallet or Google sign-in establishes account access. It does not derive an encryption key from a public wallet address.
+2. The browser unlocks its vault and project keys. Documents, filenames, research questions, intake answers and guidance are encrypted before ordinary backend ingress.
+3. The browser verifies the approved release, fresh hardware evidence, nonce/session binding and live possession of the recipient key before delivering processing keys. Health alone cannot authorize decryption.
+4. The Phala worker parses sources, orchestrates intake/planning and the bounded propose → JEV judge → execute loop, writes the report and checks sampled claims. Separate inference routes receive the necessary model context under their stated privacy boundaries.
+5. The worker encrypts activity, checkpoints, reports, discussions and exports before durable external persistence. Completed results can be restored without repeating paid operations.
+
+## Durable state
+
+| Record | Storage and visibility |
+| --- | --- |
+| Project content, titles, chat, source text, reports and checkpoints | Encrypted Postgres records and private R2 objects |
+| Vault/project-key wrappers | Encrypted synchronized records; unlocking requires an enrolled device or recovery secret |
+| Ownership, opaque IDs, sizes and timestamps | Ordinary authorization/coordination metadata |
+| Usage, escrow, payment and refund references | Restricted financial metadata; onchain transactions remain public |
+| Live content keys and working plaintext | Authorized browser and verified worker memory; disclosed inference services receive the required context |
+
+R2 being private is an access control, not sufficient content encryption. No worker RAM or VM disk is the sole durable copy of a project. The ordinary broker has no vault/project keys; the research worker has no keeper signing key.
+
+## Trust and release policy
+
+A release pins immutable image digests, OS/app/compose/KMS policy and reviewed controls for debugging, SSH and plaintext logs. Invalid, expired or mismatched evidence blocks key delivery. Private work does not fall back to the ordinary public backend.
+
+Nibgate can operate Phala's [official dstack-verifier](https://github.com/Dstack-TEE/dstack/blob/v0.6.1/dstack/verifier/README.md) on Railway. The verifier engine is private; a separate HTTPS gateway accepts hardware evidence from the browser and returns the full verification result. It receives no research content or project keys. The browser still checks the approved OS/app/compose/KMS identities, fresh session binding and live recipient-key possession. The broker additionally pins the verifier's TLS public key.
+
+This operator-hosted configuration trusts Nibgate and its hosting provider to run the verifier honestly. Official source code and pinned images do not make a remotely returned verdict independently verified by the user. TLS pins authenticate the configured endpoint; they do not prove what code that endpoint runs. A separate operator is optional for a stronger trust separation, not a Phala requirement.
+
+The browser client is also trusted: mutable operator-served JavaScript could capture content before encryption. Client delivery and reviewed release policy are part of that trust boundary. Encryption does not hide account identity, traffic timing, object sizes, usage totals or blockchain activity.
+
+Automatic wake uses a fresh attestation check against an approved release policy. A changed image or unexpected boot measurement blocks key delivery rather than being accepted silently. See [worker lifecycle](/dr-nib/confidential/operations).
+
+## Phala references
+
+Phala's [attestation guide](https://docs.phala.com/phala-cloud/getting-started/attestation) explains obtaining and verifying hardware evidence. Its [attestation API reference](https://docs.phala.com/phala-cloud/phala-cloud-api/attestations) documents quote verification. Dr. Nib additionally checks the approved release and binds key delivery to the verified recipient session; a valid hardware quote alone is not permission to decrypt a project.

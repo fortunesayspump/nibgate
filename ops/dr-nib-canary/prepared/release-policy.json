@@ -1,0 +1,17 @@
+{
+  "expectedAppId": "__REQUIRED_REVIEWED_APP_ID__",
+  "expectedInstanceId": "__REQUIRED_REVIEWED_INSTANCE_ID__",
+  "expectedComposeHash": "__REQUIRED_REVIEWED_COMPOSE_HASH__",
+  "expectedOsHash": "__REQUIRED_REVIEWED_OS_HASH__",
+  "expectedKeyProvider": {
+    "name": "kms",
+    "id": "__REQUIRED_REVIEWED_KMS_ID__"
+  },
+  "reviewedReleaseControls": {
+    "productionOsImage": false,
+    "sshDisabled": false,
+    "debugDisabled": false,
+    "plaintextLogsDisabled": false,
+    "imagesDigestPinned": false
+  }
+}

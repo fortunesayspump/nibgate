@@ -2,14 +2,16 @@ import { Callout } from 'nextra/components'
 
 # Onchain escrow
 
-For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using stock [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. Funded runs are enabled on testnet and mainnet. A complete mainnet wallet-to-report-to-refund flow was recorded on 15 Oct 2026; independent escrow review remains open.
+> **Processing scope:** this reference describes the ordinary research/API contract. Browser-encrypted state, verified worker key delivery and hosted-model boundaries are documented in [Privacy & confidential processing](/dr-nib/confidential). Ordinary API/MCP access is not a private-project decryption interface.
+
+For runs where the budget must be enforceable by contract rather than by promise, Dr. Nib escrows the cap on Arc using an [ERC-8183 (Agentic Commerce)](https://eips.ethereum.org/EIPS/eip-8183) plus a splitter contract. The network configuration selects the core, splitter, token and keeper required for funded runs.
 
 <Callout type="info">
 The public testnet and mainnet flows require escrow before research starts. Ledger-only mode is for development; it does not represent a payment or onchain refund.
 </Callout>
 
 <Callout type="warning">
-**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`. Browser runs have completed create → fund → run → complete → split on both testnet and mainnet. External review remains open.
+**Operator prerequisite:** escrow is only enabled when the dr-nib service has the keeper key set (`ESCROW_KEEPER_KEY`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) — plus `ESCROW_CORE` / `ESCROW_SPLITTER` on mainnet, which has no built-in defaults. Without the keeper key the escrow endpoints answer `501`.
 </Callout>
 
 ## Roles
@@ -18,7 +20,7 @@ The public testnet and mainnet flows require escrow before research starts. Ledg
 |---|---|
 | Client | your wallet — funds the job, receives refunds |
 | Provider | the run's splitter contract — receives the deposited budget on completion, then divides it |
-| Evaluator | the Nibgate keeper — attests completion against the run ledger (a JEV-gated evaluator contract is the planned successor) |
+| Evaluator | the Nibgate keeper — attests completion against the run ledger |
 
 ## Lifecycle
 
@@ -40,7 +42,7 @@ Open → Funded → Submitted → Completed → split
 5. **Complete** — the keeper completes with the ledger-attested spend.
 6. **Split** — the backend relays the keeper-signed attestation immediately at settle (and `POST /escrow/complete` re-runs it idempotently): earned share minus 1% to the operator, 1% to treasury, remainder to your wallet — one atomic transaction, hash stored as `splitTx`. `split()` stays permissionless, so anyone can also execute a signed attestation directly.
 
-Why a splitter instead of the spec's hook: in the reference implementation `complete()` transfers the full budget *before* `afterAction` fires, so a hook can observe the payout but never redirect it. Setting the provider to the splitter keeps the escrow contract 100% stock.
+Why a splitter instead of the spec's hook: in the reference implementation `complete()` transfers the full budget *before* `afterAction` fires, so a hook can observe the payout but never redirect it. Setting the provider to the splitter lets the splitter handle allocation separately from the escrow core.
 
 Rejected or expired jobs refund in full with no fee. After expiry, `claimRefund` is permissionless: anyone can trigger it, so funds are never hostage to a backend being alive. One upstream quirk to know: if client and evaluator are ever the same address, the core checks the client branch first, so use distinct roles.
 
@@ -62,8 +64,6 @@ New job parameters are withheld if the contracts are missing, the RPC is on the 
 | Network | Stock ERC-8183 core | NibgateRunSplitter (100 bps) | Funded runs |
 |---|---|---|---|
 | Arc testnet | `0x5135ae9be828be42b63f176848a7b720aedf4c58` | `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` | Enabled |
-| Arc mainnet | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` | Enabled; funded job 1 completed and split |
+| Arc mainnet | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` | Enabled |
 
-USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. Full lifecycle proven onchain: $0.05 funded → $0.03 spent → 17820 operator / 180 treasury / 12000 client, atomic. Partial funding proven too: $0.20 (= estimate on a $2 cap) → approve with cap aligned down → spent $0.158 → paused at cap → second fund reverted (one-shot) → settled with $0.0399 refunded.
-
-Mainnet escrow job 1 completed from a 0.50 USDC deposit on 15 Oct 2026. Its [completion](https://explorer.arc.io/tx/0x4a65ae175a3c7565037b9ffa49c42ec6e8ac565315e938cd75f514e4933cea93) and [split](https://explorer.arc.io/tx/0x4121d0fa4700a8a3831a6249d006a8a904fdaef76e0833ac140d177cd63c9866) succeeded; the split sent 0.410249 USDC back to the client. This proves that run's funded lifecycle, not every failure or refund path.
+USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. The escrow locks the funded amount; the splitter distributes the ledger-attested charge and returns the remainder. Partial funding aligns the working cap to the confirmed deposit. Jobs are one-shot: a settled deposit cannot be reused or topped up to continue spending.

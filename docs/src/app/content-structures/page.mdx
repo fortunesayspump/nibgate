@@ -2,7 +2,7 @@ import { Callout, Cards } from 'nextra/components'
 
 # Content structures
 
-Creators do not all publish the same way. Some use a database, some use MDX files, some use WordPress or Ghost, some ship static sites, and some sell media files or API routes. Nibgate should support each pattern without becoming the creator's CMS.
+Creators do not all publish the same way. Some use a database, some use MDX files, some use WordPress or Ghost, some ship static sites, and some sell media files or API routes. Each pattern maps its records to the same SDK resource; the creator retains its CMS.
 
 <Callout type="warning" emoji="!">
 Real gating must happen before the private payload is returned. If protected content is already in public HTML, JavaScript bundles, static files, or open APIs, it can be scraped.
@@ -283,9 +283,9 @@ Use `access.agents = 'paid'` when humans can view public pages but agents must p
   </Cards.Card>
 </Cards>
 
-## Adapter checklist
+## Integration patterns
 
-We should tackle support in this order:
+Choose the pattern that matches the application:
 
 1. Custom DB/CMS apps.
 2. MDX/frontmatter sites.
@@ -295,4 +295,4 @@ We should tackle support in this order:
 6. Traditional CMS plugin patterns.
 7. Agent/API route helpers.
 
-The core package should stay small. Framework and CMS helpers can be added as adapters after the base access model is stable.
+These are integration patterns, not a claim that Nibgate ships a maintained plugin for every listed CMS. Each integration needs a protected server route and verified payment handling.

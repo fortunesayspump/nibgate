@@ -1,144 +1,69 @@
-import { Callout } from 'nextra/components'
-
 # How JEV decides
 
-Every judgement in Dr. Nib — stop asking or probe deeper, run this tool or skip it, trust this source or not — is made by JEV, TypeSafe's decision model. The researching model never grades its own homework. This page is the technical account: what JEV is, the four primitives we call, the exact transport contract, where each decision sits in a run, and what happens when the seat is empty.
+JEV is TypeSafe's structured decision model. Dr. Nib separates proposing an action from judging it: the research model proposes, JEV returns a structured choice or score, and runtime policy decides whether the action may execute. A JEV decision cannot authorize an unsupported tool, exceed a cap or override the owner's scope.
 
-## Why a decisions model at all
+The ordinary worker calls JEV through the Hub. The private worker calls the pinned OpenRouter/TypeSafe Decisions route directly, with disclosed provider visibility and required ZDR. The two transports and their audit records differ; see [private model routing](/dr-nib/confidential/models-tools).
 
-Three properties make the split worth the extra hop, and each one is a failure mode of "just ask the model":
+## Decision shapes
 
-1. **Generative models are confidently wrong about their own uncertainty.** Ask one "are you sure?" in prose and it agrees with whatever you just asserted. JEV returns a number on a fixed scale, so a threshold means something and can be tuned.
-2. **The model cannot shortcut its own stopping condition.** The LLM's only job is to produce the question *and its options*. "Should I stop?" becomes a choice among concrete alternatives with their costs stated — and the decision belongs to JEV. A stopping rule the model evaluates itself is a stopping rule the model will always satisfy.
-3. **A number can be logged and audited.** "Stopped because JEV returned 0.08 on `brief_complete` with `proceed_now` at 0.79" is a defensible record. "The model decided it had enough" is not.
+| Shape | Meaning | Ordinary Hub endpoint | Response |
+| --- | --- | --- | --- |
+| Choice | Choose among explicit alternatives | `POST /hub/jev/decide` | Choice, probabilities, confidence, model and usage |
+| Noul | Score whether a statement holds | `POST /hub/jev/classify` | Probability from 0 to 1, model and usage |
+| Score | Position on an ordered scale | `POST /hub/jev/score` | Weighted score, probabilities and confidence |
+| Batch | Ask independent questions together | `POST /hub/jev/batch` | Answers keyed by question ID, with shared model/usage metadata |
 
-JEV is also cheap and fast: input tokens only (output is free), milliseconds beside an LLM round-trip, and no reasoning trace to leak or parse.
+Use the canonical Hub host, `https://api.nibgate.xyz`, with the paths above. The ordinary worker's internal client uses compatible legacy route aliases. Private judgment context must not be sent through the ordinary Hub transport.
 
-## A different kind of model
+A probability is a model estimate, not a correctness certificate. Confidence describes concentration among alternatives; a confident answer can still be wrong. Source evidence, deterministic checks, budget gates and human review remain separate safeguards. Recorded model/version and usage identify the actual response rather than assuming an alias always serves the same version.
 
-Chat models generate text. JEV generates nothing — it answers typed questions with calibrated probabilities. TypeSafe calls these *System One* models: structured decisions software can branch on directly, with no prose to parse and no hallucinated strings.
+## Ordinary transport
 
-Calibration is the point: when JEV says 0.8, it is right about 80% of the time — like a weather forecast, not a vibe. **Confidence** is a separate value and means *concentration* (how torn it is between the options you gave it), not correctness. A confident wrong answer is possible, which is why thresholds are set from the cost of mistakes, never from round numbers.
-
-## The four primitives we call
-
-JEV's own vocabulary has three question shapes — **Choice**, **Noul** (does this hold?), and **Score** (where on an ordered scale?). We add a fourth shape at the transport layer: a **batch** of independent questions in one model round trip, so grading every candidate question or every claim costs a single call.
-
-| Primitive | JEV question | Hub route | Client | Returns |
-|---|---|---|---|---|
-| Choice | which of these options? | `POST /api/hub/jev/decide` | `decide()` | `pick`, `confidence`, `probabilities` per option, `model`, `usage` |
-| Noul | does this hold? | `POST /api/hub/jev/classify` | `classify()` | `probability` (0..1), `model`, `usage` |
-| Score | where on this 2–6 level scale? | `POST /api/hub/jev/score` | `grade()` | probability-weighted `score`, per-level `probabilities`, `confidence` |
-| Batch | answer many independent questions | `POST /api/hub/jev/batch` | `batch()` | `answers` keyed by question id, one `model`/`usage` |
-
-**Reference:** `dr-nib/backend/src/jev/client.js` (transport), `decisions.js` (logging), `intake.js` (stop/reframe).
-
-## The transport contract
-
-Every primitive is one POST through the hub — the model key stays on the hub, which already rate-limits and sizes these calls. Dr. Nib never holds a provider key for judging.
+The client clamps state to 4,000 characters, instructions to 500 and candidate context to 2,000. Ordered levels are capped at six with 200 characters per label. Batch instructions and choice-option descriptions are each bounded to 500 characters. The default request timeout is 60 seconds, configurable through `JEV_TIMEOUT_MS`.
 
 ```json
-// POST /api/hub/jev/decide
 {
-  "state": "…the situation, clamped to 4000 chars…",
-  "instructions": "…the criteria, clamped to 500 chars…",
-  "candidates": [{ "id": "ask_more", "context": "…what this option means, 2000 chars…" }],
-  "questionId": "intake_stop"
+  "state": "The user has supplied the topic, audience and scope.",
+  "instructions": "Choose whether another answer would materially change the plan.",
+  "candidates": [
+    {"id": "proceed", "context": "Plan from the supplied brief."},
+    {"id": "ask_more", "context": "Ask a useful missing clarification."}
+  ],
+  "questionId": "intake-stop"
 }
-// -> { "success": true, "choice": "ask_more", "confidence": 0.71,
-//      "probabilities": { "proceed": 0.21, "ask_more": 0.71, "reframe": 0.08 },
-//      "model": "typesafe/jev-1.14-20261014", "usage": { … } }
 ```
 
-`classify` and `score` take `{ state, instructions }` (plus `levels` for score); `batch` takes `{ state, questions: [{ id, type, instructions, options? }] }`. All inputs are clamped before they leave the process, so a runaway prompt can't blow the request.
+Choices return a concrete pick plus per-option probabilities. Noul returns a probability. Batch accepts an array of question records containing `id`, `type`, `instructions` and choice `options` where applicable. A question ID identifies the record; instructions and option descriptions carry the actual judgment criteria.
 
-A transport failure is **typed, not generic**: `JevUnavailable` (`client.js`) carries the HTTP status, and callers treat it as "stop and wait", never as "guess".
+## Decision points and failure behavior
 
-## How one decision actually happens
+| Point | Behavior | When judgment is unavailable |
+| --- | --- | --- |
+| Ordinary intake | `proceed`, `ask_more` or `reframe`; question threshold checked between batches | Labeled deterministic-bank fallback |
+| Ordinary free tool read | Schema, policy and budget checks create a deterministic approval row by default | No model round trip; `DRNIB_JUDGE_ALL=1` disables this fast path |
+| Money-moving tool | JEV chooses `execute`, `skip` or `answer` | Execution stops; no silent approval |
+| Ordinary source trust/grade batch | Selected sources get trust nouls and quality-tier choices | Trust failure parks the run; an absent valid grade leaves it ungraded |
+| Ordinary standalone grade | Probability-weighted ordered score | Returns ungraded without parking |
+| Ordinary report verification | Sampled claims are checked against collected passages | Pass is marked unverified rather than inventing support |
+| Research round control | Decide whether more evidence is worth another round | Parks rather than guessing |
+| Private workflow judgment | Fixed hosted JEV route with its explicit request/response validation and encrypted activity | Fails closed; completed operations remain recoverable under the private journal |
 
-```mermaid
-sequenceDiagram
-    participant R as Run (worker)
-    participant D as decisions.js
-    participant H as Hub /api/hub/jev/*
-    participant J as JEV model
-    participant DB as ResearchDecision
-    participant F as Event feed
-    R->>D: runChoice({step, state, instructions, options})
-    D->>H: POST …/decide
-    H->>J: structured question
-    J-->>H: probabilities + confidence
-    H-->>D: {choice, confidence, probabilities, model, usage}
-    D->>DB: persist(question, options, output, confidence)
-    D->>F: publish {probabilities, pick, confidence, model}
-    D-->>R: {pick, confidence, probabilities, seq}
-    R->>R: act on the pick (execute / skip / park)
-```
+Ordinary choice/noul helpers park with `pauseReason: 'jev'`. The standalone tool loop records `judge-unreachable`; it does not itself turn every use of the loop into a paused research run. The surrounding workflow handles that result. Intake fallback and ungraded sources are explicit exceptions to the blanket claim that every JEV outage behaves identically.
 
-1. **Runtime builds the question.** State = the situation JEV reasons over. Candidates = the real trade-offs, including the honest one ("proceed and flag X as an assumption in the report") — JEV can only distribute probability across what it is shown.
-2. **The hub relays it.** Dr. Nib holds no judging key; the hub owns the upstream and its own rate limits.
-3. **JEV returns probabilities**, not prose. The pick is acted on; the confidence is recorded but not automatically honoured (see below).
-4. **The decision is persisted** to `ResearchDecision` and published to the live feed in the same call — question, options, probabilities, pick, model, cost. The reasoning is visible where it happened.
-5. **The pick drives the run.** Execution, budget, and money movement stay in their own layers with their own gates; JEV never spends.
+## Spending confidence and binding
 
-## Where JEV sits in a run
+In the ordinary tool loop, money-moving `execute` decisions below confidence 0.6 become skips. Allowed free reads use deterministic policy by default. When all-tool judging is enabled, a free read does not use the money confidence threshold.
 
-| Decision point | Primitive | Options | What happens when JEV is silent |
-|---|---|---|---|
-| Intake stop | Choice | `proceed` / `ask_more` / `reframe` (8-question cap can override with a `cap hit` label) | deterministic bank decides, labeled fallback |
-| Tool call | Choice | `execute` / `skip` / `answer` | run stops — never judgeless |
-| Source trust | Noul | P(source is trustworthy) | run parks, nothing scored on guesses |
-| Claim verify | Noul per sampled claim | `supported` / `unknown` per sampled claim (runs after every report write; coverage badge + claim×source matrix read it) | pass marked unverified, never guessed |
-| Round control | Choice | `continue` / `write` / `stop` | parks |
-| Source grade | Score | 4 quality tiers (mention → primary) | ungraded — grades rank, never gate |
+The approval binds a canonical fingerprint of the proposed tool and input. Immediately before execution, the runtime rejects a changed payload rather than applying an earlier decision to different arguments. The executor then applies its own availability, source eligibility, URL, price, balance and network checks.
 
-## Failure semantics: park, never guess
+## What is recorded
 
-The rule the whole agent is built on: **if the decision seat is down, the run stops.** But not every judgement is equally load-bearing, so failure is handled asymmetrically:
+Ordinary decision helpers persist `ResearchDecision` records and publish activity events with sequence, type, stage, prompt, question fields, output, confidence and serving-model/usage metadata where available. The retained question fields depend on the helper: not every row stores the full submitted state or exact provider prompt. Source batches include their bounded state; ordinary choice/noul helpers retain the instruction/option fields they record. A decision row is not a complete network capture.
 
-- **Choices and nouls park the run.** `decisions.js` sets `status = paused`, `pauseReason = 'jev'`, and streams a status event — a "cannot think" pause that leaves the balance untouched. The run is resumable the moment the seat is back.
-- **Scores never park.** `runGrade` swallows `JevUnavailable` and returns `null`: a grade only reorders sources, so a missing grade means "ungraded", not "stop".
-- **Claim verification degrades, never invents.** If the extraction model or JEV cannot complete, the pass is marked unverified and no support verdict is invented. When JEV responds, sampled claims score `supported`/`unknown` (bar: `VERIFY_SUPPORT_THRESHOLD`, default 0.6) and the report shows those verdicts. The sample now spans report sections; very long reports may have partial input coverage.
+Private decisions and activity are stored inside encrypted project history, while restricted usage metadata supports accounting. Neither path promises to expose hidden model chain of thought. The visible record is the question, decision, probabilities, stated action summaries and observed results.
 
-<Callout type="info">
-This is the one place Dr. Nib deliberately refuses a fallback. Everywhere else a missing dependency is degraded and labeled; here, letting the generative model decide is the exact failure the design exists to prevent.
-</Callout>
+## Verification is a separate layer
 
-## The decision record
+Ordinary report verification extracts a bounded sample across report chunks and asks JEV about the best collected passage for each claim. The default support threshold is 0.6 (`VERIFY_SUPPORT_THRESHOLD`); outcomes are supported or unknown. The private path instead validates exact source quotes or numbered passages and can run bounded report repair. Both are sampled evidence checks, not certification of every sentence.
 
-Every verdict is one append-only `ResearchDecision` row, and the same object is streamed as a `decision` event:
-
-| Field | Holds |
-|---|---|
-| `seq` | monotonic per run — the audit order |
-| `type` | `choice` / `noul` / `grade` |
-| `step` | the stage that asked |
-| `prompt` | the human-readable question |
-| `question` | the exact `state`/`instructions`/`options` shown |
-| `criteria` | the pinned criteria version, when the run pins one |
-| `output` | `choice` or `probability`/`score`, `probabilities`, `model`, `usage` |
-| `confidence` | JEV's concentration for this call |
-
-The run feed reads this end to end — there is no separate audit tab to lose it in. `seq` is also what makes a decision resume-safe: a stage can derive a stable attempt from a decision it just recorded.
-
-## Confidence policy
-
-Confidence is recorded always, acted on asymmetrically — because mistakes don't cost the same everywhere:
-
-- **Free reads** honour any `execute` verdict. A wrong extra search costs ~$0 and might find something.
-- **Spends** require confidence ≥ **0.6**. A hesitant `execute` on real money downgrades to `skip`, with the reason on the record.
-- Thresholds tune from the decision + confidence rows, which every verdict writes. First version ships at 0.6; the logs decide where it lands.
-
-## Prompting discipline
-
-Criteria text is everything. The question id is **never sent to the model**, so each option is briefed like a new hire — a self-contained description with its real cost, not a label JEV is expected to already know. The model proposes the criteria; JEV scores against them. This is also why trust criteria are generated *for this question* rather than pulled from a fixed rulebook: a rulebook cannot tell a marketing blog from a primary filing in a niche it has never seen.
-
-## Versioning
-
-The hub requests `~typesafe/jev-latest` through OpenRouter. A mainnet run on October 15, 2026 recorded `typesafe/jev-1.14-20261014`, so our decision path has already reached Jev 1.14. This OpenRouter alias is separate from TypeSafe's direct-API `jev-latest`, which TypeSafe says still targets 1.13 until its planned promotion. Aliases can move without a Nibgate release; we persist the response's concrete `model` on each decision. Pin `typesafe/jev-1.13` and `typesafe/jev-1.14` in side-by-side evals, then retune spend, source-trust, and stopping thresholds before pinning a production version.
-
-Jev 1.14's reported improvement is strongest for multilingual decisions. The current Dr. Nib transport sends short text states and Choice/Noul/Score questions; it does not send images, Box questions, or long-context requests to JEV. Uploaded images are handled elsewhere in the research pipeline. TypeSafe marks its image and Box features experimental, and says long context is slower and less accurate. We should test those on labeled financial statements, scanned tables, and multilingual sources before exposing them to live spend or source-trust gates. See [TypeSafe's release notes](https://typesafe.ai/blog/jev-1-14) and [model limits](https://docs.typesafe.ai/models).
-
-<Callout type="info">
-The model proposes, JEV disposes — and JEV never spends. Execution, budgets, and money movement stay in the runtime and wallet layers, each with its own gates. See [Spending gates](/dr-nib/gates) and [Agent spending](/dr-nib/agent-spending).
-</Callout>
+The ordinary Hub can select its configured model alias and records the concrete returned model. Private routing pins its approved TypeSafe model/provider policy. Neither route sends image/Box requests through the Dr. Nib judgment client; uploaded image text is extracted by the source-processing layer.

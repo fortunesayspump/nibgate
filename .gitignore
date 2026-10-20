@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .next/
 dist/
 /cache/
@@ -98,3 +98,6 @@ pair.pem
 # Local logs and scratch notes (never commit)
 screenlog.*
 CONTINUE-*.md
+
+# Owner-specific canary inputs and staged credentials; never publish
+/ops/dr-nib-canary/local/

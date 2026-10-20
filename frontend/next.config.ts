@@ -24,6 +24,18 @@ let privateDrnibUrl = (process.env.DRNIB_PRIVATE_API_URL || (process.env.NODE_EN
   ? (buildNetwork === "mainnet" ? "https://private-drnib.nibgate.xyz" : "https://private-drnib.testnet.nibgate.xyz")
   : "http://localhost:3103")).replace(/\/+$/, '');
 if (!/^https?:\/\//.test(privateDrnibUrl)) privateDrnibUrl = 'https://' + privateDrnibUrl;
+const privateFundingUrl=process.env.DRNIB_PRIVATE_FUNDING_API_URL?.replace(/\/+$/,'');
+if(privateFundingUrl){const url=new URL(privateFundingUrl);if(url.username||url.password||url.search||url.hash||url.pathname!=='/'||!(url.protocol==='https:'||process.env.NODE_ENV==='development'&&url.protocol==='http:'&&['127.0.0.1','localhost'].includes(url.hostname)))throw Error('Invalid private funding service origin');}
+if(process.env.NEXT_PUBLIC_DRNIB_PRIVATE_FUNDED==='true'&&!privateFundingUrl)throw Error('Private funding service is required for funded mode');
+
+// Real SIWE testing on loopback needs host-only cookies; the optional local
+// proxy adapts cookie delivery while the real hub still verifies signatures.
+let localAuthUrl: string | null = null;
+if (process.env.NODE_ENV === "development" && process.env.DRNIB_LOCAL_AUTH_PROXY_URL) {
+  const url = new URL(process.env.DRNIB_LOCAL_AUTH_PROXY_URL);
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(url.hostname) || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw Error("Local auth proxy must be a loopback origin");
+  localAuthUrl = url.origin;
+}
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@nibgate/wallet"],
@@ -69,6 +81,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const bare = ["hub", "nibshare", "auth", "newsletter", "uploads", "app"];
     return [
+      ...(localAuthUrl ? [
+        { source: "/auth/:path*", destination: `${localAuthUrl}/auth/:path*` },
+        { source: "/api/auth/:path*", destination: `${localAuthUrl}/auth/:path*` },
+      ] : []),
       ...bare.map((group) => ({
         source: `/${group}/:path*`,
         destination: `${apiUrl}/${group}/:path*`,
@@ -98,6 +114,7 @@ const nextConfig: NextConfig = {
         source: "/drnib-private-api/:path*",
         destination: `${privateDrnibUrl}/:path*`,
       },
+      ...(privateFundingUrl?[{source:'/drnib-private-funding-api/:path*',destination:`${privateFundingUrl}/:path*`}]:[]),
       {
         source: "/.well-known/llms.txt",
         destination: "/llms.txt",

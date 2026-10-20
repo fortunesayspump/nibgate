@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { drNibApi } from "@/lib/dr-nib-api";
 import { PageHeader, ProjectCard } from "@/components/dr-nib/common";
+import {privateBuildEnabled} from '@/lib/dr-nib-private-records';
 
 const ACTIVE = ["draft", "intake", "intake-done", "planning", "planned", "running", "paused", "awaiting"];
 const ENDED = ["complete", "failed", "ended"];
@@ -25,14 +26,18 @@ export default function ProjectsPage() {
   const [showTrash, setShowTrash] = useState(false);
   const [query, setQuery] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError,setActionError]=useState("");
+  const [loadError,setLoadError]=useState(false);
 
   const load = useCallback(async () => {
     try {
+      setLoadError(false);
       const [active, deleted] = await Promise.all([drNibApi.listRuns(false), drNibApi.listRuns(true)]);
       setRuns(active.runs || []);
       setTrash(deleted.runs || []);
     } catch {
-      setRuns([]);
+      if(privateBuildEnabled())setLoadError(true);
+      else setRuns([]);
     }
   }, []);
 
@@ -51,14 +56,16 @@ export default function ProjectsPage() {
   }, [load]);
 
   async function remove(id: string) {
+    setActionError("");
     setBusyId(id);
-    try { await drNibApi.deleteRun(id); await load(); } catch { /* surfaced by reload */ }
+    try { await drNibApi.deleteRun(id); await load(); } catch { setActionError("Could not confirm the project update. Refresh the list before retrying."); }
     finally { setBusyId(null); }
   }
 
   async function restore(id: string) {
+    setActionError("");
     setBusyId(id);
-    try { await drNibApi.restoreRun(id); await load(); } catch { /* surfaced by reload */ }
+    try { await drNibApi.restoreRun(id); await load(); } catch { setActionError("Could not confirm the project update. Refresh the list before retrying."); }
     finally { setBusyId(null); }
   }
 
@@ -68,11 +75,13 @@ export default function ProjectsPage() {
   async function duplicate(r: any) {
     const topic = String(r.brief?.topic || r.title || "").trim();
     if (!topic) return;
+    setActionError("");
     setBusyId(r.id + ":dup");
     try {
       const created: any = await drNibApi.createProject(topic);
       router.push(`/dr-nib/research?project=${created.id}`);
     } catch {
+      setActionError("Could not confirm duplication. Check the project list before retrying.");
       setBusyId(null);
     }
   }
@@ -98,7 +107,10 @@ export default function ProjectsPage() {
         }
       />
 
-      {runs === null ? (
+      {actionError?<p role="alert" className="mb-4 text-sm text-red-700">{actionError}</p>:null}
+      {loadError ? (
+        <div role="alert"><p className="text-sm opacity-70">Could not load private projects. Your saved projects are unchanged.</p><button onClick={()=>void load()} className="mt-3 rounded-full border px-5 py-2">Try again</button></div>
+      ) : runs === null ? (
         <p className="text-sm opacity-60">Loading projects…</p>
       ) : showTrash ? (
         <>
@@ -124,7 +136,7 @@ export default function ProjectsPage() {
       ) : (
         <>
           <div className="mb-5">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search projects…"
+            <input type="search" autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search projects…"
               className="w-full border border-dark-gray/50 bg-white rounded-xl px-3 py-2 text-sm outline-none" />
           </div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wider opacity-60">Active ({active.length})</p>

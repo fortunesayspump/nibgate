@@ -2,7 +2,7 @@ import { configuredPrivatePolicy, verifyGuestEvidence, type GuestSession,
   type PrivatePolicy } from "./dr-nib-private-verifier";
 import { bytesToBase64 } from "./dr-nib-private-crypto";
 
-type OnlineMode = { mode: "independent-online-verifier"; policy: PrivatePolicy };
+type OnlineMode = { mode: "online-verifier"; policy: PrivatePolicy };
 type ReviewedBootMode = { mode: "reviewed-boot"; payloadBase64: string; reviewedSha256Hex: string };
 export type PrivateVerificationMode = OnlineMode | ReviewedBootMode;
 
@@ -20,7 +20,7 @@ export function configuredPrivateVerification(): PrivateVerificationMode | null 
   // verifier cannot silently fall back to a different trust route.
   if (process.env.NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_URL) {
     const policy = configuredPrivatePolicy();
-    return policy ? { mode: "independent-online-verifier", policy } : null;
+    return policy ? { mode: "online-verifier", policy } : null;
   }
   if (!boot.manifestJson && !boot.reviewedSha256Hex) return null;
   if (!boot.manifestJson || !boot.reviewedSha256Hex ||
@@ -32,12 +32,12 @@ export function configuredPrivateVerification(): PrivateVerificationMode | null 
 
 export async function verifyPrivateSession({ mode, session, nonce, publicKey }:
   { mode: PrivateVerificationMode; session: GuestSession; nonce: Uint8Array; publicKey: Uint8Array }): Promise<void> {
-  if (mode.mode === "independent-online-verifier") {
+  if (mode.mode === "online-verifier") {
     await verifyGuestEvidence({ session, nonce, publicKey, policy: mode.policy });
     return;
   }
   // This lazy import avoids loading WASM and Intel collateral when the fixed
-  // independent full-verifier route is selected.
+  // configured full-verifier route is selected.
   const { verifyQvlGuest } = await import("./dr-nib-private-qvl");
   await verifyQvlGuest({ evidence: session.evidence, clientNonce: nonce,
     sessionId: session.sessionId, recipientPublicKey: publicKey,

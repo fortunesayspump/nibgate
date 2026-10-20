@@ -6,67 +6,34 @@ import { Callout } from 'nextra/components'
 Examples use Arc testnet values (free faucet USDC). For production, swap in the mainnet column — see [Networks](/networks).
 </Callout>
 
-This page simulates the complete journey of an AI agent that wants to discover, evaluate, purchase, unlock, and rate paid content on Nibgate. It walks through each step with the exact endpoints, headers, and wire format an agent sees — grounded in the running code, not a mockup.
+This page simulates the complete journey of an AI agent that wants to discover, evaluate, purchase, unlock, and rate paid content on Nibgate. It explains the implemented endpoints, headers and wire formats. Payloads below are illustrative; use the actual catalog IDs, current challenge and configured contract addresses returned by the selected network.
 
 <Callout type="info">
-A real agent can execute this entire flow with three dependencies: an HTTP client, an EIP-712 signer (viem/ethers), and a USDC balance on Arc Testnet. No browser, no accounts, no API keys.
+A real agent can execute this entire flow with an HTTP client, a compatible wallet signer and funded Gateway balance on the selected network. Onchain ratings additionally require gas and a transaction signer. Public discovery requires no Nibgate account or API key.
 </Callout>
 
 ## The flow at a glance
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant H as Hub
-    participant A as Agent
-    participant S as Creator site
-    participant C as Gateway
-
-    rect rgb(232, 242, 255)
-    Note over A,S: PHASE 1 · DISCOVERY & EVALUATION (read-only, free)
-    A->>H: GET /.well-known/llms.txt
-    H-->>A: Curated index + endpoint map
-    A->>H: GET /hub/explore/content
-    H-->>A: Content cards
-    A->>S: GET /nibgate.json
-    S-->>A: Metadata, price, access policy
-    end
-
-    rect rgb(232, 255, 235)
-    Note over A,C: PHASE 2 · X402 PURCHASE (one retried round trip)
-    A->>S: GET /api/<type>/<slug>  (or /api/nibgate/access?path=...)
-    S-->>A: 402 + PAYMENT-REQUIRED (base64 x402)
-    Note over A: Sign EIP-3009 authorization<br/>(gasless, off-chain)
-    A->>S: Retry + PAYMENT-SIGNATURE header
-    S->>C: Verify + settle authorization
-    C-->>S: Settlement receipt (txHash)
-    S-->>A: 200 + content + unlockProof + payment
-    end
-
-    rect rgb(255, 244, 230)
-    Note over A,H: PHASE 3 · ON-CHAIN RATING (post-purchase)
-    A->>H: POST /hub/reputation/ratings/prepare
-    H-->>A: Signable message + contentHash
-    Note over A: Sign rateContent calldata
-    A->>H: POST /hub/reputation/ratings/index
-    H-->>A: Rating indexed, reputation updated
-    end
+```text
+Discover: llms.txt → Explore → creator manifest
+Purchase: access URL → 402 → payment authorization → retry → content + proof
+Feedback: prepare rating → send onchain rating transaction → index → stats
 ```
 
 ## Step 1 — Discover the network
 
-An agent first learns what Nibgate is and which endpoints exist. Three machine-readable surfaces answer this (all shipped):
+An agent first learns what Nibgate is and which endpoints exist. These machine-readable surfaces describe the available routes:
 
 | Surface | URL | What an agent gets |
 |---------|-----|--------------------|
-| `llms.txt` | `https://nibgate.xyz/.well-known/llms.txt` | Plain-text guide: what Nibgate is, how to discover, pay, and rate |
-| `llms-full.txt` | `https://nibgate.xyz/.well-known/llms-full.txt` | Full manual: discovery.md + skill.md + top 50 live content items |
+| `llms.txt` | `https://nibgate.xyz/llms.txt` | Plain-text guide: what Nibgate is, how to discover, pay, and rate |
+| `llms-full.txt` | `https://nibgate.xyz/llms-full.txt` | Full manual: discovery.md + skill.md + top 50 live content items |
 | MCP server | `POST https://api.nibgate.xyz/mcp` (Streamable HTTP) | `explore_content`, `get_ledger`, `get_platform_stats`, `get_leaderboards`, `resolve_share` |
 | MCP card | `https://api.nibgate.xyz/.well-known/mcp.json` | Machine-readable MCP server card |
-| OpenAPI | `https://nibgate.xyz/api/openapi.json` | Full 3.1.0 spec of every hub API route |
+| OpenAPI | `https://api.nibgate.xyz/openapi.json` | OpenAPI 3.1 description of the documented public API |
 
 ```bash
-curl -s https://nibgate.xyz/.well-known/llms.txt | head -40
+curl -s https://nibgate.xyz/llms.txt | head -40
 ```
 
 ```bash
@@ -82,7 +49,7 @@ curl -s -X POST https://api.nibgate.xyz/mcp \
 ## Step 2 — Browse the catalog
 
 ```bash
-curl -s 'https://nibgate.xyz/hub/explore/content?sort=trending&limit=20&type=article' \
+curl -s 'https://testnet-api.nibgate.xyz/hub/explore/content?sort=trending&limit=20&type=article' \
   -H 'Accept: application/json' | jq '.content[0]'
 ```
 
@@ -95,13 +62,13 @@ The explore feed returns full content cards — pricing, creator domain, verifie
   "contentType": "article",
   "price": 0.5,
   "currency": "USDC",
-  "websiteDomain": "pitchtalk.nibgate.xyz",
+  "websiteDomain": "pitchtalk.testnet.nibgate.xyz",
   "websiteName": "PitchTalk",
   "websiteVerified": true,
   "websiteVerificationStatus": "verified",
   "views": 2,
   "unlocks": 0,
-  "url": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
+  "url": "https://pitchtalk.testnet.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
   "path": "/writing/the-tactic-that-changed-modern-football",
   "tagList": ["tactics", "formations", "football"],
   "accessPolicy": "{\"humans\":\"paid\",\"agents\":\"paid\"}",
@@ -116,7 +83,7 @@ The serialized shape comes from `serializeContent` in `backend/src/server/hub/he
 Before unlocking, an agent inspects the creator's manifest to confirm the resource metadata and access policy. A creator site's home page advertises its full manifest at `/nibgate.json`; a single post's page points at its own per-post manifest via a `<link rel="alternate" type="application/json">` element and the `Link` response header (`GET /api/nibgate/manifest?path=/writing/<slug>`):
 
 ```bash
-curl -s 'https://thedailybyte.nibgate.xyz/nibgate.json' | jq '.content[0]'
+curl -s 'https://thedailybyte.testnet.nibgate.xyz/nibgate.json' | jq '.content[0]'
 ```
 
 ```json
@@ -128,7 +95,7 @@ curl -s 'https://thedailybyte.nibgate.xyz/nibgate.json' | jq '.content[0]'
   "price": "0.50",
   "currency": "USDC",
   "path": "/writing/the-tactic-that-changed-modern-football",
-  "url": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
+  "url": "https://pitchtalk.testnet.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
   "tags": ["tactics", "formations", "football"],
   "access": { "humans": "paid", "agents": "paid" },
   "unlock": { "mode": "one_time" }
@@ -140,7 +107,7 @@ This is the agent's cost–benefit step: verified creator, clear price, bounded 
 For a single post, the per-post manifest (`https://docs.nibgate.xyz/subblog-manifest`) is the same decision in one request:
 
 ```bash
-curl -s 'https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=/writing/the-tactic-that-changed-modern-football' | jq
+curl -s 'https://pitchtalk.testnet.nibgate.xyz/api/nibgate/manifest?path=/writing/the-tactic-that-changed-modern-football' | jq
 ```
 
 ```json
@@ -154,9 +121,9 @@ curl -s 'https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=/writing/the-ta
   "price": "0.50",
   "currency": "USDC",
   "urls": {
-    "page": "https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
-    "access": "https://pitchtalk.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football",
-    "manifest": "https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=%2Fwriting%2Fthe-tactic-that-changed-modern-football"
+    "page": "https://pitchtalk.testnet.nibgate.xyz/writing/the-tactic-that-changed-modern-football",
+    "access": "https://pitchtalk.testnet.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football",
+    "manifest": "https://pitchtalk.testnet.nibgate.xyz/api/nibgate/manifest?path=%2Fwriting%2Fthe-tactic-that-changed-modern-football"
   },
   "payment": { "scheme": "x402", "mode": "one_time" }
 }
@@ -167,7 +134,7 @@ curl -s 'https://pitchtalk.nibgate.xyz/api/nibgate/manifest?path=/writing/the-ta
 The agent calls the creator's x402 endpoint, declaring itself as an agent:
 
 ```bash
-curl -i 'https://pitchtalk.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football' \
+curl -i 'https://pitchtalk.testnet.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football' \
   -H 'x-nibgate-actor: agent' \
   -H 'Accept: application/json'
 ```
@@ -225,7 +192,7 @@ const agent = new GatewayClient({
 
 // Handles 402 → sign → retry in one call
 const result = await agent.pay(
-  'https://pitchtalk.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football',
+  'https://pitchtalk.testnet.nibgate.xyz/api/writing/the-tactic-that-changed-modern-football',
   { headers: { 'x-nibgate-actor': 'agent' } }
 )
 ```
@@ -281,7 +248,7 @@ A purchase without feedback gives creators no signal. Nibgate lets the agent pub
 ### 7a. Prepare
 
 ```bash
-curl -s -X POST https://nibgate.xyz/hub/reputation/ratings/prepare \
+curl -s -X POST https://testnet-api.nibgate.xyz/hub/reputation/ratings/prepare \
   -H 'Content-Type: application/json' \
   -d '{
     "contentId": "1e41543621f936fee87159ff0991eb70",
@@ -293,7 +260,7 @@ curl -s -X POST https://nibgate.xyz/hub/reputation/ratings/prepare \
 ```json
 {
   "success": true,
-  "message": "Nibgate content rating\nsite:pitchtalk.nibgate.xyz\ncontent:…\nurl:https://pitchtalk.nibgate.xyz/writing/the-tactic-that-changed-modern-football\nrating:45\nI confirm this rating is tied to my unlock/payment proof.",
+  "message": "Nibgate content rating\nsite:pitchtalk.testnet.nibgate.xyz\ncontent:…\nurl:https://pitchtalk.testnet.nibgate.xyz/writing/the-tactic-that-changed-modern-football\nrating:45\nI confirm this rating is tied to my unlock/payment proof.",
   "ratingValue": 45,
   "contentHash": "0x…",
   "contractAddress": "0xReputation…",
@@ -305,9 +272,11 @@ curl -s -X POST https://nibgate.xyz/hub/reputation/ratings/prepare \
 
 The server returns a canonical message, the `contentHash` the on-chain contract expects, and the reputation contract address. (`rpcUrl` reflects the production env override; the endpoint's default RPC is the Arc testnet node.) This is `POST /hub/reputation/ratings/prepare` in `backend/src/server/routes/hub-routes.js:608`.
 
-### 7b. Sign the rating calldata
+### 7b. Send the rating transaction
 
-The agent encodes a `rateContent` call against the reputation contract and signs/sends it (viem, gasless-ish):
+Preparation supplies configuration; it does not itself prove purchase eligibility. The indexing path checks the transaction and applicable unlock evidence.
+
+The agent encodes a `rateContent` call against the reputation contract and sends it using a transaction signer (for example, viem); this onchain step uses gas:
 
 ```js
 const calldata = viem.encodeFunctionData({
@@ -329,7 +298,7 @@ const ratingTx = await walletClient.sendTransaction({
 ### 7c. Index
 
 ```bash
-curl -s -X POST https://nibgate.xyz/hub/reputation/ratings/index \
+curl -s -X POST https://testnet-api.nibgate.xyz/hub/reputation/ratings/index \
   -H 'Content-Type: application/json' \
   -d '{
     "contentId": "1e41543621f936fee87159ff0991eb70",
@@ -359,7 +328,7 @@ The agent's rating is now part of the public ledger and the content's `reputatio
 ## Step 8 — Verify it landed
 
 ```bash
-curl -s 'https://nibgate.xyz/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10' | jq '.activities[0]'
+curl -s 'https://testnet-api.nibgate.xyz/hub/ledger?domain=thedailybyte.testnet.nibgate.xyz&limit=10' | jq '.activities[0]'
 ```
 
 ```json
@@ -370,8 +339,8 @@ curl -s 'https://nibgate.xyz/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10
   "actor": "0x084c24fcf44442804642d9432a25a0ac0b8c87b8",
   "contentId": "30c55628ad9684001f39de0d046b307f",
   "contentTitle": "The Best Coding Tools in 2026 That Are Actually Free",
-  "contentUrl": "https://thedailybyte.nibgate.xyz/writing/best-free-coding-tools",
-  "domain": "thedailybyte.nibgate.xyz",
+  "contentUrl": "https://thedailybyte.testnet.nibgate.xyz/writing/best-free-coding-tools",
+  "domain": "thedailybyte.testnet.nibgate.xyz",
   "score": 5,
   "timestamp": "2026-08-02T22:14:12.481Z",
   "walletAddress": "0x084c24fcf44442804642d9432a25a0ac0b8c87b8",
@@ -381,14 +350,14 @@ curl -s 'https://nibgate.xyz/hub/ledger?domain=thedailybyte.nibgate.xyz&limit=10
 }
 ```
 
-The ledger shows the agent's unlock (`txHash`) and rating (`proof`) as first-class entries — immutable, wallet-attributable, and usable by other agents as a trust signal. Note the top-level response is `{ success, activities, total, totals, hasMore, limit, skip }` (a list of activities, not `entries`; `total` is capped at `limit`, while `totals` holds the global counts).
+The ledger indexes the agent’s unlock (`txHash`) and rating (`proof`) as wallet-attributable entries. Blockchain evidence is immutable; the Hub ledger is a database index, not itself an immutable chain. Note the top-level response is `{ success, activities, total, totals, hasMore, limit, skip }` (a list of activities, not `entries`; `total` is capped at `limit`, while `totals` holds the global counts).
 
 ## What makes this simple
 
-Every step is a plain HTTP request plus one signing operation. The protocol handles the rest:
+Discovery and verification use HTTP. Purchases require payment authorization, and onchain ratings require a separate transaction:
 
 - **No accounts.** The agent's wallet *is* its identity.
-- **No gas.** EIP-3009 authorizations are signed off-chain; the facilitator settles (x402's core design, ~1.5–2s round trip on Arc).
+- **Offchain payment authorization.** Gateway checkout signs offchain; initial Gateway deposits and onchain ratings are transactions that require gas. Latency depends on the network and provider.
 - **No browser.** Every surface (`llms.txt`, MCP, OpenAPI, manifest, x402 endpoint, ratings API) is JSON/plain-text.
 - **Discovery → payment → feedback in one loop.** The same surfaces that let an agent *find* content also let it *pay* for it and *prove* its review.
 
@@ -398,7 +367,7 @@ The repo ships scripts that execute this exact flow:
 
 ```bash
 # Canonical agent flow (discover → 402 → sign → retry → log)
-node demo/stress-test-agents.mjs --hub-url https://nibgate.xyz --agents 3 --concurrency 2
+node demo/stress-test-agents.mjs --hub-url https://testnet.nibgate.xyz --agents 3 --concurrency 2
 
 # On-chain reputation flow (prepare → sign → index)
 node scripts/e2e-onchain-reputation-flow.mjs

@@ -2,10 +2,10 @@ import { Callout, Cards, Steps } from 'nextra/components'
 
 # Revenue model
 
-How a payment becomes spendable creator funds on Nibgate: per-creator **fee wallet contracts**, an on-chain **1% protocol fee**, and a **keeper** that sweeps settled balances to creator wallets. The same model covers both payment rails.
+How a payment becomes spendable creator funds on Nibgate: per-creator **fee wallet contracts**, an on-chain **1% protocol fee**, and a **keeper** that sweeps settled balances to creator wallets. This fee-wallet model covers hosted unlocks over both Gateway and direct transfer.
 
 <Callout type="important">
-Nibgate never custodies creator funds and cannot move them. Payments land in a contract owned by nobody — the split is enforced by immutable bytecode, not by policy.
+Hosted unlock funds go to deterministic fee wallet contracts. Anyone may trigger distribution, but the contract pins the creator and treasury recipients. Its fee setter can change the fee within the deployed cap. Held tips use a different contract with owner/keeper-authorized release and refund; see [holding contracts](/tipping/contracts).
 </Callout>
 
 ## The fee wallet
@@ -35,23 +35,16 @@ Defaults: `feeBps = 100` (1%), `maxFeeBps = 500` (5%). Configurable via env, nev
 
 The two rails differ only in how the buyer's USDC moves. They converge on the same destination:
 
-```mermaid
-flowchart LR
-    subgraph SG1["Rail 1 - Circle Gateway"]
-        A1["Buyer wallet"] -->|"EIP-3009 authorization"| B1["Circle Gateway<br/>batched settlement"]
-    end
-    subgraph SG2["Rail 2 - Direct transfer"]
-        A2["Buyer wallet"] -->|"USDC transfer + tx hash"| B2["Hub verifies on-chain"]
-    end
-    B1 --> C["GatewayFeeWallet<br/>per-creator contract"]
-    B2 --> C
-    C --> D["Ledger credit<br/>99% net to creator"]
+```text
+Gateway authorization → batched credit → withdrawal to recipient fee wallet
+Direct USDC transfer → successful receipt → recipient fee wallet
+Fee wallet distribute() → creator share + configured treasury fee
 ```
 
 - **Gateway rail** — buyer signs an EIP-3009 authorization; Circle batches settlements. The challenge's `payTo` is the fee wallet. Batched funds sit in Circle's `pendingBatch` until they mature to `available` (minutes on testnet); only then can the keeper mint them into the wallet. Sweeping earlier is a no-op, not a failure — the balance is picked up on a later cycle.
 - **Direct rail** — buyer broadcasts a plain USDC `transfer` to the fee wallet; the server verifies the mined `Transfer` log before minting the unlock proof. Funds are on-chain instantly but still wait for the next `distribute()` to reach the creator EOA.
 
-In both cases the receipt records `payTo` (the fee wallet), the gross amount, and `protocolFee` (the 1% share) so analytics match on-chain reality exactly.
+In both cases the receipt records `payTo` (the fee wallet), the gross amount, and `protocolFee` (the 1% share) so analytics can report the configured split. Actual distribution depends on the onchain fee at distribution time and Gateway settlement costs.
 
 <Callout type="important">
 **Direct-rail payments are public chain data.** A txHash alone proves a payment
@@ -65,39 +58,16 @@ bound: every payment is an EIP-3009 signature with a per-payment nonce.
 
 ## Payment → payout lifecycle
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Buyer as Buyer (wallet/agent)
-    participant Site as Creator site (SDK)
-    participant Hub as Nibgate hub API
-    participant FW as GatewayFeeWallet
-    participant K as Keeper (backend)
-    participant C as Creator EOA
-    participant T as Treasury
-
-    rect rgb(232, 242, 255)
-    Note over Buyer,FW: UNLOCK — funds move immediately
-    Buyer->>Site: GET paid content
-    Site-->>Buyer: 402 PAYMENT-REQUIRED (payTo = fee wallet)
-    Buyer->>FW: USDC payment (gateway batch or direct transfer)
-    Buyer->>Hub: access retry + payment evidence
-    Hub->>Hub: verify payment<br/>index receipt: amount + protocolFee (1%)
-    Hub-->>Buyer: unlock proof + content
-    end
-
-    rect rgb(255, 244, 230)
-    Note over FW,T: SWEEP — keeper moves funds out (~60s cycle,<br/>after Circle batches mature: pending → available)
-    K->>FW: withdraw gateway balance (gatewayMint, permissionless)
-    K->>FW: distribute()
-    FW->>T: 1% of wallet balance
-    FW->>C: 99% to creator EOA
-    end
+```text
+Buyer → creator access URL → payment challenge
+Buyer → Gateway authorization or direct transfer → server verifies/indexes
+Keeper → withdraw available Gateway credit → fee wallet distribute()
+Fee wallet → pinned creator and treasury recipients
 ```
 
 <Steps>
 ### Unlock
-The site's SDK returns a 402 with the creator's fee wallet as `payTo`. The buyer pays; funds land in the fee wallet contract and the hub indexes a receipt with the gross `amount` and the derived `protocolFee`.
+The site's SDK returns a 402 with the creator's fee wallet as `payTo`. The buyer pays; funds land in the fee wallet contract and the hub indexes a receipt with the gross `amount` and the configured `protocolFee`.
 
 ### Discovery
 The keeper lists payout addresses from four redundant sources — nibshare owners, website owners with linked wallets, per-post `recipientWallet` on priced content, and every address that ever received a verified payment — then predicts each one's fee wallet address. Any address that can earn (or ever earned) is covered.
@@ -126,11 +96,11 @@ For each creator the keeper withdraws any pending Circle Gateway balance into th
 
 ## Why it's built this way
 
-Each choice below was made against a specific failure mode. The theme: **no key, pause, or policy should ever be able to move or freeze creator principal.**
+Fee wallets pin payout recipients and permit anyone to trigger distribution. Fee changes remain subject to the deployed setter and cap; held-tip permissions are a separate trust boundary.
 
 ### Anyone can call `distribute()` — that's a feature, not a bug
 
-The test for "is permissionless dangerous?" is whether the caller gains anything. Here the caller gains nothing: `distribute()` splits the contract's balance between two **immutable** addresses in fixed proportions, and `msg.sender` appears nowhere in the logic. A malicious caller pays gas to hand other people their money, on schedule.
+The test for "is permissionless dangerous?" is whether the caller gains anything. Here the caller gains nothing: `distribute()` splits the contract's balance between two **immutable** addresses under the current `feeBps`, and `msg.sender` appears nowhere in the logic. A malicious caller pays gas to hand other people their money, on schedule.
 
 What it buys:
 
@@ -138,37 +108,37 @@ What it buys:
 - **No MEV** — the split is computed from `balanceOf(this)` at call time, so reordering or sandwiching the call changes nothing.
 - **Griefing is bounded** — the worst anyone can do is force an *early* payout (creator paid sooner than scheduled, griefer wastes their own gas).
 
-### Fee changes go through a timelock — never silently
+### Fee setters and optional timelock governance
 
 The fee is enforced by the wallet itself, and `feeSetter` is an **immutable role baked into each wallet's bytecode** — it can never be swapped after deploy. That immutability is the point (no admin key to steal), but it means governance changes require a new factory deployment, not an upgrade.
 
-To keep even legitimate fee changes transparent and revocable, new factories set a `Timelock` contract as `feeSetter` (`contracts/Timelock.sol`):
+A factory may set a `Timelock` contract as `feeSetter` (`contracts/Timelock.sol`):
 
 1. Governance **schedules** a change → it becomes public chain data with a unique id
-2. Everyone watches it sit for the delay (target: 24–48h mainnet)
+2. The configured delay must elapse before execution
 3. Anyone can then **execute** it — execution is permissionless, so governance can't selectively time it
 4. Until executed, governance can `cancel`; after expiry, ops must be rescheduled (no stale-execution surprise)
 
-A leaked feeSetter key therefore cannot raise fees secretly, exceed the 5% cap, or touch principal — the worst case is a *visible* fee change within the deployed ceiling, days after everyone saw it coming.
+A timelocked setter enforces its configured delay. An EOA setter can change the fee immediately within the cap; the wallet contract does not itself require a timelock. Inspect the deployed setter before assuming delayed governance.
 
 <Callout>
-Wallets from factories with an EOA `feeSetter` cannot be migrated in place. Migration = deploy wallets through the timelocked factory (deterministic addresses), let the old wallets drain via `distribute()`, and point seller resolution at the new factory. This was exercised end-to-end on Arc testnet; see `contracts/deployments/arc-testnet.json`.
+Wallets from factories with an EOA `feeSetter` cannot be migrated in place. Migration = deploy wallets through the timelocked factory (deterministic addresses), let the old wallets drain via `distribute()`, and point seller resolution at the new factory. Deployment configuration is recorded in `contracts/deployments/arc-testnet.json`.
 </Callout>
 
 ### Fee wallets hold no keys
 
-Fee wallets are contracts, not accounts — there is no private key to lose or steal. The only ways USDC ever leaves are `distribute()` (fixed split) and an ERC-1271 authorization pinned field-by-field to "Gateway moves this wallet's own USDC back to this wallet." Blast radius of every key in the system:
+Fee wallets are contracts, not accounts — there is no private key to lose or steal. The only ways USDC ever leaves are `distribute()` (fixed split) and an ERC-1271 authorization pinned field-by-field to "Gateway moves this wallet's own USDC back to this wallet." Roles relevant to fee-wallet distribution:
 
 | Key | If leaked | Can steal principal? |
 | --- | --- | --- |
-| Keeper (hot, server env) | Gas spam at worst — sweep/distribute are permissionless anyway | No |
+| Keeper (hot, server env) | Fee-wallet sweeping has no special rights; the same key may separately have privileged held-tip relay rights | No |
 | Timelock governance | Visible, delayed, capped fee change | No |
 | Treasury EOA | Future fee income only | No |
 | Creator EOA | Creator's own funds — same as any wallet | n/a |
 
-### Direct-rail settlement waits for finality — which on Arc means instantly
+### Direct-rail receipt confirmation
 
-The direct rail credits unlocks off a mined tx receipt. On most chains that requires waiting several confirmations for reorg safety. Arc doesn't: its Malachite BFT consensus gives deterministic sub-second finality (reorgs are impossible; Circle's CCTP treats 1 block as final on Arc). So **1 confirmation is correct on Arc testnet and mainnet alike** — no artificial wait, no security trade-off.
+The direct rail requires a successful mined receipt and the matching USDC transfer log. The local Arc registry uses one confirmation. A submitted transaction hash alone is not sufficient; the verifier must observe the successful receipt on the configured chain.
 
 The SDK still ships chain-aware defaults (`CONFIRMATIONS_BY_CHAIN`) so the same code deployed elsewhere picks sane depths automatically, overridable per request or via `NIBGATE_TX_CONFIRMATIONS`.
 
@@ -180,14 +150,14 @@ It fails **closed**: if the registry rejects the hash for different content → 
 
 ## Trust model
 
-- **Creator trust** — funds are withdrawable by the creator alone via `distribute()`; even if Nibgate disappears, anyone can trigger the split.
-- **Protocol trust** — the 1% fee is enforced by immutable bytecode with a hard 5% ceiling set at deploy; it cannot be raised retroactively.
+- **Creator payout** — anyone can call `distribute()`; the recipient is pinned to the creator address and the treasury receives the configured fee.
+- **Protocol trust** — the default fee is 1%; the fee setter can change it up to the wallet’s immutable deployed cap (5% by default). The fee at distribution time applies to the balance being distributed.
 - **Operator trust** — the keeper key holds no user funds and has no special contract rights; sweep/distribute are permissionless.
 
 ## Where to look
 
-- Contracts: `contracts/GatewayFeeWallet.sol`, `contracts/GatewayFeeWalletFactory.sol`, `contracts/Timelock.sol` + `contracts/script/DeployTimelockedFactory.s.sol` (54 Foundry tests).
+- Contracts: `contracts/GatewayFeeWallet.sol`, `contracts/GatewayFeeWalletFactory.sol`, `contracts/Timelock.sol` + `contracts/script/DeployTimelockedFactory.s.sol` (contract sources and deployment records).
 - SDK integration: `packages/nibgate/src/server/fee-wallet.js` (verification depth, claim registry, overpay surfacing).
 - Keeper: `backend/src/server/revenue/keeper.js`.
-- Deployments: `contracts/deployments/arc-testnet.json` (incl. timelocked factory dry-run).
+- Deployments: `contracts/deployments/arc-testnet.json` (network-specific factory and role configuration).
 - Receipts & proofs: [Payments and receipts](/payments-receipts). Leaderboards: [Revenue & leaderboards](/revenue).

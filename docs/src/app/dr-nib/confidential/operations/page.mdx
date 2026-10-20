@@ -1,0 +1,48 @@
+# Worker lifecycle
+
+Dr. Nib separates durable project state from active research compute. Encrypted projects and reports remain readable while the confidential worker is stopped. New AI work wakes the worker; opening a project list, an existing project or a saved report does not. The browser decrypts the saved content without a running worker. Reopening a stalled project shows its history; **Resume** explicitly starts recovery. Automatic recovery remains available for an operation already started in the current browser session.
+
+## From request to execution
+
+1. The browser submits an authenticated encrypted action with a stable request ID. The control plane checks ownership, capacity, funding and budget.
+2. A durable lifecycle controller starts the configured worker when needed. Concurrent requests share the same start rather than creating a VM for every message.
+3. The control plane checks readiness and approved release evidence. The browser checks the configured verifier result, approved release and fresh recipient-key possession before delivering processing keys.
+4. A fenced execution lease assigns the action. Completed results restore from encrypted checkpoints before any new paid work starts.
+5. Activity and results are encrypted before storage. Reconnecting clients read saved progress rather than restarting the research from scratch.
+
+A health response or provider “running” flag is not enough to release decryption keys. An unexpected image, invalid quote or changed release policy blocks private execution.
+
+## Warm follow-ups and idle shutdown
+
+An idle grace period keeps a worker warm through short follow-ups; the initial policy uses five minutes. It begins after eligible work finishes, not after every status poll. Long waits for user input can checkpoint and release capacity. Active model, tool and payment operations retain their execution leases.
+
+Before stopping, the controller excludes new assignments, checks durable work leases, checkpoints and drains safely. It requests shutdown and confirms the provider state. Work arriving during drain waits for the next safe start. An independent watchdog reconciles controller failures, stale leases and unknown start/stop outcomes.
+
+A stopped worker introduces cold-start and verification latency before it can answer. A warm worker avoids boot time but still incurs inference latency. The workspace shows an animated **Waking private worker** status during startup, followed by **Verifying secure connection**. Saved content remains visible. Reduced-motion preferences disable the animation. Research activity, waiting for an answer and completion have their own states.
+
+## Persistence and restart
+
+Documents, reports, activity and checkpoints are encrypted in Postgres/private object storage. Coordination records retain opaque ownership, request IDs, leases, generations and usage commitments. Live plaintext and project keys stay in authorized memory.
+
+After a crash, restored operation journals prevent duplicate model calls, tool purchases and payments. An unknown outcome remains fenced until it can be reconciled. Losing in-memory processing keys can require the browser to reconnect, verify the fresh worker and unlock the project again. Account sign-in alone is not permission to decrypt.
+
+A temporary infrastructure failure preserves the resumable checkpoint and escrow. It does not automatically end/refund the research or switch it into an ordinary plaintext pipeline. See [recovery](/dr-nib/confidential/recovery).
+
+## Operational boundaries
+
+| Component | Responsibility |
+| --- | --- |
+| Ciphertext broker | Authentication, ownership, encrypted delivery, admission and coordination |
+| Phala worker | Authorized decryption, agent orchestration and encrypted output |
+| Verifier/release policy | Hardware evidence, approved software identity and recipient-key binding |
+| Money service | Funding, bounded spending, payment reconciliation and refunds; no document keys |
+| Lifecycle watchdog | Reconcile state and enforce idle/runtime limits independently of the HTTP process |
+| Durable storage | Encrypted project history plus minimal coordination/financial metadata |
+
+Runtime accounting is cumulative across process restarts. Renewing an allowance is a deliberate policy action, not an automatic reset when a process crashes. Hosted-model retention/logging reviews have expiry and must stay valid before that route can process new work. Operational logs should contain failure codes and minimal metadata rather than prompts, documents or key material.
+
+## Costs and receipts
+
+CPU worker runtime, retained disk, model API inference, control-plane hosting, object-storage operations and creator payments are separate expenses. Stopping CPU compute does not remove retained-disk charges. Dr. Nib uses API inference rather than renting a dedicated GPU for its CPU worker.
+
+Worker compute/storage are operator-funded in customer receipts. Customer model/tool charges are metered within the approved budget and unused escrow is refunded at settlement. A deposit, conservative reservation, provider invoice and customer debit are different amounts. See [models and payments](/dr-nib/confidential/models-tools).

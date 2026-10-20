@@ -54,7 +54,7 @@ Right-click any HTTP(S) page or link and choose **Tip this page**. This opens th
 ### Tipping on creator pages
 
 1. Open an article, tutorial, paper, photo post, music recording, or video page. (Nibgate's own sites are
-   excluded — they already tip natively.)
+   excluded — they already tip natively. Loopback development apps are excluded too. This is enforced by the injected script as well as automatic registration and both fallback-injection paths.)
 2. A **coffee icon** floats at the bottom right, with a **Tip the creator**
    tooltip. A full **Tip the creator** button remains at the detected content's
    end. **×** hides only the floating icon for the current page. Both open the

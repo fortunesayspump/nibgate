@@ -122,7 +122,7 @@ export async function checkArcConnection(provider, { timeoutMs = 9000, chain: re
   return { chainId, blockNumber, checkedAt: Date.now() }
 }
 
-export async function ensureArcNetwork(provider, { wait = true, timeoutMs = 9000, onSwitch, chain: requestedChain, assertActive = () => {} } = {}) {
+export async function ensureArcNetwork(provider, { wait = true, timeoutMs = 9000, onSwitch, repairOnFailure = true, chain: requestedChain, assertActive = () => {} } = {}) {
   const chain = resolveArcChain(requestedChain)
   // Never trust a cached currentChainId: external wallet RPCs can be broken
   // while the wallet still reports the expected chain from local metadata.
@@ -140,7 +140,15 @@ export async function ensureArcNetwork(provider, { wait = true, timeoutMs = 9000
     switched = true
     onSwitch?.()
   }
-  return { switched, ...await checkArcConnection(provider, { timeoutMs, chain, assertActive }) }
+  try {return { switched, ...await checkArcConnection(provider, { timeoutMs, chain, assertActive }) }}
+  catch(error){
+    const failure=classifyArcRpcError(error,'',{chain});
+    if(!repairOnFailure||!failure.canRepair)throw failure;
+    // Explicit network/payment action only. Passive health checks use
+    // checkArcConnection and never change settings. No recursive retry.
+    const health=await repairArcNetwork(provider,{timeoutMs,chain,assertActive});
+    return {switched:true,repaired:true,...health};
+  }
 }
 
 export async function switchToArcNetwork(provider, { chain: requestedChain, assertActive = () => {} } = {}) {

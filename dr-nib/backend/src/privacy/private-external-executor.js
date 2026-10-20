@@ -12,12 +12,14 @@ import {executePublicTip} from '../spend/tips.js';
 import {executePublicRating} from '../spend/ratings.js';
 import {formatUnits,parseAbi} from 'viem';
 import {readGatewaySettlement} from './private-gateway-settlement.js';
+import {privatePaidNetwork} from './private-paid-network.js';
+import {config} from '../env.js';
 
 const fail=()=>Error('PRIVATE_EXTERNAL_EXECUTION_FAILED');
 const gatewayBalanceAbi=parseAbi(['function availableBalance(address token,address depositor) view returns (uint256)']);
 /** Real public transports and existing Hub payment rails. Signing keys stay
  * in this isolated process. Paid payloads never follow a redirect or retry. */
-export function createPrivateExternalExecutor({env=process.env,fetchPublic=publicFetch,gatewayClientFactory=options=>new GatewayClient(options),readSettlement=readGatewaySettlement}={}){
+export function createPrivateExternalExecutor({env=process.env,fetchPublic=publicFetch,gatewayClientFactory=options=>new GatewayClient(options),readSettlement=readGatewaySettlement,executeTip=executePublicTip,executeRating=executePublicRating}={}){
  const execute=async (value,{onPaymentPrepared=async()=>{}}={})=>{
   const request=validatePrivateExternalRequest(value);let mayHavePaid=false;
   try{
@@ -30,14 +32,18 @@ export function createPrivateExternalExecutor({env=process.env,fetchPublic=publi
     const out=await httpRequest({url:request.url,method:request.method??'GET',body:request.body?JSON.stringify(request.body):null,maxBytes:24000,timeoutMs:10000,followRedirects:false,headers:request.body?{'content-type':'application/json'}:{}});
     if(out.status>=300)throw fail();return {costMicroUsd:0,costBasis:'no-charge',output:{url:out.url,text:out.body,status:out.status,truncated:out.truncated}};
    }
-   // This rehearsal must not sign a mainnet payment by inherited config.
-   if(env.DRNIB_PRIVATE_PAID_TOOLS_ENABLED!=='true'||env.DRNIB_NETWORK!=='testnet'||!/^0x[0-9a-f]{64}$/i.test(env.DRNIB_AGENT_PRIVATE_KEY??''))throw fail();
+   const paid=privatePaidNetwork(env);
+   if(request.maxMicroUsd>paid.maxMicroUsd)throw fail();
+   const nativeRail=request.tool==='tip_creator'&&executeTip===executePublicTip||request.tool==='rate_content'&&executeRating===executePublicRating;
+   // These existing rails bind their wallet/Hub configuration at process boot.
+   // Refuse an injected or stale config selecting another deployment network.
+   if(nativeRail&&(config.network!==paid.network.name||config.hubApiUrl!==paid.hubOrigin))throw fail();
    if(request.tool==='tip_creator'){
-    mayHavePaid=true;const out=await executePublicTip({contentUrl:request.url,amount:request.maxMicroUsd/1000000});
+    mayHavePaid=true;const out=await executeTip({contentUrl:request.url,amount:request.maxMicroUsd/1000000});
     return {costMicroUsd:request.maxMicroUsd,costBasis:'chain-receipt',txHash:out.txHash,output:{tipped:true,url:request.url,txHash:out.txHash,held:out.held}};
    }
    if(request.tool==='rate_content'){
-    mayHavePaid=true;const out=await executePublicRating({url:request.url,contentId:request.contentId,stars:request.stars,unlockRef:request.unlockRef});
+    mayHavePaid=true;const out=await executeRating({url:request.url,contentId:request.contentId,stars:request.stars,unlockRef:request.unlockRef});
     if(out.indexed!==true)throw fail();
     return {costMicroUsd:0,costBasis:'chain-receipt',txHash:out.txHash,output:{rated:true,url:request.url,stars:request.stars,txHash:out.txHash,indexed:out.indexed}};
    }
@@ -52,8 +58,8 @@ export function createPrivateExternalExecutor({env=process.env,fetchPublic=publi
    const challenge=JSON.parse(Buffer.from(raw,'base64').toString('utf8'));
    if(challenge.x402Version!==2)throw fail();
    const resourceUrl=privatePaidResourceUrl(request.url,challenge.resource?.url);
-   const chain=spendChain('testnet'),client=gatewayClientFactory({chain:chain.gatewayChain,privateKey:env.DRNIB_AGENT_PRIVATE_KEY,rpcUrl:chain.rpcUrl});
-   const actualChain=await client.publicClient.getChainId();if(actualChain!==chain.chainId)throw fail();
+   const chain=spendChain(paid.network.name),client=gatewayClientFactory({chain:chain.gatewayChain,privateKey:env.DRNIB_AGENT_PRIVATE_KEY,rpcUrl:chain.rpcUrl});
+   const actualChain=await client.publicClient.getChainId();if(actualChain!==paid.network.chainId||client.chainConfig.gatewayWallet?.toLowerCase()!==paid.network.gatewayWallet.toLowerCase())throw fail();
    const offer=challenge.accepts?.find(o=>o.scheme==='exact'&&o.network===`eip155:${chain.chainId}`&&o.asset?.toLowerCase()===chain.usdc.toLowerCase()&&o.extra?.name==='GatewayWalletBatched'&&o.extra?.version==='1'&&o.extra?.verifyingContract?.toLowerCase()===client.chainConfig.gatewayWallet.toLowerCase());
    if(!offer||!/^\d{1,16}$/.test(offer.amount??'')||BigInt(offer.amount)<=0n||BigInt(offer.amount)>BigInt(request.maxMicroUsd)||!/^0x[0-9a-f]{40}$/i.test(offer.payTo??''))throw fail();
    const amount=BigInt(offer.amount),balance=await client.getBalances(),available=BigInt(balance.gateway?.available??0);

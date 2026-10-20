@@ -8,7 +8,7 @@ Prepared locally for the owner on Arc Testnet. No deployment, image publication 
 
 - Separate broker/funding/watchdog entrypoints, explicitly scoped database roles and funding listener.
 - Canonical testnet Hub origin pinned for frontend sign-in, funding, tips, ratings and discovery. Frontend public API origin no longer defaults to mainnet in this profile.
-- Separate Railway IaC declarations for three control services and two Nibgate-operated verifier services, one replica each, no Git-linked deployment, tracing off and explicit CPU/RAM ceilings.
+- Reuse existing broker/verifier services and host; optional fresh-project IaC is disabled by the owner reuse plan. Separate funding/supervision services are added only where necessary.
 - Full-verifier gateway with exact browser origins, bounded evidence and fixed upstream; local container built and checked without external networking.
 - Offline candidate-compose generation separated from final admission, avoiding a new-CVM identity dependency cycle.
 - Source/bundle integrity verification, fresh-schema SQL, environment-name inventory and local guest repackage command. Local image IDs are not registry manifest digests or hardware measurements.
@@ -22,7 +22,7 @@ For the existing owner setup, [reused inputs and remaining owner actions](REUSED
 | `ownerTenantId` | Plan and all owner gates | Verify the intended testnet account ID; wallet address is not interchangeable |
 | Frontend, broker, funding, verifier and guest HTTPS origins | `origins.*` | Select domains and target services; guest origin may be assigned during CVM provisioning |
 | Frontend project and control-plane project/environment IDs | Deployment target record | Existing platform inventory or approved new resources; separate canary target |
-| Nibgate-operated official verifier, engine private URL and certificate | Gateway config and release review | Same Railway workspace, separate verifier project, private engine and exact browser CORS; operator-hosted trust explicitly disclosed |
+| Nibgate-operated official verifier, engine private URL and certificate | Gateway config and release review | Reuse existing testnet verifier pair, private engine and exact browser CORS; operator-hosted trust explicitly disclosed |
 | Fresh Postgres database, administrator and four independent login credentials | Database setup and service secrets | `drnib_private_canary`, `drnib` schema; broker, guest, funding and watchdog roles; apply fresh SQL transactionally |
 | Private object bucket, endpoint and scoped key pairs | Broker/guest secrets | No public bucket/URL; verify scope and retention |
 | Broker Ed25519 private key and matching base64 SPKI public key | Broker/watchdog secret and measured guest policy | Generate/provision securely after review; private key never in frontend/compose literals |
@@ -34,7 +34,7 @@ For the existing owner setup, [reused inputs and remaining owner actions](REUSED
 | Reviewed base pre-launch script | Measured CVM pre-launch input | Required SHA-256 `982181610f70be9087b1c69b36b719b47b82d37fcef8acc9289ed3bb3095ffe8`; helper installs pinned terminal seccomp profile before Compose |
 | Primary Arc Testnet RPC and optional independent backup | Funding service | Canonical registry supplies primary unless explicitly overridden; validate chain ID/code/roles before signing |
 | Wallet/social-login origin acceptance and session-cookie delivery | Frontend/auth acceptance | Verify the chosen HTTPS canary origin with existing login configuration; do not copy backend credentials to browser builds |
-| Provider budgets/alerts, retention and shutdown policy | Operator controls | Confirm account plan/quotas and review window; the $5 allowance below is not yet approved |
+| Provider budgets/alerts, retention and shutdown policy | Operator controls | Confirm account plan/quotas and review window; the owner approved the $5 incremental testnet allowance |
 
 Every generated environment variable and whether it requires provisioning is listed in `prepared/deployment-inputs.json`. Secrets remain absent, not “missing from code.” Existing credentials may be reusable only after scope/workspace verification; this preparation has not exported or copied them.
 
@@ -46,9 +46,9 @@ Every generated environment variable and whether it requires provisioning is lis
 | `release.terminalImage` | Immutable terminal registry `@sha256:` digest | Before CVM boot; exact source/runtime check |
 | `release.gatewayImage` | Immutable verifier-gateway registry `@sha256:` digest | Before verifier deployment; local built image is not a published digest |
 | `release.aciComposeHash` | 64 hex characters | Verify the separate confidential inference deployment |
-| `cvmId` | Provider CVM identity | Dedicated instance creation after approval |
-| `release.appId` | 40 hex characters | Review dedicated CVM/application identity |
-| `release.instanceId` | 40 hex characters | Review dedicated instance identity |
+| `cvmId` | Provider CVM identity | Existing stopped CVM metadata; review updated boot independently |
+| `release.appId` | 40 hex characters | Review reused CVM/application identity |
+| `release.instanceId` | 40 hex characters | Review reused instance identity |
 | `release.composeHash` | 64 hex characters | Independently validate exact uploaded measured compose |
 | `release.osHash` | 64 hex characters | Review approved production OS image, corroborate live evidence |
 | `release.kmsId` | Even-length hex | Review key-provider identity, corroborate live evidence |
@@ -65,7 +65,7 @@ Some pins cannot truthfully be filled before an approved deployment/boot. The fi
 
 1. Isolated Postgres/private bucket and scoped credentials.
 2. Nibgate-operated official full-verifier engine and HTTPS gateway in the existing Railway workspace.
-3. Dedicated Phala `tdx.medium` candidate, 20 GB disk, guest plus isolated terminal companion. This shape is a cost/capacity proposal; validate image footprint and runtime capacity before acceptance.
+3. Existing Phala `tdx.small` candidate, 20 GB disk, guest plus isolated terminal companion. This shape is a cost/capacity proposal; validate image footprint and runtime capacity before acceptance.
 4. Review live identity, image/compose/OS/KMS evidence and verifier certificate. Complete the release plan and refresh hosted-route privacy evidence.
 5. Ciphertext broker, funding/public-tools service and independent lifecycle watchdog, using the matching env profiles only.
 6. Separate testnet frontend built from this source, with the exact reviewed public pins and same-origin private rewrites. No ordinary queue worker is included.
@@ -77,12 +77,12 @@ The reviewed window starts with one active private action, eight queued requests
 
 Published rates checked 2026-10-20; assumptions and calculations are in `costs.json`.
 
-- [Phala instance pricing](https://cloud.phala.com/about/instance-types): proposed `tdx.medium`, 2 vCPU / 4 GB, **$0.116/hour active compute**.
+- [Phala instance pricing](https://cloud.phala.com/about/instance-types): reused `tdx.small`, 1 vCPU / 2 GB, **$0.058/hour active compute**.
 - [Phala storage](https://cloud.phala.com/about/pricing): **$0.000139/GB/hour**, including while stopped. A 20 GB disk is **$0.00278/hour**, **$0.06672/day**, or about **$2/month** at 720 hours.
 - [Railway container pricing](https://docs.railway.com/pricing/plans): RAM **$10/GB-month**, CPU **$20/vCPU-month**, volumes **$0.15/GB-month**, egress **$0.05/GB**. At assumed aggregate averages of 2 GB RAM and 0.25 vCPU across the control services and database, compute is about **$0.035/hour**, or **$25/month** if left running. Actual averages are not measured yet; configured limits are ceilings, not reservations or expected consumption.
 - [R2 Standard pricing](https://developers.cloudflare.com/r2/pricing/): **$0.015/GB-month**, **$4.50/million Class A**, **$0.36/million Class B**, with monthly free quotas if still available. Rounding and shared-account quota matter; do not assume every incremental request is free.
 - Current code-policy model prices are conservative admission inputs, not fresh provider quotes. JEV, Phala and Azure/OpenRouter usage share the proposed **$1 AI allowance**; actual reconciled calls determine charges. No dedicated GPU rental is proposed.
 
-Illustrative short-canary scenario: one active Phala hour, retained disk for 24 hours, one control-plane hour at the assumed averages, 1 GB database disk for 24 hours and 1 GB egress totals **about $0.27 before AI, frontend/R2 usage, subscription minimums, taxes**. It is not an all-in quote. Railway Hobby/Pro subscription minimums are $5/$20 with included usage; existing account usage determines incremental billing. Frontend usage and existing paid-plan headroom must be checked before approval. A new paid plan is not included in the usage estimate.
+Illustrative short-canary scenario: one active Phala hour, retained disk for 24 hours, one control-plane hour at the assumed averages, 1 GB database disk for 24 hours and 1 GB egress totals **about $0.2144 before AI, frontend/R2 usage, subscription minimums, taxes**. It is not an all-in quote. Railway Hobby/Pro subscription minimums are $5/$20 with included usage; existing account usage determines incremental billing. Frontend usage and existing paid-plan headroom must be checked before approval. A new paid plan is not included in the usage estimate.
 
-Proposed incremental review allowance remains **$5: $1 AI + $1 Phala + $2 control/storage + $1 contingency**, not approved, not charged, and not a promise of a monthly hosting price. AI reservations and cumulative runtime are application-enforced; retained disk and other providers need separate spending controls. If provider quotas/minimums or a verifier quote exceed this allowance, revise the plan before authorization. Test-USDC escrow/creator float and keeper gas are separate from USD cloud/model bills. Historical holds remain a separate ledger and must not be reset to make the new canary fit.
+Incremental testnet review allowance is **$5: $1 AI + $1 Phala + $2 control/storage + $1 contingency**, owner-approved for testnet, not charged, and not a promise of a monthly hosting price. AI reservations and cumulative runtime are application-enforced; retained disk and other providers need separate spending controls. If provider quotas/minimums or a verifier quote exceed this allowance, revise the plan before authorization. Test-USDC escrow/creator float and keeper gas are separate from USD cloud/model bills. Historical holds remain a separate ledger and must not be reset to make the new canary fit.

@@ -350,6 +350,16 @@
         "publicBuildValue": false
       },
       {
+        "key": "DRNIB_PRIVATE_MAINNET_PAID_TOOLS_ENABLED",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
+        "key": "DRNIB_PRIVATE_MAINNET_TOOL_MAX_MICRO_USD",
+        "requiresProvisioning": false,
+        "publicBuildValue": false
+      },
+      {
         "key": "DRNIB_PRIVATE_TEST_TENANT_ID",
         "requiresProvisioning": true,
         "publicBuildValue": false

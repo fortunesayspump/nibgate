@@ -2,7 +2,7 @@
   "asOf": "2026-10-20",
   "currency": "USD",
   "rates": {
-    "phalaComputeUsdPerHour": "0.116",
+    "phalaComputeUsdPerHour": "0.058",
     "phalaDiskUsdPerGbHour": "0.000139",
     "railwayRamUsdPerGbMinute": "0.000231",
     "railwayCpuUsdPerVcpuMinute": "0.000463",
@@ -16,7 +16,7 @@
     "https://developers.cloudflare.com/r2/pricing/"
   ],
   "assumptions": {
-    "phalaShape": "tdx.medium (2 vCPU, 4 GB)",
+    "phalaShape": "existing tdx.small (1 vCPU, 2 GB)",
     "phalaActiveHours": 1,
     "phalaRetainedDiskGb": 20,
     "diskRetentionHours": 24,
@@ -29,12 +29,12 @@
     "dedicatedGpu": false
   },
   "scenario": {
-    "phalaCompute": "0.116",
+    "phalaCompute": "0.058",
     "phalaDisk24Hours": "0.066720",
     "controlCompute1Hour": "0.03466500",
     "databaseVolume24Hours": "0.005",
     "egress1Gb": "0.05",
-    "subtotalBeforeAiFrontendR2SubscriptionsTaxes": "0.27238500"
+    "subtotalBeforeAiFrontendR2SubscriptionsTaxes": "0.21438500"
   },
   "retainedMonthlyExamples": {
     "phalaStopped20GbDisk": "2.001600",
@@ -47,7 +47,8 @@
     "controlPlaneAndStorage": 2,
     "contingency": 1,
     "total": 5,
-    "approved": false
+    "approved": true,
+    "scope": "Owner-approved incremental testnet canary; mainnet excluded"
   },
   "limitations": [
     "Scenario, not a quote or maximum: RAM/CPU figures are assumed averages, not measurements.",
@@ -81,9 +82,9 @@
   "monthlyPlanningExample": {
     "oneEnvironmentBaseBeforeInferenceAndTraffic": "27.1516",
     "phalaActiveHoursPerDay": 2,
-    "phalaCompute30Days": "6.96",
-    "oneEnvironmentSubtotal": "34.1116",
-    "twoIdenticalSeparateEnvironmentsSubtotal": "68.2232",
+    "phalaCompute30Days": "3.48",
+    "oneEnvironmentSubtotal": "30.6316",
+    "twoIdenticalSeparateEnvironmentsSubtotal": "61.2632",
     "notAQuote": true,
     "excludes": [
       "AI inference",
@@ -96,7 +97,9 @@
     ],
     "notes": [
       "Two-environment estimate duplicates the full assumed control-plane footprint; a shared verifier could reduce actual use.",
-      "Average CPU/RAM are assumptions, not observed resource consumption."
+      "Average CPU/RAM are assumptions, not observed resource consumption.",
+      "Selected rollout reuses existing infrastructure; duplicated-environment scenario is not the selected deployment or measured incremental cost."
     ]
-  }
+  },
+  "preflightAiUsd": "0.000017"
 }

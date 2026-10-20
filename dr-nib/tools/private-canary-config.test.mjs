@@ -60,3 +60,12 @@ test('operator-hosted verifier is explicit, isolated and retains required pins',
  p.origins.verifier=p.origins.broker;assert.throws(()=>canaryReadiness(p),/ORIGINS_MUST_BE_DISTINCT/);
  p.origins.verifier='https://verify-drnib-canary.nibgate.xyz';p.verifierTrustMode='automatic';assert.throws(()=>canaryReadiness(p),/TRUST_MODE_INVALID/);
 });
+
+test('reuse preparation disables project creation and accounts for external preflight model costs',()=>{
+ const p=structuredClone(draft);p.deploymentMode='reuse';p.preflightAiMicroUsd=17;p.reuseTargets={projectId:'existing-testnet'};const f=renderCanaryFiles(p);
+ assert.match(f['.railway/railway.ts'],/project creation is disabled/);assert.match(f['verifier/.railway/railway.ts'],/project creation is disabled/);
+ assert.equal(JSON.parse(f['reuse-service-patches.json']).createSecondPhalaWorker,false);
+ assert.equal(JSON.parse(f['guest/measured-policy.json']).DRNIB_PRIVATE_AI_MONTHLY_CAP_MICRO_USD,'999983');
+ assert.ok(f['env/verifier-gateway.env.example'].includes('drnib-qa-verifier.railway.internal'));
+ p.preflightAiMicroUsd=-1;assert.throws(()=>canaryReadiness(p),/PREFLIGHT_USAGE_INVALID/);
+});

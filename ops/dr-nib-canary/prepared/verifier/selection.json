@@ -12,7 +12,8 @@
     "trustMode": "operator-hosted",
     "operator": "Nibgate",
     "platform": "Railway",
-    "proposedHostedEndpoint": "https://verify-drnib-canary.nibgate.xyz/verify"
+    "proposedHostedEndpoint": "https://drnib-qa-verifier-gateway-production.up.railway.app/verify",
+    "deploymentMode": "reuse-existing-testnet-pair"
   },
   "sources": {
     "release": "https://github.com/Dstack-TEE/dstack/releases/tag/v0.6.1",
@@ -45,10 +46,10 @@
     "live HPKE possession proof"
   ],
   "activationRequires": [
-    "Nibgate-operated HTTPS full-verifier gateway and private official engine, separate project in existing Railway workspace",
+    "Update existing gateway origin policy and immutable image; retain existing private official engine",
     "Exact frontend CORS and TLS certificate SPKI review",
     "Positive real evidence and tampered/replayed evidence acceptance checks",
-    "Operator deployment/spending approval"
+    "Deployment-tool acceptance of staged existing-gateway update"
   ],
   "cloudActionsPerformed": false,
   "modelRequestsPerformed": 0,

@@ -46,3 +46,7 @@ Confirmed escrow precedes paid research. A conservative durable reservation is m
 The receipt has one cumulative row per model/tool plus individual records. Customer charges, sponsored calls, operator-covered costs, pending refunds and unresolved holds stay distinct. Settlement returns the unused deposit; the 1% protocol share comes from the operator's earned share rather than an extra deduction from the refund. Confirmed transactions and six-decimal amounts appear in the receipt and supported exports.
 
 Compute/storage are currently operator-funded and not allocated per run. A zero customer charge is not a zero provider bill. The expense receipt is not a tax invoice. See [budgets](/dr-nib/budgets) and [operations](/dr-nib/confidential/operations).
+
+## Network-specific payment controls
+
+Private paid tools use the deployment's canonical chain, USDC and Gateway contract. Mainnet requires a separate operator enable switch and per-operation ceiling; a testnet configuration cannot silently start paying on mainnet. Seller offers and settlement evidence must match the selected network. Run funding, disclosure approval and cumulative budgets still apply. An uncertain payment remains reserved for reconciliation rather than being automatically purchased again.

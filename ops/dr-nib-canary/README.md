@@ -2,6 +2,8 @@
 
 Verifier implementation and hosting decision: see [Official Phala verifier selection](VERIFIER.md). The engine is the official digest-pinned dstack-verifier, not a Nibgate implementation.
 
+The current owner canary reuses the existing testnet project, broker, verifier pair, database host, private bucket, Phala CVM and frontend project. Extra services are allowed only for required funding/supervision boundaries. The owner plan uses `deploymentMode: "reuse"`; generated project-creation entrypoints refuse to execute in that mode. Generic fresh-project IaC remains an optional reference, not the selected rollout.
+
 This directory prepares an isolated, owner-only **testnet** rollout. It does not change the public mainnet services. Nothing here grants permission to push Git, publish images, create services, change cloud configuration, start Phala or spend money.
 
 The current sequential testnet/mainnet plan, Git push boundary, service retirement inventory and owner actions are in [ROLLOUT.md](ROLLOUT.md).
@@ -16,10 +18,10 @@ The current sequential testnet/mainnet plan, Git push boundary, service retireme
 | Independent watchdog | Same snapshot; `start:private-watchdog` | Lifecycle reconciliation/idle stop; never requests a wake |
 | Full verifier engine | Digest in `verifier/engine.Dockerfile` | Private network only; full hardware evidence verdict |
 | Nibgate verifier gateway | `verifier/Dockerfile`, separately reviewed image and HTTPS origin | Browser CORS for exact canary origin, evidence-only forwarding, no cookies |
-| Dedicated Phala CVM | Reviewed guest + terminal digests and measured compose | Decrypts only after attestation and recipient-key possession; plaintext logs disabled |
-| Isolated Postgres and private object bucket | Fresh `drnib_private_canary`, `drnib` schema, four distinct roles | Ciphertext and minimal financial/lifecycle metadata; no shared production DB/bucket |
+| Existing Phala CVM | Reviewed guest + terminal digests and measured compose | Decrypts only after attestation and recipient-key possession; plaintext logs disabled |
+| Isolated Postgres and private object bucket | Fresh logical `drnib_private_canary` on existing host, four distinct roles | Ciphertext and minimal financial/lifecycle metadata; existing private bucket |
 
-The verifier pair is operated by Nibgate in the existing Railway workspace, in its own project for secret/resource isolation. `verifierTrustMode: "operator-hosted"` explicitly selects this trust model. The selected gateway origin is `https://verify-drnib-canary.nibgate.xyz`, pending provisioning. Official software verifies the hardware evidence, but users trust the Nibgate-operated service for its returned verdict; neither a separate project nor TLS/SPKI establishes independent operation. An independently operated verifier remains an optional stronger trust arrangement.
+The existing verifier pair is operated by Nibgate in the testnet Railway project, with no research or money credentials. `verifierTrustMode: "operator-hosted"` explicitly selects this trust model. The selected gateway origin is `https://drnib-qa-verifier-gateway-production.up.railway.app`; its canary CORS/image update remains staged. Official software verifies the hardware evidence, but users trust the Nibgate-operated service for its returned verdict; neither a separate project nor TLS/SPKI establishes independent operation. An independently operated verifier remains an optional stronger trust arrangement.
 
 Actual JEV remains on the disclosed OpenRouter/TypeSafe ZDR route. Phala inference is primary; the authorized OpenRouter/Azure ZDR research fallback remains disclosed and provider-visible. Never describe every inference as hardware confidential.
 
@@ -34,7 +36,7 @@ node scripts/drnib-private-canary.mjs verify ops/dr-nib-canary/prepared
 
 Output must be a new directory. Preparation snapshots the current Prisma schema without connecting to a database, adds explicit restricted grants/check constraints, produces service/environment declarations and hashes the relevant source files. Verification detects source or bundle changes. It does **not** establish remote attestation, service readiness, prices or account spending approval. The example deliberately reports missing inputs instead of inventing them.
 
-Control services use `.railway/railway.ts`; Nibgate uses `verifier/.railway/railway.ts` for the verifier pair. New Railway services use IaC (SDK `railway/iac`); native IaC evaluation requires Railway CLI 5.42.1 or later. The declaration only accepts the `owner-canary` environment, has no Git repository source or auto-deploy connection, uses one replica per service with explicit CPU/RAM limits, leaves control services awake, and disables request tracing/auto-instrumentation. Environment profiles are separate review inputs; import only the matching service's values after approval. Credentials are not embedded in the IaC file. Upload the exact reviewed repository snapshot only after approval. Do not apply this declaration to an existing project containing unrelated services without reviewing the complete remote diff.
+The selected reuse rollout applies `reuse-service-patches.json` to existing services after reviewing the remote diff; generated project-creation entrypoints are disabled. For an optional fresh installation, control services use `.railway/railway.ts`; Nibgate uses `verifier/.railway/railway.ts` for the verifier pair. New Railway services use IaC (SDK `railway/iac`); native IaC evaluation requires Railway CLI 5.42.1 or later. The declaration only accepts the `owner-canary` environment, has no Git repository source or auto-deploy connection, uses one replica per service with explicit CPU/RAM limits, leaves control services awake, and disables request tracing/auto-instrumentation. Environment profiles are separate review inputs; import only the matching service's values after approval. Credentials are not embedded in the IaC file. Upload the exact reviewed repository snapshot only after approval. Do not apply this declaration to an existing project containing unrelated services without reviewing the complete remote diff.
 
 The generated `deployment-inputs.json` lists every service environment variable by name, whether its value still needs provisioning and whether it is a public build value. It contains no credentials.
 
@@ -69,7 +71,7 @@ The initial owner canary has one active action, eight pending requests and a fiv
 
 ## Costs and approval
 
-Proposed incremental allowance, **not approved and not an invoice**:
+Owner-approved incremental testnet allowance, **not an invoice**:
 
 | Bucket | Ceiling |
 | --- | ---: |
@@ -77,7 +79,7 @@ Proposed incremental allowance, **not approved and not an invoice**:
 | Phala runtime and retained storage | $1.00 |
 | Control-plane hosting / verifier / database / object operations | $2.00 |
 | Contingency | $1.00 |
-| Total proposed operator allowance | $5.00 |
+| Total approved operator allowance | $5.00 |
 
 AI usage has a durable reservation cap. The Phala dollar amount is a planning reserve, not a provider billing cap; the lifecycle controller enforces a separate one-hour cumulative runtime limit. Retained disk can continue billing beyond that runtime. The $2 control-plane and $1 contingency amounts are planning allowances, not automatic Railway/Vercel/R2 spending caps; inspect provider rates and configure provider budgets/alerts before approval. The five continuously running control/verifier services can exceed those planning amounts over time. Stop the canary promptly after its review window. Retained disk, database and storage may remain billable after compute stops. Do not transfer or reset previously accumulated reservations; use a distinct canary scope and reconcile old bills separately. Existing historical test authorization is not this canary's approval. Customer compute charges remain zero; onchain test-USDC escrow is separate from operator USD costs.
 
@@ -86,7 +88,7 @@ AI usage has a durable reservation cap. The Phala dollar amount is a planning re
 1. Review the final local diff, source inventory, exact image digests, trust inputs, provider cost estimate and spending ceiling. Obtain deployment/spending approval.
 2. Provision isolated storage and independent role credentials, apply the fresh schema and inspect grants. Configure secret scopes, owner gate and testnet endpoints before enabling routes.
 3. Deploy the Nibgate-operated official verifier engine and evidence-only gateway. Check upstream readiness, browser CORS, full positive/negative quote verification and TLS SPKI. Gateway `/health` only confirms configuration, not verifier readiness.
-4. Publish the approved image(s), provision the dedicated CVM with reviewed controls and encrypted secrets, and independently review resulting measurements. Regenerate frontend/broker policy from the exact accepted release; do not blindly trust new boot measurements.
+4. Publish the approved image(s), update the existing CVM with reviewed controls and encrypted secrets, and independently review resulting measurements. Regenerate frontend/broker policy from the exact accepted release; do not blindly trust new boot measurements.
 5. Deploy broker/funding/watchdog and separate canary frontend with the reviewed environment profiles. No ordinary worker runs in this canary. Check `/health` and unauthenticated/non-owner denial before owner access.
 6. With the CVM stopped, read project lists/history without a start. Submit one request, observe wake/verification, measure start-to-ready and first response. Confirm shared wake, idle shutdown, watchdog recovery and unchanged cumulative accounting after restarts.
 7. Execute owner-only encrypted upload → intake → plan → wallet funding → research/JEV → disclosed tool access/tip → report/export → settlement/refund. Include paused questions, restart/resume, uncertain-call fencing, forced authorized ZDR failover, second-session recovery and denied-key-release checks. Wallet signing stays with the owner.

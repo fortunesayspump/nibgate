@@ -26,7 +26,7 @@ test('rehearsal paid transport refuses a mainnet configuration before any HTTP o
 test('deposit errors and uncredited onchain float cannot become customer purchases or duplicate deposits',async()=>{
  for(const onchain of [0n,7n]){
   let deposits=0,sends=0;
-  const wallet='0x'+'2'.repeat(40),offer={scheme:'exact',network:'eip155:5042002',asset:'0x3600000000000000000000000000000000000000',amount:'7',payTo:'0x'+'3'.repeat(40),maxTimeoutSeconds:60,extra:{name:'GatewayWalletBatched',version:'1',verifyingContract:wallet}};
+  const wallet='0x0077777d7EBA4688BDeF3E311b846F25870A19B9',offer={scheme:'exact',network:'eip155:5042002',asset:'0x3600000000000000000000000000000000000000',amount:'7',payTo:'0x'+'3'.repeat(40),maxTimeoutSeconds:60,extra:{name:'GatewayWalletBatched',version:'1',verifyingContract:wallet}};
   const execute=createPrivateExternalExecutor({env:{DRNIB_PRIVATE_PAID_TOOLS_ENABLED:'true',DRNIB_NETWORK:'testnet',DRNIB_AGENT_PRIVATE_KEY:'0x'+'1'.repeat(64)},fetchPublic:async()=>{sends++;return new Response('',{status:402,headers:{'payment-required':Buffer.from(JSON.stringify({x402Version:2,accepts:[offer]})).toString('base64')}})},gatewayClientFactory:()=>({address:'0x'+'4'.repeat(40),chainConfig:{gatewayWallet:wallet},publicClient:{getChainId:async()=>5042002,readContract:async()=>onchain},getBalances:async()=>({wallet:{balance:100n},gateway:{available:0n}}),deposit:async()=>{deposits++;throw Error('Synthetic deposit receipt timeout')},walletClient:{signTypedData:()=>assert.fail('No seller authorization before funding')}})});
   await assert.rejects(execute(base,{onPaymentPrepared:()=>assert.fail('No purchase journal')}),e=>e.privateNotDispatched===true);
   assert.equal(deposits,onchain===0n?1:0);assert.equal(sends,1);
@@ -35,14 +35,14 @@ test('deposit errors and uncredited onchain float cannot become customer purchas
 
 test('a failure after journaled seller dispatch remains uncertain and is never labeled not-dispatched',async()=>{
  let sends=0,journaled=false;
- const wallet='0x'+'2'.repeat(40),offer={scheme:'exact',network:'eip155:5042002',asset:'0x3600000000000000000000000000000000000000',amount:'7',payTo:'0x'+'3'.repeat(40),maxTimeoutSeconds:60,extra:{name:'GatewayWalletBatched',version:'1',verifyingContract:wallet}};
+ const wallet='0x0077777d7EBA4688BDeF3E311b846F25870A19B9',offer={scheme:'exact',network:'eip155:5042002',asset:'0x3600000000000000000000000000000000000000',amount:'7',payTo:'0x'+'3'.repeat(40),maxTimeoutSeconds:60,extra:{name:'GatewayWalletBatched',version:'1',verifyingContract:wallet}};
  const execute=createPrivateExternalExecutor({env:{DRNIB_PRIVATE_PAID_TOOLS_ENABLED:'true',DRNIB_NETWORK:'testnet',DRNIB_AGENT_PRIVATE_KEY:'0x'+'1'.repeat(64)},fetchPublic:async(_url,options)=>{sends++;if(sends===2){assert(journaled);assert(options.headers['payment-signature']);throw Error('Synthetic unknown purchase outcome')}return new Response('',{status:402,headers:{'payment-required':Buffer.from(JSON.stringify({x402Version:2,accepts:[offer]})).toString('base64')}})},gatewayClientFactory:()=>({address:'0x'+'4'.repeat(40),chainConfig:{gatewayWallet:wallet},publicClient:{getChainId:async()=>5042002},getBalances:async()=>({wallet:{balance:100n},gateway:{available:100n}}),walletClient:{signTypedData:async()=> '0x'+'1'.repeat(130)}})});
  await assert.rejects(execute(base,{onPaymentPrepared:async e=>{assert.match(e.nonce,/^0x[0-9a-f]{64}$/);journaled=true}}),e=>e.privateNotDispatched!==true);
  assert.equal(sends,2);assert(journaled);
 });
 
 test('legacy creator SDK body receipt is Circle-bound and its proof is redeemed without another payment',async()=>{
- const article='https://public.example.com/article',url='https://public.example.com/api/nibgate/access?path=%2Farticle',wallet='0x'+'2'.repeat(40),transferId='b3d9d2d5-4c12-4941-a09d-953e82fae2b0';
+ const article='https://public.example.com/article',url='https://public.example.com/api/nibgate/access?path=%2Farticle',wallet='0x0077777d7EBA4688BDeF3E311b846F25870A19B9',transferId='b3d9d2d5-4c12-4941-a09d-953e82fae2b0';
  const offer={scheme:'exact',network:'eip155:5042002',asset:'0x3600000000000000000000000000000000000000',amount:'7',payTo:'0x'+'3'.repeat(40),maxTimeoutSeconds:60,extra:{name:'GatewayWalletBatched',version:'1',verifyingContract:wallet}};let sends=0,journaled=false,verified=false;
  const execute=createPrivateExternalExecutor({env:{DRNIB_PRIVATE_PAID_TOOLS_ENABLED:'true',DRNIB_NETWORK:'testnet',DRNIB_AGENT_PRIVATE_KEY:'0x'+'1'.repeat(64)},gatewayClientFactory:()=>({address:'0x'+'4'.repeat(40),chainConfig:{gatewayWallet:wallet},publicClient:{getChainId:async()=>5042002},getBalances:async()=>({wallet:{balance:100n},gateway:{available:100n}}),walletClient:{signTypedData:async()=> '0x'+'1'.repeat(130)}}),readSettlement:async e=>{assert(journaled);assert.equal(e.transferId,transferId);assert.equal(e.amount,'7');verified=true;return {confirmed:true,txHash:'0x'+'5'.repeat(64)}},fetchPublic:async(target,options)=>{
   sends++;assert.equal(options.redirect,'error');

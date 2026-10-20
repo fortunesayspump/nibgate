@@ -6,7 +6,7 @@ Wallet or Google sign-in authorizes access to encrypted records. A wallet addres
 
 An enrolled browser keeps a random non-extractable vault key in IndexedDB. Independent random project seeds protect project content. A separately saved random recovery code can unlock the encrypted vault record in a fresh browser after normal account sign-in.
 
-Save the code privately. Nibgate should never ask you to paste it into chat, support messages, logs or a research prompt. If every enrolled device and the saved recovery code are lost, Nibgate cannot recover the content. 
+Save the code privately. Nibgate should never ask you to paste it into chat, support messages, logs or a research prompt. If every enrolled device and the saved recovery code are lost, Nibgate cannot recover the content.
 
 From an already enrolled browser, Help supports replacing a lost recovery code. The operation preserves project seeds and content, includes deleted projects and atomically replaces encrypted wrappers and the recovery record. Old/pending local keys remain available until the server commit is confirmed. Only treat replacement as complete after the app confirms it.
 

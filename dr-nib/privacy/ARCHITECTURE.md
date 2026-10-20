@@ -229,4 +229,3 @@ The [confidential-sync repository](https://github.com/tinfoilsh/confidential-syn
 ### Apple release verification
 
 [Apple Private Cloud Compute](https://security.apple.com/blog/private-cloud-compute/) describes client key release to attested nodes whose measurements match publicly logged releases, with inspectable production images. The applicable principle is that clients verify a release before releasing data. A provider-controlled client or allowlist that silently accepts replacement code is insufficient for our stronger operator-blind goal. This is a reference principle, not an Apple service we can deploy Dr. Nib onto.
-

@@ -185,3 +185,11 @@ test('URL-only scope blocks both search tools without dispatch and still permits
   assert.equal(reads,1);assert.equal(questions,1);assert.equal(out.length,1);assert.equal(state.events.filter(e=>e.type==='tool.call').length,1);
  }
 });
+
+test('new exact URL reads preserve bounded decision slots for a corrected terminal action',async()=>{
+ const state=initial();state.brief.liveWeb=true;state.brief.searchEnabled=false;state.brief.topic='Verify Python using https://one.example/article and https://two.example/reference';let proposals=0,terminals=0;const base=judgeFor([]);
+ await runPrivateResearchAgent({state,docs:[],directReadsFirst:true,infer:async()=>{
+  proposals++;return {choices:[{message:{content:JSON.stringify(proposals<=2?{tool:'run_code',input:{code:'return "not executed"',data:{}},why:'Unsuitable placeholder'}:{tool:'run_terminal',input:{command:'python3 -c "print(28)"'},why:'Execute the Python check'})},finish_reason:'stop'}]};
+ },judge:async input=>{const out=await base(input);if(input.request.state.proposal?.tool==='run_code')out.answers.gate={type:'choice',choice:'skip',probabilities:{execute:0,skip:1}};return out;},ownerQuestion:async()=>({optionId:'approve'}),externalTool:async({request})=>({ok:true,costMicroUsd:0,callId:request.url,output:{text:'Official Python context management protocol.'}}),runCode:async()=>assert.fail('skipped code cannot run'),runTerminal:async()=>{terminals++;return{stdout:'28\n',stderr:'',exitCode:0,seconds:0.01,artifacts:{}}},progress:async()=>{}});
+ assert.equal(proposals,3);assert.equal(terminals,1);assert.equal(state.events.filter(e=>e.type==='tool.call'&&e.tool==='web_fetch').length,2);assert.ok(state.events.some(e=>e.type==='tool.call'&&e.tool==='run_terminal'&&e.result.stdout==='28\n'));
+});

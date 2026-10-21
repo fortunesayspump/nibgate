@@ -326,6 +326,10 @@ export function useNibgateConnect(options = {}) {
       //    A silent wallet session is not a hub session: only skip the
       //    interactive flow when the hub already knows this address.
       addr = await detectSilentSession()
+      // A retained provider may still answer eth_accounts after AppKit has
+      // disconnected. Cookie auth alone cannot restore a transaction signer:
+      // open wallet selection until AppKit's account is reconciled too.
+      if (addr && (!isConnectedRef.current || addressRef.current?.toLowerCase() !== addr.toLowerCase())) addr = null
       if (addr) {
         try {
           const hubAddr = await getSessionAddress({ authBase })

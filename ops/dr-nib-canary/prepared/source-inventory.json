@@ -453,7 +453,7 @@
   "packages/wallet/src/react/unlock-feedback.jsx": "836805ca4050ff126f9d0142004e6c5f5927d25d9feee9c42d614b1bcd5edf29",
   "packages/wallet/src/react/unlock.jsx": "32cabfad469f26e4297e7ace538f5005e5a4ff0f44bc45a29cb954dd8bc9d905",
   "packages/wallet/src/react/useGatewayTransfer.js": "5f7fa606bc7126f9d94066e6620030843d342786011cc4efb3283dd372bc6474",
-  "packages/wallet/src/react/useNibgateConnect.js": "d8de02325bd3c704b3b1ef21c2210646bc476508a5d63882d3c365a1556572c9",
+  "packages/wallet/src/react/useNibgateConnect.js": "a9843cfa4a07af0347b14753a0c25cd39f4eed6c1485627bfb7e91cb2c2d75a6",
   "packages/wallet/src/react/useUnlockReveal.js": "0fd4620ebfcbb0ffb99cbd751ca8ce2e3e4de58a91522884ba00bc1d5fefcaa1",
   "packages/wallet/src/siwe.js": "147a8a4b630c1b14a59eb657e3d05daecc5369f9fdbceeeb4b3c485009f2b1b0",
   "packages/wallet/src/unlock-key.js": "550a4b1d6d0c2c693c8c4f802fd828ab3803aaa7953d2393b68a81fb44f0db70",

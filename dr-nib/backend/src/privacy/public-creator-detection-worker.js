@@ -14,7 +14,7 @@ parentPort.on('message',input=>{
   root?.querySelectorAll('p,div,section,article,h1,h2,h3,h4,li,pre,blockquote,tr').forEach(el=>{el.prepend('\n');el.append('\n');});
   const readableText=String(root?.textContent??'').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,24000);
   parentPort.postMessage({readableText,source:'extension-page-model',kind:page.kind,eligible:page.kind==='content'&&page.eligibility?.kind==='select'&&page.eligibility.optionId==='render',contentType:page.contentType,author:page.author.slice(0,200),canonical:page.canonical.slice(0,2000),wordCount:page.wordCount,confidence:Math.max(0,Math.min(1,Number(page.eligibility?.value)||0)),trace:page.trace.slice(0,4000)});
- }catch{parentPort.postMessage({source:'extension-page-model',eligible:false,kind:'unknown',unavailable:true});}
+ }catch{parentPort.postMessage({source:'extension-page-model',eligible:false,kind:'unknown',unavailable:true,reason:'parse-error'});}
  finally{dom?.window.close();delete globalThis.window;delete globalThis.document;}
 });
 parentPort.postMessage({ready:true});

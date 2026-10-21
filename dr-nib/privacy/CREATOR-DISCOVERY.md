@@ -21,7 +21,7 @@ The extension's DOM detector itself runs in the extension; `/hub/resolve` resolv
 verified recipients and does not classify article content. The ordinary public
 tools process reuses the generated extension detector in one reusable bounded
 worker with a URL/HTML-fingerprint cache. No duplicate detector or search service
-runs inside Phala. Public HTML is fetched and assessed once on this path.
+runs inside Phala. Public HTML is fetched and assessed once on this path. Cold worker initialization has a 20-second bound and page parsing a separate 30-second bound on the capped public tools service. Heap, stack, queue and page-size limits remain enforced. Startup and parser failures return an ineligible unavailable result with a bounded operational reason; a failed cold startup resolves queued assessments rather than restarting indefinitely.
 
 Only the setup-approved PUBLIC query and creator preference cross this boundary.
 The same public query is searched once per provider through the shared registry.

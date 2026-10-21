@@ -23,16 +23,16 @@ function evidenceValid(value){
  * the browser's independently pinned quote verification. Only public quote,
  * fresh nonce and an HPKE challenge cross this ordinary service. */
 export function createBrokerAttestationPreflight({guestBaseURL,tenantId,signCapability,verifyEvidence,policy,
-  fetchImpl=fetch,now=Date.now}={}){
+  fetchImpl=fetch,now=Date.now,getRunTenant}={}){
   let guest;
   try{guest=new URL(guestBaseURL)}catch{throw safeError()}
   if(guest.protocol!=='https:'||guest.username||guest.password||guest.search||guest.hash||
      typeof tenantId!=='string'||! /^[A-Za-z0-9:_-]{1,128}$/.test(tenantId)||
      typeof signCapability!=='function'||typeof verifyEvidence!=='function'||!policy||
-     typeof fetchImpl!=='function'||typeof now!=='function')throw safeError();
+     typeof fetchImpl!=='function'||typeof now!=='function'||getRunTenant!==undefined&&typeof getRunTenant!=='function')throw safeError();
   const issued=new Map();
-  async function request(path,scope,runId,body){
-    const token=await signCapability({tenantId,runId,scope});
+  async function request(path,scope,runId,body,requestTenantId){
+    const token=await signCapability({tenantId:requestTenantId,runId,scope});
     const endpoint=new URL(path,guest);
     if(endpoint.origin!==guest.origin)throw safeError();
     const response=await fetchImpl(endpoint,{method:'POST',redirect:'error',cache:'no-store',
@@ -49,6 +49,8 @@ export function createBrokerAttestationPreflight({guestBaseURL,tenantId,signCapa
       if(typeof jobId!=='string')return false;
       const [runId,requestId,...extra]=jobId.split(':');
       if(extra.length||!UUID.test(runId)||!UUID.test(requestId))return false;
+      const requestTenantId=getRunTenant?await getRunTenant(runId):tenantId;
+      if(typeof requestTenantId!=='string'||! /^[A-Za-z0-9:_-]{1,128}$/.test(requestTenantId))return false;
       // Generated and consumed on the relying-party side; a guest-supplied
       // nonce or a repeated verdict cannot reopen an old session.
       const nonce=randomBytes(32),nonceHex=nonce.toString('hex');
@@ -57,7 +59,7 @@ export function createBrokerAttestationPreflight({guestBaseURL,tenantId,signCapa
       if(issued.size>=1024)return false;
       issued.set(nonceKey,now()+60_000);
       try{
-        const opened=await request('/v1/private/sessions','sessions:open',runId,{runId,clientNonce:nonceHex});
+        const opened=await request('/v1/private/sessions','sessions:open',runId,{runId,clientNonce:nonceHex},requestTenantId);
         if(!(exact(opened,'clientNonce,evidence,recipientId,recipientPublicKey,sessionId')||
              exact(opened,'clientNonce,evidence,rawQuote,recipientId,recipientPublicKey,sessionId'))||
            !UUID.test(opened.sessionId)||opened.clientNonce!==nonceHex||!evidenceValid(opened.evidence))return false;
@@ -66,8 +68,8 @@ export function createBrokerAttestationPreflight({guestBaseURL,tenantId,signCapa
         const possession=async({sessionId,clientNonce,recipientPublicKey,recipientId})=>{
           const challenge=randomBytes(32);
           const challengeEnvelope=await sealHpkeSource({recipientPublicKey,
-            context:{tenantId,runId,objectId:randomUUID(),revision:1,purpose:'source',recipientId},plaintext:challenge});
-          const proof=await request(`/v1/private/sessions/${sessionId}/prove`,'sessions:prove',runId,{challengeEnvelope});
+            context:{tenantId:requestTenantId,runId,objectId:randomUUID(),revision:1,purpose:'source',recipientId},plaintext:challenge});
+          const proof=await request(`/v1/private/sessions/${sessionId}/prove`,'sessions:prove',runId,{challengeEnvelope},requestTenantId);
           const expected=createHash('sha256').update('drnib-proof-v1\0')
             .update(Buffer.from(sessionId.replaceAll('-',''),'hex')).update(challenge).digest('hex');
           if(!exact(proof,'challengeDigest,clientNonce,recipientId,sessionId,verified')||

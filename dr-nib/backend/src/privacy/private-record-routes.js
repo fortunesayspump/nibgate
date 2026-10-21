@@ -1,3 +1,4 @@
+import {privateTenantAllowed} from './private-tenant-access.js';
 import { canonicalCiphertext, ciphertextDigest } from './ciphertext-digest.js';
 import { Router } from 'express';
 import { createHash, randomUUID } from 'node:crypto';
@@ -23,7 +24,7 @@ const unavailable = (_req, res) => res.status(503).json({ code: 'PRIVATE_RECORDS
 const fail = (res, status = 503, code = 'PRIVATE_RECORDS_UNAVAILABLE') => res.status(status).json({ code });
 /** Ciphertext-only owner API; storage and transactions are injected. Vault
  * enrollment and reports work without waking or trusting a running guest. */
-export function createPrivateRecordsRouter({ store, storage, authenticate = unavailable, enabled = () => false, workflowEnabled=()=>false, publicRetrievalEnabled=()=>false, allowedTenantId } = {}) {
+export function createPrivateRecordsRouter({ store, storage, authenticate = unavailable, enabled = () => false, workflowEnabled=()=>false, publicRetrievalEnabled=()=>false, allowedTenantId, accessMode='owner' } = {}) {
     const router = Router();
     // This router is mounted beside the existing session/report broker. Its
     // default-off gate must not shadow unrelated established private routes.
@@ -37,7 +38,7 @@ export function createPrivateRecordsRouter({ store, storage, authenticate = unav
         res.set('Cache-Control', 'private, no-store');
         if (!enabled())
             return fail(res);
-        if (!req.user?.id || req.user.id !== allowedTenantId)
+        if (!privateTenantAllowed(req.user?.id,{allowedTenantId,accessMode}))
             return fail(res, 404, 'PRIVATE_RECORD_NOT_FOUND');
         if (['POST', 'PUT', 'PATCH'].includes(req.method) && !req.is('application/json'))
             return fail(res, 415, 'PRIVATE_REQUEST_REJECTED');

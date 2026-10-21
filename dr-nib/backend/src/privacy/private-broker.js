@@ -1,3 +1,4 @@
+import {privateTenantAllowed} from './private-tenant-access.js';
 import {Router} from 'express';
 import {db} from '../db.js';
 import {isConfidentialRun} from './guard.js';
@@ -31,7 +32,7 @@ const sameOwner=(user,run)=>Boolean(user)&&Boolean(run)&&user.id===run.userId;
  * parses private files nor sees document keys. `ready` must include fresh guest
  * readiness; default is deliberately closed. The signing key is provisioned
  * separately after authorization and is never sent to the guest. */
-export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,ready=async()=>false,fullReady=async()=>false,workflowReady=async()=>false,allowedTenantId,fullAllowedTenantId,wakeController,fetchImpl=fetch,authenticate=unavailable,isOwner=sameOwner,money=null}={}){
+export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,ready=async()=>false,fullReady=async()=>false,workflowReady=async()=>false,allowedTenantId,fullAllowedTenantId,accessMode='owner',wakeController,fetchImpl=fetch,authenticate=unavailable,isOwner=sameOwner,money=null}={}){
   const router=Router();
   router.use((req,res,next)=>authenticate(req,res,next));
   const guest=typeof guestBaseURL==='string'?new URL(guestBaseURL):null;
@@ -39,7 +40,7 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
   async function owned(req,runId){
     if(!UUID.test(runId||''))return null;
     const run=await store.researchRun.findUnique({where:{id:runId}});
-    return run&&run.deletedAt==null&&run.userId===allowedTenantId&&isOwner(req.user,run)&&isConfidentialRun(run)?run:null;
+    return run&&run.deletedAt==null&&privateTenantAllowed(run.userId,{allowedTenantId,accessMode})&&isOwner(req.user,run)&&isConfidentialRun(run)?run:null;
   }
   async function forward(req,res,{run,scope,path,body,reportId}){
     let executeUsage=null;
@@ -143,7 +144,7 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
     try{
       if(!UUID.test(req.params.id)||!exact(req.body,'keyEnvelope,runId,sourceEnvelope'))return fail(res,400);
       const run=await owned(req,req.body.runId);if(!run)return fail(res,404);
-      if(run.userId!==fullAllowedTenantId)return fail(res,404);
+      if(!privateTenantAllowed(run.userId,{allowedTenantId:fullAllowedTenantId,accessMode}))return fail(res,404);
       const source=validateHpkeSourceEnvelope(req.body.sourceEnvelope,{tenantId:run.userId,runId:run.id});
       const key=validateHpkeSourceEnvelope(req.body.keyEnvelope,{tenantId:run.userId,runId:run.id});
       if(source.recipientId!==key.recipientId||source.objectId===key.objectId)return fail(res,400);
@@ -161,12 +162,12 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
   router.get('/runs',async(req,res)=>{
     try{
       const user=req.user;
-      if(!user||typeof user.id!=='string'||typeof allowedTenantId!=='string')return fail(res,404);
+      if(!privateTenantAllowed(user?.id,{allowedTenantId,accessMode}))return fail(res,404);
       const runs=await store.researchRun.findMany({
-        where:{userId:allowedTenantId,deletedAt:null,metadata:{path:['privacyMode'],equals:'confidential'}},
+        where:{userId:user.id,deletedAt:null,metadata:{path:['privacyMode'],equals:'confidential'}},
         select:{id:true,createdAt:true,status:true,userId:true},orderBy:{createdAt:'desc'},take:50});
       if(!Array.isArray(runs))return fail(res);
-      const listed=runs.filter(run=>run&&UUID.test(run.id||"")&&run.createdAt!=null&&typeof run.status==='string'&&run.userId===allowedTenantId)
+      const listed=runs.filter(run=>run&&UUID.test(run.id||"")&&run.createdAt!=null&&typeof run.status==='string'&&run.userId===user.id)
         .map(run=>({id:run.id,createdAt:run.createdAt,status:run.status,tenantId:run.userId}));
       return res.json({runs:listed});
     }catch{return fail(res)}

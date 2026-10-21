@@ -109,5 +109,11 @@
     "combinedApprovedAllowanceUsd": 5,
     "preservePriorRuntime": true,
     "notAnActualCharge": true
+  },
+  "approvedMainnetAllowance": {
+    "total": 5,
+    "approved": true,
+    "scope": "Separate initial mainnet operating allowance for normal authenticated public release; no new paid plan; testnet ledger remains separate",
+    "publicAccess": true
   }
 }

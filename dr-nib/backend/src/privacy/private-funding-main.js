@@ -1,3 +1,4 @@
+import {privateAccessMode} from './private-tenant-access.js';
 // Separate from the ciphertext broker and measured document worker. This
 // process holds only public payment configuration and the keeper credential.
 import '../env.js';
@@ -17,6 +18,7 @@ import {privateFundingListener} from './private-listener.js';
 import {privatePaidToolsEnabled} from './private-paid-network.js';
 
 export function createPrivateFundingApp({store=db,env=process.env,funding,authenticate}={}){
+ const accessMode=privateAccessMode(env);
  const app=express();app.use(express.json({limit:'24kb'}));app.use(cookieParser());
  const enabled=env.DRNIB_PRIVATE_PAYMENTS_ENABLED==='true';
  if(enabled&&!funding){
@@ -26,10 +28,10 @@ export function createPrivateFundingApp({store=db,env=process.env,funding,authen
    completeAndSplit:async args=>{const completed=await submitAndComplete(args,{env}),split=await relaySplit(args,{env});return {...completed,...split,splitConfirmed:!!split.splitTx||split.alreadySplit===true};}});
  }
  app.get('/health',(_req,res)=>res.json({ok:true,payments:enabled&&!!funding,externalTools:enabled&&env.DRNIB_PRIVATE_EXTERNAL_TOOLS_ENABLED==='true',paidToolsTestnet:enabled&&env.DRNIB_PRIVATE_EXTERNAL_TOOLS_ENABLED==='true'&&privatePaidToolsEnabled(env)&&env.DRNIB_NETWORK==='testnet',paidToolsMainnet:enabled&&env.DRNIB_PRIVATE_EXTERNAL_TOOLS_ENABLED==='true'&&privatePaidToolsEnabled(env)&&env.DRNIB_NETWORK==='mainnet',mode:'private-funding-only'}));
- if(enabled)app.use('/v1/private',createPrivateFundingRouter({funding,authenticate:authenticate??createPrivateBrokerAuth({env}),allowedTenantId:env.DRNIB_PRIVATE_TEST_TENANT_ID}));
- if(enabled&&env.DRNIB_PRIVATE_EXTERNAL_TOOLS_ENABLED==='true')app.use('/v1/private',createPrivateExternalToolsRouter({tools:createPrivateExternalTools({db:store,execute:createPrivateExternalExecutor({env})}),authenticate:authenticate??createPrivateBrokerAuth({env}),allowedTenantId:env.DRNIB_PRIVATE_TEST_TENANT_ID}));
+ if(enabled)app.use('/v1/private',createPrivateFundingRouter({funding,authenticate:authenticate??createPrivateBrokerAuth({env}),accessMode,allowedTenantId:env.DRNIB_PRIVATE_TEST_TENANT_ID}));
+ if(enabled&&env.DRNIB_PRIVATE_EXTERNAL_TOOLS_ENABLED==='true')app.use('/v1/private',createPrivateExternalToolsRouter({tools:createPrivateExternalTools({db:store,execute:createPrivateExternalExecutor({env})}),authenticate:authenticate??createPrivateBrokerAuth({env}),accessMode,allowedTenantId:env.DRNIB_PRIVATE_TEST_TENANT_ID}));
  app.use((_req,res)=>res.status(503).json({code:'PRIVATE_FUNDING_UNAVAILABLE'}));
- app.locals.startSettlementReconciler=()=>enabled&&funding?startPrivateSettlementReconciler({db:store,funding,tenantId:env.DRNIB_PRIVATE_TEST_TENANT_ID,onError:(code,error)=>console.warn(code,/^P\d{4}$/.test(error?.code??'')?error.code:'retryable')}):()=>{};
+ app.locals.startSettlementReconciler=()=>enabled&&funding?startPrivateSettlementReconciler({db:store,funding,tenantId:env.DRNIB_PRIVATE_TEST_TENANT_ID,accessMode,onError:(code,error)=>console.warn(code,/^P\d{4}$/.test(error?.code??'')?error.code:'retryable')}):()=>{};
  return app;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){

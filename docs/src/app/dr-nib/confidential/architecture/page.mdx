@@ -1,5 +1,7 @@
 # Architecture and data boundaries
 
+Each signed-in account owns its own encrypted projects and vault. Sharing a confidential worker does not share project access: authenticated requests and scoped worker capabilities remain bound to the persisted project owner. Sign-in identifies the account; the separate local unlock or recovery process supplies its decryption keys.
+
 The private flow separates content processing, ciphertext coordination and money. Each component receives only the data required for its job. See [the privacy overview](/dr-nib/confidential) for the complete privacy boundary.
 
 <img src="/images/dr-nib-private-architecture.svg" width="1000" height="625" alt="Browser-encrypted inputs pass through a ciphertext broker to a verified Phala worker, with encrypted storage, approved public tools, a separate money service and disclosed inference providers." />

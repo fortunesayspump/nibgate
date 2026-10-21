@@ -1,5 +1,10 @@
 # Local private workflow protocol
 
+## Authenticated public admission
+
+`DRNIB_PRIVATE_ACCESS_MODE=authenticated` is an explicit deployment policy on broker, guest, funding and watchdog. The default remains the earlier owner rehearsal. Public admission retains authenticated sessions, signed capabilities and persisted per-project ownership; it does not share vault keys. The legacy test-tenant setting supplies the infrastructure control identity. Preflight resolves each actual project owner from the database. AI admission remains globally serialized across all accounts, and lifecycle draining checks all confidential processing leases in the scoped database. Background settlement scans confidential terminal runs and acts as each persisted owner. Changing an existing lifecycle access policy requires an explicit stopped-state migration without resetting runtime or spending counters.
+
+
 This contract is an **owner-scoped rehearsal**, disabled by default. It is not a production cutover or evidence of hardware confidentiality. The funded owner-scoped flow has passed real Phala E2Es; later production lifecycle proposals remain separate. The owner-authorized real rehearsal has updated the dedicated Phala guest and private test database; isolated unit tests do not change them.
 
 ## Browser → ordinary broker

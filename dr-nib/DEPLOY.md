@@ -1,5 +1,7 @@
 # Deploying Dr. Nib (Railway)
 
+For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is legacy infrastructure to preserve until the replacement is accepted; it is not the private broker deployment profile.
+
 Dr. Nib is a second service in the existing Nibgate Railway project. It shares
 the Postgres cluster with the hub but keeps its own tables in a separate
 `drnib` schema, and it reads the hub's SIWE sessions from the hub database.

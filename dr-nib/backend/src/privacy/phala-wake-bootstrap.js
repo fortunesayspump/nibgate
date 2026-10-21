@@ -37,10 +37,10 @@ function guestURL(value){
  * Dependency injection is for synthetic tests; the production default loads
  * the exact official SDK declared in package.json. No configuration enables
  * guest key release without a fresh full verifier + live HPKE proof. */
-export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,tenantId,signCapability,
-  fetchImpl=fetch,clientFactory,lifecycleStore,verifierFactory=createPinnedDstackVerifier}={}){
+export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,tenantId,signCapability,accessMode='owner',
+  fetchImpl=fetch,clientFactory,lifecycleStore,getRunTenant,verifierFactory=createPinnedDstackVerifier}={}){
   if(env.DRNIB_PRIVATE_WAKE_ENABLED!=='true')return null;
-  if(typeof signCapability!=='function'||typeof tenantId!=='string'||!CVM.test(tenantId)||
+  if(!['owner','authenticated'].includes(accessMode)||typeof signCapability!=='function'||typeof tenantId!=='string'||!CVM.test(tenantId)||
      typeof env.PHALA_CLOUD_API_KEY!=='string'||! /^phak_[A-Za-z0-9_-]{8,256}$/.test(env.PHALA_CLOUD_API_KEY)||
      typeof env.DRNIB_PRIVATE_CVM_ID!=='string'||!CVM.test(env.DRNIB_PRIVATE_CVM_ID)||
      typeof env.DRNIB_PRIVATE_RELEASE_POLICY_JSON!=='string'||
@@ -74,8 +74,13 @@ export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,te
     }catch{return false}
   };
   const verifyAttestation=createBrokerAttestationPreflight({guestBaseURL:guest.toString(),tenantId,
-    signCapability,verifyEvidence:verifier.verifyEvidence,policy,fetchImpl});
-  const store=lifecycleStore??createPrivateLifecycleStore({db:(await import('../db.js')).db,cvmId:env.DRNIB_PRIVATE_CVM_ID,tenantId});
+    signCapability,verifyEvidence:verifier.verifyEvidence,policy,fetchImpl,
+    getRunTenant:accessMode==='authenticated'?(getRunTenant??(async runId=>{
+      const {db}=await import('../db.js');
+      const run=await db.researchRun.findUnique({where:{id:runId},select:{userId:true,deletedAt:true,metadata:true}});
+      return run&&!run.deletedAt&&run.metadata?.privacyMode==='confidential'?run.userId:null;
+    })):undefined});
+  const store=lifecycleStore??createPrivateLifecycleStore({db:(await import('../db.js')).db,cvmId:env.DRNIB_PRIVATE_CVM_ID,tenantId,accessMode});
   const controller=createDurablePhalaWake({store,api,guestReady,verifyAttestation,idleMs,maxRuntimeMs,maxActive,maxPending});
   await controller.status(); // Require migration/grants before advertising availability.
   return controller.start();

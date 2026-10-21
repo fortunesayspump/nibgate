@@ -33,9 +33,9 @@ export async function createPrivateBrokerOnlyApp({store=db,broker,privateWakeCon
   app.use(cookieParser());
   app.get('/health',(_req,res)=>res.json({ok:true,mode:'private-broker-only',privateEnabled:process.env.DRNIB_PRIVATE_ENABLED==='true'}));
   app.use('/v1/private',createPrivateRecordsRouter({store:store,storage:createPrivateRecordStorage(),authenticate:authenticate,
-    enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',workflowEnabled:()=>process.env.DRNIB_PRIVATE_WORKFLOW_ENABLED==='true',publicRetrievalEnabled:()=>process.env.DRNIB_PRIVATE_WEB_ENABLED==='true',allowedTenantId:privateBroker.allowedTenantId}));
+    enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',workflowEnabled:()=>process.env.DRNIB_PRIVATE_WORKFLOW_ENABLED==='true',publicRetrievalEnabled:()=>process.env.DRNIB_PRIVATE_WEB_ENABLED==='true',accessMode:privateBroker.accessMode,allowedTenantId:privateBroker.allowedTenantId}));
   app.use('/v1/private',createPrivateRunsRouter({store,ready:privateBroker.ready,
-    allowedTenantId:privateBroker.allowedTenantId,createLimit,authenticate}));
+    accessMode:privateBroker.accessMode,allowedTenantId:privateBroker.allowedTenantId,createLimit,authenticate}));
   app.use('/v1/private',createPrivateBrokerRouter({...privateBroker,store,authenticate,
     isOwner:(user,run)=>Boolean(user)&&Boolean(run)&&user.id===run.userId}));
   app.use((_req,res)=>res.status(404).json({code:'PRIVATE_ROUTE_NOT_FOUND'}));

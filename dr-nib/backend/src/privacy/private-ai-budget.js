@@ -1,3 +1,4 @@
+import {privateTenantAllowed} from './private-tenant-access.js';
 import {createHash} from 'node:crypto';
 import {isConfidentialRun} from './guard.js';
 
@@ -92,10 +93,10 @@ export function createPostgresPrivateAiBudgetLedger(db){
     return action(tx);
   },{maxWait:10_000,timeout:20_000});
   return Object.freeze({
-    async reserve({runId,tenantId,ownerUserId,month,model,maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,amount,monthlyAiCapMicroUsd}){
+    async reserve({runId,tenantId,ownerUserId,accessMode='owner',month,model,maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,amount,monthlyAiCapMicroUsd}){
       return locked(async tx=>{
         const run=await tx.researchRun.findUnique({where:{id:runId},select:{userId:true,deletedAt:true,metadata:true}});
-        if(!run||run.deletedAt||run.userId!==tenantId||tenantId!==ownerUserId||!isConfidentialRun(run))throw fail('PRIVATE_AI_OWNER_ONLY');
+        if(!run||run.deletedAt||run.userId!==tenantId||!privateTenantAllowed(tenantId,{allowedTenantId:ownerUserId,accessMode})||!isConfidentialRun(run))throw fail('PRIVATE_AI_OWNER_ONLY');
         if(await tx.privateAiBudgetReservation.findUnique({where:{runId},select:{id:true}}))throw fail('PRIVATE_AI_ALREADY_RESERVED');
         const sum=await tx.privateAiBudgetReservation.aggregate({where:{monthKey:month},_sum:{committedMicroUsd:true}});
         // Old installations without 0009 cannot dispatch workflow calls. Keep
@@ -129,11 +130,11 @@ export function createPostgresPrivateAiBudgetLedger(db){
  * fails closed. The verifier must cryptographically validate the provider's
  * signed counters and bind them to this exact call and request, not result.usage.
  */
-export function createPrivateAiBudgetGate({db,ledger,ownerUserId,monthlyAiCapMicroUsd,
+export function createPrivateAiBudgetGate({db,ledger,ownerUserId,accessMode='owner',monthlyAiCapMicroUsd,
   monthlyInfraCeilingMicroUsd,modelPriceCeilings,verifySignedUsage,clock=()=>new Date()}={}){
   const store=ledger??createPostgresPrivateAiBudgetLedger(db);
   if(typeof store.reserve!=='function'||typeof store.finalize!=='function'||
-    typeof ownerUserId!=='string'||!ownerUserId||typeof clock!=='function')throw fail('PRIVATE_AI_BUDGET_CONFIG_INVALID');
+    !['owner','authenticated'].includes(accessMode)||typeof ownerUserId!=='string'||!ownerUserId||typeof clock!=='function')throw fail('PRIVATE_AI_BUDGET_CONFIG_INVALID');
   const aiCap=micro(monthlyAiCapMicroUsd,'AI cap',{min:1n,max:TOTAL_MONTHLY_CEILING-1n});
   const infraCeiling=micro(monthlyInfraCeilingMicroUsd,'infra ceiling',{min:1n,max:TOTAL_MONTHLY_CEILING-1n});
   if(aiCap+infraCeiling>TOTAL_MONTHLY_CEILING)throw fail('PRIVATE_AI_BUDGET_CONFIG_INVALID');
@@ -143,12 +144,12 @@ export function createPrivateAiBudgetGate({db,ledger,ownerUserId,monthlyAiCapMic
   return Object.freeze({
     async run({runId,tenantId,model,maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,execute}){
       if(typeof runId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(runId)||
-        typeof tenantId!=='string'||!tenantId||tenantId!==ownerUserId||typeof execute!=='function')throw fail('PRIVATE_AI_OWNER_ONLY');
+        typeof tenantId!=='string'||!tenantId||!privateTenantAllowed(tenantId,{allowedTenantId:ownerUserId,accessMode})||typeof execute!=='function')throw fail('PRIVATE_AI_OWNER_ONLY');
       const price=prices.get(model);
       if(!price)throw fail('PRIVATE_AI_PRICE_UNKNOWN');
       const amount=estimatePrivateAiReservation({maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,price});
       const month=monthKey(clock());
-      try{await store.reserve({runId,tenantId,ownerUserId,month,model,maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,amount,monthlyAiCapMicroUsd:aiCap})}
+      try{await store.reserve({runId,tenantId,ownerUserId,accessMode,month,model,maxCalls,maxPromptBytesPerCall,maxOutputTokensPerCall,amount,monthlyAiCapMicroUsd:aiCap})}
       catch(error){if(['PRIVATE_AI_OWNER_ONLY','PRIVATE_AI_ALREADY_RESERVED','PRIVATE_AI_MONTHLY_CAP'].includes(error?.code))throw fail(error.code);throw fail()}
 
       let called=0;

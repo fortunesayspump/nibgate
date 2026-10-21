@@ -40,6 +40,21 @@ it('same CVM cannot silently change its tenant or runtime policy',async()=>{
  const f=fixture();await f.make().status();const outsider=createPrivateLifecycleStore({db,cvmId:f.id,tenantId:randomUUID()});await expect(outsider.mutate({},()=>true)).rejects.toThrow('TENANT_MISMATCH');
  const altered=createDurablePhalaWake({store:f.store,api:f.api,guestReady:async()=>true,verifyAttestation:async()=>true,idleMs:1,maxRuntimeMs:60000,startupMs:500,operationMs:1000,leaseMs:5000,pollMs:5,tickMs:1000,maxPending:256});await expect(altered.status()).rejects.toThrow('POLICY_MISMATCH');expect(f.counts().starts).toBe(0);
 });
+it('public watchdog preserves another user active work and refuses silent scope changes',async()=>{
+ const id=randomUUID(),tenantId='operator',store=createPrivateLifecycleStore({db,cvmId:id,tenantId,accessMode:'authenticated'});
+ let status='stopped',stops=0;
+ const c=createDurablePhalaWake({store,api:{state:async()=>status,ensureRunning:async()=>{status='running'},gracefulShutdown:async()=>{stops++;status='stopped'},forceStop:async()=>{stops++;status='stopped'}},guestReady:async()=>true,verifyAttestation:async()=>true,idleMs:0,maxRuntimeMs:60000,startupMs:500,operationMs:1000,leaseMs:5000,pollMs:5});
+ await c.run('public-work',async()=>{});
+ const r=await db.researchRun.create({data:{userId:'another-user',brief:{encrypted:true},metadata:{privacyMode:'confidential'}}});
+ const a=await db.privateActionReceipt.create({data:{runId:r.id,requestId:randomUUID(),digest:'fixture',status:'processing',leaseOwner:randomUUID(),leaseUntil:new Date(Date.now()+60000)}});
+ try{
+  expect(await c.tick()).toBe(false);expect(stops).toBe(0);
+  const ownerOnly=createPrivateLifecycleStore({db,cvmId:id,tenantId});
+  await expect(ownerOnly.mutate({},()=>true)).rejects.toThrow('TENANT_MISMATCH');
+  await db.privateActionReceipt.update({where:{id:a.id},data:{status:'complete',leaseUntil:null}});
+  expect(await c.tick()).toBe(true);expect(stops).toBe(1);
+ }finally{await db.privateActionReceipt.delete({where:{id:a.id}});await db.researchRun.delete({where:{id:r.id}});}
+});
 it('bounded sustained lifecycle soak with repeated admissions and idle checks',async()=>{
  const duration=Number(process.env.DRNIB_LIFECYCLE_SOAK_MS??'5000');expect(duration).toBeGreaterThanOrEqual(1000);expect(duration).toBeLessThanOrEqual(120000);
  const f=fixture({maxRuntimeMs:300000,startupMs:5000,operationMs:10000,leaseMs:15000}),controllers=Array.from({length:8},()=>f.make());const deadline=Date.now()+duration;let completed=0;

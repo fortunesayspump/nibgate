@@ -1,3 +1,4 @@
+import {privateAccessMode} from './private-tenant-access.js';
 import {createPrivateCapabilitySigner} from './private-capability.js';
 import {createConfiguredPhalaWake} from './phala-wake-bootstrap.js';
 import {createPrivateBrokerMoney} from './private-broker-money.js';
@@ -5,6 +6,7 @@ import {createPrivateBrokerMoney} from './private-broker-money.js';
 /** No configuration or missing readiness leaves every private route closed.
  * Key provisioning and remote CVM start/stop are separate reviewed actions. */
 export async function configuredPrivateBroker(env=process.env,{wakeController}={}){
+  const accessMode=privateAccessMode(env);
   const disabled={ready:async()=>false,fullReady:async()=>false,guestBaseURL:undefined,signCapability:undefined,money:null};
   if(env.DRNIB_PRIVATE_ENABLED!=='true')return disabled;
   const wakeRequested=env.DRNIB_PRIVATE_WAKE_ENABLED==='true';
@@ -24,7 +26,7 @@ export async function configuredPrivateBroker(env=process.env,{wakeController}={
   let wake=wakeController;
   if(wakeRequested){
     try{
-      wake??=await createConfiguredPhalaWake({env,guestBaseURL:url.toString(),tenantId:allowedTenantId,signCapability});
+      wake??=await createConfiguredPhalaWake({env,guestBaseURL:url.toString(),tenantId:allowedTenantId,signCapability,accessMode});
       if(typeof wake?.run!=='function'||typeof wake?.ensureReady!=='function')return disabled;
     }catch{return disabled}
   }
@@ -46,6 +48,6 @@ export async function configuredPrivateBroker(env=process.env,{wakeController}={
     try{const value=await awakeHealth();return value?.privateReady===true&&value?.fullReady===true}catch{return false}
   };
   const workflowReady=async()=>{if(env.DRNIB_PRIVATE_WORKFLOW_ENABLED!=='true')return false;if(configuredWake)return true;try{return (await awakeHealth())?.workflowReady===true}catch{return false}};
-  return {workflowReady,guestBaseURL:url.toString(),signCapability,ready,fullReady,allowedTenantId,fullAllowedTenantId,
+  return {accessMode,workflowReady,guestBaseURL:url.toString(),signCapability,ready,fullReady,allowedTenantId,fullAllowedTenantId,
     wakeController:wakeRequested?wake:undefined,money:createPrivateBrokerMoney({env})};
 }

@@ -1,3 +1,4 @@
+import {privateTenantAllowed} from './private-tenant-access.js';
 import {requirePrivateFundingInputs} from './private-input-readiness.js';
 import {Router} from 'express';
 import {Prisma} from '@prisma/client';
@@ -159,12 +160,12 @@ export function createPrivateFunding({db,settings,prepare,readJob,completeAndSpl
  };
 }
 
-export function createPrivateFundingRouter({funding,authenticate,allowedTenantId}){
- if(typeof allowedTenantId!=='string'||!allowedTenantId||typeof authenticate!=='function')throw unavailable();
+export function createPrivateFundingRouter({funding,authenticate,allowedTenantId,accessMode='owner'}){
+ if(!['owner','authenticated'].includes(accessMode)||accessMode==='owner'&&(typeof allowedTenantId!=='string'||!allowedTenantId)||typeof authenticate!=='function')throw unavailable();
  const router=Router();
  router.use((req,_res,next)=>/^\/runs\/[0-9a-f-]{36}\/escrow(?:\/(?:register|complete|cancel))?$/.test(req.path)?next():next('router'));
  router.use(authenticate);
- router.use((req,res,next)=>{res.set('Cache-Control','private, no-store');if(req.user?.id!==allowedTenantId)return res.status(404).json({code:'PRIVATE_RECORD_NOT_FOUND'});if(req.method!=='GET'&&(!req.is('application/json')||req.get('sec-fetch-site')==='cross-site'))return res.status(400).json({code:'PRIVATE_REQUEST_INVALID'});next()});
+ router.use((req,res,next)=>{res.set('Cache-Control','private, no-store');if(!privateTenantAllowed(req.user?.id,{allowedTenantId,accessMode}))return res.status(404).json({code:'PRIVATE_RECORD_NOT_FOUND'});if(req.method!=='GET'&&(!req.is('application/json')||req.get('sec-fetch-site')==='cross-site'))return res.status(400).json({code:'PRIVATE_REQUEST_INVALID'});next()});
  for(const [method,path,operation]of [['get','/runs/:id/escrow','status'],['post','/runs/:id/escrow','prepare'],['post','/runs/:id/escrow/register','register'],['post','/runs/:id/escrow/complete','settle'],['post','/runs/:id/escrow/cancel','cancel']])router[method](path,async(req,res)=>{
   try{if(!UUID.test(req.params.id)||method==='post'&&!exact(req.body,operation==='register'?'jobId':''))return res.status(400).json({code:'PRIVATE_REQUEST_INVALID'});
    const value=await funding[operation](req.params.id,req.user,req.body?.jobId);return res.status(operation==='register'?201:200).json(value);

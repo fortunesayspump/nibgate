@@ -1,3 +1,4 @@
+import {privateTenantAllowed} from './private-tenant-access.js';
 import {Router} from 'express';
 import {createHash} from 'node:crypto';
 import {canonicalToolJson,validatePrivateExternalRequest} from '@nibgate/internal/private-tools.js';
@@ -111,9 +112,9 @@ export function createPrivateExternalTools({db,execute}){
  };
 }
 
-export function createPrivateExternalToolsRouter({tools,authenticate,allowedTenantId}){
+export function createPrivateExternalToolsRouter({tools,authenticate,allowedTenantId,accessMode='owner'}){
  const router=Router();router.use((req,_res,next)=>/^\/runs\/[0-9a-f-]{36}\/tools(?:\/[0-9a-f-]{36}(?:\/execute)?)?$/.test(req.path)?next():next('router'));
- router.use(authenticate);router.use((req,res,next)=>{res.set('Cache-Control','private, no-store');if(req.user?.id!==allowedTenantId)return res.status(404).json({code:'PRIVATE_RECORD_NOT_FOUND'});if(req.method!=='GET'&&(!req.is('application/json')||req.get('sec-fetch-site')==='cross-site'))return res.status(400).json({code:'PRIVATE_REQUEST_INVALID'});next()});
+ router.use(authenticate);router.use((req,res,next)=>{res.set('Cache-Control','private, no-store');if(!privateTenantAllowed(req.user?.id,{allowedTenantId,accessMode}))return res.status(404).json({code:'PRIVATE_RECORD_NOT_FOUND'});if(req.method!=='GET'&&(!req.is('application/json')||req.get('sec-fetch-site')==='cross-site'))return res.status(400).json({code:'PRIVATE_REQUEST_INVALID'});next()});
  for(const [method,path,op]of [['post','/runs/:runId/tools','register'],['get','/runs/:runId/tools/:id','get'],['post','/runs/:runId/tools/:id/execute','run']])router[method](path,async(req,res)=>{
   try{if(!uuid.test(req.params.runId)||req.params.id&&!uuid.test(req.params.id)||op==='run'&&Object.keys(req.body??{}).length)throw unavailable();return res.json(await tools[op](req.params.runId,req.user,op==='register'?req.body:req.params.id));}catch{return res.status(503).json({code:'PRIVATE_EXTERNAL_TOOL_UNAVAILABLE'})}
  });return router;

@@ -1,3 +1,4 @@
+import {privateAccessMode,privateTenantAllowed} from './private-tenant-access.js';
 import {createPrivateTerminalCheck} from './private-terminal-check.js';
 import {createPrivateActionRunner} from './private-action-runner.js';
 import {createPrivateWorkflow} from './private-workflow.js';
@@ -85,6 +86,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
     hostedJevPolicy={contextDisclosure:'openrouter-and-typesafe',decisionsZdrRoutingVerified:true,loggingReviewExpiresAtMs:reviewedAt+24*3600000};
   }
   const fullRequested=env.DRNIB_PRIVATE_FULL_ENABLED==='true';
+  const accessMode=privateAccessMode(env);
   const allowedTenantId=required(env,'DRNIB_PRIVATE_TEST_TENANT_ID');
   if(!/^[A-Za-z0-9:_-]{1,128}$/.test(allowedTenantId))throw new Error('Private test tenant unavailable');
   const monthlyAiCapMicroUsd=positiveInteger(env,'DRNIB_PRIVATE_AI_MONTHLY_CAP_MICRO_USD');
@@ -154,7 +156,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
       requestDigest:signedUsage.requestDigest,inputTokens:signedUsage.inputTokens,outputTokens:signedUsage.outputTokens};
   };
   let budget;
-  try{budget=createPrivateAiBudgetGate({db,ownerUserId:allowedTenantId,monthlyAiCapMicroUsd,
+  try{budget=createPrivateAiBudgetGate({db,ownerUserId:allowedTenantId,accessMode,monthlyAiCapMicroUsd,
     monthlyInfraCeilingMicroUsd,verifySignedUsage,modelPriceCeilings:{[model]:{inputMicroUsdPerMillion,outputMicroUsdPerMillion}}});}
   catch{await db.$disconnect();throw new Error('Private budget configuration unavailable')}
   // Per-call authenticated usage sink. `meteredPort` appends each verified
@@ -215,7 +217,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const verifyCapability=createGuestCapabilityAuthenticator({publicKey,consumeJti:createInMemoryJtiConsumer()});
   const authenticate=async req=>{
     const identity=await verifyCapability(req);
-    return identity?.tenantId===allowedTenantId?identity:null;
+    return privateTenantAllowed(identity?.tenantId,{allowedTenantId,accessMode})?identity:null;
   };
   const getReport=createCiphertextReportReader(db);
   // Nonsecret, rate-limited, nonce-bound hardware attestation for reviewer

@@ -1,6 +1,6 @@
 # Private Dr. Nib release decision
 
-Updated 20 October 2026. The owner approved pushing the release branch and a **$5 incremental, owner-only testnet canary**. Mainnet deployment and real-money activity remain off pending a separate budget. Release branch `codex/dr-nib-private-rollout` was pushed at `4bc912b7`; `main` was not pushed.
+Updated 21 October 2026. The owner approved merging the private implementation into `main`, a normal authenticated public release, reuse/renaming of existing services and retirement of superseded services after cutover. An additional **$5 mainnet operating allowance** is separate from the existing **$5 testnet allowance**. Public access is not restricted to the test wallet. See [public cutover](PUBLIC-RELEASE.md); the owner-only observations below describe the earlier canary and do not establish public-release acceptance.
 
 ## Reuse the existing installation
 
@@ -16,7 +16,7 @@ Updated 20 October 2026. The owner approved pushing the release branch and a **$
 | Frontend | Release-branch preview in existing testnet Vercel project; separate canary origin |
 | Funding / watchdog | Reuse a suitable service if safe; add only if required for scoped money credentials and independent shutdown |
 
-The two newly created empty Railway projects and undeployed Vercel project were removed. Their staged services never ran. Generated owner configuration uses `deploymentMode: "reuse"`; project-creation entrypoints refuse to execute in that mode. Generic fresh-project templates are optional reference material, not this rollout.
+The two initial Railway canary projects still list zero services. Environment-detail queries failed during the 21 October audit, so retained storage there is unverified. The unused Vercel project was removed. Generated owner-canary configuration uses `deploymentMode: "reuse"`; project-creation entrypoints refuse to execute in that mode. Generic fresh-project templates are optional reference material, not this rollout.
 
 Preserve legacy APIs and data: the legacy database has six nonzero-budget unsettled records, which must not be assumed funded without ledger evidence. The old private database has no active or funded-unsettled runs. Existing broker/gateway variables have private rollback backups. Never retire a service merely because its name sounds obsolete.
 

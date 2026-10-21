@@ -16,7 +16,7 @@ function verdict(nonce,key,change={}){
     key_provider:{name:'kms',id:policy.expectedKeyProvider.id},app_info:{app_id:policy.expectedAppId,
       instance_id:'55'.repeat(20),compose_hash:policy.expectedComposeHash,os_image_hash:policy.expectedOsHash},...change}};
 }
-async function fixture({wrongProof=false,badVerdict=false,badGuestNonce=false}={}){
+async function fixture({wrongProof=false,badVerdict=false,badGuestNonce=false,resolvedTenantId}={}){
   const pair=await generateHpkeRecipient(),calls=[];let nonce;
   const fetchImpl=async(url,options)=>{
     const body=JSON.parse(options.body),path=new URL(url).pathname;
@@ -43,10 +43,10 @@ async function fixture({wrongProof=false,badVerdict=false,badGuestNonce=false}={
     return v;
   };
   const signCapability=async({scope,runId:id,tenantId:tenant})=>{
-    assert.equal(id,runId);assert.equal(tenant,tenantId);return `synthetic-token-${scope}`;
+    assert.equal(id,runId);assert.equal(tenant,resolvedTenantId??tenantId);return `synthetic-token-${scope}`;
   };
   const preflight=createBrokerAttestationPreflight({guestBaseURL:'https://guest.example/',tenantId,
-    signCapability,verifyEvidence,policy,fetchImpl});
+    signCapability,verifyEvidence,policy,fetchImpl,getRunTenant:resolvedTenantId?async()=>resolvedTenantId:undefined});
   return {preflight,calls};
 }
 
@@ -66,4 +66,10 @@ test('rejects wrong identity, guest nonce, stale TCB and false proof with no pla
   const {preflight}=await fixture();
   assert.equal(await preflight({jobId:randomUUID()}),false);
   assert.equal(await preflight({jobId:`${randomUUID()}:${randomUUID()}`}),false);
+});
+
+test('public preflight binds both capabilities and HPKE proof to the persisted run tenant',async()=>{
+ const {preflight,calls}=await fixture({resolvedTenantId:'another-user'});
+ assert.equal(await preflight({jobId:`${runId}:${randomUUID()}`}),true);
+ assert.equal(calls[1].body.challengeEnvelope.context.tenantId,'another-user');
 });

@@ -5,7 +5,7 @@ import {startPrivateSettlementReconciler} from './private-settlement-reconciler.
 test('terminal settlement retries without a browser and isolates a failing job',async()=>{
  const attempts=[],errors=[];let scans=0,stop;
  const db={researchRun:{findMany:async query=>{
-  assert.deepEqual(query.where,{userId:'owner',deletedAt:null,settledAt:null,OR:[{status:{in:['complete','ended','failed']}},{metadata:{path:['privateCancellation','reason'],equals:'owner-ended'}}],metadata:{path:['privateEscrow','jobId'],string_starts_with:''}});
+  assert.deepEqual(query.where,{userId:'owner',deletedAt:null,settledAt:null,AND:[{metadata:{path:['privacyMode'],equals:'confidential'}}],OR:[{status:{in:['complete','ended','failed']}},{metadata:{path:['privateCancellation','reason'],equals:'owner-ended'}}],metadata:{path:['privateEscrow','jobId'],string_starts_with:''}});
   assert.deepEqual(Object.keys(query.select).sort(),['id','metadata','userId']);
   scans++;
   return [{id:'none',userId:'owner',metadata:{}},{id:'retry',userId:'owner',metadata:{privateEscrow:{jobId:'1'}}},{id:'ok',userId:'owner',metadata:{privateEscrow:{jobId:'2'}}}];
@@ -21,4 +21,16 @@ test('terminal settlement retries without a browser and isolates a failing job',
  });
  assert.deepEqual(attempts,['retry','ok','retry','ok']);
  assert.deepEqual(errors,['PRIVATE_SETTLEMENT_RETRY_PENDING']);
+});
+
+test('public reconciliation settles each private run as its persisted owner',async()=>{
+ const attempts=[];let stop;
+ await new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{stop();reject(Error('public reconciliation timed out'))},1000);
+  stop=startPrivateSettlementReconciler({tenantId:'operator',accessMode:'authenticated',db:{researchRun:{findMany:async({where})=>{
+   assert.equal(where.userId,undefined);assert.deepEqual(where.AND,[{metadata:{path:['privacyMode'],equals:'confidential'}}]);
+   return [{id:'first',userId:'alice',metadata:{privateEscrow:{jobId:'1'}}},{id:'second',userId:'bob',metadata:{privateEscrow:{jobId:'2'}}}];
+  }}},funding:{settle:async(id,user)=>{attempts.push([id,user.id]);if(id==='second'){stop();clearTimeout(timer);resolve()}}}});
+ });
+ assert.deepEqual(attempts,[['first','alice'],['second','bob']]);
 });

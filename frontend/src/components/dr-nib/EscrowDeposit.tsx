@@ -36,7 +36,7 @@ const USDC_ABI = [
 
 type Step = "idle" | "switching" | "creating" | "budget" | "approving" | "funding" | "confirming" | "funded";
 
-export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId: string; budgetCap: number; estimate?: number | null; onFunded: () => void }) {
+export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId: string; budgetCap: number; estimate?: number | null; onFunded: (confirmedBudget: number) => void }) {
   const { address } = useAppKitAccount();
   const {connect,busy:connectingWallet,error:walletConnectError}=useNibgateConnect();
   const { walletProvider } = useAppKitProvider<Eip1193Provider>("eip155");
@@ -313,9 +313,10 @@ export function EscrowDeposit({ runId, budgetCap, estimate, onFunded }: { runId:
         // The deposit receipt already succeeded. A transient status failure
         // must not turn it into a failed deposit or trigger another payment.
         const st: any = await drNibApi.getEscrow(runId).catch(()=>null);
-        if (st?.job?.chain?.status === "Funded") {
+        const confirmedBudget = Number(st?.job?.chain?.budget);
+        if (st?.job?.chain?.status === "Funded" && Number.isFinite(confirmedBudget) && confirmedBudget > 0 && confirmedBudget >= minimum) {
           setStep("funded");
-          onFunded();
+          onFunded(confirmedBudget);
           return;
         }
       }

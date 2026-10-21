@@ -27,6 +27,6 @@
     "verifier/compose.local.yaml": "c9b72cd0b9c1511199e00213fdd0e1f17bde9cb882ab04aa93de009e059bd6a5",
     "verifier/selection.json": "75044943408dd35676c6bd479d651977bb8b0195bde1652d539e415097d0b656",
     "database/fresh-canary.sql": "b25e5cd61eb0c461ec7407766f03050c4d2decc91196ff15b586d7334914d28f",
-    "source-inventory.json": "3d84a2a68d03e16e3a0c5d9981f5cd83924bba158314f9a3c4c64517868e2638"
+    "source-inventory.json": "36aba842ec5f2f985c37fd21f5dd7f98627dad55da6164120ba17e19a9559ad6"
   }
 }

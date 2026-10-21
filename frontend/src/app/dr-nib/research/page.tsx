@@ -1023,7 +1023,7 @@ export default function ResearchNewPage() {
           {!confidential && <>
           {escrowConfigured === true && project && !escrowFunded && planSource !== "fallback" && (
             <>
-              <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={privateFundingEnabled()?Math.max(Number(estimate??0),Number(project.plan?.minimumFunding??0)):estimate} onFunded={() => setEscrowFunded(true)} />
+              <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={privateFundingEnabled()?Math.max(Number(estimate??0),Number(project.plan?.minimumFunding??0)):estimate} onFunded={(confirmedBudget) => { setEscrowBudget(confirmedBudget); setEscrowFunded(true); }} />
               {escrowStale && (
                 <p className="mt-2 text-xs text-red-700">
                   Escrow status isn&apos;t refreshing — anything you&apos;ve signed so far still stands.{" "}

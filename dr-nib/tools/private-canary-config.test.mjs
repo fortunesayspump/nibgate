@@ -76,3 +76,9 @@ test('dotenv preserves structured release policy and frontend controls as valid 
  assert.deepEqual(JSON.parse(broker.DRNIB_PRIVATE_RELEASE_POLICY_JSON),JSON.parse(files['release-policy.json']));
  assert.deepEqual(JSON.parse(frontend.NEXT_PUBLIC_DRNIB_PRIVATE_RELEASE_CONTROLS),draft.release.controls);
 });
+
+test('reviewed continuation allows two cumulative hours without increasing dollar ceilings',()=>{
+ const p=structuredClone(draft);p.runtime.cumulativeRuntimeMs=7200000;
+ assert.doesNotThrow(()=>canaryReadiness(p));const file=renderCanaryFiles(p)['env/watchdog.env.example'];assert.match(file,/DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS="7200000"/);assert.equal(p.proposedBudget.totalMicroUsd,5000000);assert.equal(p.proposedBudget.phalaMicroUsd,1000000);
+ p.runtime.cumulativeRuntimeMs=7200001;assert.throws(()=>canaryReadiness(p),/CAPACITY_INVALID/);
+});

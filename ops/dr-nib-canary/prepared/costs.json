@@ -1,5 +1,5 @@
 {
-  "asOf": "2026-10-20",
+  "asOf": "2026-10-21",
   "currency": "USD",
   "rates": {
     "phalaComputeUsdPerHour": "0.058",
@@ -101,5 +101,13 @@
       "Selected rollout reuses existing infrastructure; duplicated-environment scenario is not the selected deployment or measured incremental cost."
     ]
   },
-  "preflightAiUsd": "0.000017"
+  "preflightAiUsd": "0.000017",
+  "continuationGuardScenario": {
+    "cumulativeWorkerHours": 2,
+    "computeUsd": "0.116",
+    "approvedPhalaAllowanceUsd": 1,
+    "combinedApprovedAllowanceUsd": 5,
+    "preservePriorRuntime": true,
+    "notAnActualCharge": true
+  }
 }

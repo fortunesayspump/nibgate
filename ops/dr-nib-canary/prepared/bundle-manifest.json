@@ -17,16 +17,16 @@
     "deployment-inputs.json": "4328144a5f921804de8794a4046169ad2da704170eb14a1678fea25041309717",
     "guest/prelaunch-requirements.json": "54250e0d3ed6a9c22203fd1ee096da8a1b3be1b44a89261fc6ea877263476a11",
     "guest/terminal-seccomp.json": "ca6d1a088eb076d4b53e395b4c30574dd16cf69598c34eea4728cdba61a95b73",
-    "README.md": "fd43382e93b7be77641fdcc45e5d4766bbd9dbd66603537b0d40560a98b86ffd",
-    "REVIEW.md": "53edc254cbf9bee69a065c7ad3f5eaf60dd81da72ded37ef6fe0ecbfbbf97ef6",
+    "README.md": "18d6adf0a214a3d36077823759b4ab20e7de58ad97a1092b790ab8cecdb91938",
+    "REVIEW.md": "eb797d6f9edcf1bf78354d80496754532ed657879e70ea09a53b9eca93c18143",
     "REUSED-INPUTS.md": "ff5ffda99e0c447223c48bf111575ee75fe9093cb38b68b33a156d3551ff7f45",
-    "costs.json": "01402061837c4c77fca22be456b2d9d977ede79045478d9c0ef5e0dd82eba9a6",
+    "costs.json": "a3f713fd0b1a3fc2f974e40ec7b2b0b056d7cf81a75c34ea4133db5df6ad58c5",
     "local-verification.json": "f628d30989ff621a99ed088df9f2972b25cc3601a46e156aafdaad870d206900",
     "VERIFIER.md": "b2c2b43ec2de0ddf9caf03b0d02e0bb386293d6e24304beaaaf67cbccf66a873",
-    "ROLLOUT.md": "1dbce0783ecb1d68c35f6a7a0015be223d34a77f948316a14caf4da661b3b023",
+    "ROLLOUT.md": "100324ae1aef936a95827fba7a2eed8ca9a62bfe26143d101543beb43ff0c72a",
     "verifier/compose.local.yaml": "c9b72cd0b9c1511199e00213fdd0e1f17bde9cb882ab04aa93de009e059bd6a5",
     "verifier/selection.json": "75044943408dd35676c6bd479d651977bb8b0195bde1652d539e415097d0b656",
     "database/fresh-canary.sql": "b25e5cd61eb0c461ec7407766f03050c4d2decc91196ff15b586d7334914d28f",
-    "source-inventory.json": "c4569b6adaa056d804335dd8ecedb18b6d76a699c4764c63857115e508116cf4"
+    "source-inventory.json": "acbd43308f97fa0f6de2f3b6b7c8805098853eb70d9984145c667245015f8395"
   }
 }

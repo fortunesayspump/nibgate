@@ -54,3 +54,11 @@ test('configured bootstrap uses explicit official SDK options and starts only on
   await controller.close();
   assert.deepEqual(f.calls,[]);
 });
+
+test('reviewed two-hour ceiling remains bounded and does not start compute',async()=>{
+ for(const max of ['3600000','7200000']){
+  const f=fakeClient();let state;const controller=await createConfiguredPhalaWake({...common,env:{...env(),DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS:max},lifecycleStore:{mutate:async(initial,fn)=>{state??=structuredClone(initial);return fn(state,Date.now(),false)}},clientFactory:async()=>f.client,verifierFactory:()=>({verifyEvidence:async()=>({is_valid:false})})});
+  assert.equal(state.policy.maxRuntimeMs,Number(max));assert.deepEqual(f.calls,[]);await controller.close();
+ }
+ let calls=0;await assert.rejects(createConfiguredPhalaWake({...common,env:{...env(),DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS:'7200001'},clientFactory:async()=>{calls++;return fakeClient().client}}));assert.equal(calls,0);
+});

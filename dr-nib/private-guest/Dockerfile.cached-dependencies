@@ -2,7 +2,7 @@
 # image only after checking its lockfile and dependency manifests match this
 # checkout. This avoids another large dependency export on a constrained device.
 # The clean Node-base recipe remains Dockerfile for independent release builds.
-FROM docker.io/fortunesayspump/nibgate-private-guest@sha256:46a2e93b6f914a98a92e3de128fa830547f4c391e817b16441d1e17e9674064c
+FROM docker.io/fortunesayspump/nibgate-private-guest@sha256:12b7ef9a326b8919ed7a338bf51590c3dab4791bb8a6de543b7d1d8a74cab952
 USER root
 RUN rm -rf /app/dr-nib/backend/src /app/dr-nib/backend/prisma /app/packages/internal/src /app/packages/wallet/src
 COPY dr-nib/backend/prisma /app/dr-nib/backend/prisma
@@ -13,6 +13,7 @@ COPY packages/wallet/package.json /app/packages/wallet/package.json
 COPY packages/internal/src /app/packages/internal/src
 COPY packages/wallet/src /app/packages/wallet/src
 COPY dr-nib/backend/src /app/dr-nib/backend/src
+COPY dr-nib/private-terminal /app/dr-nib/private-terminal
 USER node
 WORKDIR /app/dr-nib/backend
 EXPOSE 3102

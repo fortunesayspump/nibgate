@@ -16,7 +16,9 @@ function canonical(value){
 function pack(value){return {value,usage:value?.[PRIVATE_USAGE]??null,cost:value?.[PRIVATE_METERED_COST]??null,charge:value?.[PRIVATE_CALL_CHARGE]??null};}
 function unpack(record){const value=structuredClone(record.value);if(record.usage)Object.defineProperty(value,PRIVATE_USAGE,{value:record.usage});if(record.cost!==null)Object.defineProperty(value,PRIVATE_METERED_COST,{value:record.cost});if(record.charge)Object.defineProperty(value,PRIVATE_CALL_CHARGE,{value:record.charge});return value;}
 /** Encrypted deterministic operation replay. A started operation without a
- * durable result is never repeated, including the response/cache crash gap. */
+ * durable result is never replayed directly. Admission may fence an expired
+ * worker and replace only an interrupted model completion after retaining its
+ * entire unknown charge under the operator cap; tools stay non-replayable. */
 export function createPrivateCheckpoint({key,value,save,fence,controls=async()=>[]}){
  if(!(key instanceof Uint8Array)||key.length!==32||typeof save!=='function'||typeof fence!=='function'||value?.format!=='drnib-checkpoint-v1'||!Array.isArray(value.entries))throw fail();
  let cursor=0,tail=Promise.resolve();

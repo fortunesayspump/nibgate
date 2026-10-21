@@ -8,7 +8,7 @@ function origin(value){try{const u=new URL(value);return u.protocol==='https:'&&
 export function canaryReadiness(plan,{now=Date.now()}={}){
  const pending=[];
  if(plan.format!=='drnib-owner-canary-v1'||plan.network!=='testnet'||plan.database!=='drnib_private_canary')throw Error('CANARY_SCOPE_INVALID');
- if(plan.runtime.active!==1||!Number.isInteger(plan.runtime.pending)||plan.runtime.pending<1||plan.runtime.pending>8||plan.runtime.idleMs!==300000||plan.runtime.cumulativeRuntimeMs!==3600000)throw Error('CANARY_CAPACITY_INVALID');
+ if(plan.runtime.active!==1||!Number.isInteger(plan.runtime.pending)||plan.runtime.pending<1||plan.runtime.pending>8||plan.runtime.idleMs!==300000||![3600000,7200000].includes(plan.runtime.cumulativeRuntimeMs))throw Error('CANARY_CAPACITY_INVALID');
  const b=plan.proposedBudget;
  const preflight=plan.preflightAiMicroUsd??0;if(!Number.isSafeInteger(preflight)||preflight<0||preflight>=b.aiMicroUsd)throw Error('CANARY_PREFLIGHT_USAGE_INVALID');
  if(!['fresh','reuse'].includes(plan.deploymentMode??'fresh'))throw Error('CANARY_DEPLOYMENT_MODE_INVALID');

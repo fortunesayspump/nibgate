@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { openClientObject, sealClientObject } from './client-object-crypto.js';
 import { isConfidentialRun } from './guard.js';
 import {Prisma} from '@prisma/client';
-import {rejected429Recovery} from './private-rejected-recovery.js';
+import {rejected429Recovery,interruptedInferenceRecovery} from './private-rejected-recovery.js';
 const fail = () => Error('PRIVATE_WORKFLOW_UNAVAILABLE');
 // Service/session failures need recovery, including verified pre-dispatch
 // failures with zero usage. They must not finalize the customer's escrow.
@@ -155,6 +155,16 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                             if(rejection){
                                 await tx.privateInferenceCall.update({where:{id:rejection.callId},data:{status:'rejected-held',billingKind:'platform',costBasis:'operator-reservation'}});
                                 live.entries.pop();live.reconciliations=[...(live.reconciliations??[]),{kind:'operator-covered-429',requestId,...rejection,at:new Date(now()).toISOString()}];
+                                const revision=row.revision+1,envelope=sealClientObject(stateKey,{tenantId,runId,vaultId,objectId:checkpointRoot,revision,purpose:'checkpoint'},Buffer.from(JSON.stringify(live)));
+                                await tx.privateClientObject.update({where:{id:row.id},data:{revision,envelope,digest:ciphertextDigest(envelope)}});
+                            }
+                        }
+                        if(allowHostedResearchFallback&&existing.status==='processing'&&live.entries.some(e=>e.state!=='complete')&&!await tx.privateToolCall.count({where:{runId,status:'reserved'}})){
+                            const calls=await tx.privateInferenceCall.findMany({where:{runId,actionId:requestId,status:'reserved'}});
+                            const interrupted=interruptedInferenceRecovery({checkpoint:live,calls,requestId,receiptStatus:existing.status});
+                            if(interrupted){
+                                await tx.privateInferenceCall.update({where:{id:interrupted.callId},data:{status:'uncertain-held',billingKind:'platform',costBasis:'operator-reservation'}});
+                                live.entries.pop();live.reconciliations=[...(live.reconciliations??[]),{kind:'operator-covered-interrupted-inference',requestId,...interrupted,at:new Date(now()).toISOString()}];
                                 const revision=row.revision+1,envelope=sealClientObject(stateKey,{tenantId,runId,vaultId,objectId:checkpointRoot,revision,purpose:'checkpoint'},Buffer.from(JSON.stringify(live)));
                                 await tx.privateClientObject.update({where:{id:row.id},data:{revision,envelope,digest:ciphertextDigest(envelope)}});
                             }

@@ -49,7 +49,7 @@ export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,te
      (typeof env.DEBUG==='string'&&env.DEBUG.trim()!==''))throw unavailable();
   const guest=guestURL(guestBaseURL);
   const idleMs=positiveInt(env.DRNIB_PRIVATE_WAKE_IDLE_MS,15_000,300_000);
-  const maxRuntimeMs=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS,30_000,3_600_000);
+  const maxRuntimeMs=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS,30_000,7_200_000);
   const maxActive=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_ACTIVE??'4',1,8);
   const maxPending=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_PENDING??'64',1,256);
   const policy=releasePolicy(env.DRNIB_PRIVATE_RELEASE_POLICY_JSON);

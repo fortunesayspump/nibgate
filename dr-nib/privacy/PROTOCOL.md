@@ -50,8 +50,12 @@ Completed parser, inference, JEV and public retrieval results are journaled
 before the next operation. Digests use a project-key HMAC, not public hashes of
 private prompts. Recovery restores priced response evidence without dispatching
 completed work again. A started operation without a durable result is uncertain
-and must never be automatically repeated, including a crash after receiving a
-provider result but before saving it.
+and cannot be replayed directly. For an expired processing lease, the attested
+worker can replace only a final unfinished `infer` operation after moving its
+full unknown charge to an operator reservation. This is bounded to two
+replacements per journal; completed entries remain cached and terminal, JEV,
+public-tool and payment operations are excluded. The held amount still counts
+against the global AI cap and is never called a verified zero charge.
 
 During processing the owner appends a new `intent` object at expected revision
 zero, encrypted for purpose `intent`, with format `drnib-control-v1`, the
@@ -115,7 +119,7 @@ paid action stays fenced; exporting does not reopen its budget.
 
 The client checks independent evidence and live key possession before releasing an HPKE command. The one-use command contains session ID, request ID, vault ID, action, arguments and project state key. The guest authenticates the key by opening the manifest before claiming the action.
 
-A keyed semantic request digest and one active action per run prevent automatic paid replay. Claiming locks and rechecks the manifest revision. Source/manifest edits and deletion cannot race an active or uncertain action. The final encrypted manifest, generic lifecycle status and encrypted receipt commit atomically. A repeated completed request returns its existing encrypted reply. A failed/unknown operation remains uncertain, so retries cannot silently duplicate paid work. Automatic partial-stage crash recovery and reconciliation of uncertain outcomes are not implemented.
+A keyed semantic request digest and one active action per run prevent automatic paid replay. Claiming locks and rechecks the manifest revision. Source/manifest edits and deletion cannot race an active or uncertain action. The final encrypted manifest, generic lifecycle status and encrypted receipt commit atomically. A repeated completed request returns its existing encrypted reply. A failed/unknown operation remains uncertain, so retries cannot silently duplicate paid work. Authenticated checkpoints restore completed stages. The bounded interrupted-inference recovery described above can progress without resolving the provider bill; it preserves the full operator exposure rather than fabricating a charge or releasing a hold. Unknown tool/payment outcomes still require reconciliation.
 
 An uncertain receipt may also carry an encrypted failure envelope bound to the
 same project and request. The guest restricts its contents to fixed error codes;
@@ -778,3 +782,7 @@ Release preparation now writes a literal `PRIVATE_AI_MODEL_POOL`, default `singl
 Owner-authorized `phala-openrouter-zdr-canary-v1` is a distinct measured mode. It uses Phala Gemma first, then the fixed OpenRouter `openai/gpt-4o-mini` / Azure endpoint. Provider preferences enforce `zdr:true`, `data_collection:deny`, `only:[Azure]`, `allow_fallbacks:false` and required parameters. Its account workspace must match the fresh reviewed no-logging workspace. Credentials are encrypted secrets; model/provider, prices and policy are measured code. Hosted results use provider-reported accounting and explicit provider-visible provenance, never attested-receipt labels. JEV remains unchanged. The private client displays disclosure before execution and labels actual fallback responses. Strict mode retains its existing behavior.
 
 For definite Phala HTTP 429 responses, this mode keeps the full committed reservation as `rejected-held`, changes its billing responsibility to the operator, and permits a bounded retry/fallback. An encrypted journal recovery requires the authenticated action's 429 failure, a single matching reserved inference, one final started inference entry, matching manifest generation and expired owner lease. All completed entries are preserved; at most two such journal repairs are allowed. Unknown responses, tool operations, mismatched actions and ambiguous admissions do not qualify. The full retained amount still counts against the global allowance; no provider zero bill is fabricated. Customer settlement excludes operator exposure. The browser schedules one guarded recovery check after the lease becomes available; the worker independently enforces these rules.
+
+## Interrupted model completion recovery
+
+Under the admission and run locks, recovery requires an expired processing lease, the same authenticated manifest revision/digest, exactly one final unfinished `infer` entry, exactly one reserved call for that action with no final usage evidence, and no reserved public tool. The call becomes `uncertain-held`, `platform`, `operator-reservation` without reducing its commitment. Only the final inference entry is removed; all completed results are retained. The new lease fences the old worker. At most two such replacements are admitted per journal. Every replacement still passes ordinary per-run and monthly budget admission. A late verified response can reconcile the operator cost but cannot change the call back into a customer debit. This path never declares an unknown outcome completed and never repeats terminal, public retrieval, paid access, tip or settlement operations.

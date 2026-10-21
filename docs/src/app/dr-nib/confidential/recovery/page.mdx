@@ -20,7 +20,8 @@ A new browser must complete both account sign-in and vault recovery before it ca
 | Tab reload or temporary disconnect | Read encrypted saved state and reconnect; do not erase completed work |
 | Worker restart | Verify the fresh worker and restore authenticated completed operations before doing new work |
 | Known completed model/tool/payment operation | Reuse its recorded result and charge; do not purchase it again |
-| Lost response or uncertain payment outcome | Preserve reservation/checkpoint and reconcile before replay |
+| Interrupted model completion with no saved result | After the old worker lease expires, allow at most two model-only replacements; retain the full unknown cost under the operator cap, never the customer escrow |
+| Uncertain tool or payment outcome | Preserve reservation/checkpoint and reconcile; never repeat the operation blindly |
 | Definite supported rate-limit rejection | Apply bounded recovery; any unresolved provider cost remains operator exposure rather than a fabricated zero bill |
 | Resumable infrastructure failure | Preserve escrow; do not terminate and refund merely because recovery is needed |
 

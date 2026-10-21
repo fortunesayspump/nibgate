@@ -24,7 +24,7 @@ A stopped worker introduces cold-start and verification latency before it can an
 
 Documents, reports, activity and checkpoints are encrypted in Postgres/private object storage. Coordination records retain opaque ownership, request IDs, leases, generations and usage commitments. Live plaintext and project keys stay in authorized memory.
 
-After a crash, restored operation journals prevent duplicate model calls, tool purchases and payments. An unknown outcome remains fenced until it can be reconciled. Losing in-memory processing keys can require the browser to reconnect, verify the fresh worker and unlock the project again. Account sign-in alone is not permission to decrypt.
+After a crash, operation journals restore completed model and tool results without purchasing them again. An interrupted model completion can receive at most two replacements after the old worker lease expires; the operator keeps its full uncertain cost reserved. Completed terminal work is reused. Unknown tool and payment outcomes stay fenced until reconciled. Losing in-memory processing keys can require the browser to reconnect, verify the fresh worker and unlock the project again. Account sign-in alone is not permission to decrypt.
 
 A temporary infrastructure failure preserves the resumable checkpoint and escrow. It does not automatically end/refund the research or switch it into an ordinary plaintext pipeline. See [recovery](/dr-nib/confidential/recovery).
 

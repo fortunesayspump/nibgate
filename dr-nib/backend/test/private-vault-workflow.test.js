@@ -1048,3 +1048,26 @@ it('disclosed fallback recovers a definite 429 while retaining its entire operat
   expect(recovered.checkpoint.reconciliations[0]).toMatchObject({kind:'operator-covered-429',callId,retainedMicroUsd:'29168'});
  });
 });
+
+it.each(['safe','live-lease','flag-off','unfinished-tool','reserved-tool','ambiguous-calls','retry-limit'])('interrupted model-only recovery retains operator exposure and fences old execution: %s',async scenario=>{
+ await fixture(async f=>{
+  let now=Date.now();const make=()=>createPrivateActionStore({db,storage:{},stateKey:f.stateKey,tenantId:f.tenantId,runId:f.runId,vaultId:f.vault.vaultId,now:()=>now,allowHostedResearchFallback:scenario!=='flag-off'});
+  const original=make(),before=await original.load(),requestId=randomUUID();
+  const journal={format:'drnib-checkpoint-v1',rootRequestId:requestId,current:{requestId,manifestRevision:before.row.revision,manifestDigest:before.row.digest},entries:[{kind:'terminal',state:'complete',digest:'saved',result:{value:'saved exit 0'}},{kind:scenario==='unfinished-tool'?'terminal':'infer',state:'started',digest:'lost'}],consumed:[],...(scenario==='retry-limit'?{reconciliations:[{kind:'operator-covered-interrupted-inference'},{kind:'operator-covered-interrupted-inference'}]}:{})};
+  const input={requestId,digest:'interrupted-fixture',manifestId:before.row.id,manifestRevision:before.row.revision,checkpoint:journal};await original.claim(input);
+  const callId=randomUUID(),call={runId:f.runId,actionId:requestId,model:'fixture/model',monthKey:new Date().toISOString().slice(0,7),status:'reserved',billingKind:'customer',costBasis:'reservation',committedMicroUsd:29168n,reservedMicroUsd:29168n};await db.privateInferenceCall.create({data:{id:callId,...call}});
+  if(scenario==='ambiguous-calls')await db.privateInferenceCall.create({data:{id:randomUUID(),...call}});
+  if(scenario==='reserved-tool')await db.privateToolCall.create({data:{id:randomUUID(),runId:f.runId,questionId:randomUUID(),tool:'creator_tip',request:{},requestDigest:'a'.repeat(64),manifestRevision:before.row.revision,recipientPublicKey:'fixture',recipientId:'fixture',status:'reserved',reservedMicroUsd:1000n}});
+  if(scenario!=='live-lease')now+=90001;
+  const recovered=await make().claim({...input,recover:true,checkpointRoot:requestId});
+  const stored=await db.privateInferenceCall.findUnique({where:{id:callId}});
+  if(scenario==='safe'){
+   expect(recovered.recovered).toBe(true);expect(recovered.checkpoint.entries).toEqual([journal.entries[0]]);expect(recovered.checkpoint.reconciliations[0]).toMatchObject({kind:'operator-covered-interrupted-inference',callId,retainedMicroUsd:'29168'});
+   expect(stored).toMatchObject({status:'uncertain-held',billingKind:'platform',costBasis:'operator-reservation',committedMicroUsd:29168n,reservedMicroUsd:29168n});await expect(original.fence()).rejects.toThrow();
+   const blocked=createPrivateWorkflowAi({db,aiPort:{privateVerifiedTransport:'phala-aci-v1',infer:async()=>expect.fail('Unknown operator exposure must still count against the cap')},model:'fixture/model',monthlyCapMicroUsd:1000,inputPricePerMillion:1,outputPricePerMillion:1});
+   await expect(blocked({run:{id:f.runId,userId:f.tenantId},actionId:randomUUID(),messages:[{role:'user',content:'synthetic'}]})).rejects.toThrow('PRIVATE_WORKFLOW_CAP');
+   // A late verified completion may reconcile cost; it cannot become a customer debit.
+   await db.privateInferenceCall.update({where:{id:callId},data:{status:'verified',committedMicroUsd:3n}});expect((await db.privateInferenceCall.findUnique({where:{id:callId}})).billingKind).toBe('platform');
+  }else{expect(recovered.recovered).toBeUndefined();expect(stored.status).toBe('reserved');expect((await make().checkpoint(requestId)).entries).toEqual(journal.entries);}
+ });
+});

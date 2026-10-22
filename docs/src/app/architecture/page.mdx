@@ -102,3 +102,11 @@ Nibgate then indexes receipts and rating events and computes:
 ## Private research boundary
 
 Dr. Nib's [private research architecture](/dr-nib/confidential/architecture) separates browser encryption, a ciphertext broker, verified Phala orchestration, encrypted state and a restricted money service. It is distinct from creator/server-side storage encryption. Actual JEV and authorized Azure/OpenRouter ZDR research processing receive disclosed context; ordinary Hub/MCP access does not unlock private projects.
+
+## Runtime resource boundaries
+
+The hosted Hub and Subblogs APIs reuse a Prisma client per process. Their runtime defaults allow up to five PostgreSQL connections with a ten-second pool acquisition timeout; explicit connection-string settings take precedence. These are application pool bounds, not limits on database server memory or the total number of connections across services.
+
+Image processing loads on demand with a bounded native cache, and Subblogs loads document parsers only for the format requested. Its tenant lookup cache retains at most 1,000 entries with a one-minute freshness window. These bounds reduce retained memory without changing encryption, payment verification or entitlement rules.
+
+Sleeping web processes and financial reconciliation have different lifecycle requirements. Database traffic and background polling can prevent a service from sleeping. Preserve settlement and shutdown guards when changing deployment topology; enabling a hosting sleep setting alone does not establish that a service actually sleeps.

@@ -6,7 +6,7 @@ import {
   putBlob, deleteBlob, generateContentKey, encryptBytes, packCipherBlob, wrapKey
 } from '@nibgate/sdk/server';
 import { shareKeySecret } from '../nibshare/utils.js';
-import sharp from 'sharp';
+import { getImageProcessor } from '../lib/image-processor.js';
 
 const ALLOWED_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'heif']);
 const MAX_IMAGE_BYTES = {
@@ -32,6 +32,7 @@ function parseDataUrl(dataUrl) {
 }
 
 async function prepareImage(buffer, target) {
+  const sharp = await getImageProcessor();
   const image = sharp(buffer, { limitInputPixels: 24_000_000, failOn: 'none' }).rotate();
   const metadata = await image.metadata();
 
@@ -230,6 +231,7 @@ const contentUpload = multer({
 });
 
 async function processContentImage(buffer) {
+  const sharp = await getImageProcessor();
   const image = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
   const meta = await image.metadata();
   const width = Math.min(meta.width || 2560, 2560);
@@ -238,6 +240,7 @@ async function processContentImage(buffer) {
 }
 
 async function processPreviewImage(buffer) {
+  const sharp = await getImageProcessor();
   const image = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
   const meta = await image.metadata();
   const width = Math.min(meta.width || 1200, 1200);

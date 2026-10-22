@@ -1,10 +1,6 @@
-const ExcelJS = require('exceljs');
-const mammoth = require('mammoth');
-const JSZip = require('jszip');
-const XLSX = require('xlsx');
-const WordExtractor = require('word-extractor');
-const wordExtractor = new WordExtractor();
-const { DOMParser } = require('@xmldom/xmldom');
+// Load document parsers only for the format being rendered. Node caches each
+// module after first use, so ordinary page/text requests avoid their idle cost.
+let wordExtractor;
 const { Readable } = require('stream');
 const { getBlob, decryptBytes, unpackCipherBlob } = require('@nibgate/sdk/server');
 const { storedToKey } = require('../lib/keywrap');
@@ -106,6 +102,7 @@ function sheetHtml(rows, { preview, totalRows, limit }) {
 }
 
 async function renderSpreadsheet(buffer, kind, preview) {
+  const ExcelJS = require('exceljs');
   const workbook = new ExcelJS.Workbook();
   if (kind === 'csv') {
     await workbook.csv.read(Readable.from(buffer));
@@ -151,6 +148,8 @@ function collectByLocalName(root, localName) {
 }
 
 async function renderOds(buffer, preview) {
+  const JSZip = require('jszip');
+  const { DOMParser } = require('@xmldom/xmldom');
   const zip = await JSZip.loadAsync(buffer);
   const contentFile = zip.file('content.xml');
   if (!contentFile) return { html: '<p>Empty spreadsheet.</p>' };
@@ -181,6 +180,7 @@ async function renderOds(buffer, preview) {
 }
 
 async function renderDocx(buffer, preview) {
+  const mammoth = require('mammoth');
   const result = await mammoth.convertToHtml({ buffer });
   if (preview) {
     const text = stripHtml(result.value).slice(0, PREVIEW_CHARS);
@@ -190,6 +190,10 @@ async function renderDocx(buffer, preview) {
 }
 
 async function renderLegacyWord(buffer, preview) {
+  if (!wordExtractor) {
+    const WordExtractor = require('word-extractor');
+    wordExtractor = new WordExtractor();
+  }
   const doc = await wordExtractor.extract(buffer);
   const paragraphs = String(doc.getBody() || '').split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
   const text = paragraphs.join('\n');
@@ -200,6 +204,7 @@ async function renderLegacyWord(buffer, preview) {
 }
 
 async function renderLegacyExcel(buffer, preview) {
+  const XLSX = require('xlsx');
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return { html: '<p>Empty spreadsheet.</p>' };

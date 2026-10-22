@@ -96,7 +96,7 @@ Only genuinely undecided rows are touched; anything with publisher tags is never
 
 ## Architecture invariants
 
-- **Keys never leave the server.** These public extension and metadata paths use the Hub. Private Dr. Nib calls its disclosed JEV route from the confidential worker, without sending private judgment context through the ordinary Hub. `OPENROUTER_API_KEY` lives only in hub env.
+- **Provider keys never reach the browser.** Public extension and metadata paths call JEV through the Hub, which holds their provider credential. Private Dr. Nib calls its disclosed JEV route directly from the confidential worker using its separately configured credential; private judgment context does not pass through the ordinary Hub.
 - **The model never invents.** Choice ids must match supplied candidates; scores outside 0..1 are clamped; empty answers are rejected before anything acts.
 - **Thresholds before acting:** recipient inference ≥ 0.6, page classification ≥ 0.65, settle-vs-hold ≥ 0.65, tags ≥ 0.6 top-k.
 - **Bounded cost:** ≤12 candidates (decide), ≤24 tags, state ≤4000 chars, 30 req/min per IP — and the model only fires on ambiguity, so usage depends on the selected model, request size and provider billing. Deterministic paths make no model call.

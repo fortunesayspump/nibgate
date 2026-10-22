@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const sharp = require('sharp');
+const { getImageProcessor } = require('../../lib/image-processor');
 const { putBlob } = require('@nibgate/sdk/server');
 const { generateContentKey, encryptBytes, packCipherBlob } = require('@nibgate/sdk/server');
 const { wrapContentKey } = require('../../lib/keywrap');
@@ -69,7 +69,7 @@ const upload = multer({
 });
 
 async function processImage(buffer, ext) {
-  const image = sharp(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
+  const image = getImageProcessor()(buffer, { limitInputPixels: 40_000_000, failOn: 'none' }).rotate();
   const meta = await image.metadata();
   const width = Math.min(meta.width || 2560, 2560);
   const resized = await image.resize({ width, withoutEnlargement: true }).webp({ quality: 90, effort: 4 }).toBuffer();

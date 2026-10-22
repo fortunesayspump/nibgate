@@ -26,6 +26,8 @@ Upload
 2. **Converts to WebP** — produces modern, efficiently compressed WebP images that are significantly smaller than JPEG or PNG equivalents.
 3. **Resizes** — caps the width at 2560px (`withoutEnlargement`), so small images stay untouched and huge images are bounded. A single file is produced per upload — there are no size variants.
 
+The Hub and Subblogs APIs load the native image processor on the first image request. Each process limits its image-operation cache to 8 MB and uses one libvips thread per image. This reduces idle native memory and retained cache without changing the output dimensions, WebP quality or encryption flow. The cache limit is not a limit on total process memory or the working memory needed to decode an image.
+
 ## Image types
 
 Images fall into a few categories depending on where they appear:

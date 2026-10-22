@@ -8,6 +8,12 @@ This directory prepares an isolated, owner-only **testnet** rollout. It does not
 
 The current sequential testnet/mainnet plan, Git push boundary, service retirement inventory and owner actions are in [ROLLOUT.md](ROLLOUT.md).
 
+## Local database consolidation rehearsal
+
+Run `node ops/dr-nib-canary/rehearse-blog-consolidation.mjs` with Node 22 and local PostgreSQL binaries. Set `PG_BIN_DIR` to the installed PostgreSQL `bin` directory when needed. The default prefers Homebrew PostgreSQL 18, then 16; a live migration requires supported source/target/tool versions and a separate review.
+
+The rehearsal uses an ephemeral local Unix-socket-only cluster and the real Subblogs schema with synthetic rows. It checks an encrypted archive round trip, opaque key/storage references, receipts, entitlements, application permissions and cross-database isolation, then removes only its own temporary cluster. It accepts no cloud database URLs and does not migrate or back up production. Its report is written under ignored `local/`. A successful synthetic rehearsal does not clear credential recovery, live backup/restore, write-quiescence or rollback requirements.
+
 ## What would be deployed
 
 | Component | Artifact / command | Boundary |

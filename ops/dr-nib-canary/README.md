@@ -14,6 +14,8 @@ Run `node ops/dr-nib-canary/rehearse-blog-consolidation.mjs` with Node 22 and lo
 
 The rehearsal uses an ephemeral local Unix-socket-only cluster and the real Subblogs schema with synthetic rows. It checks an encrypted archive round trip, opaque key/storage references, receipts, entitlements, application permissions and cross-database isolation, then removes only its own temporary cluster. It accepts no cloud database URLs and does not migrate or back up production. Its report is written under ignored `local/`. A successful synthetic rehearsal does not clear credential recovery, live backup/restore, write-quiescence or rollback requirements.
 
+`check-consolidation-role.sql` adds a read-only prerequisite for each existing application login. It fails for missing logins, administrator/role-creation/replication/RLS-bypass privileges and privileged role memberships, including memberships hidden by `NOINHERIT`. Use `psql -X -v application_role=<role> -f ops/dr-nib-canary/check-consolidation-role.sql` with reviewed connection settings and a private `PGPASSFILE`; never pass credentials on the command line. This check makes no grants or credential changes. A pass still requires separate database/schema/object ownership, ACL, cross-database access and restore checks. Both applications need restricted runtime logins before sharing a cluster; a superuser login defeats logical database isolation.
+
 ## What would be deployed
 
 | Component | Artifact / command | Boundary |

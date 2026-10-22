@@ -98,6 +98,15 @@ try {
   denied('blog_consolidated', 'CREATE ROLE forbidden_fixture;', 'blog_app');
   sql('blog_consolidated', 'SET ROLE blog_owner; CREATE TABLE future_fixture(id serial PRIMARY KEY);');
   sql('blog_consolidated', 'INSERT INTO future_fixture DEFAULT VALUES;', 'blog_app');
+  const roleGate = applicationRole => spawnSync(executable('psql'), [
+    '-X', '-q', '-d', 'blog_consolidated', '-v', `application_role=${applicationRole}`,
+    '-f', path.join(repo, 'ops/dr-nib-canary/check-consolidation-role.sql'),
+  ], { env, encoding: 'utf8' });
+  assert.equal(roleGate('blog_app').status, 0, 'Restricted login should pass the role gate');
+  assert.equal(roleGate('rehearsal_admin').status, 3, 'Administrator login must block consolidation');
+  assert.equal(roleGate('missing_application').status, 3, 'Missing login must block consolidation');
+  sql('blog_consolidated', 'CREATE ROLE indirectly_privileged LOGIN NOINHERIT; GRANT pg_read_all_data TO indirectly_privileged;');
+  assert.equal(roleGate('indirectly_privileged').status, 3, 'NOINHERIT must not hide privileged membership');
   const duplicateReceipt = spawnSync(executable('psql'), ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-d', 'blog_consolidated', '-U', 'blog_app'], {
     env, encoding: 'utf8', input: `INSERT INTO "BlogPostReceipt" (id,"siteId","postId","payerWallet","paymentNonce") VALUES ('duplicate','site-fixture','post-fixture','fixture-wallet','fixture-nonce');`,
   });
@@ -112,6 +121,7 @@ try {
     receiptsAndEntitlementsPreserved: true, applicationReadWritePassed: true,
     crossDatabaseAccessDenied: true, applicationDdlAndRoleCreationDenied: true,
     futureMigrationGrantsPassed: true,
+    restrictedRoleGatePassed: true, administratorAndIndirectPrivilegeRolesBlocked: true,
     receiptIdempotencyConstraintPreserved: true, restoredConstraintCountMatched: true,
     productionMigrationApplied: false,
     remaining: ['Verify live source/target major versions and tool compatibility', 'Scoped credential/security and accounting recovery', 'Encrypted live backup and restore rehearsal with exact row/constraint reconciliation', 'Write-quiescence, rollback and same-network private connectivity review'],

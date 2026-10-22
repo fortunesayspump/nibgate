@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { loadServerConfig } from './runtime.js';
+import { withDatabasePoolDefaults } from './lib/database-pool.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +41,8 @@ function runPrismaCommand() {
 }
 
 export async function startAppServer() {
+  // Set defaults before dynamically importing the shared Prisma singleton.
+  if (process.env.DATABASE_URL) process.env.DATABASE_URL = withDatabasePoolDefaults(process.env.DATABASE_URL);
   runPrismaCommand();
   // Idempotent: stamp pre-tagging content/ledger rows with this hub's network.
   try {

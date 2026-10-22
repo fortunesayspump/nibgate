@@ -1,8 +1,10 @@
 const { PrismaClient } = require('../../prisma/generated/client');
+const { withDatabasePoolDefaults } = require('./database-pool');
 
 const globalForPrisma = globalThis;
 
 const prisma = globalForPrisma.prisma || new PrismaClient({
+  datasourceUrl: withDatabasePoolDefaults(process.env.DATABASE_URL),
   log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
 });
 

@@ -2,6 +2,7 @@ import { db } from '@nibgate/internal/db.js';
 import { hostsFor, activeNetworkName, networkByChainId } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
 import { registerRateBuckets } from '../lib/rate-buckets.js';
+import { discardResponse } from '../lib/http-response.js';
 import crypto from 'node:crypto';
 import { keccak256, stringToBytes } from 'viem';
 
@@ -921,8 +922,12 @@ export async function fetchHomeHtml(domain) {
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.text();
+    if (!response.ok) {
+      await discardResponse(response);
+      throw new Error(`HTTP ${response.status}`);
+    }
+    // Keep the deadline active while the response body downloads as well.
+    return await response.text();
   } finally {
     clearTimeout(timeout);
   }
@@ -1255,7 +1260,7 @@ export async function claimPeerSitesForWallet(wallet, overrides = {}) {
       signal: controller.signal,
       headers: { accept: 'application/json', 'x-peer-secret': secret },
     });
-    if (!resp?.ok) return [];
+    if (!resp?.ok) { await discardResponse(resp); return []; }
     const sites = (await resp.json()).sites || [];
     const claimed = [];
     for (const identity of sites) {
@@ -1366,7 +1371,7 @@ export async function fetchPeerIdentity(domain, { timeoutMs = 8000, fetchFn = gl
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const resp = await fetchFn(url, { signal: controller.signal, headers: { accept: 'application/json' } });
-    if (!resp?.ok) return null;
+    if (!resp?.ok) { await discardResponse(resp); return null; }
     const body = await resp.json();
     if (!body?.verified || body?.verificationStatus !== 'verified') return null;
     return {
@@ -1449,7 +1454,11 @@ export async function syncWebsiteManifest(website) {
     const timeout = setTimeout(() => controller.abort(), Number.parseInt(process.env.MANIFEST_SYNC_FETCH_TIMEOUT_MS || '5000', 10));
     try {
       const response = await fetch(url, { headers: { accept: 'application/json' }, signal: controller.signal });
-      if (!response.ok) { lastError = `${url} returned ${response.status}`; continue; }
+      if (!response.ok) {
+        await discardResponse(response);
+        lastError = `${url} returned ${response.status}`;
+        continue;
+      }
 
       const manifest = await response.json();
       const resources = resourcesFromManifest(manifest);

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { discardResponse } from '../lib/http-response.js';
 import { db } from '@nibgate/internal/db.js';
 import { getAccessToken, request, fetchSiteList, submitSitemapForDomain } from './gsc-sitemap.js';
 
@@ -32,7 +33,10 @@ export async function fetchSitemap(domain) {
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const res = await fetch(url, { headers: { 'user-agent': 'NibgateIndexBot/1.0' }, signal: controller.signal });
-    if (!res.ok) return { body: null, hash: null };
+    if (!res.ok) {
+      await discardResponse(res);
+      return { body: null, hash: null };
+    }
     const body = await res.text();
     return { body, hash: crypto.createHash('sha256').update(body).digest('hex') };
   } finally {
@@ -59,7 +63,10 @@ export async function submitIndexNow(domain, urls) {
     headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${key}` },
     body,
   });
-  if (res.status === 200) return { ok: true, urls: urls.length };
+  if (res.status === 200) {
+    await discardResponse(res);
+    return { ok: true, urls: urls.length };
+  }
   const text = await res.text().catch(() => '');
   return { ok: false, status: res.status, message: text.slice(0, 200) };
 }

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { loadServerConfig } from './runtime.js';
 import { withDatabasePoolDefaults } from './lib/database-pool.js';
+import { memorySample } from './lib/memory-diagnostics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,15 +61,7 @@ export async function startAppServer() {
     console.log(`[nibgate] Backend running on port ${port}`);
     if (process.env.NIBGATE_MEMORY_DIAGNOSTICS !== 'false') {
       const reportMemory = () => {
-        const { rss, heapUsed, heapTotal, external, arrayBuffers } = process.memoryUsage();
-        console.log('[nibgate] Memory:', JSON.stringify({
-          uptimeSec: Math.round(process.uptime()),
-          rssMiB: Math.round(rss / 1048576),
-          heapUsedMiB: Math.round(heapUsed / 1048576),
-          heapTotalMiB: Math.round(heapTotal / 1048576),
-          externalMiB: Math.round(external / 1048576),
-          arrayBuffersMiB: Math.round(arrayBuffers / 1048576),
-        }));
+        console.log('[nibgate] Memory:', JSON.stringify(memorySample()));
       };
       reportMemory();
       setInterval(reportMemory, 300_000).unref();

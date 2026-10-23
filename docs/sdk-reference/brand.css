@@ -272,6 +272,31 @@ body {
   text-underline-offset: 3px;
 }
 
+.prose :where(p, li, td, blockquote) {
+  color: #44423d !important;
+}
+
+.prose :where(strong, th, h4, h5, h6) {
+  color: #0a0a0a !important;
+}
+
+.prose strong,
+.prose th {
+  font-weight: 700 !important;
+}
+
+.prose :where(ul > li, ol > li)::marker {
+  color: #77736a !important;
+}
+
+.prose blockquote {
+  border-left-color: #7c9a6d !important;
+}
+
+.prose hr {
+  border-color: rgba(17, 17, 17, 0.14) !important;
+}
+
 #toc > div {
   width: 256px !important;
   padding-left: 16px !important;

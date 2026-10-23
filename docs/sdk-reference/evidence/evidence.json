@@ -3,7 +3,7 @@
   "summary": "Sourcey 3.9.0 generated and validated a source-mapped @nibgate/sdk 0.4.40 reference for 27 runtime NibgateClient methods plus the standalone validateResourceMetadata export at the pinned public commit. The additive Nextra production build passed and the official production routes are live.",
   "public_url": "https://docs.nibgate.xyz/sdk-reference",
   "publication_status": "published and verified on the official Nibgate documentation domain",
-  "receipt_ref": "runx:receipt:sha256:3e31504c89cde15256caa3d827800692195e0e13d4a62029e21190be0604ae32",
+  "receipt_ref": "runx:receipt:sha256:fd6cc3290a1e69bb1d929c02b7af5a5bbecb8c5eba0698909f5e919f2fd1787a",
   "receipt_file": "evidence/receipt.json",
   "report": "report.md",
   "artifacts": {
@@ -453,7 +453,7 @@
     "npm run check:examples",
     "npm exec -- tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext examples.ts",
     "npm run build (from docs/, exercising Sourcey prebuild, staging, Next.js and Pagefind)",
-    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-final-style-v5 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
+    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-final-color-v6 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
     "runx verify --receipt evidence/receipt.json --json"
   ],
   "observations": [
@@ -468,7 +468,7 @@
     "Production HTTP checks returned 200 for the Sourcey root, two representative API pages, Markdown output, llms.txt, JavaScript, CSS, search data, the Nextra home page, and the existing API reference page.",
     "Strict TypeScript checking without skipLibCheck failed on six references to two missing transfer types; the errors are preserved rather than hidden.",
     "Examples were compile-checked with skipLibCheck only because of those upstream declaration defects; no live wallet, RPC, payment, transfer, or financial operation was executed.",
-    "The sealed receipt reference is runx:receipt:sha256:3e31504c89cde15256caa3d827800692195e0e13d4a62029e21190be0604ae32 from the fresh successful v5 governed validation of the final reviewed styling and Nextra integration.",
+    "The sealed receipt reference is runx:receipt:sha256:fd6cc3290a1e69bb1d929c02b7af5a5bbecb8c5eba0698909f5e919f2fd1787a from the fresh successful v6 governed validation of the final reviewed styling, prose colors, and Nextra integration.",
     "The SDK package metadata declares MIT, while the pinned repository lacks a license text file; this remains a reviewer-visible acceptance risk."
   ],
   "source_hashes": {

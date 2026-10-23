@@ -62,7 +62,7 @@ pages, Markdown output, `llms.txt`, JavaScript, CSS, search data, the Nextra hom
 page, and its existing API reference page.
 
 The fresh successful governed validation is sealed as
-`runx:receipt:sha256:3e31504c89cde15256caa3d827800692195e0e13d4a62029e21190be0604ae32`.
+`runx:receipt:sha256:fd6cc3290a1e69bb1d929c02b7af5a5bbecb8c5eba0698909f5e919f2fd1787a`.
 The checked-in `evidence/receipt.json` and `evidence/runx-receipts/` tree make
 the signed root and child receipt publicly inspectable alongside this report.
 

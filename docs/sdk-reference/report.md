@@ -9,36 +9,36 @@ derived from the pinned TypeScript declarations and JavaScript implementation.
 
 ## Maintainer-facing findings
 
-1. `NibgateClient` declares 28 methods, but `createNibgate()` binds only 27.
+- `NibgateClient` declares 28 methods, but `createNibgate()` binds only 27.
    `validateResourceMetadata` is available as a standalone export and is not a
    client method at runtime. The declaration should remove that member or the
    runtime client should bind it.
-2. The public declaration refers to `NibgateTransferCheckoutOptions` and
+- The public declaration refers to `NibgateTransferCheckoutOptions` and
    `NibgateTransferCheckout`, but neither type is declared. A strict consumer
    type-check reports six `TS2304`/`TS2552` errors. The documentation examples
    therefore pass only with `skipLibCheck`, and the unfiltered compiler output
    is preserved in `evidence/upstream-types.txt`.
-3. `mountRatingUI` calls `.catch()` on `rateResource(...)`, although
+- `mountRatingUI` calls `.catch()` on `rateResource(...)`, although
    `rateResource` returns a boolean. A star-button click can therefore throw a
    `TypeError` after emitting the rating event.
-4. `NibgateRatingUiController.rate` is declared as an onchain-style method that
+- `NibgateRatingUiController.rate` is declared as an onchain-style method that
    accepts a resource and returns `ReturnType<typeof rateContentOnchain>`. The
    runtime controller accepts a rating value and calls the local event gate,
    returning a boolean. The public declaration and implementation describe
    different operations.
-5. `payWithPaymentSignature` accepts optional options in the declaration, but
+- `payWithPaymentSignature` accepts optional options in the declaration, but
    its no-signature path invokes `checkout(...)` without first verifying that a
    checkout callback exists. Calling the apparently valid zero-options form can
    fail with an unhelpful callback `TypeError`.
-6. The `self` success branch of `payWithPaymentSignature` returns a compact
+- The `self` success branch of `payWithPaymentSignature` returns a compact
    object with `self: true`, payment, resource, and status, while the declared
    success union requires payload and response. Consumers cannot accurately
    narrow this real result from the published type.
-7. Event methods return `false` both when an event is queued for a later hub
+- Event methods return `false` both when an event is queued for a later hub
    flush and when no browser window exists. This makes `false` ambiguous for
    callers; an explicit queued/no-browser result would make telemetry behavior
    easier to observe and test.
-8. The SDK package declares `MIT` in `packages/nibgate/package.json`, but the
+- The SDK package declares `MIT` in `packages/nibgate/package.json`, but the
    pinned repository contains no root or package-level `LICENSE` file. The
    package metadata is the available license evidence; adding the matching
    license text would make reuse terms independently verifiable.

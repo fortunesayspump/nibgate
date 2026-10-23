@@ -126,6 +126,12 @@ async function runManifestSyncSweep() {
   const retryAfter = new Date(Date.now() - retryAfterMs);
   const intervalMs = Number.parseInt(process.env.MANIFEST_SYNC_INTERVAL_MS || String(15 * 60 * 1000), 10);
   const normalAfter = new Date(Date.now() - intervalMs);
+  // Hosted Nibgate blogs already push content changes through the Hub link.
+  // Their periodic manifest scan is a recovery backstop, but every scan also
+  // wakes a sleeping blog API. Keep external sites on the normal cadence and
+  // let hosted blogs sleep between a much less frequent reconciliation pass.
+  const hostedIntervalMs = Number.parseInt(process.env.HOSTED_MANIFEST_SYNC_INTERVAL_MS || String(6 * 60 * 60 * 1000), 10);
+  const hostedAfter = new Date(Date.now() - hostedIntervalMs);
   const websites = await db.website.findMany({
     where: {
       deletedAt: null,
@@ -134,7 +140,16 @@ async function runManifestSyncSweep() {
       OR: [
         { lastScanStatus: null },
         { lastScanStatus: 'failed', lastScanAt: { lt: retryAfter } },
-        { lastScanStatus: { not: 'failed' }, lastScanAt: { lt: normalAfter } }
+        {
+          lastScanStatus: { not: 'failed' },
+          domain: { endsWith: '.nibgate.xyz' },
+          lastScanAt: { lt: hostedAfter }
+        },
+        {
+          lastScanStatus: { not: 'failed' },
+          NOT: { domain: { endsWith: '.nibgate.xyz' } },
+          lastScanAt: { lt: normalAfter }
+        }
       ]
     },
     orderBy: [

@@ -291,7 +291,7 @@ body > div {
 }
 
 .nextra-sidebar {
-  width: 280px !important;
+  width: 300px !important;
   border-right: 1px solid var(--nib-border-soft);
 }
 
@@ -478,6 +478,7 @@ body > div {
 }
 
 .nextra-toc {
+  width: 260px !important;
   background: var(--nib-page-bg) !important;
   color: var(--nib-page-muted) !important;
   border-left-color: var(--nib-border-soft) !important;

@@ -510,7 +510,7 @@ GRANT SELECT ("id","runId","kind","revision","removed","digest") ON "drnib"."Pri
 GRANT SELECT, INSERT, UPDATE ON "drnib"."PrivateToolCall" TO "drnib_private_canary_funding";
 GRANT SELECT ON "drnib"."PrivateToolBillingMetadata" TO "drnib_private_canary_funding";
 GRANT SELECT, INSERT, UPDATE ON "drnib"."PrivateWorkerLifecycle" TO "drnib_private_canary_watchdog";
-GRANT SELECT ("id","userId") ON "drnib"."ResearchRun" TO "drnib_private_canary_watchdog";
+GRANT SELECT ("id","userId","metadata") ON "drnib"."ResearchRun" TO "drnib_private_canary_watchdog";
 GRANT SELECT ("runId","status","leaseUntil") ON "drnib"."PrivateActionReceipt" TO "drnib_private_canary_watchdog";
 COMMIT;
 -- Roles are NOLOGIN. Provision independent credentials out of band only after review.

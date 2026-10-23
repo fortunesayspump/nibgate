@@ -53,6 +53,12 @@ body {
   font-family: var(--font-sans) !important;
 }
 
+/* Use the same native selection treatment as the Nextra guides. */
+#sourcey ::selection {
+  background: revert !important;
+  color: revert !important;
+}
+
 /* Keep the outer site canvas visible around the centered docs shell. */
 #page > span.fixed.inset-0 {
   display: none !important;
@@ -147,6 +153,14 @@ body {
   color: #44423d !important;
 }
 
+#navbar .sourcey-search-control:focus-visible {
+  border-color: rgba(231, 239, 228, 0.48) !important;
+  outline: none !important;
+  box-shadow:
+    0 0 0 3px rgba(124, 154, 109, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
 .sourcey-search-control kbd {
   display: none !important;
 }
@@ -203,7 +217,7 @@ body {
 }
 
 .nav-link.active {
-  font-weight: 600 !important;
+  font-weight: 500 !important;
 }
 
 #docs,
@@ -268,6 +282,7 @@ body {
 
 .prose a {
   color: #0a0a0a !important;
+  font-weight: 400 !important;
   text-decoration-color: #7c9a6d !important;
   text-underline-offset: 3px;
 }

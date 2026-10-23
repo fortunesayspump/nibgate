@@ -16,7 +16,7 @@ export function escrowConfig(env = process.env, network = null) {
   const deployments = {
     5042002: {
       core: env.ESCROW_CORE || '0x5135ae9be828be42b63f176848a7b720aedf4c58',
-      splitter: env.ESCROW_SPLITTER || '0xe6a0a29047147c65d2409bcb2501f7a0bab53ede',
+      splitter: env.ESCROW_SPLITTER || '0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef',
     },
     5042: {
       core: env.ESCROW_CORE || null,

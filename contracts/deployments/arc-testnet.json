@@ -61,15 +61,35 @@
   "escrow": {
     "core": "0x5135ae9be828be42b63f176848a7b720aedf4c58",
     "coreName": "AgenticCommerce (stock ERC-8183 ACPCore, vendored from erc8183/erc8183-reference)",
-    "splitter": "0xe6a0a29047147c65d2409bcb2501f7a0bab53ede",
-    "splitterName": "NibgateRunSplitter (keeper 0x796a0388B9C049481e69358cc08f162D19a0CD68, treasury 0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12, feeBps 100)",
-    "keeper": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
+    "splitter": "0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef",
+    "splitterName": "NibgateRunSplitter (keeper 0x5C84D0Aa9f1D2b1c4029B0C9Bc4fCE3D70fbc44E, treasury 0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12, feeBps 100)",
+    "keeper": "0x5C84D0Aa9f1D2b1c4029B0C9Bc4fCE3D70fbc44E",
     "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
     "feeBps": 100,
     "usdc": "0x3600000000000000000000000000000000000000",
     "deployedAt": "2026-10-03",
-    "deployer": "0x18EAd9E603a6DE3F7448d6A6c32A56311Ea0754c",
+    "deployer": "0x5C84D0Aa9f1D2b1c4029B0C9Bc4fCE3D70fbc44E",
     "proofLifecycleTx": "0xcb6af3b8c6b0765e244f1256c7066bde328db0751f2d2462d91f3685a74b8a9e",
-    "proof": "job 10: .05 funded, .03 spent, split 17820 operator / 180 treasury / 12000 client refund"
-  }
+    "proof": "job 10: .05 funded, .03 spent, split 17820 operator / 180 treasury / 12000 client refund",
+    "splitterTx": "0x0f237ec659449f95e5ffc4aaf8e144b9dc008bbedae3539dfa13467388e700a5",
+    "migratedAt": "2026-10-23T11:17:15.192Z",
+    "previousSplitter": "0xE6A0a29047147C65d2409BCb2501F7A0BaB53EDe"
+  },
+  "escrowHistory": [
+    {
+      "core": "0x5135ae9be828be42b63f176848a7b720aedf4c58",
+      "coreName": "AgenticCommerce (stock ERC-8183 ACPCore, vendored from erc8183/erc8183-reference)",
+      "splitter": "0xe6a0a29047147c65d2409bcb2501f7a0bab53ede",
+      "splitterName": "NibgateRunSplitter (keeper 0x796a0388B9C049481e69358cc08f162D19a0CD68, treasury 0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12, feeBps 100)",
+      "keeper": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
+      "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+      "feeBps": 100,
+      "usdc": "0x3600000000000000000000000000000000000000",
+      "deployedAt": "2026-10-03",
+      "deployer": "0x18EAd9E603a6DE3F7448d6A6c32A56311Ea0754c",
+      "proofLifecycleTx": "0xcb6af3b8c6b0765e244f1256c7066bde328db0751f2d2462d91f3685a74b8a9e",
+      "proof": "job 10: .05 funded, .03 spent, split 17820 operator / 180 treasury / 12000 client refund",
+      "retiredForNewAdmissionsAt": "2026-10-23T11:17:15.190Z"
+    }
+  ]
 }

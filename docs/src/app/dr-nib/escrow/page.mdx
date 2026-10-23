@@ -63,7 +63,9 @@ New job parameters are withheld if the contracts are missing, the RPC is on the 
 
 | Network | Stock ERC-8183 core | NibgateRunSplitter (100 bps) | Funded runs |
 |---|---|---|---|
-| Arc testnet | `0x5135ae9be828be42b63f176848a7b720aedf4c58` | `0xe6a0a29047147c65d2409bcb2501f7a0bab53ede` | Enabled |
+| Arc testnet | `0x5135ae9be828be42b63f176848a7b720aedf4c58` | `0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef` | Enabled |
 | Arc mainnet | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3` | Enabled |
 
 USDC on Arc is `0x3600000000000000000000000000000000000000` (6 decimals) on both networks. The escrow locks the funded amount; the splitter distributes the ledger-attested charge and returns the remainder. Partial funding aligns the working cap to the confirmed deposit. Jobs are one-shot: a settled deposit cannot be reused or topped up to continue spending.
+
+The previous Arc testnet splitter remains recorded for historical settlement verification. New testnet jobs use the address above and its replacement keeper; existing jobs are always reconciled against the splitter stored with that job.

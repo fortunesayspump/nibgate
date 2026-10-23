@@ -2,7 +2,7 @@
   "receipt_dir": "evidence/runx-receipts",
   "trees": [
     {
-      "root_receipt_id": "sha256:fd6cc3290a1e69bb1d929c02b7af5a5bbecb8c5eba0698909f5e919f2fd1787a",
+      "root_receipt_id": "sha256:3e31504c89cde15256caa3d827800692195e0e13d4a62029e21190be0604ae32",
       "receipt_count": 2,
       "valid": true,
       "findings": []

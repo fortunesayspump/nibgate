@@ -18,8 +18,9 @@ const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) retur
 // deploys) — the formula never changes, only the constants get pinned.
 
 // Contract status: canonical factories deployed with payer-refund support —
-// Arc testnet 2026-09-28 (owner/keeper 0x796a…), Arc mainnet 2026-09-28
-// (owner treasury 0x558e…, hub keeper 0x0Ac8…). Owner can rotate the keeper;
+// Arc testnet 2026-09-28 (owner 0x796a…, keeper rotated to 0xA0B9…),
+// Arc mainnet 2026-09-28 (owner treasury 0x558e…, keeper rotated to
+// 0xb518…). Owner can rotate the keeper;
 // keeper relays hub-verified release/refund. The formula never changes, only
 // the constants.
 export const HOLDING_DEPLOYMENTS = {

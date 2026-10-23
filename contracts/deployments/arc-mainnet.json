@@ -56,29 +56,62 @@
   "escrow": {
     "core": "0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037",
     "coreTx": "0xa3d9fa4f6dc78207826f167dd5ec7da992021af0d0215f75daf95e61ae50a914",
-    "splitter": "0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3",
-    "splitterTx": "0xa90286744ae9386e787624f4fda3ebeacec194b16426483a87ea820178cd1272",
-    "keeper": "0x0Ac8d8B89ABae8f3C6DDa223f7619EE5f6885132",
+    "splitter": "0x1Ad56C6d8b85ac7167a227a3a520Eb5aD349a628",
+    "splitterTx": "0xd9eee3197b4c1975bf1a06ad927a883e14239d36f4189aaa22846886ec3d75b9",
+    "keeper": "0xBe2DefBe3813aF54D9E1A85652A644398cAaAb9B",
     "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
     "feeBps": 100,
     "usdc": "0x3600000000000000000000000000000000000000",
-    "deployer": "0xcFb002E077d76F89148C5416e3CFAdaBfa12E69c",
-    "deployedAt": "2026-10-15T00:22:04.018Z"
+    "deployer": "0xBe2DefBe3813aF54D9E1A85652A644398cAaAb9B",
+    "deployedAt": "2026-10-15T00:22:04.018Z",
+    "migratedAt": "2026-10-23T11:44:02.515Z",
+    "previousSplitter": "0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3"
   },
   "legacySpender": {
     "address": "0x41f626737f65F33C898d001Abe8218BE89802AD5",
     "deployTx": "0xb8b67ede569a717eeedae238575851e0e4190d3c74659a517cf39c8cc47e2478",
-    "status": "superseded by open-recipient V2; unfunded and never routed"
+    "status": "superseded, unfunded, never routed; paused and custody rotated 2026-10-23",
+    "owner": "0x604748D14223199117D44117Cc3b304f52f7CE17",
+    "agent": "0x0A57a5D718bD3846E573CDc97ad2f53E37dD3684",
+    "paused": true,
+    "setAgentTx": "0x1760a431a017d0f087e7585ea2afe4eeb38e08c16f0e48f082fbae1b3d7e2b1d",
+    "transferOwnershipTx": "0x8fd30398b2b34bc70f1be4c275fcf439be7f3196d973e47360e25ac55be6e3a4"
   },
   "spenderV2": {
     "address": "0xae39444c91aE8F0b8cF0642A18A521b6D312061B",
     "deployTx": "0x644e4049541a697384928119ea232ea3abc91583a01222361b052d3e20fdf412",
-    "owner": "0x0Ac8d8B89ABae8f3C6DDa223f7619EE5f6885132",
-    "agent": "0x7BDfE66e91bd1A502DD1Cb8Bd9417e1066c4c365",
+    "owner": "0x604748D14223199117D44117Cc3b304f52f7CE17",
+    "agent": "0x0A57a5D718bD3846E573CDc97ad2f53E37dD3684",
     "dailyCap": "2000000",
     "restrictRecipients": false,
     "fundTx": "0xe6aa683e648d0263392c3e63af3791517a2d2a3a46c8d6364b300715c62b7fea",
     "initialFloatUSDC": "0.05",
-    "status": "deployed and funded; worker routing configured, live tip pending"
+    "status": "paused for custody migration; owner and agent rotated 2026-10-23",
+    "paused": true,
+    "setAgentTx": "0x68354bc842658735ae2732a86f6f506d8bea35d50b2838c276bb68d32b4521c6",
+    "transferOwnershipTx": "0xbf5799a4fc09a881efb163e5c610addb736209922eb74b528998a8c7f21872de"
+  },
+  "escrowHistory": [
+    {
+      "core": "0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037",
+      "coreTx": "0xa3d9fa4f6dc78207826f167dd5ec7da992021af0d0215f75daf95e61ae50a914",
+      "splitter": "0x68A1E5797A4D661308A51Aa54010aDEA73aa36D3",
+      "splitterTx": "0xa90286744ae9386e787624f4fda3ebeacec194b16426483a87ea820178cd1272",
+      "keeper": "0x0Ac8d8B89ABae8f3C6DDa223f7619EE5f6885132",
+      "treasury": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+      "feeBps": 100,
+      "usdc": "0x3600000000000000000000000000000000000000",
+      "deployer": "0xcFb002E077d76F89148C5416e3CFAdaBfa12E69c",
+      "deployedAt": "2026-10-15T00:22:04.018Z",
+      "retiredForNewAdmissionsAt": "2026-10-23T11:44:02.515Z"
+    }
+  ],
+  "tipHolding": {
+    "factory": "0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87",
+    "owner": "0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12",
+    "keeper": "0xb5185d636B6C69aaD512a7ACF1bb9cE23310a6e5",
+    "keeperRotationTx": "0xd9ac90b582f6deb890d1a92de3fb221e4d7d92274728a0cdc62ecf037cd1ff2a",
+    "keeperRotationBlock": 27450262,
+    "rotatedAt": "2026-10-23"
   }
 }

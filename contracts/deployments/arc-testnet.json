@@ -91,5 +91,12 @@
       "proof": "job 10: .05 funded, .03 spent, split 17820 operator / 180 treasury / 12000 client refund",
       "retiredForNewAdmissionsAt": "2026-10-23T11:17:15.190Z"
     }
-  ]
+  ],
+  "tipHolding": {
+    "factory": "0xf127a645d7C02a12E0a93B135F8aCF9c3332E518",
+    "owner": "0x796a0388B9C049481e69358cc08f162D19a0CD68",
+    "keeper": "0xA0B9Eae592cC3229519744D39d7b67eFb94bd894",
+    "keeperRotationTx": "0x90837f098234667bab6118b7bead48518f5ea4f181bc328b593644c312a6e042",
+    "rotatedAt": "2026-10-23"
+  }
 }

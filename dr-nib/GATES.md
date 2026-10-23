@@ -16,7 +16,7 @@ gate, the bypass analysis, and the build order for what is missing.
 | 0.5 Injected state | `crossCheckRpc` primary-vs-backup before every spend | backend, active only with `DRNIB_RPC_BACKUP` | single-RPC deploys skip it | PARTIAL |
 | 1 Wallet policy | — | — | any backend compromise signs freely | **MISSING** |
 | 2 Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) + funding floor (≥ plan estimate) + one-shot deposits + cap aligned to deposit | contract, keeper key | keeper key compromise | ENFORCED (testnet and mainnet; funded mainnet job 1 split/refunded) |
-| 2 Spend mandate (direct creator tips) | `NibgateSpenderV2` (owner=keeper, agent=hot key, daily cap + optional restriction + pause) | contract (testnet and mainnet) | agent-key compromise can spend to any address up to cap; EOA-funded Gateway and held-tip flows are outside the mandate | PARTIAL (both funded and routing configured; live-tip receipt pending) |
+| 2 Spend mandate (direct creator tips) | `NibgateSpenderV2` (separate owner and agent, daily cap + optional restriction + pause) | contract (testnet and mainnet) | agent-key compromise can spend to any address up to cap while unpaused; EOA-funded Gateway and held-tip flows are outside the mandate | PAUSED (both networks contained and custody-rotated on 23 Oct 2026; do not resume until the private backend passes acceptance) |
 | 3 Builder | — | Arc sequencer (not ours) | out of scope | NONE |
 
 Procedural boundary in force until Gate 1 lands: the agent hot wallet holds

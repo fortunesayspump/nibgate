@@ -1,5 +1,11 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-23 — custody rotation containment
+
+- Both current and legacy spenders on Arc testnet and mainnet were paused, then moved to separate replacement owner and agent wallets. RPC readback confirmed the new roles and `paused=true`; the old worker/keeper keys no longer control these mandates.
+- The Arc testnet and mainnet held-tip factories retained their existing addresses and balances. Their rotatable keeper roles were changed to the replacement keepers. Mainnet transaction `0xd9ac90b582f6deb890d1a92de3fb221e4d7d92274728a0cdc62ecf037cd1ff2a` succeeded in block `27450262`, and `keeper()` readback returned the replacement address.
+- New immutable escrow splitters were deployed against the existing cores with replacement keepers. Previous splitter addresses remain recorded per job for historical settlement; the new mainnet splitter is not an accepted production route until private-backend acceptance completes.
+
 ## 2026-10-16 — paid-source and crash-recovery release check
 
 - Arc testnet run `b745554d-2e75-436e-85fd-b73f8af0ad28`, escrow job 36, previewed the Inkwell x402 quote, bought the named article for 0.50 test USDC after a JEV execute decision, used its actual body in a cited report, and split/refunded onchain. Total run spend was 0.594122028 and refund 0.405877972 from 1 test USDC. This run exposed a verifier passage bug and misleading report balance arithmetic; its report remains an immutable historical record.

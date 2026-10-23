@@ -1,9 +1,8 @@
 ---
-title: normalizeContentType
+title: client.normalizeContentType
 description: "Map aliases such as audio to music and pdf to document"
 ---
 
-# client.normalizeContentType
 
 Map aliases such as audio to music and pdf to document. Unknown or empty input falls back to article.
 

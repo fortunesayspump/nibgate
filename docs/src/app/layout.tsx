@@ -38,7 +38,8 @@ const navbar = (
   <Navbar
     logo={
       <span className="nib-docs-logo">
-        <img src="/brand/nibgate-wordmark.svg" alt="Nibgate" />
+        <img className="nib-docs-mark" src="/brand/nibgate-mark.svg" alt="" aria-hidden="true" />
+        <img className="nib-docs-wordmark" src="/brand/nibgate-wordmark.svg" alt="Nibgate" />
         <span>Docs</span>
       </span>
     }

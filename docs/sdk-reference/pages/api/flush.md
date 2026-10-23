@@ -1,9 +1,8 @@
 ---
-title: flush
+title: client.flush
 description: "Drain queued events only when the browser hub track function is available"
 ---
 
-# client.flush
 
 Drain queued events only when the browser hub track function is available. Returns true when at least one queued event was forwarded; false otherwise.
 

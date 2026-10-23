@@ -1,9 +1,8 @@
 ---
-title: payAndUnlockResource
+title: client.payAndUnlockResource
 description: "POST resource and optional payPayload to payPath (default /api/nibgate/pay)"
 ---
 
-# client.payAndUnlockResource
 
 POST resource and optional payPayload to payPath (default /api/nibgate/pay). Requires both HTTP success and payload.ok, stores proof, and marks the local gate unlocked. The server owns payment verification.
 

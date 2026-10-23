@@ -1,9 +1,8 @@
 ---
-title: createOnchainRating
+title: client.createOnchainRating
 description: "Bind rating controls to the onchain flow"
 ---
 
-# client.createOnchainRating
 
 Bind rating controls to the onchain flow. autoMount defaults true. Supply payment or getUnlockRef so ratings can reference a verified unlock; rate can request a wallet transaction.
 

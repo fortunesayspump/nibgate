@@ -1,9 +1,8 @@
 ---
-title: track
+title: client.track
 description: "Emit a custom event and payload"
 ---
 
-# client.track
 
 Emit a custom event and payload. Resource defaults are not automatically attached to this method.
 

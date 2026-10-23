@@ -1,9 +1,8 @@
 ---
-title: setupResourcePage
+title: client.setupResourcePage
 description: "Track the page and optionally bind a button to checkResourceAccess"
 ---
 
-# client.setupResourcePage
 
 Track the page and optionally bind a button to checkResourceAccess. The browser handler disables the button while awaiting access; it does not render the protected payload for you.
 

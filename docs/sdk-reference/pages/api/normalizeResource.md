@@ -1,9 +1,8 @@
 ---
-title: normalizeResource
+title: client.normalizeResource
 description: "Merge client resource defaults and normalize identity, type, price, access, unlock and discovery fields"
 ---
 
-# client.normalizeResource
 
 Merge client resource defaults and normalize identity, type, price, access, unlock and discovery fields. In a browser, missing metadata may derive from document tags. This is normalization, not authorization.
 

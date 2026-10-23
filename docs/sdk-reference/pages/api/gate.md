@@ -1,9 +1,8 @@
 ---
-title: gate
+title: client.gate
 description: "Create a resource-scoped event and local unlock controller"
 ---
 
-# client.gate
 
 Create a resource-scoped event and local unlock controller. Local unlock state is a UI convenience; enforce paid access on the server.
 

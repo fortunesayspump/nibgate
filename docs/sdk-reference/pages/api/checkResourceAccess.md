@@ -1,9 +1,8 @@
 ---
-title: checkResourceAccess
+title: client.checkResourceAccess
 description: "Fetch the access route (default /api/nibgate/access)"
 ---
 
-# client.checkResourceAccess
 
 Fetch the access route (default /api/nibgate/access). A 402 returns a challenge unless checkout or autoPay is configured. Network errors reject; inspect result.ok before using protected payload.
 

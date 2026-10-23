@@ -1,9 +1,8 @@
 ---
-title: unlockCompleted
+title: client.unlockCompleted
 description: "Emit unlock_completed after your verified flow"
 ---
 
-# client.unlockCompleted
 
 Emit unlock_completed after your verified flow. The client method only emits; gate.unlockCompleted also marks local state.
 

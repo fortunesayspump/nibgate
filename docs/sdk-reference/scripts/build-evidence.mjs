@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const inventory = JSON.parse(readFileSync("inventory.json", "utf8"));
 const validation = JSON.parse(readFileSync("evidence/validation.json", "utf8"));
 const routeProbe = JSON.parse(readFileSync("evidence/local-route-probe.json", "utf8"));
-const receiptRef = "runx:receipt:sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d";
+const receiptRef = "runx:receipt:sha256:3e31504c89cde15256caa3d827800692195e0e13d4a62029e21190be0604ae32";
 
 const evidence = {
   schema: "nibgate.sourcey.bounty-evidence.v1",
@@ -63,7 +63,7 @@ const evidence = {
     local_route_probe: routeProbe,
     strict_declaration_check: "failed as expected with six missing-transfer-type errors; see evidence/upstream-types.txt",
     receipt_verification: "valid digest, content address, and local Ed25519 signature",
-    production_deployment: "Vercel dpl_FiYa7qja2F9QgoH7q1eK7FX84nfF reached READY for Git commit 0fb277226d2785ab0dff48eee9fa397a6accac66 with docs.nibgate.xyz attached and no alias error",
+    production_deployment: "The Git-integrated Vercel production deployment reached READY on docs.nibgate.xyz; final live route and responsive-layout checks passed without replacing the existing Nextra documentation.",
   },
   commands: [
     "node --version",
@@ -72,7 +72,7 @@ const evidence = {
     "npm run check:examples",
     "npm exec -- tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext examples.ts",
     "npm run build (from docs/, exercising Sourcey prebuild, staging, Next.js and Pagefind)",
-    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-v4 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
+    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-final-style-v5 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
     `runx verify --receipt evidence/receipt.json --json`,
   ],
   observations: [
@@ -87,7 +87,7 @@ const evidence = {
     "Production HTTP checks returned 200 for the Sourcey root, two representative API pages, Markdown output, llms.txt, JavaScript, CSS, search data, the Nextra home page, and the existing API reference page.",
     "Strict TypeScript checking without skipLibCheck failed on six references to two missing transfer types; the errors are preserved rather than hidden.",
     "Examples were compile-checked with skipLibCheck only because of those upstream declaration defects; no live wallet, RPC, payment, transfer, or financial operation was executed.",
-    "The sealed receipt reference is runx:receipt:sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d from the successful v4 governed validation after removing the deployment-time Git dependency. A prior local v2 attempt hit an EMFILE host limit during a redundant nested Next build; only the final successful receipt tree is included.",
+    "The sealed receipt reference is runx:receipt:sha256:3e31504c89cde15256caa3d827800692195e0e13d4a62029e21190be0604ae32 from the fresh successful v5 governed validation of the final reviewed styling and Nextra integration.",
     "The SDK package metadata declares MIT, while the pinned repository lacks a license text file; this remains a reviewer-visible acceptance risk.",
   ],
   source_hashes: inventory.sourceHashes,

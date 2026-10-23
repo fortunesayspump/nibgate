@@ -1,9 +1,8 @@
 ---
-title: registerContent
+title: client.registerContent
 description: "Alias behavior for content: emits content_registered"
 ---
 
-# client.registerContent
 
 Alias behavior for content: emits content_registered. This event does not itself publish content or verify domain ownership.
 

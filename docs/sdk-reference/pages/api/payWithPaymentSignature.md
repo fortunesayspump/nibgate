@@ -1,9 +1,8 @@
 ---
-title: payWithPaymentSignature
+title: client.payWithPaymentSignature
 description: "Submit a supplied payment signature or invoke checkout/createPaymentSignature, then verify through the access route"
 ---
 
-# client.payWithPaymentSignature
 
 Submit a supplied payment signature or invoke checkout/createPaymentSignature, then verify through the access route. Supply one of these: omitting all causes a callback error. Stores unlock proof on verified success.
 

@@ -1,9 +1,8 @@
 ---
-title: ratingMessage
+title: client.ratingMessage
 description: "Produce the canonical rating message with normalized resource defaults"
 ---
 
-# client.ratingMessage
 
 Produce the canonical rating message with normalized resource defaults. This is text to sign, not a signature or onchain submission.
 

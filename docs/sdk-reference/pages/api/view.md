@@ -1,9 +1,8 @@
 ---
-title: view
+title: client.view
 description: "Emit resource_view"
 ---
 
-# client.view
 
 Emit resource_view. Supply extra context such as source; normalization attaches the resource.
 

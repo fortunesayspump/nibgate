@@ -116,12 +116,19 @@ body {
 .nib-docs-logo {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
 }
 
-.nib-docs-logo img {
+.nib-docs-logo .nib-docs-mark {
   display: block;
-  width: 124px;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.nib-docs-logo .nib-docs-wordmark {
+  display: block;
+  width: 140px;
   height: auto;
   transform: translateY(3px);
 }
@@ -464,6 +471,12 @@ body > div {
   background: var(--nib-surface) !important;
 }
 
+.nextra-sidebar + div th,
+.nextra-sidebar + div td {
+  padding: 14px 18px !important;
+  text-align: left !important;
+}
+
 .nextra-toc {
   background: var(--nib-page-bg) !important;
   color: var(--nib-page-muted) !important;
@@ -512,8 +525,21 @@ body > div {
     padding-right: 20px !important;
   }
 
-  .nib-docs-logo img {
-    width: 108px !important;
+  .nib-docs-logo .nib-docs-mark {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .nib-docs-logo {
+    gap: 6px;
+  }
+
+  .nib-docs-logo .nib-docs-wordmark {
+    width: 124px !important;
+  }
+
+  .nib-docs-logo > span {
+    display: none;
   }
 
   .nextra-sidebar + div main {

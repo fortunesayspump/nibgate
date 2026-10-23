@@ -1,9 +1,8 @@
 ---
-title: mountRatingUI
+title: client.mountRatingUI
 description: "Mount a five-star telemetry UI, or return null without a browser/target"
 ---
 
-# client.mountRatingUI
 
 Mount a five-star telemetry UI, or return null without a browser/target. Known v0.4.40 bug: star click invokes .catch on the boolean returned by rateResource. Controller rate signature also differs from its declaration; prefer rateResource until fixed.
 

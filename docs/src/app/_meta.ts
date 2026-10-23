@@ -48,6 +48,10 @@ export default {
     title: "Reference",
   },
   "api-reference": "API reference",
+  "sdk-reference": {
+    title: "SDK reference",
+    href: "/sdk-reference",
+  },
   examples: "Examples",
   roadmap: "Roadmap",
 };

@@ -1,9 +1,8 @@
 ---
-title: createEvmGatewayUnlock
+title: client.createEvmGatewayUnlock
 description: "Create the Arc Gateway UI controller"
 ---
 
-# client.createEvmGatewayUnlock
 
 Create the Arc Gateway UI controller. Select the intended network explicitly (default is Arc Testnet). autoMount defaults true. Retain unresolved proofs and use retryVerification instead of authorizing another payment; destroy removes listeners.
 

@@ -1,9 +1,8 @@
 ---
-title: createCircleGatewayBrowserAdapter
+title: client.createCircleGatewayBrowserAdapter
 description: "Lazily import the Gateway adapter"
 ---
 
-# client.createCircleGatewayBrowserAdapter
 
 Lazily import the Gateway adapter. Supply signer or getSigner; the adapter signs typed data when pay is invoked. No payment is performed merely by creating it.
 

@@ -1,9 +1,8 @@
 ---
-title: unlockStarted
+title: client.unlockStarted
 description: "Emit unlock_started; this is telemetry and does not initiate payment."
 ---
 
-# client.unlockStarted
 
 Emit unlock_started; this is telemetry and does not initiate payment.
 

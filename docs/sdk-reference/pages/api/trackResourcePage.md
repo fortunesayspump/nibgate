@@ -1,9 +1,8 @@
 ---
-title: trackResourcePage
+title: client.trackResourcePage
 description: "Validate metadata, emit content and view events, and return a gate"
 ---
 
-# client.trackResourcePage
 
 Validate metadata, emit content and view events, and return a gate. Browser metadata warnings are enabled unless the implementation-only warn option is false.
 

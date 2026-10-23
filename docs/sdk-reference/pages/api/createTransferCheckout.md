@@ -1,9 +1,8 @@
 ---
-title: createTransferCheckout
+title: client.createTransferCheckout
 description: "Require sendTransfer (or transfer), then return a pay callback that converts its transaction hash into verification metadata"
 ---
 
-# client.createTransferCheckout
 
 Require sendTransfer (or transfer), then return a pay callback that converts its transaction hash into verification metadata. A server verifyTransfer hook must verify the real transfer. The exported TypeScript declaration references missing transfer types in v0.4.40.
 

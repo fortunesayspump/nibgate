@@ -3,7 +3,6 @@ title: validateResourceMetadata
 description: "Standalone export only at runtime in v0.4.40"
 ---
 
-# validateResourceMetadata
 
 Standalone export only at runtime in v0.4.40. The NibgateClient declaration incorrectly lists it as a method. Returns normalized resource, score, errors, warnings and ok; use this standalone import.
 

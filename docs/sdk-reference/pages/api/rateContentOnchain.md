@@ -1,9 +1,8 @@
 ---
-title: rateContentOnchain
+title: client.rateContentOnchain
 description: "Request an EVM account, prepare the content hash, switch to Arc, and send a rating transaction"
 ---
 
-# client.rateContentOnchain
 
 Request an EVM account, prepare the content hash, switch to Arc, and send a rating transaction. Returns a submitted txHash, not a finality guarantee; emits onchain_pending telemetry. Requires a valid rating and configured contract/provider.
 

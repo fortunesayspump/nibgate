@@ -1,9 +1,8 @@
 ---
-title: createWalletCheckout
+title: client.createWalletCheckout
 description: "Create an unlock controller around a required checkout/createPaymentSignature/pay callback"
 ---
 
-# client.createWalletCheckout
 
 Create an unlock controller around a required checkout/createPaymentSignature/pay callback. mount binds the button; unlock checks access and invokes checkout only after a challenge.
 

@@ -1,9 +1,8 @@
 ---
-title: createHostedUnlock
+title: client.createHostedUnlock
 description: "Wrap createEvmGatewayUnlock with hosted: true"
 ---
 
-# client.createHostedUnlock
 
 Wrap createEvmGatewayUnlock with hosted: true. The selected network chooses api.nibgate.xyz/hub/pay or testnet-api.nibgate.xyz/hub/pay; an explicit non-hosted accessPath still takes precedence.
 

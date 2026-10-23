@@ -1,9 +1,8 @@
 ---
-title: payWithTransfer
+title: client.payWithTransfer
 description: "Invoke a transfer checkout, obtain its transaction hash, optionally sign ownership, and call the access verifier"
 ---
 
-# client.payWithTransfer
 
 Invoke a transfer checkout, obtain its transaction hash, optionally sign ownership, and call the access verifier. Hosted verification needs ownership proof; a public hash alone is insufficient. Transfer option/result type declarations are missing in v0.4.40.
 

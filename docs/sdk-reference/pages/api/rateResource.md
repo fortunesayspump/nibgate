@@ -1,9 +1,8 @@
 ---
-title: rateResource
+title: client.rateResource
 description: "Normalize a rating and emit content_rating"
 ---
 
-# client.rateResource
 
 Normalize a rating and emit content_rating. Returns a boolean, not a Promise, and does not send an onchain transaction.
 

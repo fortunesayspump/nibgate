@@ -3,8 +3,6 @@ title: SDK reference
 description: Source-mapped Nibgate SDK 0.4.40 reference.
 ---
 
-# Nibgate SDK reference
-
 A source-generated companion to the [Nibgate guides](https://docs.nibgate.xyz). Covers **27 implemented client methods and one standalone metadata validator**, extracted from SDK 0.4.40 at [345fc04](https://github.com/fortunesayspump/nibgate/tree/345fc04b984f01366cbe2a9f4064f22268d5d3f6/).
 
 Built with Sourcey 3.9.0 using its Markdown adapter. Exact signatures come from the TypeScript declarations; behavior notes and examples are checked against the JavaScript implementation. This is a selected browser SDK reference, not full coverage of server, tracking, testing, wallet or tip APIs.

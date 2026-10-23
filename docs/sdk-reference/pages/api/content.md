@@ -1,9 +1,8 @@
 ---
-title: content
+title: client.content
 description: "Emit content_registered with normalized resource metadata"
 ---
 
-# client.content
 
 Emit content_registered with normalized resource metadata. Returns true only when the browser hub receives it immediately; false may mean queued or no browser.
 

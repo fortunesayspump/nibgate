@@ -1,9 +1,8 @@
 ---
-title: paymentCompleted
+title: client.paymentCompleted
 description: "Emit payment_completed after verification"
 ---
 
-# client.paymentCompleted
 
 Emit payment_completed after verification. This method reports a payment; it does not transfer funds or verify a receipt.
 

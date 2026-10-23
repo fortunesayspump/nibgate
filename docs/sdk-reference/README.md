@@ -32,12 +32,12 @@ The successful run used:
 
 ```sh
 runx skill ./runx-validator \
-  --run-id nibgate-sourcey-345fc04b-v3 \
+  --run-id nibgate-sourcey-345fc04b-v4 \
   -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 \
   --json
 ```
 
-Receipt: `sha256:6a7ed41dffed02af7ff9b2e3d64a4aec1a194549a31db84677132b5b924df7eb`.
+Receipt: `sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d`.
 The complete two-receipt tree is in `evidence/runx-receipts/`, with the root
 also copied to `evidence/receipt.json`.
 

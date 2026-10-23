@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const inventory = JSON.parse(readFileSync("inventory.json", "utf8"));
 const validation = JSON.parse(readFileSync("evidence/validation.json", "utf8"));
 const routeProbe = JSON.parse(readFileSync("evidence/local-route-probe.json", "utf8"));
-const receiptRef = "sha256:6a7ed41dffed02af7ff9b2e3d64a4aec1a194549a31db84677132b5b924df7eb";
+const receiptRef = "sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d";
 
 const evidence = {
   schema: "nibgate.sourcey.bounty-evidence.v1",
@@ -72,13 +72,13 @@ const evidence = {
     "npm run check:examples",
     "npm exec -- tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext examples.ts",
     "npm run build (from docs/, exercising Sourcey prebuild, staging, Next.js and Pagefind)",
-    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-v3 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
+    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-v4 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
     `runx verify --receipt evidence/receipt.json --json`,
   ],
   observations: [
     "runx --version output: runx-cli 0.10.2",
     "Node.js output: v22.22.0, satisfying Sourcey README's Node 22.19+ requirement.",
-    "The public source is pinned to 345fc04b984f01366cbe2a9f4064f22268d5d3f6; the generator rejects any checked source file that differs from git show at that commit.",
+    "The public source is pinned to 345fc04b984f01366cbe2a9f4064f22268d5d3f6; the generator rejects any checked source file that differs from the 14-file SHA-256 manifest derived from that commit.",
     "Sourcey built 30 navigable pages, including 28 documented API entries: 27 runtime client methods and one standalone helper.",
     "The generated inventory maps every documented API to a declaration line and implementation source; 14 distinct pinned source files were hashed.",
     "Validation checked 1,106 local href/src references and all 28 API pages for name, pinned commit, and example content.",
@@ -86,7 +86,7 @@ const evidence = {
     "Local requests returned HTTP 200 for /sdk-reference, a generated API page, and a generated Sourcey asset.",
     "Strict TypeScript checking without skipLibCheck failed on six references to two missing transfer types; the errors are preserved rather than hidden.",
     "Examples were compile-checked with skipLibCheck only because of those upstream declaration defects; no live wallet, RPC, payment, transfer, or financial operation was executed.",
-    "The receipt reference is from the successful v3 governed validation. A prior local v2 attempt hit an EMFILE host limit during a redundant nested Next build; only the successful v3 receipt tree is included.",
+    "The receipt reference is from the successful v4 governed validation after removing the deployment-time Git dependency. A prior local v2 attempt hit an EMFILE host limit during a redundant nested Next build; only the final successful receipt tree is included.",
     "The SDK package metadata declares MIT, while the pinned repository lacks a license text file; this remains a reviewer-visible acceptance risk.",
   ],
   source_hashes: inventory.sourceHashes,

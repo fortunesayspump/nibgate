@@ -2,3 +2,4 @@ node_modules/
 dist/
 .runx/
 evidence/runx-receipts/.receipt-store.lock
+evidence/runx-receipts-v4/

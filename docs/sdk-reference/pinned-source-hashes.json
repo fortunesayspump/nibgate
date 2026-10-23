@@ -1,0 +1,16 @@
+{
+  "packages/nibgate/src/index.d.ts": "df7837f7406d3b844554233fc21aec93d225277049ef55e9c83c60461f6b96ac",
+  "packages/nibgate/src/browser/client.js": "82ee7edb14c34ae1769e9d76b470b98985f652f8aeb0e5b90a2df1bebe939db2",
+  "packages/nibgate/package.json": "19697c832d962ddafdb4d5f598470b5817a4bfc8523b1a3215c08105816ff068",
+  "packages/nibgate/src/browser/gate.js": "de75fef128e7ea70d0405b9f9df53f4cd97574a500e2efa33784d8662431712b",
+  "packages/nibgate/src/browser/events.js": "513d1365e81526e49ff47c82fd765082dfabfd48d9565448cc69c0048cb52746",
+  "packages/nibgate/src/browser/rating-ui.js": "fdfa348800288a41700cd4043be8b421a066677e5c95410375962e85d6f9c405",
+  "packages/nibgate/src/browser/track.js": "d28f4410302537a25b432ebc9bb1eb396eb9e03d9a4cb60574a914ac397823a1",
+  "packages/nibgate/src/browser/access.js": "c8d1091582886aefa1bed0846fe7b7e0a4f11d9b4b12027e7c7ef20c75b24191",
+  "packages/nibgate/src/browser/checkout.js": "f9b7f19f165d4eefd4e5b5ff97102f86730acf5dd4088dabe80f21b23bcae50c",
+  "packages/nibgate/src/browser/evm-gateway.js": "26606a5e13be920f057196cd1322529c51388fd902b7c84835d022b70d5b754b",
+  "packages/nibgate/src/browser/transfer.js": "6ac768c3ef7f7b1a4e3abf522676be70f0252d253b3c77317d779b04f6be8b77",
+  "packages/nibgate/src/browser/reputation.js": "9d8c469dde09221bb768e98292d52daf1b6e29d7381f7bf43ab4c7eeea7f78f5",
+  "packages/nibgate/src/core/rating.js": "15bec263d07a9a72dbabe4d463c82bf722914102bd4918bf7b800c8c3ff87cb9",
+  "packages/nibgate/src/core/resource.js": "5b43486bd5504458311eaf75c038f1cd5cd2be83bff5e75fe33ea4ebdcfdfb32"
+}

@@ -425,8 +425,13 @@ export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?
   if (!list.length) return null;
   const withEv = list.filter((c) => Array.isArray(c.passages) && c.passages.length > 0);
   const scored = withEv
-    .map((c) => ({ c, s: Number(c.passages[0]?.support ?? 0) }))
+    .map((c) => {
+      const raw = c.passages[0]?.support;
+      return { c, s: raw == null || raw === "" ? Number.NaN : Number(raw) };
+    })
+    .filter(({ s }) => Number.isFinite(s))
     .sort((a, b) => a.s - b.s);
+  const supportedWithEvidence = withEv.filter((c) => c.status === "supported");
   const unknown = list.filter((c) => c.status !== "supported");
   const byUrl = new Map<string, number>();
   for (const c of list) {
@@ -442,13 +447,17 @@ export function ReportQA({ claims, sources }: { claims?: any[]; sources?: { url?
       q: "Weakest claim?",
       a: () => scored.length
         ? `${fmt(scored[0].c)} — support ${(scored[0].s * 100).toFixed(0)}%${scored[0].c.status !== "supported" ? " (marked unknown, not asserted)" : ""}.`
-        : "No scored passages on this report — nothing to rank.",
+        : supportedWithEvidence.length
+          ? `All ${supportedWithEvidence.length} sampled claims with evidence are marked supported; this verify result did not include numeric passage scores, so there is no honest weakest ranking.`
+          : "No scored passages on this report — nothing to rank.",
     },
     {
       q: "Strongest support?",
       a: () => scored.length
         ? `${fmt(scored[scored.length - 1].c)} — support ${(scored[scored.length - 1].s * 100).toFixed(0)}%.`
-        : "No scored passages on this report — nothing to rank.",
+        : supportedWithEvidence.length
+          ? `All ${supportedWithEvidence.length} sampled claims with evidence are marked supported; this verify result did not include numeric passage scores, so there is no honest strongest ranking.`
+          : "No scored passages on this report — nothing to rank.",
     },
     {
       q: "What's unsupported?",

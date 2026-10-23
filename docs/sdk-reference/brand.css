@@ -590,10 +590,10 @@ body {
 @media (min-width: 1024px) {
   #page > div.max-w-\[92rem\] {
     display: grid !important;
-    grid-template-columns: 280px minmax(0, 1fr) !important;
+    grid-template-columns: 296px minmax(0, 1fr) !important;
     align-items: start !important;
     width: 100% !important;
-    max-width: 1440px !important;
+    max-width: 1472px !important;
     min-height: calc(100vh - 78px) !important;
     padding-inline: 0 !important;
     background: #f4f4f0 !important;
@@ -604,7 +604,7 @@ body {
     top: 78px !important;
     left: auto !important;
     grid-column: 1 !important;
-    width: 280px !important;
+    width: 296px !important;
     height: calc(100dvh - 78px) !important;
   }
 
@@ -617,7 +617,7 @@ body {
 
   #docs > div {
     display: grid !important;
-    grid-template-columns: minmax(0, 904px) 256px !important;
+    grid-template-columns: minmax(0, 904px) 272px !important;
     gap: 0 !important;
     width: 100% !important;
   }
@@ -636,8 +636,8 @@ body {
     top: 78px !important;
     grid-column: 2 !important;
     grid-row: 1 !important;
-    width: 256px !important;
-    max-width: 256px !important;
+    width: 272px !important;
+    max-width: 272px !important;
     height: calc(100dvh - 78px) !important;
     margin: 0 !important;
     padding-top: 22px !important;

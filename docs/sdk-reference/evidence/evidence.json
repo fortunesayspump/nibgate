@@ -1,0 +1,489 @@
+{
+  "schema": "nibgate.sourcey.bounty-evidence.v1",
+  "summary": "Sourcey 3.9.0 generated and validated a source-mapped @nibgate/sdk 0.4.40 reference for 27 runtime NibgateClient methods plus the standalone validateResourceMetadata export at the pinned public commit. The additive Nextra production build and local routing checks passed; production publication is intentionally pending review.",
+  "public_url": null,
+  "proposed_public_url": "https://docs.nibgate.xyz/sdk-reference",
+  "publication_status": "prepared and locally verified; not deployed",
+  "receipt_ref": "sha256:6a7ed41dffed02af7ff9b2e3d64a4aec1a194549a31db84677132b5b924df7eb",
+  "receipt_file": "evidence/receipt.json",
+  "report": "report.md",
+  "artifacts": {
+    "inventory": "inventory.json",
+    "validation": "evidence/validation.json",
+    "build_hashes": "evidence/build-hashes.json",
+    "strict_type_errors": "evidence/upstream-types.txt",
+    "nextra_build": "evidence/nextra-build.json",
+    "local_route_probe": "evidence/local-route-probe.json",
+    "receipt_verification": "evidence/receipt-verification.json"
+  },
+  "repository": {
+    "url": "https://github.com/fortunesayspump/nibgate",
+    "commit": "345fc04b984f01366cbe2a9f4064f22268d5d3f6",
+    "package": "@nibgate/sdk",
+    "version": "0.4.40",
+    "license": "MIT (package.json declaration)",
+    "license_note": "The pinned package.json declares MIT; the repository has no root or package-level LICENSE file at this commit.",
+    "recent_package_activity": "4bc912b7fd8ea0c232d2448c680f9face0246f0a committed 2026-10-20T23:17:54+01:00",
+    "tracked_package_source_files": 56
+  },
+  "sourcey": {
+    "version": "3.9.0",
+    "adapter": "markdown",
+    "config": "sourcey.config.ts",
+    "source_generation": "scripts/generate.mjs",
+    "command": "npm run build",
+    "base_url": "/sdk-reference",
+    "site_url": "https://docs.nibgate.xyz"
+  },
+  "coverage": {
+    "documented_api_pages": 28,
+    "runtime_client_methods": 27,
+    "standalone_functions": 1,
+    "declared_client_members": 28,
+    "discrepancy": "validateResourceMetadata is declared on NibgateClient but is only a standalone runtime export.",
+    "pages": [
+      {
+        "name": "gate",
+        "kind": "client-method",
+        "path": "pages/api/gate.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 98
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/gate.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "content",
+        "kind": "client-method",
+        "path": "pages/api/content.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 99
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "registerContent",
+        "kind": "client-method",
+        "path": "pages/api/registercontent.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 100
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "view",
+        "kind": "client-method",
+        "path": "pages/api/view.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 101
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "track",
+        "kind": "client-method",
+        "path": "pages/api/track.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 102
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "unlockStarted",
+        "kind": "client-method",
+        "path": "pages/api/unlockstarted.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 103
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "unlockCompleted",
+        "kind": "client-method",
+        "path": "pages/api/unlockcompleted.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 104
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "paymentCompleted",
+        "kind": "client-method",
+        "path": "pages/api/paymentcompleted.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 105
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      },
+      {
+        "name": "rateResource",
+        "kind": "client-method",
+        "path": "pages/api/rateresource.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 106
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/rating-ui.js",
+          "line": 10
+        }
+      },
+      {
+        "name": "trackResourcePage",
+        "kind": "client-method",
+        "path": "pages/api/trackresourcepage.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 107
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/track.js",
+          "line": 6
+        }
+      },
+      {
+        "name": "checkResourceAccess",
+        "kind": "client-method",
+        "path": "pages/api/checkresourceaccess.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 108
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/access.js",
+          "line": 9
+        }
+      },
+      {
+        "name": "payWithPaymentSignature",
+        "kind": "client-method",
+        "path": "pages/api/paywithpaymentsignature.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 109
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/access.js",
+          "line": 96
+        }
+      },
+      {
+        "name": "createWalletCheckout",
+        "kind": "client-method",
+        "path": "pages/api/createwalletcheckout.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 110
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/checkout.js",
+          "line": 19
+        }
+      },
+      {
+        "name": "createCircleGatewayBrowserAdapter",
+        "kind": "client-method",
+        "path": "pages/api/createcirclegatewaybrowseradapter.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 111
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/evm-gateway.js",
+          "line": 8
+        }
+      },
+      {
+        "name": "createTransferCheckout",
+        "kind": "client-method",
+        "path": "pages/api/createtransfercheckout.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 112
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/transfer.js",
+          "line": 5
+        }
+      },
+      {
+        "name": "payWithTransfer",
+        "kind": "client-method",
+        "path": "pages/api/paywithtransfer.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 113
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/transfer.js",
+          "line": 41
+        }
+      },
+      {
+        "name": "createEvmGatewayUnlock",
+        "kind": "client-method",
+        "path": "pages/api/createevmgatewayunlock.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 114
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/evm-gateway.js",
+          "line": 23
+        }
+      },
+      {
+        "name": "createHostedUnlock",
+        "kind": "client-method",
+        "path": "pages/api/createhostedunlock.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 115
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/evm-gateway.js",
+          "line": 475
+        }
+      },
+      {
+        "name": "rateContentOnchain",
+        "kind": "client-method",
+        "path": "pages/api/ratecontentonchain.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 116
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/reputation.js",
+          "line": 141
+        }
+      },
+      {
+        "name": "createOnchainRating",
+        "kind": "client-method",
+        "path": "pages/api/createonchainrating.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 117
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/rating-ui.js",
+          "line": 23
+        }
+      },
+      {
+        "name": "mountRatingUI",
+        "kind": "client-method",
+        "path": "pages/api/mountratingui.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 118
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/rating-ui.js",
+          "line": 110
+        }
+      },
+      {
+        "name": "payAndUnlockResource",
+        "kind": "client-method",
+        "path": "pages/api/payandunlockresource.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 119
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/access.js",
+          "line": 178
+        }
+      },
+      {
+        "name": "setupResourcePage",
+        "kind": "client-method",
+        "path": "pages/api/setupresourcepage.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 120
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/track.js",
+          "line": 22
+        }
+      },
+      {
+        "name": "ratingMessage",
+        "kind": "client-method",
+        "path": "pages/api/ratingmessage.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 121
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/core/rating.js",
+          "line": 16
+        }
+      },
+      {
+        "name": "normalizeResource",
+        "kind": "client-method",
+        "path": "pages/api/normalizeresource.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 122
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/core/resource.js",
+          "line": 113
+        }
+      },
+      {
+        "name": "validateResourceMetadata",
+        "kind": "standalone-function",
+        "path": "pages/api/validateresourcemetadata.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 123
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/core/resource.js",
+          "line": 168
+        }
+      },
+      {
+        "name": "normalizeContentType",
+        "kind": "client-method",
+        "path": "pages/api/normalizecontenttype.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 124
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/core/resource.js",
+          "line": 26
+        }
+      },
+      {
+        "name": "flush",
+        "kind": "client-method",
+        "path": "pages/api/flush.html",
+        "declaration": {
+          "path": "packages/nibgate/src/index.d.ts",
+          "line": 125
+        },
+        "implementation": {
+          "path": "packages/nibgate/src/browser/events.js",
+          "line": 1
+        }
+      }
+    ],
+    "limits": "Selected browser SDK surface; does not claim complete coverage of server, tracking, testing, wallet, tip, or internal helper exports."
+  },
+  "validation": {
+    "status": "passed",
+    "documentedApis": 28,
+    "clientMethods": 27,
+    "standaloneFunctions": 1,
+    "htmlFiles": 31,
+    "checkedLocalLinks": 1106,
+    "pinnedSourceFiles": 14,
+    "exampleTypecheck": "passed with skipLibCheck; missing upstream transfer types are not type-safe",
+    "pureHelperAssertions": 4,
+    "livePaymentsExecuted": false,
+    "sourcey_pages_reported_by_build": 30,
+    "nextra_production_build": "passed (56 static/dynamic routes generated; Pagefind indexed 50 pages)",
+    "local_route_probe": {
+      "server": "Next.js production build on http://127.0.0.1:3002",
+      "requests": [
+        {
+          "path": "/sdk-reference",
+          "status": 200,
+          "expected": "Sourcey SDK reference root through the Next.js rewrite"
+        },
+        {
+          "path": "/sdk-reference/pages/api/checkresourceaccess.html",
+          "status": 200,
+          "expected": "Generated API page with pinned source links and example"
+        },
+        {
+          "path": "/sdk-reference/_assets/14d9b82592c514f42972/sourcey.js",
+          "status": 200,
+          "expected": "Generated Sourcey client asset under the configured base path"
+        }
+      ],
+      "productionPublished": false
+    },
+    "strict_declaration_check": "failed as expected with six missing-transfer-type errors; see evidence/upstream-types.txt",
+    "receipt_verification": "valid digest, content address, and local Ed25519 signature"
+  },
+  "commands": [
+    "node --version",
+    "npm run build",
+    "npm test",
+    "npm run check:examples",
+    "npm exec -- tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext examples.ts",
+    "npm run build (from docs/, exercising Sourcey prebuild, staging, Next.js and Pagefind)",
+    "runx skill ./runx-validator --run-id nibgate-sourcey-345fc04b-v3 -i commit=345fc04b984f01366cbe2a9f4064f22268d5d3f6 --json",
+    "runx verify --receipt evidence/receipt.json --json"
+  ],
+  "observations": [
+    "runx --version output: runx-cli 0.10.2",
+    "Node.js output: v22.22.0, satisfying Sourcey README's Node 22.19+ requirement.",
+    "The public source is pinned to 345fc04b984f01366cbe2a9f4064f22268d5d3f6; the generator rejects any checked source file that differs from git show at that commit.",
+    "Sourcey built 30 navigable pages, including 28 documented API entries: 27 runtime client methods and one standalone helper.",
+    "The generated inventory maps every documented API to a declaration line and implementation source; 14 distinct pinned source files were hashed.",
+    "Validation checked 1,106 local href/src references and all 28 API pages for name, pinned commit, and example content.",
+    "The full existing Nextra production build passed after staging Sourcey under docs/public/sdk-reference; Pagefind indexed 50 existing Nextra pages.",
+    "Local requests returned HTTP 200 for /sdk-reference, a generated API page, and a generated Sourcey asset.",
+    "Strict TypeScript checking without skipLibCheck failed on six references to two missing transfer types; the errors are preserved rather than hidden.",
+    "Examples were compile-checked with skipLibCheck only because of those upstream declaration defects; no live wallet, RPC, payment, transfer, or financial operation was executed.",
+    "The receipt reference is from the successful v3 governed validation. A prior local v2 attempt hit an EMFILE host limit during a redundant nested Next build; only the successful v3 receipt tree is included.",
+    "The SDK package metadata declares MIT, while the pinned repository lacks a license text file; this remains a reviewer-visible acceptance risk."
+  ],
+  "source_hashes": {
+    "packages/nibgate/src/index.d.ts": "df7837f7406d3b844554233fc21aec93d225277049ef55e9c83c60461f6b96ac",
+    "packages/nibgate/src/browser/client.js": "82ee7edb14c34ae1769e9d76b470b98985f652f8aeb0e5b90a2df1bebe939db2",
+    "packages/nibgate/package.json": "19697c832d962ddafdb4d5f598470b5817a4bfc8523b1a3215c08105816ff068",
+    "packages/nibgate/src/browser/gate.js": "de75fef128e7ea70d0405b9f9df53f4cd97574a500e2efa33784d8662431712b",
+    "packages/nibgate/src/browser/events.js": "513d1365e81526e49ff47c82fd765082dfabfd48d9565448cc69c0048cb52746",
+    "packages/nibgate/src/browser/rating-ui.js": "fdfa348800288a41700cd4043be8b421a066677e5c95410375962e85d6f9c405",
+    "packages/nibgate/src/browser/track.js": "d28f4410302537a25b432ebc9bb1eb396eb9e03d9a4cb60574a914ac397823a1",
+    "packages/nibgate/src/browser/access.js": "c8d1091582886aefa1bed0846fe7b7e0a4f11d9b4b12027e7c7ef20c75b24191",
+    "packages/nibgate/src/browser/checkout.js": "f9b7f19f165d4eefd4e5b5ff97102f86730acf5dd4088dabe80f21b23bcae50c",
+    "packages/nibgate/src/browser/evm-gateway.js": "26606a5e13be920f057196cd1322529c51388fd902b7c84835d022b70d5b754b",
+    "packages/nibgate/src/browser/transfer.js": "6ac768c3ef7f7b1a4e3abf522676be70f0252d253b3c77317d779b04f6be8b77",
+    "packages/nibgate/src/browser/reputation.js": "9d8c469dde09221bb768e98292d52daf1b6e29d7381f7bf43ab4c7eeea7f78f5",
+    "packages/nibgate/src/core/rating.js": "15bec263d07a9a72dbabe4d463c82bf722914102bd4918bf7b800c8c3ff87cb9",
+    "packages/nibgate/src/core/resource.js": "5b43486bd5504458311eaf75c038f1cd5cd2be83bff5e75fe33ea4ebdcfdfb32"
+  }
+}

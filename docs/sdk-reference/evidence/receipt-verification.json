@@ -1,0 +1,13 @@
+{
+  "receipt_dir": "evidence/runx-receipts",
+  "trees": [
+    {
+      "root_receipt_id": "sha256:6a7ed41dffed02af7ff9b2e3d64a4aec1a194549a31db84677132b5b924df7eb",
+      "receipt_count": 2,
+      "valid": true,
+      "findings": []
+    }
+  ],
+  "unreadable_files": [],
+  "valid": true
+}

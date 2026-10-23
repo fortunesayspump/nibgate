@@ -1,0 +1,60 @@
+skill: validate-nibgate-sourcey-reference
+version: "1.0.0"
+
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+
+harness:
+  cases:
+    - name: pinned-reference-validation
+      runner: default
+      operator_journeys:
+        - mode: standalone
+          confusors: [api-extractor, documentation-link-checker]
+          request: Rebuild and validate the pinned Nibgate Sourcey SDK reference and its Nextra integration.
+          expected_outcome: Return the pinned commit, exact tool versions, API coverage counts, link count, and successful Nextra build in a sealed receipt.
+        - mode: composed
+          request: Validate the already selected Nibgate commit and prepared Sourcey reference.
+          expected_outcome: Reuse the supplied pinned commit and prepared reference without selecting a different repository or documentation target.
+          prior_evidence:
+            - The exact Nibgate commit selected by the preparation step.
+            - The prepared Sourcey reference directory under the official docs project.
+          must_not_repeat:
+            - Do not select another repository or commit.
+            - Do not regenerate documentation for an unrelated API surface.
+      inputs:
+        commit: 345fc04b984f01366cbe2a9f4064f22268d5d3f6
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+
+runners:
+  default:
+    default: true
+    inputs:
+      commit:
+        type: string
+        required: true
+        description: Exact public Nibgate commit validated by the documentation build.
+    steps:
+      - id: validate
+        tool: { command: node, args: [run.mjs] }
+        inputs:
+          commit: $input.commit
+        outputs:
+          status: string
+          commit: string
+          runxVersion: string
+          sourceyVersion: string
+          documentedApis: number
+          clientMethods: number
+          standaloneFunctions: number
+          checkedLocalLinks: number
+          nextraIntegration: string
+          livePaymentsExecuted: boolean

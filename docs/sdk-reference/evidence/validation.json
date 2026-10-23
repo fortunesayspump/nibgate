@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "documentedApis": 28,
+  "clientMethods": 27,
+  "standaloneFunctions": 1,
+  "htmlFiles": 31,
+  "checkedLocalLinks": 1106,
+  "pinnedSourceFiles": 14,
+  "exampleTypecheck": "passed with skipLibCheck; missing upstream transfer types are not type-safe",
+  "pureHelperAssertions": 4,
+  "livePaymentsExecuted": false
+}

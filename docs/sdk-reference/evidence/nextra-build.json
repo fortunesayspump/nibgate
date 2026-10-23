@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "command": "npm run build",
+  "working_directory": "docs",
+  "sourcey_pages": 30,
+  "next_routes": 56,
+  "pagefind_pages_indexed": 50,
+  "integration": "Sourcey output staged at docs/public/sdk-reference before Next.js compilation",
+  "production_published": false
+}

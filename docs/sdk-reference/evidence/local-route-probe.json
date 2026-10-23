@@ -1,0 +1,21 @@
+{
+  "server": "Next.js production build on http://127.0.0.1:3002",
+  "requests": [
+    {
+      "path": "/sdk-reference",
+      "status": 200,
+      "expected": "Sourcey SDK reference root through the Next.js rewrite"
+    },
+    {
+      "path": "/sdk-reference/pages/api/checkresourceaccess.html",
+      "status": 200,
+      "expected": "Generated API page with pinned source links and example"
+    },
+    {
+      "path": "/sdk-reference/_assets/14d9b82592c514f42972/sourcey.js",
+      "status": 200,
+      "expected": "Generated Sourcey client asset under the configured base path"
+    }
+  ],
+  "productionPublished": false
+}

@@ -1,0 +1,170 @@
+[
+  {
+    "name": "gate",
+    "file": "gate.js",
+    "description": "Create a resource-scoped event and local unlock controller. Local unlock state is a UI convenience; enforce paid access on the server.",
+    "example": "const gate = client.gate(resource);\nconsole.log(gate.resource.id);"
+  },
+  {
+    "name": "content",
+    "file": "events.js",
+    "description": "Emit content_registered with normalized resource metadata. Returns true only when the browser hub receives it immediately; false may mean queued or no browser.",
+    "example": "client.content(resource, { source: \"sdk-reference\" });"
+  },
+  {
+    "name": "registerContent",
+    "file": "events.js",
+    "description": "Alias behavior for content: emits content_registered. This event does not itself publish content or verify domain ownership.",
+    "example": "client.registerContent(resource);"
+  },
+  {
+    "name": "view",
+    "file": "events.js",
+    "description": "Emit resource_view. Supply extra context such as source; normalization attaches the resource.",
+    "example": "client.view(resource, { source: \"article-page\" });"
+  },
+  {
+    "name": "track",
+    "file": "events.js",
+    "description": "Emit a custom event and payload. Resource defaults are not automatically attached to this method.",
+    "example": "client.track(\"preview_opened\", { resourceId: resource.id });"
+  },
+  {
+    "name": "unlockStarted",
+    "file": "events.js",
+    "description": "Emit unlock_started; this is telemetry and does not initiate payment.",
+    "example": "client.unlockStarted(resource);"
+  },
+  {
+    "name": "unlockCompleted",
+    "file": "events.js",
+    "description": "Emit unlock_completed after your verified flow. The client method only emits; gate.unlockCompleted also marks local state.",
+    "example": "client.unlockCompleted(resource, { paymentId: \"verified-receipt-id\" });"
+  },
+  {
+    "name": "paymentCompleted",
+    "file": "events.js",
+    "description": "Emit payment_completed after verification. This method reports a payment; it does not transfer funds or verify a receipt.",
+    "example": "client.paymentCompleted(resource, { paymentId: \"verified-receipt-id\", currency: \"USDC\" });"
+  },
+  {
+    "name": "rateResource",
+    "file": "rating-ui.js",
+    "description": "Normalize a rating and emit content_rating. Returns a boolean, not a Promise, and does not send an onchain transaction.",
+    "example": "const sent = client.rateResource(resource, 4);"
+  },
+  {
+    "name": "trackResourcePage",
+    "file": "track.js",
+    "description": "Validate metadata, emit content and view events, and return a gate. Browser metadata warnings are enabled unless the implementation-only warn option is false.",
+    "example": "const page = client.trackResourcePage(resource, { source: \"article-page\" });"
+  },
+  {
+    "name": "checkResourceAccess",
+    "file": "access.js",
+    "description": "Fetch the access route (default /api/nibgate/access). A 402 returns a challenge unless checkout or autoPay is configured. Network errors reject; inspect result.ok before using protected payload.",
+    "example": "const result = await client.checkResourceAccess(resource, { accessPath: \"/api/nibgate/access?id=article-1\" });\nif (result.ok) console.log(result.payload);"
+  },
+  {
+    "name": "payWithPaymentSignature",
+    "file": "access.js",
+    "description": "Submit a supplied payment signature or invoke checkout/createPaymentSignature, then verify through the access route. Supply one of these: omitting all causes a callback error. Stores unlock proof on verified success.",
+    "example": "const result = await client.payWithPaymentSignature(resource, { paymentSignature: verifiedPaymentSignature, accessPath: \"/api/nibgate/access?id=article-1\" });"
+  },
+  {
+    "name": "createWalletCheckout",
+    "file": "checkout.js",
+    "description": "Create an unlock controller around a required checkout/createPaymentSignature/pay callback. mount binds the button; unlock checks access and invokes checkout only after a challenge.",
+    "example": "const checkout = client.createWalletCheckout(resource, { checkout: walletCheckout, button: \"#unlock\" });\ncheckout.mount();"
+  },
+  {
+    "name": "createCircleGatewayBrowserAdapter",
+    "file": "evm-gateway.js",
+    "description": "Lazily import the Gateway adapter. Supply signer or getSigner; the adapter signs typed data when pay is invoked. No payment is performed merely by creating it.",
+    "example": "const adapter = await client.createCircleGatewayBrowserAdapter({ signer });"
+  },
+  {
+    "name": "createTransferCheckout",
+    "file": "transfer.js",
+    "description": "Require sendTransfer (or transfer), then return a pay callback that converts its transaction hash into verification metadata. A server verifyTransfer hook must verify the real transfer. The exported TypeScript declaration references missing transfer types in v0.4.40.",
+    "example": "const checkout = client.createTransferCheckout(resource, { sendTransfer });"
+  },
+  {
+    "name": "payWithTransfer",
+    "file": "transfer.js",
+    "description": "Invoke a transfer checkout, obtain its transaction hash, optionally sign ownership, and call the access verifier. Hosted verification needs ownership proof; a public hash alone is insufficient. Transfer option/result type declarations are missing in v0.4.40.",
+    "example": "const result = await client.payWithTransfer(resource, { sendTransfer, signOwnership, accessPath: \"/api/nibgate/access?id=article-1\" });"
+  },
+  {
+    "name": "createEvmGatewayUnlock",
+    "file": "evm-gateway.js",
+    "description": "Create the Arc Gateway UI controller. Select the intended network explicitly (default is Arc Testnet). autoMount defaults true. Retain unresolved proofs and use retryVerification instead of authorizing another payment; destroy removes listeners.",
+    "example": "const controller = client.createEvmGatewayUnlock(resource, { network: \"eip155:5042002\", provider, autoMount: false });\ncontroller.mount();\n// On component cleanup:\ncontroller.destroy();"
+  },
+  {
+    "name": "createHostedUnlock",
+    "file": "evm-gateway.js",
+    "description": "Wrap createEvmGatewayUnlock with hosted: true. The selected network chooses api.nibgate.xyz/hub/pay or testnet-api.nibgate.xyz/hub/pay; an explicit non-hosted accessPath still takes precedence.",
+    "example": "const controller = client.createHostedUnlock(resource, { network: \"eip155:5042002\", provider, autoMount: false });\ncontroller.destroy();"
+  },
+  {
+    "name": "rateContentOnchain",
+    "file": "reputation.js",
+    "description": "Request an EVM account, prepare the content hash, switch to Arc, and send a rating transaction. Returns a submitted txHash, not a finality guarantee; emits onchain_pending telemetry. Requires a valid rating and configured contract/provider.",
+    "example": "const submitted = await client.rateContentOnchain(resource, { provider, rating: 4, unlockRef: \"verified-receipt-id\" });"
+  },
+  {
+    "name": "createOnchainRating",
+    "file": "rating-ui.js",
+    "description": "Bind rating controls to the onchain flow. autoMount defaults true. Supply payment or getUnlockRef so ratings can reference a verified unlock; rate can request a wallet transaction.",
+    "example": "const rating = client.createOnchainRating(resource, { provider, autoMount: false, payment: { paymentId: \"verified-receipt-id\" } });\nrating.setVisible(true);"
+  },
+  {
+    "name": "mountRatingUI",
+    "file": "rating-ui.js",
+    "description": "Mount a five-star telemetry UI, or return null without a browser/target. Known v0.4.40 bug: star click invokes .catch on the boolean returned by rateResource. Controller rate signature also differs from its declaration; prefer rateResource until fixed.",
+    "example": "const ui = client.mountRatingUI(resource, { target: \"#rating\", label: \"Rate this article\" });\nui?.setRating(4);\n// Do not use this version's broken click handler in production."
+  },
+  {
+    "name": "payAndUnlockResource",
+    "file": "access.js",
+    "description": "POST resource and optional payPayload to payPath (default /api/nibgate/pay). Requires both HTTP success and payload.ok, stores proof, and marks the local gate unlocked. The server owns payment verification.",
+    "example": "const result = await client.payAndUnlockResource(resource, { payPath: \"/api/nibgate/pay\" });\nif (result.ok) console.log(result.payment);"
+  },
+  {
+    "name": "setupResourcePage",
+    "file": "track.js",
+    "description": "Track the page and optionally bind a button to checkResourceAccess. The browser handler disables the button while awaiting access; it does not render the protected payload for you.",
+    "example": "const page = client.setupResourcePage(resource, { button: \"#unlock\", status: \"#status\", accessPath: \"/api/nibgate/access?id=article-1\" });"
+  },
+  {
+    "name": "ratingMessage",
+    "file": "../core/rating.js",
+    "description": "Produce the canonical rating message with normalized resource defaults. This is text to sign, not a signature or onchain submission.",
+    "example": "const message = client.ratingMessage(resource, 4);"
+  },
+  {
+    "name": "normalizeResource",
+    "file": "../core/resource.js",
+    "description": "Merge client resource defaults and normalize identity, type, price, access, unlock and discovery fields. In a browser, missing metadata may derive from document tags. This is normalization, not authorization.",
+    "example": "const normalized = client.normalizeResource({ id: \"article-1\", type: \"doc\", price: \"1\" });"
+  },
+  {
+    "name": "normalizeContentType",
+    "file": "../core/resource.js",
+    "description": "Map aliases such as audio to music and pdf to document. Unknown or empty input falls back to article.",
+    "example": "const type = client.normalizeContentType(\"pdf\");"
+  },
+  {
+    "name": "flush",
+    "file": "events.js",
+    "description": "Drain queued events only when the browser hub track function is available. Returns true when at least one queued event was forwarded; false otherwise.",
+    "example": "const drained = client.flush();"
+  },
+  {
+    "name": "validateResourceMetadata",
+    "file": "../core/resource.js",
+    "description": "Standalone export only at runtime in v0.4.40. The NibgateClient declaration incorrectly lists it as a method. Returns normalized resource, score, errors, warnings and ok; use this standalone import.",
+    "example": "const validation = validateResourceMetadata(resource);\nconsole.log(validation.errors, validation.warnings);"
+  }
+]

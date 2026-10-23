@@ -1,0 +1,6 @@
+../../packages/nibgate/src/index.d.ts(112,71): error TS2552: Cannot find name 'NibgateTransferCheckoutOptions'. Did you mean 'NibgateWalletCheckoutOptions'?
+../../packages/nibgate/src/index.d.ts(112,104): error TS2304: Cannot find name 'NibgateTransferCheckout'.
+../../packages/nibgate/src/index.d.ts(113,64): error TS2552: Cannot find name 'NibgateTransferCheckoutOptions'. Did you mean 'NibgateWalletCheckoutOptions'?
+../../packages/nibgate/src/index.d.ts(477,93): error TS2552: Cannot find name 'NibgateTransferCheckoutOptions'. Did you mean 'NibgateWalletCheckoutOptions'?
+../../packages/nibgate/src/index.d.ts(477,126): error TS2304: Cannot find name 'NibgateTransferCheckout'.
+../../packages/nibgate/src/index.d.ts(478,86): error TS2552: Cannot find name 'NibgateTransferCheckoutOptions'. Did you mean 'NibgateWalletCheckoutOptions'?

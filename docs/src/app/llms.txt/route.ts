@@ -24,6 +24,7 @@ const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/dr-nib/confidential/operations", "Worker lifecycle: authenticated wake, fresh verification, idle shutdown, durable state, recovery and infrastructure costs."],
   ["https://docs.nibgate.xyz/dr-nib/jev", "How JEV decides: ordinary Hub versus private direct transport, structured probabilities, actual decision-record fields, confidence gates and stage-specific failure behavior."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the public hub endpoints."],
+  ["https://docs.nibgate.xyz/sdk-reference", "Sourcey-generated, source-mapped reference for 27 implemented @nibgate/sdk client methods and the standalone validateResourceMetadata helper in SDK 0.4.40."],
 ];
 
 export async function GET() {

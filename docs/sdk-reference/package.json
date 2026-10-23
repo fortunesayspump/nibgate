@@ -1,0 +1,17 @@
+{
+  "devDependencies": {
+    "@runxhq/cli": "0.10.2",
+    "sourcey": "3.9.0",
+    "typescript": "5.9.3"
+  },
+  "name": "nibgate-sdk-sourcey-reference",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "build": "npm run generate && sourcey build",
+    "test": "node scripts/validate.mjs",
+    "check:examples": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext examples.ts",
+    "build:evidence": "node scripts/build-evidence.mjs"
+  }
+}

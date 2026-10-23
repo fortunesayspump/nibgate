@@ -205,6 +205,10 @@ export async function runRevenueSweep() {
   try { return await run; } finally { if (sweepInFlight === run) sweepInFlight = null; }
 }
 
+export function feeKeeperIntervalMs() {
+  return Number.parseInt(process.env.NIBGATE_FEE_KEEPER_INTERVAL_MS || String(15 * 60_000), 10);
+}
+
 // ── Holding-box sweep ───────────────────────────────────────────────────────
 // Gateway holds credit a domain box's Circle Gateway ledger; the box's ERC-1271
 // self-withdrawal materializes the credit onchain so a claim can release it.
@@ -256,7 +260,14 @@ export function startFeeKeeper() {
   if (feeKeeperStarted || !keeperEnabled()) return;
   feeKeeperStarted = true;
 
-  const intervalMs = Number.parseInt(process.env.NIBGATE_FEE_KEEPER_INTERVAL_MS || '60000', 10);
+  // A full pass performs several database reads and multiple RPC calls for
+  // every creator wallet. Running that reconciliation once a minute kept the
+  // API busy even when every wallet was empty (the common case). Payment,
+  // claim and refund requests still execute synchronously in their routes;
+  // this timer is the recovery/reconciliation backstop, so a 15 minute
+  // default keeps bounded settlement recovery without permanent RPC churn.
+  // Operators can retain a tighter SLA with the existing explicit override.
+  const intervalMs = feeKeeperIntervalMs();
   const initialDelayMs = Number.parseInt(process.env.NIBGATE_FEE_KEEPER_INITIAL_DELAY_MS || '15000', 10);
 
   setTimeout(() => {

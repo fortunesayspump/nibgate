@@ -27,7 +27,7 @@ vi.mock('@nibgate/sdk/server', () => ({
   checkFeeWalletFactory: sdkMock.checkFeeWalletFactory,
 }));
 
-const { runRevenueSweep, startFeeKeeper } = await import('./keeper.js');
+const { feeKeeperIntervalMs, runRevenueSweep, startFeeKeeper } = await import('./keeper.js');
 
 describe('revenue keeper', () => {
   beforeEach(() => {
@@ -233,6 +233,8 @@ describe('startFeeKeeper scheduling', () => {
   afterEach(() => {
     vi.useRealTimers();
     delete process.env.NIBGATE_FEE_KEEPER;
+    delete process.env.NIBGATE_FEE_KEEPER_INITIAL_DELAY_MS;
+    delete process.env.NIBGATE_FEE_KEEPER_INTERVAL_MS;
   });
 
   it('does nothing when disabled', () => {
@@ -255,6 +257,13 @@ describe('startFeeKeeper scheduling', () => {
     await vi.waitFor(() => expect(dbMock.nibShare.findMany).toHaveBeenCalledTimes(1));
     vi.advanceTimersByTime(60_000);
     await vi.waitFor(() => expect(dbMock.nibShare.findMany).toHaveBeenCalledTimes(2));
+  });
+
+  it('uses a 15 minute reconciliation interval by default while preserving overrides', () => {
+    delete process.env.NIBGATE_FEE_KEEPER_INTERVAL_MS;
+    expect(feeKeeperIntervalMs()).toBe(15 * 60_000);
+    process.env.NIBGATE_FEE_KEEPER_INTERVAL_MS = '120000';
+    expect(feeKeeperIntervalMs()).toBe(120_000);
   });
 
   it('never schedules twice', () => {

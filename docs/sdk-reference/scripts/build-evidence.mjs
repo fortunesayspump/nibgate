@@ -3,14 +3,13 @@ import { readFileSync, writeFileSync } from "node:fs";
 const inventory = JSON.parse(readFileSync("inventory.json", "utf8"));
 const validation = JSON.parse(readFileSync("evidence/validation.json", "utf8"));
 const routeProbe = JSON.parse(readFileSync("evidence/local-route-probe.json", "utf8"));
-const receiptRef = "sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d";
+const receiptRef = "runx:receipt:sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d";
 
 const evidence = {
   schema: "nibgate.sourcey.bounty-evidence.v1",
-  summary: "Sourcey 3.9.0 generated and validated a source-mapped @nibgate/sdk 0.4.40 reference for 27 runtime NibgateClient methods plus the standalone validateResourceMetadata export at the pinned public commit. The additive Nextra production build and local routing checks passed; production publication is intentionally pending review.",
-  public_url: null,
-  proposed_public_url: "https://docs.nibgate.xyz/sdk-reference",
-  publication_status: "prepared and locally verified; not deployed",
+  summary: "Sourcey 3.9.0 generated and validated a source-mapped @nibgate/sdk 0.4.40 reference for 27 runtime NibgateClient methods plus the standalone validateResourceMetadata export at the pinned public commit. The additive Nextra production build passed and the official production routes are live.",
+  public_url: "https://docs.nibgate.xyz/sdk-reference",
+  publication_status: "published and verified on the official Nibgate documentation domain",
   receipt_ref: receiptRef,
   receipt_file: "evidence/receipt.json",
   report: "report.md",
@@ -64,6 +63,7 @@ const evidence = {
     local_route_probe: routeProbe,
     strict_declaration_check: "failed as expected with six missing-transfer-type errors; see evidence/upstream-types.txt",
     receipt_verification: "valid digest, content address, and local Ed25519 signature",
+    production_deployment: "Vercel dpl_FiYa7qja2F9QgoH7q1eK7FX84nfF reached READY for Git commit 0fb277226d2785ab0dff48eee9fa397a6accac66 with docs.nibgate.xyz attached and no alias error",
   },
   commands: [
     "node --version",
@@ -84,9 +84,10 @@ const evidence = {
     "Validation checked 1,106 local href/src references and all 28 API pages for name, pinned commit, and example content.",
     "The full existing Nextra production build passed after staging Sourcey under docs/public/sdk-reference; Pagefind indexed 50 existing Nextra pages.",
     "Local requests returned HTTP 200 for /sdk-reference, a generated API page, and a generated Sourcey asset.",
+    "Production HTTP checks returned 200 for the Sourcey root, two representative API pages, Markdown output, llms.txt, JavaScript, CSS, search data, the Nextra home page, and the existing API reference page.",
     "Strict TypeScript checking without skipLibCheck failed on six references to two missing transfer types; the errors are preserved rather than hidden.",
     "Examples were compile-checked with skipLibCheck only because of those upstream declaration defects; no live wallet, RPC, payment, transfer, or financial operation was executed.",
-    "The receipt reference is from the successful v4 governed validation after removing the deployment-time Git dependency. A prior local v2 attempt hit an EMFILE host limit during a redundant nested Next build; only the final successful receipt tree is included.",
+    "The sealed receipt reference is runx:receipt:sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d from the successful v4 governed validation after removing the deployment-time Git dependency. A prior local v2 attempt hit an EMFILE host limit during a redundant nested Next build; only the final successful receipt tree is included.",
     "The SDK package metadata declares MIT, while the pinned repository lacks a license text file; this remains a reviewer-visible acceptance risk.",
   ],
   source_hashes: inventory.sourceHashes,

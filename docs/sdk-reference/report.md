@@ -51,6 +51,22 @@ Examples involving signers, providers, transfers, and payment signatures are
 compile-checked integration shapes only. No wallet prompt, transfer, payment,
 RPC submission, live access route, or financial operation was executed.
 
+## Publication and receipt
+
+The additive reference is live on the project's existing permanent documentation
+domain at <https://docs.nibgate.xyz/sdk-reference>. Vercel deployment
+`dpl_FiYa7qja2F9QgoH7q1eK7FX84nfF` reached `READY` for Git commit
+`0fb277226d2785ab0dff48eee9fa397a6accac66`, attached `docs.nibgate.xyz`
+without an alias error, and preserved the existing Nextra documentation.
+Production checks returned HTTP 200 for the Sourcey root, representative API
+pages, Markdown output, `llms.txt`, JavaScript, CSS, search data, the Nextra home
+page, and its existing API reference page.
+
+The fresh successful governed validation is sealed as
+`runx:receipt:sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d`.
+The checked-in `evidence/receipt.json` and `evidence/runx-receipts/` tree make
+the signed root and child receipt publicly inspectable alongside this report.
+
 ## Deployment design
 
 The existing Nextra application remains the owner of `docs.nibgate.xyz`.

@@ -37,7 +37,7 @@ runx skill ./runx-validator \
   --json
 ```
 
-Receipt: `sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d`.
+Sealed receipt: `runx:receipt:sha256:80092c05444726afcd0953c330070a67e4794220d2873d9cd2cf8bbb1b80d46d`.
 The complete two-receipt tree is in `evidence/runx-receipts/`, with the root
 also copied to `evidence/receipt.json`.
 

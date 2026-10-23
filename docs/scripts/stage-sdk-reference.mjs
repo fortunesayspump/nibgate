@@ -16,6 +16,8 @@ copyFileSync(resolve(source, "pages/introduction.html"), resolve(target, "index.
 
 const sourceyFooterStart = '<div class="mt-16 mb-8 flex flex-wrap items-center justify-between';
 const searchDialog = '<dialog id="search-dialog"';
+const headEnd = "</head>";
+const siteIcons = '<link rel="shortcut icon" href="/brand/nibgate-mark.svg"/><link rel="apple-touch-icon" href="/brand/nibgate-mark.svg"/>';
 const siteFooter = `<div class="nib-sourcey-footer-shell"><footer class="nib-sourcey-footer"><div class="nib-sourcey-footer-inner"><span>Nibgate docs. Built for creator-owned paid routes.</span><nav aria-label="Nibgate links"><a href="https://nibgate.xyz">Main site</a><a href="https://nibgate.xyz/explore">Explore</a><a href="https://nibgate.xyz/get-started">Get started</a><a href="https://github.com/fortunesayspump/nibgate">GitHub</a></nav></div></footer></div>`;
 
 function removeElementAt(html, start) {
@@ -34,8 +36,13 @@ function removeElementAt(html, start) {
 
 function integrateSiteShell(path) {
   let html = readFileSync(path, "utf8");
+  if (!html.includes(headEnd)) throw new Error(`Sourcey document head missing from ${path}`);
+  html = html.replace(headEnd, siteIcons + headEnd);
   const footerStart = html.indexOf(sourceyFooterStart);
-  if (footerStart === -1) return;
+  if (footerStart === -1) {
+    writeFileSync(path, html);
+    return;
+  }
   html = removeElementAt(html, footerStart);
 
   const dialogStart = html.indexOf(searchDialog);

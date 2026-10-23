@@ -3,6 +3,7 @@ export default defineConfig({
  name: 'Nibgate SDK',
  siteUrl: 'https://docs.nibgate.xyz',
  baseUrl: '/sdk-reference',
+ favicon: '../public/favicon.png',
  theme: {
    name: 'default',
    appearance: { default: 'light' },

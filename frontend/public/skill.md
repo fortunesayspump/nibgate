@@ -891,7 +891,7 @@ claimed.
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.40 and wallet 0.4.31 support Arc mainnet (`eip155:5042`,
+SDK 0.4.41 and wallet 0.4.32 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub
@@ -972,7 +972,7 @@ same keys under `pnpm.overrides` when using pnpm 10):
 
 This keeps fresh installations on the tested connector/core and x402 peer graph.
 
-Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
+Google wallet compatibility: wallet 0.4.32 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
 
 ### Held-tip authorization boundary
 

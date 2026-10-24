@@ -36,10 +36,24 @@
   imports and QuickJS), published at immutable digest
   `sha256:7d24ec8e47ef515c6e52f14422709a0b3f291c3508bff4593d974bd0bdf0e85a`,
   and deployed successfully to both funding services, both private services and
-  the mainnet watchdog. Testnet watchdog startup proved that its database lacks
-  additive migration `0016_private_worker_lifecycle`; no unapproved migration
-  was run, and that service was restored successfully to its prior immutable
-  image until the migration is separately reviewed and authorized.
+  the mainnet watchdog. The first testnet-watchdog rollout was restored to its
+  prior image after startup failed closed. Follow-up read-only inspection proved
+  that its isolated canary database already contained the lifecycle table and
+  correct narrow grants; migration `0016_private_worker_lifecycle` was neither
+  needed nor applied. PostgreSQL privilege checks instead exposed a combined
+  owner/authenticated query that referenced `ResearchRun.metadata` in owner
+  mode. Commit `ea34fe0` splits those static queries and adds unit plus real
+  restricted-role PostgreSQL regressions. The full disposable-PostgreSQL suite
+  passed 486 tests in 57 files and the privacy-only suite passed 430 checks.
+  A clean-base image passed 399 exact source hashes, generated-schema, runtime-
+  import and offline-QuickJS checks, then was published as immutable digest
+  `sha256:d1e86d7c4ea09c59e2865ec5388d0cb3d29359ab6cfcb51e52e69bae2bfff2fd`.
+  Testnet watchdog deployment `4659344e-aac9-4ae6-931a-835ed839bd7c`
+  reached `SUCCESS` and logged `independent watchdog ready`. Repeated lifecycle
+  snapshots showed reconciliation timestamps advancing while phase stayed
+  stopped, generation/runtime were unchanged, holds stayed zero and no
+  operation was created; no compute wake or database permission expansion
+  occurred. The previous working image remains available for rollback.
 
 ## 2026-10-23 — custody rotation containment
 

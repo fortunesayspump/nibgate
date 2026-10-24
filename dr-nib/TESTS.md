@@ -1,5 +1,30 @@
 # Dr. Nib — live end-to-end test record
 
+## 2026-10-24 — Arc RPC failover and held-refund diagnosis
+
+- Railway variable readback across every chain-consuming service confirmed the
+  intended provider order: keyed Canteen primary plus official Arc fallback on
+  testnet, and keyed dRPC primary plus official Arc fallback on mainnet. QA,
+  watchdog and SearXNG services do not carry RPC variables. No provider URL or
+  credential is committed to source.
+- Both official fallbacks answered the expected chain IDs (`5042002` testnet,
+  `5042` mainnet). Keyed primaries also answered correctly, but intermittently
+  timed out during the workstation audit; the deployed same-chain fallback is
+  therefore operationally required rather than theoretical.
+- A guarded retry of the outstanding 0.01 test-USDC held-tip refund stopped
+  before transaction submission. Read-only onchain checks confirmed the
+  factory owner/keeper, counterfactual box address and exact 10,000-unit box
+  balance. The official RPC estimated 1,037,189 gas, while the keeper's native
+  balance was below `estimate * gasPrice`. The relay now estimates before its
+  explicit balance check so this condition is reported as
+  `keeper-gas-insufficient`, without signing or broadcasting. The refund stays
+  unresolved until the owner authorizes a testnet keeper top-up.
+- SDK validation after the repair: 261 passed and 3 opt-in live tests skipped.
+  Hub/Subblogs source deployments and public health checks are recorded in the
+  release handoff; the private Dr. Nib image was built and verified locally
+  (398 exact source hashes, generated schema, runtime imports and QuickJS) but
+  was not uploaded without explicit approval for the private-source image.
+
 ## 2026-10-23 — custody rotation containment
 
 - Both current and legacy spenders on Arc testnet and mainnet were paused, then moved to separate replacement owner and agent wallets. RPC readback confirmed the new roles and `paused=true`; the old worker/keeper keys no longer control these mandates.
@@ -31,7 +56,7 @@ Older sections below preserve the state observed at their dates; they are not th
 - Inspected the deployed `NibgateSpender` at `0x903b0606da40d99d78da9d9be6c435acacba5cf0`: owner and agent match the local testnet keeper and worker keys, pause is off, the daily cap is 2 USDC, and the preexisting balance was zero. The verified Benedict creator wallet resolved to `0x6cd5fd882269812fbffcc95a7bed2d480acca939`; its hub tip challenge resolved the actual fee-wallet payee `0x6B0C5EC85768Ca69bFBB8cd6a8b35312074eD6ac`.
 - The keeper allowlisted that fee wallet (`0x53218f72c9b009c03b4fbbf16192d82347457cb3420c6b529e3fdda24c6204eb`) and funded the mandate with 1 test USDC (`0xeb04d57aec571006644e3552dae481124873cc1067d8214980408c571e16230e`). Both transactions succeeded on Arc testnet.
 - Dr. Nib now resolves creator ownership against the hub index before direct tips and rejects a model-supplied mismatching recipient. Direct tips use the mandate when configured. Unresolved held tips stay on the EOA because the refund route requires an EOA payer signature. Focused spending, guard, and executor regressions passed (23 tests). Live worker routing and a Dr. Nib run receipt still require deployment verification; these preflight transactions alone do not prove them.
-- The candidate mainnet backup RPC `https://rpc.arc-scan.org` returned Cloudflare error 1033; it was **not** configured. The independent testnet `https://rpc.solidrpc.io/public/evm/5042002` reported the correct chain ID and a block height within 2 of the primary. Mainnet backup remains open until a live, independent provider is available.
+- At this checkpoint, the candidate mainnet backup RPC `https://rpc.arc-scan.org` returned Cloudflare error 1033 and was **not** configured. The independent testnet `https://rpc.solidrpc.io/public/evm/5042002` reported the correct chain ID and a block height within 2 of the primary. This historical gap was superseded on 24 Oct by the official Arc same-chain fallbacks recorded above.
 
 ## 2026-10-15 — mainnet post-run verification and spending-guard audit
 

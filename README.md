@@ -151,7 +151,7 @@ Nibgate runs two parallel stacks. Mainnet is the production surface; testnet mir
 | Shares | `https://nibgate.xyz/ns/{slug}` | `https://testnet.nibgate.xyz/ns/{slug}` |
 | Arc chain | 5042 (`eip155:5042`) | 5042002 (`eip155:5042002`) |
 | Gateway API | `https://gateway-api.circle.com` | `https://gateway-api-testnet.circle.com` |
-| Railway | `nibgate-mainnet` project | `nibgate-testnet` project (Hub, Dr. Nib and consolidated Subblogs backend); the former standalone `nibgate-subblogs-testnet` backend is retired and has no running deployment/database |
+| Railway | `nibgate-mainnet` project | `nibgate-testnet` project (Hub, Dr. Nib and consolidated Subblogs backend); the obsolete standalone `nibgate-subblogs-testnet` project was deleted after the consolidated service was verified |
 | Vercel | `nibgate-frontend`, `nibgate-subblogs-mainnet` | `nibgate-frontend-testnet`, `nibgate-subblogs-testnet` |
 
 Selection is env-driven, testnet by default:

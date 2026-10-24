@@ -1,6 +1,6 @@
 # Deploying Dr. Nib (Railway)
 
-For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is legacy infrastructure; it is not the private broker deployment profile. The mainnet ordinary API and worker were stopped on 24 Oct 2026 after their public route moved to the private broker and their queue recovery reported no pending work. Their Railway definitions and data remain available for rollback. The ordinary testnet API remains live at `drnib.testnet.nibgate.xyz` while testnet private acceptance continues.
+For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is historical reference, not the private broker deployment profile. The mainnet ordinary API and worker were stopped on 24 Oct 2026 after their public route moved to the private broker and their queue recovery reported no pending work; their Railway service records were subsequently deleted. Shared database records remain subject to the normal retention policy, but rollback now requires recreating the services from reviewed configuration. The ordinary testnet API remains live at `drnib.testnet.nibgate.xyz` while testnet private acceptance continues.
 
 Dr. Nib is a second service in the existing Nibgate Railway project. It shares
 the Postgres cluster with the hub but keeps its own tables in a separate
@@ -8,9 +8,10 @@ the Postgres cluster with the hub but keeps its own tables in a separate
 
 ## 1. Ordinary service profile (legacy)
 
-The stopped mainnet service definition is `nibgate-drnib-mainnet` in the
-`nibgate-mainnet` project (production environment). Its settings mirror the Hub
-backend because Dr. Nib needs the monorepo's `workspace:*` deps:
+The deleted mainnet service was named `nibgate-drnib-mainnet` in the
+`nibgate-mainnet` project (production environment). The following historical
+settings are retained only to support a separately reviewed recreation because
+Dr. Nib needs the monorepo's `workspace:*` deps:
 
 - **Source:** GitHub repo `fortunesayspump/nibgate`, branch `main`.
 - **Root Directory:** *(repo root)* — not `dr-nib/backend`. The build context

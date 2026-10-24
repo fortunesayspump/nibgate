@@ -21,7 +21,7 @@ Changing an existing lifecycle row's access mode is rejected. While stopped, rev
 | `nibgate-drnib-private-mainnet` | Mainnet ciphertext broker; owns `drnib.nibgate.xyz` |
 | `nibgate-drnib-funding-mainnet` | Mainnet money/public-tools boundary |
 | `nibgate-drnib-watchdog-mainnet` | Mainnet lifecycle reconciliation and idle-stop supervisor |
-| `nibgate-drnib-mainnet` / `nibgate-drnib-worker-mainnet` | Retired ordinary API/worker deployments stopped 24 Oct 2026; definitions and data retained for rollback, with auto-deploy watch paths disabled |
+| `nibgate-drnib-mainnet` / `nibgate-drnib-worker-mainnet` | Retired ordinary API/worker deployments stopped and their Railway service records deleted after queue/fund checks on 24 Oct 2026; shared database records remain governed by the normal retention policy |
 | Existing Postgres hosts | Reuse hosts with isolated logical databases and restricted roles; retain old financial records |
 
 Mainnet requires independent lifecycle supervision. Reuse a suitable process if available; otherwise a watchdog is necessary. Only one Phala CVM exists, the stopped testnet worker. Its network-bound configuration cannot simultaneously serve both networks; mainnet requires a separately scoped guest. Share the verifier pair instead of duplicating it. Any required new runtime must fit the mainnet allowance.

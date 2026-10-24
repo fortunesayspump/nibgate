@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import 'forge-std/Test.sol';
 import './NibgateSpenderV2.sol';
-import './MockUSDC.sol';
+import '../MockUSDC.sol';
 
 contract NibgateSpenderV2Test is Test {
     MockUSDC usdc;

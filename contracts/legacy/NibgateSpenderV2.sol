@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// NibgateSpenderV2 — Gate 2 for the agent's direct-tip float.
+// NibgateSpenderV2 — retired Gate 2 for the agent's direct-tip float.
 //
 // Direct-tip operating USDC lives in THIS contract; the agent key can move
 // this balance only through spend(), bounded by:

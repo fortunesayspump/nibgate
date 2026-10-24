@@ -8,7 +8,7 @@ The payment does not go through this contract. Creator sites still receive unloc
 
 - `NibgateReputationV2`: current upgradeable rating implementation with `rateContent(bytes32 contentId, uint8 rating, bytes32 reviewHash, string unlockRef)`.
 - `legacy/NibgateReputation.sol`: V1 implementation and the still-used minimal ERC-1967 `NibgateReputationProxy`. Testnet's proxy was upgraded to V2; moving the source does not change that proxy.
-- `NibgateSpenderV2`: capped, pausable direct-tip float for Dr. Nib. Recipients are open by default; the owner may enable an allowlist. The superseded V1 spender, its tests, and its deploy artifact are under `legacy/`.
+- `legacy/NibgateSpenderV2.sol`: retired capped direct-tip float for Dr. Nib. Both deployed V2 instances are paused and custody-rotated; V1, V2 and their tests remain under `legacy/` solely for reproducibility and historical inspection. The immutable deploy artifact remains in `deploy-artifacts/` so recorded deployments can be decoded.
 
 ## Deployed contract inventory
 

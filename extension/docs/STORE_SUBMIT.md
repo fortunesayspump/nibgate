@@ -1,12 +1,17 @@
 # Chrome Web Store submission
 
 **Status: v1.2.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)); verified October 15, 2026.
-The store remains at v1.2.0. The repository and local release artifact are
-v1.2.1; do not call 1.2.1 live until Chrome review and publication complete.
+Version 1.2.1 was submitted on October 24, 2026 and is awaiting Chrome review;
+do not call 1.2.1 live until review and publication complete. The repository,
+local release artifact and submitted archive are v1.2.1.
 The Hub backend that accepts both the legacy 1.2.0 refund message and the
 strict 1.2.1 message is deployed and health-verified on each network. The ZIP
-is ready for Web Store upload/review, but use a staged rollout: the latest live
-synthetic held-tip refund has not yet produced a successful refund transaction.
+has been submitted for Web Store review; use a staged rollout after approval.
+The latest live synthetic held-tip refund succeeded on Arc testnet in transaction
+`0x1c50cd491632d599b3b8772d206191f8f98e8838e16984069877fc24b7029b0f`:
+the holding box ended at zero, the original payer received exactly 0.01 test
+USDC, the public held-tip ledger cleared and the temporary recovery key was
+deleted. This verifies that exercised testnet path, not every production path.
 Rollout order remains backend first, extension second.
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
@@ -50,12 +55,12 @@ The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this p
 - [x] Reviewed payment context is immutable and ambiguous proofs recover without
   sending a second payment.
 
-Known limitations: production Hub deployment is verified, but the latest live
-Circle/wallet refund exercise remains unresolved before transaction submission.
-This does not block uploading the package for review, but it blocks claiming
-the live refund path fully verified or rolling out to every user. The explicit context
-menu can still tip any HTTP(S) target by user choice. Automatic classification
-cannot guarantee correctness on every custom site. Backend whole-box claim
+Known limitations: production Hub deployment and the exercised Arc testnet
+Circle/wallet refund path are verified. This does not prove every refund path,
+and the submitted extension should still use a staged rollout after Chrome
+approval. The explicit context menu can tip any HTTP(S) target by user choice.
+Automatic classification cannot guarantee correctness on every custom site.
+Backend whole-box claim
 semantics require a future contract migration for preventive exact-balance
 enforcement; this extension build does not change deployed contracts.
 

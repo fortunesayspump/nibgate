@@ -56,15 +56,18 @@ a testnet dr-nib deployment:
   from a directory linked to the testnet project — the reconnect kicks a
   fresh build of current `main`. Verify in `railway deployment list`.
 - **SearXNG (testnet):** service `nibgate-searxng-testnet`
-  (digest-pinned by `ops/searxng/Dockerfile`, private-only, no public domain)
-  with a volume mounted at `/etc/searxng`. The checked-in
-  `ops/searxng/settings.yml` enables the JSON API (`search.formats: [html,
-  json]` — stock defaults reject `?format=json`). Set a unique generated
-  `SEARXNG_SECRET` on every Railway environment; the value in the checked-in
-  file is for local development only. Wire testnet via
+  (currently an image-based Railway service, private-only, no public domain)
+  with a volume mounted at `/etc/searxng`. Its volume-backed `settings.yml`
+  enables the JSON API (`search.formats: [html, json]` — stock defaults reject
+  `?format=json`). `ops/searxng/Dockerfile` and `ops/searxng/settings.yml` are
+  the reviewed reproducible template, but changing them does not update the
+  existing image-based services or their volumes automatically. Set a unique
+  generated `SEARXNG_SECRET` on every Railway environment; it overrides the
+  file value at runtime. Wire testnet via
   `SEARXNG_URL=http://nibgate-searxng-testnet.railway.internal:8080` on the
   Dr. Nib service. Mainnet uses the corresponding private mainnet service when
-  enabled. Back up each volume before re-creating a service.
+  enabled. Back up and review each live volume before re-creating or converting
+  a service to the repo Dockerfile.
 
 ## 2. Environment variables
 

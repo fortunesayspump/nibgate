@@ -17,9 +17,11 @@
   balance. The official RPC estimated 1,037,189 gas, while the keeper's native
   balance was below `estimate * gasPrice`. The relay now estimates before its
   explicit balance check so this condition is reported as
-  `keeper-gas-insufficient`, without signing or broadcasting. The refund stays
+  `keeper-gas-insufficient`, without signing or broadcasting. Endpoint
+  selection also skips an unaffordable primary gas quote when a same-chain
+  mirror is affordable. The refund stays
   unresolved until the owner authorizes a testnet keeper top-up.
-- SDK validation after the repair: 261 passed and 3 opt-in live tests skipped.
+- SDK validation after the repair: 262 passed and 3 opt-in live tests skipped.
   Hub/Subblogs source deployments and public health checks are recorded in the
   release handoff; the private Dr. Nib image was built and verified locally
   (398 exact source hashes, generated schema, runtime imports and QuickJS) but

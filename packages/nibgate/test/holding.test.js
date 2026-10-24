@@ -1,10 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
 import { encodeAbiParameters, encodeEventTopics } from 'viem'
-const chainMock = vi.hoisted(() => ({ readContract: vi.fn(), waitForTransactionReceipt: vi.fn(), sendTransaction: vi.fn() }))
+const chainMock = vi.hoisted(() => ({
+  readContract: vi.fn(),
+  waitForTransactionReceipt: vi.fn(),
+  sendTransaction: vi.fn(),
+  getGasPrice: vi.fn(),
+  estimateGas: vi.fn(),
+  getBalance: vi.fn(),
+}))
 vi.mock('viem', async (importOriginal) => ({
   ...await importOriginal(),
-  createPublicClient: () => ({ readContract: chainMock.readContract, waitForTransactionReceipt: chainMock.waitForTransactionReceipt }),
+  createPublicClient: () => ({
+    readContract: chainMock.readContract,
+    waitForTransactionReceipt: chainMock.waitForTransactionReceipt,
+    getGasPrice: chainMock.getGasPrice,
+    estimateGas: chainMock.estimateGas,
+    getBalance: chainMock.getBalance,
+  }),
   createWalletClient: () => ({ sendTransaction: chainMock.sendTransaction }),
   http: () => ({}),
 }))
@@ -36,6 +49,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   chainMock.readContract.mockResolvedValue(BOX)
   chainMock.sendTransaction.mockResolvedValue(TX)
+  chainMock.getGasPrice.mockResolvedValue(25_000_000_000n)
+  chainMock.estimateGas.mockResolvedValue(1_000_000n)
+  chainMock.getBalance.mockResolvedValue(30_000_000_000_000_000n)
 })
 
 describe('holding addresses', () => {
@@ -187,6 +203,18 @@ describe('keeper settlement receipt validation', () => {
       onSubmitted: async () => { order.push('persist') },
     })).resolves.toBe(TX)
     expect(order).toEqual(['persist', 'wait'])
+    expect(chainMock.sendTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      gas: 1_000_000n,
+      gasPrice: 25_000_000_000n,
+    }))
+  })
+
+  it('fails clearly before submission when the keeper cannot cover bounded gas', async () => {
+    const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
+    chainMock.getBalance.mockResolvedValue(24_999_999_999_999_999n)
+    await expect(submitHoldingRefund(call, { privateKey: TEST_KEY, rpcUrl: 'http://fixture.invalid', chainId: 5042002 }))
+      .rejects.toMatchObject({ code: 'keeper-gas-insufficient' })
+    expect(chainMock.sendTransaction).not.toHaveBeenCalled()
   })
 
   it('quarantines a refund when the event amount does not match', async () => {

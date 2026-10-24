@@ -171,6 +171,46 @@ export function buildHoldingRelease({ domain, creator, factoryAddress }) {
   };
 }
 
+async function submitKeeperTransaction({ publicClient, client, account, call, label }) {
+  let gasPrice;
+  let gas;
+  try {
+    // Arc's RPC can advertise an EIP-1559 priority fee that is much larger
+    // than the current execution price. Letting the wallet client prepare the
+    // request with that fee can make eth_estimateGas reject an otherwise valid
+    // keeper call for insufficient maximum balance. Pin the transaction to the
+    // node's current legacy gas price and the exact successful estimate.
+    gasPrice = await publicClient.getGasPrice();
+    gas = await publicClient.estimateGas({
+      account,
+      to: call.to,
+      data: call.data,
+      value: call.value ?? 0n,
+      gasPrice,
+    });
+  } catch (error) {
+    throw Object.assign(
+      new Error(`${label} could not be prepared: ${error?.shortMessage || 'gas estimation failed'}`),
+      { code: 'keeper-transaction-preparation-failed' },
+    );
+  }
+  const balance = await publicClient.getBalance({ address: account.address });
+  const required = gas * gasPrice + (call.value ?? 0n);
+  if (balance < required) {
+    throw Object.assign(
+      new Error(`${label} keeper gas balance is below the bounded transaction requirement.`),
+      { code: 'keeper-gas-insufficient', requiredWei: String(required), balanceWei: String(balance) },
+    );
+  }
+  return client.sendTransaction({
+    to: call.to,
+    data: call.data,
+    value: call.value ?? 0n,
+    gas,
+    gasPrice,
+  });
+}
+
 // Submit a release with a keeper key. Returns the tx hash.
 export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits }) {
   if (!call?.to || !call?.data) throw new Error('submitHoldingRelease requires a release call.');
@@ -198,7 +238,7 @@ export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId, 
     };
   }
   const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
-  const txHash = await client.sendTransaction({ to: call.to, data: call.data, value: call.value ?? 0n });
+  const txHash = await submitKeeperTransaction({ publicClient, client, account, call, label: 'Holding release' });
   const reconciliationError = (reason, actualUnits = null) => Object.assign(
     new Error(`Release submitted but requires manual reconciliation: ${reason}. Do not retry (tx ${txHash}).`),
     { code: 'release-reconciliation-required', releaseTx: txHash, expectedUnits: expected ? String(expected.amount) : null, actualUnits: actualUnits == null ? null : String(actualUnits) },
@@ -268,7 +308,7 @@ export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId, o
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
   const box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
   const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
-  const txHash = await client.sendTransaction({ to: call.to, data: call.data, value: call.value ?? 0n });
+  const txHash = await submitKeeperTransaction({ publicClient, client, account, call, label: 'Holding refund' });
   const reconciliationError = (reason, actualUnits = null) => Object.assign(
     new Error(`Refund submitted but requires manual reconciliation: ${reason}. Do not retry (tx ${txHash}).`),
     { code: 'refund-reconciliation-required', refundTx: txHash, requestedUnits: String(requestedUnits), actualUnits: actualUnits == null ? null : String(actualUnits) },

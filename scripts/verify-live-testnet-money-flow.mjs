@@ -62,7 +62,15 @@ const onchainKeeper = await publicClient.readContract({ address: FACTORY, abi: f
 if (onchainKeeper.toLowerCase() !== keeper.address.toLowerCase()) throw new Error('Injected key is not the factory keeper.');
 
 const keeperStart = await publicClient.getBalance({ address: keeper.address });
-if (keeperStart < parseEther('0.04')) throw new Error('Keeper has less than the guarded 0.04 testnet-USDC minimum.');
+const preflightGasPrice = await publicClient.getGasPrice();
+// Funding the disposable wallet is not the expensive part: the first refund
+// also deploys the counterfactual holding wallet. Budget that deployment plus
+// the funding/sweep transactions at the current Arc gas price instead of using
+// the former 0.04 flat minimum, which was too low during the live proof.
+const guardedMinimum = parseEther(FUNDING) + (1_300_000n * preflightGasPrice);
+if (keeperStart < guardedMinimum) {
+  throw new Error(`Keeper balance is below the guarded live-test requirement (${formatUnits(guardedMinimum, 18)} testnet USDC).`);
+}
 
 const runId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 const domain = `moneyflow-${runId}.example`;

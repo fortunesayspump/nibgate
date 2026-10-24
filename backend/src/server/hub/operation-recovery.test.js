@@ -6,6 +6,7 @@ describe('held-tip operation recovery', () => {
     const base = { operation: 'refund', state: 'reconciliation-required', transactionHash: null };
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'Holding refund could not be prepared: factory prediction failed.' })).toBe(true);
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'Holding refund could not be prepared: Transaction creation failed.' })).toBe(true);
+    expect(isRecoverableRefundPreparationFailure({ ...base, details: 'Holding refund keeper gas balance is below the bounded transaction requirement.' })).toBe(true);
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'HTTP 401 unauthorized\nfunction: predict(bytes32)' })).toBe(true);
     expect(isRecoverableRefundPreparationFailure({ ...base, transactionHash: `0x${'ab'.repeat(32)}`, details: 'factory prediction failed' })).toBe(false);
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'receipt could not be confirmed' })).toBe(false);
@@ -16,7 +17,7 @@ describe('held-tip operation recovery', () => {
     const updatedAt = new Date('2026-10-24T11:00:00.000Z');
     const details = recoveredRefundOperationDetails({ updatedAt, details: 'https://rpc.invalid/secret' });
     expect(JSON.parse(details)).toEqual({
-      recoveredFrom: 'pre-submission-factory-prediction-failure',
+      recoveredFrom: 'pre-submission-refund-preparation-failure',
       previousUpdatedAt: updatedAt.toISOString(),
     });
     expect(details).not.toContain('secret');

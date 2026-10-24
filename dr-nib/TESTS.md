@@ -19,9 +19,11 @@
   explicit balance check so this condition is reported as
   `keeper-gas-insufficient`, without signing or broadcasting. Endpoint
   selection also skips an unaffordable primary gas quote when a same-chain
-  mirror is affordable. The refund stays
+  mirror is affordable, and the durable operation lock remains reclaimable for
+  this proved pre-submission failure. The refund stays
   unresolved until the owner authorizes a testnet keeper top-up.
 - SDK validation after the repair: 262 passed and 3 opt-in live tests skipped.
+  Backend validation: 103 passed and 20 opt-in PostgreSQL tests skipped.
   Hub/Subblogs source deployments and public health checks are recorded in the
   release handoff; the private Dr. Nib image was built and verified locally
   (398 exact source hashes, generated schema, runtime imports and QuickJS) but

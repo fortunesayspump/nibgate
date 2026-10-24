@@ -11,15 +11,15 @@ const chainMock = vi.hoisted(() => ({
 }))
 vi.mock('viem', async (importOriginal) => ({
   ...await importOriginal(),
-  createPublicClient: () => ({
+  createPublicClient: ({ transport } = {}) => ({
     readContract: chainMock.readContract,
     waitForTransactionReceipt: chainMock.waitForTransactionReceipt,
     getGasPrice: chainMock.getGasPrice,
-    estimateGas: chainMock.estimateGas,
+    estimateGas: (...args) => chainMock.estimateGas(...args, transport),
     getBalance: chainMock.getBalance,
   }),
   createWalletClient: () => ({ sendTransaction: chainMock.sendTransaction }),
-  http: () => ({}),
+  http: (url) => ({ url }),
 }))
 import {
   canonicalDomainKey,
@@ -227,6 +227,27 @@ describe('keeper settlement receipt validation', () => {
     expect(error.message).toBe('Holding refund could not be prepared: factory prediction failed.')
     expect(error.message).not.toContain('secret-token')
     expect(chainMock.sendTransaction).not.toHaveBeenCalled()
+  })
+
+  it('uses a same-chain mirror when the primary cannot estimate a valid keeper transaction', async () => {
+    const primary = 'https://primary.invalid'
+    const mirror = 'https://rpc.testnet.arc.io'
+    chainMock.estimateGas.mockImplementation(async (_request, transport) => {
+      if (transport?.url === primary) {
+        throw Object.assign(new Error('provider-local estimate failure'), { shortMessage: 'Transaction creation failed.' })
+      }
+      return 1_000_000n
+    })
+    chainMock.waitForTransactionReceipt.mockResolvedValue({
+      status: 'success',
+      logs: [eventLog('Refunded', { domainHash: domainHashFor('example.com'), payer: TEST_ADDR, amount: 2_000_000n })],
+    })
+    const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
+    await expect(submitHoldingRefund(call, {
+      privateKey: TEST_KEY, rpcUrl: primary, rpcMirrors: mirror, chainId: 5042002,
+    })).resolves.toBe(TX)
+    expect(chainMock.estimateGas).toHaveBeenCalledTimes(2)
+    expect(chainMock.sendTransaction).toHaveBeenCalledTimes(1)
   })
 
   it('quarantines a refund when the event amount does not match', async () => {

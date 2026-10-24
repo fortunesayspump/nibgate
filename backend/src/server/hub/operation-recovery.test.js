@@ -5,6 +5,7 @@ describe('held-tip operation recovery', () => {
   it('reclaims only a proved pre-submission refund preparation failure', () => {
     const base = { operation: 'refund', state: 'reconciliation-required', transactionHash: null };
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'Holding refund could not be prepared: factory prediction failed.' })).toBe(true);
+    expect(isRecoverableRefundPreparationFailure({ ...base, details: 'Holding refund could not be prepared: Transaction creation failed.' })).toBe(true);
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'HTTP 401 unauthorized\nfunction: predict(bytes32)' })).toBe(true);
     expect(isRecoverableRefundPreparationFailure({ ...base, transactionHash: `0x${'ab'.repeat(32)}`, details: 'factory prediction failed' })).toBe(false);
     expect(isRecoverableRefundPreparationFailure({ ...base, details: 'receipt could not be confirmed' })).toBe(false);

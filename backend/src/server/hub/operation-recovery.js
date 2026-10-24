@@ -1,7 +1,7 @@
 export function isRecoverableRefundPreparationFailure(operation) {
   if (!operation || operation.operation !== 'refund' || operation.state !== 'reconciliation-required' || operation.transactionHash) return false;
   const details = String(operation.details || '');
-  return details === 'Holding refund could not be prepared: factory prediction failed.'
+  return details.startsWith('Holding refund could not be prepared:')
     || (/\b(?:401|unauthorized)\b/i.test(details) && /\b(?:predict|factory prediction)\b/i.test(details));
 }
 

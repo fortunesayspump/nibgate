@@ -247,6 +247,7 @@ describe('keeper settlement receipt validation', () => {
       privateKey: TEST_KEY, rpcUrl: primary, rpcMirrors: mirror, chainId: 5042002,
     })).resolves.toBe(TX)
     expect(chainMock.estimateGas).toHaveBeenCalledTimes(2)
+    expect(chainMock.estimateGas).toHaveBeenLastCalledWith(expect.not.objectContaining({ gasPrice: expect.anything() }), expect.anything())
     expect(chainMock.sendTransaction).toHaveBeenCalledTimes(1)
   })
 

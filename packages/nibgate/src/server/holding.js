@@ -208,14 +208,18 @@ async function submitKeeperTransaction({ rpcUrls, chain, account, call, label })
       // Arc's RPC can advertise an EIP-1559 priority fee that is much larger
       // than the current execution price. Pin to the node's legacy gas price
       // and the exact successful estimate.
-      gasPrice = await candidate.getGasPrice();
       gas = await candidate.estimateGas({
         account,
         to: call.to,
         data: call.data,
         value: call.value ?? 0n,
-        gasPrice,
       });
+      // Arc nodes may reject eth_estimateGas when gasPrice is supplied and
+      // the sender cannot cover the resulting upper bound, hiding the useful
+      // estimate behind a generic "Transaction creation failed" error. Get
+      // the executable estimate first, then apply our explicit bounded balance
+      // check below before any transaction can be signed or broadcast.
+      gasPrice = await candidate.getGasPrice();
       balanceClient = candidate;
       writeClient = createWalletClient({
         account,

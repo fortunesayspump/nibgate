@@ -20,14 +20,26 @@
   `keeper-gas-insufficient`, without signing or broadcasting. Endpoint
   selection also skips an unaffordable primary gas quote when a same-chain
   mirror is affordable, and the durable operation lock remains reclaimable for
-  this proved pre-submission failure. The refund stays
-  unresolved until the owner authorizes a testnet keeper top-up.
+  this proved pre-submission failure. After explicit owner approval, the Dr.
+  Nib agent test wallet topped the keeper up by exactly 0.01 native on
+  transaction `0xb2e521a447f2eb3e36103d2ca36c653e330f7d94a2eef92187893636bd1bc487`.
+  The guarded retry then confirmed refund transaction
+  `0x1c50cd491632d599b3b8772d206191f8f98e8838e16984069877fc24b7029b0f`:
+  the box ended at zero, the original payer gained exactly 0.01 test USDC,
+  the public held-tip ledger cleared and the temporary recovery key was
+  deleted.
 - SDK validation after the repair: 262 passed and 3 opt-in live tests skipped.
   Backend validation: 103 passed and 20 opt-in PostgreSQL tests skipped.
-  Hub/Subblogs source deployments and public health checks are recorded in the
-  release handoff; the private Dr. Nib image was built and verified locally
-  (398 exact source hashes, generated schema, runtime imports and QuickJS) but
-  was not uploaded without explicit approval for the private-source image.
+  Final Hub/Subblogs deployments succeeded and their four public health checks
+  returned HTTP 200. After explicit owner approval, the private Dr. Nib image
+  was verified locally (398 exact source hashes, generated schema, runtime
+  imports and QuickJS), published at immutable digest
+  `sha256:7d24ec8e47ef515c6e52f14422709a0b3f291c3508bff4593d974bd0bdf0e85a`,
+  and deployed successfully to both funding services, both private services and
+  the mainnet watchdog. Testnet watchdog startup proved that its database lacks
+  additive migration `0016_private_worker_lifecycle`; no unapproved migration
+  was run, and that service was restored successfully to its prior immutable
+  image until the migration is separately reviewed and authorized.
 
 ## 2026-10-23 — custody rotation containment
 

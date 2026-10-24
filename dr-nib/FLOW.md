@@ -389,7 +389,7 @@ taken as the budget draws down rather than as a separate charge.
 
 On-chain, this is **stock ERC-8183 (Agentic Commerce) escrow on Arc plus a
 splitter-as-provider** — specified in `dr-nib/ESCROW.md`, deployed on Arc
-testnet. A run's escrow holds the deposit funded at approve (at least the
+testnet and mainnet. A run's escrow holds the deposit funded at approve (at least the
 plan estimate — approve aligns the working cap down to what landed);
 stages meter spend
 in the offchain ledger; at settle the keeper completes with the

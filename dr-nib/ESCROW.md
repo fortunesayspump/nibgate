@@ -3,7 +3,7 @@
 How a Dr. Nib run holds the user's money and gives it back. Design note, not
 flow — the user-facing journey lives in `FLOW.md`.
 
-**Status (checked 15 Oct 2026): deployed and configured on Arc testnet and mainnet;
+**Status (checked 24 Oct 2026): deployed and configured on Arc testnet and mainnet;
 the full funded lifecycle is proven on both networks.** We ship *stock* ERC-8183 plus a splitter-as-provider instead of
 extending a contract. The contracts are live (see Build status), the backend
 owns the job lifecycle (`backend/src/escrow/jobs.js` + `/v1/runs/:id/escrow*`
@@ -162,9 +162,10 @@ the exact report bytes the money paid for, retrievable from Postgres/R2.
 - [x] `NibgateRunSplitter` written + 7 forge tests green (split math, zero-spend refund, submitJob relay + keeper gate, wrong-key/overspend/double-split/uncompleted rejections)
 - [x] Arc testnet keeper migrated (23 Oct 2026): core `0x5135ae9be828be42b63f176848a7b720aedf4c58`, current splitter `0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef` (keeper `0x5C84…`, treasury `0x558e…`, 100 bps). The previous splitter and keeper remain in `contracts/deployments/arc-testnet.json:escrowHistory` for historical settlement verification.
 - [x] Arc mainnet keeper migrated (23 Oct 2026): core `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037`, current splitter `0x1Ad56C6d8b85ac7167a227a3a520Eb5aD349a628` (keeper `0xBe2D…`, treasury `0x558e…`, 100 bps). The previous splitter `0x68A1…` remains in `contracts/deployments/arc-mainnet.json:escrowHistory`; browser run `3d7ea349-1510-43d4-a2d8-2dc4fc598f62` and job 1 must continue to reconcile against that recorded historical splitter.
+- [x] Sourcify source verification rechecked (24 Oct 2026): both active escrow cores and both current splitters have public bytecode/source matches. This is reproducibility evidence, not an external security audit.
 - [x] Full lifecycle proven onchain with real testnet USDC (job 10, tx `0xcb6a…74b8`): $0.05 funded → $0.03 spent → split 17820 operator / 180 treasury / 12000 client refund, all atomic
 - [x] Backend job lifecycle: `createJob` / `jobStatus` / `submitAndComplete` / `signSplit` (`backend/src/escrow/jobs.js`) + `POST|GET /v1/runs/:id/escrow`, `POST /v1/runs/:id/escrow/complete` (`backend/src/routes/runs.js`)
-- [x] Local wallet/job binding (24 Oct 2026): registration, approval and settlement require the persisted run wallet plus this deployment's splitter, keeper evaluator, network token and zero hook. A database advisory lock prevents one job ID from being registered to two runs, and approval also rejects historical duplicates. This source fix is locally tested; deployment has not been verified.
+- [x] Wallet/job binding (24 Oct 2026): registration, approval and settlement require the persisted run wallet plus this deployment's splitter, keeper evaluator, network token and zero hook. A database advisory lock prevents one job ID from being registered to two runs, and approval also rejects historical duplicates. The Git-backed API/worker deployment completed; a new sustained mainnet wallet-flow soak remains separate evidence, not implied by deployment success.
 - [x] Frontend configure→approve becomes deposit (`EscrowDeposit.tsx`: `createJob` → `setBudget` → `approve` → `fund` with sequential receipts; amount selectable from the plan estimate up to the cap; approve is gated on `Funded` ≥ estimate with the working cap aligned down to the deposit)
 - [x] Keeper completes with ledger-attested `(reportHash, spentUsdc)` (`submitAndComplete` + `signSplit`)
 - [x] Escrow keeper key wired locally (`ESCROW_KEEPER_KEY` in `dr-nib/backend/.env`, also read from `NIBGATE_KEEPER_PRIVATE_KEY`) and documented in `DEPLOY.md`; `isEscrowConfigured()` reads true

@@ -111,7 +111,7 @@ the same as a run having executed — runtime verification is a separate row.
 | Exports | Done | md / json (+escrow receipt block) / bibtex + pdf / word / excel (+escrow columns on Ledger) / powerpoint (`src/exports/render.js`); binary formats returned base64 (R2 streaming is a later optimization) |
 | Evals + build gates | Done | `src/evals/`, `GATES.md`; gates fail the build |
 | MCP server | Implemented | v0.2.7: named-source previews plus private source attach/list/read with image OCR, typed input schemas, shared end/settlement gates; trusted server-only service key; fallback plans cannot be funded |
-| Escrow — contracts | Done (testnet) | stock ERC-8183 core + `NibgateRunSplitter`, deployed Arc testnet; job 10 lifecycle proven (`ESCROW.md`) |
+| Escrow — contracts | Deployed (testnet + mainnet) | stock ERC-8183 cores + current keeper-migrated `NibgateRunSplitter` deployments; all active fixed addresses source-verified on Sourcify 24 Oct 2026; testnet job 10 and a mainnet browser lifecycle are recorded in `ESCROW.md`/`TESTS.md` |
 | Escrow — backend | Done | `src/escrow/jobs.js` create/status/submit+complete/signSplit; `/v1/runs/:id/escrow*`; funding floor is the plan estimate, working cap aligns down to the deposit |
 | Escrow — frontend | Done | `frontend/src/components/dr-nib/EscrowDeposit.tsx` (amount selector, min estimate, sequential receipts); mandatory where configured in `research/page.tsx`; approve gated on `Funded` ≥ estimate |
 | Escrow — env wiring | Testnet and mainnet live | Funded runs 28 and 29 completed and split/refunded on testnet. Mainnet browser run `3d7ea349-1510-43d4-a2d8-2dc4fc598f62` completed escrow job 1 and its onchain split/refund. See `TESTS.md`. |

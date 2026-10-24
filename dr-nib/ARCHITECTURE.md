@@ -203,5 +203,8 @@ section is kept only as the original sequencing record.
 8. Eval harness + gates — **done** (`src/evals/`, `GATES.md`).
 
 Escrow (ERC-8183 + splitter) is implemented beyond this original sequence:
-contracts deployed on Arc testnet, backend `src/escrow/jobs.js`, routes, and
-the hub deposit UI — see `ESCROW.md` (keeper key wired locally; pending: service env + Fund-button browser soak).
+contracts and current keeper-migrated splitters are deployed on Arc testnet
+and mainnet, with backend `src/escrow/jobs.js`, routes, and the hub deposit UI.
+See `ESCROW.md` for dated onchain evidence and remaining browser/mainnet soak
+gaps; source verification for every active fixed contract was rechecked on
+Sourcify on 24 Oct 2026.

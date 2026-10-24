@@ -37,6 +37,25 @@ Subblog host conventions are `<name>.nibgate.xyz` and `<name>.testnet.nibgate.xy
 | Gateway wallet | `0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE` | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` |
 | Gateway minter | `0x2222222d7164433c4C09B0b0D809a9b52C04C205` | `0x0022222ABE238Cc2C7Bb1f21003F0a260052475B` |
 
+## Active fixed contracts
+
+| Contract | Mainnet | Testnet |
+|---|---|---|
+| Reputation proxy | `0xbe8e49f6b60024c95124e723c4c487874873d7f1` | `0x9f27fd62e75f86a3c7addfdba443aab1f930e281` |
+| Reputation implementation | `0x84545d2ca80c0e96afa0ef3d8d5a36cf959cafb6` | `0x51c061f749561a26cc9b34e3a90027d534e8635e` |
+| Revenue factory | `0x216e92af9530a0d45fb0056c2ff62e782c1caa03` | `0x1afce8d4b7b6e2ac2b74eedb0fe719866b64f524` |
+| ERC-8183 escrow core | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x5135ae9be828be42b63f176848a7b720aedf4c58` |
+| Current run splitter | `0x1Ad56C6d8b85ac7167a227a3a520Eb5aD349a628` | `0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef` |
+| Tip holding factory V1 | `0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87` | `0xf127a645d7C02a12E0a93B135F8aCF9c3332E518` |
+
+All fixed contracts in this active table had non-empty bytecode and a public
+Sourcify source match on 24 Oct 2026. The authoritative machine-readable
+records, including creation transactions, role rotations, retired addresses
+and verification job IDs, are `contracts/deployments/arc-mainnet.json` and
+`contracts/deployments/arc-testnet.json`. Per-creator revenue wallets and
+per-domain holding boxes are deterministic child deployments and are not one
+fixed address per network.
+
 <Callout type="warning">
 Testnet USDC comes from [Circle's faucet](https://faucet.circle.com) and has no value. Mainnet gas is paid in **real USDC** — funding gas wallets and watching balances is a real treasury operation, not a faucet claim.
 </Callout>

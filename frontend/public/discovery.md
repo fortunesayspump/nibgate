@@ -98,7 +98,7 @@ already settled (resolved creators) or were already claimed.
 |---|---|---|
 | USDC | `0x360000...0000` | Payment token (ERC-20, 6 decimals, both networks) |
 | Gateway | `0x0077777d7EBA4688BDeF3E311b846F25870A19B9` | USDC deposits + burn intents (testnet; mainnet `0x77777777Dcc4d5A8B6E418Fd04D8997ef11000eE`) |
-| Reputation | `0x9f27fd62e75f86a3c7addfdba443aab1f930e281` | On-chain content ratings (testnet; mainnet deploys separately) |
+| Reputation | testnet `0x9f27fd62e75f86a3c7addfdba443aab1f930e281`; mainnet `0xbe8e49f6b60024c95124e723c4c487874873d7f1` | On-chain content ratings |
 | Explorer | `https://testnet.arcscan.app` | Block explorer (testnet; mainnet `https://explorer.arc.io`) |
 
 ### Payment Flow
@@ -209,7 +209,7 @@ do NOT cross networks.
 
 - USDC is `0x360000...0000` on both networks; Arc domain is 26 on both.
 - Native gas: USDC (18 decimals for gas, 6 decimals for ERC-20).
-- Reputation contract: testnet `0x9f27fd62e75f86a3c7addfdba443aab1f930e281`; mainnet deploys separately.
+- Reputation contract: testnet `0x9f27fd62e75f86a3c7addfdba443aab1f930e281`; mainnet `0xbe8e49f6b60024c95124e723c4c487874873d7f1`.
 
 ## Payment confirmation and safe retries
 

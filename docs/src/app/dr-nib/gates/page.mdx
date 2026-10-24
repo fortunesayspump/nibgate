@@ -16,7 +16,7 @@ Dr. Nib applies several independent spending controls. Their scope matters: appl
 | Injected state | dual-RPC cross-check before every spend | backend, active with `DRNIB_RPC_BACKUP` | Partial |
 | Wallet policy | — | — | EOA hot key; application checks are not signer-enforced policy |
 | Escrow mandate | `NibgateRunSplitter` (keeper/treasury/splits onchain) | contract + keeper | Enforced (testnet and mainnet) |
-| Spend mandate | `NibgateSpenderV2`: configured daily cap, recipient policy, keeper pause | contract + keeper | Configured on testnet and mainnet |
+| Spend mandate | `NibgateSpenderV2`: configured daily cap, recipient policy, keeper pause | contract + keeper | **Paused** on testnet and mainnet after the 23 Oct custody rotation; not a live spending rail |
 
 ## The spender mandate
 

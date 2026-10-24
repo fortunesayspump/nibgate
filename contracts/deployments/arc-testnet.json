@@ -98,5 +98,17 @@
     "keeper": "0xA0B9Eae592cC3229519744D39d7b67eFb94bd894",
     "keeperRotationTx": "0x90837f098234667bab6118b7bead48518f5ea4f181bc328b593644c312a6e042",
     "rotatedAt": "2026-10-23"
+  },
+  "sourceVerification": {
+    "provider": "Sourcify",
+    "checkedAt": "2026-10-24T09:01:57.252Z",
+    "activeFixedContracts": [
+      { "name": "NibgateReputationProxy", "address": "0x9f27fd62e75f86a3c7addfdba443aab1f930e281", "match": "match" },
+      { "name": "NibgateReputationV2", "address": "0x51c061f749561a26cc9b34e3a90027d534e8635e", "match": "match" },
+      { "name": "GatewayFeeWalletFactory", "address": "0x1afce8d4b7b6e2ac2b74eedb0fe719866b64f524", "match": "match" },
+      { "name": "AgenticCommerce", "address": "0x5135ae9be828be42b63f176848a7b720aedf4c58", "match": "match" },
+      { "name": "NibgateRunSplitter", "address": "0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef", "match": "match", "verificationJobId": "b8f940b9-3e9a-4849-a6a0-d7b8ebd2448c" },
+      { "name": "TipHoldingFactory", "address": "0xf127a645d7C02a12E0a93B135F8aCF9c3332E518", "match": "match", "verificationJobId": "420162cf-d8e9-4aef-a2cc-d82283dfc29b" }
+    ]
   }
 }

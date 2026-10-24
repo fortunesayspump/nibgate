@@ -10,6 +10,47 @@ The payment does not go through this contract. Creator sites still receive unloc
 - `legacy/NibgateReputation.sol`: V1 implementation and the still-used minimal ERC-1967 `NibgateReputationProxy`. Testnet's proxy was upgraded to V2; moving the source does not change that proxy.
 - `NibgateSpenderV2`: capped, pausable direct-tip float for Dr. Nib. Recipients are open by default; the owner may enable an allowlist. The superseded V1 spender, its tests, and its deploy artifact are under `legacy/`.
 
+## Deployed contract inventory
+
+Checked against Arc RPC bytecode and Sourcify on 24 Oct 2026. `match` is
+Sourcify's reproducible source match; it is not a security audit.
+
+| Contract | Arc mainnet (5042) | Arc testnet (5042002) | Runtime status |
+|---|---|---|---|
+| `NibgateReputationProxy` | `0xbe8e49f6b60024c95124e723c4c487874873d7f1` | `0x9f27fd62e75f86a3c7addfdba443aab1f930e281` | active proxy; Sourcify `match` |
+| `NibgateReputationV2` | `0x84545d2ca80c0e96afa0ef3d8d5a36cf959cafb6` | `0x51c061f749561a26cc9b34e3a90027d534e8635e` | active implementation; Sourcify `match` |
+| `GatewayFeeWalletFactory` | `0x216e92af9530a0d45fb0056c2ff62e782c1caa03` | `0x1afce8d4b7b6e2ac2b74eedb0fe719866b64f524` | active; Sourcify `match` |
+| `AgenticCommerce` | `0xF08bB50BC833C7Bff25b60Fe1456f1235A0a4037` | `0x5135ae9be828be42b63f176848a7b720aedf4c58` | active ERC-8183 core; Sourcify verified |
+| `NibgateRunSplitter` | `0x1Ad56C6d8b85ac7167a227a3a520Eb5aD349a628` | `0xFE5894a5A2fC4d7f6E0E70394209467D5A7bf1ef` | active post-23-Oct keeper migration; Sourcify `match` |
+| `TipHoldingFactory` | `0x3b25846c3332fcb8140e2ab60aad2b7fb401fe87` | `0xf127a645d7C02a12E0a93B135F8aCF9c3332E518` | active immutable V1; Sourcify `match` |
+
+The factories create deterministic child contracts rather than pointing at a
+shared implementation: `GatewayFeeWalletFactory` creates per-creator fee
+wallets and `TipHoldingFactory` creates per-domain holding wallets. Those
+children do not have one fixed address per network. `TipHoldingFactoryV2` and
+`TipHoldingWalletV2` are source/test candidates only and are **not deployed or
+routed**. Both Spender generations are paused after the 23 Oct custody
+migration; their historical addresses remain in the deployment JSON.
+
+Authoritative machine records are `deployments/arc-mainnet.json`,
+`deployments/arc-testnet.json`, and `deployments/arc-testnet-spender.json`.
+They include creation transactions, current and historical roles, migration
+history, and source-verification results. Re-run the read-only check with:
+
+```bash
+node scripts/audit-sourcify-contracts.mjs
+```
+
+Run the guarded Arc testnet hold/refund proof with:
+
+```bash
+NIBGATE_LIVE_TESTNET_MONEY_FLOW=1 node scripts/verify-live-testnet-money-flow.mjs
+```
+
+The guarded script is hard-pinned to Arc testnet, the recorded factory and
+on-chain keeper, and a 0.01 USDC hold/refund. It refuses any other signer and
+retains a mode-0600 recovery file if execution stops after funding.
+
 `rating` is stored as `1-50`, where `48` means `4.8` stars.
 
 `contentId` is explicitly versioned:

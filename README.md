@@ -566,6 +566,12 @@ NIBGATE_KEEPER_PRIVATE_KEY=0xyourKeeperPrivateKey \
 npm run dev
 ```
 
+The keeper must also retain enough Arc native gas balance for the complete
+deploy-and-settle estimate. Holding claim/refund relays estimate first, then
+compare `estimate * gasPrice` with the keeper balance and fail closed with
+`keeper-gas-insufficient` before signing or broadcasting. Monitor and fund the
+keeper with a safety margin; an ERC-20 USDC balance does not pay native gas.
+
 Circle Gateway mode (requires the local-only `demo/` directory):
 
 ```bash

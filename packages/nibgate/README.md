@@ -322,7 +322,7 @@ The SDK exposes Gateway balance queries and deposit/withdraw triggers for buyer 
 Via CLI:
 
 ```bash
-# Published CLI (@nibgate/cli@0.1.3 or newer):
+# Published CLI (@nibgate/cli@0.1.4 or newer):
 npx @nibgate/cli balance
 npx @nibgate/cli deposit 1.0
 
@@ -835,7 +835,7 @@ Without a real Gateway payment, the server will not issue a Nibgate unlock token
 
 ## Payment confirmation and safe retries
 
-SDK 0.4.40 and wallet 0.4.31 support Arc mainnet (`eip155:5042`,
+SDK 0.4.41 and wallet 0.4.32 support Arc mainnet (`eip155:5042`,
 `https://api.nibgate.xyz`) and Arc testnet (`eip155:5042002`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub
@@ -899,4 +899,4 @@ resettle an ambiguous backend reservation. The hook reports a verified receipt
 only after a successful Hub response. A later UI callback failure must not prompt
 another payment. Pending proof material must not be published or sent to analytics.
 
-Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
+Google wallet compatibility: wallet 0.4.32 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.

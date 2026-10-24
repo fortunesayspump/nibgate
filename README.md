@@ -124,9 +124,9 @@ It owns:
 
 ### `packages/cli/`
 
-The CLI package is private internal tooling for local development and future setup automation. It owns:
+The published `@nibgate/cli` package provides creator setup and operational helpers. It owns:
 
-- `npx nibgate`
+- `npx @nibgate/cli`
 - local status and setup checks
 - config generation helpers
 - hub connection and domain verification commands
@@ -267,20 +267,20 @@ Useful local commands:
 
 ```bash
 npm run routes
-npx nibgate status
-npx nibgate connect
-npx nibgate verify
-npx nibgate event resource_view premium-article
-npx nibgate balance
-npx nibgate deposit 1.0
+npx @nibgate/cli status
+npx @nibgate/cli connect
+npx @nibgate/cli verify
+npx @nibgate/cli event resource_view premium-article
+npx @nibgate/cli balance
+npx @nibgate/cli deposit 1.0
 ```
 
 Package-facing shape:
 
 ```bash
-npx nibgate init
-npx nibgate dev
-npx nibgate routes
+npx @nibgate/cli init
+npx @nibgate/cli dev
+npx @nibgate/cli routes
 ```
 
 ## Product Flow
@@ -588,12 +588,12 @@ Gateway balance helpers:
 NIBGATE_PAYMENT_MODE=circle-gateway \
 NIBGATE_BUYER_PRIVATE_KEY=0xyourBuyerPrivateKey \
 NIBGATE_BUYER_CHAIN=arcTestnet \
-npx nibgate balance
+npx @nibgate/cli balance
 
 NIBGATE_PAYMENT_MODE=circle-gateway \
 NIBGATE_BUYER_PRIVATE_KEY=0xyourBuyerPrivateKey \
 NIBGATE_BUYER_CHAIN=arcTestnet \
-npx nibgate deposit 1.0
+npx @nibgate/cli deposit 1.0
 ```
 
 ### Direct rail (transfer)

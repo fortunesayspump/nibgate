@@ -105,6 +105,13 @@ function hasIndependentPostEvidence(strict = false): boolean {
   );
   const postContainers = document.querySelectorAll('article,.h-entry,.hentry,.entry-content,.post-content,.article-body,.post-body');
   const publicationSignal = Boolean(document.querySelector('time[datetime],[rel="author"],[itemprop="author"],meta[name="author"],meta[property="article:author"]'));
+  const datedCreatorMedia = Boolean(
+    publicationSignal &&
+    /(?:^|\/)(?:blog\/)?\d{4}-\d{2}-\d{2}(?:[-/]|$)/.test(path) &&
+    document.querySelector('h1') &&
+    document.querySelectorAll('audio,video').length >= 1 &&
+    (document.body?.innerText || '').replace(/\s+/g, ' ').trim().length >= 300,
+  );
   const linkedEntries = document.querySelectorAll('main h2 a[href]:not([href^="#"]),main h3 a[href]:not([href^="#"]),[role="main"] h2 a[href]:not([href^="#"]),[role="main"] h3 a[href]:not([href^="#"])').length;
   if (!articleType && !schemaArticle && linkedEntries >= 3) return false;
   if (strict) {
@@ -129,7 +136,7 @@ function hasIndependentPostEvidence(strict = false): boolean {
       galleryImages >= 6 &&
       galleryProjectLinks < 3,
     );
-    return articleType || schemaArticle || (postContainers.length === 1 && (publicationSignal || substantialPost)) || structuredLongform || coherentGallery;
+    return articleType || schemaArticle || (postContainers.length === 1 && (publicationSignal || substantialPost)) || structuredLongform || coherentGallery || datedCreatorMedia;
   }
   const main = document.querySelector('main,[role="main"]');
   const substantialMain = Boolean(main?.querySelector('h1') && main.querySelectorAll('p,blockquote').length >= 2);

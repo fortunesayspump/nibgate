@@ -46,7 +46,10 @@ for (const [name, url, expected] of pages) {
     window.eval(code + '\nwindow.__nibgateModel = NibgatePageModel;');
     const mapped = window.__nibgateModel.mapPage();
     const detected = mapped.kind === 'content' && mapped.eligibility?.kind === 'select';
-    const renderedPage = fixture(window.document.body.innerHTML, window.document.head.innerHTML);
+    // The final guard intentionally uses the real route shape (for example,
+    // dated independent audio/video posts). Preserve the audited URL instead
+    // of silently testing every page as creator.example/tutorial.
+    const renderedPage = fixture(window.document.body.innerHTML, window.document.head.innerHTML, url);
     await renderedPage.tick(0);
     const rendered = Boolean(renderedPage.host());
     if (rendered) {

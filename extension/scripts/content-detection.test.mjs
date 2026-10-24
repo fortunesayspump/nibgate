@@ -99,6 +99,20 @@ test('late creator metadata triggers reassessment without changing article text'
   } finally { f.close(); }
 });
 
+test('strict post evidence has a narrow dated native-media path', () => {
+  assert.match(source, /const datedCreatorMedia = Boolean/);
+  assert.match(source, /document\.querySelectorAll\('audio,video'\)/);
+  assert.match(source, /\\d\{4\}-\\d\{2\}-\\d\{2\}/);
+  assert.match(source, /\|\| datedCreatorMedia/);
+});
+
+test('undated promotional media page stays outside the automatic creator flow', async () => {
+  const body = `<header><h1>A company</h1></header><section><h1>Product demo</h1><video controls src="/demo.mp4"></video><p>${prose(70)}</p></section>`;
+  const f = fixture(body, '<meta name="author" content="Marketing">', 'https://creator.example/product-demo');
+  try { await f.tick(11000); assert.equal(f.host(), null); }
+  finally { f.close(); }
+});
+
 for(const url of ['https://nibgate.xyz/explore','https://testnet.nibgate.xyz/explore','https://docs.nibgate.xyz/guide','http://localhost:3001/explore','http://127.0.0.1:3001/dr-nib/research','http://[::1]:3001/explore']){
  test(`automatic controls and assessment stay off first-party app ${url}`,async()=>{
   const f=fixture(article(),'',url);try{await f.tick(11000);assert.equal(f.host(),null);assert.equal(f.messages.length,0)}finally{f.close()}

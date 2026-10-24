@@ -1,10 +1,12 @@
 # Nibgate Extension — tip any creator on the web with USDC
 
-**Status: v1.2.0 LIVE on the Chrome Web Store; v1.2.1 is a release candidate**
+**Status: v1.2.0 LIVE on the Chrome Web Store; v1.2.1 is the tested update package**
 ([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.2.1. Deploy and verify the dual-compatible Hub backend before
-uploading this extension update; ERC-1271 refunds depend on that backend and
-cannot be established by the extension package alone. Sideload guide:
+Repo is at v1.2.1. The dual-compatible Hub backend is deployed on both
+networks. ERC-1271 and held-tip refund correctness still depends on that
+backend and cannot be established by the extension package alone; the latest
+live synthetic refund remains an explicit operational verification item.
+Sideload guide:
 `docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
 
 Part of the trio: `tipping/` = protocol, `extension/` = humans, `dr-nib/` =

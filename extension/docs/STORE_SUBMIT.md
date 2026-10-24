@@ -3,9 +3,11 @@
 **Status: v1.2.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)); verified October 15, 2026.
 The store remains at v1.2.0. The repository and local release artifact are
 v1.2.1; do not call 1.2.1 live until Chrome review and publication complete.
-Treat the ZIP as a release candidate until the Hub backend that accepts both
-the legacy 1.2.0 refund message and the strict 1.2.1 message has been deployed
-and verified on each network. Rollout order is backend first, extension second.
+The Hub backend that accepts both the legacy 1.2.0 refund message and the
+strict 1.2.1 message is deployed and health-verified on each network. The ZIP
+is ready for Web Store upload/review, but use a staged rollout: the latest live
+synthetic held-tip refund has not yet produced a successful refund transaction.
+Rollout order remains backend first, extension second.
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
 
@@ -48,9 +50,10 @@ The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this p
 - [x] Reviewed payment context is immutable and ambiguous proofs recover without
   sending a second payment.
 
-Known limitations: production Hub deployment and live Circle/wallet refund
-behavior were not verified for this source-only release, so the artifact is
-not yet cleared for store upload. The explicit context
+Known limitations: production Hub deployment is verified, but the latest live
+Circle/wallet refund exercise remains unresolved before transaction submission.
+This does not block uploading the package for review, but it blocks claiming
+the live refund path fully verified or rolling out to every user. The explicit context
 menu can still tip any HTTP(S) target by user choice. Automatic classification
 cannot guarantee correctness on every custom site. Backend whole-box claim
 semantics require a future contract migration for preventive exact-balance

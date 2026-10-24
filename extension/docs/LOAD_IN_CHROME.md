@@ -1,9 +1,10 @@
 # Load Nibgate in Chrome (sideload — no store review needed)
 
 Sideload `dist/` for development and review. Version 1.2.0 remains live on
-the Chrome Web Store; this source builds the 1.2.1 release candidate (see
-`STORE_SUBMIT.md`). Deploy and verify the dual-compatible Hub backend before
-publishing the store update.
+the Chrome Web Store; this source builds the tested 1.2.1 update package (see
+`STORE_SUBMIT.md`). The dual-compatible Hub backend is deployed on both
+networks; complete the remaining live synthetic refund verification before a
+full store rollout.
 Testnet default, mainnet behind the confirm-gated header pill.
 
 ## Steps

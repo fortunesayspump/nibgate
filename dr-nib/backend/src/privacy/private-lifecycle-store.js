@@ -6,7 +6,13 @@ export function createPrivateLifecycleStore({db,cvmId,tenantId,accessMode='owner
     return db.$transaction(async tx=>{
       await tx.$executeRaw`INSERT INTO "PrivateWorkerLifecycle" ("id","state") VALUES (${cvmId},${JSON.stringify({...initial,tenantId,accessMode})}::jsonb) ON CONFLICT ("id") DO NOTHING`;
       const [row]=await tx.$queryRaw`SELECT "state",floor(extract(epoch FROM clock_timestamp())*1000)::float8 AS "now" FROM "PrivateWorkerLifecycle" WHERE "id"=${cvmId} FOR UPDATE`;
-      const [work]=await tx.$queryRaw`SELECT count(*)::integer AS "busy" FROM "PrivateActionReceipt" a JOIN "ResearchRun" r ON r."id"=a."runId" WHERE (r."userId"=${tenantId} OR (${accessMode==='authenticated'} AND r."metadata"->>'privacyMode'='confidential')) AND a."status" IN ('processing','uncertain') AND a."leaseUntil">(clock_timestamp() AT TIME ZONE 'UTC')`;
+      // Keep the owner-only watchdog on its deliberately narrow ResearchRun
+      // grant. PostgreSQL checks column privileges even when a constant-false
+      // branch references the column, so one combined query would still require
+      // metadata access in owner mode.
+      const [work]=accessMode==='authenticated'
+        ?await tx.$queryRaw`SELECT count(*)::integer AS "busy" FROM "PrivateActionReceipt" a JOIN "ResearchRun" r ON r."id"=a."runId" WHERE (r."userId"=${tenantId} OR r."metadata"->>'privacyMode'='confidential') AND a."status" IN ('processing','uncertain') AND a."leaseUntil">(clock_timestamp() AT TIME ZONE 'UTC')`
+        :await tx.$queryRaw`SELECT count(*)::integer AS "busy" FROM "PrivateActionReceipt" a JOIN "ResearchRun" r ON r."id"=a."runId" WHERE r."userId"=${tenantId} AND a."status" IN ('processing','uncertain') AND a."leaseUntil">(clock_timestamp() AT TIME ZONE 'UTC')`;
       if(row.state.tenantId!==tenantId||(row.state.accessMode??'owner')!==accessMode)throw Error('PHALA_LIFECYCLE_TENANT_MISMATCH');
       const out=fn(row.state,Number(row.now),Number(work.busy));
       await tx.$executeRaw`UPDATE "PrivateWorkerLifecycle" SET "state"=${JSON.stringify(row.state)}::jsonb,"updatedAt"=clock_timestamp() WHERE "id"=${cvmId}`;

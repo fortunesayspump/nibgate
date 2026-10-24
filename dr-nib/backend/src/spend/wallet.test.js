@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('viem', () => ({ createPublicClient: vi.fn(), createWalletClient: vi.fn(), erc20Abi: [], http: vi.fn() }));
+vi.mock('viem', () => ({ createPublicClient: vi.fn(), createWalletClient: vi.fn(), erc20Abi: [], fallback: vi.fn((transports) => ({ transports })), http: vi.fn(() => ({})) }));
 vi.mock('viem/accounts', () => ({ privateKeyToAccount: vi.fn(() => ({ address: '0xagent' })) }));
 vi.mock('../money.js', () => ({ budgetState: vi.fn(async () => ({ balance: 5 })) }));
 

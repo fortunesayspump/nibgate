@@ -5,6 +5,7 @@ vi.mock('viem', () => ({
   createWalletClient: vi.fn(() => ({
     writeContract: async () => '0xrate1',
   })),
+  fallback: vi.fn((transports) => ({ transports })),
   http: vi.fn(() => ({})),
 }));
 vi.mock('viem/accounts', () => ({

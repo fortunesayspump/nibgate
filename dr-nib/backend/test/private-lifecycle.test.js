@@ -36,6 +36,22 @@ it('expired controller intent is quarantined and reconciled; runtime is retained
  await db.$executeRaw`UPDATE "PrivateWorkerLifecycle" SET "state"=jsonb_set(jsonb_set("state",'{phase}','"starting"'::jsonb),'{operation}','{"token":"dead-controller","until":1}'::jsonb) WHERE "id"=${f.id}`;
  expect(await f.make().tick()).toBe(true);const after=await f.make().snapshot();expect(after.phase).toBe('stopped');expect(after.usedMs).toBeGreaterThanOrEqual(before.usedMs);expect(f.counts()).toEqual({starts:1,stops:1});
 });
+it('owner lifecycle works with the watchdog narrow-column role',async()=>{
+ const role=`drnib_lifecycle_${randomUUID().replaceAll('-','')}`,tenantId=randomUUID(),cvmId=randomUUID();
+ await db.$executeRawUnsafe(`CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`);
+ try{
+  await db.$executeRawUnsafe(`GRANT USAGE ON SCHEMA drnib_test TO "${role}"`);
+  await db.$executeRawUnsafe(`GRANT SELECT, INSERT, UPDATE ON drnib_test."PrivateWorkerLifecycle" TO "${role}"`);
+  await db.$executeRawUnsafe(`GRANT SELECT ("id","userId") ON drnib_test."ResearchRun" TO "${role}"`);
+  await db.$executeRawUnsafe(`GRANT SELECT ("runId","status","leaseUntil") ON drnib_test."PrivateActionReceipt" TO "${role}"`);
+  const scopedDb={$transaction:fn=>db.$transaction(async tx=>{await tx.$executeRawUnsafe(`SET LOCAL ROLE "${role}"`);return fn(tx);})};
+  const store=createPrivateLifecycleStore({db:scopedDb,cvmId,tenantId});
+  await expect(store.mutate({version:1,phase:'stopped',policy:{},holds:{}},state=>state.phase)).resolves.toBe('stopped');
+ }finally{
+  await db.$executeRawUnsafe(`DROP OWNED BY "${role}"`);
+  await db.$executeRawUnsafe(`DROP ROLE "${role}"`);
+ }
+});
 it('same CVM cannot silently change its tenant or runtime policy',async()=>{
  const f=fixture();await f.make().status();const outsider=createPrivateLifecycleStore({db,cvmId:f.id,tenantId:randomUUID()});await expect(outsider.mutate({},()=>true)).rejects.toThrow('TENANT_MISMATCH');
  const altered=createDurablePhalaWake({store:f.store,api:f.api,guestReady:async()=>true,verifyAttestation:async()=>true,idleMs:1,maxRuntimeMs:60000,startupMs:500,operationMs:1000,leaseMs:5000,pollMs:5,tickMs:1000,maxPending:256});await expect(altered.status()).rejects.toThrow('POLICY_MISMATCH');expect(f.counts().starts).toBe(0);

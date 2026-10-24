@@ -406,7 +406,10 @@ The resulting receipt is stored with `paymentProvider: 'direct-transfer'` and ke
 
 ### Before testing locally
 
-In a Nibgate repository checkout with its workspace dependencies installed, these staging commands deposit testnet USDC and read the Gateway balance. The in-repository CLI is not a separately published npm release; external integrations can use the Circle Agent Stack commands below.
+`@nibgate/cli` is published on npm. In a Nibgate repository checkout with its
+workspace dependencies installed, use the workspace commands below so staging
+tests run the exact checked-out code. External integrations can install the
+published CLI or use the Circle Agent Stack commands below.
 
 ```bash
 pnpm --filter @nibgate/cli exec node bin/nibgate.js deposit 10

@@ -322,7 +322,11 @@ The SDK exposes Gateway balance queries and deposit/withdraw triggers for buyer 
 Via CLI:
 
 ```bash
-# @nibgate/cli is in-repo only (not published), so run it via the workspace:
+# Published CLI (@nibgate/cli@0.1.3 or newer):
+npx @nibgate/cli balance
+npx @nibgate/cli deposit 1.0
+
+# Inside this repository, run the checked-out workspace version:
 pnpm --filter @nibgate/cli exec nibgate balance
 pnpm --filter @nibgate/cli exec nibgate deposit 1.0
 ```

@@ -2,11 +2,11 @@
 // so" is not enough — every claimed onchain spend must resolve to a mined
 // Transfer event, and every agent-wallet outflow must resolve to a ledger row.
 // Runs on demand (MCP audit tool); Railway cron later.
-import { createPublicClient, http, parseAbiItem } from 'viem';
+import { createPublicClient, parseAbiItem } from 'viem';
 import { NETWORKS } from '@nibgate/internal/networks.js';
 import { db } from '../db.js';
 import { budgetState } from '../money.js';
-import { spendChain } from './chain.js';
+import { spendChain, spendRpcTransport } from './chain.js';
 import { agentAddress } from './wallet.js';
 
 const TRANSFER = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
@@ -18,8 +18,8 @@ const TRANSFER = parseAbiItem('event Transfer(address indexed from, address inde
 export async function reconcileRun(runId, { publicClient } = {}) {
   const chain = spendChain();
   const pub = publicClient || createPublicClient({
-    chain: { id: chain.chainId, name: `arc-${chain.name}`, nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 6 }, rpcUrls: { default: { http: [chain.rpcUrl] } } },
-    transport: http(chain.rpcUrl),
+    chain: { id: chain.chainId, name: `arc-${chain.name}`, nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 6 }, rpcUrls: { default: { http: chain.rpcUrls || [chain.rpcUrl] } } },
+    transport: spendRpcTransport(chain),
   });
   const me = agentAddress().toLowerCase();
   // All value-moving senders: the hot EOA plus the spender mandate when

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { verifyTypedData, createPublicClient, http } from 'viem';
+import { verifyTypedData, createPublicClient, fallback, http } from 'viem';
 import { networkByChainId } from '@nibgate/internal/networks.js';
 
 function canonical(value) {
@@ -51,7 +51,12 @@ export async function gatewayTipIdentity(signature, network, requirement) {
     const net = networkByChainId(network);
     if (!net) throw new Error('Unsupported Gateway proof network.');
     const rpcUrl = process.env.NIBGATE_PAYMENT_RPC_URL || process.env.ARC_RPC_URL || net.rpcUrl;
-    const client = createPublicClient({ transport: http(rpcUrl, { timeout: 5000, retryCount: 0 }) });
+    const configured = process.env.NIBGATE_RPC_MIRRORS || process.env.ARC_RPC_FALLBACK_URLS || '';
+    const mirrors = String(configured).split(',').map((url) => url.trim()).filter(Boolean);
+    const urls = [...new Set([rpcUrl, ...mirrors, net.rpcUrl].filter(Boolean))];
+    const client = createPublicClient({
+      transport: fallback(urls.map((url) => http(url, { timeout: 5000, retryCount: 0 })), { rank: false }),
+    });
     try {
       if (await client.getChainId() !== net.chainId) throw new Error('Signature verification RPC network mismatch.');
       valid = await client.verifyTypedData(verification);

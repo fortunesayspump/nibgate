@@ -222,7 +222,8 @@ async function runHoldingBoxSweep() {
     return { skipped: 'holding sdk unavailable' };
   }
   const privateKey = process.env.NIBGATE_KEEPER_PRIVATE_KEY || '';
-  const rpcUrl = process.env.ARC_RPC_URL || process.env.NIBGATE_PAYMENT_RPC_URL || '';
+  const rpcUrl = process.env.NIBGATE_PAYMENT_RPC_URL || process.env.ARC_RPC_URL || '';
+  const rpcMirrors = process.env.NIBGATE_RPC_MIRRORS || process.env.ARC_RPC_FALLBACK_URLS || '';
   if (!privateKey || !rpcUrl) return { skipped: 'no keeper keys' };
 
   const held = await db.tip.findMany({
@@ -238,7 +239,7 @@ async function runHoldingBoxSweep() {
   const results = [];
   for (const domain of domains) {
     try {
-      const out = await holding.withdrawHoldingBoxGateway(domain, { privateKey, rpcUrl, network: activeNetwork().name });
+      const out = await holding.withdrawHoldingBoxGateway(domain, { privateKey, rpcUrl, rpcMirrors, network: activeNetwork().name });
       if (out?.minted && out.tx) {
         await db.tip.updateMany({
           where: { status: 'held', paymentProvider: 'circle-gateway', OR: [{ domain }, { contentUrl: { contains: domain } }] },

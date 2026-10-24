@@ -158,6 +158,13 @@ Selection is env-driven, testnet by default:
 - Backends: `NIBGATE_NETWORK=mainnet|testnet` (default `testnet` — a missing var can never move real money)
 - Frontends: `NEXT_PUBLIC_NIBGATE_NETWORK=mainnet|testnet`
 - Explicit per-value env vars (RPC URLs, contract addresses, origins) always override the network default.
+- Railway RPC order is deliberate: Canteen is the testnet primary, dRPC is the
+  mainnet primary, and the matching official Arc endpoint is the final
+  same-chain fallback. Set `ARC_RPC_URL`, `NIBGATE_PAYMENT_RPC_URL`, and
+  `NIBGATE_REPUTATION_RPC_URL` to the primary where used; set both
+  `ARC_RPC_FALLBACK_URLS` and `NIBGATE_RPC_MIRRORS` to the official endpoint.
+  Dr. Nib additionally sets `DRNIB_RPC_BACKUP` to that official endpoint for
+  independent pre-signature chain and block-height checks.
 
 Chain parameters live in several places by necessity (the published `@nibgate/wallet` cannot import the private `@nibgate/internal`, Subblogs links the local SDK/wallet source, ops scripts run standalone). The canonical registry is `packages/internal/src/networks.js`; mirrors live in `packages/wallet/src/chain.js`, `subblogs/backend/src/lib/network.js`, `subblogs/frontend/src/lib/network.ts`, `scripts/network.mjs`, and `contracts/deployments/arc-mainnet.json`. `pnpm networks:check` (also part of `pnpm test`) fails the build if they drift. Full reference: [Networks](https://docs.nibgate.xyz/networks).
 

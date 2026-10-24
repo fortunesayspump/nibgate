@@ -1,9 +1,29 @@
 import { getContractAddress, keccak256, toHex, encodeFunctionData, decodeFunctionData, decodeEventLog, recoverMessageAddress, getAddress, parseAbi } from 'viem';
-import { createWalletClient, createPublicClient, http } from 'viem';
+import { createWalletClient, createPublicClient, fallback, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createTipChallenge } from './tip.js';
 
 const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
+
+const OFFICIAL_ARC_RPC = {
+  5042: 'https://rpc.mainnet.arc.io',
+  5042002: 'https://rpc.testnet.arc.io',
+};
+
+export function holdingRpcUrls(rpcUrl, chainId, rpcMirrors) {
+  const configured = rpcMirrors ?? process.env.NIBGATE_RPC_MIRRORS ?? process.env.ARC_RPC_FALLBACK_URLS ?? '';
+  const mirrors = Array.isArray(configured) ? configured : String(configured).split(',');
+  return [...new Set([
+    rpcUrl,
+    ...mirrors.map((url) => String(url).trim()).filter(Boolean),
+    OFFICIAL_ARC_RPC[Number(chainId)],
+  ].filter(Boolean))];
+}
+
+function holdingRpcTransport(rpcUrl, chainId, rpcMirrors) {
+  const urls = holdingRpcUrls(rpcUrl, chainId, rpcMirrors);
+  return fallback(urls.map((url) => http(url, { retryCount: 1, timeout: 15_000 })), { rank: false });
+}
 
 // Nib Tip holding: no-key per-site money boxes + claim tokens.
 //
@@ -212,17 +232,20 @@ async function submitKeeperTransaction({ publicClient, client, account, call, la
 }
 
 // Submit a release with a keeper key. Returns the tx hash.
-export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits }) {
+export async function submitHoldingRelease(call, { privateKey, rpcUrl, rpcMirrors, chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits }) {
   if (!call?.to || !call?.data) throw new Error('submitHoldingRelease requires a release call.');
   if (!privateKey || !rpcUrl) throw new Error('submitHoldingRelease requires privateKey and rpcUrl.');
   const account = privateKeyToAccount(privateKey);
+  const resolvedChainId = Number(chainId) || 5042002;
+  const rpcUrls = holdingRpcUrls(rpcUrl, resolvedChainId, rpcMirrors);
   const chain = {
-    id: Number(chainId) || 5042002,
+    id: resolvedChainId,
     name: 'arc',
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-    rpcUrls: { default: { http: [rpcUrl] } },
+    rpcUrls: { default: { http: rpcUrls } },
   };
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const transport = holdingRpcTransport(rpcUrl, resolvedChainId, rpcMirrors);
+  const publicClient = createPublicClient({ chain, transport });
   let expected = null;
   if (expectedAmountUnits != null) {
     const decoded = decodeFunctionData({ abi: HOLDING_FACTORY_ABI, data: call.data });
@@ -245,7 +268,7 @@ export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId, 
       fee: expectedProtocolFeeUnits == null ? null : BigInt(expectedProtocolFeeUnits),
     };
   }
-  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  const client = createWalletClient({ account, chain, transport });
   const txHash = await submitKeeperTransaction({ publicClient, client, account, call, label: 'Holding release' });
   const reconciliationError = (reason, actualUnits = null) => Object.assign(
     new Error(`Release submitted but requires manual reconciliation: ${reason}. Do not retry (tx ${txHash}).`),
@@ -300,20 +323,23 @@ export function buildHoldingRefund({ domain, payer, amountUsdc, factoryAddress }
 }
 
 // Submit a refund with a keeper key. Returns the tx hash.
-export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId, onSubmitted }) {
+export async function submitHoldingRefund(call, { privateKey, rpcUrl, rpcMirrors, chainId, onSubmitted }) {
   if (!call?.to || !call?.data) throw new Error('submitHoldingRefund requires a refund call.');
   if (!privateKey || !rpcUrl) throw new Error('submitHoldingRefund requires privateKey and rpcUrl.');
   const decoded = decodeFunctionData({ abi: HOLDING_FACTORY_ABI, data: call.data });
   if (decoded.functionName !== 'refund') throw new Error('Expected holding refund calldata.');
   const [domainHash, payer, requestedUnits] = decoded.args;
   const account = privateKeyToAccount(privateKey);
+  const resolvedChainId = Number(chainId) || 5042002;
+  const rpcUrls = holdingRpcUrls(rpcUrl, resolvedChainId, rpcMirrors);
   const chain = {
-    id: Number(chainId) || 5042002,
+    id: resolvedChainId,
     name: 'arc',
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-    rpcUrls: { default: { http: [rpcUrl] } },
+    rpcUrls: { default: { http: rpcUrls } },
   };
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const transport = holdingRpcTransport(rpcUrl, resolvedChainId, rpcMirrors);
+  const publicClient = createPublicClient({ chain, transport });
   let box;
   try {
     box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
@@ -323,7 +349,7 @@ export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId, o
       { code: 'keeper-transaction-preparation-failed' },
     );
   }
-  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  const client = createWalletClient({ account, chain, transport });
   const txHash = await submitKeeperTransaction({ publicClient, client, account, call, label: 'Holding refund' });
   const reconciliationError = (reason, actualUnits = null) => Object.assign(
     new Error(`Refund submitted but requires manual reconciliation: ${reason}. Do not retry (tx ${txHash}).`),
@@ -394,20 +420,22 @@ export async function deployHoldingBox(domain, options = {}) {
   const rpcUrl = options.rpcUrl;
   if (!privateKey || !rpcUrl) throw new Error('deployHoldingBox requires privateKey and rpcUrl.');
   const account = privateKeyToAccount(privateKey);
+  const rpcUrls = holdingRpcUrls(rpcUrl, dep.chainId, options.rpcMirrors);
   const chain = {
     id: dep.chainId,
     name: 'arc',
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-    rpcUrls: { default: { http: [rpcUrl] } },
+    rpcUrls: { default: { http: rpcUrls } },
   };
-  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  const transport = holdingRpcTransport(rpcUrl, dep.chainId, options.rpcMirrors);
+  const client = createWalletClient({ account, chain, transport });
   const hash = await client.writeContract({
     address: getAddress(dep.factoryAddress),
     abi: HOLDING_FACTORY_ABI,
     functionName: 'deploy',
     args: [domainHashFor(domain)],
   });
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const publicClient = createPublicClient({ chain, transport });
   await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
   return { box: holdingRecipient(domain, { factoryAddress: dep.factoryAddress, initCodeHash: dep.initCodeHash }), tx: hash };
 }
@@ -432,7 +460,7 @@ export async function withdrawHoldingBoxGateway(domain, options = {}) {
     await new Promise((r) => setTimeout(r, 5000));
   } while (true);
   if (available <= 0n) return { box, withdrew: false, available: '0' };
-  await deployHoldingBox(domain, { privateKey: options.privateKey, rpcUrl: options.rpcUrl, network: options.network });
+  await deployHoldingBox(domain, { privateKey: options.privateKey, rpcUrl: options.rpcUrl, rpcMirrors: options.rpcMirrors, network: options.network });
   const out = await withdrawGatewayBalanceFor(box, {
     keeperKey: options.privateKey,
     domain: dep.gatewayDomain,
@@ -440,6 +468,7 @@ export async function withdrawHoldingBoxGateway(domain, options = {}) {
     gatewayMinter: dep.gatewayMinter,
     gatewayApi,
     rpcUrl: options.rpcUrl,
+    mirrors: options.rpcMirrors,
     skipEnsureDeploy: true,
   });
   // Propagate a skip honestly: nothing was withdrawn, so withdrew stays false
@@ -459,20 +488,22 @@ export async function fundHoldingBox(domain, amountUsdc, options = {}) {
   const rpcUrl = options.rpcUrl;
   if (!privateKey || !rpcUrl) throw new Error('fundHoldingBox requires privateKey and rpcUrl.');
   const account = privateKeyToAccount(privateKey);
+  const rpcUrls = holdingRpcUrls(rpcUrl, dep.chainId, options.rpcMirrors);
   const chain = {
     id: dep.chainId,
     name: 'arc',
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-    rpcUrls: { default: { http: [rpcUrl] } },
+    rpcUrls: { default: { http: rpcUrls } },
   };
-  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  const transport = holdingRpcTransport(rpcUrl, dep.chainId, options.rpcMirrors);
+  const client = createWalletClient({ account, chain, transport });
   const hash = await client.writeContract({
     address: dep.usdc,
     abi: ERC20_ABI,
     functionName: 'transfer',
     args: [getAddress(box), BigInt(Math.round(Number(amountUsdc) * 1e6))],
   });
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const publicClient = createPublicClient({ chain, transport });
   const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
   if (receipt.status !== 'success') throw new Error(`Box funding transfer reverted (tx ${hash}).`);
   return hash;

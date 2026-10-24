@@ -8,12 +8,12 @@
 // prepare answer names the chain and contract, and the wallet submits only
 // when they match this deployment's spend chain (a rating on the wrong
 // network burns gas and indexes nowhere).
-import { createPublicClient, createWalletClient, http } from 'viem';
+import { createPublicClient, createWalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { config } from '../env.js';
 import { budgetState } from '../money.js';
 import { agentKey, isSpendConfigured } from './policy.js';
-import { spendChain } from './chain.js';
+import { spendChain, spendRpcTransport } from './chain.js';
 import { crossCheckRpc } from './guard.js';
 
 const RATE_ABI = [
@@ -96,8 +96,8 @@ export async function executePublicRating({contentId,url,stars,unlockRef,fetchIm
     throw new Error(`rating lives on chain ${prep.chainId}, this deployment spends on ${chain.chainId} — refusing cross-network rating`);
   }
   await crossCheckRpc({ chainId: chain.chainId, rpcUrl: chain.rpcUrl });
-  const viemChain = { id: chain.chainId, name: `arc-${chain.name}`, nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: { default: { http: [chain.rpcUrl] } } };
-  const transport = http(chain.rpcUrl);
+  const viemChain = { id: chain.chainId, name: `arc-${chain.name}`, nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: { default: { http: chain.rpcUrls || [chain.rpcUrl] } } };
+  const transport = spendRpcTransport(chain);
   const wallet = createWalletClient({ chain: viemChain, transport, account });
   const pub = createPublicClient({ chain: viemChain, transport });
   const ratingValue = Math.max(1, Math.min(50, Math.round(s * 10)));

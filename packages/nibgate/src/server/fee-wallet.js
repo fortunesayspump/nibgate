@@ -18,13 +18,11 @@ export const ARC_TESTNET_CHAIN = 'eip155:5042002';
 // hosted content) and the hub verifies the transfer on-chain.
 export const ARC_TESTNET_RPC = 'https://rpc.testnet.arc.io';
 
-// Fallback endpoints for the same chain (5042002). Circle's primary endpoint
-// rate-limits eth_sendRawTransaction aggressively during keeper sweeps, so the
-// write path failsover across public mirrors instead of stranding revenue.
+// Safe same-chain fallback for testnet. Deployments put their keyed Canteen
+// endpoint first via NIBGATE_PAYMENT_RPC_URL and retain the official Arc RPC
+// as the last-resort read/write endpoint.
 export const ARC_TESTNET_RPC_FALLBACKS = [
-  'https://arc-testnet.drpc.org',
-  'https://rpc.drpc.testnet.arc.io',
-  'https://rpc.quicknode.testnet.arc.io',
+  ARC_TESTNET_RPC,
 ];
 
 // Arc mainnet equivalents. No public write-capable mirrors are baked in —
@@ -32,14 +30,11 @@ export const ARC_TESTNET_RPC_FALLBACKS = [
 // mirrors explicitly. Never mix testnet mirrors into mainnet failover:
 // broadcasting a mainnet transaction to a testnet RPC is a silent failure.
 export const ARC_MAINNET_RPC = 'https://rpc.mainnet.arc.io';
-// Public mainnet mirrors (same-shape as the testnet DRPC/QuickNode fallbacks,
-// confirmed against provider docs). Keyed endpoints are still preferred via
-// NIBGATE_PAYMENT_RPC_URL / NIBGATE_RPC_MIRRORS — these only absorb bursts
-// when the primary rate-limits.
+// Deployments put their keyed dRPC endpoint first. The official Arc RPC is the
+// only baked-in fallback; provider-specific endpoints belong in secrets, not
+// source or public package defaults.
 export const ARC_MAINNET_RPC_FALLBACKS = [
-  'https://arc.drpc.org',
-  'https://rpc.drpc.mainnet.arc.io',
-  'https://rpc.quicknode.mainnet.arc.io',
+  ARC_MAINNET_RPC,
 ];
 // Never fall back to the testnet RPC on a mainnet deployment: an unset
 // NIBGATE_PAYMENT_RPC_URL would otherwise broadcast real transfers to the
@@ -729,8 +724,10 @@ export async function withdrawGatewayBalanceFor(wallet, options = {}) {
   // Stringify: raw BigInts must never cross into Express res.json (it throws).
   if (value <= 0n) return { skipped: true, reason: 'below-threshold', available: ledger.available.toString() };
 
-  const publicClient = options.publicClient || sharedPublicClient(rpcUrl);
-  const walletClient = options.walletClient || createWalletClient({ transport: rpcTransport(rpcUrl) });
+  const publicClient = options.publicClient || (options.mirrors
+    ? createPublicClient({ transport: rpcTransport(rpcUrl, options.mirrors) })
+    : sharedPublicClient(rpcUrl));
+  const walletClient = options.walletClient || createWalletClient({ transport: rpcTransport(rpcUrl, options.mirrors) });
   // Circle's TEE validates ERC-1271 on the wallet, so funded wallets must
   // exist before attestation. Empty wallets need no deployment or RPC work.
   // Other factories (e.g. TipHoldingFactory) deploy their own contracts.
@@ -814,9 +811,9 @@ export function defaultMirrors(primary = '') {
 }
 function rpcTransport(rpcUrl = '', mirrors = null) {
   const primary = rpcUrl || serverEnv('NIBGATE_PAYMENT_RPC_URL') || defaultRpcUrl();
-  const cacheKey = `transport:${primary}`;
+  const list = (mirrors ?? defaultMirrors(primary)).filter((u) => u !== primary);
+  const cacheKey = `transport:${[primary, ...list].join('|')}`;
   if (!transportCache.has(cacheKey)) {
-    const list = (mirrors ?? defaultMirrors(primary)).filter((u) => u !== primary);
     const urls = [primary, ...list];
     transportCache.set(
       cacheKey,

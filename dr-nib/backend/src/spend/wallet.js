@@ -7,8 +7,8 @@
 // transfer; x402/Gateway flows sign through @circle-fin/x402-batching in
 // unlocks.js instead.
 import { privateKeyToAccount } from 'viem/accounts';
-import { createPublicClient, createWalletClient, erc20Abi, http } from 'viem';
-import { spendChain } from './chain.js';
+import { createPublicClient, createWalletClient, erc20Abi } from 'viem';
+import { spendChain, spendRpcTransport } from './chain.js';
 import { agentKey } from './policy.js';
 
 function clients() {
@@ -18,9 +18,9 @@ function clients() {
     id: chain.chainId,
     name: `arc-${chain.name}`,
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 6 },
-    rpcUrls: { default: { http: [chain.rpcUrl] } },
+    rpcUrls: { default: { http: chain.rpcUrls || [chain.rpcUrl] } },
   };
-  const transport = http(chain.rpcUrl);
+  const transport = spendRpcTransport(chain);
   return {
     chain,
     account,

@@ -199,9 +199,7 @@ function publicClientForIndexer() {
   // degrade under sustained polling, which would silently stall the indexer.
   // The client is cached — one instance per process keeps socket pooling
   // intact (a fresh client per call opens a new TLS connection per request).
-  const mirrors = (process.env.ARC_RPC_FALLBACK_URLS || (NET.isTestnet
-    ? 'https://arc-testnet.drpc.org,https://rpc.drpc.testnet.arc.io,https://rpc.quicknode.testnet.arc.io'
-    : ''))
+  const mirrors = (process.env.ARC_RPC_FALLBACK_URLS || NET.reputationRpcUrl)
     .split(',').map((u) => u.trim()).filter((u) => u && u !== rpcUrl);
   const urls = [rpcUrl, ...mirrors];
   indexerClientCache = createPublicClient({

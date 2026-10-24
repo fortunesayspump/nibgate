@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createPublicClient, hashMessage, http, recoverAddress } from 'viem';
+import { createPublicClient, fallback, hashMessage, http, recoverAddress } from 'viem';
 
 const ERC1271_MAGIC_VALUE = '0x1626ba7e';
 const ERC1271_ABI = [{
@@ -98,7 +98,7 @@ export function validateLegacyRefundMessage({ message, domain, payer, now = Date
   };
 }
 
-export async function verifyWalletControl({ address, message, signature, rpcUrl, chain, publicClientFactory = createPublicClient }) {
+export async function verifyWalletControl({ address, message, signature, rpcUrl, rpcMirrors, chain, publicClientFactory = createPublicClient }) {
   const expected = String(address || '').toLowerCase();
   const hash = hashMessage(message);
   try {
@@ -109,14 +109,17 @@ export async function verifyWalletControl({ address, message, signature, rpcUrl,
   }
 
   try {
+    const configured = rpcMirrors ?? process.env.NIBGATE_RPC_MIRRORS ?? process.env.ARC_RPC_FALLBACK_URLS ?? '';
+    const mirrors = Array.isArray(configured) ? configured : String(configured).split(',');
+    const urls = [...new Set([rpcUrl, ...mirrors.map((url) => String(url).trim()).filter(Boolean), chain.rpcUrl].filter(Boolean))];
     const client = publicClientFactory({
       chain: {
         id: chain.chainId,
         name: chain.label || chain.name,
         nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-        rpcUrls: { default: { http: [rpcUrl] } },
+        rpcUrls: { default: { http: urls } },
       },
-      transport: http(rpcUrl, { timeout: 5_000, retryCount: 0 }),
+      transport: fallback(urls.map((url) => http(url, { timeout: 5_000, retryCount: 0 })), { rank: false }),
     });
     const rpcChainId = await client.getChainId();
     if (Number(rpcChainId) !== Number(chain.chainId)) return false;

@@ -6,10 +6,10 @@
 // All chain writes go through the keeper key (server-side operator key).
 // Reads need no key. Every function takes an optional client factory so
 // tests inject fakes and never touch a chain.
-import { createPublicClient, createWalletClient, http, keccak256, encodeAbiParameters, hexToBytes, parseSignature } from 'viem';
+import { createPublicClient, createWalletClient, keccak256, encodeAbiParameters, hexToBytes, parseSignature } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { CORE_ABI, SPLITTER_ABI } from './abi.js';
-import { spendChain } from '../spend/chain.js';
+import { spendChain, spendRpcTransport } from '../spend/chain.js';
 
 export function escrowConfig(env = process.env, network = null) {
   const chain = spendChain(network);
@@ -67,7 +67,7 @@ function viemChain(chain) {
     id: chain.chainId,
     name: `arc-${chain.name}`,
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-    rpcUrls: { default: { http: [chain.rpcUrl] } },
+    rpcUrls: { default: { http: chain.rpcUrls || [chain.rpcUrl] } },
   };
 }
 
@@ -80,7 +80,7 @@ async function confirmedReceipt(client, hash) {
 function clients(cfg, make = null) {
   if (make?.public && make?.wallet) return { ...make, chain: cfg.chain };
   const vc = viemChain(cfg.chain);
-  const transport = http(cfg.chain.rpcUrl);
+  const transport = spendRpcTransport(cfg.chain);
   const account = privateKeyToAccount(cfg.keeperKey);
   return {
     chain: cfg.chain,

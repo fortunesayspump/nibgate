@@ -33,6 +33,7 @@ import { startVerificationMonitor, startManifestSyncMonitor, startReputationInde
 import { startFeeKeeper } from '../revenue/keeper.js';
 import { startMetadataEnricher } from '../jev/metadata.js';
 import { usdcUnits, validateLegacyRefundMessage, validateRefundMessage, verifyWalletControl } from '../hub/wallet-control.js';
+import { isRecoverableRefundPreparationFailure, recoveredRefundOperationDetails } from '../hub/operation-recovery.js';
 
 // Leaderboards serialize counts and scores, never raw tracking metadata or
 // receipt payloads. Loading every column of every child row multiplies the
@@ -82,6 +83,26 @@ async function reserveTipDomainOperation(domain, operation, res) {
     return await db.tipDomainOperation.create({ data: { domain, network: activeNetwork().name, operation } });
   } catch (error) {
     if (error?.code === 'P2002') {
+      if (operation === 'refund') {
+        const existing = await db.tipDomainOperation.findFirst({
+          where: { domain, network: activeNetwork().name },
+        }).catch(() => null);
+        if (isRecoverableRefundPreparationFailure(existing)) {
+          const reclaimed = await db.tipDomainOperation.updateMany({
+            where: {
+              id: existing.id,
+              operation: 'refund',
+              state: 'reconciliation-required',
+              transactionHash: null,
+            },
+            data: {
+              state: 'reserved',
+              details: recoveredRefundOperationDetails(existing),
+            },
+          }).catch(() => ({ count: 0 }));
+          if (reclaimed.count === 1) return db.tipDomainOperation.findUnique({ where: { id: existing.id } });
+        }
+      }
       res.status(409).json({
         error: 'A money operation for this domain is pending or requires reconciliation. Do not retry until it is resolved.',
         code: 'domain-operation-pending',
@@ -1356,7 +1377,8 @@ export function registerHubRoutes(app) {
   // (net) + treasury (cut) in one atomic tx. Returns the tx hash.
   const holdingKeeperKeys = () => ({
     privateKey: process.env.NIBGATE_KEEPER_PRIVATE_KEY || '',
-    rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_PAYMENT_RPC_URL || '',
+    rpcUrl: process.env.NIBGATE_PAYMENT_RPC_URL || process.env.ARC_RPC_URL || '',
+    rpcMirrors: process.env.NIBGATE_RPC_MIRRORS || process.env.ARC_RPC_FALLBACK_URLS || '',
   });
 
   const releaseHoldingBox = async (domain, creator, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits) => {
@@ -1364,10 +1386,10 @@ export function registerHubRoutes(app) {
     if (!holding) throw new Error('Holding SDK not available in this build.');
     const dep = holding.holdingDeployment(activeNetwork().name);
     const call = holding.buildHoldingRelease({ domain, creator, factoryAddress: dep.factoryAddress });
-    const { privateKey, rpcUrl } = holdingKeeperKeys();
+    const { privateKey, rpcUrl, rpcMirrors } = holdingKeeperKeys();
     if (!privateKey || !rpcUrl) throw new Error('Release requires NIBGATE_KEEPER_PRIVATE_KEY and an RPC URL.');
     return holding.submitHoldingRelease(call, {
-      privateKey, rpcUrl, chainId: dep.chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits,
+      privateKey, rpcUrl, rpcMirrors, chainId: dep.chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits,
     });
   };
 
@@ -1681,14 +1703,14 @@ export function registerHubRoutes(app) {
       });
       // Collect any Gateway-credited balance into the box first (the box's
       // ERC-1271 self-withdrawal), then release the box balance onchain.
-      const { privateKey, rpcUrl } = holdingKeeperKeys();
+      const { privateKey, rpcUrl, rpcMirrors } = holdingKeeperKeys();
       const hasGatewayHold = domainHeld.some((t) => t.paymentProvider === 'circle-gateway');
       if (privateKey && rpcUrl && hasGatewayHold) {
         try {
           // Circle batched settlement is deferred. If the box's credit is not
           // yet withdrawable, report settling instead of failing the claim.
           const gw = await holding.withdrawHoldingBoxGateway(domain, {
-            privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0,
+            privateKey, rpcUrl, rpcMirrors, network: activeNetwork().name, waitMs: 0,
           });
           if (gw?.withdrew === false || gw?.skipped) {
             await db.tipDomainOperation.delete({ where: { id: operation.id } });
@@ -1791,7 +1813,8 @@ export function registerHubRoutes(app) {
       }
       const network = activeNetwork();
       const proofRpcUrl = process.env.NIBGATE_PAYMENT_RPC_URL || process.env.ARC_RPC_URL || network.rpcUrl;
-      const validProof = await verifyWalletControl({ address: payerWallet, message, signature, rpcUrl: proofRpcUrl, chain: network });
+      const proofRpcMirrors = process.env.NIBGATE_RPC_MIRRORS || process.env.ARC_RPC_FALLBACK_URLS || '';
+      const validProof = await verifyWalletControl({ address: payerWallet, message, signature, rpcUrl: proofRpcUrl, rpcMirrors: proofRpcMirrors, chain: network });
       if (!validProof) return res.status(403).json({ error: 'Wallet control proof failed.' });
 
       const existingAuthorization = await db.tipRefundAuthorization.findUnique({ where: { digest: messageCheck.digest } });
@@ -1877,7 +1900,7 @@ export function registerHubRoutes(app) {
         }
         throw error;
       }
-      const { privateKey, rpcUrl } = holdingKeeperKeys();
+      const { privateKey, rpcUrl, rpcMirrors } = holdingKeeperKeys();
       if (!privateKey || !rpcUrl) {
         await db.$transaction([
           db.tipRefundAuthorization.delete({ where: { digest: authorization.digest } }),
@@ -1905,7 +1928,7 @@ export function registerHubRoutes(app) {
       if (hasGatewayHold) {
         try {
           const gw = await holding.withdrawHoldingBoxGateway(canon, {
-            privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0, factoryAddress,
+            privateKey, rpcUrl, rpcMirrors, network: activeNetwork().name, waitMs: 0, factoryAddress,
           });
           if (gw?.withdrew === false || gw?.skipped) {
             await db.$transaction([
@@ -1931,7 +1954,7 @@ export function registerHubRoutes(app) {
       let refundTx;
       try {
         refundTx = await holding.submitHoldingRefund(call, {
-          privateKey, rpcUrl, chainId: dep.chainId,
+          privateKey, rpcUrl, rpcMirrors, chainId: dep.chainId,
           onSubmitted: (transactionHash) => db.tipDomainOperation.update({
             where: { id: operation.id }, data: { state: 'submitted', transactionHash },
           }),

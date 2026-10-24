@@ -99,7 +99,10 @@ Set these on the service (never commit them):
 | `DRNIB_NETWORK` | `mainnet`; stated explicitly (otherwise inferred from `HUB_API_URL`) |
 | `DRNIB_SELLER_ADDRESS` | optional; receiver for direct x402 tips/unlocks |
 | `DRNIB_SPENDER_ADDRESS` | historical/disabled; both `NibgateSpenderV2` deployments are paused and custody-rotated as of 23 Oct 2026. Do not fund or re-enable them without a separate reviewed custody decision. Testnet `0x8F636a1aCb99d96746b657645E1d8F2864bff7DA`; mainnet `0xae39444c91aE8F0b8cF0642A18A521b6D312061B`. Unresolved held tips and Gateway x402 remain outside this contract. |
-| `DRNIB_RPC_BACKUP` | optional independent RPC used to cross-check chain ID and block height before every spend; test the provider live before enabling it, because disagreement or outage refuses spending. |
+| `ARC_RPC_URL` | primary Arc RPC: Canteen on testnet, dRPC on mainnet. Keep keyed URLs only in deployment secrets. |
+| `NIBGATE_RPC_MIRRORS` | comma-separated same-chain failover URLs; set the official Arc endpoint for the active network. |
+| `ARC_RPC_FALLBACK_URLS` | same official fallback used by shared Hub/Subblogs RPC paths. |
+| `DRNIB_RPC_BACKUP` | independent official Arc RPC used to cross-check chain ID and block height before every spend; disagreement or outage refuses spending. |
 | `ESCROW_CORE` / `ESCROW_SPLITTER` | escrow is not auto-enabled on mainnet: set both to the deployed ERC-8183 core + `NibgateRunSplitter` addresses. Testnet defaults are built in |
 | `ESCROW_KEEPER_KEY` | keeper hot key (escrow evaluator + `submit`/`complete` + split attestation). **Required for `isEscrowConfigured()`**; also read from `NIBGATE_KEEPER_PRIVATE_KEY`. Without it the escrow routes answer 501 |
 | `ESCROW_TREASURY` | optional; default `0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12` |

@@ -197,6 +197,7 @@ async function submitKeeperTransaction({ rpcUrls, chain, account, call, label })
   let writeClient;
   let balanceClient;
   let lastError;
+  let smallestGasShortfall;
   // viem's fallback transport intentionally does not retry execution errors.
   // Some Arc providers return a provider-local "Transaction creation failed"
   // for eth_estimateGas even though eth_call succeeds and the official RPC can
@@ -220,6 +221,14 @@ async function submitKeeperTransaction({ rpcUrls, chain, account, call, label })
       // the executable estimate first, then apply our explicit bounded balance
       // check below before any transaction can be signed or broadcast.
       gasPrice = await candidate.getGasPrice();
+      const balance = await candidate.getBalance({ address: account.address });
+      const required = gas * gasPrice + (call.value ?? 0n);
+      if (balance < required) {
+        if (!smallestGasShortfall || required < smallestGasShortfall.required) {
+          smallestGasShortfall = { required, balance };
+        }
+        continue;
+      }
       balanceClient = candidate;
       writeClient = createWalletClient({
         account,
@@ -232,11 +241,23 @@ async function submitKeeperTransaction({ rpcUrls, chain, account, call, label })
     }
   }
   if (!writeClient || !balanceClient) {
+    if (smallestGasShortfall) {
+      throw Object.assign(
+        new Error(`${label} keeper gas balance is below the bounded transaction requirement.`),
+        {
+          code: 'keeper-gas-insufficient',
+          requiredWei: String(smallestGasShortfall.required),
+          balanceWei: String(smallestGasShortfall.balance),
+        },
+      );
+    }
     throw Object.assign(
       new Error(`${label} could not be prepared: ${lastError?.shortMessage || 'gas estimation failed'}`),
       { code: 'keeper-transaction-preparation-failed' },
     );
   }
+  // Re-read immediately before signing in case another keeper operation spent
+  // gas after endpoint selection.
   const balance = await balanceClient.getBalance({ address: account.address });
   const required = gas * gasPrice + (call.value ?? 0n);
   if (balance < required) {

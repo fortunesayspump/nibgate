@@ -14,7 +14,7 @@ vi.mock('viem', async (importOriginal) => ({
   createPublicClient: ({ transport } = {}) => ({
     readContract: chainMock.readContract,
     waitForTransactionReceipt: chainMock.waitForTransactionReceipt,
-    getGasPrice: chainMock.getGasPrice,
+    getGasPrice: (...args) => chainMock.getGasPrice(...args, transport),
     estimateGas: (...args) => chainMock.estimateGas(...args, transport),
     getBalance: chainMock.getBalance,
   }),
@@ -248,6 +248,24 @@ describe('keeper settlement receipt validation', () => {
     })).resolves.toBe(TX)
     expect(chainMock.estimateGas).toHaveBeenCalledTimes(2)
     expect(chainMock.estimateGas).toHaveBeenLastCalledWith(expect.not.objectContaining({ gasPrice: expect.anything() }), expect.anything())
+    expect(chainMock.sendTransaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses an affordable same-chain mirror when the primary gas quote exceeds the keeper balance', async () => {
+    const primary = 'https://primary.invalid'
+    const mirror = 'https://rpc.testnet.arc.io'
+    chainMock.getGasPrice.mockImplementation(async (transport) => transport?.url === primary ? 80_000_000_000n : 25_000_000_000n)
+    chainMock.getBalance.mockResolvedValue(30_000_000_000_000_000n)
+    chainMock.waitForTransactionReceipt.mockResolvedValue({
+      status: 'success',
+      logs: [eventLog('Refunded', { domainHash: domainHashFor('example.com'), payer: TEST_ADDR, amount: 2_000_000n })],
+    })
+    const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
+    await expect(submitHoldingRefund(call, {
+      privateKey: TEST_KEY, rpcUrl: primary, rpcMirrors: mirror, chainId: 5042002,
+    })).resolves.toBe(TX)
+    expect(chainMock.estimateGas).toHaveBeenCalledTimes(2)
+    expect(chainMock.sendTransaction).toHaveBeenCalledWith(expect.objectContaining({ gasPrice: 25_000_000_000n }))
     expect(chainMock.sendTransaction).toHaveBeenCalledTimes(1)
   })
 

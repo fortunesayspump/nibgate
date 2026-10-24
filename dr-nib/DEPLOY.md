@@ -1,16 +1,16 @@
 # Deploying Dr. Nib (Railway)
 
-For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is legacy infrastructure to preserve until the replacement is accepted; it is not the private broker deployment profile.
+For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is legacy infrastructure; it is not the private broker deployment profile. The mainnet ordinary API and worker were stopped on 24 Oct 2026 after their public route moved to the private broker and their queue recovery reported no pending work. Their Railway definitions and data remain available for rollback. The ordinary testnet API remains live at `drnib.testnet.nibgate.xyz` while testnet private acceptance continues.
 
 Dr. Nib is a second service in the existing Nibgate Railway project. It shares
 the Postgres cluster with the hub but keeps its own tables in a separate
 `drnib` schema, and it reads the hub's SIWE sessions from the hub database.
 
-## 1. Create the service
+## 1. Ordinary service profile (legacy)
 
-Deployed as `nibgate-drnib-mainnet` in the `nibgate-mainnet` project (production
-environment). Its service settings, mirroring the hub backend because Dr. Nib
-needs the monorepo's `workspace:*` deps:
+The stopped mainnet service definition is `nibgate-drnib-mainnet` in the
+`nibgate-mainnet` project (production environment). Its settings mirror the Hub
+backend because Dr. Nib needs the monorepo's `workspace:*` deps:
 
 - **Source:** GitHub repo `fortunesayspump/nibgate`, branch `main`.
 - **Root Directory:** *(repo root)* — not `dr-nib/backend`. The build context

@@ -10,16 +10,18 @@ The legacy-named `DRNIB_PRIVATE_TEST_TENANT_ID` remains the infrastructure contr
 
 Changing an existing lifecycle row's access mode is rejected. While stopped, review in-flight leases and financial operations, then explicitly migrate its mode without resetting runtime or spending. Fresh scoped mainnet state can initialize in authenticated mode.
 
-## Existing service mapping
+## Current service mapping (checked 24 Oct 2026)
 
-| Existing service | Treatment after acceptance |
+| Service | Current role/status |
 | --- | --- |
-| `nibgate-drnib-private-synthetic` | Rename display name to `nibgate-drnib-private-testnet`; retain service ID, URL and data |
-| `drnib-private-funding-canary` | Rename to `nibgate-drnib-funding-testnet` |
-| `drnib-private-watchdog-canary` | Rename to `nibgate-drnib-watchdog-testnet` |
-| `drnib-qa-verifier` / `drnib-qa-verifier-gateway` | Shared `drnib-verifier` / `drnib-verifier-gateway`; preserve private DNS, HTTPS origin and SPKI pin |
-| `nibgate-drnib-mainnet` | Reuse for mainnet broker after original API drain and rollback backup |
-| `nibgate-drnib-worker-mainnet` | Reuse for mainnet funding after original queue drain |
+| `nibgate-drnib-private-testnet` | Testnet ciphertext broker; renamed service retains its original Railway domain and data |
+| `nibgate-drnib-funding-testnet` | Testnet money/public-tools boundary |
+| `nibgate-drnib-watchdog-testnet` | Testnet lifecycle reconciliation and idle-stop supervisor |
+| `drnib-qa-verifier` / `drnib-qa-verifier-gateway` | Shared private verifier engine and evidence-only HTTPS gateway; preserve private DNS, HTTPS origin and SPKI pin |
+| `nibgate-drnib-private-mainnet` | Mainnet ciphertext broker; owns `drnib.nibgate.xyz` |
+| `nibgate-drnib-funding-mainnet` | Mainnet money/public-tools boundary |
+| `nibgate-drnib-watchdog-mainnet` | Mainnet lifecycle reconciliation and idle-stop supervisor |
+| `nibgate-drnib-mainnet` / `nibgate-drnib-worker-mainnet` | Retired ordinary API/worker deployments stopped 24 Oct 2026; definitions and data retained for rollback, with auto-deploy watch paths disabled |
 | Existing Postgres hosts | Reuse hosts with isolated logical databases and restricted roles; retain old financial records |
 
 Mainnet requires independent lifecycle supervision. Reuse a suitable process if available; otherwise a watchdog is necessary. Only one Phala CVM exists, the stopped testnet worker. Its network-bound configuration cannot simultaneously serve both networks; mainnet requires a separately scoped guest. Share the verifier pair instead of duplicating it. Any required new runtime must fit the mainnet allowance.
@@ -31,7 +33,7 @@ Mainnet requires independent lifecycle supervision. Reuse a suitable process if 
 3. Configure `private-drnib.testnet.nibgate.xyz` and `private-drnib.nibgate.xyz`, matching existing frontend defaults. Verify DNS/TLS, exact origins and session handling before enabling frontend private flags. Promote testnet before mainnet with its own contracts, keys and budget.
 4. Block old ordinary admissions, reconcile outstanding funds and drain queues. Retire running ordinary compute only after replacement verification. Preserve data and rollback inputs. Ordinary MCP clients cannot simply be repointed to a broker with a different API contract.
 
-Railway currently rejects redeploys with “Deploys have been paused temporarily” during incident `QH8L8B3E`. This blocks paired image deployment and safe domain/legacy cutover. The previous funded testnet run is preserved: terminal execution passed; creator tip, report and settlement acceptance remain outstanding.
+The earlier Railway deploy pause (`QH8L8B3E`) is resolved. Control-plane services are deployed in their separate roles; this does not by itself prove the Phala guest, creator-tip, report, settlement/refund and recovery acceptance matrix. Preserve the previous funded testnet run and its evidence until those remaining checks are complete.
 
 Petpad production `Postgres` and development `Postgres-KaGA` have `sleepApplication=true`. Both redeploy attempts were rejected by the Railway pause, so running containers have not adopted idle sleeping. Redeploy existing builds after recovery, then observe sleep. Redis and retained volumes are unchanged.
 

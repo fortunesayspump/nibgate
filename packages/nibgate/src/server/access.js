@@ -14,6 +14,16 @@ export function createNibgateServer(options = {}) {
   const secret = options.secret || serverEnv('NIBGATE_SECRET') || serverEnv('NIBGATE_UNLOCK_SECRET') || 'nibgate-dev-secret';
   const verifyPayment = options.verifyPayment || null;
   const verifyTransfer = options.verifyTransfer || createTransferVerifier(options);
+  const deliverHubEvent = typeof options.emitHubEvent === 'function' ? options.emitHubEvent : emitHubEvent;
+
+  async function recordCompletedAccess(resource, payment, eventOptions = {}) {
+    // Access must not fail because optional analytics are unavailable, but the
+    // delivery attempts must finish before a serverless invocation returns.
+    await Promise.allSettled([
+      deliverHubEvent('payment_completed', resource, { ...options, ...eventOptions, payload: payment }),
+      deliverHubEvent('unlock_completed', resource, { ...options, ...eventOptions, payload: payment })
+    ]);
+  }
 
   function queryRail(request) {
     try {
@@ -114,8 +124,7 @@ export function createNibgateServer(options = {}) {
         const result = await unlock(resource, gateway.payment);
         if (result.ok) {
           const response = jsonResponse({ ok: true, resource, payment: gateway.payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
-          emitHubEvent('payment_completed', resource, { ...options, ...routeOptions, payload: gateway.payment }).catch(() => {});
-          emitHubEvent('unlock_completed', resource, { ...options, ...routeOptions, payload: gateway.payment }).catch(() => {});
+          await recordCompletedAccess(resource, gateway.payment, routeOptions);
           return response;
         }
       }
@@ -151,8 +160,13 @@ export function createNibgateServer(options = {}) {
             return jsonResponse({ ok: false, error: 'Claim registry unavailable', reason: 'claim-registry-unavailable' }, { status: 503 });
           }
           if (!claim.ok) return jsonResponse({ ok: false, error: 'Payment already used for different content', reason: claim.error }, { status: 402 });
-          const result = await unlock(resource, { ...transferPayment, verified: true });
-          if (result.ok) return jsonResponse({ ok: true, resource, payment: { ...transferPayment, verified: true }, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+          const payment = { ...transferPayment, verified: true };
+          const result = await unlock(resource, payment);
+          if (result.ok) {
+            const response = jsonResponse({ ok: true, resource, payment, unlockProof: result.unlockProof, expiresInSeconds: result.expiresInSeconds });
+            await recordCompletedAccess(resource, payment, routeOptions);
+            return response;
+          }
         }
       }
 
@@ -191,18 +205,7 @@ export function createNibgateServer(options = {}) {
       resource: result.resource
     });
 
-    emitHubEvent('payment_completed', resource, {
-      ...options,
-      ...routeOptions,
-      origin,
-      payload: payment
-    }).catch(() => {});
-    emitHubEvent('unlock_completed', resource, {
-      ...options,
-      ...routeOptions,
-      origin,
-      payload: payment
-    }).catch(() => {});
+    await recordCompletedAccess(resource, payment, { ...routeOptions, origin });
 
     return response;
   }
@@ -216,7 +219,7 @@ export function createNibgateServer(options = {}) {
     payAndUnlockResponse,
     manifest: (input = {}) => createManifest({ ...input, origin: input.origin || options.origin }),
     manifestResponse: (input = {}) => manifestResponse({ ...input, origin: input.origin || options.origin }),
-    emitHubEvent: (event, resource, eventOptions = {}) => emitHubEvent(event, resource, { ...options, ...eventOptions }),
+    emitHubEvent: (event, resource, eventOptions = {}) => deliverHubEvent(event, resource, { ...options, ...eventOptions }),
     getGatewayBalances: (balanceOptions = {}) => getGatewayBalances({ ...options, ...balanceOptions }),
     depositToGateway: (amount, depositOptions = {}) => depositToGateway(amount, { ...options, ...depositOptions }),
     withdrawFromGateway: (amount, withdrawOptions = {}) => withdrawFromGateway(amount, { ...options, ...withdrawOptions }),

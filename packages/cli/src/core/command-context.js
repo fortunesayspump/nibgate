@@ -10,7 +10,8 @@ export const localConfigPath = path.join(cwd, 'nibgate.config.json');
 export function getRuntimeConfig() {
   try {
     return loadConfig().config;
-  } catch {
+  } catch (error) {
+    if (!/^No nibgate\.config\.json found\./.test(String(error?.message || ''))) throw error;
     return withConfigDefaults(defaultConfig());
   }
 }

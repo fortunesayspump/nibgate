@@ -1,8 +1,10 @@
 # Nibgate Extension — tip any creator on the web with USDC
 
-**Status: v1.2.0 LIVE on the Chrome Web Store**
+**Status: v1.2.0 LIVE on the Chrome Web Store; v1.2.1 is a release candidate**
 ([install](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)).
-Repo is at v1.2.0. Sideload guide:
+Repo is at v1.2.1. Deploy and verify the dual-compatible Hub backend before
+uploading this extension update; ERC-1271 refunds depend on that backend and
+cannot be established by the extension package alone. Sideload guide:
 `docs/LOAD_IN_CHROME.md`. Submission process: `docs/STORE_SUBMIT.md`.
 
 Part of the trio: `tipping/` = protocol, `extension/` = humans, `dr-nib/` =
@@ -34,6 +36,10 @@ removes its local key and activity; it does not move or erase on-chain funds,
 so you may permanently lose access to them. The backup screen has a **Copy
 phrase** button (clipboard write only, on your tap — the extension never reads
 the clipboard).
+
+Password fields are concealed by default. Their eye controls are keyboard
+accessible, reveal only the current field for the current view, and reset to
+concealed whenever the screen changes; visibility is never stored.
 
 ### Networks — testnet first, mainnet behind a confirm
 
@@ -75,6 +81,14 @@ marketing heroes, and product galleries out of the automatic creator flow.
 These page signals do not verify payment ownership; recipient resolution and
 domain claiming still happen through the hub.
 
+Automatic controls are for independent creator sites only. Social networks
+(including X/Twitter, YouTube, Discord, Instagram, TikTok, Reddit, LinkedIn,
+Threads, Bluesky, Facebook, and Twitch), Nibgate, and loopback pages never
+auto-qualify, even on an individual post/video route. SPA navigation removes a
+stale button immediately. Both deterministic classification and the unknown-
+page fallback require post-level structural evidence; fallback additionally
+requires at least 0.80 creator-content probability.
+
 Two outcomes, both safe:
 
 - **Creator resolved** — the tip settles over x402 rails (direct transfer or
@@ -101,7 +115,8 @@ what matching indexed content provides.
 
 No analytics, no remote code, full policy at
 `https://nibgate.xyz/extension-privacy`. Site access is optional and granted
-by you at runtime ("Enable on all sites") — install asks for almost nothing.
+by you at runtime ("Enable on all sites"). Declared functional permissions are
+documented in the store submission guide and privacy page.
 
 ---
 
@@ -140,7 +155,7 @@ Rules that are load-bearing, not stylistic:
 
 ```text
 extension/
-  manifest.json            # MV3, v1.2.0: worker, popup, optional site access
+  manifest.json            # MV3, v1.2.1: worker, popup, optional site access
   package.json / tsconfig  # TS + esbuild
   src/
     content/tip-card.ts    # both tip triggers + TIP_RESULT poll
@@ -168,7 +183,7 @@ extension/
   fonts/                   # hub brand fonts so the popup matches nibgate.xyz
   docs/
     LOAD_IN_CHROME.md      # sideload + dev loop
-    STORE_SUBMIT.md        # store process + listing (v1.2.0 release notes)
+    STORE_SUBMIT.md        # store process + current release notes
     MARKING.md             # content-marker convention (advisory, backend decides)
 ```
 

@@ -7,7 +7,10 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const harness = resolve(process.env.NIBGATE_POSTGRES_HARNESS || join(tmpdir(), 'nibgate-pg-harness'));
+// Keep the default aligned with test-tip-postgres.mjs and the documented
+// disposable harness location. On macOS tmpdir() points into /var/folders,
+// while the intentionally out-of-repo harness is installed under /tmp.
+const harness = resolve(process.env.NIBGATE_POSTGRES_HARNESS || '/tmp/nibgate-pg-harness');
 const require = createRequire(join(harness, 'package.json'));
 const { default: EmbeddedPostgres } = await import(pathToFileURL(require.resolve('embedded-postgres')).href);
 const dir = await mkdtemp(join(tmpdir(), 'nibgate-drnib-postgres-'));

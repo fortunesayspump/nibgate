@@ -349,13 +349,19 @@ function contentImageCount(scope, ogImage) {
 function mediaWorkScore(doc, scope) {
   const types = schemaTypes(doc).join(" ");
   if (/product|offer|softwareapplication/.test(types)) return 0;
-  const creator = /person|musicgroup/.test(types) || Boolean(
-    metaContent2(doc, ["author", "article:author", "dc.creator", "fediverse:creator", "twitter:creator"]) || doc.querySelector('[rel~="author"], [rel~="me"], .h-card .p-name, [itemprop="author"]')
-  );
-  const published = Boolean(scope.matches(".h-entry") || scope.querySelector(".h-entry, time[datetime], .dt-published") || metaContent2(doc, ["article:published_time"]) || Array.from(scope.querySelectorAll("h1")).some((h) => /\b20\d{2}[-/]\d{2}[-/]\d{2}\b/.test(h.textContent || "")) || /videoobject|audioobject|musicrecording|podcastepisode|imagegallery|photograph/.test(types));
-  const titled = Boolean(scope.querySelector("h1, .p-name") || metaContent2(doc, ["og:title"]));
-  const media = pickMedia(doc, scope);
   const images = contentImageCount(scope, metaContent2(doc, ["og:image"]));
+  const explicitNibgateCreator = Boolean(doc.querySelector(
+    'script[data-nibgate-site][data-nibgate-api], script[src*="nibgate"][data-nibgate-site]'
+  ));
+  const creator = /person|musicgroup/.test(types) || Boolean(
+    metaContent2(doc, ["author", "article:author", "dc.creator", "fediverse:creator", "twitter:creator"]) || doc.querySelector('[rel~="author"], [rel~="me"], .h-card .p-name, [itemprop="author"]') || explicitNibgateCreator
+  );
+  const galleryRegion = scope.querySelector('[aria-label*="photograph" i], [aria-label*="photo gallery" i], [class*="gallery-masonry" i], [class*="gallery-story" i]');
+  const galleryStory = scope.querySelector('[class*="gallery-story" i], [aria-labelledby*="gallery" i]');
+  const publishedGallery = images >= 6 && Boolean(galleryRegion && galleryStory);
+  const published = Boolean(scope.matches(".h-entry") || scope.querySelector(".h-entry, time[datetime], .dt-published") || metaContent2(doc, ["article:published_time"]) || Array.from(scope.querySelectorAll("h1")).some((h) => /\b20\d{2}[-/]\d{2}[-/]\d{2}\b/.test(h.textContent || "")) || /videoobject|audioobject|musicrecording|podcastepisode|imagegallery|photograph/.test(types) || publishedGallery);
+  const titled = Boolean(scope.querySelector("h1, h2, .p-name") || metaContent2(doc, ["og:title"]));
+  const media = pickMedia(doc, scope);
   return creator && published && titled && (media || images > 0) ? 1 : 0;
 }
 function publishedTextScore(doc, scope) {

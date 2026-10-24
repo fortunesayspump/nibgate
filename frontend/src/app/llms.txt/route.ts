@@ -24,7 +24,7 @@ const HUB_PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/dr-nib/confidential", "Dr. Nib private architecture: browser encryption, verified Phala orchestration, operator-hosted verifier trust, encrypted persistence and disclosed hosted JEV/ZDR fallback."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the Nibgate hub endpoints."],
   ["https://docs.nibgate.xyz/agent-discovery", "Agent discovery documentation for machine-readable content cards and x402 purchasing."],
-  ["https://docs.nibgate.xyz/extension", "Browser extension: eligible creator buttons and the 1.2.0 Tip this page action for HTTP(S) pages and links, self-custodial wallet, held-tip refunds."],
+  ["https://docs.nibgate.xyz/extension", "Browser extension: high-confidence creator-post buttons with SPA cleanup, accessible password visibility controls, recoverable payment proofs, and the live 1.2.0 Tip this page action for HTTP(S) pages and links."],
 ];
 
 const API_ENDPOINTS: Array<[string, string]> = [
@@ -33,7 +33,7 @@ const API_ENDPOINTS: Array<[string, string]> = [
   [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Explore feed of verified content with title, type, price, domain, and reputation signals."],
   [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips (including pending funded holds; refunds are negative entries), ratings, and nibshares (privacy-safe: no share links)."],
   [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Public exact-domain lookup for funded, unclaimed tips, including tips to external sites; claimable by the site owner and refundable by the payer. API host selects mainnet or testnet."],
-  [`${apiBaseUrl()}/hub/tips/refund`, "Payer-signed refund of unclaimed held tips (full amount, no fee)."],
+  [`${apiBaseUrl()}/hub/tips/refund`, "Payer-signed exact refund of unclaimed held tips (no fee); supports EOA personal_sign and deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization."],
   [`${apiBaseUrl()}/hub/stats`, "Platform totals for creators, sites, content, views, unlocks, revenue (unlocks + tips + nibshares), and protocol fees."],
   [`${apiBaseUrl()}/ns/{slug}`, "Unlock a nibshare link — free shares return the body; paid shares return a 402 x402 challenge, pay and retry to read."],
   [`${apiBaseUrl()}/nibshare/{slug}/manifest`, "Public metadata manifest for a nibshare (title, type, price, access policy)."],

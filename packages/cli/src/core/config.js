@@ -43,6 +43,9 @@ export function withConfigDefaults(config) {
 }
 
 export function resolveConfigPath() {
+  if (process.env.NIBGATE_CONFIG && !fs.existsSync(process.env.NIBGATE_CONFIG)) {
+    throw new Error(`Configured NIBGATE_CONFIG does not exist: ${process.env.NIBGATE_CONFIG}`);
+  }
   const configPath = configCandidates().find((candidate) => fs.existsSync(candidate));
   if (!configPath) {
     throw new Error('No nibgate.config.json found. Run `nibgate init` first.');

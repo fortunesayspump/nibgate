@@ -1,7 +1,11 @@
 # Chrome Web Store submission
 
 **Status: v1.2.0 LIVE on the store** ([listing](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)); verified October 15, 2026.
-Repo and store are both at v1.2.0. The submission copy below is retained for future updates.
+The store remains at v1.2.0. The repository and local release artifact are
+v1.2.1; do not call 1.2.1 live until Chrome review and publication complete.
+Treat the ZIP as a release candidate until the Hub backend that accepts both
+the legacy 1.2.0 refund message and the strict 1.2.1 message has been deployed
+and verified on each network. Rollout order is backend first, extension second.
 Sideload for dev/review continues via `LOAD_IN_CHROME.md`; never gate
 building on store approval.
 
@@ -21,19 +25,36 @@ building on store approval.
 
 The 1.2.0 update adds the `contextMenus` permission for an explicit **Tip this page** action on HTTP(S) pages and links. This action opens the existing approval window and preserves verified-recipient/held-owner-claim behavior. No payment is signed from the context menu itself.
 
-## Release checklist (v1.2.0)
+## Release checklist (v1.2.1)
 
 - [x] `npm run build` clean, `dist/` contains manifest + bundles + icons/fonts
 - [x] Icons present: `icons/icon16|48|128.png` (store requires all three)
 - [x] No `console.log` in `src/`; dual-network copy (testnet default, mainnet pill)
-- [x] Privacy policy page — hosted at `https://nibgate.xyz/extension-privacy`
-  (`frontend/src/app/extension-privacy/page.tsx`). Extension requests
-  `activeTab` (current page only), `storage` (tip history + network pref),
+- [x] Privacy policy page source updated for all declared permissions and API
+  hosts (deployment remains separate) — `frontend/src/app/extension-privacy/page.tsx`.
+  Extension requests `activeTab` (current page only), `scripting` (register the
+  optional content script), `storage` (vault/preferences/history and pending
+  proof recovery), `alarms` and `idle` (auto-lock), `contextMenus` (page/link tip),
   `clipboardWrite` (copy an address or recovery phrase only when the user
   clicks Copy), and optional site access the user grants at runtime so the tip
   button can read page content for extraction. Clipboard contents are never
-  read or sent. No analytics, no remote code, no data sale.
+  read or sent. Host access is limited to the primary and Subblogs Nibgate API
+  hosts. No analytics, no remote code, no data sale.
 - [x] Store description + 1280×800 screenshots + promo tiles (see below).
+- [x] Automatic injection restricted to high-confidence posts on independent
+  creator sites; all social-media and Nibgate routes stay off, and SPA controls
+  clean up.
+- [x] Six password fields have an accessible, non-persistent visibility toggle.
+- [x] Reviewed payment context is immutable and ambiguous proofs recover without
+  sending a second payment.
+
+Known limitations: production Hub deployment and live Circle/wallet refund
+behavior were not verified for this source-only release, so the artifact is
+not yet cleared for store upload. The explicit context
+menu can still tip any HTTP(S) target by user choice. Automatic classification
+cannot guarantee correctness on every custom site. Backend whole-box claim
+semantics require a future contract migration for preventive exact-balance
+enforcement; this extension build does not change deployed contracts.
 
 ## Future updates
 

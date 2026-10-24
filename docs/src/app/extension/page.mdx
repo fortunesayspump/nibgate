@@ -2,7 +2,7 @@ import { Callout } from 'nextra/components'
 
 # Browser extension
 
-The Nibgate extension lets you tip website pages with USDC. It shows a tip button on eligible creator pages; version 1.2.0 also adds an explicit right-click action for any HTTP(S) page or linked page. It is the human interface to [Nib Tips](/tipping): agents use the API route instead.
+The Nibgate extension lets you tip website pages with USDC. It shows an automatic tip button only on high-confidence creator content; version 1.2.0 also adds an explicit right-click action for any HTTP(S) page or linked page. Version 1.2.0 is live; the 1.2.1 source update is prepared for Chrome review. It is the human interface to [Nib Tips](/tipping): agents use the API route instead.
 
 <Callout type="info">
 **Live on the Chrome Web Store** ([install Nibgate](https://chromewebstore.google.com/detail/nibgate/hbinjoadmoahedigmjaldiclmakanknf)). Starts on Arc testnet with free faucet USDC.
@@ -18,6 +18,8 @@ After installing, pin it (puzzle-piece icon → pin **Nibgate**) and tap **Enabl
 ## Your wallet
 
 First open: **create** a wallet (recovery phrase shown once — write it down) or **import** one. The wallet is encrypted on-device (PBKDF2 + AES-256-GCM); keys live in the background worker's memory only and never touch web pages. Lock anytime from Settings → Security; reveal the recovery phrase there too (password required). If you forget the password, **Forgot password?** lets you restore from the phrase with a new password or clear the local wallet and start over.
+
+Password inputs are concealed by default. The eye control works with mouse or keyboard, has a changing accessible label, and resets to concealed when you leave the screen; visibility is not persisted.
 
 <Callout type="important">
 Nibgate cannot recover a wallet without its recovery phrase. Clearing the local wallet removes its key and activity from this device; it does not move or erase on-chain funds. If you no longer have the phrase, clearing the wallet may permanently remove your access to those funds. There is no account or email reset.
@@ -39,7 +41,7 @@ Balances, history, and tips are per-network — testnet play money can never tou
 
 Right-click an HTTP(S) page or link and choose **Tip this page** to open the extension amount, review, and approval window. This works on ordinary sites without creator classification or optional site access. Verified recipients use the existing settlement flow; unresolved URLs hold tips for the domain owner to verify and claim. Browser-internal URLs are unsupported. Version 1.2.0 is live on the Chrome Web Store.
 
-The automatic **Tip the creator** button keeps its existing creator eligibility checks.
+The automatic **Tip the creator** button is limited to high-confidence posts on independent creator sites. Social-media routes—including individual X/Twitter posts and YouTube videos—plus Nibgate and loopback pages never auto-qualify. Both deterministic classification and the model fallback require post-level structural evidence, and SPA navigation removes a stale button immediately.
 
 ## Tipping on creator pages
 
@@ -83,7 +85,9 @@ Right-clicking the page targets its address; right-clicking a link targets the l
 |---|---|
 | `contextMenus` | Add the explicit Tip this page action for HTTP(S) pages and links (1.2.0) |
 | `activeTab` | Read the current page only, to find tippable content |
+| `scripting` | Register/remove the content script after optional site access changes |
 | `storage` | Tip history + network preference, on-device |
+| `alarms` and `idle` | Enforce wallet inactivity locking |
 | `clipboardWrite` | Copy your wallet address or recovery phrase when you tap Copy |
 | Optional site access | Granted by you at runtime so the button can appear on pages you visit |
 

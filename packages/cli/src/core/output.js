@@ -20,7 +20,7 @@ Environment:
   NIBGATE_PAYMENT_MODE demo or circle-gateway
   NIBGATE_SELLER_ADDRESS EVM seller wallet for Circle Gateway mode
   NIBGATE_BUYER_PRIVATE_KEY Local/server test buyer key for Gateway payments
-  NIBGATE_BUYER_CHAIN   Gateway buyer chain, defaults to arcTestnet
+  NIBGATE_BUYER_CHAIN   Gateway buyer chain; defaults from the configured network
   NIBGATE_BUYER_RPC_URL Optional RPC URL for the buyer chain
 `);
 }

@@ -403,12 +403,29 @@ export function useNibgateTip({ resource, challenge, recipient, amount, minAmoun
     if (!base) throw new Error('Refund needs apiBase.')
     const d = typeof heldDomain === 'string' ? heldDomain : (heldDomain?.domain || '')
     if (!d) throw new Error('Refund needs a domain.')
+    const heldRes = await fetch(`${base}/hub/tips/held?domain=${encodeURIComponent(d)}&limit=100`)
+    const held = await heldRes.json().catch(() => ({}))
+    if (!heldRes.ok) throw new Error(held?.error || `Held tip lookup failed: ${heldRes.status}`)
+    const refundAmount = (Array.isArray(held?.tips) ? held.tips : [])
+      .filter((tip) => String(tip?.payerWallet || '').toLowerCase() === String(account).toLowerCase())
+      .reduce((sum, tip) => sum + (Number(tip?.amount) || 0), 0)
+    if (!(refundAmount > 0)) throw new Error('No unclaimed held tips for this wallet and domain.')
+    const canon = String(held?.domain || d).toLowerCase().replace(/^www\./, '')
+    const amountUnits = Math.round(refundAmount * 1e6)
+    const expiresAt = Date.now() + 5 * 60 * 1000
+    const nonceBytes = new Uint8Array(16)
+    globalThis.crypto.getRandomValues(nonceBytes)
+    const nonce = [...nonceBytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
     const walletClient = createWalletClient({ chain: activeArcChain(), account, transport: custom(provider) })
-    const message = `Nibgate tip refund\nDomain: ${d}\nWallet: ${String(account).toLowerCase()}\nIssued: ${new Date().toISOString()}`
+    const message = [
+      'Nibgate tip refund', `network:${activeArcChain().id === 5042 ? 'mainnet' : 'testnet'}`,
+      `domain:${canon}`, `wallet:${String(account).toLowerCase()}`,
+      `amount:${amountUnits}`, `expires:${expiresAt}`, `nonce:${nonce}`,
+    ].join('\n')
     const signature = await walletClient.signMessage({ account, message })
     const res = await fetch(`${base}/hub/tips/refund`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ domain: d, payer: account, message, signature }),
+      body: JSON.stringify({ domain: canon, payer: account, amount: amountUnits / 1e6, message, signature }),
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok || body?.success === false) throw new Error(body?.error || `Refund failed: ${res.status}`)

@@ -190,14 +190,17 @@ export async function inferRecipient(input: {
 // probability that this is a creator content page. Used only when the
 // deterministic page model is inconclusive. Returns null on any failure so
 // callers stay silent (never guess). Never throws.
-export async function classifyPage(input: { state: string }): Promise<{ probability: number } | null> {
+export async function classifyPage(input: { state: string; instructions?: string }): Promise<{ probability: number } | null> {
   try {
     if (!input?.state) return null;
     const { hubApi } = await activeNetwork();
     const res = await fetch(`${hubApi}/hub/jev/classify`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ state: String(input.state).slice(0, 4000) }),
+      body: JSON.stringify({
+        state: String(input.state).slice(0, 4000),
+        ...(input.instructions ? { instructions: String(input.instructions).slice(0, 500) } : {}),
+      }),
     });
     if (!res.ok) return null;
     const data = await res.json();

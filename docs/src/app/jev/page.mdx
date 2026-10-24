@@ -53,20 +53,26 @@ A wallet merely *declared* on a page (page signal, never hub-verified) could be 
 
 ## Call path B — low-confidence page classification (extension)
 
-`mapPage()` is decisive for clear cases (content/feeds/landings/apps). When it's inconclusive — `kind === 'unknown'`, or a content page it couldn't bind to a tippable region — and the page has real prose (≥200 words) with a Readability fallback, the content script escalates:
+`mapPage()` is decisive for clear cases (content/feeds/landings/apps), but its
+result still has to pass the same independent-post evidence gate. Social-media,
+Nibgate, loopback, root and common listing routes fail before classification.
+When the model is inconclusive — `kind === 'unknown'`, or a content page it
+couldn't bind to a tippable region — and the page has real prose (≥200 words),
+a Readability fallback and strict post-level structural evidence, the content
+script escalates:
 
 ```txt
 tip-card.ts — assessState()
-  mapPage() inconclusive + prose ≥ 200 words + extractContent() fallback
+  mapPage() inconclusive + strict post evidence + prose ≥ 200 words + extractContent()
         │
         ▼  JEV_CLASSIFY { state }
 service-worker.ts → api-client.ts — classifyPage()
   POST /hub/jev/classify { state }   (state ≤ 4000 chars: URL, title, site,
   detected kind + reason, word count, byline, paragraph count, 600-char excerpt)
-        │ probability ≥ 0.65
+        │ probability ≥ 0.80
         ▼
 render card from the fallback metadata, marked data-nibgate-jev
-        │ below 0.65, or any error
+        │ below 0.80, missing post evidence, or any error
         ▼
 stay silent (never invent a tip surface on an app/landing page)
 ```

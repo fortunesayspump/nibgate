@@ -31,9 +31,9 @@ const esbuildOptions = {
 
 function copyStatic() {
   fs.mkdirSync(outdir, { recursive: true });
-  // Production zip ships without localhost dev hosts (review hygiene): the
-  // in-app hub override still exists, but the manifest no longer requests
-  // loopback access. Keep them for local dev with KEEP_LOCAL_HOSTS=1.
+  // Production zip ships without localhost dev hosts (review hygiene). The
+  // compile-time hub override remains available for explicit local builds;
+  // keep loopback permissions there with KEEP_LOCAL_HOSTS=1.
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
   if (!process.env.KEEP_LOCAL_HOSTS) {
     const isLoopback = (h) => /localhost|127\.0\.0\.1/i.test(h);

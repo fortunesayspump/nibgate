@@ -54,12 +54,14 @@ describe.skipIf(!enabled)('tip verify real PostgreSQL atomicity (synthetic settl
  beforeEach(async()=>{
   state.claimGate=null;state.uniqueConflicts=0;
   await state.db.$executeRawUnsafe('DROP TRIGGER IF EXISTS fail_claim_completion ON "PaymentTxClaim"');
+  await state.db.$executeRawUnsafe('DROP TRIGGER IF EXISTS fail_refund_finalization ON "TipRefundAuthorization"');
+  await state.db.tipRefundAuthorization.deleteMany();await state.db.tipDomainOperation.deleteMany();
   await state.db.tip.deleteMany();await state.db.paymentTxClaim.deleteMany();
   state.requirement=(await createTipRequirement({contentUrl:'https://synthetic.example/post',title:'Synthetic tip',amount:'1',currency:'USDC',recipient:payee},{network:'eip155:5042002',paymentRail:'gateway'})).challenge.accepts[0];
   state.gateway.mockReset().mockResolvedValue({handled:false,payment:{payer:account.address,paymentId:'synthetic-settlement',txHash:null}});
   state.hosted.mockReset();state.direct.mockReset();state.rpcChain.mockReset().mockResolvedValue(5042002);state.rpcVerify.mockReset().mockResolvedValue(false);
  });
- afterAll(async()=>{if(state.db){await state.db.$executeRawUnsafe('DROP TRIGGER IF EXISTS fail_claim_completion ON "PaymentTxClaim"');await state.db.$disconnect();}});
+ afterAll(async()=>{if(state.db){await state.db.$executeRawUnsafe('DROP TRIGGER IF EXISTS fail_claim_completion ON "PaymentTxClaim"');await state.db.$executeRawUnsafe('DROP TRIGGER IF EXISTS fail_refund_finalization ON "TipRefundAuthorization"');await state.db.$disconnect();}});
  it('accepts a real SDK browser adapter proof and replays its serialized request',async()=>{
   const adapter=await createCircleGatewayBrowserAdapter({signer:account,network:'eip155:5042002'});
   const paid=await adapter.pay({challenge:{x402Version:2,resource:{url:'https://synthetic.example/post'},accepts:[state.requirement]}});
@@ -148,5 +150,51 @@ describe.skipIf(!enabled)('tip verify real PostgreSQL atomicity (synthetic settl
   const claims=await state.db.paymentTxClaim.findMany();expect(claims).toHaveLength(1);expect(decodeClaim(claims[0].contentId).state).toBe('pending');
   await state.db.$executeRawUnsafe('DROP TRIGGER fail_claim_completion ON "PaymentTxClaim"');
   expect((await request(body)).body.code).toBe('payment-verification-pending');expect(state.gateway).toHaveBeenCalledTimes(1);
+ });
+ it('serializes claim/refund work across replicas with the durable domain index',async()=>{
+  const attempts=await Promise.allSettled(Array.from({length:8},(_,i)=>state.db.tipDomainOperation.create({data:{domain:'creator.example',network:'testnet',operation:i%2?'refund':'claim'}})));
+  expect(attempts.filter(x=>x.status==='fulfilled')).toHaveLength(1);
+  expect(attempts.filter(x=>x.status==='rejected'&&x.reason?.code==='P2002')).toHaveLength(7);
+ });
+ it('keeps a crash-era reservation visible to a fresh Prisma client',async()=>{
+  const row=await state.db.tipDomainOperation.create({data:{domain:'crash.example',network:'testnet',operation:'refund',state:'submitted',transactionHash:'0xsynthetic'}});
+  const {PrismaClient}=createRequire(import.meta.url)(process.env.NIBGATE_INTEGRATION_PRISMA_CLIENT);
+  const fresh=new PrismaClient({datasources:{db:{url:process.env.NIBGATE_INTEGRATION_DATABASE_URL}}});
+  try{expect(await fresh.tipDomainOperation.findUnique({where:{id:row.id}})).toMatchObject({state:'submitted',transactionHash:'0xsynthetic'});}
+  finally{await fresh.$disconnect();}
+ });
+ it('accepts a refund authorization digest only once under concurrency',async()=>{
+  const data={digest:'a'.repeat(64),network:'testnet',domain:'creator.example',wallet:account.address.toLowerCase(),amountUnits:'2000000',expiresAt:new Date(Date.now()+60000)};
+  const attempts=await Promise.allSettled(Array.from({length:8},()=>state.db.tipRefundAuthorization.create({data})));
+  expect(attempts.filter(x=>x.status==='fulfilled')).toHaveLength(1);
+  expect(attempts.filter(x=>x.status==='rejected'&&x.reason?.code==='P2002')).toHaveLength(7);
+ });
+ it('atomically preserves a partial held balance and replay receipt link',async()=>{
+  const original=await state.db.tip.create({data:{contentUrl:'https://creator.example/post',domain:'creator.example',amount:5,network:'testnet',payerWallet:account.address.toLowerCase(),status:'held'}});
+  const operation=await state.db.tipDomainOperation.create({data:{domain:'creator.example',network:'testnet',operation:'refund',state:'confirmed',transactionHash:'0xrefund'}});
+  const authorization=await state.db.tipRefundAuthorization.create({data:{digest:'b'.repeat(64),network:'testnet',domain:'creator.example',wallet:account.address.toLowerCase(),amountUnits:'2000000',expiresAt:new Date(Date.now()+60000)}});
+  const refund=await state.db.$transaction(async tx=>{
+   await tx.tip.update({where:{id:original.id},data:{amount:3}});
+   await tx.tip.create({data:{contentUrl:original.contentUrl,domain:original.domain,amount:2,network:'testnet',payerWallet:original.payerWallet,status:'refunded',paymentProvider:'refund-slice',txHash:'0xrefund'}});
+   const row=await tx.tip.create({data:{contentUrl:original.contentUrl,domain:original.domain,amount:-2,network:'testnet',payerWallet:original.payerWallet,status:'refunded',paymentProvider:'refund',txHash:'0xrefund'}});
+   await tx.tipRefundAuthorization.update({where:{digest:authorization.digest},data:{refundTipId:row.id}});
+   await tx.tipDomainOperation.delete({where:{id:operation.id}});return row;
+  });
+  expect((await state.db.tip.findUnique({where:{id:original.id}})).amount).toBe(3);
+  expect((await state.db.tipRefundAuthorization.findUnique({where:{digest:authorization.digest}})).refundTipId).toBe(refund.id);
+  expect(await state.db.tipDomainOperation.count()).toBe(0);
+  expect((await state.db.tip.aggregate({_sum:{amount:true}}))._sum.amount).toBe(3);
+ });
+ it('rolls back partial accounting and retains confirmed evidence on finalization failure',async()=>{
+  const original=await state.db.tip.create({data:{contentUrl:'https://creator.example/post',domain:'creator.example',amount:5,network:'testnet',payerWallet:account.address.toLowerCase(),status:'held'}});
+  const operation=await state.db.tipDomainOperation.create({data:{domain:'creator.example',network:'testnet',operation:'refund',state:'confirmed',transactionHash:'0xrefund'}});
+  const authorization=await state.db.tipRefundAuthorization.create({data:{digest:'c'.repeat(64),network:'testnet',domain:'creator.example',wallet:account.address.toLowerCase(),amountUnits:'2000000',expiresAt:new Date(Date.now()+60000)}});
+  await state.db.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION fail_refund_finalize() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic refund finalization failure'; END $$`);
+  await state.db.$executeRawUnsafe('CREATE TRIGGER fail_refund_finalization BEFORE UPDATE ON "TipRefundAuthorization" FOR EACH ROW EXECUTE FUNCTION fail_refund_finalize()');
+  await expect(state.db.$transaction(async tx=>{await tx.tip.update({where:{id:original.id},data:{amount:3}});const row=await tx.tip.create({data:{contentUrl:original.contentUrl,amount:-2,status:'refunded'}});await tx.tipRefundAuthorization.update({where:{digest:authorization.digest},data:{refundTipId:row.id}});await tx.tipDomainOperation.delete({where:{id:operation.id}});})).rejects.toThrow(/synthetic refund finalization failure/);
+  expect((await state.db.tip.findUnique({where:{id:original.id}})).amount).toBe(5);
+  expect(await state.db.tip.count()).toBe(1);
+  expect(await state.db.tipDomainOperation.findUnique({where:{id:operation.id}})).toMatchObject({state:'confirmed',transactionHash:'0xrefund'});
+  expect((await state.db.tipRefundAuthorization.findUnique({where:{digest:authorization.digest}})).refundTipId).toBeNull();
  });
 });

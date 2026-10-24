@@ -9,7 +9,7 @@ import { db } from '../db.js';
 import { Prisma } from '@prisma/client';
 import { budgetState, settle } from '../money.js';
 import { recordEvent } from '../eventlog.js';
-import { isEscrowConfigured, jobStatus, signSplit, submitAndComplete } from './jobs.js';
+import { assertEscrowJobBinding, isEscrowConfigured, jobStatus, signSplit, submitAndComplete } from './jobs.js';
 import { isLegacyRun } from '../privacy/guard.js';
 import { oldestLegacyRuns } from '../privacy/legacy-pagination.js';
 
@@ -67,8 +67,9 @@ async function settleRun(runId, reason) {
     const { keccak256, toHex } = await import('viem');
     const reportHash = report ? keccak256(toHex(report.markdown)) : '0x';
     const { spend } = await budgetState(runId);
-    const out = await submitAndComplete({ jobId: local.jobId, reportHash, spentUsd: spend, operator });
     const chain = await jobStatus(local.jobId);
+    assertEscrowJobBinding(chain, { client: run.walletAddress });
+    const out = await submitAndComplete({ jobId: local.jobId, reportHash, spentUsd: spend, operator });
     const sig = await signSplit({ jobId: local.jobId, spentUsd: spend, operator, client: chain.client });
     // Relay the split too: attesting without executing strands the money
     // (job Completed, splitDone false, refund ledger-only). Never throws —

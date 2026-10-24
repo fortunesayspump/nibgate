@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createJob, jobStatus, submitAndComplete, signSplit, isEscrowConfigured, assertEscrowOperational } from './jobs.js';
+import { assertEscrowJobBinding, createJob, createParams, jobStatus, submitAndComplete, signSplit, isEscrowConfigured, assertEscrowOperational } from './jobs.js';
 
 beforeEach(() => vi.unstubAllEnvs());
 
@@ -12,6 +12,11 @@ describe('escrow config', () => {
     expect(isEscrowConfigured(undefined, 'testnet')).toBe(false);
   });
 
+  it('is off with a malformed keeper key', () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', 'not-a-private-key');
+    expect(isEscrowConfigured(undefined, 'testnet')).toBe(false);
+  });
+
   it('resolves testnet deployments by default', async () => {
     vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
     expect(isEscrowConfigured(undefined, 'testnet')).toBe(true);
@@ -19,6 +24,22 @@ describe('escrow config', () => {
 });
 
 describe('job validation (no chain)', () => {
+  it('binds a run to the configured client, splitter, evaluator, token and disabled hook', () => {
+    vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
+    const prepared = createParams({}, NET);
+    const valid = {
+      client: '0x1111111111111111111111111111111111111111',
+      provider: prepared.splitter,
+      evaluator: prepared.evaluator,
+      token: '0x3600000000000000000000000000000000000000',
+      hook: '0x0000000000000000000000000000000000000000',
+    };
+    expect(assertEscrowJobBinding(valid, { client: valid.client, ...NET })).toMatchObject({ splitter: prepared.splitter, evaluator: prepared.evaluator });
+    for (const field of ['client', 'provider', 'evaluator', 'token', 'hook']) {
+      expect(() => assertEscrowJobBinding({ ...valid, [field]: '0x9999999999999999999999999999999999999999' }, { client: valid.client, ...NET })).toThrow(/escrow job/);
+    }
+  });
+
   it('refuses a job without a client wallet', async () => {
     vi.stubEnv('ESCROW_KEEPER_KEY', '0x' + '22'.repeat(32));
     await expect(createJob({ budget: 2 }, NET)).rejects.toThrow(/client wallet/);
@@ -54,6 +75,8 @@ describe('job reads and signatures (injected chain)', () => {
     evaluator: '0x3333333333333333333333333333333333333333',
     budget: 2500000n,
     token: '0x3600000000000000000000000000000000000000',
+    hook: '0x0000000000000000000000000000000000000000',
+    expiredAt: 2_000_000_000n,
   };
   const make = {
     account: { address: '0x3333333333333333333333333333333333333333', signMessage: async () => SIG },
@@ -69,6 +92,8 @@ describe('job reads and signatures (injected chain)', () => {
     const out = await jobStatus('7', { make, ...NET });
     expect(out.status).toBe('Funded');
     expect(out.budget).toBe(2.5);
+    expect(out.hook).toBe(job.hook);
+    expect(out.expiredAt).toBe(Number(job.expiredAt));
   });
 
   it('signs a split attestation anyone can execute', async () => {

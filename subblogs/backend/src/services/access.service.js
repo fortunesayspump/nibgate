@@ -150,24 +150,48 @@ async function grantEntitlement({ post, wallet }) {
 // receipt and is returned without a second grant / unlock event.
 async function grantUnlock({ post, payer, txHash, amount }) {
   const paymentNonce = txHash || null;
-  if (paymentNonce) {
-    const existing = await prisma.blogPostReceipt.findUnique({
-      where: { paymentNonce_postId: { paymentNonce, postId: post.id } },
-    });
-    if (existing) return { receipt: existing, replay: true };
-  }
   const source = Number(amount || post.price || 0) > 0 ? 'paid' : 'free';
-  let receipt;
   try {
-    receipt = await prisma.blogPostReceipt.create({
-      data: {
-        siteId: post.siteId,
-        postId: post.id,
-        payerWallet: payer,
-        txHash: txHash || null,
-        paymentNonce: paymentNonce || `free-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
-        amount: String(amount || '0'),
-      },
+    return await prisma.$transaction(async (tx) => {
+      // Keep the service boundary consistent with Nibshare: a ban is a hard
+      // deny, including replays and route races, and must never be revived by
+      // the entitlement upsert below.
+      const existing = await tx.blogPostEntitlement.findUnique({
+        where: { postId_wallet: { postId: post.id, wallet: payer } },
+      });
+      if (existing && existing.status === 'banned') {
+        throw new ApiError(status.FORBIDDEN, 'This wallet is banned from this post.');
+      }
+      if (paymentNonce) {
+        const replayed = await tx.blogPostReceipt.findUnique({
+          where: { paymentNonce_postId: { paymentNonce, postId: post.id } },
+        });
+        if (replayed) return { receipt: replayed, replay: true };
+      }
+
+      const receipt = await tx.blogPostReceipt.create({
+        data: {
+          siteId: post.siteId,
+          postId: post.id,
+          payerWallet: payer,
+          txHash: txHash || null,
+          paymentNonce: paymentNonce || `free-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          amount: String(amount || '0'),
+        },
+      });
+      const entSource = existing && existing.source === 'paid' ? 'paid' : source;
+      await tx.blogPostEntitlement.upsert({
+        where: { postId_wallet: { postId: post.id, wallet: payer } },
+        create: { siteId: post.siteId, postId: post.id, wallet: payer, status: 'active', source: entSource },
+        update: { status: 'active', revokedAt: null, source: sourceMax(existing?.source, entSource) },
+      });
+      // Every newly persisted receipt represents one distinct successful
+      // unlock. Keep its ledger event atomic with both receipt and entitlement
+      // so a transient event-write failure cannot leave an unrecoverable replay.
+      await tx.blogPostEvent.create({
+        data: { siteId: post.siteId, postId: post.id, type: 'unlock', wallet: payer },
+      });
+      return receipt;
     });
   } catch (error) {
     // Two rapid retries can race through the findUnique above; the UNIQUE
@@ -181,19 +205,6 @@ async function grantUnlock({ post, payer, txHash, amount }) {
     }
     throw error;
   }
-  const existing = await findEntitlement({ postId: post.id, wallet: payer });
-  const entSource = existing && existing.source === 'paid' ? 'paid' : source;
-  await prisma.blogPostEntitlement.upsert({
-    where: { postId_wallet: { postId: post.id, wallet: payer } },
-    create: { siteId: post.siteId, postId: post.id, wallet: payer, status: 'active', source: entSource },
-    update: { status: 'active', revokedAt: null, source: sourceMax(existing?.source, entSource) },
-  });
-  if (!paymentNonce || !existing) {
-    await prisma.blogPostEvent.create({
-      data: { siteId: post.siteId, postId: post.id, type: 'unlock', wallet: payer },
-    });
-  }
-  return receipt;
 }
 
 function sourceMax(a, b) {

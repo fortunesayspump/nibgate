@@ -204,9 +204,12 @@ describe('browser hold + refund helpers', () => {
     }))
     const signer = { address: '0x0000000000000000000000000000000000000009', signMessage: vi.fn(async () => '0xsig') }
     try {
-      const out = await refundTip({ domain: 'ext.example', signer, hubApi: 'https://hub.test' })
+      const out = await refundTip({ domain: 'ext.example', signer, hubApi: 'https://hub.test', network: 'testnet', amount: 0.05 })
       expect(out.refundTx).toBe('0xr')
       expect(posted.payer).toBe(signer.address)
+      expect(posted.domain).toBe('ext.example')
+      expect(posted.amount).toBe(0.05)
+      expect(posted.message).toMatch(/^Nibgate tip refund\nnetwork:testnet\ndomain:ext\.example\nwallet:0x[0-9a-f]{40}\namount:50000\nexpires:\d+\nnonce:[0-9a-f]{32}$/)
       expect(posted.signature).toBe('0xsig')
       expect(signer.signMessage).toHaveBeenCalled()
     } finally {

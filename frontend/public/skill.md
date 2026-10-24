@@ -850,7 +850,9 @@ await tipContent({ contentUrl, title, amount: '0.5', signer, hubApi })
 await holdTipContent({ contentUrl, amount: '0.5', signer, hubApi })
 
 // Payer refund of an unclaimed held tip (full amount, no fee).
-await refundTip({ domain, signer, hubApi })
+// The helper creates a one-shot network/domain/payer/exact-amount authorization. Both EOA
+// personal_sign and deployed ERC-1271 smart-contract wallets are supported.
+await refundTip({ domain, signer, hubApi, network: 'testnet' })
 ```
 
 Server helpers (`@nibgate/sdk/server`):

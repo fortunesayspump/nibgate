@@ -13,6 +13,11 @@ const COFFEE_ICON = coffeeSvg.replace('<svg ', '<svg width="26" height="26" fill
 
 const CARD_ID = 'nibgate-card';
 const HOST_ATTR = 'data-nibgate-widget';
+const ASSESSMENT_ATTRS = ['data-nibgate-assessed','data-nibgate-eligible','data-nibgate-kind','data-nibgate-reason','data-nibgate-type','data-nibgate-jev'];
+
+function clearAssessmentMarkers(): void {
+  try { ASSESSMENT_ATTRS.forEach((name) => document.documentElement.removeAttribute(name)); } catch {}
+}
 
 // Module ref into the shadow tree (document.getElementById can't see into it).
 let statusEls: HTMLElement[] = [];
@@ -27,6 +32,109 @@ type CardInput = {
   end?: Element | null;
   root?: Element | null;
 };
+
+type PageMapResult = ReturnType<typeof mapPage>;
+
+async function jevApprovesPage(map: PageMapResult): Promise<boolean> {
+  const words = (document.body?.innerText || '').trim().split(/\s+/).filter(Boolean).length;
+  const main = document.querySelector('main,[role="main"]') ?? document.body;
+  const contentImages = Array.from(main?.querySelectorAll('img') || []).filter((image) => {
+    if (image.closest('footer,[aria-hidden="true"]')) return false;
+    const declaredWidth = Number(image.getAttribute('width') || 0);
+    const alt = (image.getAttribute('alt') || '').trim();
+    // DOM declaration is enough evidence; do not wait for lazy media bytes to
+    // download before asking JEV to judge the page.
+    return declaredWidth >= 300 || alt.length >= 8 || Boolean(image.closest('figure'));
+  }).length;
+  const galleryRegion = main?.querySelector('[aria-label*="photograph" i],[aria-label*="photo gallery" i],[class*="gallery-masonry" i],[class*="gallery-story" i]');
+  const galleryStoryParagraphs = main?.querySelectorAll('[class*="gallery-story" i] p,[aria-labelledby*="gallery" i] p').length || 0;
+  const linkedProjects = new Set(Array.from(main?.querySelectorAll('a[href]') || []).filter((link) => link.querySelector('img')).map((link) => {
+    try {
+      const target = new URL((link as HTMLAnchorElement).href, window.location.href);
+      return target.origin === window.location.origin && target.pathname !== window.location.pathname ? target.pathname : '';
+    } catch { return ''; }
+  }).filter(Boolean)).size;
+  const coherentGallery = Boolean(galleryRegion && galleryStoryParagraphs >= 2 && contentImages >= 6 && linkedProjects < 3);
+  const state = [
+    `URL: ${window.location.href.split('#')[0]}`,
+    `Title: ${map.title || document.title || ''}`,
+    `Site: ${map.siteName || ''}`,
+    'Host category: independent web (blocked social platforms and Nibgate pages are excluded before JEV)',
+    `Local proposal: ${map.kind}/${map.contentType} (${map.kindDecision.reasons[0] || 'no reason'})`,
+    `Local eligibility: ${map.eligibility?.kind || 'none'}`,
+    `Creator integration: ${hasNibgateSdk() ? 'yes' : 'no'}`,
+    `Coherent gallery story: ${coherentGallery ? 'yes' : 'no'}`,
+    `Story paragraphs: ${galleryStoryParagraphs}`,
+    `Distinct linked project pages: ${linkedProjects}`,
+    `Word count: ${words}`,
+    `Byline present: ${map.author ? `yes (${map.author})` : 'no'}`,
+    `Paragraphs: ${document.querySelectorAll('article p, main p, p').length}`,
+    `Content images declared in DOM: ${contentImages}`,
+    `Video/audio: ${document.querySelectorAll('main video,main audio,main iframe,article video,article audio,article iframe').length}`,
+    `Post containers: ${document.querySelectorAll('article,.h-entry,.hentry,.entry-content,.post-content,.article-body,.post-body').length}`,
+    `Excerpt: ${(document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 600)}`,
+  ].join('\n').slice(0, 4000);
+  const shared = window as any;
+  const cache: Map<string, number> = shared.__nibgateJevCache ||= new Map<string, number>();
+  let probability = cache.get(state);
+  if (probability == null) {
+    try {
+      const verdict = await chrome.runtime.sendMessage({
+        type: 'JEV_CLASSIFY',
+        state,
+        instructions: 'Probability (0..1) that this is one independent creator-authored content page suitable for tipping, not a feed, landing page, social network, settings page, or listing. A coherent photography, video, or audio work can be the content even without a long transcript or traditional byline; a multi-project index is a listing.',
+      });
+      probability = verdict?.ok ? Number(verdict.probability) : Number.NaN;
+      if (Number.isFinite(probability)) cache.set(state, probability);
+    } catch {
+      probability = Number.NaN;
+    }
+  }
+  try { document.documentElement.setAttribute('data-nibgate-jev', Number.isFinite(probability) ? String(probability) : 'unavailable'); } catch {}
+  return Number.isFinite(probability) && probability >= 0.8;
+}
+
+function hasIndependentPostEvidence(strict = false): boolean {
+  const path = window.location.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
+  if (/(?:^|\/)(?:page|tag|tags|category|categories|author|search|archive|archives)(?:\/|$)/i.test(path)) return false;
+  const articleType = /^(?:article|blog|blogposting|newsarticle)$/i.test(
+    document.querySelector('meta[property="og:type"]')?.getAttribute('content')?.trim() || '',
+  );
+  const schemaArticle = Array.from(document.querySelectorAll('script[type="application/ld+json"]')).some((node) =>
+    /"@type"\s*:\s*"(?:Article|BlogPosting|NewsArticle)"/i.test(node.textContent || ''),
+  );
+  const postContainers = document.querySelectorAll('article,.h-entry,.hentry,.entry-content,.post-content,.article-body,.post-body');
+  const publicationSignal = Boolean(document.querySelector('time[datetime],[rel="author"],[itemprop="author"],meta[name="author"],meta[property="article:author"]'));
+  const linkedEntries = document.querySelectorAll('main h2 a[href]:not([href^="#"]),main h3 a[href]:not([href^="#"]),[role="main"] h2 a[href]:not([href^="#"]),[role="main"] h3 a[href]:not([href^="#"])').length;
+  if (!articleType && !schemaArticle && linkedEntries >= 3) return false;
+  if (strict) {
+    const post = postContainers.length === 1 ? postContainers[0] : null;
+    const substantialPost = Boolean(post?.querySelector('h1') && (post.textContent || '').replace(/\s+/g, ' ').trim().length >= 600);
+    const main = document.querySelector('main,[role="main"]');
+    const structuredLongform = Boolean(
+      main?.querySelector('h1') &&
+      main.querySelectorAll('h2,h3').length >= 3 &&
+      main.querySelectorAll('p,blockquote').length >= 3 &&
+      (main.textContent || '').replace(/\s+/g, ' ').trim().length >= 1200,
+    );
+    const galleryImages = main ? Array.from(main.querySelectorAll('img')).filter((image) => !image.closest('footer,[aria-hidden="true"]') && ((image.getAttribute('alt') || '').trim().length >= 8 || Number(image.getAttribute('width') || 0) >= 300)).length : 0;
+    const galleryProjectLinks = main ? new Set(Array.from(main.querySelectorAll('a[href]')).filter((link) => link.querySelector('img')).map((link) => {
+      try { const target = new URL((link as HTMLAnchorElement).href, window.location.href); return target.origin === window.location.origin && target.pathname !== window.location.pathname ? target.pathname : ''; }
+      catch { return ''; }
+    }).filter(Boolean)).size : 0;
+    const coherentGallery = Boolean(
+      main?.querySelector('h1,h2') &&
+      main.querySelector('[aria-label*="photograph" i],[aria-label*="photo gallery" i],[class*="gallery-masonry" i],[class*="gallery-story" i]') &&
+      main.querySelectorAll('[class*="gallery-story" i] p,[aria-labelledby*="gallery" i] p').length >= 2 &&
+      galleryImages >= 6 &&
+      galleryProjectLinks < 3,
+    );
+    return articleType || schemaArticle || (postContainers.length === 1 && (publicationSignal || substantialPost)) || structuredLongform || coherentGallery;
+  }
+  const main = document.querySelector('main,[role="main"]');
+  const substantialMain = Boolean(main?.querySelector('h1') && main.querySelectorAll('p,blockquote').length >= 2);
+  return articleType || schemaArticle || postContainers.length === 1 || substantialMain;
+}
 
 function fontUrl(file: string): string {
   try {
@@ -188,9 +296,8 @@ async function assessState(): Promise<CardInput | null> {
     } catch {}
     return null;
   }
-  // Deterministic JEV page model decides whether this is a content page and
-  // maps the real content root/end. Feeds, listing pages, and landing pages
-  // are rejected here — the tip UI never lands on a "read more" preview.
+  // The local JEV pipeline proposes a content candidate and maps its root/end.
+  // The hosted JEV judgment below is the final eligibility authority.
   const map = mapPage();
   try {
     document.documentElement.setAttribute('data-nibgate-kind', map.kind);
@@ -202,7 +309,11 @@ async function assessState(): Promise<CardInput | null> {
   const eligible = map.eligibility ? map.eligibility.kind === 'select' : map.kind === 'content';
 
   let content: CardInput['content'] | null = null;
-  if (map.kind === 'content' && eligible) {
+  // The deterministic classifier is not a shortcut around the independent-
+  // post gate. Require publication evidence here too; generic prose pages and
+  // article-shaped listings must remain silent even if the page model labels
+  // them as content.
+  if (map.kind === 'content' && eligible && hasIndependentPostEvidence(true)) {
     content = {
       url: window.location.href.split('#')[0],
       canonicalUrl: map.canonical || window.location.href.split('#')[0],
@@ -212,37 +323,20 @@ async function assessState(): Promise<CardInput | null> {
     };
   }
 
-  // Low-confidence escalation: the deterministic page model owns the clear-cut
-  // cases. When it is inconclusive — an unknown kind, or a content page it
-  // could not bind to a tippable region — ask the hub's JEV model whether this
-  // is creator content. Only a confident "yes" renders a card; a coin flip
-  // stays silent, so we never invent a tip surface on an app/landing page.
-  if (!content && (map.kind === 'unknown' || (map.kind === 'content' && !eligible))) {
+  // If the local proposer is inconclusive, Readability may still supply a
+  // candidate, but only behind the same strict structural safety gate.
+  if (!content && hasIndependentPostEvidence(true) && (map.kind === 'unknown' || (map.kind === 'content' && !eligible))) {
     try {
       const fallback = extractContent();
       const words = (document.body?.innerText || '').trim().split(/\s+/).filter(Boolean).length;
-      if (fallback && words >= 200) {
-        const state = [
-          `URL: ${window.location.href.split('#')[0]}`,
-          `Title: ${map.title || document.title || ''}`,
-          `Site: ${map.siteName || ''}`,
-          `Detected kind: ${map.kind} (${map.kindDecision.reasons[0] || 'no reason'})`,
-          `Word count: ${words}`,
-          `Byline present: ${map.author ? `yes (${map.author})` : 'no'}`,
-          `Paragraphs: ${document.querySelectorAll('article p, main p, p').length}`,
-          `Excerpt: ${(document.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 600)}`,
-        ].join('\n').slice(0, 4000);
-        const verdict = await chrome.runtime.sendMessage({ type: 'JEV_CLASSIFY', state });
-        try {
-          document.documentElement.setAttribute('data-nibgate-jev', String(verdict?.probability ?? ''));
-        } catch {}
-        if (verdict?.ok && Number(verdict.probability) >= 0.65) {
-          content = fallback;
-        }
-      }
+      if (fallback && words >= 200) content = fallback;
     } catch {}
   }
   if (!content) return null;
+  // JEV is the main judge for every automatic control, including candidates
+  // that the local pipeline considers clear. Missing/low-confidence judgments
+  // fail closed; explicit right-click tipping remains user-directed.
+  if (!(await jevApprovesPage(map))) return null;
 
   const pageWallet = recipientWalletFromPage();
   const hasSdk = hasNibgateSdk();
@@ -363,6 +457,7 @@ async function main() {
   shared.__nibgateCardCleanup?.();
   if(!isTippableUrl(window.location.href)){
     document.querySelectorAll(`[${HOST_ATTR}]`).forEach(el=>el.remove());
+    clearAssessmentMarkers();
     return;
   }
   if (shared.__nibgateCardResume) window.removeEventListener('pageshow', shared.__nibgateCardResume);
@@ -379,6 +474,11 @@ async function main() {
   let stopped = false;
   const assess = async () => {
     if (stopped || busy || shared.__nibgateCardRun !== myRun) return;
+    if (!isTippableUrl(pageUrl)) {
+      document.querySelectorAll(`[${HOST_ATTR}]`).forEach((el) => el.remove());
+      clearAssessmentMarkers();
+      return;
+    }
     if (shared.__nibgateDismissedUrl === pageUrl || document.querySelector(`[${HOST_ATTR}]`)) return;
     const mediaSignature = Array.from(document.querySelectorAll('img,video,audio,iframe')).slice(0, 200)
       .map((el) => [el.getAttribute('src'), el.getAttribute('srcset'), el.getAttribute('width'), (el as HTMLImageElement).naturalWidth || 0].join(':')).join('|');
@@ -406,22 +506,44 @@ async function main() {
   });
   observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src', 'srcset', 'width', 'height'] });
   observer.observe(document.head, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['content', 'href'] });
-  // SPA navigation does not necessarily trigger a Chrome tab load event.
-  const navigation = setInterval(() => {
+  // Remove stale controls immediately on SPA navigation, then reassess the new
+  // route. The interval remains as a fallback for frameworks that bypass the
+  // History API wrappers.
+  const onNavigation = () => {
     const next = window.location.href.split('#')[0];
     if (next === pageUrl) return;
     pageUrl = next;
     lastSignature = '';
     document.querySelectorAll(`[${HOST_ATTR}]`).forEach((el) => el.remove());
+    clearAssessmentMarkers();
     themeObserver?.disconnect();
     statusEls = [];
     schedule();
-  }, 1000);
+  };
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+  const pushState = function(this: History, ...args: Parameters<History['pushState']>) {
+    const result = originalPushState.apply(this, args);
+    onNavigation();
+    return result;
+  };
+  const replaceState = function(this: History, ...args: Parameters<History['replaceState']>) {
+    const result = originalReplaceState.apply(this, args);
+    onNavigation();
+    return result;
+  };
+  history.pushState = pushState;
+  history.replaceState = replaceState;
+  window.addEventListener('popstate', onNavigation);
+  const navigation = setInterval(onNavigation, 1000);
   const retries = [1500, 4000, 10000].map((ms) => setTimeout(() => { void assess(); }, ms));
   const cleanup = () => {
     stopped = true;
     observer.disconnect();
     clearInterval(navigation);
+    window.removeEventListener('popstate', onNavigation);
+    if (history.pushState === pushState) history.pushState = originalPushState;
+    if (history.replaceState === replaceState) history.replaceState = originalReplaceState;
     if (pending) clearTimeout(pending);
     retries.forEach(clearTimeout);
     try { keepalive?.disconnect(); } catch {}

@@ -192,20 +192,56 @@ export async function holdTipContent({ contentUrl, title, amount, currency = 'US
   };
 }
 
-// Payer refund for unclaimed held tips. Signs a control message (proves wallet
-// ownership; funds can only ever return to the payer) and asks the hub to
-// relay the on-chain refund. Full amount, no fee.
-export async function refundTip({ domain, payer, signer, hubApi, amount, message }) {
+function canonicalRefundDomain(domain) {
+  const raw = String(domain || '').trim();
+  if (!raw) return '';
+  try {
+    return new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+  } catch {
+    return '';
+  }
+}
+
+function refundNonce() {
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// Payer refund for unclaimed held tips. The short-lived signature binds the
+// exact domain, payer, amount, and one-time nonce; the hub persists its digest
+// before relaying so a captured signature cannot trigger a second refund.
+export async function refundTip({ domain, payer, signer, hubApi, network, amount, message }) {
   const api = normalizeApi(hubApi);
   if (!api) throw new Error('refundTip needs hubApi.');
   const from = payer || signer?.address || '';
   if (!from) throw new Error('refundTip needs a payer address.');
   if (!signer?.signMessage) throw new Error('refundTip needs a signer with signMessage.');
-  const note = message || `Nibgate tip refund\nDomain: ${domain}\nWallet: ${String(from).toLowerCase()}\nIssued: ${new Date().toISOString()}`;
+  const canon = canonicalRefundDomain(domain);
+  if (!canon) throw new Error('refundTip needs a valid domain.');
+  let refundAmount = Number(amount);
+  if (!(refundAmount > 0)) {
+    const heldRes = await fetch(`${api}/hub/tips/held?domain=${encodeURIComponent(canon)}&limit=100`);
+    const held = await heldRes.json().catch(() => ({}));
+    if (!heldRes.ok) throw new Error(held?.error || `held tip lookup failed: ${heldRes.status}`);
+    refundAmount = (Array.isArray(held?.tips) ? held.tips : [])
+      .filter((tip) => String(tip?.payerWallet || '').toLowerCase() === String(from).toLowerCase())
+      .reduce((sum, tip) => sum + (Number(tip?.amount) || 0), 0);
+  }
+  if (!(refundAmount > 0)) throw new Error('No unclaimed held tips for this payer/domain.');
+  const amountUnits = Math.round(refundAmount * 1e6);
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  const networkName = String(network || (api.includes('testnet') ? 'testnet' : 'mainnet')).toLowerCase();
+  if (!['mainnet', 'testnet'].includes(networkName)) throw new Error('refundTip needs network mainnet or testnet.');
+  const note = message || [
+    'Nibgate tip refund', `network:${networkName}`, `domain:${canon}`,
+    `wallet:${String(from).toLowerCase()}`, `amount:${amountUnits}`,
+    `expires:${expiresAt}`, `nonce:${refundNonce()}`,
+  ].join('\n');
   const signature = await signer.signMessage(note);
   const res = await fetch(`${api}/hub/tips/refund`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ domain, payer: from, amount, message: note, signature }),
+    body: JSON.stringify({ domain: canon, payer: from, amount: amountUnits / 1e6, message: note, signature }),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body?.success === false) throw new Error(body?.error || `refund failed: ${res.status}`);

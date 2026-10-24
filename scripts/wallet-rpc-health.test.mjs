@@ -35,7 +35,10 @@ test('healthy existing chain performs actual reads and never requests a network 
 })
 test('correct cached chain cannot hide a wallet RPC 404', async () => {
   const { provider, calls } = wallet(({ method }) => { if (method === 'eth_blockNumber') throw Object.assign(Error('https://private.example/?key=secret'), { status: 404 }) })
-  await assert.rejects(ensureArcNetwork(provider, { currentChainId: 5042002 }), (e) => e instanceof ArcConnectionError && e.reason === 'not-found' && !e.message.includes('secret'))
+  // This case isolates health detection from the explicit payment-time repair
+  // path. The default is allowed to repair, so opt out when asserting that a
+  // cached chain cannot suppress the original health error.
+  await assert.rejects(ensureArcNetwork(provider, { currentChainId: 5042002, repairOnFailure: false }), (e) => e instanceof ArcConnectionError && e.reason === 'not-found' && !e.message.includes('secret'))
   assert.ok(calls.every((c) => !c.method.startsWith('wallet_')))
 })
 test('cached chain never overrides actual wallet chain', async () => {
@@ -121,7 +124,9 @@ test('tip/unlock never skip health just because a cached chain matches', async (
 test('connection notice passive effect never requests repair and guards stale selections', async () => {
   let body = (await readFile(new URL('../packages/wallet/src/react/ArcConnectionNotice.jsx', import.meta.url), 'utf8'))
     .replace(/^import .*\n/gm, '').replace('export function ArcConnectionNotice', 'function ArcConnectionNotice')
-  body = body.slice(0, body.indexOf('  if (!isConnected || !address || (!error && !message))')) + '  return { error, busy, message, check };\n}'
+  const renderGuard = body.indexOf('  if (!isConnected || !address || (!error && !message) || !visible)')
+  assert.notEqual(renderGuard, -1, 'ArcConnectionNotice render guard must remain discoverable')
+  body = body.slice(0, renderGuard) + '  return { error, busy, message, check };\n}'
   const state = [], refs = [], deps = [], cleanup = [], effectCallbacks = []
   let si, ri, ei, effects, checks = 0, repairs = 0
   let account = { address: '0x1111', isConnected: true }

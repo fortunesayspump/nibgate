@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 
 const bundled = await build({ entryPoints: ['src/content/tip-card.ts'], absWorkingDir: fileURLToPath(new URL('..', import.meta.url)), bundle: true, format: 'iife', write: false, target: 'es2022', loader: { '.svg': 'text' } });
 const code = bundled.outputFiles[0].text;
-export function fixture(body, head = '', url='https://creator.example/tutorial') {
+export function fixture(body, head = '', url='https://creator.example/tutorial', jevProbability=0.95) {
   const dom = new JSDOM(`<!doctype html><html><head><title>A practical tutorial</title>${head}</head><body>${body}</body></html>`, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   const { window } = dom;
   Object.defineProperty(window.HTMLElement.prototype, 'innerText', { get() {
@@ -27,6 +27,7 @@ export function fixture(body, head = '', url='https://creator.example/tutorial')
       connect: () => ({ disconnect() {} }),
       sendMessage: async (message) => {
         messages.push(message);
+        if (message.type === 'JEV_CLASSIFY') return { ok: true, probability: jevProbability };
         if (message.type === 'ASSESS') return { resolution: { state: 'held' } };
         if (message.type === 'TIP_OPEN') return { ok: true, id: 'test-tip' };
         if (message.type === 'TIP_RESULT') return { done: true, ok: false, error: 'Cancelled.' };

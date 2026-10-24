@@ -32,6 +32,7 @@ import {
 import { startVerificationMonitor, startManifestSyncMonitor, startReputationIndexer, startDataIntegrityMonitor, startGscSitemapMonitor, startGscIndexMonitor } from '../hub/monitors.js';
 import { startFeeKeeper } from '../revenue/keeper.js';
 import { startMetadataEnricher } from '../jev/metadata.js';
+import { usdcUnits, validateLegacyRefundMessage, validateRefundMessage, verifyWalletControl } from '../hub/wallet-control.js';
 
 // Leaderboards serialize counts and scores, never raw tracking metadata or
 // receipt payloads. Loading every column of every child row multiplies the
@@ -53,6 +54,38 @@ export const LEADERBOARD_CONTENT_INCLUDE = {
   },
   _count: { select: { metrics: true, unlockReceipts: true, ratings: true } },
 };
+
+export function tipMatchesCanonicalDomain(tip, canonicalDomain) {
+  const expected = cleanDomain(canonicalDomain);
+  if (!expected) return false;
+  const raw = String(tip?.domain || '').trim() || String(tip?.contentUrl || '').trim();
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    return cleanDomain(parsed.hostname) === expected;
+  } catch {
+    return cleanDomain(raw) === expected;
+  }
+}
+
+async function reserveTipDomainOperation(domain, operation, res) {
+  try {
+    return await db.tipDomainOperation.create({ data: { domain, network: activeNetwork().name, operation } });
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      res.status(409).json({
+        error: 'A money operation for this domain is pending or requires reconciliation. Do not retry until it is resolved.',
+        code: 'domain-operation-pending',
+      });
+      return null;
+    }
+    res.status(503).json({
+      error: 'Money operations are disabled until durable operation storage is available.',
+      code: 'domain-operation-storage-unavailable',
+    });
+    return null;
+  }
+}
 
 export function registerHubRoutes(app) {
   startVerificationMonitor();
@@ -291,6 +324,7 @@ export function registerHubRoutes(app) {
 
       const website = await db.website.findUnique({ where: { id: websiteId } });
       if (!website) return res.status(404).json({ error: 'Website not found.' });
+      if (website.ownerId !== req.user.id) return res.status(403).json({ error: 'Not your site.' });
 
       const result = await checkWebsiteVerification(website);
       const adopted = await maybeAdoptPeerVerification(result, website);
@@ -307,6 +341,7 @@ export function registerHubRoutes(app) {
     try {
       const website = await db.website.findUnique({ where: { id: req.params.websiteId } });
       if (!website) return res.status(404).json({ error: 'Website not found.' });
+      if (website.ownerId !== req.user.id) return res.status(403).json({ error: 'Not your site.' });
       const result = await syncWebsiteManifest(website);
       res.json({ success: result.ok, ...result });
     } catch (error) {
@@ -1315,14 +1350,16 @@ export function registerHubRoutes(app) {
     rpcUrl: process.env.ARC_RPC_URL || process.env.NIBGATE_PAYMENT_RPC_URL || '',
   });
 
-  const releaseHoldingBox = async (domain, creator) => {
+  const releaseHoldingBox = async (domain, creator, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits) => {
     const holding = await holdingServer();
     if (!holding) throw new Error('Holding SDK not available in this build.');
     const dep = holding.holdingDeployment(activeNetwork().name);
     const call = holding.buildHoldingRelease({ domain, creator, factoryAddress: dep.factoryAddress });
     const { privateKey, rpcUrl } = holdingKeeperKeys();
     if (!privateKey || !rpcUrl) throw new Error('Release requires NIBGATE_KEEPER_PRIVATE_KEY and an RPC URL.');
-    return holding.submitHoldingRelease(call, { privateKey, rpcUrl, chainId: dep.chainId });
+    return holding.submitHoldingRelease(call, {
+      privateKey, rpcUrl, chainId: dep.chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits,
+    });
   };
 
   app.post('/api/hub/tips/challenge', hubTipLimiter, async (req, res) => {
@@ -1360,6 +1397,12 @@ export function registerHubRoutes(app) {
       let dom = String(domain || '').trim();
       if (!dom) { try { dom = new URL(storedUrl).hostname; } catch { dom = ''; } }
       if (!dom) dom = resolvedWebsite?.domain || '';
+      const contentDomain = cleanDomain(storedUrl);
+      const canonicalRequestedDomain = cleanDomain(dom);
+      if (!contentDomain || !canonicalRequestedDomain || contentDomain !== canonicalRequestedDomain) {
+        return res.status(400).json({ error: 'Tip domain must match the content URL hostname.' });
+      }
+      dom = canonicalRequestedDomain;
       const reqd = await tip.createTipRequirement({ contentUrl: target, title, amount, currency, recipient }, { network: hubNet.caip2, paymentRail: paymentRail || 'transfer' });
       const rail = String(paymentRail || 'transfer').toLowerCase();
       const isTransfer = rail === 'transfer' || rail === 'direct-transfer';
@@ -1530,10 +1573,10 @@ export function registerHubRoutes(app) {
 
   // Claim: verify site ownership, then keeper releases the domain box onchain
   // (net to creator, cut to treasury) and marks every held tip released.
-  app.post('/api/hub/tips/claim', hubTipLimiter, async (req, res) => {
+  app.post('/api/hub/tips/claim', hubTipLimiter, requireAuth, async (req, res) => {
+    let operation = null;
     try {
-      const holding = await holdingServer();
-      if (!holding) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized. Please sign in.' });
       const { siteId, token, creatorWallet } = req.body || {};
       if (!siteId || !token) return res.status(400).json({ error: 'siteId and token required.' });
       const website = await db.website.findUnique({
@@ -1541,12 +1584,25 @@ export function registerHubRoutes(app) {
         include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } },
       });
       if (!website || website.verifyToken !== token) return res.status(403).json({ error: 'Invalid site credentials.' });
-      const domain = holding.canonicalDomainKey(website.domain);
-      const ownerWallet = website.owner?.wallets?.[0]?.address || website.owner?.walletAddress || null;
-      // Two proofs: site ownership (verifyToken above) + wallet control.
-      // Owner-link sites bind the owner wallet at sign-in, so the owner wallet
-      // is implicitly controlled. Claiming to any *other* wallet requires a
-      // signed claim token proving control of that wallet.
+      if (website.ownerId !== req.user.id) return res.status(403).json({ error: 'Not your site.' });
+      if (website.deletedAt) return res.status(410).json({ error: 'This site has been removed.' });
+      const checked = await checkWebsiteVerification(website);
+      const verification = await maybeAdoptPeerVerification(checked, { ...website, lastPeerCheckAt: null });
+      const verifiedWebsite = await db.website.update({
+        where: { id: website.id }, data: verification.data,
+        include: { owner: { include: { wallets: { orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } } },
+      });
+      if (!verification.ok || verification.status !== 'verified'
+        || !verifiedWebsite.isVerified || verifiedWebsite.verificationStatus !== 'verified') {
+        return res.status(403).json({
+          error: 'Current domain ownership verification is required before claiming held tips.',
+          code: 'site-not-verified',
+        });
+      }
+      const holding = await holdingServer();
+      if (!holding) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
+      const domain = holding.canonicalDomainKey(verifiedWebsite.domain);
+      const ownerWallet = verifiedWebsite.owner?.wallets?.[0]?.address || verifiedWebsite.owner?.walletAddress || null;
       let recipient = String(creatorWallet || ownerWallet || '').trim() || null;
       const claimToken = req.body?.claimToken || null;
       if (claimToken) {
@@ -1561,11 +1617,13 @@ export function registerHubRoutes(app) {
         return res.status(403).json({ error: 'Wallet control proof (claimToken) required to claim to a different wallet.' });
       }
       if (!recipient) return res.status(400).json({ error: 'No creator wallet to release to.' });
-      // One verified wallet per domain. First claim binds it; a different
-      // wallet later goes to manual review, never auto-release.
       const walletLc = recipient.toLowerCase();
+      operation = await reserveTipDomainOperation(domain, 'claim', res);
+      if (!operation) return;
       const priorClaim = await db.tipDomainClaim.findUnique({ where: { domain } });
       if (priorClaim && priorClaim.wallet.toLowerCase() !== walletLc) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } });
+        operation = null;
         return res.status(409).json({
           error: 'This domain was already claimed by another wallet; needs manual review.',
           code: 'domain-claimed-by-other-wallet',
@@ -1577,14 +1635,45 @@ export function registerHubRoutes(app) {
         update: { wallet: walletLc },
       });
       const held = await db.tip.findMany({
-        where: { status: 'held', OR: [{ domain }, { contentUrl: { contains: website.domain } }] },
-        orderBy: { createdAt: 'asc' }, take: 100,
+        where: {
+          status: 'held',
+          OR: [
+            { domain: { in: [domain, `www.${domain}`] } },
+            { contentUrl: { startsWith: `https://${domain}` } },
+            { contentUrl: { startsWith: `http://${domain}` } },
+            { contentUrl: { startsWith: `https://www.${domain}` } },
+            { contentUrl: { startsWith: `http://www.${domain}` } },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
       });
-      if (!held.length) return res.json({ success: true, released: [], pending: 0 });
+      const exactDomainHeld = held.filter((tip) => tipMatchesCanonicalDomain(tip, domain));
+      if (exactDomainHeld.some((tip) => !normalizeNetworkName(tip.network))) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } });
+        operation = null;
+        return res.status(409).json({
+          error: 'Legacy held tips without trustworthy network attribution require manual reconciliation.',
+          code: 'legacy-tip-network-unresolved',
+        });
+      }
+      const domainHeld = exactDomainHeld.filter((tip) => normalizeNetworkName(tip.network) === activeNetwork().name);
+      if (!domainHeld.length) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } });
+        operation = null;
+        return res.json({ success: true, released: [], pending: 0 });
+      }
+      const expectedAmountUnits = domainHeld.reduce((sum, tip) => sum + BigInt(usdcUnits(tip.amount) || 0), 0n);
+      if (expectedAmountUnits <= 0n) throw new Error('Held-tip amount snapshot is invalid.');
+      const dep = holding.holdingDeployment(activeNetwork().name);
+      const expectedProtocolFeeUnits = (expectedAmountUnits * BigInt(dep.feeBps)) / 10_000n;
+      await db.tipDomainOperation.update({
+        where: { id: operation.id },
+        data: { state: 'submitting', details: JSON.stringify({ tipIds: domainHeld.map((tip) => tip.id), amountUnits: String(expectedAmountUnits), recipient: walletLc }) },
+      });
       // Collect any Gateway-credited balance into the box first (the box's
       // ERC-1271 self-withdrawal), then release the box balance onchain.
       const { privateKey, rpcUrl } = holdingKeeperKeys();
-      const hasGatewayHold = held.some((t) => t.paymentProvider === 'circle-gateway');
+      const hasGatewayHold = domainHeld.some((t) => t.paymentProvider === 'circle-gateway');
       if (privateKey && rpcUrl && hasGatewayHold) {
         try {
           // Circle batched settlement is deferred. If the box's credit is not
@@ -1593,6 +1682,8 @@ export function registerHubRoutes(app) {
             privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0,
           });
           if (gw?.withdrew === false || gw?.skipped) {
+            await db.tipDomainOperation.delete({ where: { id: operation.id } });
+            operation = null;
             return res.status(202).json({
               success: false, status: 'pending-settlement', domain,
               box: gw.box, available: gw.available,
@@ -1601,36 +1692,63 @@ export function registerHubRoutes(app) {
           }
         } catch (gwError) {
           console.error(`[hub] claim gateway collection failed: ${gwError?.message || gwError}`);
-          return res.status(502).json({ error: `Gateway collection failed: ${gwError.message}` });
+          await db.tipDomainOperation.update({
+            where: { id: operation.id }, data: { state: 'reconciliation-required', details: `Gateway collection failed: ${gwError.message}` },
+          }).catch(() => {});
+          return res.status(409).json({ error: 'Gateway collection outcome requires reconciliation. Do not retry.', code: 'domain-operation-pending' });
         }
       }
       let releaseTx = null;
       try {
-        releaseTx = await releaseHoldingBox(domain, recipient);
+        releaseTx = await releaseHoldingBox(
+          domain, recipient,
+          (transactionHash) => db.tipDomainOperation.update({ where: { id: operation.id }, data: { state: 'submitted', transactionHash } }),
+          expectedAmountUnits,
+          expectedProtocolFeeUnits,
+        );
       } catch (releaseError) {
-        return res.status(502).json({ error: `Onchain release failed: ${releaseError.message}` });
+        await db.tipDomainOperation.update({
+          where: { id: operation.id },
+          data: { state: 'reconciliation-required', transactionHash: releaseError.releaseTx || undefined, details: releaseError.message },
+        }).catch(() => {});
+        return res.status(409).json({
+          error: releaseError.message, code: releaseError.code || 'domain-operation-pending',
+          ...(releaseError.releaseTx ? { releaseTx: releaseError.releaseTx } : {}),
+        });
       }
-      const dep = holding.holdingDeployment(activeNetwork().name);
-      const amount = held.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-      const protocolFee = Math.round(amount * dep.feeBps) / 10000;
-      await db.tip.updateMany({
-        where: { id: { in: held.map((t) => t.id) } },
-        data: {
-          status: 'released', recipientWallet: recipient, payeeWallet: recipient,
-          releaseTx, releasedAt: new Date(), holdReason: null,
-          feeBps: dep.feeBps, protocolFee,
-        },
+      await db.tipDomainOperation.update({ where: { id: operation.id }, data: { state: 'confirmed', transactionHash: releaseTx } });
+      const protocolFee = Number(expectedProtocolFeeUnits) / 1e6;
+      let remainingGrossUnits = expectedAmountUnits;
+      let remainingFeeUnits = expectedProtocolFeeUnits;
+      await db.$transaction(async (tx) => {
+        const releasedAt = new Date();
+        for (const tip of domainHeld) {
+          const tipUnits = BigInt(usdcUnits(tip.amount) || 0);
+          const tipFeeUnits = tipUnits === remainingGrossUnits
+            ? remainingFeeUnits
+            : (tipUnits * expectedProtocolFeeUnits) / expectedAmountUnits;
+          remainingGrossUnits -= tipUnits;
+          remainingFeeUnits -= tipFeeUnits;
+          const tipFee = Number(tipFeeUnits) / 1e6;
+          const changed = await tx.tip.updateMany({
+            where: { id: tip.id, status: 'held' },
+            data: { status: 'released', recipientWallet: recipient, payeeWallet: recipient, releaseTx, releasedAt, holdReason: null, feeBps: dep.feeBps, protocolFee: tipFee },
+          });
+          if (changed.count !== 1) throw new Error(`Held tip ${tip.id} changed during claim finalization.`);
+        }
+        await tx.tipDomainClaim.update({ where: { domain }, data: { releasedTips: { increment: domainHeld.length } } });
+        await tx.tipDomainOperation.delete({ where: { id: operation.id } });
       });
-      const rows = await db.tip.findMany({ where: { id: { in: held.map((t) => t.id) } } });
-      await db.tipDomainClaim.update({
-        where: { domain },
-        data: { releasedTips: { increment: held.length } },
-      }).catch(() => {});
+      operation = null;
+      const rows = await db.tip.findMany({ where: { id: { in: domainHeld.map((t) => t.id) } } });
       res.json({
         success: true, domain, recipient, releaseTx, feeBps: dep.feeBps, protocolFee,
         released: rows, pending: 0,
       });
     } catch (error) {
+      if (operation) {
+        return res.status(409).json({ error: `${error.message}. The domain remains reserved for reconciliation; do not retry.`, code: 'domain-operation-pending' });
+      }
       res.status(400).json({ error: error.message });
     }
   });
@@ -1641,6 +1759,8 @@ export function registerHubRoutes(app) {
   // refund via the keeper. Full amount, no fee. Tip rows flip to 'refunded'
   // plus a negative refund row so the ledger nets out.
   app.post('/api/hub/tips/refund', hubTipLimiter, async (req, res) => {
+    let operation = null;
+    let authorization = null;
     try {
       const holding = await holdingServer();
       if (!holding) return res.status(501).json({ error: 'Tipping not enabled in this build.' });
@@ -1648,61 +1768,225 @@ export function registerHubRoutes(app) {
       if (!domain || !payer || !signature || !message) {
         return res.status(400).json({ error: 'domain, payer, signature, message required.' });
       }
-      const { recoverMessageAddress } = await import('viem');
-      const signer = await recoverMessageAddress({ message, signature }).catch(() => null);
-      if (!signer || String(signer).toLowerCase() !== String(payer).toLowerCase()) {
-        return res.status(403).json({ error: 'Wallet control proof failed.' });
-      }
       const canon = holding.canonicalDomainKey(domain);
+      const payerWallet = normalizeWalletAddress(payer);
+      if (!canon || !payerWallet) return res.status(400).json({ error: 'Valid domain and payer required.' });
+      let messageCheck = validateRefundMessage({
+        message, network: activeNetwork().name, domain: canon, payer: payerWallet, amount,
+      });
+      if (!messageCheck.valid) {
+        messageCheck = validateLegacyRefundMessage({ message, domain: canon, payer: payerWallet });
+      }
+      if (!messageCheck.valid) {
+        return res.status(400).json({ error: messageCheck.reason });
+      }
+      const network = activeNetwork();
+      const proofRpcUrl = process.env.NIBGATE_PAYMENT_RPC_URL || process.env.ARC_RPC_URL || network.rpcUrl;
+      const validProof = await verifyWalletControl({ address: payerWallet, message, signature, rpcUrl: proofRpcUrl, chain: network });
+      if (!validProof) return res.status(403).json({ error: 'Wallet control proof failed.' });
+
+      const existingAuthorization = await db.tipRefundAuthorization.findUnique({ where: { digest: messageCheck.digest } });
+      if (existingAuthorization?.refundTipId) {
+        const prior = await db.tip.findUnique({ where: { id: existingAuthorization.refundTipId } });
+        if (prior) {
+          return res.json({
+            success: true, replayed: true, domain: canon, payer: payerWallet,
+            amount: Math.abs(Number(prior.amount) || 0), refundTx: prior.txHash || prior.paymentId, id: prior.id,
+          });
+        }
+      }
+      if (existingAuthorization) {
+        return res.status(409).json({
+          error: 'This refund authorization is already pending or requires reconciliation. Do not sign it again.',
+          code: 'refund-authorization-pending',
+        });
+      }
+
+      operation = await reserveTipDomainOperation(canon, 'refund', res);
+      if (!operation) return;
       const held = await db.tip.findMany({
         where: {
           status: 'held',
-          payerWallet: { equals: String(payer), mode: 'insensitive' },
-          OR: [{ domain: canon }, { contentUrl: { contains: canon } }],
+          payerWallet: { equals: payerWallet, mode: 'insensitive' },
+          OR: [
+            { domain: { in: [canon, `www.${canon}`] } },
+            { contentUrl: { startsWith: `https://${canon}` } },
+            { contentUrl: { startsWith: `http://${canon}` } },
+            { contentUrl: { startsWith: `https://www.${canon}` } },
+            { contentUrl: { startsWith: `http://www.${canon}` } },
+          ],
         },
-        orderBy: { createdAt: 'asc' }, take: 200,
+        orderBy: { createdAt: 'asc' },
       });
-      if (!held.length) return res.status(404).json({ error: 'No unclaimed held tips for this payer/domain.' });
-      const total = held.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-      const refundAmount = amount != null ? Math.min(Number(amount), total) : total;
-      if (!(refundAmount > 0)) return res.status(400).json({ error: 'Nothing to refund.' });
+      const exactDomainHeld = held.filter((tip) => tipMatchesCanonicalDomain(tip, canon));
+      if (exactDomainHeld.some((tip) => !normalizeNetworkName(tip.network))) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } });
+        operation = null;
+        return res.status(409).json({
+          error: 'Legacy held tips without trustworthy network attribution require manual reconciliation.',
+          code: 'legacy-tip-network-unresolved',
+        });
+      }
+      const domainHeld = exactDomainHeld.filter((tip) => normalizeNetworkName(tip.network) === activeNetwork().name);
+      if (!domainHeld.length) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } });
+        operation = null;
+        return res.status(404).json({ error: 'No unclaimed held tips for this payer/domain.' });
+      }
+      const totalUnits = domainHeld.reduce((sum, tip) => sum + (usdcUnits(tip.amount) || 0), 0);
+      // A legacy 1.2.0 signature can authorize only the complete server-side
+      // balance. It cannot select an unsigned partial amount.
+      const refundUnits = messageCheck.legacy ? totalUnits : messageCheck.amountUnits;
+      if (!refundUnits || refundUnits > totalUnits) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } });
+        operation = null;
+        return res.status(400).json({ error: 'Refund amount exceeds the unclaimed held balance.' });
+      }
+      const refundAmount = refundUnits / 1e6;
+      let remainingUnits = refundUnits;
+      const allocations = [];
+      for (const tip of domainHeld) {
+        if (remainingUnits <= 0) break;
+        const availableUnits = usdcUnits(tip.amount) || 0;
+        const refundedUnits = Math.min(availableUnits, remainingUnits);
+        if (refundedUnits > 0) allocations.push({ tip, refundedUnits, remainderUnits: availableUnits - refundedUnits });
+        remainingUnits -= refundedUnits;
+      }
+
+      try {
+        authorization = await db.tipRefundAuthorization.create({
+          data: {
+            digest: messageCheck.digest, network: activeNetwork().name, domain: canon, wallet: payerWallet,
+            amountUnits: String(refundUnits), expiresAt: new Date(messageCheck.expiresAt),
+          },
+        });
+      } catch (error) {
+        await db.tipDomainOperation.delete({ where: { id: operation.id } }).catch(() => {});
+        operation = null;
+        if (error?.code === 'P2002') {
+          return res.status(409).json({ error: 'This refund authorization is already in use.', code: 'refund-authorization-pending' });
+        }
+        throw error;
+      }
       const { privateKey, rpcUrl } = holdingKeeperKeys();
-      if (!privateKey || !rpcUrl) return res.status(500).json({ error: 'Refund relay not configured (keeper key/RPC).' });
+      if (!privateKey || !rpcUrl) {
+        await db.$transaction([
+          db.tipRefundAuthorization.delete({ where: { digest: authorization.digest } }),
+          db.tipDomainOperation.delete({ where: { id: operation.id } }),
+        ]);
+        authorization = null;
+        operation = null;
+        return res.status(500).json({ error: 'Refund relay not configured (keeper key/RPC).' });
+      }
       const dep = holding.holdingDeployment(activeNetwork().name);
       const factoryAddress = process.env.TIP_HOLDING_FACTORY || dep.factoryAddress;
-      const hasGatewayHold = held.some((t) => t.paymentProvider === 'circle-gateway');
+      await db.tipDomainOperation.update({
+        where: { id: operation.id },
+        data: {
+          state: 'submitting',
+          details: JSON.stringify({
+            authorizationDigest: authorization.digest,
+            tipIds: allocations.map(({ tip }) => tip.id),
+            payer: payerWallet,
+            amountUnits: String(refundUnits),
+          }),
+        },
+      });
+      const hasGatewayHold = domainHeld.some((t) => t.paymentProvider === 'circle-gateway');
       if (hasGatewayHold) {
         try {
           const gw = await holding.withdrawHoldingBoxGateway(canon, {
             privateKey, rpcUrl, network: activeNetwork().name, waitMs: 0, factoryAddress,
           });
           if (gw?.withdrew === false || gw?.skipped) {
+            await db.$transaction([
+              db.tipRefundAuthorization.delete({ where: { digest: authorization.digest } }),
+              db.tipDomainOperation.delete({ where: { id: operation.id } }),
+            ]);
+            authorization = null;
+            operation = null;
             return res.status(202).json({
               success: false, status: 'pending-settlement', domain: canon,
               message: 'Circle Gateway is still settling this tip; retry the refund shortly.',
             });
           }
         } catch (gwError) {
-          return res.status(502).json({ error: `Gateway collection failed: ${gwError.message}` });
+          await db.tipDomainOperation.update({
+            where: { id: operation.id },
+            data: { state: 'reconciliation-required', details: `Gateway collection failed: ${gwError.message}` },
+          }).catch(() => {});
+          return res.status(409).json({ error: 'Gateway collection outcome requires reconciliation. Do not retry.', code: 'domain-operation-pending' });
         }
       }
-      const call = holding.buildHoldingRefund({ domain: canon, payer, amountUsdc: refundAmount, factoryAddress });
-      const refundTx = await holding.submitHoldingRefund(call, { privateKey, rpcUrl, chainId: dep.chainId });
-      await db.tip.updateMany({
-        where: { id: { in: held.map((t) => t.id) } },
-        data: { status: 'refunded' },
+      const call = holding.buildHoldingRefund({ domain: canon, payer: payerWallet, amountUsdc: refundAmount, factoryAddress });
+      let refundTx;
+      try {
+        refundTx = await holding.submitHoldingRefund(call, {
+          privateKey, rpcUrl, chainId: dep.chainId,
+          onSubmitted: (transactionHash) => db.tipDomainOperation.update({
+            where: { id: operation.id }, data: { state: 'submitted', transactionHash },
+          }),
+        });
+      } catch (refundError) {
+        await db.tipDomainOperation.update({
+          where: { id: operation.id },
+          data: {
+            state: 'reconciliation-required',
+            transactionHash: refundError.refundTx || undefined,
+            details: refundError.message,
+          },
+        }).catch(() => {});
+        return res.status(409).json({
+          error: refundError.message,
+          code: refundError.code || 'domain-operation-pending',
+          ...(refundError.refundTx ? { refundTx: refundError.refundTx } : {}),
+        });
+      }
+      await db.tipDomainOperation.update({ where: { id: operation.id }, data: { state: 'confirmed', transactionHash: refundTx } });
+      const refundRow = await db.$transaction(async (tx) => {
+        for (const { tip, refundedUnits, remainderUnits } of allocations) {
+          if (remainderUnits <= 0) {
+            const changed = await tx.tip.updateMany({ where: { id: tip.id, status: 'held' }, data: { status: 'refunded' } });
+            if (changed.count !== 1) throw new Error(`Held tip ${tip.id} changed during refund.`);
+            continue;
+          }
+          const changed = await tx.tip.updateMany({
+            where: { id: tip.id, status: 'held' }, data: { amount: remainderUnits / 1e6 },
+          });
+          if (changed.count !== 1) throw new Error(`Held tip ${tip.id} changed during refund.`);
+          await tx.tip.create({
+            data: {
+              contentUrl: tip.contentUrl, contentId: tip.contentId, websiteId: tip.websiteId,
+              domain: canon, title: tip.title, imageUrl: tip.imageUrl, amount: refundedUnits / 1e6, currency: tip.currency || 'USDC',
+              network: tip.network || activeNetwork().name, payerWallet: tip.payerWallet,
+              recipientWallet: tip.recipientWallet, payeeWallet: tip.payeeWallet,
+              paymentProvider: 'refund-slice', paymentId: tip.paymentId, txHash: refundTx, status: 'refunded',
+            },
+          });
+        }
+        const row = await tx.tip.create({
+          data: {
+            contentUrl: domainHeld[0].contentUrl, contentId: domainHeld[0].contentId, websiteId: domainHeld[0].websiteId,
+            domain: canon, title: domainHeld[0].title, imageUrl: domainHeld[0].imageUrl, amount: -refundAmount, currency: domainHeld[0].currency || 'USDC',
+            network: activeNetwork().name, payerWallet,
+            recipientWallet: payerWallet, payeeWallet: payerWallet,
+            paymentProvider: 'refund', paymentId: refundTx, txHash: refundTx, status: 'refunded',
+          },
+        });
+        await tx.tipRefundAuthorization.update({ where: { digest: authorization.digest }, data: { refundTipId: row.id } });
+        await tx.tipDomainOperation.delete({ where: { id: operation.id } });
+        return row;
       });
-      const refundRow = await db.tip.create({
-        data: {
-          contentUrl: held[0].contentUrl, contentId: held[0].contentId, websiteId: held[0].websiteId,
-          domain: canon, title: held[0].title, imageUrl: held[0].imageUrl, amount: -refundAmount, currency: held[0].currency || 'USDC',
-          network: activeNetwork().name, payerWallet: String(payer).toLowerCase(),
-          recipientWallet: String(payer).toLowerCase(), payeeWallet: String(payer).toLowerCase(),
-          paymentProvider: 'refund', paymentId: refundTx, txHash: refundTx, status: 'refunded',
-        },
-      });
-      res.json({ success: true, domain: canon, payer, amount: refundAmount, refundTx, id: refundRow.id });
+      operation = null;
+      authorization = null;
+      res.json({ success: true, domain: canon, payer: payerWallet, amount: refundAmount, refundTx, id: refundRow.id });
     } catch (error) {
+      if (operation) {
+        return res.status(409).json({
+          error: `${error.message}. The domain remains reserved for reconciliation; do not retry.`,
+          code: 'domain-operation-pending',
+        });
+      }
       res.status(400).json({ error: error.message });
     }
   });

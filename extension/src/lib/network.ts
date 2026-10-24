@@ -33,7 +33,6 @@ export const NETWORKS: Record<
 
 const KEY = 'nibgateNetwork';
 const LEGACY_KEY = 'nibTipNetwork';
-const CUSTOM_HUB_KEY = 'nibgateCustomHubApi';
 
 export async function getNetwork(): Promise<NetworkName> {
   try {
@@ -49,19 +48,10 @@ export async function setNetwork(name: NetworkName): Promise<void> {
   await chrome.storage.local.set({ [KEY]: name });
 }
 
-// Dev/staging hub override, set at build time (NIBGATE_HUB_API env). Falls back
-// to a stored value so local tooling/tests can point at a local hub.
+// Dev/staging hub override is compile-time only. Production builds cannot be
+// redirected by stale or injected extension storage.
 export async function getCustomHubApi(): Promise<string> {
-  try {
-    const stored = await chrome.storage.local.get([CUSTOM_HUB_KEY]);
-    const value = String(stored[CUSTOM_HUB_KEY] || '').trim().replace(/\/+$/, '');
-    if (value) return value;
-  } catch {}
   return typeof __NIBGATE_HUB_API__ === 'string' ? __NIBGATE_HUB_API__.trim().replace(/\/+$/, '') : '';
-}
-
-export async function setCustomHubApi(url: string): Promise<void> {
-  await chrome.storage.local.set({ [CUSTOM_HUB_KEY]: String(url || '').trim().replace(/\/+$/, '') });
 }
 
 export async function activeNetwork() {

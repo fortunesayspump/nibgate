@@ -56,7 +56,7 @@ async function get(url) {
   if (cacheOnly) throw new Error('Unavailable in the original download sample');
   let current = publicUrl(url);
   for (let redirect = 0; redirect < 5; redirect++) {
-    const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'NibgateContentAudit/1.2.0 (public HTML compatibility testing)' } });
+    const response = await fetch(current, { redirect: 'manual', signal: AbortSignal.timeout(12000), headers: { 'User-Agent': 'NibgateContentAudit/1.2.1 (public HTML compatibility testing)' } });
     if (response.status >= 300 && response.status < 400 && response.headers.get('location')) { current = publicUrl(new URL(response.headers.get('location'), current)); continue; }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();

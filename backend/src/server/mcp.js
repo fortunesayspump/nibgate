@@ -9,7 +9,7 @@ import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.13';
+const SERVER_VERSION = '0.2.14';
 
 // Per-stack settlement facts for tool instructions (Circle CLI chain flag,
 // API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
@@ -415,7 +415,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      `Nibgate MCP server: verified content discovery, unlock/payment/tip/nibshare ledger (funded held tips appear as pending entries; refunds appear as negative entries; nibshare entries are privacy-safe: no share links), platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge, pay the returned requirement, then POST the proof to /hub/tips/verify (a successful response confirms the resolved tip) or /hub/tips/hold (unresolved/external creator is held in a per-domain contract with no EOA key; the factory owner/keeper relays release/refund after Hub authorization checks, and the contract trusts recipient arguments. It is claimable by the verified creator and refundable by the payer until claimed). Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged. Full guide: https://nibgate.xyz/discovery.md`,
+      `Nibgate MCP server: verified content discovery, unlock/payment/tip/nibshare ledger (funded held tips appear as pending entries; refunds appear as negative entries; nibshare entries are privacy-safe: no share links), platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge, pay the returned requirement, then POST the proof to /hub/tips/verify (a successful response confirms the resolved tip) or /hub/tips/hold (unresolved/external creator is held in a per-domain contract with no EOA key; the factory owner/keeper relays release/refund after Hub authorization checks, and the contract trusts recipient arguments. It is claimable by the verified creator and refundable by the payer until claimed; payer control accepts EOA personal_sign or deployed ERC-1271 wallets with a fresh domain/payer-bound message). Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged. Full guide: https://nibgate.xyz/discovery.md`,
   };
 }
 
@@ -478,7 +478,7 @@ export function registerMcpRoute(app) {
 
   // MCP server card for .well-known discovery (SEP-1649 compatible shape).
   app.get('/.well-known/mcp.json', (_req, res) => {
-    const apiOrigin = process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz';
+    const apiOrigin = process.env.PUBLIC_API_URL || hostsFor().apiBase;
     res.type('application/json').json({
       $schema: 'https://static.modelcontextprotocol.io/schemas/mcp-server-card/v1.json',
       version: '1.0',
@@ -503,7 +503,7 @@ export function registerMcpRoute(app) {
   // x402 discovery fan-out (x402scan compatibility). Resources are resolved at
   // request time so the listed URLs are always live paid surfaces.
   app.get('/.well-known/x402', async (_req, res) => {
-    const apiOrigin = (process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+    const apiOrigin = (process.env.PUBLIC_API_URL || hostsFor().apiBase).replace(/\/+$/, '');
     try {
       const now = new Date();
       const [share, post] = await Promise.all([
@@ -517,7 +517,7 @@ export function registerMcpRoute(app) {
           // Content carries createdAt only (no updatedAt on the model) —
           // newest synced surface first.
           orderBy: { createdAt: 'desc' },
-          select: { path: true, url: true, slug: true, website: { select: { domain: true } } },
+          select: { path: true, url: true, website: { select: { domain: true } } },
         }),
       ]);
       const resources = [];
@@ -526,8 +526,11 @@ export function registerMcpRoute(app) {
         let origin = '';
         try { origin = post.url ? new URL(post.url).origin : ''; } catch { origin = ''; }
         if (!origin && post.website?.domain) origin = `https://${post.website.domain}`;
-        const p = post.path || `/posts/${post.slug || ''}`;
-        if (origin) resources.push(`${origin.replace(/\/+$/, '')}${p.startsWith('/') ? p : `/${p}`}`);
+        let p = post.path || '';
+        if (!p && post.url) {
+          try { p = new URL(post.url).pathname; } catch { p = ''; }
+        }
+        if (origin && p) resources.push(`${origin.replace(/\/+$/, '')}${p.startsWith('/') ? p : `/${p}`}`);
       }
       return res.type('application/json').json({
         version: 1,

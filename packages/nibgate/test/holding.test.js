@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { privateKeyToAccount } from 'viem/accounts'
+import { encodeAbiParameters, encodeEventTopics } from 'viem'
+const chainMock = vi.hoisted(() => ({ readContract: vi.fn(), waitForTransactionReceipt: vi.fn(), sendTransaction: vi.fn() }))
+vi.mock('viem', async (importOriginal) => ({
+  ...await importOriginal(),
+  createPublicClient: () => ({ readContract: chainMock.readContract, waitForTransactionReceipt: chainMock.waitForTransactionReceipt }),
+  createWalletClient: () => ({ sendTransaction: chainMock.sendTransaction }),
+  http: () => ({}),
+}))
 import {
   canonicalDomainKey,
   domainHashFor,
@@ -12,10 +20,23 @@ import {
   mintClaimToken,
   verifyClaimToken,
   createTipIntent,
+  buildHoldingRefund,
+  submitHoldingRefund,
+  submitHoldingRelease,
+  HOLDING_FACTORY_ABI,
 } from '../src/server/holding.js'
 
 const TEST_KEY = '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 const TEST_ADDR = privateKeyToAccount(TEST_KEY).address.toLowerCase()
+const FACTORY = '0x0000000000000000000000000000000000000001'
+const BOX = '0x0000000000000000000000000000000000000002'
+const TX = `0x${'ab'.repeat(32)}`
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  chainMock.readContract.mockResolvedValue(BOX)
+  chainMock.sendTransaction.mockResolvedValue(TX)
+})
 
 describe('holding addresses', () => {
   it('canonicalizes domains identically', () => {
@@ -62,6 +83,20 @@ describe('claim tokens', () => {
     expect((await verifyClaimToken(old)).reason).toBe('expired')
     expect((await verifyClaimToken({ message: '', signature: '0x' })).valid).toBe(false)
     await expect(mintClaimToken({ domain: '', wallet: TEST_ADDR }, signMessage)).rejects.toThrow()
+  })
+
+  it('rejects signed but non-canonical or incomplete claim messages', async () => {
+    const expires = Date.now() + 60000
+    for (const message of [
+      `domain:example.com\nwallet:${TEST_ADDR}\nexpires:${expires}`,
+      `Nibgate tip claim\ndomain:example.com\nwallet:${TEST_ADDR}`,
+      `Nibgate tip claim\ndomain:example.com\nwallet:${TEST_ADDR}\nexpires:0`,
+      `Anything goes\ndomain:example.com\nwallet:${TEST_ADDR}\nexpires:${expires}`,
+    ]) {
+      const signature = await signMessage(message)
+      const out = await verifyClaimToken({ message, signature, domain: 'example.com', wallet: TEST_ADDR })
+      expect(out.valid).toBe(false)
+    }
   })
 })
 
@@ -128,5 +163,63 @@ describe('box-funding requirements', () => {
     expect(gateway.challenge.accepts[0].extra?.name).toBe('GatewayWalletBatched')
     // Gateway authorizations sign integer base units.
     expect(gateway.challenge.accepts[0].amount).toBe('50000')
+  })
+})
+
+describe('keeper settlement receipt validation', () => {
+  function eventLog(eventName, args) {
+    const topics = encodeEventTopics({ abi: HOLDING_FACTORY_ABI, eventName, args })
+    const data = eventName === 'Refunded'
+      ? encodeAbiParameters([{ type: 'uint256' }], [args.amount])
+      : encodeAbiParameters([{ type: 'uint256' }, { type: 'uint256' }], [args.amount, args.protocolFee])
+    return { address: BOX, topics, data }
+  }
+
+  it('confirms an exact refund event and persists the hash before waiting', async () => {
+    const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
+    const order = []
+    chainMock.waitForTransactionReceipt.mockImplementation(async () => {
+      order.push('wait')
+      return { status: 'success', logs: [eventLog('Refunded', { domainHash: domainHashFor('example.com'), payer: TEST_ADDR, amount: 2_000_000n })] }
+    })
+    await expect(submitHoldingRefund(call, {
+      privateKey: TEST_KEY, rpcUrl: 'http://fixture.invalid', chainId: 5042002,
+      onSubmitted: async () => { order.push('persist') },
+    })).resolves.toBe(TX)
+    expect(order).toEqual(['persist', 'wait'])
+  })
+
+  it('quarantines a refund when the event amount does not match', async () => {
+    const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
+    chainMock.waitForTransactionReceipt.mockResolvedValue({
+      status: 'success',
+      logs: [eventLog('Refunded', { domainHash: domainHashFor('example.com'), payer: TEST_ADDR, amount: 1_000_000n })],
+    })
+    await expect(submitHoldingRefund(call, { privateKey: TEST_KEY, rpcUrl: 'http://fixture.invalid', chainId: 5042002 }))
+      .rejects.toMatchObject({ code: 'refund-reconciliation-required', refundTx: TX, requestedUnits: '2000000', actualUnits: '1000000' })
+  })
+
+  it('confirms that a release event accounts for the complete ledger snapshot', async () => {
+    const call = buildHoldingRelease({ domain: 'example.com', creator: TEST_ADDR, factoryAddress: FACTORY })
+    chainMock.waitForTransactionReceipt.mockResolvedValue({
+      status: 'success',
+      logs: [eventLog('Released', { domainHash: domainHashFor('example.com'), creator: TEST_ADDR, amount: 1_900_000n, protocolFee: 100_000n })],
+    })
+    await expect(submitHoldingRelease(call, { privateKey: TEST_KEY, rpcUrl: 'http://fixture.invalid', chainId: 5042002, expectedAmountUnits: 2_000_000n }))
+      .resolves.toBe(TX)
+    await expect(submitHoldingRelease(call, { privateKey: TEST_KEY, rpcUrl: 'http://fixture.invalid', chainId: 5042002, expectedAmountUnits: 3_000_000n }))
+      .rejects.toMatchObject({ code: 'release-reconciliation-required', releaseTx: TX, expectedUnits: '3000000', actualUnits: '2000000' })
+  })
+
+  it('quarantines a release whose fee differs despite the same gross amount', async () => {
+    const call = buildHoldingRelease({ domain: 'example.com', creator: TEST_ADDR, factoryAddress: FACTORY })
+    chainMock.waitForTransactionReceipt.mockResolvedValue({
+      status: 'success',
+      logs: [eventLog('Released', { domainHash: domainHashFor('example.com'), creator: TEST_ADDR, amount: 1_900_000n, protocolFee: 100_000n })],
+    })
+    await expect(submitHoldingRelease(call, {
+      privateKey: TEST_KEY, rpcUrl: 'http://fixture.invalid', chainId: 5042002,
+      expectedAmountUnits: 2_000_000n, expectedProtocolFeeUnits: 50_000n,
+    })).rejects.toMatchObject({ code: 'release-reconciliation-required', releaseTx: TX, actualUnits: '100000' })
   })
 })

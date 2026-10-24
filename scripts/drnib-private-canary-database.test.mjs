@@ -5,11 +5,15 @@ import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import net from 'node:net';
 import {canaryDatabaseSql} from '../dr-nib/tools/private-canary-database.mjs';
-const harness=createRequire(join(process.env.NIBGATE_POSTGRES_HARNESS||join(tmpdir(),'nibgate-pg-harness'),'package.json'));
+// Keep the default aligned with test-tip-postgres.mjs and its README. On macOS
+// tmpdir() resolves to /var/folders/..., which otherwise made this one broad
+// test look in a different location from the documented shared harness.
+const harnessRoot=resolve(process.env.NIBGATE_POSTGRES_HARNESS||'/tmp/nibgate-pg-harness');
+const harness=createRequire(join(harnessRoot,'package.json'));
 const app=createRequire(new URL('../dr-nib/backend/package.json',import.meta.url));
 test('fresh canary schema applies atomically and financial, ciphertext and lifecycle permissions stay separate',async()=>{
  const{default:EmbeddedPostgres}=await import(pathToFileURL(harness.resolve('embedded-postgres')).href);

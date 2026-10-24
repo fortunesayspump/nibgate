@@ -17,7 +17,7 @@ import { resolveLength } from '../length.js';
 import { assertCanCreateRun } from '../limits.js';
 import { researchAvailability } from '../readiness.js';
 import { assertConventionalPath, isLegacyRun } from '../privacy/guard.js';
-import { jobStatus, submitAndComplete, signSplit, isEscrowConfigured } from '../escrow/jobs.js';
+import { assertEscrowJobBinding, jobStatus, isEscrowConfigured } from '../escrow/jobs.js';
 
 export const runs = Router();
 
@@ -287,12 +287,18 @@ runs.post('/:id/approve', async (req, res) => {
     // the offchain balance always trails real money. Unfunded runs stop here
     // with the funding step named.
     const escrow = escrowOf(run);
+    if (escrow?.jobId && await db.researchRun.findFirst({
+      where: { id: { not: run.id }, metadata: { path: ['escrow', 'jobId'], equals: escrow.jobId } },
+      select: { id: true },
+    })) return res.status(409).json({ error: 'this escrow job is already attached to another run and cannot authorize duplicate research' });
     if (isEscrowConfigured()) {
       if (!escrow?.jobId) {
         return res.status(409).json({ error: 'no onchain deposit yet — fund the run escrow first, then approve' });
       }
       const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
       if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
+      try { assertEscrowJobBinding(chain, { client: run.walletAddress }); }
+      catch { return res.status(409).json({ error: 'escrow job no longer matches this run and cannot authorize research' }); }
       if (chain.status !== 'Funded') {
         return res.status(409).json({ error: `escrow job ${escrow.jobId} is ${chain.status} — fund it onchain first` });
       }
@@ -316,6 +322,8 @@ runs.post('/:id/approve', async (req, res) => {
     } else if (escrow?.jobId) {
       const chain = await jobStatus(escrow.jobId).catch((e) => ({ error: e.message }));
       if (chain.error) return res.status(503).json({ error: `cannot read escrow job: ${chain.error}` });
+      try { assertEscrowJobBinding(chain, { client: run.walletAddress }); }
+      catch { return res.status(409).json({ error: 'escrow job no longer matches this run and cannot authorize research' }); }
       if (chain.status !== 'Funded') {
         return res.status(409).json({ error: `escrow job ${escrow.jobId} is ${chain.status} — fund it onchain first` });
       }
@@ -610,19 +618,26 @@ runs.post('/:id/escrow/register', async (req, res) => {
     if (chain.status !== 'Open') {
       return res.status(409).json({ error: `job ${jobId} is ${chain.status} — register it while it is still Open` });
     }
-    const owner = String(run.walletAddress || '').toLowerCase();
-    if (!owner || String(chain.client || '').toLowerCase() !== owner) {
-      return res.status(409).json({ error: `job ${jobId} can't be funded from this run's wallet (opened by another wallet or the old relay flow) — duplicate the run to start fresh with your own job` });
-    }
-    const { escrowConfig } = await import('../escrow/jobs.js');
-    const cfg = escrowConfig();
-    if (String(chain.provider || '').toLowerCase() !== String(cfg.splitter || '').toLowerCase()) {
-      return res.status(409).json({ error: `job ${jobId} does not point at this run's splitter` });
-    }
-    const updated = await db.researchRun.update({
-      where: { id: run.id },
-      data: { metadata: { ...(run.metadata || {}), escrow: { jobId, core: cfg.core, splitter: cfg.splitter, status: 'Open' } } },
+    let cfg;
+    try { cfg = assertEscrowJobBinding(chain, { client: run.walletAddress }); }
+    catch { return res.status(409).json({ error: `job ${jobId} does not match this run's wallet, evaluator, token, splitter and no-hook policy` }); }
+    const updated = await db.$transaction(async (tx) => {
+      // A job is one deposit for one run. Serialize by job id so two replicas
+      // cannot register the same escrow concurrently under separate projects.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(648823, hashtext(${jobId}))::text AS locked`;
+      const duplicate = await tx.researchRun.findFirst({
+        where: { id: { not: run.id }, metadata: { path: ['escrow', 'jobId'], equals: jobId } },
+        select: { id: true },
+      });
+      if (duplicate) return null;
+      const fresh = await tx.researchRun.findUnique({ where: { id: run.id } });
+      if (!fresh || fresh.status !== 'planned' || escrowOf(fresh)?.jobId) return null;
+      return tx.researchRun.update({
+        where: { id: run.id },
+        data: { metadata: { ...(fresh.metadata || {}), escrow: { jobId, core: cfg.core, splitter: cfg.splitter, status: 'Open' } } },
+      });
     });
+    if (!updated) return res.status(409).json({ error: `job ${jobId} is already registered or this run changed; create a fresh escrow job` });
     await recordEvent(run.id, { type: 'escrow.created', jobId });
     res.status(201).json(escrowOf(updated));
   } catch (e) { res.status(500).json({ error: e.message }); }

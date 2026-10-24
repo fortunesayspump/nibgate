@@ -13,9 +13,17 @@
  */
 
 import { createPublicClient, http } from 'viem';
+import { activePaymentNetwork, isMainnetNetwork } from './gateway.js';
+import { serverEnv } from './env.js';
+
+export function ratingHubApiUrl(explicitUrl = '') {
+  return explicitUrl
+    || serverEnv('NIBGATE_PUBLIC_API_URL')
+    || (isMainnetNetwork(activePaymentNetwork()) ? 'https://api.nibgate.xyz' : 'https://testnet-api.nibgate.xyz');
+}
 
 export async function prepareOnchainRating({ contentId, walletAddress, ratingValue, paymentId, hubApiUrl }) {
-  const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
+  const api = ratingHubApiUrl(hubApiUrl);
   const url = `${api}/hub/reputation/ratings/prepare`;
   const res = await fetch(url, {
     method: 'POST',
@@ -42,7 +50,7 @@ export async function prepareOnchainRating({ contentId, walletAddress, ratingVal
  */
 export async function getRatingStats({ contentId, hubApiUrl, timeoutMs = 10000 }) {
   if (!contentId) throw new Error('contentId is required to read rating stats.');
-  const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
+  const api = ratingHubApiUrl(hubApiUrl);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -120,7 +128,7 @@ export async function verifyRatingTx(txHash, rpcUrl, expectedChainId) {
 }
 
 export async function submitOnchainRating({ siteId, token, hubContentId, title, postType, price, walletAddress, rating, ratingValue, txHash, url: contentUrl, path: contentPath, hubApiUrl }) {
-  const api = hubApiUrl || process.env.NIBGATE_PUBLIC_API_URL || 'https://api.nibgate.xyz';
+  const api = ratingHubApiUrl(hubApiUrl);
   const evtUrl = `${api}/hub/evt`;
   const res = await fetch(evtUrl, {
     method: 'POST',

@@ -501,5 +501,5 @@ export declare function holdTipContent(input: {
 }): Promise<Record<string, unknown>>;
 export declare function refundTip(input: {
   domain: string; payer?: string; signer: NibgateTipSigner; hubApi?: string;
-  amount?: number; message?: string;
+  network?: 'mainnet' | 'testnet'; amount?: number; message?: string;
 }): Promise<Record<string, unknown>>;

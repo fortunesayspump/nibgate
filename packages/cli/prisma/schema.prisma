@@ -503,3 +503,36 @@ model TipDomainClaim {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+// Durable per-domain money-operation reservation. Rows intentionally have no
+// automatic TTL: after a crash, a transaction may already have been submitted
+// and must be reconciled before another claim/refund can run.
+model TipDomainOperation {
+  id              String   @id @default(uuid())
+  domain          String
+  network         String
+  operation       String
+  state           String   @default("reserved")
+  transactionHash String?
+  details         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([network, domain])
+}
+
+// One canonical payer authorization can drive at most one refund. Completed
+// authorizations point at their negative ledger row so a lost HTTP response is
+// replayable without asking the keeper to submit another transaction.
+model TipRefundAuthorization {
+  digest      String   @id
+  network     String
+  domain      String
+  wallet      String
+  amountUnits String
+  expiresAt   DateTime
+  refundTipId String?
+  createdAt   DateTime @default(now())
+
+  @@index([network, domain, wallet])
+}

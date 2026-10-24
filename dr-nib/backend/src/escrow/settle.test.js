@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('./jobs.js', () => ({
+  assertEscrowJobBinding: () => true,
   isEscrowConfigured: () => true,
   jobStatus: async () => ({ client: '0x1111111111111111111111111111111111111111' }),
   signSplit: async () => ({ v: 27, r: '0x1', s: '0x2' }),

@@ -8,7 +8,7 @@
   "standaloneFunctions": 1,
   "total": 28,
   "sourceHashes": {
-    "packages/nibgate/src/index.d.ts": "df7837f7406d3b844554233fc21aec93d225277049ef55e9c83c60461f6b96ac",
+    "packages/nibgate/src/index.d.ts": "a1aa85254a74636047bce192b62a72e64a068a6e5cceda8b0f9ff6da1a31425b",
     "packages/nibgate/src/browser/client.js": "82ee7edb14c34ae1769e9d76b470b98985f652f8aeb0e5b90a2df1bebe939db2",
     "packages/nibgate/package.json": "19697c832d962ddafdb4d5f598470b5817a4bfc8523b1a3215c08105816ff068",
     "packages/nibgate/src/browser/gate.js": "de75fef128e7ea70d0405b9f9df53f4cd97574a500e2efa33784d8662431712b",

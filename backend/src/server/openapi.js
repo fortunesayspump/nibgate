@@ -81,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.13",
+    version: "0.2.14",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -870,20 +870,20 @@ export const openApiSpec = {
         tags: ["Tips"],
         summary: "Refund unclaimed held tips (payer)",
         description:
-          "Payer-initiated refund for tips still held (never claimed/released). The payer signs a control message; the hub sums their held tips for the domain and the keeper relays an on-chain refund of the full amount, no fee. Refunded rows flip to status refunded and a negative refund entry is written to the ledger so tip totals net out. Only ever returns funds to the payer, so a proof of wallet control is sufficient.",
+          "Payer-initiated refund for tips still held (never claimed/released). The payer signs a short-lived, one-shot control message bound to network, canonical domain, payer, exact six-decimal amount, expiry, and nonce; EOA personal_sign and deployed ERC-1271 smart-contract wallets are supported. The hub durably reserves that authorization before the keeper relays the exact on-chain refund. Fully consumed rows become refunded; a partial row retains its held remainder, and a negative refund entry makes totals net out. Funds only return to the payer.",
         requestBody: {
           required: true,
           content: {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["domain", "payer", "message", "signature"],
+                required: ["domain", "payer", "amount", "message", "signature"],
                 properties: {
                   domain: { type: "string" },
-                  payer: { type: "string", description: "Payer wallet; must match the recovered signer" },
-                  amount: { type: "number", description: "Optional partial amount; defaults to the full held total" },
-                  message: { type: "string", description: "The signed control message" },
-                  signature: { type: "string", description: "EIP-191 personal_sign signature" },
+                  payer: { type: "string", description: "Payer wallet; must control the EOA or ERC-1271 signer" },
+                  amount: { type: "number", description: "Exact positive USDC amount, at most six decimals, bound into the signature" },
+                  message: { type: "string", description: "Canonical one-shot message binding network, domain, payer, amount, expiry, and nonce" },
+                  signature: { type: "string", description: "EIP-191 personal_sign or ERC-1271 signature" },
                 },
               },
             },

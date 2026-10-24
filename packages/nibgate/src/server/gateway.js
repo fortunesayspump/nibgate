@@ -33,6 +33,7 @@ export async function payWithGateway(resourceInput, options = {}) {
   const paymentResult = await gatewayBuyer.pay(accessUrl);
   const data = paymentResult?.data || {};
   const returnedPayment = data.payment || {};
+  const paymentNetwork = normalizeGatewayNetwork(returnedPayment.network || options.network || activePaymentNetwork());
   return {
     ok: true,
     payment: {
@@ -42,14 +43,14 @@ export async function payWithGateway(resourceInput, options = {}) {
       txHash: returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction || '',
       receiptUrl: returnedPayment.receiptUrl || data.receiptUrl || '',
       chainExplorerUrl: returnedPayment.chainExplorerUrl || ((returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction)
-        ? `${/^eip155:5042$/.test(returnedPayment.network || options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || '') ? 'https://explorer.arc.io' : 'https://testnet.arcscan.app'}/tx/${returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction}`
+        ? `${paymentNetwork === 'eip155:5042' ? 'https://explorer.arc.io' : 'https://testnet.arcscan.app'}/tx/${returnedPayment.txHash || data.txHash || data.transaction || paymentResult?.transaction}`
         : ''),
       amount: Number(returnedPayment.amount || resource.price || 0),
       revenue: Number(returnedPayment.revenue || returnedPayment.amount || resource.price || 0),
       currency: returnedPayment.currency || resource.currency || 'USDC',
       payer: returnedPayment.payer || data.payer || gatewayBuyerResult.address || '',
       recipient: resource.recipient || resource.payTo || options.recipient || serverEnv('NIBGATE_SELLER_ADDRESS') || '',
-      network: returnedPayment.network || options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002',
+      network: paymentNetwork,
       verified: true,
       raw: data
     },
@@ -127,12 +128,20 @@ export async function withdrawFromGateway(amount, options = {}) {
 // a naive includes('5042') classifies the testnet CAIP as mainnet and sends
 // testnet payments to the mainnet facilitator (which rejects them).
 export function isMainnetNetwork(value = '') {
-  const v = String(value || '').toLowerCase();
-  if (v.includes('testnet') || v.includes('5042002')) return false;
-  return v === 'mainnet' || v.includes('5042');
+  const v = String(value || '').trim().toLowerCase();
+  return v === 'mainnet' || v === 'arc' || v === 'arc-mainnet' || v === 'eip155:5042';
 }
 export function activePaymentNetwork() {
   return serverEnv('NIBGATE_PAYMENT_NETWORK') || serverEnv('NIBGATE_NETWORK') || '';
+}
+export function normalizeGatewayNetwork(network = activePaymentNetwork()) {
+  const value = String(network || '').trim();
+  const normalized = value.toLowerCase();
+  if (isMainnetNetwork(normalized)) return 'eip155:5042';
+  if (!normalized || normalized === 'testnet' || normalized === 'arc-testnet' || normalized === 'arctestnet' || normalized === 'eip155:5042002') {
+    return 'eip155:5042002';
+  }
+  return value;
 }
 export function defaultFacilitatorUrl(network = activePaymentNetwork()) {
   return isMainnetNetwork(network) ? 'https://gateway-api.circle.com' : 'https://gateway-api-testnet.circle.com';
@@ -159,6 +168,7 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
   }
 
   const resource = normalizeResource(resourceInput);
+  const paymentNetwork = normalizeGatewayNetwork(options.network || activePaymentNetwork());
   const recipient = resource.recipient || resource.payTo || options.recipient || serverEnv('NIBGATE_SELLER_ADDRESS') || '';
   if (!recipient) {
     return {
@@ -171,8 +181,8 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
   }
   const middleware = createGatewayMiddleware({
     sellerAddress: recipient,
-    facilitatorUrl: options.facilitatorUrl || serverEnv('NIBGATE_FACILITATOR_URL') || serverEnv('CIRCLE_GATEWAY_FACILITATOR_URL') || defaultFacilitatorUrl(options.network || activePaymentNetwork()),
-    networks: [options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002'],
+    facilitatorUrl: options.facilitatorUrl || serverEnv('NIBGATE_FACILITATOR_URL') || serverEnv('CIRCLE_GATEWAY_FACILITATOR_URL') || defaultFacilitatorUrl(paymentNetwork),
+    networks: [paymentNetwork],
     description: `Unlock ${resource.title}`
   });
 
@@ -234,7 +244,7 @@ export async function runCircleGatewayRequirement(request, resourceInput, option
       revenue: Number(resource.price || 0),
       currency: resource.currency || 'USDC',
       recipient,
-      network: options.network || serverEnv('NIBGATE_PAYMENT_NETWORK') || 'eip155:5042002',
+      network: paymentNetwork,
       txHash: req.payment?.transaction || '',
       verified: true
     }

@@ -24,19 +24,42 @@ export function escrowConfig(env = process.env, network = null) {
     },
   };
   const d = deployments[chain.chainId] || {};
+  const keeperKey = env.ESCROW_KEEPER_KEY || env.NIBGATE_KEEPER_PRIVATE_KEY || '';
+  let evaluator = null;
+  try { evaluator = privateKeyToAccount(keeperKey).address; } catch {}
   return {
     chain,
     core: d.core,
     splitter: d.splitter,
-    keeperKey: env.ESCROW_KEEPER_KEY || env.NIBGATE_KEEPER_PRIVATE_KEY || '',
+    keeperKey,
+    evaluator,
+    token: chain.usdc,
     treasury: env.ESCROW_TREASURY || '0x558e7BFaF2Cf1A494F44E50D92431Afc060c9D12',
     feeBps: Number(env.ESCROW_FEE_BPS || 100),
   };
 }
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const sameAddress = (left, right) => typeof left === 'string' && typeof right === 'string'
+  && left.toLowerCase() === right.toLowerCase();
+
+/** Fail closed unless an onchain job is exactly the job this deployment
+ * prepared for this run. Registration happens while the job is Open, when its
+ * client can still change the provider, so approval and settlement repeat the
+ * check against fresh chain state. */
+export function assertEscrowJobBinding(job, { client, env = process.env, network = null } = {}) {
+  const cfg = escrowConfig(env, network);
+  if (!job || !sameAddress(job.client, client)) throw new Error('escrow job client does not match this run wallet');
+  if (!sameAddress(job.provider, cfg.splitter)) throw new Error('escrow job provider does not match this deployment');
+  if (!sameAddress(job.evaluator, cfg.evaluator)) throw new Error('escrow job evaluator does not match this deployment');
+  if (!sameAddress(job.token, cfg.token)) throw new Error('escrow job token does not match this network');
+  if (!sameAddress(job.hook, ZERO_ADDRESS)) throw new Error('escrow job hook must be disabled');
+  return cfg;
+}
+
 export function isEscrowConfigured(env = process.env, network = null) {
   const c = escrowConfig(env, network);
-  return Boolean(c.core && c.splitter && c.keeperKey);
+  return Boolean(c.core && c.splitter && c.keeperKey && c.evaluator && c.token);
 }
 
 function viemChain(chain) {
@@ -144,7 +167,8 @@ export async function jobStatus(jobId, opts = {}) {
     jobId: String(jobId),
     status: names[Number(job.status)] || String(job.status),
     client: job.client, provider: job.provider, evaluator: job.evaluator,
-    budget: Number(job.budget) / 1e6, token: job.token,
+    budget: Number(job.budget) / 1e6, token: job.token, hook: job.hook,
+    expiredAt: Number(job.expiredAt),
   };
 }
 

@@ -814,6 +814,9 @@ SDK 0.4.40 and wallet 0.4.31 support Arc mainnet (`eip155:5042`,
 `https://testnet-api.nibgate.xyz`). Install `@nibgate/sdk@latest` and
 `@nibgate/wallet@latest`. Configure the application network and matching Hub
 together; an npm tag does not configure the network automatically.
+Server-side rating helpers use `NIBGATE_PUBLIC_API_URL` when set; otherwise
+they follow `NIBGATE_PAYMENT_NETWORK` / `NIBGATE_NETWORK` and default to the
+testnet Hub when no network is configured.
 
 A wallet transaction hash or Gateway signature means a proof was submitted,
 not that the Hub recorded a successful tip. A standalone SDK tip without a Hub

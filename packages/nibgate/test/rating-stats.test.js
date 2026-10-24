@@ -1,7 +1,29 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { getRatingStats, readReputationStats, verifyRatingTx } from '../src/server/rating.js'
+import { getRatingStats, ratingHubApiUrl, readReputationStats, verifyRatingTx } from '../src/server/rating.js'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
+describe('rating hub routing', () => {
+  it('defaults to the testnet hub when the SDK network is not configured', () => {
+    vi.stubEnv('NIBGATE_PUBLIC_API_URL', '')
+    vi.stubEnv('NIBGATE_PAYMENT_NETWORK', '')
+    vi.stubEnv('NIBGATE_NETWORK', '')
+    expect(ratingHubApiUrl()).toBe('https://testnet-api.nibgate.xyz')
+  })
+
+  it('uses the mainnet hub only for an explicit mainnet network', () => {
+    vi.stubEnv('NIBGATE_NETWORK', 'mainnet')
+    expect(ratingHubApiUrl()).toBe('https://api.nibgate.xyz')
+  })
+
+  it('keeps explicit hub URLs authoritative', () => {
+    vi.stubEnv('NIBGATE_NETWORK', 'mainnet')
+    expect(ratingHubApiUrl('https://hub.example')).toBe('https://hub.example')
+  })
+})
 
 describe('getRatingStats', () => {
   it('returns hub-authoritative average and count', async () => {

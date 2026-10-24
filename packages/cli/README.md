@@ -33,8 +33,12 @@ npm install -g @nibgate/cli
 | `NIBGATE_PAYMENT_MODE` | `demo` or `circle-gateway` |
 | `NIBGATE_SELLER_ADDRESS` | EVM seller wallet for Circle Gateway mode |
 | `NIBGATE_BUYER_PRIVATE_KEY` | Local/server test buyer key for Gateway payments |
-| `NIBGATE_BUYER_CHAIN` | Gateway buyer chain, defaults to `arcTestnet` |
+| `NIBGATE_BUYER_CHAIN` | Gateway buyer chain override; by default follows `payments.networks` / `NIBGATE_NETWORK` (`arcTestnet` or `arc`) |
 | `NIBGATE_BUYER_RPC_URL` | Optional RPC URL for the buyer chain |
+
+When `NIBGATE_CONFIG` is set, the file must exist and contain valid JSON. Gateway
+commands fail closed instead of silently substituting payment defaults for a
+missing or malformed explicit config.
 
 ## Links
 

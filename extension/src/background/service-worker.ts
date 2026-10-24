@@ -98,6 +98,13 @@ type PendingTip = {
   rail: 'transfer' | 'gateway';
   amount?: string;
   windowId?: number;
+  approval?: Readonly<{
+    challenge: any;
+    held: boolean;
+    amount: string;
+    walletAddress: string;
+    network: Readonly<{ hubApi: string; rpcUrl: string; chainId: number }>;
+  }>;
 };
 const pendingTips = new Map<string, PendingTip>();
 const tipResults = new Map<string, unknown>();
@@ -392,6 +399,9 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
         const target = p.content.canonicalUrl || p.content.url;
         const r = p.resolution;
         p.amount = amount;
+        // A new review invalidates the prior snapshot. Execution is allowed
+        // only against the exact challenge/account/network shown afterward.
+        p.approval = undefined;
         if (r.state !== 'resolved') {
           const res = await fetch(`${net.hubApi}/hub/tips/hold`, {
             method: 'POST',
@@ -401,6 +411,11 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
           if (!res.ok) throw await notOk(res, 'tip hold challenge');
           const chal = await res.json();
           const box = String(chal?.box || chal?.accepts?.[0]?.payTo || '');
+          p.approval = Object.freeze({
+            challenge: structuredClone(chal), held: true, amount,
+            walletAddress: unlockedAccountAddress().toLowerCase(),
+            network: Object.freeze({ hubApi: net.hubApi, rpcUrl: net.rpcUrl, chainId: net.chainId }),
+          });
           let gasFeeUsdc = '';
           if (p.rail === 'transfer' && box) {
             try {
@@ -424,6 +439,11 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
         });
         const payTo = String(challenge?.payee || challenge?.payTo || challenge?.accepts?.[0]?.payTo || '');
         if (!payTo) throw new Error('Challenge has no payee.');
+        p.approval = Object.freeze({
+          challenge: structuredClone(challenge), held: false, amount,
+          walletAddress: unlockedAccountAddress().toLowerCase(),
+          network: Object.freeze({ hubApi: net.hubApi, rpcUrl: net.rpcUrl, chainId: net.chainId }),
+        });
         // Pre-confirm gas estimate (transfer rail only — gateway pays via
         // signature, no user tx). Fail-open: no row rather than a guess.
         let gasFeeUsdc = '';
@@ -452,9 +472,21 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
     (async () => {
       try {
         const p = pendingTips.get(String(msg.id || ''));
-        if (!p || !p.amount) return respond({ ok: false, error: 'Unknown or expired tip.' });
+        if (!p || !p.amount || !p.approval) return respond({ ok: false, error: 'Unknown or expired tip approval.' });
+        const recovered = await retryPendingTipProof(p.id);
+        if (recovered) {
+          forgetTip(p.id, { ok: true, ...recovered });
+          return respond({ ok: true, ...recovered });
+        }
         const { activeNetwork } = await import('../lib/network.js');
         const net = await activeNetwork();
+        if (net.chainId !== p.approval.network.chainId || net.hubApi !== p.approval.network.hubApi) {
+          return respond({ ok: false, error: 'Network changed after review. Review the tip again before paying.' });
+        }
+        await ensureUnlocked();
+        if (unlockedAccountAddress().toLowerCase() !== p.approval.walletAddress) {
+          return respond({ ok: false, error: 'Wallet changed after review. Review the tip again before paying.' });
+        }
         const r = p.resolution;
         const target = p.content.canonicalUrl || p.content.url;
         const out = await tipConfirmFlow({
@@ -465,13 +497,17 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
           rail: p.rail,
           held: r.state !== 'resolved',
           domain: p.domain,
-        }, net);
+        }, p.approval.network, { id: p.id, challenge: p.approval.challenge });
         const result = { ok: true, ...out };
         forgetTip(p.id, result);
         respond(result as Record<string, unknown>);
       } catch (e) {
         const result = { ok: false, error: String((e as Error)?.message || e) };
-        try { forgetTip(String(msg.id || ''), result); } catch {}
+        // Once money has moved or a Gateway authorization exists, preserve the
+        // exact proof. A retry submits that proof; it must never pay again.
+        if (!(await hasPendingTipProof(String(msg.id || '')))) {
+          try { forgetTip(String(msg.id || ''), result); } catch {}
+        }
         respond(result);
       }
     })();
@@ -510,7 +546,10 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
   if (msg?.type === 'JEV_CLASSIFY') {
     (async () => {
       try {
-        const out = await classifyPage({ state: String(msg.state || '') });
+        const out = await classifyPage({
+          state: String(msg.state || ''),
+          instructions: typeof msg.instructions === 'string' ? msg.instructions : undefined,
+        });
         respond(out ? { ok: true, probability: out.probability } : { ok: false, error: 'no-judgment' });
       } catch (e) {
         respond({ ok: false, error: String((e as Error)?.message || e) });
@@ -527,9 +566,21 @@ chrome.runtime.onMessage.addListener((msg: any, sender, respond) => {
         if (!signer) throw new Error('Wallet locked.');
         const domain = String(msg.domain || '');
         if (!domain) throw new Error('Missing domain.');
-        const message = `Nibgate tip refund\nDomain: ${domain}\nWallet: ${signer.address.toLowerCase()}\nIssued: ${new Date().toISOString()}`;
+        const amount = Number(msg.amount);
+        if (!(amount > 0)) throw new Error('Missing refund amount.');
+        const amountUnits = Math.round(amount * 1e6);
+        const net = await activeNetwork();
+        const nonceBytes = crypto.getRandomValues(new Uint8Array(16));
+        const nonce = [...nonceBytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        const canon = new URL(domain.includes('://') ? domain : `https://${domain}`).hostname
+          .toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+        const message = [
+          'Nibgate tip refund', `network:${net.chainId === 5042 ? 'mainnet' : 'testnet'}`,
+          `domain:${canon}`, `wallet:${signer.address.toLowerCase()}`,
+          `amount:${amountUnits}`, `expires:${Date.now() + 5 * 60 * 1000}`, `nonce:${nonce}`,
+        ].join('\n');
         const signature = await signer.signMessage(message);
-        const out = await refundHeldTip({ domain, payer: signer.address, message, signature, amount: msg.amount });
+        const out = await refundHeldTip({ domain: canon, payer: signer.address, message, signature, amount: amountUnits / 1e6 });
         const receipt = {
           type: 'refund',
           amount: out?.amount ?? msg.amount ?? '',
@@ -635,6 +686,7 @@ async function payChallenge(
 async function tipConfirmFlow(
   input: { contentUrl: string; title?: string; amount: string; recipient?: string; rail?: string; held?: boolean; domain?: string },
   net: { hubApi: string; rpcUrl: string; chainId: number },
+  approved: { id: string; challenge: any },
 ): Promise<{ receipt: unknown; txHash?: string; paymentSignature?: string; held?: boolean; heldCount?: number; heldTotal?: number }> {
   const amount = String(input.amount || '');
   if (!(Number(amount) > 0)) throw new Error('Tip amount must be above zero.');
@@ -645,27 +697,28 @@ async function tipConfirmFlow(
   if (input.held) {
     const domain = String(input.domain || '').trim() || (() => { try { return new URL(input.contentUrl).hostname; } catch { return ''; } })();
     if (!domain) throw new Error('Missing domain for held tip.');
-    const chalRes = await fetch(`${net.hubApi}/hub/tips/hold`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ contentUrl: input.contentUrl, title: input.title, amount, domain, paymentRail: rail, walletAddress }),
-    });
-    if (!chalRes.ok) throw await notOk(chalRes, 'tip hold challenge');
-    const challenge = await chalRes.json();
+    const challenge = approved.challenge;
     const proof = await payChallenge(challenge, rail, net);
+    const headers = {
+      'content-type': 'application/json',
+      ...(proof.paymentSignature ? { 'payment-signature': proof.paymentSignature } : {}),
+    };
+    const body = {
+      contentUrl: input.contentUrl, title: input.title, amount, domain, walletAddress,
+      paymentRail: rail, txHash: proof.txHash, paymentSignature: proof.paymentSignature,
+    };
+    await persistPendingTipProof(approved.id, {
+      url: `${net.hubApi}/hub/tips/hold`, headers, body,
+      result: { held: true, txHash: proof.txHash, paymentSignature: proof.paymentSignature, domain, amount, title: input.title, box: challenge?.box || challenge?.payee || '' },
+    });
     const verifyRes = await fetch(`${net.hubApi}/hub/tips/hold`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(proof.paymentSignature ? { 'payment-signature': proof.paymentSignature } : {}),
-      },
-      body: JSON.stringify({
-        contentUrl: input.contentUrl, title: input.title, amount, domain, walletAddress,
-        paymentRail: rail, txHash: proof.txHash,
-      }),
+      headers,
+      body: JSON.stringify(body),
     });
     if (!verifyRes.ok) throw await notOk(verifyRes, 'tip hold verify');
     const held = await verifyRes.json();
+    await clearPendingTipProof(approved.id);
     await recordReceipt({
       ...(held?.tip || {}),
       type: 'tip',
@@ -681,27 +734,28 @@ async function tipConfirmFlow(
   }
 
   if (!/^0x[a-fA-F0-9]{40}$/.test(input.recipient || '')) throw new Error('No recipient to tip.');
-  const challengeRes = await fetch(`${net.hubApi}/hub/tips/challenge`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contentUrl: input.contentUrl, title: input.title, amount, recipient: input.recipient, paymentRail: rail }),
-  });
-  if (!challengeRes.ok) throw await notOk(challengeRes, 'tip challenge');
-  const challenge = await challengeRes.json();
+  const challenge = approved.challenge;
   const proof = await payChallenge(challenge, rail, net);
+  const headers = {
+    'content-type': 'application/json',
+    ...(proof.paymentSignature ? { 'payment-signature': proof.paymentSignature } : {}),
+  };
+  const body = {
+    contentUrl: input.contentUrl, title: input.title, amount, recipient: input.recipient,
+    paymentRail: rail, txHash: proof.txHash, walletAddress, paymentSignature: proof.paymentSignature,
+  };
+  await persistPendingTipProof(approved.id, {
+    url: `${net.hubApi}/hub/tips/verify`, headers, body,
+    result: { held: false, txHash: proof.txHash, paymentSignature: proof.paymentSignature, amount, title: input.title },
+  });
   const verifyRes = await fetch(`${net.hubApi}/hub/tips/verify`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(proof.paymentSignature ? { 'payment-signature': proof.paymentSignature } : {}),
-    },
-    body: JSON.stringify({
-      contentUrl: input.contentUrl, title: input.title, amount, recipient: input.recipient,
-      paymentRail: rail, txHash: proof.txHash, walletAddress, paymentSignature: proof.paymentSignature,
-    }),
+    headers,
+    body: JSON.stringify(body),
   });
   if (!verifyRes.ok) throw await notOk(verifyRes, 'tip verify');
   const verified = await verifyRes.json();
+  await clearPendingTipProof(approved.id);
   await recordReceipt({ ...(verified?.receipt || {}), txHash: proof.txHash, amount, title: input.title });
   return { receipt: verified?.receipt || { txHash: proof.txHash }, txHash: proof.txHash, paymentSignature: proof.paymentSignature };
 }
@@ -718,6 +772,57 @@ export async function recordReceipt(receipt: unknown) {
   const { history = [] } = await chrome.storage.local.get('history');
   await chrome.storage.local.set({ history: [receipt, ...(history as unknown[])].slice(0, 100) });
 }
+
+const PENDING_TIP_PROOFS_KEY = 'nibgatePendingTipProofs';
+type PendingTipProof = {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+  result: Record<string, unknown>;
+};
+
+async function pendingTipProofs(): Promise<Record<string, PendingTipProof>> {
+  const stored = await chrome.storage.local.get(PENDING_TIP_PROOFS_KEY);
+  return (stored[PENDING_TIP_PROOFS_KEY] || {}) as Record<string, PendingTipProof>;
+}
+
+async function persistPendingTipProof(id: string, proof: PendingTipProof) {
+  const proofs = await pendingTipProofs();
+  proofs[id] = proof;
+  await chrome.storage.local.set({ [PENDING_TIP_PROOFS_KEY]: proofs });
+}
+
+async function clearPendingTipProof(id: string) {
+  const proofs = await pendingTipProofs();
+  if (!(id in proofs)) return;
+  delete proofs[id];
+  await chrome.storage.local.set({ [PENDING_TIP_PROOFS_KEY]: proofs });
+}
+
+async function hasPendingTipProof(id: string) {
+  return Boolean((await pendingTipProofs())[id]);
+}
+
+async function retryPendingTipProof(id: string): Promise<Record<string, unknown> | null> {
+  const proof = (await pendingTipProofs())[id];
+  if (!proof) return null;
+  const res = await fetch(proof.url, { method: 'POST', headers: proof.headers, body: JSON.stringify(proof.body) });
+  if (!res.ok) throw await notOk(res, 'tip proof recovery');
+  const verified = await res.json();
+  const receipt = verified?.tip || verified?.receipt || {};
+  await recordReceipt({ ...receipt, ...proof.result, status: proof.result.held ? 'held' : 'settled' });
+  await clearPendingTipProof(id);
+  return { ...proof.result, receipt };
+}
+
+async function retryPendingTipProofs() {
+  const proofs = await pendingTipProofs();
+  for (const id of Object.keys(proofs)) {
+    try { await retryPendingTipProof(id); } catch { /* preserve it for explicit reconciliation */ }
+  }
+}
+
+retryPendingTipProofs().catch(() => {});
 
 async function openTip(msg: any): Promise<string> {
   const content = msg.content;

@@ -51,7 +51,47 @@ import {
   nibshareStatsByWallet,
   platformMoneyTotals,
   resolveTipContent,
+  trackingScriptFor,
 } from './helpers.js';
+
+describe('network-scoped embed defaults', () => {
+  const originalNetwork = process.env.NIBGATE_NETWORK;
+  const originalWidget = process.env.NIBGATE_WIDGET_URL;
+  const originalApi = process.env.NIBGATE_PUBLIC_API_URL;
+  const originalPublicApi = process.env.PUBLIC_API_URL;
+
+  afterEach(() => {
+    if (originalNetwork === undefined) delete process.env.NIBGATE_NETWORK;
+    else process.env.NIBGATE_NETWORK = originalNetwork;
+    if (originalWidget === undefined) delete process.env.NIBGATE_WIDGET_URL;
+    else process.env.NIBGATE_WIDGET_URL = originalWidget;
+    if (originalApi === undefined) delete process.env.NIBGATE_PUBLIC_API_URL;
+    else process.env.NIBGATE_PUBLIC_API_URL = originalApi;
+    if (originalPublicApi === undefined) delete process.env.PUBLIC_API_URL;
+    else process.env.PUBLIC_API_URL = originalPublicApi;
+  });
+
+  it('does not point a default/testnet tracking snippet at mainnet', () => {
+    delete process.env.NIBGATE_NETWORK;
+    delete process.env.NIBGATE_WIDGET_URL;
+    delete process.env.NIBGATE_PUBLIC_API_URL;
+    delete process.env.PUBLIC_API_URL;
+    const script = trackingScriptFor({ id: 'site-1', verifyToken: 'token-1' });
+    expect(script).toContain('https://testnet.nibgate.xyz/widget.js');
+    expect(script).toContain('data-nibgate-api="https://testnet-api.nibgate.xyz"');
+    expect(script).not.toContain('https://api.nibgate.xyz');
+  });
+
+  it('uses mainnet hosts only when mainnet is selected', () => {
+    process.env.NIBGATE_NETWORK = 'mainnet';
+    delete process.env.NIBGATE_WIDGET_URL;
+    delete process.env.NIBGATE_PUBLIC_API_URL;
+    delete process.env.PUBLIC_API_URL;
+    const script = trackingScriptFor({ id: 'site-1', verifyToken: 'token-1' });
+    expect(script).toContain('https://www.nibgate.xyz/widget.js');
+    expect(script).toContain('data-nibgate-api="https://api.nibgate.xyz"');
+  });
+});
 
 describe('cross-stack verification sync', () => {
   const ORIGINAL_PEER = process.env.NIBGATE_PEER_HUB_URL;

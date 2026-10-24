@@ -1,4 +1,5 @@
 import * as controller from './controller.js';
+import { hostsFor } from '@nibgate/internal/networks.js';
 
 export function registerNibshareRoutes(app) {
   app.post('/api/nibshare', controller.requireAuth, controller.createShare);
@@ -28,7 +29,7 @@ export function registerNibshareRoutes(app) {
   // Short mirror of the share page path on the API host: GET /ns/:slug reads
   // straight through (free → body, paid → 402 x402 challenge).
   app.get('/ns/:slug', (req, res, next) => {
-    const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+    const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || hostsFor().apiBase).replace(/\/+$/, '');
     res.set('Link', `<${apiBase}/nibshare/${req.params.slug}/manifest>; rel="alternate"; type="application/json"`);
     next();
   }, controller.accessShare);

@@ -1,7 +1,9 @@
 # Load Nibgate in Chrome (sideload — no store review needed)
 
-Sideload `dist/` for development and review. Version 1.2.0 is also live on
-the Chrome Web Store (see `STORE_SUBMIT.md`).
+Sideload `dist/` for development and review. Version 1.2.0 remains live on
+the Chrome Web Store; this source builds the 1.2.1 release candidate (see
+`STORE_SUBMIT.md`). Deploy and verify the dual-compatible Hub backend before
+publishing the store update.
 Testnet default, mainnet behind the confirm-gated header pill.
 
 ## Steps
@@ -20,7 +22,7 @@ Testnet default, mainnet behind the confirm-gated header pill.
    **Tip button on web pages** → Enable). This grants the optional access
    that lets the tip button appear; an already-open tab picks it up
    immediately (otherwise reload the tab).
-7. Open any article (not a `*.nibgate.xyz` page — those are excluded, they
+7. Open a high-confidence creator post (not a `*.nibgate.xyz` page — those are excluded, they
    already have native tipping). The coffee-button tip trigger floats at the
    bottom right. Dismiss it with **×** for the current page; the full **Tip the
    creator** button at the content's end and the right-click **Tip this page**
@@ -60,8 +62,8 @@ needed — but you never re-run the build by hand.
 1. Run the hub locally (`PORT=3005`, local Postgres per `e2e/` setup).
 2. Point the extension at it with a build-time override
    (`NIBGATE_HUB_API=http://localhost:3005 npm run build`) — there is no
-   popup UI for this; the override is stored on-device and blanked by
-   rebuilding without it. All hub calls (resolve, challenge, verify, holds,
+   popup UI for this; it is compile-time only and blanked by rebuilding without
+   it. All hub calls (resolve, challenge, verify, holds,
    balances read the active network) now hit local.
 3. `npm run build` after any `src/` change, then hit reload on
    `chrome://extensions`. Popup onboarding (create/import/unlock) and the

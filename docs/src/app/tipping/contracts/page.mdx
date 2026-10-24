@@ -16,12 +16,20 @@ Factory owner → rotate keeper/owner
 
 Nothing holds a key to a box. The wallets have no owner-only withdrawal: the only exits are `release` (creator + treasury split) and `refund` (payer in full), and both are callable solely by the factory during a factory-level call.
 
+The factory and boxes are not proxies, clones, beacons, or UUPS contracts.
+Changing the implementation source cannot change an existing deployment. A
+new factory also derives different CREATE2 addresses because the factory and
+wallet init code are inputs to the address. A migration must keep the old
+factory route available for old tips and send only newly created tips to the
+new version; every row must retain its network, factory version/address, and
+box address. Funds do not migrate automatically.
+
 ## Roles
 
 | Role | Testnet | Mainnet | Powers |
 |---|---|---|---|
 | Owner | `0x796a…CD68` | treasury `0x558e…9D12` | `setKeeper`, `setOwner` |
-| Keeper | hub key (`0x796a…`) | hub hot key (`0x0Ac8…`) | `release`, `refund` on the factory |
+| Keeper | hub key (`0xA0B9…894`) | hub hot key (`0xb518…6e5`) | `release`, `refund` on the factory |
 | Anyone | — | — | `deploy`, `predict`, `walletFor` (permissionless reads/deploys) |
 
 There is no direct owner-withdraw function, but both the owner and keeper may call `release` and `refund` with recipient arguments. The contract does not verify website ownership, payer signatures or Hub receipt rows itself. Correct recipient authorization depends on the Hub and these privileged keys.
@@ -86,5 +94,18 @@ A first touch of a domain deploys the box: deployment gas in addition to the rel
 - **Atomic splits:** `release` pays creator and treasury in one transaction — no half-paid state.
 - **Balance bounds and indexing:** a release distributes the current balance; a refund is capped by the current balance. The Hub tracks claimed/refunded rows. Database and chain completion are separate, so uncertain relay outcomes require reconciliation before another relay.
 - **Single-wallet binding:** the hub records one verified wallet per domain; a later different wallet returns `409`, never auto-release.
+
+## Reconciliation runbook
+
+When a claim/refund operation is marked `submitted` or
+`reconciliation-required`, do not clear it and do not relay again. Read the
+stored transaction hash, confirm the receipt on the operation's recorded
+network, and decode exactly one matching wallet event (`Released` or
+`Refunded`). Compare the event's domain hash, recipient/payer, gross amount,
+and protocol fee with the immutable operation snapshot and affected tip IDs.
+Only then finalize the database rows in one transaction or, if the transaction
+never landed and the nonce is known unused, delete the reservation for a new
+attempt. Escalate any mismatch for manual ledger repair. There is deliberately
+no timeout that silently unlocks a money operation.
 
 See [Nib Tips](/tipping) for the product flows and the [agent flow](/tipping/agent-flow) for exact request shapes.

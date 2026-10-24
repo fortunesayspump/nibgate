@@ -25,6 +25,30 @@ function onEnter(ids: string[], action: () => void) {
   }
 }
 
+function concealPasswords() {
+  document.querySelectorAll<HTMLButtonElement>('[data-password-toggle]').forEach((button) => {
+    const input = $(button.dataset.passwordToggle || '') as HTMLInputElement | null;
+    if (input) input.type = 'password';
+    button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('aria-label', 'Show password');
+  });
+}
+
+function initPasswordVisibility() {
+  concealPasswords();
+  document.querySelectorAll<HTMLButtonElement>('[data-password-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const input = $(button.dataset.passwordToggle || '') as HTMLInputElement | null;
+      if (!input) return;
+      const visible = input.type === 'password';
+      input.type = visible ? 'text' : 'password';
+      button.setAttribute('aria-pressed', String(visible));
+      button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+      input.focus({ preventScroll: true });
+    });
+  });
+}
+
 function fmt(n: number | null): string {
   if (n == null || Number.isNaN(n)) return '—';
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,6 +69,7 @@ function timeAgo(iso?: string): string {
 type AppScreen = 'home' | 'activity' | 'send' | 'receive' | 'deposit' | 'withdraw' | 'settings' | 'detail';
 
 function showOnboarding(step: 'welcome' | 'create' | 'import' | 'recover' | 'backup' = 'welcome') {
+  concealPasswords();
   $('screen-onboard')!.hidden = false;
   $('screen-lock')!.hidden = true;
   $('app')!.hidden = true;
@@ -56,6 +81,7 @@ function showOnboarding(step: 'welcome' | 'create' | 'import' | 'recover' | 'bac
 }
 
 function showLock() {
+  concealPasswords();
   $('screen-onboard')!.hidden = true;
   $('screen-lock')!.hidden = false;
   $('app')!.hidden = true;
@@ -71,6 +97,7 @@ function showApp(screen: AppScreen = 'home') {
 }
 
 function showScreen(name: AppScreen) {
+  concealPasswords();
   const names: AppScreen[] = ['home', 'activity', 'send', 'receive', 'deposit', 'withdraw', 'settings', 'detail'];
   for (const s of names) {
     const el = $(`screen-${s}`);
@@ -473,6 +500,7 @@ async function applyTheme(theme: Theme) {
 
 // ── init ──────────────────────────────────────────────────────────────────
 async function init() {
+  initPasswordVisibility();
   await paintNetwork();
 
   // Theme (hub light/dark parity).

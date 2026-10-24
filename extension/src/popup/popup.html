@@ -98,7 +98,8 @@
       -webkit-font-smoothing: antialiased; font-size: 13px; line-height: 1.45;
     }
     button { font-family: inherit; }
-    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    input:focus-visible, textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
     [hidden] { display: none !important; }
     .muted { color: var(--muted); }
     .err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 14px; }
@@ -113,6 +114,16 @@
     button.ghost:hover { border-color: var(--muted); }
     input, textarea { width: 100%; background: var(--surface-raised, var(--surface)); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-action); padding: 11px 12px; font-size: 13px; outline: none; font-family: inherit; }
     input:focus, textarea:focus { border-color: var(--accent); }
+    .password-wrap { position: relative; width: 100%; }
+    .password-wrap input { padding-right: 45px; }
+    .password-toggle { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; display: grid; place-items: center; padding: 9px; border: 1px solid transparent; border-radius: var(--radius-xs); background: transparent; color: var(--muted); cursor: pointer; transition: color .15s ease, background-color .15s ease, border-color .15s ease; }
+    .password-toggle:hover { color: var(--fg); background: var(--surface-2); }
+    /* The licensed UXWing shape is used as a mask so it follows the popup's
+       real light/dark theme tokens instead of retaining the SVG's black fill. */
+    .password-toggle img { display: none; }
+    .password-toggle::before { content: ''; width: 20px; height: 20px; display: block; background: currentColor; -webkit-mask: url('icons/eye-look.svg') center / contain no-repeat; mask: url('icons/eye-look.svg') center / contain no-repeat; opacity: .9; }
+    .password-toggle[aria-pressed="true"] { color: var(--accent); background: var(--surface-2); border-color: var(--border); }
+    .password-toggle[aria-pressed="true"]::after { content: ''; position: absolute; width: 23px; height: 2px; border-radius: 2px; background: currentColor; box-shadow: 0 0 0 1.5px var(--surface-raised, var(--surface)); transform: rotate(-38deg); }
 
     /* ── onboarding / lock ───────────────────────────────────────────── */
     .fullscreen { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; overflow-y: auto; padding: 28px 24px; z-index: 20; }
@@ -268,7 +279,7 @@
       <h1>Create password</h1>
       <p>This unlocks your wallet on this device. It cannot be recovered.</p>
       <label class="field" for="new-password">Password</label>
-      <input id="new-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      <div class="password-wrap"><input id="new-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" /><button type="button" class="password-toggle" data-password-toggle="new-password" aria-label="Show password" aria-pressed="false"><img src="icons/eye-look.svg" alt="" aria-hidden="true" /></button></div>
       <button class="primary" id="do-create">Create wallet</button>
       <button class="ghost" id="ob-create-back">Back</button>
     </div>
@@ -278,7 +289,7 @@
       <label class="field" for="imp-words">Recovery phrase</label>
       <textarea id="imp-words" rows="3" placeholder="12 or 24 words separated by spaces"></textarea>
       <label class="field" for="imp-password">Password</label>
-      <input id="imp-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      <div class="password-wrap"><input id="imp-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" /><button type="button" class="password-toggle" data-password-toggle="imp-password" aria-label="Show password" aria-pressed="false"><img src="icons/eye-look.svg" alt="" aria-hidden="true" /></button></div>
       <button class="primary" id="do-import">Import wallet</button>
       <button class="ghost" id="ob-import-back">Back</button>
     </div>
@@ -289,9 +300,9 @@
       <label class="field" for="recover-words">Recovery phrase</label>
       <textarea id="recover-words" rows="3" placeholder="12 or 24 words separated by spaces" autocomplete="off" spellcheck="false"></textarea>
       <label class="field" for="recover-password">New password</label>
-      <input id="recover-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      <div class="password-wrap"><input id="recover-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" /><button type="button" class="password-toggle" data-password-toggle="recover-password" aria-label="Show password" aria-pressed="false"><img src="icons/eye-look.svg" alt="" aria-hidden="true" /></button></div>
       <label class="field" for="recover-password-confirm">Confirm new password</label>
-      <input id="recover-password-confirm" type="password" placeholder="Enter it again" autocomplete="new-password" />
+      <div class="password-wrap"><input id="recover-password-confirm" type="password" placeholder="Enter it again" autocomplete="new-password" /><button type="button" class="password-toggle" data-password-toggle="recover-password-confirm" aria-label="Show password" aria-pressed="false"><img src="icons/eye-look.svg" alt="" aria-hidden="true" /></button></div>
       <p>Restoring replaces the encrypted wallet on this device. Use the phrase for the wallet you want to recover. Without its phrase, this wallet cannot be recovered.</p>
       <label class="check"><input type="checkbox" id="recover-understood" /> I understand and want to restore this wallet</label>
       <button class="primary" id="recover-go" disabled>Restore wallet</button>
@@ -325,7 +336,7 @@
       <img class="logo" src="icons/icon128.png" alt="Nibgate" />
       <h1>Welcome back</h1>
       <p>Unlock your Nibgate wallet to continue.</p>
-      <input id="lock-password" type="password" placeholder="Password" autocomplete="current-password" />
+      <div class="password-wrap"><input id="lock-password" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password" /><button type="button" class="password-toggle" data-password-toggle="lock-password" aria-label="Show password" aria-pressed="false"><img src="icons/eye-look.svg" alt="" aria-hidden="true" /></button></div>
       <button class="primary" id="lock-go">Unlock</button>
       <button class="ghost" id="lock-forgot">Forgot password?</button>
       <div class="err" id="lock-error"></div>
@@ -494,7 +505,7 @@
           <button id="sec-lock">Lock now</button>
           <button id="sec-reveal">Reveal recovery phrase</button>
           <div id="reveal-wrap" hidden>
-            <input id="reveal-password" type="password" placeholder="Password" />
+            <div class="password-wrap"><input id="reveal-password" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password" /><button type="button" class="password-toggle" data-password-toggle="reveal-password" aria-label="Show password" aria-pressed="false"><img src="icons/eye-look.svg" alt="" aria-hidden="true" /></button></div>
             <button id="reveal-go" style="width:100%;margin-top:8px">Reveal</button>
             <div class="mnemonic-grid reveal-out" id="reveal-out" hidden></div>
           </div>

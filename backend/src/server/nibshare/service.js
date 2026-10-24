@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { db } from '@nibgate/internal/db.js';
+import { hostsFor } from '@nibgate/internal/networks.js';
 export { gatewayBalance } from '@nibgate/internal/payments.js';
 import { contentHashFor, deleteBlob, encryptBytes, generateContentKey, packCipherBlob, putBlob, wrapKey } from '@nibgate/sdk/server';
 import { isWhitelisted as sdkIsWhitelisted, inWhitelist as sdkInWhitelist, effectivePrice as sdkEffectivePrice, accessDecision as sdkAccessDecision, normalizeWhitelist, paidCutoffWallets, canAccess as sdkCanAccess } from '@nibgate/sdk/server';
@@ -415,7 +416,7 @@ export function resourceFor(share) {
 export async function shareManifest(slug) {
   const share = await findShareBySlug(slug);
   if (!share) return null;
-  const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+  const apiBase = (process.env.NIBGATE_PUBLIC_API_URL || process.env.PUBLIC_API_URL || hostsFor().apiBase).replace(/\/+$/, '');
   return {
     schema: 'https://docs.nibgate.xyz/nibshare-manifest',
     version: 1,

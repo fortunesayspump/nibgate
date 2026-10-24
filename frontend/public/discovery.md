@@ -81,10 +81,14 @@ payer/extension supplied or whether matching content is indexed; JEV can enrich
 eligible indexed content but does not guarantee complete metadata for every
 external page.
 
-A refund body is `{ domain, payer, message, signature }`; `signature` is an
-EIP-191 `personal_sign` of `message` by `payer`. The hub recovers the signer,
+A refund body is `{ domain, payer, amount, message, signature }`; `message` uses
+the SDK-generated canonical `Nibgate tip refund` format and binds the network,
+exact domain, payer, six-decimal amount, short expiry, and one-time nonce. The
+hub reserves the message digest before relaying and accepts EIP-191 `personal_sign`
+from an EOA or an ERC-1271 signature from a deployed smart-contract wallet,
 sums that payer's still-held tips for the domain, relays the on-chain refund
-via the keeper, and writes a negative ledger row so totals net out. Refunds
+via the keeper, preserves any partially refunded held-row remainder, and writes
+a negative ledger row so totals net out. Refunds
 only ever return funds to the payer. There is **no refund** for tips that
 already settled (resolved creators) or were already claimed.
 

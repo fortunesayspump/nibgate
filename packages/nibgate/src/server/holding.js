@@ -1,4 +1,4 @@
-import { getContractAddress, keccak256, toHex, encodeFunctionData, recoverMessageAddress, getAddress, parseAbi } from 'viem';
+import { getContractAddress, keccak256, toHex, encodeFunctionData, decodeFunctionData, decodeEventLog, recoverMessageAddress, getAddress, parseAbi } from 'viem';
 import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createTipChallenge } from './tip.js';
@@ -101,7 +101,7 @@ export const HOLDING_FACTORY_ABI = [
     outputs: [{ name: 'wallet', type: 'address' }],
   },
   {
-    name: 'Release',
+    name: 'Released',
     type: 'event',
     anonymous: false,
     inputs: [
@@ -172,7 +172,7 @@ export function buildHoldingRelease({ domain, creator, factoryAddress }) {
 }
 
 // Submit a release with a keeper key. Returns the tx hash.
-export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId }) {
+export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId, onSubmitted, expectedAmountUnits, expectedProtocolFeeUnits }) {
   if (!call?.to || !call?.data) throw new Error('submitHoldingRelease requires a release call.');
   if (!privateKey || !rpcUrl) throw new Error('submitHoldingRelease requires privateKey and rpcUrl.');
   const account = privateKeyToAccount(privateKey);
@@ -182,13 +182,56 @@ export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId }
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
     rpcUrls: { default: { http: [rpcUrl] } },
   };
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  let expected = null;
+  if (expectedAmountUnits != null) {
+    const decoded = decodeFunctionData({ abi: HOLDING_FACTORY_ABI, data: call.data });
+    if (decoded.functionName !== 'release') throw new Error('Expected holding release calldata.');
+    const [domainHash, creator] = decoded.args;
+    const box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
+    expected = {
+      domainHash,
+      creator,
+      box,
+      amount: BigInt(expectedAmountUnits),
+      fee: expectedProtocolFeeUnits == null ? null : BigInt(expectedProtocolFeeUnits),
+    };
+  }
   const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
   const txHash = await client.sendTransaction({ to: call.to, data: call.data, value: call.value ?? 0n });
-  // Wait for inclusion so a reverted release (e.g. empty box) surfaces as an
-  // error instead of a silent "success".
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  const reconciliationError = (reason, actualUnits = null) => Object.assign(
+    new Error(`Release submitted but requires manual reconciliation: ${reason}. Do not retry (tx ${txHash}).`),
+    { code: 'release-reconciliation-required', releaseTx: txHash, expectedUnits: expected ? String(expected.amount) : null, actualUnits: actualUnits == null ? null : String(actualUnits) },
+  );
+  if (onSubmitted) {
+    try { await onSubmitted(txHash); } catch { throw reconciliationError('submitted transaction hash could not be persisted'); }
+  }
+  let receipt;
+  try {
+    receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  } catch {
+    throw reconciliationError('receipt could not be confirmed');
+  }
   if (receipt.status !== 'success') throw new Error(`Holding release reverted (tx ${txHash}).`);
+  if (expected) {
+    const releases = [];
+    for (const log of receipt.logs || []) {
+      if (String(log.address).toLowerCase() !== String(expected.box).toLowerCase()) continue;
+      try {
+        const event = decodeEventLog({ abi: HOLDING_FACTORY_ABI, data: log.data, topics: log.topics, strict: true });
+        if (event.eventName === 'Released'
+          && event.args.domainHash.toLowerCase() === expected.domainHash.toLowerCase()
+          && event.args.creator.toLowerCase() === expected.creator.toLowerCase()) {
+          releases.push({ total: event.args.amount + event.args.protocolFee, fee: event.args.protocolFee });
+        }
+      } catch { /* unrelated logs cannot prove this release */ }
+    }
+    if (releases.length !== 1) throw reconciliationError('expected one matching box release event');
+    if (releases[0].total !== expected.amount) throw reconciliationError('actual released amount differs from the ledger snapshot', releases[0].total);
+    if (expected.fee != null && releases[0].fee !== expected.fee) {
+      throw reconciliationError('actual protocol fee differs from the expected integer fee', releases[0].fee);
+    }
+  }
   return txHash;
 }
 
@@ -209,9 +252,12 @@ export function buildHoldingRefund({ domain, payer, amountUsdc, factoryAddress }
 }
 
 // Submit a refund with a keeper key. Returns the tx hash.
-export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId }) {
+export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId, onSubmitted }) {
   if (!call?.to || !call?.data) throw new Error('submitHoldingRefund requires a refund call.');
   if (!privateKey || !rpcUrl) throw new Error('submitHoldingRefund requires privateKey and rpcUrl.');
+  const decoded = decodeFunctionData({ abi: HOLDING_FACTORY_ABI, data: call.data });
+  if (decoded.functionName !== 'refund') throw new Error('Expected holding refund calldata.');
+  const [domainHash, payer, requestedUnits] = decoded.args;
   const account = privateKeyToAccount(privateKey);
   const chain = {
     id: Number(chainId) || 5042002,
@@ -219,11 +265,36 @@ export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId })
     nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
     rpcUrls: { default: { http: [rpcUrl] } },
   };
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
   const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
   const txHash = await client.sendTransaction({ to: call.to, data: call.data, value: call.value ?? 0n });
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  const reconciliationError = (reason, actualUnits = null) => Object.assign(
+    new Error(`Refund submitted but requires manual reconciliation: ${reason}. Do not retry (tx ${txHash}).`),
+    { code: 'refund-reconciliation-required', refundTx: txHash, requestedUnits: String(requestedUnits), actualUnits: actualUnits == null ? null : String(actualUnits) },
+  );
+  if (onSubmitted) {
+    try { await onSubmitted(txHash); } catch { throw reconciliationError('submitted transaction hash could not be persisted'); }
+  }
+  let receipt;
+  try {
+    receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 120_000 });
+  } catch {
+    throw reconciliationError('receipt could not be confirmed');
+  }
   if (receipt.status !== 'success') throw new Error(`Holding refund reverted (tx ${txHash}).`);
+  const refunds = [];
+  for (const log of receipt.logs || []) {
+    if (String(log.address).toLowerCase() !== String(box).toLowerCase()) continue;
+    try {
+      const event = decodeEventLog({ abi: HOLDING_FACTORY_ABI, data: log.data, topics: log.topics, strict: true });
+      if (event.eventName === 'Refunded'
+        && event.args.domainHash.toLowerCase() === domainHash.toLowerCase()
+        && event.args.payer.toLowerCase() === payer.toLowerCase()) refunds.push(event.args.amount);
+    } catch { /* unrelated logs cannot prove this refund */ }
+  }
+  if (refunds.length !== 1) throw reconciliationError('expected one matching box refund event');
+  if (refunds[0] !== requestedUnits) throw reconciliationError('actual refunded amount differs from the requested amount', refunds[0]);
   return txHash;
 }
 
@@ -375,24 +446,32 @@ export async function mintClaimToken({ domain, wallet, expiresAt }, signMessage)
 // Verify a claim token: recovers the signer, checks binding + expiry.
 export async function verifyClaimToken({ message, signature, domain, wallet, maxAgeMs, now = Date.now() }) {
   if (!message || !signature) return { valid: false, reason: 'missing message or signature' };
+  const rawMessage = String(message);
+  const rows = rawMessage.split('\n');
+  if (rows.length !== 4 || rows[0] !== 'Nibgate tip claim') return { valid: false, reason: 'invalid claim message format' };
+  const fields = rows.slice(1).map((row) => {
+    const separator = row.indexOf(':');
+    return separator > 0 ? [row.slice(0, separator).trim(), row.slice(separator + 1).trim()] : [];
+  });
+  if (fields.some((pair) => pair.length !== 2)) return { valid: false, reason: 'invalid claim message format' };
+  const lines = Object.fromEntries(fields);
+  if (Object.keys(lines).length !== 3 || !lines.domain || !lines.wallet || !lines.expires) return { valid: false, reason: 'incomplete claim message' };
+  const messageDomain = canonicalDomainKey(lines.domain);
+  const messageWallet = String(lines.wallet).toLowerCase();
+  const requestedDomain = canonicalDomainKey(domain || '');
+  const requestedWallet = String(wallet || '').toLowerCase();
+  if (!requestedDomain || messageDomain !== requestedDomain) return { valid: false, reason: 'domain mismatch' };
+  if (!/^0x[0-9a-f]{40}$/.test(requestedWallet) || messageWallet !== requestedWallet) return { valid: false, reason: 'wallet mismatch' };
+  const expires = Number(lines.expires);
+  if (!Number.isSafeInteger(expires) || expires <= 0 || now > expires) return { valid: false, reason: 'expired' };
+  if (rawMessage !== claimMessage({ domain: requestedDomain, wallet: requestedWallet, expiresAt: expires })) return { valid: false, reason: 'non-canonical claim message' };
   let signer;
   try {
     signer = (await recoverMessageAddress({ message, signature })).toLowerCase();
   } catch {
     return { valid: false, reason: 'unrecoverable signature' };
   }
-  const lines = Object.fromEntries(
-    String(message).split('\n').map((l) => l.split(':').map((s) => s.trim())).filter((p) => p.length === 2),
-  );
-  if (lines.domain && domain && canonicalDomainKey(domain) !== lines.domain) {
-    return { valid: false, signer, reason: 'domain mismatch' };
-  }
-  const expectedWallet = String(wallet || lines.wallet || '').toLowerCase();
-  if (expectedWallet && signer !== expectedWallet) {
-    return { valid: false, signer, reason: 'signer is not the claimed wallet' };
-  }
-  const expires = Number(lines.expires || 0);
-  if (expires && now > expires) return { valid: false, signer, reason: 'expired' };
+  if (signer !== requestedWallet) return { valid: false, signer, reason: 'signer is not the claimed wallet' };
   if (maxAgeMs && lines.created) {
     if (now - Number(lines.created) > maxAgeMs) return { valid: false, signer, reason: 'stale' };
   }

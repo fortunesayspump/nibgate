@@ -14,6 +14,8 @@ search:
     - html
     - json
 server:
+  # Local-only fallback. The SearXNG container overrides this from the
+  # SEARXNG_SECRET environment variable in every deployed environment.
   secret_key: local-dev-only-change-me-in-prod-0123456789abcdef
   limiter: false
   image_proxy: false

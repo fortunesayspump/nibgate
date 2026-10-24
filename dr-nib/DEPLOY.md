@@ -56,13 +56,15 @@ a testnet dr-nib deployment:
   from a directory linked to the testnet project — the reconnect kicks a
   fresh build of current `main`. Verify in `railway deployment list`.
 - **SearXNG (testnet):** service `nibgate-searxng-testnet`
-  (`searxng/searxng:latest`, private-only, no public domain) with a volume
-  mounted at `/etc/searxng` holding a `settings.yml` that enables the JSON
-  API (`search.formats: [html, json]` — stock defaults 403
-  `?format=json`). Wire via `SEARXNG_URL=http://nibgate-searxng-testnet.railway.internal:8080`
-  on the drnib service. (There is no `ops/searxng/settings.yml` in the
-  repo — the live file lives in that volume; back it up before re-creating
-  the service.)
+  (digest-pinned by `ops/searxng/Dockerfile`, private-only, no public domain)
+  with a volume mounted at `/etc/searxng`. The checked-in
+  `ops/searxng/settings.yml` enables the JSON API (`search.formats: [html,
+  json]` — stock defaults reject `?format=json`). Set a unique generated
+  `SEARXNG_SECRET` on every Railway environment; the value in the checked-in
+  file is for local development only. Wire testnet via
+  `SEARXNG_URL=http://nibgate-searxng-testnet.railway.internal:8080` on the
+  Dr. Nib service. Mainnet uses the corresponding private mainnet service when
+  enabled. Back up each volume before re-creating a service.
 
 ## 2. Environment variables
 
@@ -82,6 +84,7 @@ Set these on the service (never commit them):
 | `TAVILY_API_KEY` / `EXA_API_KEY` | optional paid retrieval breadth; without them the run uses the 11-index free layer (SearXNG when configured, GDELT, Wikipedia, OpenAlex, Semantic Scholar, Crossref, EDGAR, Stack Exchange, HN, Polymarket, arXiv) + direct fetch + OpenRouter web search over the existing LLM key |
 | `REDIS_URL` | optional; set to move stages onto BullMQ for durable/scalable execution |
 | `SEARXNG_URL` | optional; a self-hosted SearXNG instance joins the free search bench — no key, Google-grade breadth. Must serve `?format=json` (stock images 403 it; see Testnet mirror above for the volume procedure) |
+| `SEARXNG_SECRET` | required on each deployed SearXNG service; unique generated secret that overrides the checked-in local-development placeholder |
 | `SEMANTICSCHOLAR_API_KEY` | optional free key; lifts the anonymous rate limit on paper search |
 | `DRNIB_AGENT_PRIVATE_KEY` | optional; funds the agent spending wallet (tips, paid unlocks, x402). Without it the spend tools do not exist. Fund the derived address with USDC on the active network |
 | `DRNIB_SPEND_MAX_TIP` | optional; per-tip ceiling in USD, default 1 |

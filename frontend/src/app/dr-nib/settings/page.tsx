@@ -73,9 +73,9 @@ export default function HelpPage() {
 
       <Section title="Learn about Phala and zero data retention">
         <ul className="list-disc space-y-2 pl-5">
-          <li><a href="https://docs.phala.com/phala-cloud/what-is/what-is-phala-cloud" className="underline">What is Phala Cloud?</a> — the confidential computing platform.</li>
-          <li><a href="https://docs.phala.com/phala-cloud/getting-started/attestation" className="underline">Phala attestation guide</a> — how hardware evidence is obtained and verified.</li>
-          <li><a href="https://docs.phala.com/phala-cloud/phala-cloud-api/attestations" className="underline">Phala attestation reference</a> — technical verification details.</li>
+          <li><a href="https://docs.phala.network/phala-cloud/getting-started" className="underline">What is Phala Cloud?</a> — the confidential computing platform.</li>
+          <li><a href="https://docs.phala.network/phala-cloud/getting-started/start-from-cloud-ui#step2-verify-tee-proof" className="underline">Phala TEE proof guide</a> — how hardware evidence is obtained and verified.</li>
+          <li><a href="https://docs.phala.network/phala-cloud/references/cloud-api-beta/cvm" className="underline">Phala CVM and attestation reference</a> — technical verification and lifecycle details.</li>
           <li><a href="https://openrouter.ai/docs/guides/features/zdr" className="underline">OpenRouter zero data retention</a> — the policy used for disclosed hosted model routes.</li>
         </ul>
         <P>These explain the underlying services. Dr. Nib&apos;s privacy guide describes how the agent uses them and what each service can see.</P>

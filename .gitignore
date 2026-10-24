@@ -35,6 +35,7 @@ writeskill.md
 
 # Playwright/vitest local artifacts
 /test-results/
+/.codex-assets/
 
 # Google service account keys
 /.gsc/

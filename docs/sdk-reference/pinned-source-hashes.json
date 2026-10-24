@@ -1,7 +1,7 @@
 {
   "packages/nibgate/src/index.d.ts": "a1aa85254a74636047bce192b62a72e64a068a6e5cceda8b0f9ff6da1a31425b",
   "packages/nibgate/src/browser/client.js": "82ee7edb14c34ae1769e9d76b470b98985f652f8aeb0e5b90a2df1bebe939db2",
-  "packages/nibgate/package.json": "19697c832d962ddafdb4d5f598470b5817a4bfc8523b1a3215c08105816ff068",
+  "packages/nibgate/package.json": "7ceefa840a89190ff58896a728c2701b10def1b25fb500f9afd98ab672c74251",
   "packages/nibgate/src/browser/gate.js": "de75fef128e7ea70d0405b9f9df53f4cd97574a500e2efa33784d8662431712b",
   "packages/nibgate/src/browser/events.js": "513d1365e81526e49ff47c82fd765082dfabfd48d9565448cc69c0048cb52746",
   "packages/nibgate/src/browser/rating-ui.js": "fdfa348800288a41700cd4043be8b421a066677e5c95410375962e85d6f9c405",

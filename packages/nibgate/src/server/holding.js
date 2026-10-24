@@ -228,7 +228,15 @@ export async function submitHoldingRelease(call, { privateKey, rpcUrl, chainId, 
     const decoded = decodeFunctionData({ abi: HOLDING_FACTORY_ABI, data: call.data });
     if (decoded.functionName !== 'release') throw new Error('Expected holding release calldata.');
     const [domainHash, creator] = decoded.args;
-    const box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
+    let box;
+    try {
+      box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
+    } catch {
+      throw Object.assign(
+        new Error('Holding release could not be prepared: factory prediction failed.'),
+        { code: 'keeper-transaction-preparation-failed' },
+      );
+    }
     expected = {
       domainHash,
       creator,
@@ -306,7 +314,15 @@ export async function submitHoldingRefund(call, { privateKey, rpcUrl, chainId, o
     rpcUrls: { default: { http: [rpcUrl] } },
   };
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
+  let box;
+  try {
+    box = await publicClient.readContract({ address: call.to, abi: HOLDING_FACTORY_ABI, functionName: 'predict', args: [domainHash] });
+  } catch {
+    throw Object.assign(
+      new Error('Holding refund could not be prepared: factory prediction failed.'),
+      { code: 'keeper-transaction-preparation-failed' },
+    );
+  }
   const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
   const txHash = await submitKeeperTransaction({ publicClient, client, account, call, label: 'Holding refund' });
   const reconciliationError = (reason, actualUnits = null) => Object.assign(

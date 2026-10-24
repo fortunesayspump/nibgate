@@ -217,6 +217,18 @@ describe('keeper settlement receipt validation', () => {
     expect(chainMock.sendTransaction).not.toHaveBeenCalled()
   })
 
+  it('does not expose RPC credentials when factory prediction fails', async () => {
+    const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
+    chainMock.readContract.mockRejectedValue(new Error('HTTP 401 https://rpc.invalid/v1/secret-token'))
+    const error = await submitHoldingRefund(call, {
+      privateKey: TEST_KEY, rpcUrl: 'https://rpc.invalid/v1/secret-token', chainId: 5042002,
+    }).catch((caught) => caught)
+    expect(error).toMatchObject({ code: 'keeper-transaction-preparation-failed' })
+    expect(error.message).toBe('Holding refund could not be prepared: factory prediction failed.')
+    expect(error.message).not.toContain('secret-token')
+    expect(chainMock.sendTransaction).not.toHaveBeenCalled()
+  })
+
   it('quarantines a refund when the event amount does not match', async () => {
     const call = buildHoldingRefund({ domain: 'example.com', payer: TEST_ADDR, amountUsdc: 2, factoryAddress: FACTORY })
     chainMock.waitForTransactionReceipt.mockResolvedValue({

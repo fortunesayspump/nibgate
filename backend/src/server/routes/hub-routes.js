@@ -68,6 +68,15 @@ export function tipMatchesCanonicalDomain(tip, canonicalDomain) {
   }
 }
 
+function safeMoneyOperationError(error, fallback = 'Money operation failed.') {
+  const message = String(error?.shortMessage || error?.message || fallback).split('\n')[0].trim();
+  if (!message) return fallback;
+  return message
+    .replace(/https?:\/\/\S+/gi, '[redacted-url]')
+    .replace(/\b(?:rpc|api)[-_ ]?(?:key|token)\b\s*[:=]\s*\S+/gi, '[redacted-credential]')
+    .slice(0, 500);
+}
+
 async function reserveTipDomainOperation(domain, operation, res) {
   try {
     return await db.tipDomainOperation.create({ data: { domain, network: activeNetwork().name, operation } });
@@ -1693,7 +1702,7 @@ export function registerHubRoutes(app) {
         } catch (gwError) {
           console.error(`[hub] claim gateway collection failed: ${gwError?.message || gwError}`);
           await db.tipDomainOperation.update({
-            where: { id: operation.id }, data: { state: 'reconciliation-required', details: `Gateway collection failed: ${gwError.message}` },
+            where: { id: operation.id }, data: { state: 'reconciliation-required', details: `Gateway collection failed: ${safeMoneyOperationError(gwError)}` },
           }).catch(() => {});
           return res.status(409).json({ error: 'Gateway collection outcome requires reconciliation. Do not retry.', code: 'domain-operation-pending' });
         }
@@ -1709,10 +1718,10 @@ export function registerHubRoutes(app) {
       } catch (releaseError) {
         await db.tipDomainOperation.update({
           where: { id: operation.id },
-          data: { state: 'reconciliation-required', transactionHash: releaseError.releaseTx || undefined, details: releaseError.message },
+          data: { state: 'reconciliation-required', transactionHash: releaseError.releaseTx || undefined, details: safeMoneyOperationError(releaseError) },
         }).catch(() => {});
         return res.status(409).json({
-          error: releaseError.message, code: releaseError.code || 'domain-operation-pending',
+          error: safeMoneyOperationError(releaseError), code: releaseError.code || 'domain-operation-pending',
           ...(releaseError.releaseTx ? { releaseTx: releaseError.releaseTx } : {}),
         });
       }
@@ -1747,7 +1756,7 @@ export function registerHubRoutes(app) {
       });
     } catch (error) {
       if (operation) {
-        return res.status(409).json({ error: `${error.message}. The domain remains reserved for reconciliation; do not retry.`, code: 'domain-operation-pending' });
+        return res.status(409).json({ error: `${safeMoneyOperationError(error)} The domain remains reserved for reconciliation; do not retry.`, code: 'domain-operation-pending' });
       }
       res.status(400).json({ error: error.message });
     }
@@ -1913,7 +1922,7 @@ export function registerHubRoutes(app) {
         } catch (gwError) {
           await db.tipDomainOperation.update({
             where: { id: operation.id },
-            data: { state: 'reconciliation-required', details: `Gateway collection failed: ${gwError.message}` },
+            data: { state: 'reconciliation-required', details: `Gateway collection failed: ${safeMoneyOperationError(gwError)}` },
           }).catch(() => {});
           return res.status(409).json({ error: 'Gateway collection outcome requires reconciliation. Do not retry.', code: 'domain-operation-pending' });
         }
@@ -1933,11 +1942,11 @@ export function registerHubRoutes(app) {
           data: {
             state: 'reconciliation-required',
             transactionHash: refundError.refundTx || undefined,
-            details: refundError.message,
+            details: safeMoneyOperationError(refundError),
           },
         }).catch(() => {});
         return res.status(409).json({
-          error: refundError.message,
+          error: safeMoneyOperationError(refundError),
           code: refundError.code || 'domain-operation-pending',
           ...(refundError.refundTx ? { refundTx: refundError.refundTx } : {}),
         });
@@ -1983,7 +1992,7 @@ export function registerHubRoutes(app) {
     } catch (error) {
       if (operation) {
         return res.status(409).json({
-          error: `${error.message}. The domain remains reserved for reconciliation; do not retry.`,
+          error: `${safeMoneyOperationError(error)} The domain remains reserved for reconciliation; do not retry.`,
           code: 'domain-operation-pending',
         });
       }

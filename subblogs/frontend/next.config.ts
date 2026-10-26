@@ -27,6 +27,17 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
+  async headers() {
+    const publicPageCache = [
+      { key: "Vercel-CDN-Cache-Control", value: "public, s-maxage=60, stale-while-revalidate=300" },
+    ];
+    return [
+      { source: "/", headers: publicPageCache },
+      { source: "/about", headers: publicPageCache },
+      { source: "/:type(writing|photos|music|video|docs)", headers: publicPageCache },
+      { source: "/:type(writing|photos|music|video|docs)/:slug", headers: publicPageCache },
+    ];
+  },
   async rewrites() {
     return [
       {

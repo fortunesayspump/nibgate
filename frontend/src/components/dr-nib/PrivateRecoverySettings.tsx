@@ -59,19 +59,19 @@ export default function PrivateRecoverySettings() {
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-dark-gray/30 p-4">
-                <h3 className="font-medium">This browser already opens your private projects</h3>
+                <h3 className="font-medium">If this browser already opens your private projects</h3>
                 <p className="mt-2 text-sm leading-6">You can replace a lost code here. The browser rewraps the same project keys; it does not erase your reports. Keep this browser’s data until the replacement is confirmed and saved.</p>
                 <p className="mt-3 text-sm font-medium" role="status" aria-live="polite">
                     {readiness === 'checking' ? 'Checking this browser…' : readiness === 'available' ? 'Ready: this browser has an enrolled key.' : readiness === 'needs-code' ? 'This browser has no usable key for this account. Use your saved code or an enrolled browser.' : readiness === 'no-vault' ? 'No private vault exists for this account yet.' : 'Could not check this browser. Sign in and try again.'}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <button type="button" onClick={replace} disabled={busy || readiness !== 'available'} className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">{busy ? 'Preparing…' : 'Replace recovery code'}</button>
+                    <button type="button" onClick={replace} disabled={busy || readiness !== 'available'} className="rounded-full border border-current px-5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Preparing…' : 'Replace recovery code'}</button>
                     <button type="button" onClick={() => void checkBrowser()} disabled={busy || readiness === 'checking'} className="text-sm underline disabled:opacity-40">Check this browser again</button>
                 </div>
                 <p role="status" aria-live="polite" className="mt-3 text-sm">{message}</p>
             </div>
             <div className="rounded-xl border border-dark-gray/30 p-4">
-                <h3 className="font-medium">This is a new browser or device</h3>
+                <h3 className="font-medium">If this is a new browser or device</h3>
                 <p className="mt-2 text-sm leading-6">Sign in to the same account and enter the private-project recovery code you saved at setup. If you lost it, return to a browser that still opens those projects and replace it there.</p>
                 <p className="mt-3 text-sm leading-6"><strong>If neither exists:</strong> Nibgate cannot decrypt the old private projects or reset their key from your wallet sign-in. Do not clear any old browser’s site data while searching for an enrolled one.</p>
             </div>

@@ -1,6 +1,6 @@
 # Deploying Dr. Nib (Railway)
 
-For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is historical reference, not the private broker deployment profile. The mainnet ordinary API and worker were stopped on 24 Oct 2026 after their public route moved to the private broker and their queue recovery reported no pending work; their Railway service records were subsequently deleted. Shared database records remain subject to the normal retention policy, but rollback now requires recreating the services from reviewed configuration. The ordinary testnet API remains live at `drnib.testnet.nibgate.xyz` while testnet private acceptance continues.
+For the private public release, follow [the cutover plan](../ops/dr-nib-canary/PUBLIC-RELEASE.md). `DRNIB_PRIVATE_ACCESS_MODE=authenticated` admits signed-in accounts while retaining project ownership checks, global AI accounting and all-tenant shutdown protection. Set the same mode on broker, guest, funding and watchdog. Default `owner` mode retains the original rehearsal. The ordinary-service setup below is historical reference, not the private broker deployment profile. The mainnet ordinary API and worker were stopped on 24 Oct 2026 and their Railway service records were deleted. The ordinary testnet API deployment was stopped on 26 Oct 2026 after all known onchain funded jobs were refunded or settled; its GitHub source was disconnected to prevent automatic restart. Its service, domain and database records are retained. `drnib.testnet.nibgate.xyz` no longer serves the ordinary API; old direct clients and historical API reads require a separately reviewed restoration or data-access path. Private Dr. Nib remains at `testnet.nibgate.xyz/dr-nib` and `nibgate.xyz/dr-nib`.
 
 Dr. Nib is a second service in the existing Nibgate Railway project. It shares
 the Postgres cluster with the hub but keeps its own tables in a separate
@@ -32,12 +32,12 @@ inspect migration status and SQL, confirm backups and authorization, then apply
 the approved migrations before deploying code that requires them. Migration
 history lives in the `drnib` schema. Startup never runs migrations or `db push`.
 
-### Testnet mirror (full testnet flow)
+### Testnet mirror (retired ordinary flow; restoration reference only)
 
-The testnet frontend (`testnet.nibgate.xyz/dr-nib`) renders the app and
-proxies `/drnib-api` to `https://drnib.testnet.nibgate.xyz` (unless
-`DRNIB_API_URL` overrides it). For the full testnet flow that host must serve
-a testnet dr-nib deployment:
+The current testnet frontend uses `/drnib-private-api` for private research. Its
+legacy `/drnib-api` rewrite still points to `https://drnib.testnet.nibgate.xyz`,
+but that ordinary API has no running deployment. The following configuration is
+retained solely to review a deliberate historical-data restoration:
 
 - **Railway service** in the testnet project (same repo/branch, root directory
   = repo root): `pnpm --filter @nibgate/dr-nib-backend start:prod`.
@@ -45,16 +45,13 @@ a testnet dr-nib deployment:
   `CORS_ORIGIN=https://testnet.nibgate.xyz`, `DRNIB_NETWORK=testnet`,
   `DRNIB_DATABASE_URL=…&schema=drnib` on the testnet cluster, and testnet keys.
   Do NOT set `DRNIB_MAINNET_ONLY`. Do NOT copy mainnet keys.
-- **DNS**: `drnib.testnet.nibgate.xyz` CNAME → the Railway service (TLS by
-  Railway). Until this resolves to the service, the testnet UI renders but its
-  API calls fail.
-- **Verify**: `curl -s https://drnib.testnet.nibgate.xyz/health` → `{"ok":true,…}`.
-- **Deploy trigger (known gap):** pushes to `main` do NOT auto-build the
-  testnet service (mainnet auto-builds fine). After pushing, trigger
-  manually: `railway service source connect --repo
-  fortunesayspump/nibgate --branch main --service nibgate-drnib-testnet`
-  from a directory linked to the testnet project — the reconnect kicks a
-  fresh build of current `main`. Verify in `railway deployment list`.
+- **DNS**: `drnib.testnet.nibgate.xyz` remains attached to the retained Railway
+  service, but returns 404 while its deployment is stopped. Private testnet UI
+  traffic uses a different broker host.
+- **Verify after an authorized restoration**: `/health` must return `{"ok":true,…}` before routing any historical client.
+- **Deploy trigger:** the source is intentionally disconnected. Do not reconnect
+  or redeploy it as part of ordinary code pushes. Review remaining historical
+  access and financial state before any restoration.
 - **SearXNG (testnet):** service `nibgate-searxng-testnet`
   (currently an image-based Railway service, private-only, no public domain)
   with a volume mounted at `/etc/searxng`. Its volume-backed `settings.yml`
@@ -132,10 +129,10 @@ Per-deployment UI toggle (Vercel, no code change):
 `NEXT_PUBLIC_DRNIB_ENABLED=false` renders an "unavailable" notice instead of
 the app; unset (or anything else) means on. Flip it on the mainnet and/or
 testnet frontend projects independently and redeploy — public `NEXT_` vars
-bake in at build time. The dr-nib backend the UI talks to follows the build
-network unless `DRNIB_API_URL` overrides it: mainnet builds →
-`drnib.nibgate.xyz`, testnet builds → `drnib.testnet.nibgate.xyz` (which must
-exist — see Testnet mirror above).
+bake in at build time. The historical ordinary rewrite follows the build
+network unless `DRNIB_API_URL` overrides it. Both ordinary deployments are
+retired; current private UI traffic follows `/drnib-private-api` and its
+separately configured private broker.
 
 ## 4. Verify after deploy
 

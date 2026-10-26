@@ -42,6 +42,8 @@ Agent-facing surfaces:
 
 Mainnet and testnet: submitted tip proofs are not verified receipts. Retry the original proof and exact request; completed proofs recover the existing receipt. Conflicts and ambiguous settlement require reconciliation, never another payment.
 
+Dr. Nib's ordinary research API/MCP is retired on both networks. Its testnet deployment stopped on 26 Oct 2026; ordinary API examples in the pages below are historical reference. Use the private Dr. Nib app on testnet.nibgate.xyz or nibgate.xyz for new research.
+
 ## Pages
 
 ${PAGES.map(([url, desc]) => `- [${url}](${url}) — ${desc}`).join("\n")}

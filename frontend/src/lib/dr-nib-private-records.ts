@@ -58,11 +58,9 @@ export async function privateTenantId(): Promise<string> {
 /** Read-only recovery readiness. Never unlocks, rotates, or exports a key. */
 export async function privateRecoveryAvailability(): Promise<'available' | 'available-legacy' | 'needs-code' | 'no-vault'> {
     const tenantId = await privateTenantId();
-    const [remote, local] = await Promise.all([
-        privateRecordRequest('/vault', {}, true),
-        getEnrolledVault(tenantId),
-    ]);
+    const remote = await privateRecordRequest('/vault', {}, true);
     if (!remote) return 'no-vault';
+    const local = await getEnrolledVault(tenantId, remote.vaultId);
     if (!local) return 'needs-code';
     if (!local.recoveryConfirmed || local.vault.tenantId !== tenantId ||
         local.vault.vaultId !== local.vaultId || local.vault.key.extractable)
@@ -74,6 +72,48 @@ export async function privatePasskeyStatus(): Promise<boolean> {
     const remote = await privateRecordRequest('/vault', {}, true);
     return !!remote?.passkey;
 }
+export type PrivateVaultFolder = { vaultId: string; active: boolean; createdAt: string; hasPasskey: boolean };
+export async function listPrivateVaults(): Promise<PrivateVaultFolder[]> {
+    const result = await privateRecordRequest('/vaults');
+    if (!Array.isArray(result?.vaults) || result.vaults.length > 10 ||
+        result.vaults.some((row: any) => typeof row?.vaultId !== 'string' ||
+            typeof row.active !== 'boolean' || typeof row.createdAt !== 'string' || typeof row.hasPasskey !== 'boolean'))
+        throw Error('Invalid private vault list.');
+    return result.vaults;
+}
+export async function switchPrivateVault(vaultId: string): Promise<void> {
+    if (!/^[0-9a-f-]{36}$/i.test(vaultId)) throw Error('Invalid private vault.');
+    const saved = await privateRecordRequest('/vaults/switch', { method: 'POST', body: JSON.stringify({ vaultId }) });
+    if (saved?.vaultId !== vaultId) throw Error('Could not confirm the selected vault. Refresh and retry.');
+}
+/** A new folder gets a new random key; existing folders and ciphertext remain. */
+export async function createNewPrivateVault(): Promise<void> {
+    if (!privateBuildEnabled()) throw Error('Private vaults are unavailable.');
+    const tenantId = await privateTenantId();
+    if (!navigator.locks) throw Error('This browser cannot safely create a vault. Use a current browser.');
+    await navigator.locks.request(`drnib-vault-replacement:${tenantId}`, async () => {
+        const previous = await privateRecordRequest('/vault');
+        const password = await ask({ mode: 'set-password', tenantId });
+        const created = await createPrivateVault(tenantId, undefined, password.secret);
+        try {
+            await ask({ mode: 'enroll', tenantId, recoveryCode: codeFor(created.recoverySecret) });
+            let saved;
+            try {
+                saved = await privateRecordRequest('/vaults', { method: 'POST', body: JSON.stringify({
+                    expectedVaultId: previous.vaultId, expectedRevision: previous.revision,
+                    newVaultId: created.vault.vaultId, recoveryEnvelope: created.recoveryEnvelope,
+                }) });
+            } catch (error) {
+                const current = await privateRecordRequest('/vault');
+                if (current.vaultId !== created.vault.vaultId || current.revision !== 1 ||
+                    !samePrivateVaultEnvelope(current.recoveryEnvelope, created.recoveryEnvelope)) throw error;
+                saved = current;
+            }
+            await addEnrolledVault({ tenantId, vaultId: created.vault.vaultId, vault: created.vault,
+                recoveryEnvelope: created.recoveryEnvelope, revision: saved.revision, recoveryConfirmed: true });
+        } finally { created.recoverySecret.fill(0); }
+    });
+}
 /** Explicit owner action. A passkey only becomes a recovery method after its
  * PRF unwrap is tested and its ciphertext wrapper is committed. */
 export async function enrollPrivatePasskey(password: string): Promise<void> {
@@ -82,8 +122,8 @@ export async function enrollPrivatePasskey(password: string): Promise<void> {
     if (!navigator.locks) throw Error('This browser cannot safely enroll a recovery passkey. Use a current browser.');
     await navigator.locks.request(`drnib-vault-replacement:${tenantId}`, async () => {
         const vault = await unlockPrivateVault(tenantId);
-        const local = await getEnrolledVault(tenantId);
         const remote = await privateRecordRequest('/vault');
+        const local = await getEnrolledVault(tenantId, remote.vaultId);
         if (!local || local.vaultId !== vault.vaultId || local.pendingReplacement ||
             remote.revision !== local.revision || !samePrivateVaultEnvelope(remote.recoveryEnvelope, local.recoveryEnvelope))
             throw Error('Private projects changed. Refresh before adding a passkey.');
@@ -116,13 +156,14 @@ export async function enrollPrivatePasskey(password: string): Promise<void> {
         await updateEnrolledVault({ ...local, revision: saved.revision });
     });
 }
-export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
-    const prior = vaultFlights.get(tenantId);
+export async function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
+    const remote = await privateRecordRequest('/vault', {}, true);
+    const flightKey = `${tenantId}:${remote?.vaultId ?? 'new'}`;
+    const prior = vaultFlights.get(flightKey);
     if (prior)
         return prior;
     const flight = (async () => {
-        const local = await getEnrolledVault(tenantId); // storage support checked before any enrollment
-        const remote = await privateRecordRequest('/vault', {}, true);
+        const local = remote ? await getEnrolledVault(tenantId, remote.vaultId) : undefined;
         if (local) {
             const selection = privateVaultEnrollmentAction(local, remote);
             const pending = local.pendingReplacement;
@@ -170,8 +211,8 @@ export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
             created.recoverySecret.fill(0);
         }
     })();
-    vaultFlights.set(tenantId, flight);
-    void flight.finally(() => vaultFlights.delete(tenantId)).catch(() => { });
+    vaultFlights.set(flightKey, flight);
+    void flight.finally(() => vaultFlights.delete(flightKey)).catch(() => { });
     return flight;
 }
 export type PrivateObjectDescriptor = {
@@ -273,7 +314,8 @@ export async function createEncryptedProject(topic: string) {
     await unlockPrivateVault(tenantId);
     // Capture key and generation from one durable read. Never pair an old
     // in-flight key with a freshly read replacement generation.
-    const enrollment = await getEnrolledVault(tenantId);
+    const active = await privateRecordRequest('/vault');
+    const enrollment = await getEnrolledVault(tenantId, active.vaultId);
     if (!enrollment) throw Error('Private vault enrollment is unavailable.');
     const vault = enrollment.vault, id = crypto.randomUUID(), manifestId = crypto.randomUUID();
     const project = await createPrivateProjectKeys(vault, id), now = new Date().toISOString();
@@ -367,7 +409,8 @@ export async function replacePrivateRecoveryCredentials(): Promise<boolean> {
     if (!navigator.locks) throw Error('This browser cannot safely coordinate recovery replacement. Use a current browser.');
     return await navigator.locks.request(`drnib-vault-replacement:${tenantId}`, async () => {
         const vault = await unlockPrivateVault(tenantId);
-        const local = await getEnrolledVault(tenantId);
+        const active = await privateRecordRequest('/vault');
+        const local = await getEnrolledVault(tenantId, active.vaultId);
         if (!local || local.vaultId !== vault.vaultId) throw Error('Use an enrolled device to replace recovery.');
         let pending = local.pendingReplacement;
         if (!pending) {

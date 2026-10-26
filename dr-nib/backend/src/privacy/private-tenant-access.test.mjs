@@ -31,7 +31,7 @@ test('each authenticated user passes their own creation quota before readiness',
 });
 test('public broker lists only the signed-in tenant and denies another tenant run before forwarding',async()=>{
   const app=express();let queried;
-  app.use(createPrivateBrokerRouter({accessMode:'authenticated',authenticate:auth('alice'),store:{researchRun:{
+  app.use(createPrivateBrokerRouter({accessMode:'authenticated',authenticate:auth('alice'),store:{privateVaultRecord:{findUnique:async()=>({vaultId:'33333333-3333-4333-8333-333333333333'})},researchRun:{
     findMany:async({where})=>{queried=where.userId;return[{id,createdAt:'2026-10-21',status:'draft',userId:'alice'},{id,createdAt:'2026-10-21',status:'draft',userId:'bob'}]},
     findUnique:async()=>({id,userId:'bob',deletedAt:null,metadata:{privacyMode:'confidential'}})
   }},fetchImpl:async()=>{throw Error('cross-tenant forwarding')}}));

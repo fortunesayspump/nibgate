@@ -41,7 +41,7 @@ export function createPrivateRecordsRouter({ store, storage, authenticate = unav
     // This router is mounted beside the existing session/report broker. Its
     // default-off gate must not shadow unrelated established private routes.
     router.use((req,_res,next)=>{
-        if(!/^\/(?:identity|vault|capabilities)(?:\/|$)/.test(req.path)&&!/^\/projects(?:\/|$)/.test(req.path)&&!/^\/runs\/[^/]+\/(?:objects|actions)(?:\/|$)/.test(req.path))return next('router');
+        if(!/^\/(?:identity|vault|vaults|capabilities)(?:\/|$)/.test(req.path)&&!/^\/projects(?:\/|$)/.test(req.path)&&!/^\/runs\/[^/]+\/(?:objects|actions)(?:\/|$)/.test(req.path))return next('router');
         next();
     });
     router.get('/capabilities', (_req, res) => {res.set('Cache-Control','no-store');res.json({records:enabled(),actions:enabled()&&workflowEnabled()===true,workflowRehearsal:true,payments:false,publicRetrieval:enabled()&&workflowEnabled()===true&&publicRetrievalEnabled()===true})});
@@ -97,6 +97,88 @@ export function createPrivateRecordsRouter({ store, storage, authenticate = unav
         }
         catch (e) {
             return fail(res, e?.code === 'P2002' ? 409 : 503, e?.code === 'P2002' ? 'PRIVATE_REVISION_CONFLICT' : undefined);
+        }
+    });
+    router.get('/vaults', async (req, res) => {
+        try {
+            const [active, stored] = await Promise.all([
+                store.privateVaultRecord.findUnique({ where: { userId: req.user.id } }),
+                store.privateVaultStored.findMany({ where: { userId: req.user.id }, orderBy: { createdAt: 'asc' }, take: 20 }),
+            ]);
+            const rows = [...stored, ...(active ? [active] : [])].sort((a, b) =>
+                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            return res.json({ vaults: rows.map(row => ({ vaultId: row.vaultId, active: row.vaultId === active?.vaultId,
+                createdAt: row.createdAt, hasPasskey: !!row.passkey })) });
+        } catch { return fail(res); }
+    });
+    router.post('/vaults', async (req, res) => {
+        const b = req.body;
+        if (!exact(b, 'expectedRevision,expectedVaultId,newVaultId,recoveryEnvelope') ||
+            !UUID.test(b.expectedVaultId) || !UUID.test(b.newVaultId) || b.expectedVaultId === b.newVaultId ||
+            !Number.isSafeInteger(b.expectedRevision) || b.expectedRevision < 1 || b.expectedRevision >= 1000000 ||
+            b.recoveryEnvelope?.version !== 2 || !validEnvelope(b.recoveryEnvelope, {
+                tenantId: req.user.id, vaultId: b.newVaultId, runId: null, kind: 'vault-recovery', revision: 1 }))
+            return fail(res, 400, 'PRIVATE_REQUEST_INVALID');
+        try {
+            const result = await store.$transaction(async tx => {
+                await tx.$queryRaw `SELECT pg_advisory_xact_lock(hashtext(${req.user.id}))::text AS locked`;
+                const current = await tx.privateVaultRecord.findUnique({ where: { userId: req.user.id } });
+                const previousStored = current?.vaultId === b.newVaultId
+                    ? await tx.privateVaultStored.findUnique({ where: { vaultId: b.expectedVaultId } }) : null;
+                if (current?.vaultId === b.newVaultId && current.revision === 1 &&
+                    previousStored?.userId === req.user.id && previousStored.revision === b.expectedRevision &&
+                    digest(current.recoveryEnvelope) === digest(b.recoveryEnvelope))
+                    return { vaultId: current.vaultId, revision: current.revision };
+                if (!current || current.vaultId !== b.expectedVaultId || current.revision !== b.expectedRevision ||
+                    await tx.privateVaultStored.findUnique({ where: { vaultId: b.newVaultId } }) ||
+                    await tx.privateVaultStored.count({ where: { userId: req.user.id } }) >= 9)
+                    throw Object.assign(Error(), { code: 'PRIVATE_VAULT_CONFLICT' });
+                await tx.privateVaultStored.create({ data: { vaultId: current.vaultId, userId: req.user.id,
+                    revision: current.revision, recoveryEnvelope: current.recoveryEnvelope, passkey: current.passkey,
+                    createdAt: current.createdAt, updatedAt: current.updatedAt } });
+                const updated = await tx.privateVaultRecord.updateMany({ where: { userId: req.user.id,
+                    vaultId: current.vaultId, revision: current.revision }, data: {
+                    vaultId: b.newVaultId, revision: 1, recoveryEnvelope: b.recoveryEnvelope, passkey: null,
+                    createdAt: new Date(),
+                } });
+                if (updated.count !== 1) throw Object.assign(Error(), { code: 'PRIVATE_VAULT_CONFLICT' });
+                return { vaultId: b.newVaultId, revision: 1 };
+            }, { timeout: 20000, maxWait: 5000 });
+            return res.status(201).json(result);
+        } catch (error) {
+            return fail(res, ['PRIVATE_VAULT_CONFLICT', 'P2002'].includes(error?.code) ? 409 : 503,
+                ['PRIVATE_VAULT_CONFLICT', 'P2002'].includes(error?.code) ? 'PRIVATE_VAULT_CONFLICT' : 'PRIVATE_RECORDS_UNAVAILABLE');
+        }
+    });
+    router.post('/vaults/switch', async (req, res) => {
+        if (!exact(req.body, 'vaultId') || !UUID.test(req.body.vaultId))
+            return fail(res, 400, 'PRIVATE_REQUEST_INVALID');
+        try {
+            const result = await store.$transaction(async tx => {
+                await tx.$queryRaw `SELECT pg_advisory_xact_lock(hashtext(${req.user.id}))::text AS locked`;
+                const current = await tx.privateVaultRecord.findUnique({ where: { userId: req.user.id } });
+                if (!current) throw Object.assign(Error(), { code: 'PRIVATE_VAULT_NOT_ENROLLED' });
+                if (current.vaultId === req.body.vaultId) return { vaultId: current.vaultId, revision: current.revision };
+                const target = await tx.privateVaultStored.findUnique({ where: { vaultId: req.body.vaultId } });
+                if (!target || target.userId !== req.user.id || target.revision >= 1000000)
+                    throw Object.assign(Error(), { code: 'PRIVATE_VAULT_NOT_ENROLLED' });
+                await tx.privateVaultStored.delete({ where: { vaultId: target.vaultId } });
+                await tx.privateVaultStored.create({ data: { vaultId: current.vaultId, userId: req.user.id,
+                    revision: current.revision, recoveryEnvelope: current.recoveryEnvelope, passkey: current.passkey,
+                    createdAt: current.createdAt, updatedAt: current.updatedAt } });
+                const updated = await tx.privateVaultRecord.updateMany({ where: { userId: req.user.id,
+                    vaultId: current.vaultId, revision: current.revision }, data: {
+                    vaultId: target.vaultId, revision: target.revision + 1,
+                    recoveryEnvelope: target.recoveryEnvelope, passkey: target.passkey,
+                    createdAt: target.createdAt,
+                } });
+                if (updated.count !== 1) throw Object.assign(Error(), { code: 'PRIVATE_VAULT_CONFLICT' });
+                return { vaultId: target.vaultId, revision: target.revision + 1 };
+            }, { timeout: 20000, maxWait: 5000 });
+            return res.json(result);
+        } catch (error) {
+            return fail(res, error?.code === 'PRIVATE_VAULT_NOT_ENROLLED' ? 404 :
+                ['PRIVATE_VAULT_CONFLICT', 'P2002'].includes(error?.code) ? 409 : 503);
         }
     });
     // Replacement affects wrapped project keys only. Include trash as well as
@@ -187,7 +269,12 @@ export function createPrivateRecordsRouter({ store, storage, authenticate = unav
     });
     router.get('/projects', async (req, res) => {
         try {
-            const runs = await store.researchRun.findMany({ where: { userId: req.user.id, metadata: { path: ['privacyMode'], equals: 'confidential' }, deletedAt: req.query.deleted === '1' ? { not: null } : null }, orderBy: { updatedAt: 'desc' }, take: 100 });
+            const vault = await store.privateVaultRecord.findUnique({ where: { userId: req.user.id }, select: { vaultId: true } });
+            if (!vault) return res.json({ runs: [] });
+            const runs = await store.researchRun.findMany({ where: { userId: req.user.id,
+                metadata: { path: ['privacyMode'], equals: 'confidential' },
+                privateClientObjects: { some: { vaultId: vault.vaultId, kind: 'project-keys', removed: false } },
+                deletedAt: req.query.deleted === '1' ? { not: null } : null }, orderBy: { updatedAt: 'desc' }, take: 100 });
             return res.json({ runs: runs.map(r => ({ id: r.id, status: r.metadata?.privateCancellation?'ended':r.status, cancelled: Boolean(r.metadata?.privateCancellation), createdAt: r.createdAt, updatedAt: r.updatedAt, deletedAt: r.deletedAt })) });
         }
         catch {

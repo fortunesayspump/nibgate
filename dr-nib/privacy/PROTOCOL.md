@@ -365,6 +365,10 @@ funding and execution. Neither ordinary broker nor funding service gets source
 plaintext or approval-query text.
 
 
+## Multiple vault folders
+
+An authenticated account can retain up to ten independent encrypted vaults. The active vault remains in `PrivateVaultRecord`; inactive vault metadata and encrypted recovery wrappers are stored in `PrivateVaultStored`. Creating a new vault requires a fresh random browser key, strong password and confirmed independent backup code. The owner-locked database transaction archives the current vault and selects the new one; switching atomically swaps the selected vault record. Existing encrypted project objects remain bound to their original vault IDs and are never rewrapped or deleted. Project lists are scoped to the active vault by the `project-keys` object. Direct owned-run and settlement access remains available for obligations already in progress. Browsers keep local non-extractable keys indexed by both account and vault ID, preserving the previous single-vault IndexedDB record during upgrade. A selected locked vault needs its own unlock method; another vault’s password cannot decrypt it. No onchain transaction or private worker start is involved in creating or switching vaults.
+
 ## Browser-independent settlement recovery (local money service)
 
 The funding process starts an owner-scoped 15-second reconciler over terminal

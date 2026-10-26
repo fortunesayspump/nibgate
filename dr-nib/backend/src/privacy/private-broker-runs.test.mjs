@@ -12,7 +12,7 @@ const OTHER='22222222-2222-4222-8222-222222222222';
 
 function appWith(rows,{user={id:TENANT},tenant=TENANT}={}){
   const router=createPrivateBrokerRouter({
-    store:{researchRun:{findMany:async()=>rows}},
+    store:{privateVaultRecord:{findUnique:async()=>({vaultId:'33333333-3333-4333-8333-333333333333'})},researchRun:{findMany:async()=>rows}},
     allowedTenantId:tenant,
     authenticate:(req,_res,next)=>{req.user=user;next();},
   });

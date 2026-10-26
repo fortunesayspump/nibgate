@@ -9,6 +9,9 @@ function subdomainFromHost(host: string): string | null {
 }
 
 export async function GET(request: NextRequest) {
+  const responseInit = {
+    headers: { "Vercel-CDN-Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" },
+  };
   try {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
     const host = request.headers.get("host") || "";
@@ -18,8 +21,10 @@ export async function GET(request: NextRequest) {
       next: { revalidate: 300 },
     });
     const data = await res.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data, responseInit);
   } catch {
-    return NextResponse.json({ name: "", content: [] });
+    return NextResponse.json({ name: "", content: [] }, {
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 }

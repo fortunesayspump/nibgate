@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import "./globals.css";
 import { headers } from "next/headers";
 import { serverFetch } from "@/lib/server-fetch";
@@ -6,11 +7,11 @@ import Footer from "@/components/Footer";
 import TestnetBanner from "@/components/TestnetBanner";
 import WalletProviders from "@/components/WalletProviders";
 
-async function getSite(): Promise<Record<string, any> | null> {
+const getSite = cache(async (): Promise<Record<string, any> | null> => {
   try {
-    return await serverFetch("/site", { cache: "no-store" });
+    return await serverFetch("/site", { next: { revalidate: 300 } });
   } catch { return null; }
-}
+});
 
 async function siteOrigin() {
   try {

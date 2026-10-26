@@ -20,7 +20,16 @@ export async function serverFetch<T>(path: string, options?: RequestInit): Promi
     const reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (subdomain) reqHeaders["x-site-subdomain"] = subdomain;
 
-    const res = await fetch(apiUrl(path), { ...options, headers: { ...options?.headers as Record<string, string>, ...reqHeaders } });
+    // Public blog reads are safe to share within a tenant. Give uncategorized
+    // GETs a small data-cache lifetime so a bot crawl does not fan out into a
+    // backend request for every page. Explicit caller policies still win.
+    const hasCachePolicy = options?.cache !== undefined || "next" in (options || {});
+    const cachePolicy = hasCachePolicy ? {} : { next: { revalidate: 300 } };
+    const res = await fetch(apiUrl(path), {
+      ...cachePolicy,
+      ...options,
+      headers: { ...options?.headers as Record<string, string>, ...reqHeaders },
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || data.error || "Request failed");
     return data;

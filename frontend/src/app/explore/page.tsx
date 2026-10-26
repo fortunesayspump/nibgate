@@ -6,7 +6,7 @@ import WishlistSection from "./_components/WishlistSection";
 import LeaderboardPreview from "./_components/LeaderboardPreview";
 import { getExploreProducts } from "./_data/explore-content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function ExploreHome() {
   const products = await getExploreProducts({ limit: 200, sort: "trending" });

@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 
 async function getSite(): Promise<Record<string, any> | null> {
   try {
-    return await serverFetch("/site", { next: { revalidate: 60 } });
+    return await serverFetch("/site", { next: { revalidate: 300 } });
   } catch { return null; }
 }
 

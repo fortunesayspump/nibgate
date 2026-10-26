@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 export async function GET(request: Request) {
   const host = request.headers.get("host") || "localhost:3001";
   const protocol = host.includes("localhost") ? "http" : "https";
@@ -10,5 +8,9 @@ Allow: /
 Disallow: /admin
 Sitemap: ${siteUrl}/sitemap.xml`;
 
-  return new Response(text, { headers: { "Content-Type": "text/plain" } });
+  return new Response(text, { headers: {
+    "Content-Type": "text/plain",
+    "Cache-Control": "public, max-age=300",
+    "Vercel-CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=86400",
+  } });
 }

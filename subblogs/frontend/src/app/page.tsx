@@ -12,7 +12,7 @@ function mo(v: string) { return String(new Date(v).getMonth() + 1).padStart(2, "
 
 async function getGrouped() {
   try {
-    return await serverFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { next: { revalidate: 60 } });
+    return await serverFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { next: { revalidate: 300 } });
   } catch { return {}; }
 }
 

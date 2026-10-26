@@ -69,6 +69,10 @@ export async function GET(request: Request) {
 </urlset>`;
 
   return new Response(xml, {
-    headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+    headers: {
+      "Content-Type": "application/xml; charset=utf-8",
+      "Cache-Control": "public, max-age=300",
+      "Vercel-CDN-Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    },
   });
 }

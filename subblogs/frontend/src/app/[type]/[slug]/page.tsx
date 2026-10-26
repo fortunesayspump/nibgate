@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import ReactMarkdown from "react-markdown";
+import { cache } from "react";
 import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
@@ -63,10 +64,14 @@ function postHref(post: { type: string; slug: string }) {
   return `/${m[post.type] || "posts"}/${post.slug}`;
 }
 
+const getPost = cache(async (slug: string) =>
+  serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 300 } })
+);
+
 export async function generateMetadata({ params }: { params: Promise<{ type: string; slug: string }> }): Promise<any> {
   const { type, slug } = await params;
   try {
-    const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
+    const data = await getPost(slug);
     const post = data?.post;
     if (!post) return {};
     const origin = await siteOrigin();
@@ -108,7 +113,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
 
 export default async function PostPage({ params }: { params: Promise<{ type: string; slug: string }> }) {
   const { type, slug } = await params;
-  const data = await serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 60 } });
+  const data = await getPost(slug);
   const post = data?.post;
   if (!post) notFound();
 
@@ -137,7 +142,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
     } catch {}
   }
 
-  const relatedData = await serverFetch<{ success: boolean; posts: BlogPost[] }>(`/blog/posts?type=${post.type}&limit=6`, { next: { revalidate: 60 } });
+  const relatedData = await serverFetch<{ success: boolean; posts: BlogPost[] }>(`/blog/posts?type=${post.type}&limit=6`, { next: { revalidate: 300 } });
   const related = (relatedData?.posts || []).filter((p) => p.id !== post.id).slice(0, 5);
   const origin = await siteOrigin();
   const resourcePath = `/${typeMap[post.type] || "posts"}/${post.slug}`;

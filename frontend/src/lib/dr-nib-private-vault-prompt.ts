@@ -1,8 +1,9 @@
 export type VaultPrompt = {
-    mode: 'enroll' | 'recover' | 'replace';
+    mode: 'set-password' | 'enroll' | 'recover' | 'replace';
     tenantId: string;
     recoveryCode?: string;
-    resolve: (code: string) => void;
+    hasPassword?: boolean;
+    resolve: (credential: { method: 'password' | 'code'; secret: string }) => void;
     reject: () => void;
 };
 const EVENT = 'drnib:private-vault-prompt';
@@ -36,7 +37,7 @@ export function setPrivateVaultPrompt(handler: ((request: VaultPrompt) => void) 
         if (bridge.handler === handler) delete bridge.handler;
     };
 }
-export async function askPrivateVaultPrompt(request: Omit<VaultPrompt, 'resolve' | 'reject'>): Promise<string> {
+export async function askPrivateVaultPrompt(request: Omit<VaultPrompt, 'resolve' | 'reject'>): Promise<{ method: 'password' | 'code'; secret: string }> {
     return new Promise((resolve, reject) => {
         if (typeof window === 'undefined') return reject(Error('Private project unlock is not ready. Retry in a moment.'));
         const detail: Detail = { accepted: false, request: { ...request, resolve,

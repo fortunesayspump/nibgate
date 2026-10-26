@@ -2,23 +2,25 @@
 
 Wallet or Google sign-in authorizes access to encrypted records. A wallet address is public and is not an encryption key. Dr. Nib uses random browser-vault and project-key material; changing a login method does not make research content readable without the appropriate vault unlock.
 
-## Enrolled browsers and recovery codes
+## Passwords, backup codes and enrolled browsers
 
-An enrolled browser keeps a random non-extractable vault key in IndexedDB. Independent random project seeds protect project content. A separately saved random recovery code can unlock the encrypted vault record in a fresh browser after normal account sign-in.
+New private vaults require a user-chosen, strong private-project password. It is separate from wallet or Google sign-in. The setup requires at least 15 characters, rejects predictable choices with a password-strength check, and asks for confirmation. Long passphrases and password managers work; special characters or capitals are not required. A separately saved random backup code is also required and must be confirmed. Both unlock the same encrypted vault on a new browser after normal account sign-in. The password is used only in the browser to derive a key with a unique salt and 600,000 PBKDF2-HMAC-SHA-256 iterations; Nibgate stores encrypted wrappers, never the password or plaintext vault key. A weak password is vulnerable to offline guessing if encrypted records leak, so do not reuse a login password. Existing code-only vaults remain code-only until an enrolled browser explicitly replaces their recovery credentials.
 
-The [Dr. Nib Help page](https://nibgate.xyz/dr-nib/settings#private-recovery) starts with a recovery guide and checks whether the **current browser and signed-in account** can replace a lost code. Its button remains unavailable unless the browser has a usable enrolled key. Checking does not unlock a vault or rotate a key.
+An enrolled browser keeps a random non-extractable vault key in IndexedDB. Independent random project seeds protect project content. A password or backup code opens the vault; neither changes the project seeds.
+
+The [Dr. Nib Help page](https://nibgate.xyz/dr-nib/settings#private-recovery) starts with a recovery guide and checks whether the **current browser and signed-in account** can replace lost credentials. Its button remains unavailable unless the browser has a usable enrolled key. Checking does not unlock a vault or rotate a key.
 
 | What you still have | What to do |
 | --- | --- |
-| An enrolled browser that opens these private projects | Open Help in that same browser, choose **Replace recovery code**, save the new code, and wait for confirmation. Existing project content is preserved. |
-| The saved private-project recovery code, but no enrolled browser | Sign in to the same account on the new browser and enter that code in the unlock prompt. |
-| Neither an enrolled browser nor the saved code | The old encrypted content cannot be decrypted by Nibgate or reset through wallet sign-in. Preserve old devices and browser data while checking for an enrolled browser. |
+| An enrolled browser that opens these private projects | Open Help in that same browser, choose **Replace password and backup code**, set a strong new password, save and confirm the new backup code, and wait for confirmation. Existing project content is preserved. |
+| The private-project password or backup code, but no enrolled browser | Sign in to the same account on a new browser and enter either one in the unlock prompt. Older code-only vaults use their existing recovery code. |
+| No enrolled browser, password or backup code | The old encrypted content cannot be decrypted by Nibgate or reset through wallet sign-in. Preserve old devices and browser data while checking for an enrolled browser. |
 
-The private-project code is **not** a wallet seed phrase or wallet recovery phrase. Never type a wallet phrase into Dr. Nib's vault prompt. Older [testnet Legacy history](https://testnet.nibgate.xyz/dr-nib/legacy) is a separate plaintext archive and does not use the private-vault recovery code.
+The private-project password and backup code are **not** a wallet seed phrase or wallet recovery phrase. Never type a wallet phrase into Dr. Nib's vault prompt. Older [testnet Legacy history](https://testnet.nibgate.xyz/dr-nib/legacy) is a separate plaintext archive and does not use the private vault.
 
-Save the code privately. Nibgate should never ask you to paste it into chat, support messages, logs or a research prompt. If every enrolled device and the saved recovery code are lost, Nibgate cannot recover the content.
+Save both credentials privately. Nibgate should never ask you to paste them into chat, support messages, logs or a research prompt. If every enrolled device and both saved credentials are lost, Nibgate cannot recover the content. A server-side password reset would only permit a new vault; it could not decrypt old projects.
 
-From an already enrolled browser, Help supports replacing a lost recovery code. The operation preserves project seeds and content, includes deleted projects and atomically replaces encrypted wrappers and the recovery record. Old/pending local keys remain available until the server commit is confirmed. Only treat replacement as complete after the app confirms it.
+From an already enrolled browser, Help supports replacing the password and backup code together. The operation preserves project seeds and content, includes deleted projects and atomically replaces encrypted wrappers and the recovery record. Old/pending local keys remain available until the server commit is confirmed. Only treat replacement as complete after the app confirms it.
 
 A new browser must complete both account sign-in and vault recovery before it can read encrypted projects. Wallet extensions have their own browser permissions, including Incognito access; those settings are separate from project encryption.
 

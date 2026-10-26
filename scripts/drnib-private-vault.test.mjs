@@ -9,13 +9,48 @@ const require=createRequire(new URL('../frontend/package.json',import.meta.url))
 const ts=require('typescript');
 const source=readFileSync(new URL('../frontend/src/lib/dr-nib-private-vault.ts',import.meta.url),'utf8');
 const {outputText}=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}});
-const {createPrivateVault,recoverPrivateVault,createPrivateProjectKeys,openPrivateProjectKeys,samePrivateVaultEnvelope,rewrapPrivateProjectKeys,privateVaultEnrollmentAction}=
+const {createPrivateVault,recoverPrivateVault,recoverPrivateVaultWithPassword,createPrivateProjectKeys,openPrivateProjectKeys,samePrivateVaultEnvelope,rewrapPrivateProjectKeys,privateVaultEnrollmentAction}=
   await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 const tenantId='vault-local-fixture';
 const expected=vault=>({tenantId:vault.tenantId,vaultId:vault.vaultId});
 const denied={message:'PRIVATE_VAULT_UNAVAILABLE'};
 const clone=value=>JSON.parse(JSON.stringify(value));
+
+test('strong user password and independent backup code open the same private project keys',async()=>{
+ const password='Practical meadow sunrise notebook river';
+ const created=await createPrivateVault(tenantId,undefined,password);
+ assert.equal(created.recoveryEnvelope.version,2);
+ const runId=randomUUID(),project=await createPrivateProjectKeys(created.vault,runId);
+ const remote=clone(created.recoveryEnvelope);
+ const byPassword=await recoverPrivateVaultWithPassword(password,remote,expected(created.vault));
+ const byCode=await recoverPrivateVault(created.recoverySecret,remote,expected(created.vault));
+ assert.deepEqual(await openPrivateProjectKeys(byPassword,runId,project.envelope),project.secrets);
+ assert.deepEqual(await openPrivateProjectKeys(byCode,runId,project.envelope),project.secrets);
+ await assert.rejects(recoverPrivateVaultWithPassword('wrong password with many characters',remote,expected(created.vault)),denied);
+ await assert.rejects(recoverPrivateVaultWithPassword(password,remote,{...expected(created.vault),tenantId:'other'}),denied);
+ const tampered=clone(remote);tampered.password.kdf.salt=Buffer.alloc(16,1).toString('base64');
+ await assert.rejects(recoverPrivateVaultWithPassword(password,tampered,expected(created.vault)),denied);
+ const reordered=Object.fromEntries(Object.entries(remote).reverse());
+ reordered.password=Object.fromEntries(Object.entries(remote.password).reverse());
+ reordered.password.context=Object.fromEntries(Object.entries(remote.password.context).reverse());
+ assert.equal(samePrivateVaultEnvelope(remote,reordered),true);
+ assert.equal(samePrivateVaultEnvelope(remote,tampered),false);
+});
+
+test('upgrading a code-only vault invalidates its old code while preserving project content',async()=>{
+ const old=await createPrivateVault(tenantId),runId=randomUUID();
+ const project=await createPrivateProjectKeys(old.vault,runId);
+ const replacement=await createPrivateVault(tenantId,old.vault.vaultId,'A unique and very long riverbank notebook phrase');
+ const wrapped=await rewrapPrivateProjectKeys(old.vault,replacement.vault,runId,project.envelope);
+ const restored=await recoverPrivateVaultWithPassword('A unique and very long riverbank notebook phrase',replacement.recoveryEnvelope,expected(old.vault));
+ assert.deepEqual(await openPrivateProjectKeys(restored,runId,wrapped),project.secrets);
+ await assert.rejects(recoverPrivateVault(old.recoverySecret,replacement.recoveryEnvelope,expected(old.vault)),denied);
+ const remote={vaultId:old.vault.vaultId,revision:2,recoveryEnvelope:clone(replacement.recoveryEnvelope)};
+ const reordered=clone(remote);reordered.recoveryEnvelope=Object.fromEntries(Object.entries(reordered.recoveryEnvelope).reverse());
+ const local={vaultId:old.vault.vaultId,revision:1,recoveryEnvelope:old.recoveryEnvelope,pendingReplacement:{...remote}};
+ assert.equal(privateVaultEnrollmentAction(local,reordered),'promote');
+});
 
 test('another device recovers independent project keys from JSON ciphertext and the recovery secret',async()=>{
   const {vault,recoverySecret,recoveryEnvelope}=await createPrivateVault(tenantId);

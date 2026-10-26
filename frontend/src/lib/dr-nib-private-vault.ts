@@ -1,6 +1,6 @@
 // Browser WebCrypto foundation only. No storage, wallet, network or UI wiring.
 // Recovery material and unwrapped keys must never enter ordinary API payloads.
-type Purpose = "vault-recovery" | "project-keys";
+type Purpose = "vault-recovery" | "vault-password" | "project-keys";
 type Context = {
   tenantId: string;
   vaultId: string;
@@ -14,6 +14,14 @@ export type PrivateVaultEnvelope = {
   context: Context;
   iv: string;
   ciphertext: string;
+};
+export type PrivatePasswordEnvelope = PrivateVaultEnvelope & {
+  kdf: { name: "PBKDF2-HMAC-SHA-256"; iterations: 600000; salt: string };
+};
+export type PrivateRecoveryEnvelope = PrivateVaultEnvelope | {
+  version: 2;
+  code: PrivateVaultEnvelope;
+  password: PrivatePasswordEnvelope;
 };
 export type PrivateVault = { tenantId: string; vaultId: string; key: CryptoKey };
 export type PrivateProjectSecrets = { reportKeySeed: Uint8Array; workerStateKey: Uint8Array };
@@ -31,7 +39,7 @@ function owner(tenantId: string, vaultId: string): void {
 }
 function context(tenantId: string, vaultId: string, runId: string | null, purpose: Purpose): Context {
   owner(tenantId, vaultId);
-  if (purpose === "vault-recovery" ? runId !== null : typeof runId !== "string" || !UUID.test(runId))
+  if (purpose !== "project-keys" ? runId !== null : typeof runId !== "string" || !UUID.test(runId))
     throw unavailable();
   return { tenantId, vaultId, runId, revision: 1, purpose };
 }
@@ -50,6 +58,15 @@ function decode(value: unknown, length: number): Uint8Array {
 async function importKey(bytes: Uint8Array): Promise<CryptoKey> {
   if (!(bytes instanceof Uint8Array) || bytes.length !== 32) throw unavailable();
   return crypto.subtle.importKey("raw", bytes as BufferSource, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+async function passwordKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  if (typeof password !== "string" || password.normalize("NFC").length < 15 ||
+      password.length > 256 || salt.length !== 16) throw unavailable();
+  const material = await crypto.subtle.importKey("raw", enc.encode(password.normalize("NFC")),
+    "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256",
+    salt: salt as BufferSource, iterations: 600000 }, material,
+    { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 function vaultContext(vault: PrivateVault, runId: string): Context {
   if (!vault || vault.key?.algorithm?.name !== "AES-GCM" || vault.key.extractable !== false ||
@@ -79,8 +96,8 @@ async function open(key: CryptoKey, expected: Context, envelope: PrivateVaultEnv
 /** Create random keys; wallet addresses/signatures are not entropy inputs.
  * The caller must establish durable local storage AND a recoverable enrollment
  * before using this vault for uploads. Nothing here saves or syncs it. */
-export async function createPrivateVault(tenantId: string, existingVaultId?: string): Promise<{
-  vault: PrivateVault; recoverySecret: Uint8Array; recoveryEnvelope: PrivateVaultEnvelope;
+export async function createPrivateVault(tenantId: string, existingVaultId?: string, password?: string): Promise<{
+  vault: PrivateVault; recoverySecret: Uint8Array; recoveryEnvelope: PrivateRecoveryEnvelope;
 }> {
   const raw = crypto.getRandomValues(new Uint8Array(32));
   const recoverySecret = crypto.getRandomValues(new Uint8Array(32));
@@ -88,7 +105,16 @@ export async function createPrivateVault(tenantId: string, existingVaultId?: str
     const vaultId = existingVaultId ?? crypto.randomUUID();
     const expected = context(tenantId, vaultId, null, "vault-recovery");
     const key = await importKey(raw);
-    const recoveryEnvelope = await seal(await importKey(recoverySecret), expected, raw);
+    const codeEnvelope = await seal(await importKey(recoverySecret), expected, raw);
+    let recoveryEnvelope: PrivateRecoveryEnvelope = codeEnvelope;
+    if (password !== undefined) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const wrapped = await seal(await passwordKey(password, salt),
+        context(tenantId, vaultId, null, "vault-password"), raw);
+      recoveryEnvelope = { version: 2, code: codeEnvelope, password: {
+        ...wrapped, kdf: { name: "PBKDF2-HMAC-SHA-256", iterations: 600000, salt: base64(salt) }
+      } };
+    }
     return { vault: { tenantId, vaultId, key }, recoverySecret, recoveryEnvelope };
   } catch { recoverySecret.fill(0); throw unavailable(); }
   finally { raw.fill(0); }
@@ -96,12 +122,32 @@ export async function createPrivateVault(tenantId: string, existingVaultId?: str
 
 /** On another device, the secret unlocks a downloaded ciphertext envelope.
  * Expected identity comes from the enrolled vault record, not the envelope. */
-export async function recoverPrivateVault(recoverySecret: Uint8Array, envelope: PrivateVaultEnvelope,
+export async function recoverPrivateVault(recoverySecret: Uint8Array, envelope: PrivateRecoveryEnvelope,
   expected: { tenantId: string; vaultId: string }): Promise<PrivateVault> {
   let raw: Uint8Array | undefined;
   try {
+    const codeEnvelope = envelope.version === 2 ? envelope.code : envelope;
     raw = await open(await importKey(recoverySecret),
-      context(expected.tenantId, expected.vaultId, null, "vault-recovery"), envelope, 32);
+      context(expected.tenantId, expected.vaultId, null, "vault-recovery"), codeEnvelope, 32);
+    return { ...expected, key: await importKey(raw) };
+  } catch { throw unavailable(); }
+  finally { raw?.fill(0); }
+}
+export async function recoverPrivateVaultWithPassword(password: string, envelope: PrivateRecoveryEnvelope,
+  expected: { tenantId: string; vaultId: string }): Promise<PrivateVault> {
+  let raw: Uint8Array | undefined;
+  try {
+    if (envelope.version !== 2 || !exact(envelope, "code,password,version") ||
+        !exact(envelope.password, "algorithm,ciphertext,context,iv,kdf,version") ||
+        !exact(envelope.password.kdf, "iterations,name,salt") ||
+        envelope.password.kdf.name !== "PBKDF2-HMAC-SHA-256" ||
+        envelope.password.kdf.iterations !== 600000) throw unavailable();
+    const salt = decode(envelope.password.kdf.salt, 16);
+    const sealed: PrivateVaultEnvelope = { version: envelope.password.version,
+      algorithm: envelope.password.algorithm, context: envelope.password.context,
+      iv: envelope.password.iv, ciphertext: envelope.password.ciphertext };
+    raw = await open(await passwordKey(password, salt),
+      context(expected.tenantId, expected.vaultId, null, "vault-password"), sealed, 32);
     return { ...expected, key: await importKey(raw) };
   } catch { throw unavailable(); }
   finally { raw?.fill(0); }
@@ -133,7 +179,18 @@ export async function openPrivateProjectKeys(vault: PrivateVault, runId: string,
 }
 
 /** Compare immutable envelope fields, independent of JSON/JSONB key order. */
-export function samePrivateVaultEnvelope(a: PrivateVaultEnvelope, b: PrivateVaultEnvelope): boolean {
+export function samePrivateVaultEnvelope(a: PrivateRecoveryEnvelope, b: PrivateRecoveryEnvelope): boolean {
+  if (a.version === 2 || b.version === 2) {
+    if (a.version !== 2 || b.version !== 2 || !exact(a, "code,password,version") || !exact(b, "code,password,version") ||
+        a.code?.version !== 1 || b.code?.version !== 1) return false;
+    if (!exact(a.password, "algorithm,ciphertext,context,iv,kdf,version") ||
+      !exact(b.password, "algorithm,ciphertext,context,iv,kdf,version")) return false;
+    const {kdf: aKdf, ...aSealed} = a.password;
+    const {kdf: bKdf, ...bSealed} = b.password;
+    return samePrivateVaultEnvelope(a.code, b.code) && samePrivateVaultEnvelope(aSealed, bSealed) &&
+      exact(aKdf, "iterations,name,salt") && exact(bKdf, "iterations,name,salt") &&
+      aKdf.name === bKdf.name && aKdf.iterations === bKdf.iterations && aKdf.salt === bKdf.salt;
+  }
   if (!exact(a, "algorithm,ciphertext,context,iv,version") ||
       !exact(b, "algorithm,ciphertext,context,iv,version") ||
       !exact(a.context, "purpose,revision,runId,tenantId,vaultId") ||
@@ -159,9 +216,9 @@ export async function rewrapPrivateProjectKeys(previous: PrivateVault, replaceme
 
 /** Reconcile generations after a crash or another device's replacement. */
 export function privateVaultEnrollmentAction(local: {
-  vaultId: string; revision: number; recoveryEnvelope: PrivateVaultEnvelope;
-  pendingReplacement?: { vaultId: string; revision: number; recoveryEnvelope: PrivateVaultEnvelope };
-}, remote: { vaultId: string; revision: number; recoveryEnvelope: PrivateVaultEnvelope } | null): 'current' | 'promote' | 'recover' {
+  vaultId: string; revision: number; recoveryEnvelope: PrivateRecoveryEnvelope;
+  pendingReplacement?: { vaultId: string; revision: number; recoveryEnvelope: PrivateRecoveryEnvelope };
+}, remote: { vaultId: string; revision: number; recoveryEnvelope: PrivateRecoveryEnvelope } | null): 'current' | 'promote' | 'recover' {
   if (!remote || remote.vaultId !== local.vaultId || !Number.isSafeInteger(remote.revision) || remote.revision < local.revision)
     throw unavailable();
   const pending = local.pendingReplacement;

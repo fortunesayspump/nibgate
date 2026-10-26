@@ -5,8 +5,8 @@ import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 const require=createRequire(new URL('../frontend/package.json',import.meta.url)),ts=require('typescript');
 const modules=new Map(['vault','vault-store','objects'].map(name=>{const source=readFileSync(new URL(`../frontend/src/lib/dr-nib-private-${name}.ts`,import.meta.url),'utf8');return [`/${name}.js`,ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText]}));
-const html=`<!doctype html><html><head><meta charset="utf-8"><title>Dr Nib local privacy storage checks</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto;line-height:1.6}button{padding:12px;margin:8px}li{margin:8px}</style></head><body><h1>Dr Nib local privacy storage checks</h1><p>Synthetic test records only. These checks cover browser crypto and persistence, not hardware attestation.</p><button id="enroll">Enroll synthetic vault</button><button id="reload">Verify after reload</button><button id="recover">Verify recovery context</button><ol id="results"></ol><script type="module">
-import {createPrivateVault,createPrivateProjectKeys,recoverPrivateVault,openPrivateProjectKeys} from '/vault.js';
+const html=`<!doctype html><html><head><meta charset="utf-8"><title>Dr Nib local privacy storage checks</title><style>body{font:16px system-ui;max-width:850px;margin:40px auto;line-height:1.6}button{padding:12px;margin:8px}li{margin:8px}</style></head><body><h1>Dr Nib local privacy storage checks</h1><p>Synthetic test records only. These checks cover browser crypto and persistence, not hardware attestation.</p><button id="enroll">Enroll synthetic vault</button><button id="reload">Verify after reload</button><button id="recover">Verify recovery context</button><button id="password">Verify password and backup unlock</button><ol id="results"></ol><script type="module">
+import {createPrivateVault,createPrivateProjectKeys,recoverPrivateVault,recoverPrivateVaultWithPassword,openPrivateProjectKeys} from '/vault.js';
 import {getEnrolledVault,addEnrolledVault,getEnrolledProject,addEnrolledProject} from '/vault-store.js';
 import {sealPrivateObject,openPrivateObject} from '/objects.js';
 const tenantId='local-browser-fixture',results=document.querySelector('#results');
@@ -39,6 +39,19 @@ action('#recover',async()=>{
  check('independent recovered key context opens original ciphertext',new TextDecoder().decode(await openPrivateObject(secrets.workerStateKey,saved.context,saved.envelope))==='SYNTHETIC_BROWSER_PRIVATE_CANARY');
  let denied=false;try{await recoverPrivateVault(crypto.getRandomValues(new Uint8Array(32)),vault.recoveryEnvelope,{tenantId,vaultId:vault.vaultId})}catch{denied=true}check('wrong recovery code rejected',denied);
  denied=false;try{await recoverPrivateVault(Uint8Array.from(saved.recoverySecret),vault.recoveryEnvelope,{tenantId:'other',vaultId:vault.vaultId})}catch{denied=true}check('wrong account rejected',denied);
+});
+action('#password',async()=>{
+ const tenant='local-browser-fixture-password',password='A unique synthetic notebook phrase for browser checks';
+ const made=await createPrivateVault(tenant,undefined,password),runId=crypto.randomUUID();
+ const project=await createPrivateProjectKeys(made.vault,runId),remote=JSON.parse(JSON.stringify(made.recoveryEnvelope));
+ check('password and backup wrapper enrolled together',remote.version===2);
+ const byPassword=await recoverPrivateVaultWithPassword(password,remote,{tenantId:tenant,vaultId:made.vault.vaultId});
+ const byCode=await recoverPrivateVault(made.recoverySecret,remote,{tenantId:tenant,vaultId:made.vault.vaultId});
+ const expected=await openPrivateProjectKeys(made.vault,runId,project.envelope);
+ check('browser PBKDF2 password unlocks original project',JSON.stringify([...expected.reportKeySeed])===JSON.stringify([...(await openPrivateProjectKeys(byPassword,runId,project.envelope)).reportKeySeed]));
+ check('independent backup code unlocks same project',JSON.stringify([...expected.workerStateKey])===JSON.stringify([...(await openPrivateProjectKeys(byCode,runId,project.envelope)).workerStateKey]));
+ let denied=false;try{await recoverPrivateVaultWithPassword('wrong synthetic password',remote,{tenantId:tenant,vaultId:made.vault.vaultId})}catch{denied=true}
+ check('wrong browser password rejected',denied);
 });
 </script></body></html>`;
 const server=createServer((req,res)=>{res.setHeader('Cache-Control','no-store');res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'");if(modules.has(req.url)){res.setHeader('Content-Type','text/javascript');return res.end(modules.get(req.url))}if(req.url==='/'){res.setHeader('Content-Type','text/html');return res.end(html)}res.writeHead(404).end()});

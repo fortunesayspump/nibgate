@@ -1,9 +1,9 @@
-import type { PrivateVault, PrivateVaultEnvelope } from './dr-nib-private-vault';
+import type { PrivateVault, PrivateVaultEnvelope, PrivateRecoveryEnvelope } from './dr-nib-private-vault';
 export type EnrolledVault = {
     tenantId: string;
     vaultId: string;
     vault: PrivateVault;
-    recoveryEnvelope: PrivateVaultEnvelope;
+    recoveryEnvelope: PrivateRecoveryEnvelope;
     revision: number;
     recoveryConfirmed: boolean;
     pendingReplacement?: EnrolledVault & { replacementProjects: Array<{ runId: string; expectedDigest: string; envelope: PrivateVaultEnvelope }> };

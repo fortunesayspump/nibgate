@@ -5,7 +5,7 @@ import {requirePrivateResearchInputs} from './dr-nib-private-funding';
 import {mergePrivateProgressRows} from './dr-nib-private-progress';
 import {privateJournalQuestions,mergePrivateQuestionHistory} from './dr-nib-question-history';
 import {samePrivateVaultEnvelope, rewrapPrivateProjectKeys, privateVaultEnrollmentAction} from './dr-nib-private-vault';
-import { createPrivateVault, recoverPrivateVault, createPrivateProjectKeys, openPrivateProjectKeys, type PrivateVault, type PrivateVaultEnvelope, type PrivateProjectSecrets } from './dr-nib-private-vault';
+import { createPrivateVault, recoverPrivateVault, recoverPrivateVaultWithPassword, createPrivateProjectKeys, openPrivateProjectKeys, type PrivateVault, type PrivateProjectSecrets } from './dr-nib-private-vault';
 import { getEnrolledVault, addEnrolledVault, updateEnrolledVault, promoteEnrolledVault, getEnrolledProject, addEnrolledProject } from './dr-nib-private-vault-store';
 import { sealPrivateObject, openPrivateObject, objectBytesToBase64, objectBase64ToBytes, type PrivateObjectEnvelope, type PrivateObjectPurpose } from './dr-nib-private-objects';
 const BASE = '/drnib-private-api/v1/private';
@@ -55,7 +55,7 @@ export async function privateTenantId(): Promise<string> {
     return result.tenantId;
 }
 /** Read-only recovery readiness. Never unlocks, rotates, or exports a key. */
-export async function privateRecoveryAvailability(): Promise<'available' | 'needs-code' | 'no-vault'> {
+export async function privateRecoveryAvailability(): Promise<'available' | 'available-legacy' | 'needs-code' | 'no-vault'> {
     const tenantId = await privateTenantId();
     const [remote, local] = await Promise.all([
         privateRecordRequest('/vault', {}, true),
@@ -66,7 +66,8 @@ export async function privateRecoveryAvailability(): Promise<'available' | 'need
     if (!local.recoveryConfirmed || local.vault.tenantId !== tenantId ||
         local.vault.vaultId !== local.vaultId || local.vault.key.extractable)
         return 'needs-code';
-    return privateVaultEnrollmentAction(local, remote) === 'recover' ? 'needs-code' : 'available';
+    if (privateVaultEnrollmentAction(local, remote) === 'recover') return 'needs-code';
+    return remote.recoveryEnvelope.version === 2 ? 'available' : 'available-legacy';
 }
 export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
     const prior = vaultFlights.get(tenantId);
@@ -91,18 +92,20 @@ export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
             // replayed into the new generation; import with the new saved code.
         }
         if (remote) {
-            const code = await ask({ mode: 'recover', tenantId });
-            const secret = secretFor(code);
-            try {
-                const vault = await recoverPrivateVault(secret, remote.recoveryEnvelope, { tenantId, vaultId: remote.vaultId });
-                await promoteEnrolledVault({ tenantId, vaultId: vault.vaultId, vault, recoveryEnvelope: remote.recoveryEnvelope, revision: remote.revision, recoveryConfirmed: true });
-                return vault;
+            const credential = await ask({ mode: 'recover', tenantId, hasPassword: remote.recoveryEnvelope?.version === 2 });
+            let vault: PrivateVault;
+            if (credential.method === 'password') {
+                vault = await recoverPrivateVaultWithPassword(credential.secret, remote.recoveryEnvelope, { tenantId, vaultId: remote.vaultId });
+            } else {
+                const secret = secretFor(credential.secret);
+                try { vault = await recoverPrivateVault(secret, remote.recoveryEnvelope, { tenantId, vaultId: remote.vaultId }); }
+                finally { secret.fill(0); }
             }
-            finally {
-                secret.fill(0);
-            }
+            await promoteEnrolledVault({ tenantId, vaultId: vault.vaultId, vault, recoveryEnvelope: remote.recoveryEnvelope, revision: remote.revision, recoveryConfirmed: true });
+            return vault;
         }
-        const created = await createPrivateVault(tenantId);
+        const password = await ask({ mode: 'set-password', tenantId });
+        const created = await createPrivateVault(tenantId, undefined, password.secret);
         try {
             const code = codeFor(created.recoverySecret);
             await ask({ mode: 'enroll', tenantId, recoveryCode: code });
@@ -305,11 +308,11 @@ export async function requirePrivateInputs(runId:string,brief?:unknown){
 
 /** Explicit owner action. No key/credential rotation happens on page load.
  * The saved pending CryptoKey survives crash/response loss before promotion. */
-export async function replacePrivateRecoveryCode(): Promise<void> {
+export async function replacePrivateRecoveryCredentials(): Promise<boolean> {
     if (!privateBuildEnabled()) throw Error('Private recovery is unavailable.');
     const tenantId = await privateTenantId();
     if (!navigator.locks) throw Error('This browser cannot safely coordinate recovery replacement. Use a current browser.');
-    await navigator.locks.request(`drnib-vault-replacement:${tenantId}`, async () => {
+    return await navigator.locks.request(`drnib-vault-replacement:${tenantId}`, async () => {
         const vault = await unlockPrivateVault(tenantId);
         const local = await getEnrolledVault(tenantId);
         if (!local || local.vaultId !== vault.vaultId) throw Error('Use an enrolled device to replace recovery.');
@@ -319,7 +322,8 @@ export async function replacePrivateRecoveryCode(): Promise<void> {
             if (snapshot.vaultId !== vault.vaultId || snapshot.revision !== local.revision ||
                 !samePrivateVaultEnvelope(snapshot.recoveryEnvelope, local.recoveryEnvelope) || !Array.isArray(snapshot.projects) || snapshot.projects.length > 1000)
                 throw Error('Private projects changed. Refresh before replacing recovery.');
-            const created = await createPrivateVault(tenantId, vault.vaultId);
+            const password = await ask({ mode: 'set-password', tenantId });
+            const created = await createPrivateVault(tenantId, vault.vaultId, password.secret);
             try {
                 const projects = [];
                 for (const project of snapshot.projects) projects.push({ runId: project.runId, expectedDigest: project.expectedDigest,
@@ -352,6 +356,7 @@ export async function replacePrivateRecoveryCode(): Promise<void> {
             throw Error('Recovery replacement needs another confirmation check. Both enrolled keys are preserved.');
         const { replacementProjects: _projects, ...promoted } = pending;
         await promoteEnrolledVault(promoted);
+        return pending.recoveryEnvelope.version === 2;
     });
 }
 

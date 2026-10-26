@@ -103,6 +103,7 @@ export default function ProjectsPage() {
               {showTrash ? "Back to projects" : `Deleted (${trash.length})`}
             </button>
             <Link href="/dr-nib/research" className="rounded-full bg-black px-6 py-3 font-medium text-white transition hover:-translate-y-0.5 hover:bg-black/85">New project</Link>
+            {privateBuildEnabled()&&(process.env.NEXT_PUBLIC_NIBGATE_NETWORK||'testnet').toLowerCase()!=='mainnet'?<Link href="/dr-nib/legacy" className="rounded-full border border-dark-gray/50 px-5 py-3 font-medium">Legacy history</Link>:null}
           </div>
         }
       />

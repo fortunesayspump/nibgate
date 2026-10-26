@@ -70,7 +70,7 @@ Mainnet and testnet tip verification: reuse the original proof and exact request
 
 ## Dr. Nib privacy scope
 
-The private architecture uses browser encryption, a verified Phala worker and encrypted persistence. Nibgate-operated attestation uses the official dstack-verifier; its verdict is an operator-trusted service, not independent operator verification. Actual JEV and authorized Azure/OpenRouter ZDR fallback are provider-visible exceptions. The ordinary Dr. Nib API/MCP is retired on both networks; drnib.testnet.nibgate.xyz no longer serves it. Never send vault/recovery secrets to ordinary discovery or payment tools. Full architecture, recovery and operations: https://docs.nibgate.xyz/dr-nib/confidential.
+The private architecture uses browser encryption, a verified Phala worker and encrypted persistence. Nibgate-operated attestation uses the official dstack-verifier; its verdict is an operator-trusted service, not independent operator verification. Actual JEV and authorized Azure/OpenRouter ZDR fallback are provider-visible exceptions. The ordinary Dr. Nib API/MCP is retired on both networks; drnib.testnet.nibgate.xyz no longer serves it. Owner-authenticated, read-only older plaintext testnet reports and ledgers are available at https://testnet.nibgate.xyz/dr-nib/legacy through the private broker; this archive is not an encrypted vault or a new-research endpoint. Never send vault/recovery secrets to ordinary discovery or payment tools. Full architecture, recovery and operations: https://docs.nibgate.xyz/dr-nib/confidential.
 
 ## API endpoints
 

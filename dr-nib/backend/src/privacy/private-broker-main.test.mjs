@@ -20,7 +20,7 @@ test('broker-only entrypoint cannot import broad server or operational subsystem
   const source=await readFile(new URL('./private-broker-main.js',import.meta.url),'utf8');
   const imports=[...source.matchAll(/^import\s+.+?from\s+['"]([^'"]+)['"];?$/gm)].map(match=>match[1]);
   assert.deepEqual(imports.sort(),[
-    '../db.js','../env.js','./private-broker-auth.js','./private-broker-config.js','./private-broker.js','./private-runs.js','./private-record-routes.js','./private-record-storage.js',
+    '../db.js','../env.js','./legacy-archive.js','./private-broker-auth.js','./private-broker-config.js','./private-broker.js','./private-runs.js','./private-record-routes.js','./private-record-storage.js',
     'cookie-parser','cors','express','node:path','node:url',
   ].sort());
   for(const blocked of ['../server.js','../queue.js','../worker.js','../routes/exports.js','../routes/x402.js'])

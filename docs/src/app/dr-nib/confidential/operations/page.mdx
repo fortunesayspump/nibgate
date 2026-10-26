@@ -2,6 +2,8 @@
 
 Dr. Nib separates durable project state from active research compute. Encrypted projects and reports remain readable while the confidential worker is stopped. New AI work wakes the worker; opening a project list, an existing project or a saved report does not. The browser decrypts the saved content without a running worker. Reopening a stalled project shows its history; **Resume** explicitly starts recovery. Automatic recovery remains available for an operation already started in the current browser session.
 
+Older ordinary testnet records follow a different contract. [Legacy history](https://testnet.nibgate.xyz/dr-nib/legacy) authenticates the owner and reads historical **plaintext** reports and ledgers through a separate read-only database role. It does not use the confidential worker, decrypt a vault, create new jobs or initiate settlement. Do not treat an archived report as an encrypted private project.
+
 ## From request to execution
 
 1. The browser submits an authenticated encrypted action with a stable request ID. The control plane checks ownership, capacity, funding and budget.

@@ -17,6 +17,7 @@ import {createPrivateRunsRouter} from './private-runs.js';
 import {createPrivateBrokerRouter} from './private-broker.js';
 import {configuredPrivateBroker} from './private-broker-config.js';
 import {createPrivateBrokerAuth} from './private-broker-auth.js';
+import {createLegacyArchiveRouter} from './legacy-archive.js';
 
 export async function createPrivateBrokerOnlyApp({store=db,broker,privateWakeController}={}){
   if(process.env.DRNIB_PRIVATE_BROKER_ONLY!=='true')throw new Error('Private broker-only mode required');
@@ -32,6 +33,7 @@ export async function createPrivateBrokerOnlyApp({store=db,broker,privateWakeCon
   app.use(cors({origin:config.corsOrigins,credentials:true}));
   app.use(cookieParser());
   app.get('/health',(_req,res)=>res.json({ok:true,mode:'private-broker-only',privateEnabled:process.env.DRNIB_PRIVATE_ENABLED==='true'}));
+  app.use('/v1/legacy-archive',createLegacyArchiveRouter({authenticate,enabled:()=>process.env.DRNIB_LEGACY_ARCHIVE_ENABLED==='true'}));
   app.use('/v1/private',createPrivateRecordsRouter({store:store,storage:createPrivateRecordStorage(),authenticate:authenticate,
     enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',workflowEnabled:()=>process.env.DRNIB_PRIVATE_WORKFLOW_ENABLED==='true',publicRetrievalEnabled:()=>process.env.DRNIB_PRIVATE_WEB_ENABLED==='true',accessMode:privateBroker.accessMode,allowedTenantId:privateBroker.allowedTenantId}));
   app.use('/v1/private',createPrivateRunsRouter({store,ready:privateBroker.ready,

@@ -116,7 +116,7 @@ export default function PrivateRecoverySettings() {
         </div>
         <div className="mt-5 rounded-xl border border-dark-gray/30 p-4">
             <h3 className="font-medium">Add a recovery passkey</h3>
-            <p className="mt-2 text-sm leading-6">{passkeyEnrolled ? 'A passkey is enrolled for this vault. You can replace it here.' : 'Add a passkey now so a supported browser or synced device can unlock your private projects later.'} This requires a passkey that supports private key derivation. Creating a passkey does not restore an older vault that is already locked everywhere.</p>
+            <p className="mt-2 text-sm leading-6">{passkeyEnrolled ? 'A passkey is enrolled for this vault. You can replace it here.' : 'Add a passkey now so a supported browser or synced device can unlock your private projects later.'} This requires a passkey that supports private key derivation. Mainnet and testnet are separate sites, so add one on each site you use. Creating a passkey does not restore an older vault that is already locked everywhere.</p>
             <p className="mt-2 text-sm leading-6">{!passkeyAvailable ? 'This browser does not offer passkey recovery here. Your password and backup code still work.' : readiness === 'available-legacy' ? 'First set a private-project password above, then add a passkey.' : readiness === 'needs-code' ? 'First unlock this vault with your saved password or backup code.' : ''}</p>
             {passkeyAvailable && readiness === 'available' ? <div className="mt-3 flex flex-wrap items-end gap-3">
                 <label className="text-sm">Current private-project password

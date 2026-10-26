@@ -6,6 +6,16 @@ Wallet or Google sign-in authorizes access to encrypted records. A wallet addres
 
 An enrolled browser keeps a random non-extractable vault key in IndexedDB. Independent random project seeds protect project content. A separately saved random recovery code can unlock the encrypted vault record in a fresh browser after normal account sign-in.
 
+The [Dr. Nib Help page](https://nibgate.xyz/dr-nib/settings#private-recovery) starts with a recovery guide and checks whether the **current browser and signed-in account** can replace a lost code. Its button remains unavailable unless the browser has a usable enrolled key. Checking does not unlock a vault or rotate a key.
+
+| What you still have | What to do |
+| --- | --- |
+| An enrolled browser that opens these private projects | Open Help in that same browser, choose **Replace recovery code**, save the new code, and wait for confirmation. Existing project content is preserved. |
+| The saved private-project recovery code, but no enrolled browser | Sign in to the same account on the new browser and enter that code in the unlock prompt. |
+| Neither an enrolled browser nor the saved code | The old encrypted content cannot be decrypted by Nibgate or reset through wallet sign-in. Preserve old devices and browser data while checking for an enrolled browser. |
+
+The private-project code is **not** a wallet seed phrase or wallet recovery phrase. Never type a wallet phrase into Dr. Nib's vault prompt. Older [testnet Legacy history](https://testnet.nibgate.xyz/dr-nib/legacy) is a separate plaintext archive and does not use the private-vault recovery code.
+
 Save the code privately. Nibgate should never ask you to paste it into chat, support messages, logs or a research prompt. If every enrolled device and the saved recovery code are lost, Nibgate cannot recover the content.
 
 From an already enrolled browser, Help supports replacing a lost recovery code. The operation preserves project seeds and content, includes deleted projects and atomically replaces encrypted wrappers and the recovery record. Old/pending local keys remain available until the server commit is confirmed. Only treat replacement as complete after the app confirms it.

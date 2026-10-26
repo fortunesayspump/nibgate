@@ -54,6 +54,20 @@ export async function privateTenantId(): Promise<string> {
     if(typeof result?.tenantId!=='string'||!/^[A-Za-z0-9:_-]{1,128}$/.test(result.tenantId))throw Error('Invalid private account.');
     return result.tenantId;
 }
+/** Read-only recovery readiness. Never unlocks, rotates, or exports a key. */
+export async function privateRecoveryAvailability(): Promise<'available' | 'needs-code' | 'no-vault'> {
+    const tenantId = await privateTenantId();
+    const [remote, local] = await Promise.all([
+        privateRecordRequest('/vault', {}, true),
+        getEnrolledVault(tenantId),
+    ]);
+    if (!remote) return 'no-vault';
+    if (!local) return 'needs-code';
+    if (!local.recoveryConfirmed || local.vault.tenantId !== tenantId ||
+        local.vault.vaultId !== local.vaultId || local.vault.key.extractable)
+        return 'needs-code';
+    return privateVaultEnrollmentAction(local, remote) === 'recover' ? 'needs-code' : 'available';
+}
 export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
     const prior = vaultFlights.get(tenantId);
     if (prior)

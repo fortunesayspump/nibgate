@@ -23,8 +23,10 @@ export default function HelpPage() {
       <PageHeader
         eyebrow="Dr. Nib"
         title="Help"
-        desc="How research runs, what money does, and what to do when something looks stuck."
+        desc="Recover private-project access, understand the research flow, and resolve common problems."
       />
+
+      <PrivateRecoverySettings />
 
       <Section title="How private research works">
         <P>
@@ -55,21 +57,6 @@ export default function HelpPage() {
           <a href="https://docs.nibgate.xyz/dr-nib/confidential/models-tools" className="underline">models, tools and payments</a>.
         </P>
       </Section>
-
-      <Section title="Unlocking projects on another device">
-        <P>
-          Sign in to the same account and enter your recovery code in Dr. Nib when asked. Your wallet address
-          identifies your account; it is not your encryption key. Keep the code private and save it somewhere
-          secure. Nibgate cannot recover encrypted projects if you lose both the code and every enrolled browser.
-        </P>
-        <P>
-          If you still have an enrolled browser, use Replace recovery code below and save the replacement
-          before confirming. Other devices will need the new code. Read the{" "}
-          <a href="https://docs.nibgate.xyz/dr-nib/confidential/recovery" className="underline">encryption and recovery guide</a>.
-        </P>
-      </Section>
-
-      <PrivateRecoverySettings />
 
       <Section title="Learn about Phala and zero data retention">
         <ul className="list-disc space-y-2 pl-5">

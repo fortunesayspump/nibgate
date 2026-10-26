@@ -65,6 +65,24 @@ test('recovery transaction outages preserve an unknown-outcome response instead 
  }
 });
 
+test('password and independent code wrappers enroll together without exposing plaintext',async()=>{
+ const vaultId='11111111-1111-4111-8111-111111111111';
+ const sealed=purpose=>({version:1,algorithm:'AES-256-GCM',iv:Buffer.alloc(12).toString('base64'),ciphertext:Buffer.alloc(48).toString('base64'),context:{tenantId:'owner',vaultId,runId:null,revision:1,purpose}});
+ const recoveryEnvelope={version:2,code:sealed('vault-recovery'),password:{...sealed('vault-password'),kdf:{name:'PBKDF2-HMAC-SHA-256',iterations:600000,salt:Buffer.alloc(16).toString('base64')}}};
+ const writes=[],app=express();app.use(express.json());
+ app.use(createPrivateRecordsRouter({enabled:()=>true,requirePasswordForNewVault:()=>true,allowedTenantId:'owner',authenticate:(req,_res,next)=>{req.user={id:'owner'};next()},store:{privateVaultRecord:{create:async({data})=>writes.push(data)}}}));
+ const api=request(app),body={vaultId,expectedRevision:0,recoveryEnvelope,passkey:null};
+ assert.equal((await api.put('/vault').send({...body,recoveryEnvelope:recoveryEnvelope.code})).status,400);
+ assert.equal((await api.put('/vault').send(body)).status,201);
+ assert.equal(writes.length,1);assert.deepEqual(writes[0].recoveryEnvelope,recoveryEnvelope);
+ for(const changed of [
+  {...recoveryEnvelope,password:{...recoveryEnvelope.password,kdf:{...recoveryEnvelope.password.kdf,iterations:1}}},
+  {...recoveryEnvelope,password:{...recoveryEnvelope.password,context:{...recoveryEnvelope.password.context,purpose:'vault-recovery'}}},
+  {...recoveryEnvelope,password:{...recoveryEnvelope.password,plaintext:'secret'}}])
+  assert.equal((await api.put('/vault').send({...body,recoveryEnvelope:changed})).status,400);
+ assert.equal(writes.length,1);
+});
+
 test('encrypted project creation has time for its atomic writes and retains generation fencing',async()=>{
  const id='11111111-1111-4111-8111-111111111111',manifestId='22222222-2222-4222-8222-222222222222',vaultId='33333333-3333-4333-8333-333333333333';
  const envelope=(purpose,bytes,objectId)=>({version:1,algorithm:'AES-256-GCM',iv:Buffer.alloc(12).toString('base64'),ciphertext:Buffer.alloc(bytes).toString('base64'),context:{tenantId:'owner',vaultId,runId:id,revision:1,purpose,...(objectId?{objectId}:{})}});

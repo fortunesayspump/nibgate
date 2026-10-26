@@ -82,7 +82,7 @@ export async function createApp({privateWakeController}={}) {
 
   app.use('/v1/runs', runs);
   app.use('/v1/private',createPrivateRecordsRouter({store:db,storage:createPrivateRecordStorage(),authenticate:auth.middleware,
-    enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',allowedTenantId:privateBroker.allowedTenantId}));
+    enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',requirePasswordForNewVault:()=>process.env.DRNIB_REQUIRE_PRIVATE_PASSWORD==='true',allowedTenantId:privateBroker.allowedTenantId}));
   app.use('/v1/private', createPrivateRunsRouter({ready:privateBroker.ready,
     allowedTenantId:privateBroker.allowedTenantId,createLimit:privateCreateLimit,authenticate:auth.middleware}));
   app.use('/v1/private', createPrivateBrokerRouter({...privateBroker,authenticate:auth.middleware,isOwner:auth.isOwner}));

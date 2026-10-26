@@ -10,6 +10,18 @@ const digest = ciphertextDigest;
 function b64(v, min, max) { if (typeof v !== 'string' || v.length > Math.ceil(max * 4 / 3) + 4 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(v))
     return false; const b = Buffer.from(v, 'base64'); return b.length >= min && b.length <= max && b.toString('base64') === v; }
 function validEnvelope(e, { tenantId, vaultId, runId, objectId, kind, revision }) {
+    if (kind === 'vault-recovery' && exact(e, 'code,password,version') && e.version === 2)
+        return e.code?.version === 1 && validEnvelope(e.code, { tenantId, vaultId, runId, kind, revision }) &&
+            exact(e.password, 'algorithm,ciphertext,context,iv,kdf,version') &&
+            e.password.version === 1 && e.password.algorithm === 'AES-256-GCM' &&
+            b64(e.password.iv, 12, 12) && b64(e.password.ciphertext, 48, 48) &&
+            exact(e.password.kdf, 'iterations,name,salt') &&
+            e.password.kdf.name === 'PBKDF2-HMAC-SHA-256' && e.password.kdf.iterations === 600000 &&
+            b64(e.password.kdf.salt, 16, 16) &&
+            exact(e.password.context, 'purpose,revision,runId,tenantId,vaultId') &&
+            e.password.context.tenantId === tenantId && e.password.context.vaultId === vaultId &&
+            e.password.context.runId === null && e.password.context.revision === 1 &&
+            e.password.context.purpose === 'vault-password';
     if (!exact(e, 'algorithm,ciphertext,context,iv,version') || e.version !== 1 || e.algorithm !== 'AES-256-GCM' || !b64(e.iv, 12, 12))
         return false;
     const c = e.context;
@@ -24,7 +36,7 @@ const unavailable = (_req, res) => res.status(503).json({ code: 'PRIVATE_RECORDS
 const fail = (res, status = 503, code = 'PRIVATE_RECORDS_UNAVAILABLE') => res.status(status).json({ code });
 /** Ciphertext-only owner API; storage and transactions are injected. Vault
  * enrollment and reports work without waking or trusting a running guest. */
-export function createPrivateRecordsRouter({ store, storage, authenticate = unavailable, enabled = () => false, workflowEnabled=()=>false, publicRetrievalEnabled=()=>false, allowedTenantId, accessMode='owner' } = {}) {
+export function createPrivateRecordsRouter({ store, storage, authenticate = unavailable, enabled = () => false, workflowEnabled=()=>false, publicRetrievalEnabled=()=>false, requirePasswordForNewVault=()=>false, allowedTenantId, accessMode='owner' } = {}) {
     const router = Router();
     // This router is mounted beside the existing session/report broker. Its
     // default-off gate must not shadow unrelated established private routes.
@@ -62,6 +74,7 @@ export function createPrivateRecordsRouter({ store, storage, authenticate = unav
         try {
             const b = req.body;
             if (!exact(b, 'expectedRevision,passkey,recoveryEnvelope,vaultId') || !UUID.test(b.vaultId) || !Number.isSafeInteger(b.expectedRevision) || b.expectedRevision < 0 ||
+                (b.expectedRevision === 0 && requirePasswordForNewVault() && b.recoveryEnvelope?.version !== 2) ||
                 !validEnvelope(b.recoveryEnvelope, { tenantId: req.user.id, vaultId: b.vaultId, runId: null, kind: 'vault-recovery', revision: 1 }) ||
                 !(b.passkey === null || exact(b.passkey, 'credentialId,envelope,salt') && b64(b.passkey.credentialId, 16, 2048) && b64(b.passkey.salt, 32, 32) &&
                     exact(b.passkey.envelope, 'ciphertext,iv') && b64(b.passkey.envelope.iv, 12, 12) && b64(b.passkey.envelope.ciphertext, 48, 48)))

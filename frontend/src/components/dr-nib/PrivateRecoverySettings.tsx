@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { privateBuildEnabled, privateRecoveryAvailability, privatePasskeyStatus, enrollPrivatePasskey, replacePrivateRecoveryCredentials } from '@/lib/dr-nib-private-records';
+import { privateBuildEnabled, privateRecoveryAvailability, privatePasskeyStatus, privateTenantId, unlockPrivateVault, enrollPrivatePasskey, replacePrivateRecoveryCredentials } from '@/lib/dr-nib-private-records';
 import { privatePasskeySupported } from '@/lib/dr-nib-private-passkey';
 
 type Readiness = 'checking' | 'available' | 'available-legacy' | 'needs-code' | 'no-vault' | 'unavailable';
@@ -20,13 +20,14 @@ export default function PrivateRecoverySettings() {
     const [passkeyPassword, setPasskeyPassword] = useState('');
     const [passkeyAvailable, setPasskeyAvailable] = useState(false);
 
-    async function checkBrowser() {
+    async function checkBrowser(): Promise<boolean> {
         setReadiness('checking');
         try {
             const [value, enrolled] = await Promise.all([privateRecoveryAvailability(), privatePasskeyStatus()]);
             setReadiness(value); setPasskeyEnrolled(enrolled);
+            return true;
         }
-        catch { setReadiness('unavailable'); }
+        catch { setReadiness('unavailable'); return false; }
     }
 
     useEffect(() => {
@@ -66,6 +67,18 @@ export default function PrivateRecoverySettings() {
         } finally { setPasskeyPassword(''); setBusy(false); }
     }
 
+    async function unlockHere() {
+        if (busy || readiness !== 'needs-code') return;
+        setBusy(true); setMessage('Choose a saved unlock method to open this vault…');
+        try {
+            await unlockPrivateVault(await privateTenantId());
+            setMessage(await checkBrowser() ? 'This browser can now open your private projects. You can add a recovery passkey below.' :
+                'The vault opened, but its latest recovery status could not be checked. Refresh before making changes.');
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'The vault remains locked.');
+        } finally { setBusy(false); }
+    }
+
     if (!privateBuildEnabled()) return null;
     return <section id="private-recovery" className="mt-4 scroll-mt-24 rounded-2xl border-2 border-dark-gray bg-white p-5 md:p-7" aria-labelledby="private-recovery-heading">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-60">Start here if you cannot unlock</p>
@@ -90,6 +103,7 @@ export default function PrivateRecoverySettings() {
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                     <button type="button" onClick={replace} disabled={busy || !['available', 'available-legacy'].includes(readiness)} className="rounded-full border border-current px-5 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Preparing…' : readiness === 'available-legacy' ? 'Set password and new backup code' : 'Replace password and backup code'}</button>
+                    {readiness === 'needs-code' ? <button type="button" onClick={() => void unlockHere()} disabled={busy} className="rounded-full border border-current px-5 py-2 text-sm font-medium disabled:opacity-60">Unlock this vault</button> : null}
                     <button type="button" onClick={() => void checkBrowser()} disabled={busy || readiness === 'checking'} className="text-sm underline disabled:opacity-40">Check this browser again</button>
                 </div>
                 <p role="status" aria-live="polite" className="mt-3 text-sm">{message}</p>

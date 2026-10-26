@@ -56,6 +56,11 @@ export const LEADERBOARD_CONTENT_INCLUDE = {
   _count: { select: { metrics: true, unlockReceipts: true, ratings: true } },
 };
 
+// Explore serializes the same public counters as leaderboards, but does not
+// need a publisher relation. Loading full child rows here pulls payment and
+// tracking metadata into memory for every matching item before pagination.
+const { publisher: _leaderboardPublisher, ...EXPLORE_CONTENT_INCLUDE } = LEADERBOARD_CONTENT_INCLUDE;
+
 export function tipMatchesCanonicalDomain(tip, canonicalDomain) {
   const expected = cleanDomain(canonicalDomain);
   if (!expected) return false;
@@ -2689,7 +2694,7 @@ export function registerHubRoutes(app) {
       const [allContent, total] = await Promise.all([
         db.content.findMany({
           where,
-          include: { website: true, metrics: true, ratings: true, unlockReceipts: true, _count: { select: { metrics: true, unlockReceipts: true, ratings: true } } },
+          include: EXPLORE_CONTENT_INCLUDE,
           orderBy: { createdAt: 'desc' },
         }),
         db.content.count({ where })

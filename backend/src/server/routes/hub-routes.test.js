@@ -8,7 +8,7 @@ const dbMock = vi.hoisted(() => ({
   unlockReceipt: { count: vi.fn(), findMany: vi.fn() },
   contentRating: { count: vi.fn(), findMany: vi.fn() },
   tip: { count: vi.fn(), findMany: vi.fn() },
-  content: { findMany: vi.fn() },
+  content: { findMany: vi.fn(), count: vi.fn() },
   publisherIdentity: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
   blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
 }));
@@ -433,5 +433,29 @@ describe('hub routes: JEV decisions', () => {
       await handlers['POST /api/hub/jev/batch']({ headers: {}, body: b, query: {} }, res);
       expect(res.statusCode).toBe(400);
     }
+  });
+
+  it('explore reads only public summary fields while preserving payment and reputation counts', async () => {
+    dbMock.content.findMany.mockResolvedValue([{
+      id: 'content-1', websiteId: 'site-1', title: 'A post', description: 'Summary',
+      imageUrl: null, contentType: 'article', tags: 'research', url: 'https://creator.example/post',
+      currency: 'USDC', price: 2, createdAt: new Date('2026-10-01T00:00:00Z'),
+      website: { name: 'Creator', domain: 'creator.example', isVerified: true, verificationStatus: 'verified' },
+      metrics: [{ type: 'view', durationMs: null }, { type: 'read', durationMs: 1000 }],
+      ratings: [{ status: 'accepted', proof: 'onchain:proof', ratingValue: 45 }],
+      unlockReceipts: [{ status: 'verified', paymentProvider: 'direct-transfer', paymentId: 'paid', txHash: '0x123456789abcdef', amount: 2 }],
+      _count: { metrics: 3, ratings: 2, unlockReceipts: 2 },
+    }]);
+    dbMock.content.count.mockResolvedValue(1);
+    const res = mockRes();
+    await handlers['GET /api/hub/explore/content']({ query: { limit: '1' } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ total: 1, limit: 1, content: [{ views: 1, unlocks: 1, revenue: 2, metrics: 3, receipts: 2, ratings: 1, reputationStars: 4.5 }] });
+    const include = dbMock.content.findMany.mock.calls[0][0].include;
+    expect(include.website.select).toMatchObject({ name: true, domain: true, isVerified: true });
+    expect(include.metrics.select).toEqual({ type: true, durationMs: true });
+    expect(include.ratings.select).toEqual({ status: true, proof: true, ratingValue: true });
+    expect(include.unlockReceipts.select).toEqual({ status: true, paymentProvider: true, paymentId: true, txHash: true, amount: true });
+    expect(include).not.toHaveProperty('publisher');
   });
 });

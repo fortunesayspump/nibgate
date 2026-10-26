@@ -5,7 +5,8 @@ import {requirePrivateResearchInputs} from './dr-nib-private-funding';
 import {mergePrivateProgressRows} from './dr-nib-private-progress';
 import {privateJournalQuestions,mergePrivateQuestionHistory} from './dr-nib-question-history';
 import {samePrivateVaultEnvelope, rewrapPrivateProjectKeys, privateVaultEnrollmentAction} from './dr-nib-private-vault';
-import { createPrivateVault, recoverPrivateVault, recoverPrivateVaultWithPassword, createPrivateProjectKeys, openPrivateProjectKeys, type PrivateVault, type PrivateProjectSecrets } from './dr-nib-private-vault';
+import { createPrivateVault, recoverPrivateVault, recoverPrivateVaultWithPassword, recoverPrivateVaultWithPasskey, createPrivatePasskeyRecord, createPrivateProjectKeys, openPrivateProjectKeys, type PrivateVault, type PrivateProjectSecrets } from './dr-nib-private-vault';
+import { createPrivatePasskey, readPrivatePasskey } from './dr-nib-private-passkey';
 import { getEnrolledVault, addEnrolledVault, updateEnrolledVault, promoteEnrolledVault, getEnrolledProject, addEnrolledProject } from './dr-nib-private-vault-store';
 import { sealPrivateObject, openPrivateObject, objectBytesToBase64, objectBase64ToBytes, type PrivateObjectEnvelope, type PrivateObjectPurpose } from './dr-nib-private-objects';
 const BASE = '/drnib-private-api/v1/private';
@@ -69,6 +70,52 @@ export async function privateRecoveryAvailability(): Promise<'available' | 'avai
     if (privateVaultEnrollmentAction(local, remote) === 'recover') return 'needs-code';
     return remote.recoveryEnvelope.version === 2 ? 'available' : 'available-legacy';
 }
+export async function privatePasskeyStatus(): Promise<boolean> {
+    const remote = await privateRecordRequest('/vault', {}, true);
+    return !!remote?.passkey;
+}
+/** Explicit owner action. A passkey only becomes a recovery method after its
+ * PRF unwrap is tested and its ciphertext wrapper is committed. */
+export async function enrollPrivatePasskey(password: string): Promise<void> {
+    if (!privateBuildEnabled()) throw Error('Private recovery is unavailable.');
+    const tenantId = await privateTenantId();
+    if (!navigator.locks) throw Error('This browser cannot safely enroll a recovery passkey. Use a current browser.');
+    await navigator.locks.request(`drnib-vault-replacement:${tenantId}`, async () => {
+        const vault = await unlockPrivateVault(tenantId);
+        const local = await getEnrolledVault(tenantId);
+        const remote = await privateRecordRequest('/vault');
+        if (!local || local.vaultId !== vault.vaultId || local.pendingReplacement ||
+            remote.revision !== local.revision || !samePrivateVaultEnvelope(remote.recoveryEnvelope, local.recoveryEnvelope))
+            throw Error('Private projects changed. Refresh before adding a passkey.');
+        if (remote.recoveryEnvelope.version !== 2) throw Error('Set a private-project password before adding a passkey.');
+        // Fail a wrong password before creating an orphaned authenticator credential.
+        await recoverPrivateVaultWithPassword(password, remote.recoveryEnvelope, { tenantId, vaultId: vault.vaultId });
+        const created = await createPrivatePasskey(tenantId, vault.vaultId);
+        let record;
+        try { record = await createPrivatePasskeyRecord(password, remote.recoveryEnvelope,
+            { tenantId, vaultId: vault.vaultId }, created.credentialId, created.salt, created.output); }
+        finally { created.output.fill(0); }
+        let saved;
+        try {
+            saved = await privateRecordRequest('/vault', { method: 'PUT', body: JSON.stringify({
+                vaultId: vault.vaultId, expectedRevision: remote.revision,
+                recoveryEnvelope: remote.recoveryEnvelope, passkey: record,
+            }) });
+        } catch (error) {
+            // A lost response must not prompt another passkey creation if the
+            // exact wrapper committed. Reconcile without ever reading a secret.
+            const current = await privateRecordRequest('/vault');
+            if (current.revision !== remote.revision + 1 ||
+                !samePrivateVaultEnvelope(current.recoveryEnvelope, remote.recoveryEnvelope) ||
+                current.passkey?.credentialId !== record.credentialId ||
+                current.passkey?.salt !== record.salt ||
+                current.passkey?.envelope?.iv !== record.envelope.iv ||
+                current.passkey?.envelope?.ciphertext !== record.envelope.ciphertext) throw error;
+            saved = current;
+        }
+        await updateEnrolledVault({ ...local, revision: saved.revision });
+    });
+}
 export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
     const prior = vaultFlights.get(tenantId);
     if (prior)
@@ -92,10 +139,16 @@ export function unlockPrivateVault(tenantId: string): Promise<PrivateVault> {
             // replayed into the new generation; import with the new saved code.
         }
         if (remote) {
-            const credential = await ask({ mode: 'recover', tenantId, hasPassword: remote.recoveryEnvelope?.version === 2 });
+            const credential = await ask({ mode: 'recover', tenantId, hasPassword: remote.recoveryEnvelope?.version === 2,
+                hasPasskey: !!remote.passkey });
             let vault: PrivateVault;
             if (credential.method === 'password') {
                 vault = await recoverPrivateVaultWithPassword(credential.secret, remote.recoveryEnvelope, { tenantId, vaultId: remote.vaultId });
+            } else if (credential.method === 'passkey') {
+                if (!remote.passkey) throw Error('No recovery passkey is enrolled for this vault.');
+                const output = await readPrivatePasskey(remote.passkey, tenantId, remote.vaultId);
+                try { vault = await recoverPrivateVaultWithPasskey(output, remote.passkey, { tenantId, vaultId: remote.vaultId }); }
+                finally { output.fill(0); }
             } else {
                 const secret = secretFor(credential.secret);
                 try { vault = await recoverPrivateVault(secret, remote.recoveryEnvelope, { tenantId, vaultId: remote.vaultId }); }

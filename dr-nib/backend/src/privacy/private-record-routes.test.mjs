@@ -83,6 +83,21 @@ test('password and independent code wrappers enroll together without exposing pl
  assert.equal(writes.length,1);
 });
 
+test('passkey recovery wrapper updates only with the current vault generation and unchanged recovery envelope',async()=>{
+ const vaultId='11111111-1111-4111-8111-111111111111';
+ const sealed=purpose=>({version:1,algorithm:'AES-256-GCM',iv:Buffer.alloc(12).toString('base64'),ciphertext:Buffer.alloc(48).toString('base64'),context:{tenantId:'owner',vaultId,runId:null,revision:1,purpose}});
+ const recoveryEnvelope={version:2,code:sealed('vault-recovery'),password:{...sealed('vault-password'),kdf:{name:'PBKDF2-HMAC-SHA-256',iterations:600000,salt:Buffer.alloc(16).toString('base64')}}};
+ const passkey={credentialId:Buffer.alloc(32,1).toString('base64'),salt:Buffer.alloc(32,2).toString('base64'),envelope:{iv:Buffer.alloc(12,3).toString('base64'),ciphertext:Buffer.alloc(48,4).toString('base64')}};
+ const writes=[],store={privateVaultRecord:{findUnique:async()=>({recoveryEnvelope}),updateMany:async({where,data})=>{writes.push({where,data});return {count:1}}}};
+ const app=express();app.use(express.json());app.use(createPrivateRecordsRouter({enabled:()=>true,allowedTenantId:'owner',authenticate:(req,_res,next)=>{req.user={id:'owner'};next()},store}));
+ const api=request(app),body={vaultId,expectedRevision:1,recoveryEnvelope,passkey};
+ assert.equal((await api.put('/vault').send(body)).status,200);
+ assert.equal(writes.length,1);assert.deepEqual(writes[0].data.recoveryEnvelope,recoveryEnvelope);
+ assert.equal((await api.put('/vault').send({...body,passkey:{...passkey,envelope:{...passkey.envelope,plaintext:'bad'}}})).status,400);
+ assert.equal((await api.put('/vault').send({...body,recoveryEnvelope:{...recoveryEnvelope,password:{...recoveryEnvelope.password,iv:Buffer.alloc(12,9).toString('base64')}}})).status,409);
+ assert.equal(writes.length,1);
+});
+
 test('encrypted project creation has time for its atomic writes and retains generation fencing',async()=>{
  const id='11111111-1111-4111-8111-111111111111',manifestId='22222222-2222-4222-8222-222222222222',vaultId='33333333-3333-4333-8333-333333333333';
  const envelope=(purpose,bytes,objectId)=>({version:1,algorithm:'AES-256-GCM',iv:Buffer.alloc(12).toString('base64'),ciphertext:Buffer.alloc(bytes).toString('base64'),context:{tenantId:'owner',vaultId,runId:id,revision:1,purpose,...(objectId?{objectId}:{})}});

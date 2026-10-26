@@ -9,7 +9,7 @@ const require=createRequire(new URL('../frontend/package.json',import.meta.url))
 const ts=require('typescript');
 const source=readFileSync(new URL('../frontend/src/lib/dr-nib-private-vault.ts',import.meta.url),'utf8');
 const {outputText}=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}});
-const {createPrivateVault,recoverPrivateVault,recoverPrivateVaultWithPassword,createPrivateProjectKeys,openPrivateProjectKeys,samePrivateVaultEnvelope,rewrapPrivateProjectKeys,privateVaultEnrollmentAction}=
+const {createPrivateVault,recoverPrivateVault,recoverPrivateVaultWithPassword,createPrivatePasskeyRecord,recoverPrivateVaultWithPasskey,createPrivateProjectKeys,openPrivateProjectKeys,samePrivateVaultEnvelope,rewrapPrivateProjectKeys,privateVaultEnrollmentAction}=
   await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 const tenantId='vault-local-fixture';
@@ -36,6 +36,24 @@ test('strong user password and independent backup code open the same private pro
  reordered.password.context=Object.fromEntries(Object.entries(remote.password.context).reverse());
  assert.equal(samePrivateVaultEnvelope(remote,reordered),true);
  assert.equal(samePrivateVaultEnvelope(remote,tampered),false);
+});
+
+test('passkey PRF wraps an existing vault without exposing keys or changing project ciphertext',async()=>{
+ const password='Practical meadow sunrise notebook river';
+ const created=await createPrivateVault(tenantId,undefined,password);
+ const runId=randomUUID(),project=await createPrivateProjectKeys(created.vault,runId);
+ const output=crypto.getRandomValues(new Uint8Array(32)),salt=crypto.getRandomValues(new Uint8Array(32));
+ const credentialId=crypto.getRandomValues(new Uint8Array(32));
+ const record=await createPrivatePasskeyRecord(password,created.recoveryEnvelope,expected(created.vault),credentialId,salt,output);
+ assert.equal(record.credentialId,Buffer.from(credentialId).toString('base64'));
+ assert.equal(JSON.stringify(record).includes(password),false);
+ const restored=await recoverPrivateVaultWithPasskey(output,clone(record),expected(created.vault));
+ assert.deepEqual(await openPrivateProjectKeys(restored,runId,project.envelope),project.secrets);
+ await assert.rejects(recoverPrivateVaultWithPasskey(new Uint8Array(32),record,expected(created.vault)),denied);
+ await assert.rejects(recoverPrivateVaultWithPasskey(output,record,{...expected(created.vault),tenantId:'other'}),denied);
+ await assert.rejects(createPrivatePasskeyRecord('wrong password with many characters',created.recoveryEnvelope,expected(created.vault),credentialId,salt,output),denied);
+ const damaged=clone(record);damaged.envelope.ciphertext=Buffer.alloc(48).toString('base64');
+ await assert.rejects(recoverPrivateVaultWithPasskey(output,damaged,expected(created.vault)),denied);
 });
 
 test('upgrading a code-only vault invalidates its old code while preserving project content',async()=>{

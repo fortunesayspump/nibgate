@@ -20,7 +20,7 @@ const normalizedCode = (value: string) => value.replace(/[\s-]/g, '').toLowerCas
 export default function PrivateVaultGate() {
     const dialog = useRef<HTMLDialogElement>(null);
     const [request, setRequest] = useState<VaultPrompt | null>(null);
-    const [method, setMethod] = useState<'password' | 'code'>('password');
+    const [method, setMethod] = useState<'password' | 'code' | 'passkey'>('password');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [code, setCode] = useState('');
@@ -48,10 +48,10 @@ export default function PrivateVaultGate() {
         password.normalize('NFC').toLowerCase() !== 'correct horse battery staple';
     const valid = creating ? strong && password.normalize('NFC') === confirmPassword.normalize('NFC') : showingBackup ?
         saved && normalizedCode(code) === request.recoveryCode?.toLowerCase() :
-        method === 'code' ? /^[0-9a-f]{64}$/i.test(normalizedCode(code)) : password.length > 0;
+        method === 'code' ? /^[0-9a-f]{64}$/i.test(normalizedCode(code)) : method === 'passkey' ? true : password.length > 0;
     function continueFlow() {
         if (!request || !valid) return;
-        request.resolve({ method: creating || (recovering && method === 'password') ? 'password' : 'code',
+        request.resolve({ method: creating || (recovering && method === 'password') ? 'password' : recovering ? method : 'code',
             secret: creating || (recovering && method === 'password') ? password : recovering ? code : request.recoveryCode! });
         setPassword(''); setConfirmPassword(''); setCode(''); setRequest(null);
     }
@@ -62,7 +62,7 @@ export default function PrivateVaultGate() {
             <p className="mt-3 text-sm leading-6">{creating ?
                 'Choose a long, unique password for your encrypted private projects. This is separate from wallet sign-in. Save it in your password manager.' :
                 showingBackup ? 'Save this random backup code separately from your password. It unlocks the same projects if you forget your password.' :
-                request.hasPassword ? 'Wallet sign-in proves which projects are yours. Enter the separate private-project password or backup code to decrypt them here.' :
+                request.hasPassword ? 'Wallet sign-in proves which projects are yours. Use your private-project password, backup code, or an enrolled recovery passkey to decrypt them here.' :
                 'Wallet sign-in proves which projects are yours. This older vault uses the private-project recovery code saved at setup.'}</p>
             {creating ? <>
                 <label className="mt-4 block text-sm">Private-project password
@@ -78,25 +78,29 @@ export default function PrivateVaultGate() {
             </> : null}
             {showingBackup ? <>
                 <pre className="mt-4 select-all whitespace-pre-wrap break-all rounded-lg bg-gray p-3 text-xs">{request.recoveryCode?.match(/.{1,8}/g)?.join(' ')}</pre>
-                <p className="mt-2 text-xs">Keep this code private. Nibgate cannot decrypt your projects if both unlock methods and all enrolled browsers are lost.</p>
+                <p className="mt-2 text-xs">Keep this code private. Nibgate cannot decrypt your projects if your password, backup code, any enrolled passkey, and all enrolled browsers are lost.</p>
+                <p className="mt-2 text-xs">After finishing setup, you can add an optional recovery passkey from Help for another way to unlock.</p>
                 <label className="mt-4 block text-sm">Confirm your saved backup code
                     <input autoComplete="off" type="text" value={code} onChange={event => setCode(event.target.value)} className="mt-2 w-full rounded-lg border border-dark-gray/40 p-3" />
                 </label>
                 <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" checked={saved} onChange={event => setSaved(event.target.checked)} />I saved my backup code securely.</label>
             </> : null}
             {recovering ? <>
-                {request.hasPassword ? <div className="mt-4 flex gap-2" role="group" aria-label="Unlock method">
+                {request.hasPassword || request.hasPasskey ? <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Unlock method">
+                    {request.hasPassword ? <>
                     <button type="button" aria-pressed={method === 'password'} onClick={() => setMethod('password')} className="rounded-full border px-4 py-2 text-sm aria-pressed:bg-black aria-pressed:text-white">Password</button>
                     <button type="button" aria-pressed={method === 'code'} onClick={() => setMethod('code')} className="rounded-full border px-4 py-2 text-sm aria-pressed:bg-black aria-pressed:text-white">Backup code</button>
+                    </> : null}
+                    {request.hasPasskey ? <button type="button" aria-pressed={method === 'passkey'} onClick={() => setMethod('passkey')} className="rounded-full border px-4 py-2 text-sm aria-pressed:bg-black aria-pressed:text-white">Passkey</button> : null}
                 </div> : null}
-                <label className="mt-4 block text-sm">{method === 'password' ? 'Private-project password' : 'Backup recovery code'}
+                {method === 'passkey' ? <p className="mt-4 text-sm leading-6">Continue to unlock with your enrolled passkey. Your browser will ask you to verify it.</p> : <label className="mt-4 block text-sm">{method === 'password' ? 'Private-project password' : 'Backup recovery code'}
                     <input autoFocus autoComplete={method === 'password' ? 'current-password' : 'off'} type="password"
                         value={method === 'password' ? password : code}
                         onChange={event => method === 'password' ? setPassword(event.target.value) : setCode(event.target.value)}
                         className="mt-2 w-full rounded-lg border border-dark-gray/40 p-3" />
-                </label>
+                </label>}
                 <div className="mt-4 rounded-xl border border-dark-gray/30 bg-gray p-4 text-sm leading-6">
-                    <strong>Lost both?</strong> An enrolled browser that still opens these projects can replace them. Never enter a wallet recovery phrase here.
+                    <strong>Lost your unlock methods?</strong> An enrolled browser that still opens these projects can replace them. Never enter a wallet recovery phrase here.
                     <Link href="/dr-nib/settings#private-recovery" onClick={cancel} className="mt-2 block font-medium underline">See recovery options in Help</Link>
                 </div>
             </> : null}

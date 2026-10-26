@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { privateBuildEnabled, privateRecoveryAvailability, replacePrivateRecoveryCredentials } from '@/lib/dr-nib-private-records';
+import { privateBuildEnabled, privateRecoveryAvailability, privatePasskeyStatus, enrollPrivatePasskey, replacePrivateRecoveryCredentials } from '@/lib/dr-nib-private-records';
+import { privatePasskeySupported } from '@/lib/dr-nib-private-passkey';
 
 type Readiness = 'checking' | 'available' | 'available-legacy' | 'needs-code' | 'no-vault' | 'unavailable';
 
 const steps = [
     { number: '01', title: 'Sign in', detail: 'Your wallet or account proves which projects are yours.' },
-    { number: '02', title: 'Unlock the vault', detail: 'Use an enrolled browser, your private-project password, or your backup code.' },
+    { number: '02', title: 'Unlock the vault', detail: 'Use an enrolled browser, password, backup code, or a recovery passkey you added earlier.' },
     { number: '03', title: 'Read your projects', detail: 'Only your browser decrypts the saved private content.' },
 ];
 
@@ -15,17 +16,26 @@ export default function PrivateRecoverySettings() {
     const [readiness, setReadiness] = useState<Readiness>('checking');
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
+    const [passkeyEnrolled, setPasskeyEnrolled] = useState(false);
+    const [passkeyPassword, setPasskeyPassword] = useState('');
+    const [passkeyAvailable, setPasskeyAvailable] = useState(false);
 
     async function checkBrowser() {
         setReadiness('checking');
-        try { setReadiness(await privateRecoveryAvailability()); }
+        try {
+            const [value, enrolled] = await Promise.all([privateRecoveryAvailability(), privatePasskeyStatus()]);
+            setReadiness(value); setPasskeyEnrolled(enrolled);
+        }
         catch { setReadiness('unavailable'); }
     }
 
     useEffect(() => {
         if (!privateBuildEnabled()) return;
         let active = true;
-        void privateRecoveryAvailability().then(value => { if (active) setReadiness(value); })
+        void Promise.resolve().then(() => { if (active) setPasskeyAvailable(privatePasskeySupported()); });
+        void Promise.all([privateRecoveryAvailability(), privatePasskeyStatus()]).then(([value, enrolled]) => {
+            if (active) { setReadiness(value); setPasskeyEnrolled(enrolled); }
+        })
             .catch(() => { if (active) setReadiness('unavailable'); });
         return () => { active = false; };
     }, []);
@@ -36,19 +46,31 @@ export default function PrivateRecoverySettings() {
         setMessage('Preparing a replacement on this enrolled browser…');
         try {
             const passwordReady = await replacePrivateRecoveryCredentials();
-            if (passwordReady) setReadiness('available');
-            setMessage(passwordReady ? 'Replacement confirmed. Save the new password and backup code securely; other devices now need one of them to unlock your projects.' :
+            if (passwordReady) { setReadiness('available'); setPasskeyEnrolled(false); setPasskeyPassword(''); }
+            setMessage(passwordReady ? 'Replacement confirmed. Save the new password and backup code securely; other devices now need one of them to unlock your projects. Add a new recovery passkey below if you want one.' :
                 'An earlier code-only replacement was confirmed. Run this action once more to set a private-project password.');
         } catch (error) {
             setMessage(error instanceof Error ? error.message : 'Replacement did not finish. Keep this browser’s stored data and retry.');
         } finally { setBusy(false); }
     }
 
+    async function addPasskey() {
+        if (busy || !passkeyPassword || readiness !== 'available' || !passkeyAvailable) return;
+        setBusy(true); setMessage('Creating and checking your recovery passkey…');
+        try {
+            await enrollPrivatePasskey(passkeyPassword);
+            setPasskeyEnrolled(true);
+            setMessage('Recovery passkey saved and tested. Keep your password and backup code as independent ways to unlock.');
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : 'Passkey setup did not finish. Your other unlock methods still work.');
+        } finally { setPasskeyPassword(''); setBusy(false); }
+    }
+
     if (!privateBuildEnabled()) return null;
     return <section id="private-recovery" className="mt-4 scroll-mt-24 rounded-2xl border-2 border-dark-gray bg-white p-5 md:p-7" aria-labelledby="private-recovery-heading">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-60">Start here if you cannot unlock</p>
         <h2 id="private-recovery-heading" className="mt-2 text-2xl font-medium">Need to unlock or recover private projects?</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-7">Your sign-in proves ownership. Your separate private-project password, backup code, or an already enrolled browser unlocks the encryption key. A wallet recovery phrase is different. Never enter a wallet phrase here or send any recovery secret to support or chat.</p>
+        <p className="mt-3 max-w-3xl text-sm leading-7">Your sign-in proves ownership. Your separate private-project password, backup code, enrolled browser, or a recovery passkey added while you could still unlock the vault opens the encryption key. A wallet recovery phrase is different. Never enter a wallet phrase here or send any recovery secret to support or chat.</p>
 
         <ol className="mt-6 grid gap-3 md:grid-cols-3" aria-label="How private-project access works">
             {steps.map((step, index) => <li key={step.number} className="relative rounded-xl border border-dark-gray/30 bg-gray p-4">
@@ -74,9 +96,20 @@ export default function PrivateRecoverySettings() {
             </div>
             <div className="rounded-xl border border-dark-gray/30 p-4">
                 <h3 className="font-medium">If this is a new browser or device</h3>
-                <p className="mt-2 text-sm leading-6">Sign in to the same account, then enter your private-project password or saved backup code. Older projects set up before passwords were added use their recovery code. If you lost both, return to a browser that still opens those projects and replace them there.</p>
+                <p className="mt-2 text-sm leading-6">Sign in to the same account, then use your private-project password, saved backup code, or previously enrolled recovery passkey. Older projects set up before passwords were added use their recovery code. If those methods are lost, return to a browser that still opens the projects and replace them there.</p>
                 <p className="mt-3 text-sm leading-6"><strong>If no unlock method remains:</strong> Nibgate cannot decrypt the old private projects or reset their key from wallet sign-in. Do not clear any old browser’s site data while searching for an enrolled one.</p>
             </div>
+        </div>
+        <div className="mt-5 rounded-xl border border-dark-gray/30 p-4">
+            <h3 className="font-medium">Add a recovery passkey</h3>
+            <p className="mt-2 text-sm leading-6">{passkeyEnrolled ? 'A passkey is enrolled for this vault. You can replace it here.' : 'Add a passkey now so a supported browser or synced device can unlock your private projects later.'} This requires a passkey that supports private key derivation. Creating a passkey does not restore an older vault that is already locked everywhere.</p>
+            <p className="mt-2 text-sm leading-6">{!passkeyAvailable ? 'This browser does not offer passkey recovery here. Your password and backup code still work.' : readiness === 'available-legacy' ? 'First set a private-project password above, then add a passkey.' : readiness === 'needs-code' ? 'First unlock this vault with your saved password or backup code.' : ''}</p>
+            {passkeyAvailable && readiness === 'available' ? <div className="mt-3 flex flex-wrap items-end gap-3">
+                <label className="text-sm">Current private-project password
+                    <input type="password" autoComplete="current-password" value={passkeyPassword} onChange={event => setPasskeyPassword(event.target.value)} className="mt-2 block w-full rounded-lg border border-dark-gray/40 p-3" />
+                </label>
+                <button type="button" onClick={() => void addPasskey()} disabled={busy || !passkeyPassword} className="rounded-full border border-current px-5 py-3 text-sm font-medium disabled:opacity-40">{busy ? 'Working…' : passkeyEnrolled ? 'Replace recovery passkey' : 'Add recovery passkey'}</button>
+            </div> : null}
         </div>
         <p className="mt-5 text-sm leading-6">Older <a href="https://testnet.nibgate.xyz/dr-nib/legacy" className="underline">testnet Legacy history</a> is separate plaintext history and does not need a private-vault password or code. <a href="https://docs.nibgate.xyz/dr-nib/confidential/recovery" className="underline">Read the full encryption and recovery guide</a>.</p>
     </section>;

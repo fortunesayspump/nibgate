@@ -23,6 +23,11 @@ export type PrivateRecoveryEnvelope = PrivateVaultEnvelope | {
   code: PrivateVaultEnvelope;
   password: PrivatePasswordEnvelope;
 };
+export type PrivatePasskeyRecord = {
+  credentialId: string;
+  salt: string;
+  envelope: { iv: string; ciphertext: string };
+};
 export type PrivateVault = { tenantId: string; vaultId: string; key: CryptoKey };
 export type PrivateProjectSecrets = { reportKeySeed: Uint8Array; workerStateKey: Uint8Array };
 
@@ -55,6 +60,13 @@ function decode(value: unknown, length: number): Uint8Array {
   if (bytes.length !== length || base64(bytes) !== value) throw unavailable();
   return bytes;
 }
+function decodeRange(value: unknown, min: number, max: number): Uint8Array {
+  if (typeof value !== "string" || value.length > Math.ceil(max / 3) * 4 ||
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) throw unavailable();
+  const bytes = Uint8Array.from(atob(value), c => c.charCodeAt(0));
+  if (bytes.length < min || bytes.length > max || base64(bytes) !== value) throw unavailable();
+  return bytes;
+}
 async function importKey(bytes: Uint8Array): Promise<CryptoKey> {
   if (!(bytes instanceof Uint8Array) || bytes.length !== 32) throw unavailable();
   return crypto.subtle.importKey("raw", bytes as BufferSource, "AES-GCM", false, ["encrypt", "decrypt"]);
@@ -67,6 +79,17 @@ async function passwordKey(password: string, salt: Uint8Array): Promise<CryptoKe
   return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256",
     salt: salt as BufferSource, iterations: 600000 }, material,
     { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function passkeyKey(output: Uint8Array, salt: Uint8Array): Promise<CryptoKey> {
+  if (!(output instanceof Uint8Array) || output.length !== 32 || salt.length !== 32) throw unavailable();
+  const material = await crypto.subtle.importKey("raw", output as BufferSource, "HKDF", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt: salt as BufferSource,
+    info: enc.encode("drnib-private-passkey-v1") }, material,
+    { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+function passkeyContext(tenantId: string, vaultId: string): Uint8Array {
+  owner(tenantId, vaultId);
+  return enc.encode(`drnib-private-passkey-v1\0${tenantId}\0${vaultId}`);
 }
 function vaultContext(vault: PrivateVault, runId: string): Context {
   if (!vault || vault.key?.algorithm?.name !== "AES-GCM" || vault.key.extractable !== false ||
@@ -148,6 +171,52 @@ export async function recoverPrivateVaultWithPassword(password: string, envelope
       iv: envelope.password.iv, ciphertext: envelope.password.ciphertext };
     raw = await open(await passwordKey(password, salt),
       context(expected.tenantId, expected.vaultId, null, "vault-password"), sealed, 32);
+    return { ...expected, key: await importKey(raw) };
+  } catch { throw unavailable(); }
+  finally { raw?.fill(0); }
+}
+
+/** A passkey PRF output wraps the existing random vault key. The authenticator
+ * and browser provide the PRF; only ciphertext and the credential ID are saved. */
+export async function createPrivatePasskeyRecord(password: string, envelope: PrivateRecoveryEnvelope,
+  expected: { tenantId: string; vaultId: string }, credentialId: Uint8Array, salt: Uint8Array,
+  output: Uint8Array): Promise<PrivatePasskeyRecord> {
+  let raw: Uint8Array | undefined;
+  try {
+    if (envelope.version !== 2 || !(credentialId instanceof Uint8Array) ||
+        credentialId.length < 16 || credentialId.length > 2048 || salt.length !== 32) throw unavailable();
+    // Reuse the authenticated password wrapper; a local CryptoKey cannot be exported.
+    const record = envelope.password;
+    if (!exact(record, "algorithm,ciphertext,context,iv,kdf,version") ||
+        !exact(record.kdf, "iterations,name,salt") ||
+        record.kdf.name !== "PBKDF2-HMAC-SHA-256" || record.kdf.iterations !== 600000) throw unavailable();
+    const sealed: PrivateVaultEnvelope = { version: record.version, algorithm: record.algorithm,
+      context: record.context, iv: record.iv, ciphertext: record.ciphertext };
+    raw = await open(await passwordKey(password, decode(record.kdf.salt, 16)),
+      context(expected.tenantId, expected.vaultId, null, "vault-password"), sealed, 32);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource,
+      additionalData: passkeyContext(expected.tenantId, expected.vaultId) as BufferSource,
+      tagLength: 128 }, await passkeyKey(output, salt), raw as BufferSource);
+    return { credentialId: base64(credentialId), salt: base64(salt),
+      envelope: { iv: base64(iv), ciphertext: base64(new Uint8Array(ciphertext)) } };
+  } catch { throw unavailable(); }
+  finally { raw?.fill(0); }
+}
+
+export async function recoverPrivateVaultWithPasskey(output: Uint8Array, record: PrivatePasskeyRecord,
+  expected: { tenantId: string; vaultId: string }): Promise<PrivateVault> {
+  let raw: Uint8Array | undefined;
+  try {
+    if (!exact(record, "credentialId,envelope,salt") ||
+        !exact(record.envelope, "ciphertext,iv")) throw unavailable();
+    const salt = decode(record.salt, 32);
+    decodeRange(record.credentialId, 16, 2048);
+    raw = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM",
+      iv: decode(record.envelope.iv, 12) as BufferSource,
+      additionalData: passkeyContext(expected.tenantId, expected.vaultId) as BufferSource,
+      tagLength: 128 }, await passkeyKey(output, salt),
+      decode(record.envelope.ciphertext, 48) as BufferSource));
     return { ...expected, key: await importKey(raw) };
   } catch { throw unavailable(); }
   finally { raw?.fill(0); }

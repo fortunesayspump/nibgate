@@ -163,8 +163,11 @@ export function createPrivateBrokerRouter({store=db,guestBaseURL,signCapability,
     try{
       const user=req.user;
       if(!privateTenantAllowed(user?.id,{allowedTenantId,accessMode}))return fail(res,404);
+      const vault=await store.privateVaultRecord.findUnique({where:{userId:user.id},select:{vaultId:true}});
+      if(!vault)return res.json({runs:[]});
       const runs=await store.researchRun.findMany({
-        where:{userId:user.id,deletedAt:null,metadata:{path:['privacyMode'],equals:'confidential'}},
+        where:{userId:user.id,deletedAt:null,metadata:{path:['privacyMode'],equals:'confidential'},
+          privateClientObjects:{some:{vaultId:vault.vaultId,kind:'project-keys',removed:false}}},
         select:{id:true,createdAt:true,status:true,userId:true},orderBy:{createdAt:'desc'},take:50});
       if(!Array.isArray(runs))return fail(res);
       const listed=runs.filter(run=>run&&UUID.test(run.id||"")&&run.createdAt!=null&&typeof run.status==='string'&&run.userId===user.id)

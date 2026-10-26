@@ -304,6 +304,21 @@ model PrivateVaultRecord {
   updatedAt DateTime @updatedAt
 }
 
+/// Inactive vaults remain encrypted and belong to the same signed-in account.
+/// Switching vaults swaps one of these records with PrivateVaultRecord inside
+/// an owner-locked transaction; project ciphertext is never re-keyed or erased.
+model PrivateVaultStored {
+  vaultId String @id
+  userId String
+  revision Int
+  recoveryEnvelope Json
+  passkey Json?
+  createdAt DateTime
+  updatedAt DateTime
+
+  @@index([userId, createdAt])
+}
+
 /// Ciphertext uploaded by clients. Sources may use private object storage;
 /// small manifests and wrapped project keys stay inline. Revisions are CAS.
 model PrivateClientObject {

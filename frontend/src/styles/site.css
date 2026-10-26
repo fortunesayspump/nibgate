@@ -78,6 +78,38 @@ html[data-theme="dark"] {
   --nib-shadow-2: 0 14px 34px #00000047;
   --nib-shadow-3: 0 20px 52px #0000005c;
 }
+
+/* Vault setup needs visible field and selection boundaries in both themes. */
+.private-vault-field {
+  border: 1.5px solid color-mix(in srgb, var(--nib-page-fg) 50%, transparent);
+  background: var(--nib-surface-soft);
+  color: var(--nib-page-fg);
+  outline: none;
+}
+.private-vault-field:focus-visible,
+.private-vault-folder:focus-visible {
+  border-color: var(--nib-focus);
+  outline: 2px solid var(--nib-focus);
+  outline-offset: 2px;
+}
+.private-vault-backup-code {
+  border: 1.5px solid color-mix(in srgb, var(--nib-page-fg) 50%, transparent);
+  background: var(--nib-surface-soft);
+  color: var(--nib-page-fg);
+}
+.private-vault-folder {
+  border: 1.5px solid color-mix(in srgb, var(--nib-page-fg) 45%, transparent);
+  background: var(--nib-surface-soft);
+  color: var(--nib-page-fg);
+}
+.private-vault-folder:hover:not(:disabled) {
+  border-color: var(--nib-focus);
+}
+.private-vault-folder--active {
+  border: 2px solid var(--nib-focus);
+  background: var(--nib-surface-raised);
+  box-shadow: inset 0 0 0 1px var(--nib-focus);
+}
 .bg-pink {
   background: var(--nib-olive);
 }

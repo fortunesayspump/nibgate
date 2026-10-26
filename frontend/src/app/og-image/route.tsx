@@ -1,6 +1,5 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 export const dynamic = "force-static";
 
@@ -15,26 +14,18 @@ const COLORS = {
   bandBlack: "#0b0d0a",
 };
 
-async function readAsset(file: string): Promise<string> {
-  const buf = await readFile(path.join(process.cwd(), file));
-  return `data:image/png;base64,${buf.toString("base64")}`;
-}
-
-async function loadFont(file: string): Promise<ArrayBuffer> {
-  const buf = await readFile(path.join(process.cwd(), file));
-  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-}
-
 const BAND_W = 74;
 const BAND_W2 = 84;
 const BAND_W3 = 156;
 const TOTAL_BANDS = BAND_W + BAND_W2 + BAND_W3;
 
 export async function GET() {
-  const [wordmark, favorit] = await Promise.all([
-    readAsset("public/brand/nibgate-wordmark-hi.png"),
-    loadFont("public/fonts/ABCFavorit-Regular.ttf"),
+  const [wordmarkBuffer, fontBuffer] = await Promise.all([
+    readFile(new URL("../../../public/brand/nibgate-wordmark-hi.png", import.meta.url)),
+    readFile(new URL("../../../public/fonts/ABCFavorit-Regular.ttf", import.meta.url)),
   ]);
+  const wordmark = `data:image/png;base64,${wordmarkBuffer.toString("base64")}`;
+  const favorit = fontBuffer.buffer.slice(fontBuffer.byteOffset, fontBuffer.byteOffset + fontBuffer.byteLength) as ArrayBuffer;
 
   const bands = [
     { x: 1200 - TOTAL_BANDS, width: BAND_W, color: COLORS.olive },
@@ -72,7 +63,7 @@ export async function GET() {
             maxWidth: 900,
           }}
         >
-          <img src={wordmark} width={420} height={123} style={{ display: "block" }} />
+          <img src={wordmark} alt="Nibgate" width={420} height={123} style={{ display: "block" }} />
 
           <div style={{ marginLeft: 12, display: "flex", flexDirection: "column" }}>
             <h1

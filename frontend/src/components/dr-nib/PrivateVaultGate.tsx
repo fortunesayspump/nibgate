@@ -67,21 +67,21 @@ export default function PrivateVaultGate() {
             {creating ? <>
                 <label className="mt-4 block text-sm">Private-project password
                     <input autoFocus autoComplete="new-password" type="password" value={password} maxLength={256}
-                        onChange={event => setPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-dark-gray/40 p-3" />
+                        onChange={event => setPassword(event.target.value)} className="private-vault-field mt-2 w-full rounded-lg p-3" />
                 </label>
                 <p className="mt-2 text-xs" role="status">At least 15 characters; long passphrases welcome. No symbol or capital-letter rule. Strength: {strengthError ? 'unavailable; reload and try again' : !meter ? 'checking…' : password ? ['very weak', 'weak', 'fair', 'good', 'strong'][passwordScore] : 'waiting for password'}.</p>
                 <label className="mt-4 block text-sm">Confirm private-project password
                     <input autoComplete="new-password" type="password" value={confirmPassword} maxLength={256}
-                        onChange={event => setConfirmPassword(event.target.value)} className="mt-2 w-full rounded-lg border border-dark-gray/40 p-3" />
+                        onChange={event => setConfirmPassword(event.target.value)} className="private-vault-field mt-2 w-full rounded-lg p-3" />
                 </label>
                 {password && !strong ? <p className="mt-2 text-xs">Choose a less predictable password or a longer phrase.</p> : null}
             </> : null}
             {showingBackup ? <>
-                <pre className="mt-4 select-all whitespace-pre-wrap break-all rounded-lg bg-gray p-3 text-xs">{request.recoveryCode?.match(/.{1,8}/g)?.join(' ')}</pre>
+                <pre className="private-vault-backup-code mt-4 select-all whitespace-pre-wrap break-all rounded-lg p-3 text-xs">{request.recoveryCode?.match(/.{1,8}/g)?.join(' ')}</pre>
                 <p className="mt-2 text-xs">Keep this code private. Nibgate cannot decrypt your projects if your password, backup code, any enrolled passkey, and all enrolled browsers are lost.</p>
                 <p className="mt-2 text-xs">After finishing setup, you can add an optional recovery passkey from Help for another way to unlock.</p>
                 <label className="mt-4 block text-sm">Confirm your saved backup code
-                    <input autoComplete="off" type="text" value={code} onChange={event => setCode(event.target.value)} className="mt-2 w-full rounded-lg border border-dark-gray/40 p-3" />
+                    <input autoComplete="off" type="text" value={code} onChange={event => setCode(event.target.value)} className="private-vault-field mt-2 w-full rounded-lg p-3" />
                 </label>
                 <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" checked={saved} onChange={event => setSaved(event.target.checked)} />I saved my backup code securely.</label>
             </> : null}
@@ -97,7 +97,7 @@ export default function PrivateVaultGate() {
                     <input autoFocus autoComplete={method === 'password' ? 'current-password' : 'off'} type="password"
                         value={method === 'password' ? password : code}
                         onChange={event => method === 'password' ? setPassword(event.target.value) : setCode(event.target.value)}
-                        className="mt-2 w-full rounded-lg border border-dark-gray/40 p-3" />
+                        className="private-vault-field mt-2 w-full rounded-lg p-3" />
                 </label>}
                 <div className="mt-4 rounded-xl border border-dark-gray/30 bg-gray p-4 text-sm leading-6">
                     <strong>Lost your unlock methods?</strong> An enrolled browser that still opens these projects can replace them. Never enter a wallet recovery phrase here.

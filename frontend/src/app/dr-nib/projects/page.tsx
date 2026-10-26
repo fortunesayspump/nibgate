@@ -149,7 +149,7 @@ export default function ProjectsPage() {
         <p className="mt-2 text-sm leading-6 opacity-75">Your sign-in owns these folders. Each vault has its own password, backup code and optional passkey. Projects stay in the vault where you created them. Switching folders does not move or decrypt a project. Your selection follows your account across devices; refresh other open tabs after switching.</p>
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Choose a private vault">
           {vaults.map((vault,index)=><button key={vault.vaultId} type="button" onClick={()=>void selectVault(vault.vaultId)} disabled={vaultBusy||vault.active}
-            aria-current={vault.active?'true':undefined} className={`rounded-xl border px-4 py-3 text-left text-sm disabled:opacity-60 ${vault.active?'border-black bg-black text-white':'border-dark-gray/40 hover:border-black'}`}>
+            aria-current={vault.active?'true':undefined} className={`private-vault-folder rounded-xl px-4 py-3 text-left text-sm ${vault.active?'private-vault-folder--active':''}`}>
             <span className="block font-medium">Vault {index+1}{vault.active?' · selected':''}</span>
             <span className="block text-xs opacity-70">Created {new Date(vault.createdAt).toLocaleDateString()} · {vault.vaultId.slice(0,8)}</span>
           </button>)}

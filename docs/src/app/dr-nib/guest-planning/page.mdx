@@ -1,0 +1,37 @@
+# Guest planning before sign-in
+
+When a deployment enables guest planning, you can enter a text question, answer intake questions, choose report settings and review a genuine model-generated plan before signing in. The app checks availability; disabled deployments keep the authenticated flow. Guest mode is not permission to run research or spend from a wallet.
+
+## Same confidential worker
+
+Guest intake and planning use the same verified Phala worker, attestation checks, encrypted transport and model/JEV boundaries as account projects. There is no ordinary-server model route or placeholder plan fallback. The [model and tool disclosures](/dr-nib/confidential/models-tools) still apply, including hosted JEV and any explicitly configured ZDR fallback.
+
+Guest planning does not browse public sources, execute tools, generate a report or make payments. You may choose whether later funded research can use public web sources; that choice does not browse during planning. Private uploads require sign-in and account adoption first. If you plan without public web approval or private sources, add an eligible source and explicitly replan before funding.
+
+## Saved on this device
+
+The question, draft answers, configuration, plan, current step and pending operation identifiers are encrypted in IndexedDB. A non-extractable browser key protects local draft records. Guest access tokens are encrypted there, not put in URLs or plaintext localStorage. Reloading the same browser restores local edits and reads saved worker progress rather than replaying inference.
+
+This is **not yet an account backup**. Clearing browser data, storage eviction or moving to another browser/device can lose access. A storage failure is shown honestly and blocks guest actions that cannot be saved safely. Keep the page open and resolve it before continuing. Other tabs cannot silently overwrite a newer draft or submit a second concurrent action.
+
+## Save to your account, then choose funding
+
+Choose **Sign in to save this plan** at review, or **Sign in to add private files** during configuration. Google and wallet sign-in use the existing dialog. Cancellation keeps the draft and clears automatic continuation; a completed redirect can continue the explicitly requested save in the same browser.
+
+Saving requires both the authenticated account and possession of the guest capability. The server freezes the guest revision and records an idempotent adoption. The browser decrypts and re-encrypts the state using fresh account project keys and the account tenant/vault/run context. Ownership is never changed on guest ciphertext. The local guest copy remains until durable account state is readable.
+
+For a completed plan, the verified worker checks the adopted state against the original plan/input proof and current model/pricing policy **without another model call**. Expiry, changed inputs or a changed quote require explicit review and replanning. A failed or uncertain validation does not unlock funding.
+
+Account sign-in, connecting a funding wallet, funding escrow and approving research are separate choices. No login or adoption callback funds escrow or starts a run. The server also enforces these boundaries; hiding a button is not the authorization control.
+
+## Limits and expiry
+
+Guest capacity is bounded by server-side session and network issuance limits, request/action/replan quotas, one active action and a reserved-cost ceiling that includes platform-sponsored planning. Existing global model limits still apply. An uncertain provider call retains its reservation and cannot be replayed by refreshing.
+
+The initial policy has a two-hour inference session and a thirty-minute plan lifetime, with operator-controlled stricter issuance/cost limits. Validation or heading edits do not extend the original plan lifetime. Expired capabilities may save completed state, but cannot run more guest inference. Server guest ciphertext is eligible for cleanup seven days after session expiry; device-local copies are not a promise of indefinite server recovery.
+
+## Protocol boundary
+
+Guest endpoints live on the private broker under `/v1/guest-planning`, reached in the app via `/drnib-private-api/v1/guest-planning`. Public `GET /capabilities` reports readiness and limits; `POST /session` creates an opaque bearer capability. Encrypted bootstrap, restricted object/receipt reads and verified-worker session/proof/action routes are bound to its single run. Adoption prepare/commit/cancel additionally require account authentication. Execution, uploads, general vault mutations, funding and ordinary Hub/MCP endpoints are not guest capabilities.
+
+Never send guest tokens, vault keys, passwords or recovery codes to ordinary Hub, discovery, payment or MCP tools. Guest rollout requires a reviewed worker release/measurement, database migration and configured abuse/cost limits; the feature is default-off until those are explicitly enabled.

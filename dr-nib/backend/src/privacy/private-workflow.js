@@ -1,3 +1,4 @@
+import {assertGuestPlanningAction,assertAdoptedGuestPlan} from './guest-planning-policy.js';
 import {cleanPrivateReportCitations} from '@nibgate/internal/private-report-citations.js';
 import {privateNarrationMessages} from './private-narration.js';
 import {runPrivateTerminal} from './private-terminal.js';
@@ -37,10 +38,11 @@ function questions(value) {
 /** Protected orchestration uses the existing research prompts, parser, length
  * and export renderers. All external ports are explicit; no ordinary provider,
  * JEV, event logger, wallet, sandbox, queue or global lessons are imported. */
-export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=runPrivateCode,runTerminal=runPrivateTerminal,parser = parseSource, renderer = renderExport, estimate } = {}) {
+export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=runPrivateCode,runTerminal=runPrivateTerminal,parser = parseSource, renderer = renderExport, estimate, policyRevision = 'private-workflow-v1' } = {}) {
     if (typeof infer !== 'function')
         throw Error('PRIVATE_WORKFLOW_UNAVAILABLE');
     return async ({ state, action, args = {}, sources = [], run, actionId, signal, onProgress, financialReceipt,checkpoint,externalTool,readBudget }) => {
+        const guest = assertGuestPlanningAction(run, action, state, args, sources);
         const s = structuredClone(state), now = () => new Date().toISOString();
         s.decisions ??= [];
         s.steps ??= [];
@@ -127,7 +129,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             if (args.liveWeb === true && args.searchEnabled!==false && !(args.publicResearch?.approved === true && Object.keys(args.publicResearch).sort().join(',')==='approved,brief' && typeof args.publicResearch.brief === 'string' && args.publicResearch.brief.trim().length>=3 && args.publicResearch.brief.length<=400 && (typeof publicRetrieval==='function'||typeof externalTool==='function')))
                 throw Error('PRIVATE_TOOL_DISCLOSURE_REQUIRED');
             if(args.liveWeb===true&&args.searchEnabled===false&&typeof externalTool!=='function')throw Error('PRIVATE_TOOL_DISCLOSURE_REQUIRED');
-            if(args.liveWeb!==true&&!sources.length)throw Error('PRIVATE_SOURCE_REQUIRED');
+            if(!guest&&args.liveWeb!==true&&!sources.length)throw Error('PRIVATE_SOURCE_REQUIRED');
             s.brief = { ...s.brief, qualityPolicyVersion:2, searchEnabled:args.liveWeb===true&&args.searchEnabled!==false, depth: args.depth ?? 'standard', liveWeb: args.liveWeb === true, length: args.length ?? 'standard', lengthWords: args.lengthWords, formats: args.formats ?? ['pdf'], tipCreators: args.tipCreators===true,
                 publicResearch: args.liveWeb === true && args.searchEnabled!==false ? args.publicResearch : null, intake: s.decisions.filter(d => d.kind === 'question' && d.answer).map(d => ({ question: d.question.prompt, answer:[...(d.answer.optionIds??[]).map(id=>d.question.options.find(o=>o.id===id)?.label??id),d.answer.text??''].filter(Boolean).join('; ') })) };
             s.budgetCap=args.budgetCap;
@@ -141,16 +143,38 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             const ceiling=typeof quote==='number'?quote:quote.estimate,minimumFunding=typeof quote==='number'?quote:quote.minimumFunding;
             if (!Number.isFinite(ceiling) || ceiling <= 0 || !Number.isFinite(minimumFunding)||minimumFunding<=0|| Math.max(ceiling,minimumFunding) > args.budgetCap)
                 throw Error('PRIVATE_BUDGET_TOO_SMALL');
-            s.plan = { sub_questions: plan.sub_questions, uncertainties: plan.uncertainties ?? [], estimate: ceiling, minimumFunding, estimateKind:typeof quote==='number'?'bound':quote.kind, why: plan.why ?? '', source: 'llm' };
+            s.plan = { sub_questions: plan.sub_questions, uncertainties: plan.uncertainties ?? [], estimate: ceiling, minimumFunding, estimateKind:typeof quote==='number'?'bound':quote.kind, why: plan.why ?? '', source: 'llm', model: typeof plan.model === 'string' ? plan.model : 'confidential', modelPolicy: policyRevision };
             s.budgetCap = args.budgetCap;
             s.status = 'planned';
             event('step.finished', { kind: 'plan' });
             if(s.plan.why)await progress('plan',s.plan.why,{origin:'model-summary'});
         }
         else if (action === 'edit-plan') {
+            if (run?.metadata?.guestAdoption) {
+                if (run.metadata.guestAdoption.validationRequired !== false) throw Error('PRIVATE_GUEST_PLAN_VALIDATION_REQUIRED');
+                assertAdoptedGuestPlan(run, s);
+                if ((s.plan.modelPolicy ?? 'private-workflow-v1') !== policyRevision) throw Error('PRIVATE_GUEST_PLAN_POLICY_CHANGED');
+                const target = resolveLength(s.brief);
+                if (typeof estimate !== 'function') throw Error('PRIVATE_GUEST_PLAN_INVALID');
+                const quote = estimate({sections:target.sections,words:target.words,depth:s.brief.depth});
+                const ceiling=typeof quote==='number'?quote:quote.estimate, minimum=typeof quote==='number'?quote:quote.minimumFunding;
+                if (!Number.isFinite(ceiling) || !Number.isFinite(minimum) || ceiling!==s.plan.estimate || minimum!==s.plan.minimumFunding || Math.max(ceiling,minimum)>s.budgetCap) throw Error('PRIVATE_GUEST_PLAN_QUOTE_CHANGED');
+            }
             if (s.status !== 'planned' || !Array.isArray(args.sub_questions) || !args.sub_questions.length || args.sub_questions.length > 12 || args.sub_questions.some(q => typeof q !== 'string' || q.length > 600))
                 throw Error('PRIVATE_PLAN_INVALID');
             s.plan.sub_questions = args.sub_questions;
+        }
+        else if (action === 'validate-plan') {
+            if (s.status !== 'planned' || Object.keys(args).length || typeof estimate !== 'function') throw Error('PRIVATE_GUEST_PLAN_INVALID');
+            assertAdoptedGuestPlan(run, s);
+            if ((s.plan.modelPolicy ?? 'private-workflow-v1') !== policyRevision) throw Error('PRIVATE_GUEST_PLAN_POLICY_CHANGED');
+            if (sources.length) throw Error('PRIVATE_GUEST_PLAN_CHANGED'); // New private inputs need an explicit fresh plan.
+            const target = resolveLength(s.brief);
+            const quote = estimate({sections:target.sections,words:target.words,depth:s.brief.depth});
+            const ceiling=typeof quote==='number'?quote:quote.estimate, minimum=typeof quote==='number'?quote:quote.minimumFunding;
+            if (!Number.isFinite(ceiling) || !Number.isFinite(minimum) || ceiling !== s.plan.estimate || minimum !== s.plan.minimumFunding || Math.max(ceiling,minimum)>s.budgetCap) throw Error('PRIVATE_GUEST_PLAN_QUOTE_CHANGED');
+            if (s.brief.liveWeb !== true && !sources.length) throw Error('PRIVATE_SOURCE_REQUIRED');
+            s.planValidation = {status:'current',checkedAt:now()};
         }
         else if (action === 'guidance') {
             s.pendingGuidance = { text: bounded(args.text) };
@@ -168,6 +192,11 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             event('ended');
         }
         else if (action === 'execute' || action === 'resume' || action === 'revise') {
+            if (action === 'execute' && run?.metadata?.guestAdoption) {
+                if (run.metadata.guestAdoption.validationRequired !== false) throw Error('PRIVATE_GUEST_PLAN_VALIDATION_REQUIRED');
+                assertAdoptedGuestPlan(run, s);
+                if ((s.plan.modelPolicy ?? 'private-workflow-v1') !== policyRevision) throw Error('PRIVATE_GUEST_PLAN_POLICY_CHANGED');
+            }
             if(privateBudgetMicroUsd(s.budgetCap)===undefined||s.budgetCap<=0||!Array.isArray(s.plan?.sub_questions)||!s.plan.sub_questions.length)throw Error('PRIVATE_WORKFLOW_STATE_INVALID');
             if (action === 'revise') {
                 if (s.reports.length >= 10)

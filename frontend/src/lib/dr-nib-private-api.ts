@@ -1,3 +1,4 @@
+import { guestPlanningResponseError, guestTransport } from './dr-nib-guest-planning';
 import { privateConnectionProgress } from './dr-nib-private-connection';
 import type { PrivateEnvelope } from "./dr-nib-private-crypto";
 import type { GuestSession } from "./dr-nib-private-verifier";
@@ -42,13 +43,15 @@ async function readJsonLimited(response: Response, maxBytes: number): Promise<un
 
 async function requestWithStatus(path: string, options: RequestInit = {}): Promise<{ data: unknown; status: number }> {
   let response: Response;
+  const guest = await guestTransport(path, options);
   try {
-    response = await fetch(`${BASE}${path}`, {
+    response = await fetch(`${guest?.base ?? BASE}${path}`, {
       credentials: "include", cache: "no-store", redirect: "error", ...options,
       signal: options.signal ?? AbortSignal.timeout(30_000),
-      headers: { "content-type": "application/json", "accept": "application/json", ...options.headers },
+      headers: { "content-type": "application/json", "accept": "application/json", ...options.headers, ...guest?.headers },
     });
   } catch { throw Object.assign(Error("Private worker connection failed. Check private run status before retrying."),{privateConnectionRetryable:true}); }
+  if (guest && !response.ok) throw await guestPlanningResponseError(response);
   if (response.status === 401) throw Error("Sign in to Nibgate before starting private research.");
   if (response.status === 503) throw Object.assign(Error("Private worker is unavailable. It may still be starting. Retry when it is ready."),{privateConnectionRetryable:true});
   if (response.status === 429) throw Error("Private worker is busy. Please wait before retrying.");

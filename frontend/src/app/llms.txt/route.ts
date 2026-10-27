@@ -21,6 +21,7 @@ const HUB_PAGES: Array<[string, string]> = [
   [`${siteOrigin()}/discovery.md`, "Plain-language agent guidance: endpoints, x402 payment flow (Circle Agent Stack one-liner or raw Gateway), nibshare links, and rating flow."],
   [`${siteOrigin()}/skill.md`, "Integration guide for @nibgate/sdk covering widget install, gating, payments, and admin."],
   [`${siteOrigin()}/.well-known/agent-skills/index.json`, "Machine-readable index of Nibgate agent skills (payer discovery + creator SDK)."],
+  ["https://docs.nibgate.xyz/dr-nib/guest-planning", "Optional text-only guest planning through the same verified worker; encrypted device drafts, authenticated adoption, private-file gate, plan validation and explicit funding boundaries."],
   ["https://docs.nibgate.xyz/dr-nib/confidential", "Dr. Nib private architecture: browser encryption, verified Phala orchestration, operator-hosted verifier trust, encrypted persistence and disclosed hosted JEV/ZDR fallback."],
   ["https://docs.nibgate.xyz/api-reference", "API reference for the Nibgate hub endpoints."],
   ["https://docs.nibgate.xyz/agent-discovery", "Agent discovery documentation for machine-readable content cards and x402 purchasing."],

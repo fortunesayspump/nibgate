@@ -1,3 +1,4 @@
+import {guestPlanningCapabilityAllowed} from './guest-planning-policy.js';
 import {privateAccessMode,privateTenantAllowed} from './private-tenant-access.js';
 import {createPrivateTerminalCheck} from './private-terminal-check.js';
 import {createPrivateActionRunner} from './private-action-runner.js';
@@ -8,7 +9,7 @@ import {createOpenRouterZdrPort,OPENROUTER_ZDR_MODEL} from './openrouter-zdr-por
 import {createHostedJevPort} from './hosted-jev-port.js';
 import {privateResearchEstimate} from './private-research-estimate.js';
 import {createPrivateRecordStorage} from './private-record-storage.js';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {createPrivateGuestHttpServer} from './private-guest-http.js';
 import {getPhalaSessionEvidence} from './phala-quote.js';
 import {generateHpkeRecipient} from './source-hpke.js';
@@ -206,7 +207,8 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
     const judge=hostedJevRequested?createHostedJevPort({db,apiKey:required(env,'PRIVATE_HOSTED_JEV_API_KEY'),monthlyCapMicroUsd:monthlyAiCapMicroUsd,policy:hostedJevPolicy,fundingRequired}):undefined;
     const estimateInput=modelPool?Math.max(...modelPool.map(candidate=>candidate.inputPricePerMillion)):inputMicroUsdPerMillion;
     const estimateOutput=modelPool?Math.max(...modelPool.map(candidate=>candidate.outputPricePerMillion)):outputMicroUsdPerMillion;
-    runner.action=createPrivateActionRunner({db,storage:createPrivateRecordStorage(env),allowHostedResearchFallback:hostedResearch,workflow:createPrivateWorkflow({infer,judge,estimate:options=>privateResearchEstimate({...options,inputPricePerMillion:estimateInput,outputPricePerMillion:estimateOutput,hostedJev:!!judge})})});
+    const policyRevision = createHash('sha256').update(JSON.stringify({version:'private-workflow-v1',models:modelPool??[{model,inputPricePerMillion:estimateInput,outputPricePerMillion:estimateOutput}],hostedResearch,hostedJev:!!judge})).digest('hex');
+    runner.action=createPrivateActionRunner({db,storage:createPrivateRecordStorage(env),allowHostedResearchFallback:hostedResearch,workflow:createPrivateWorkflow({infer,judge,policyRevision,estimate:options=>privateResearchEstimate({...options,inputPricePerMillion:estimateInput,outputPricePerMillion:estimateOutput,hostedJev:!!judge})})});
   }
   const withRunLock=(runId,action)=>db.$transaction(async tx=>{
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${runId}))::text AS locked`;
@@ -217,6 +219,11 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const verifyCapability=createGuestCapabilityAuthenticator({publicKey,consumeJti:createInMemoryJtiConsumer()});
   const authenticate=async req=>{
     const identity=await verifyCapability(req);
+    if (String(identity?.tenantId ?? '').startsWith('guest:')) {
+      const run = await db.researchRun.findUnique({where:{id:identity.runId}});
+      const url = new URL(req.url, 'https://private-worker.invalid');
+      return !url.search && guestPlanningCapabilityAllowed({identity,run,method:req.method,path:url.pathname,enabled:env.DRNIB_GUEST_PLANNING_ENABLED==='true'&&workflowRequested}) ? identity : null;
+    }
     return privateTenantAllowed(identity?.tenantId,{allowedTenantId,accessMode})?identity:null;
   };
   const getReport=createCiphertextReportReader(db);
@@ -225,7 +232,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const reviewAttestationEnabled=env.DRNIB_PRIVATE_REVIEW_ATTESTATION_ENABLED==='true';
   const server=createPrivateGuestHttpServer({sessions,authenticate,getReport,getJobStatus:executionJournal.status,
     ...(reviewAttestationEnabled?{diagnosticEvidence,...(env.DRNIB_PRIVATE_TERMINAL_SOCKET==='/run/drnib-terminal/service.sock'?{checkTools:createPrivateTerminalCheck()}:{} )}:{}),
-    privateReady:true,fullReady:fullRequested&&!fundingRequired,workflowReady:workflowRequested});
+    privateReady:true,fullReady:fullRequested&&!fundingRequired,workflowReady:workflowRequested,guestPlanningReady:workflowRequested&&env.DRNIB_GUEST_PLANNING_ENABLED==='true'});
   server.on('close',()=>void db.$disconnect());
   return server;
 }

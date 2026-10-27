@@ -97,6 +97,7 @@ export function createPostgresPrivateAiBudgetLedger(db){
       return locked(async tx=>{
         const run=await tx.researchRun.findUnique({where:{id:runId},select:{userId:true,deletedAt:true,metadata:true}});
         if(!run||run.deletedAt||run.userId!==tenantId||!privateTenantAllowed(tenantId,{allowedTenantId:ownerUserId,accessMode})||!isConfidentialRun(run))throw fail('PRIVATE_AI_OWNER_ONLY');
+        if(run.metadata?.guestPlanning || String(run.userId).startsWith('guest:')) throw fail('PRIVATE_GUEST_ACTION_DENIED');
         if(await tx.privateAiBudgetReservation.findUnique({where:{runId},select:{id:true}}))throw fail('PRIVATE_AI_ALREADY_RESERVED');
         const sum=await tx.privateAiBudgetReservation.aggregate({where:{monthKey:month},_sum:{committedMicroUsd:true}});
         // Old installations without 0009 cannot dispatch workflow calls. Keep

@@ -7,7 +7,7 @@ import {createPrivateBrokerMoney} from './private-broker-money.js';
  * Key provisioning and remote CVM start/stop are separate reviewed actions. */
 export async function configuredPrivateBroker(env=process.env,{wakeController}={}){
   const accessMode=privateAccessMode(env);
-  const disabled={ready:async()=>false,fullReady:async()=>false,guestBaseURL:undefined,signCapability:undefined,money:null};
+  const disabled={ready:async()=>false,fullReady:async()=>false,workflowReady:async()=>false,guestPlanningReady:async()=>false,guestBaseURL:undefined,signCapability:undefined,money:null};
   if(env.DRNIB_PRIVATE_ENABLED!=='true')return disabled;
   const wakeRequested=env.DRNIB_PRIVATE_WAKE_ENABLED==='true';
   const baseURL=env.DRNIB_PRIVATE_GUEST_BASE_URL;
@@ -48,6 +48,14 @@ export async function configuredPrivateBroker(env=process.env,{wakeController}={
     try{const value=await awakeHealth();return value?.privateReady===true&&value?.fullReady===true}catch{return false}
   };
   const workflowReady=async()=>{if(env.DRNIB_PRIVATE_WORKFLOW_ENABLED!=='true')return false;if(configuredWake)return true;try{return (await awakeHealth())?.workflowReady===true}catch{return false}};
-  return {accessMode,workflowReady,guestBaseURL:url.toString(),signCapability,ready,fullReady,allowedTenantId,fullAllowedTenantId,
+  const guestPlanningReady=async()=>{
+    if(env.DRNIB_PRIVATE_RECORDS_ENABLED!=='true'||env.DRNIB_GUEST_PLANNING_ENABLED!=='true'||env.DRNIB_GUEST_WORKER_REVIEWED!=='true'||env.DRNIB_PRIVATE_WORKFLOW_ENABLED!=='true'||accessMode!=='authenticated')return false;
+    // A parked reviewed deployment can wake on an explicit guest action. This
+    // flag is operator release approval, not attestation: browser verification
+    // and measured worker policy still gate every content-bearing operation.
+    if(configuredWake)return true;
+    try{const value=await awakeHealth();return value?.privateReady===true&&value?.workflowReady===true&&value?.guestPlanningReady===true}catch{return false}
+  };
+  return {accessMode,workflowReady,guestPlanningReady,guestBaseURL:url.toString(),signCapability,ready,fullReady,allowedTenantId,fullAllowedTenantId,
     wakeController:wakeRequested?wake:undefined,money:createPrivateBrokerMoney({env})};
 }

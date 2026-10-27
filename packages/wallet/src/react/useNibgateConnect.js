@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAppKit, useAppKitState, useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
+import { useAppKit, useAppKitState, useAppKitAccount, useAppKitProvider, modal as appKitModal } from '@reown/appkit/react'
 import { getWalletErrorMessage, isWalletRejection } from '../errors.js'
 import { ensureWalletAuthorized } from './authorize.js'
+import { waitForSignInSelection } from './sign-in-selection.js'
 import { signInWithSiwe, signMessageWithProvider } from './siwe.js'
 import { HUB_SESSION_UPDATED_EVENT, HUB_SESSION_CLEARED_EVENT, getSessionAddress } from './session.js'
 
@@ -16,6 +17,22 @@ export function useNibgateConnect(options = {}) {
   // "Connector not connected" when its account state lags AppKit's.
   const { address, isConnected } = useAppKitAccount()
   const { walletProvider } = useAppKitProvider('eip155')
+  const selectionRevisionRef = useRef(0)
+  // Subscribe to AppKit's public event API directly rather than the React
+  // last-event snapshot: React may batch SELECT_WALLET and CONNECT_SUCCESS
+  // into one render. Only explicit selection events grant consent; connection
+  // success also occurs during silent hydration. Analytics need not be enabled.
+  useEffect(() => {
+    let lastKey = ''
+    return appKitModal?.subscribeEvents(event => {
+      const key = `${event?.timestamp}:${event?.data?.event}`
+      if (key === lastKey) return
+      lastKey = key
+      if (event?.data?.event === 'SELECT_WALLET' || event?.data?.event === 'SOCIAL_LOGIN_STARTED') {
+        selectionRevisionRef.current += 1
+      }
+    })
+  }, [])
 
   const addressRef = useRef(null)
   const isConnectedRef = useRef(false)
@@ -168,13 +185,18 @@ export function useNibgateConnect(options = {}) {
     return null
   }
 
-  async function sign(addr, { excludeProvider = null } = {}) {
+  async function sign(addr, { excludeProvider = null, expectedProvider = null } = {}) {
     const provider = await waitForProvider(15000, excludeProvider)
     if (!provider) {
       const err = new Error(excludeProvider
         ? 'Wallet connected. Tap Sign in to confirm the selected wallet.'
         : 'Wallet provider is not available. Reconnect your wallet and try again.')
       if (excludeProvider) err.code = 'PROVIDER_RECONCILING'
+      throw err
+    }
+    if (expectedProvider && provider !== expectedProvider) {
+      const err = new Error('Wallet selection changed. Sign in again to continue.')
+      err.code = 'ACCOUNT_MISMATCH'
       throw err
     }
     // Social wallets render their signature request in a separate Reown
@@ -395,6 +417,64 @@ export function useNibgateConnect(options = {}) {
     }
   }, [open, address, walletProvider, authBase, noncePath, verifyPath])
 
+  // Safe entry from a gated action such as Research Send. Always offer the
+  // existing Google/wallet chooser; never sign merely because a wallet was
+  // already connected. That wallet needs a separate explicit Sign in tap.
+  const requestSignIn = useCallback(async () => {
+    if (runningRef.current) return false
+    runningRef.current = true
+    setBusy(true)
+    setStatus('connecting')
+    setError(null)
+    const initial = {
+      connected: isConnectedRef.current,
+      address: addressRef.current,
+      provider: walletProviderRef.current,
+      selectionRevision: selectionRevisionRef.current,
+    }
+    let signing = false
+    try {
+      await open({ view: 'Connect' })
+      const selection = await waitForSignInSelection({
+        initial,
+        read: () => ({
+          mounted: mountedRef.current,
+          open: modalOpenRef.current,
+          connecting: connectingWalletRef.current,
+          connected: isConnectedRef.current,
+          address: addressRef.current,
+          provider: walletProviderRef.current,
+          selectionRevision: selectionRevisionRef.current,
+        }),
+      })
+      if (!mountedRef.current) return false
+      if (!selection) {
+        setStatus('idle')
+        setError(isConnectedRef.current
+          ? 'To use your connected wallet, choose Sign in to continue. You will be asked to confirm a sign-in message.'
+          : 'Sign-in cancelled. Choose Sign in to continue when you are ready, using Google or a wallet.')
+        return false
+      }
+      signing = true
+      await sign(selection.address, {
+        excludeProvider: !initial.connected ? initial.provider : null,
+        expectedProvider: selection.provider,
+      })
+      return true
+    } catch (err) {
+      if (mountedRef.current) {
+        setStatus(isWalletRejection(err) ? 'idle' : 'error')
+        setError(isWalletRejection(err)
+          ? (signing ? 'Sign-in cancelled. Choose Sign in to continue when you are ready.' : 'Connection cancelled. Choose Google or a wallet when you are ready.')
+          : getWalletErrorMessage(err))
+      }
+      return false
+    } finally {
+      if (mountedRef.current) setBusy(false)
+      runningRef.current = false
+    }
+  }, [open, authBase, noncePath, verifyPath])
+
   // Full sign-out: revoke the hub session server-side, disconnect the
   // wallet, reset to idle. Cookie-only logout leaves a live wallet session
   // behind (and vice versa) — the reference implementations do all three.
@@ -432,5 +512,5 @@ export function useNibgateConnect(options = {}) {
     return res
   }, [notifySessionExpired])
 
-  return { connect, signIn, signOut, authedFetch, busy, status, error, address, clearError, chainId, notifySessionExpired }
+  return { connect, requestSignIn, signIn, signOut, authedFetch, busy, status, error, address, clearError, chainId, notifySessionExpired }
 }

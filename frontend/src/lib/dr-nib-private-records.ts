@@ -1,3 +1,4 @@
+import { guestPlanningResponseError, guestTransport, guestProjectSecrets, isGuestRun } from './dr-nib-guest-planning';
 import {validDrNibActiveWork} from './dr-nib-work-duration';
 import {privateRecordFetch} from './dr-nib-private-read';
 import {privateRecoveryRoot} from './dr-nib-private-checkpoint-recovery';
@@ -25,8 +26,9 @@ export const privateFundingEnabled = () => process.env.NEXT_PUBLIC_DRNIB_PRIVATE
 export const privateBuildEnabled = () => process.env.NEXT_PUBLIC_DRNIB_PRIVATE_CONFIDENTIAL === 'true';
 export async function privateRecordRequest(path: string, options: RequestInit = {}, allowMissing = false): Promise<any> {
     let response: Response;
+    const guest = await guestTransport(path, options);
     try {
-        response = await privateRecordFetch(BASE + path, { ...options, credentials: 'include', cache: 'no-store', redirect: 'error', headers: { 'content-type': 'application/json', ...options.headers }, signal: options.signal ?? AbortSignal.timeout(30000) });
+        response = await privateRecordFetch((guest?.base ?? BASE) + path, { ...options, credentials: 'include', cache: 'no-store', redirect: 'error', headers: { 'content-type': 'application/json', ...options.headers, ...guest?.headers }, signal: options.signal ?? AbortSignal.timeout(30000) });
     }
     catch {
         throw Error('Private project connection failed. Retry without replacing its keys.');
@@ -34,10 +36,11 @@ export async function privateRecordRequest(path: string, options: RequestInit = 
     if (allowMissing && response.status === 404)
         return null;
     if (!response.ok) {
+        if (guest) throw await guestPlanningResponseError(response);
         let accountUnavailable=false;
         if(response.status===503){const text=await response.text();if(text.length<1024){try{accountUnavailable=JSON.parse(text).code==='account_unavailable';}catch{}}}
         const e = new Error(response.status === 401 ? 'Sign in to Nibgate to open your private projects.' : response.status === 409 ? 'This private project changed on another device. Refresh before retrying.' : accountUnavailable ? 'The Hub sign-in check is temporarily unavailable. Reopen the saved project to check its latest progress before starting another action.' : 'Private project storage is unavailable. Check the saved project before starting another action.');
-        Object.assign(e, { status: response.status });
+        Object.assign(e, { status: response.status, ...(response.status === 401 ? { code: 'unauthenticated' } : {}) });
         throw e;
     }
     const body = await response.text();
@@ -224,6 +227,8 @@ export type PrivateObjectDescriptor = {
 export async function listPrivateObjects(runId: string): Promise<PrivateObjectDescriptor[]> { const value = await privateRecordRequest(`/runs/${runId}/objects`); if (!Array.isArray(value?.objects))
     throw Error('Invalid private object list.'); return value.objects; }
 export async function privateProjectSecrets(runId: string): Promise<ProjectAccess> {
+    const guest = await guestProjectSecrets(runId);
+    if (guest) return guest;
     const tenantId = await privateTenantId(), key = `${tenantId}:${runId}`;
     const prior = projectFlights.get(key);
     if (prior)
@@ -278,6 +283,7 @@ export async function readPrivateObject(runId: string, objectId: string, purpose
     }
 }
 export async function uploadPrivateSource(runId: string, file: File, onProgress: (n: number) => void) {
+    if (await isGuestRun(runId)) throw Error('Sign in and save this guest project before adding private files. No file was read or uploaded.');
     if (!/\.(pdf|docx|xlsx|csv|txt|md|png|jpg|jpeg|webp)$/i.test(file.name) || file.size < 1 || file.size > 2 * 1024 * 1024)
         throw Error('Choose a supported source file no larger than 2 MB.');
     onProgress(0);

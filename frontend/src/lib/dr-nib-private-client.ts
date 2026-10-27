@@ -1,4 +1,5 @@
 'use client';
+import {isGuestRun} from './dr-nib-guest-planning';
 import {cleanPrivateReportCitations} from '@nibgate/internal/private-report-citations.js';
 import { createEncryptedProject, getPrivateManifest, privateRecordRequest, privateFundingEnabled, requirePrivateInputs,queuePrivateControl } from './dr-nib-private-records';
 import { configuredPrivateVerification } from './dr-nib-private-verification';
@@ -40,7 +41,7 @@ function trackBackgroundAction(id:string,approval:{pending:boolean,error?:string
  }).catch(error=>{if(approvals.get(id)===approval)approvals.set(id,{pending:false,error:error instanceof Error?error.message:'The private action could not be confirmed. Refresh to read its saved state before retrying.'})}).finally(()=>notifyPrivateActionUpdate(id));
 }
 async function fundedShape(state:any){
-    const run=runShape(state);if(!privateFundedBuild())return run;
+    const run=runShape(state);if(await isGuestRun(run.id))return {...run,metadata:{...run.metadata,guestPlanning:true}};if(!privateFundedBuild())return run;
     const status=await fundingRequest(`/v1/private/runs/${run.id}/escrow`).catch(()=>null);
     // Reading a saved project never starts work. Automatic recovery belongs
     // only to an operation explicitly started in this browser session.
@@ -84,6 +85,8 @@ export async function privateClientRequest(path: string, opts: RequestInit = {})
     if (!match)
         return denied();
     const [, id, tail] = match;
+    const guestPlanning = await isGuestRun(id);
+    if (guestPlanning && !((!tail && method === 'GET') || ['/answers','/answers/batch','/intake/finish','/configure','/plan'].includes(tail))) throw Error('Sign in and save this guest plan before adding files, preparing escrow or starting research.');
     if (!tail && method === 'GET')
         return fundedShape((await getPrivateManifest(id,true)).value);
     if (!tail && method === 'DELETE')
@@ -115,7 +118,7 @@ export async function privateClientRequest(path: string, opts: RequestInit = {})
     }
     const actions: Record<string, string> = { '/intake/finish': 'finish-intake', '/configure': 'configure', '/approve': 'execute', '/pause': 'pause', '/resume': 'resume', '/awaiting/answer':'answer', '/end': 'end', '/guidance': 'guidance', '/revise': 'revise', '/plan': 'edit-plan', '/discuss': 'discuss', '/exports': 'export' };
     if (actions[tail] && ['POST', 'PATCH'].includes(method)){
-        if(tail==='/configure')await requirePrivateInputs(id,body);
+        if(tail==='/configure'&&!guestPlanning)await requirePrivateInputs(id,body);
         if(tail==='/approve')await requirePrivateInputs(id);
         if(tail==='/approve'||tail==='/resume'||tail==='/awaiting/answer'){
             const active=tail==='/resume'?await privateRecordRequest(`/runs/${id}/actions`):null;

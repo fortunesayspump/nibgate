@@ -1,7 +1,9 @@
 "use client";
-import {privateBuildEnabled,privateFundingEnabled,getPrivateManifest} from '@/lib/dr-nib-private-records';
+import {privateBuildEnabled,privateFundingEnabled,getPrivateManifest,privateTenantId} from '@/lib/dr-nib-private-records';
 
 import { useEffect, useRef, useState } from "react";
+import { createResearchSubmissionController, isResearchSignInRequired } from "@/lib/dr-nib-signin-submission";
+import { guestPlanningCapabilities, isGuestProject, beginGuestPlanning, saveGuestComposerSnapshot, restoreGuestComposerSnapshot, adoptGuestProject, classifyGuestPlanningError, type GuestPlanningLimits } from "@/lib/dr-nib-guest-planning";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2, Send, Square } from "lucide-react";
@@ -32,6 +34,12 @@ function PrivateRunningActivity({runId}:{runId:string}) {
   </div>;
 }
 type Item = { seq: number; question: IntakeQuestion; answer?: IntakeAnswer; thinking?: string };
+type RestoredResearchRun = {
+  id: string; status: string;
+  decisions?: { kind: string; seq: number; question: IntakeQuestion; answer?: IntakeAnswer }[];
+  questions?: (IntakeQuestion & { seq?: number })[];
+  plan?: { estimate?: number; sub_questions?: string[]; source?: string };
+};
 
 function cleanAnswer(a: IntakeAnswer, q: IntakeQuestion, other: boolean): IntakeAnswer {
   const text = (a.text || "").trim();
@@ -73,10 +81,61 @@ export default function ResearchNewPage() {
   // Dr. Nib is wallet-gated through the same shared hub session as the header.
   // When a call comes back 401 (wallet connected but not signed in), prompt and
   // open the shared connect/sign-in rather than showing a raw error.
-  const { connect, signIn, address: connectedAddress, busy: signInBusy, error: signInError } = useNibgateConnect();
+  const { requestSignIn, signIn, address: connectedAddress, busy: signInBusy, error: signInError } = useNibgateConnect();
   const [phase, setPhase] = useState<Phase>("composer");
   const [topic, setTopic] = useState("");
+  const submission = useRef(createResearchSubmissionController());
+  const [submissionBusy, setSubmissionBusy] = useState(false);
+  const topicInput = useRef<HTMLTextAreaElement>(null);
+  const researchView = useRef<HTMLDivElement>(null);
+  const previousPhase = useRef("composer");
+  const composerEdited = useRef(false);
+  useEffect(() => {
+    const controller = submission.current;
+    return () => controller.invalidate();
+  }, []);
+  function editTopic(value: string) {
+    composerEdited.current = true;
+    submission.current.invalidate();
+    setTopic(value);
+  }
   const [project, setProject] = useState<any | null>(null);
+  const [guestEnabled, setGuestEnabled] = useState(false);
+  const [guestReady, setGuestReady] = useState(false);
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestLimits, setGuestLimits] = useState<GuestPlanningLimits | undefined>();
+  const [guestExpiresAt, setGuestExpiresAt] = useState<string | undefined>();
+  const [guestPlanningExpired, setGuestPlanningExpired] = useState(false);
+  const [guestRecoveryCanAdopt, setGuestRecoveryCanAdopt] = useState(false);
+  const [guestRestoreRetryable, setGuestRestoreRetryable] = useState(true);
+  useEffect(() => {
+    if (!guestMode) return;
+    void restoreGuestComposerSnapshot().then(saved => {
+      if (saved) { setGuestExpiresAt(saved.expiresAt); setGuestLimits(saved.limits); setGuestPlanningExpired(saved.planningExpired); }
+    }).catch(() => { /* The existing draft error owns recovery, never reset. */ });
+  }, [guestMode, project?.id]);
+  useEffect(() => {
+    if (!guestMode || !guestExpiresAt) return;
+    const remaining = Date.parse(guestExpiresAt) - Date.now();
+    if (!Number.isFinite(remaining)) return;
+    const timer = setTimeout(() => setGuestPlanningExpired(true), Math.max(0, Math.min(remaining, 2147483647)));
+    return () => clearTimeout(timer);
+  }, [guestMode, guestExpiresAt]);
+  const [draftSaveState, setDraftSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [draftError, setDraftError] = useState("");
+  const [savedSnapshotJson, setSavedSnapshotJson] = useState("");
+  const [adoptionAwaitingSignIn, setAdoptionAwaitingSignIn] = useState(false);
+  const [guestRestoreBlocked, setGuestRestoreBlocked] = useState(false);
+  const guestRestoreBlockedRef = useRef(false);
+  useEffect(() => { guestRestoreBlockedRef.current = guestRestoreBlocked; }, [guestRestoreBlocked]);
+  const [adoptionPurpose, setAdoptionPurpose] = useState<"plan" | "files" | null>(null);
+  const [resumeAdoption, setResumeAdoption] = useState<"plan" | "files" | null>(null);
+  const [adopting, setAdopting] = useState(false);
+  const [adoptionNeedsReview, setAdoptionNeedsReview] = useState("");
+  const adoptionLock = useRef(false);
+  const resumedAdoption = useRef<string | null>(null);
+  const viewMounted = useRef(true);
+  useEffect(() => { viewMounted.current = true; return () => { viewMounted.current = false; }; }, []);
   const [items, setItems] = useState<Item[]>([]);
   const [idx, setIdx] = useState(0);
   const [drafts, setDrafts] = useState<Record<number, IntakeAnswer>>({});
@@ -134,6 +193,12 @@ export default function ResearchNewPage() {
   // The open batch: every unanswered question, in order. Answered batches
   // render collapsed above it.
   const openBatch = items.filter((it) => !it.answer);
+  const headingPhase = phase === "questions" ? `${phase}:${thinking ? "thinking" : openBatch[0]?.seq ?? "done"}` : phase;
+  useEffect(() => {
+    if (previousPhase.current === headingPhase) return;
+    const target = researchView.current?.querySelector<HTMLElement>("[data-phase-heading], section h2");
+    if (target) { previousPhase.current = headingPhase; target.tabIndex = -1; target.focus(); }
+  }, [headingPhase]);
   const batchProgress = openBatch.filter((it) => {
     const d = drafts[it.seq] || { optionIds: [], text: "" };
     return hasAnswer(cleanAnswer(d, it.question, !!otherOpen[it.seq]));
@@ -173,7 +238,171 @@ export default function ResearchNewPage() {
     setLengthWords(Number(brief.lengthWords) || 4000);
   }
 
+  // Device-local drafts are encrypted by the guest client, including unsent
+  // edits and the explicit sign-in return intent. Never store this in the URL.
+  const guestSnapshot = { topic, phase, project, items, drafts, otherOpen, depth,
+    liveWeb, searchEnabled, publicSearchBrief, tipCreators, formats, budgetCap,
+    length, lengthWords, estimate, planSource, subQuestions, pendingBatch,
+    thinking, pendingAdoption: adoptionPurpose };
+  const guestSnapshotJson = JSON.stringify(guestSnapshot);
   useEffect(() => {
+    if (!guestReady || (!guestMode && (!guestEnabled || project)) || (!topic && !project)) return;
+    let activeSave = true;
+    const timer = setTimeout(() => {
+      setDraftSaveState("saving");
+      void saveGuestComposerSnapshot(JSON.parse(guestSnapshotJson)).then(() => {
+        if (viewMounted.current && activeSave) { setSavedSnapshotJson(guestSnapshotJson); setDraftSaveState("saved"); if (!guestRestoreBlockedRef.current) setDraftError(""); }
+      }).catch(() => {
+        if (viewMounted.current && activeSave) {
+          setDraftSaveState("error");
+          setDraftError(!project && !guestMode ? "This browser could not save the encrypted draft. Retry saving here, or sign in to use account storage. Keep this page open until your question is saved." : "This browser could not save the encrypted draft. Keep this page open; retry saving before signing in or continuing.");
+        }
+      });
+    }, 250);
+    return () => { activeSave = false; clearTimeout(timer); };
+  }, [guestReady, guestMode, guestEnabled, guestSnapshotJson, topic, project, guestRestoreBlocked]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const capabilities = await guestPlanningCapabilities().catch(() => ({ enabled: false }));
+      if (cancelled) return;
+      setGuestEnabled(privateBuildEnabled() && capabilities.enabled);
+      if ("limits" in capabilities) setGuestLimits(capabilities.limits);
+      try {
+        const saved = await restoreGuestComposerSnapshot();
+        if (cancelled || !saved || new URLSearchParams(window.location.search).has("project")) return;
+        const draft = saved.snapshot as typeof guestSnapshot;
+        if (typeof draft.topic !== "string") return;
+        composerEdited.current = true;
+        setTopic(draft.topic);
+        if (draft.drafts) setDrafts(draft.drafts);
+        if (draft.otherOpen) setOtherOpen(draft.otherOpen);
+        if (typeof draft.depth === "string") setDepth(draft.depth);
+        if (typeof draft.liveWeb === "boolean") setLiveWeb(draft.liveWeb);
+        if (typeof draft.searchEnabled === "boolean") setSearchEnabled(draft.searchEnabled);
+        if (typeof draft.publicSearchBrief === "string" || draft.publicSearchBrief === null) setPublicSearchBrief(draft.publicSearchBrief);
+        if (typeof draft.tipCreators === "boolean") setTipCreators(draft.tipCreators);
+        if (Array.isArray(draft.formats)) setFormats(draft.formats);
+        if (typeof draft.budgetCap === "number") setBudgetCap(draft.budgetCap);
+        if (typeof draft.length === "string") setLength(draft.length);
+        if (typeof draft.lengthWords === "number") setLengthWords(draft.lengthWords);
+        setDraftSaveState("saved");
+        const resumeRunId = saved.adoptedRunId ?? saved.runId;
+        if (resumeRunId) {
+          setGuestMode(isGuestProject(resumeRunId));
+          try {
+            const run = await drNibApi.getRun(resumeRunId) as RestoredResearchRun;
+            if (cancelled) return;
+            restoreGuestRun(run);
+            // Unsubmitted answers/config remain local edits, not fabricated
+            // server progress. A committed manifest remains authoritative.
+            if (draft.pendingBatch && run.status !== "planned") {
+              setPendingBatch(draft.pendingBatch); setThinking(draft.thinking); setStreamDone(true);
+            }
+            if (draft.pendingAdoption === "plan" || draft.pendingAdoption === "files") {
+              setAdoptionPurpose(draft.pendingAdoption); setResumeAdoption(draft.pendingAdoption);
+            }
+          } catch (error) {
+            if (cancelled) return;
+            setGuestRestoreBlocked(true);
+            const recovery = classifyGuestPlanningError(error);
+            setGuestRestoreRetryable(recovery.retryRestore);
+            setGuestRecoveryCanAdopt(!saved.adoptedRunId && ["expired", "sign-in"].includes(recovery.kind));
+            if (["expired", "sign-in"].includes(recovery.kind)) setNeedsSignIn(true);
+            if (saved.adoptedRunId && isResearchSignInRequired(error)) setNeedsSignIn(true);
+            if (draft.project) { setProject(draft.project); setPhase(draft.phase === "creating" ? "composer" : draft.phase); }
+            if (Array.isArray(draft.items)) setItems(draft.items);
+            if (Array.isArray(draft.subQuestions)) setSubQuestions(draft.subQuestions);
+            setEstimate(draft.estimate ?? null); setPlanSource(draft.planSource ?? null);
+            setDraftError(recovery.message);
+          }
+        }
+      } catch {
+        if (!cancelled) { setDraftSaveState("error"); setDraftError("Encrypted draft storage is unavailable. Use a browser with local storage enabled before starting guest planning."); }
+      } finally { if (!cancelled) setGuestReady(true); }
+    })();
+    return () => { cancelled = true; };
+    // Restore only on entry. Subsequent wallet changes must not overwrite edits.
+  }, []);
+
+  function restoreGuestRun(run: RestoredResearchRun) {
+    setProject(run);
+    const loaded: Item[] = (run.decisions || []).filter((d) => d.kind === "question")
+      .map((d) => ({ seq: d.seq, question: d.question, answer: d.answer || undefined }));
+    if (!loaded.length && Array.isArray(run.questions)) loaded.push(...run.questions.map((q, i) => ({ seq: q.seq ?? i, question: q })));
+    setItems(loaded);
+    if (run.status === "planned") {
+      setEstimate(Number.isFinite(Number(run.plan?.estimate)) ? Number(run.plan?.estimate) : null);
+      setSubQuestions(Array.isArray(run.plan?.sub_questions) ? run.plan.sub_questions.map(String) : []);
+      setPlanSource(typeof run.plan?.source === "string" ? run.plan.source : null);
+      setPhase("review");
+    } else setPhase(run.status === "intake-done" ? "configure" : loaded.length ? "questions" : "composer");
+  }
+
+  useEffect(() => {
+    if (!guestReady || !resumeAdoption || !project || !guestMode) return;
+    const purpose = resumeAdoption;
+    const intent = `${project.id}:${purpose}`;
+    if (resumedAdoption.current === intent) return;
+    resumedAdoption.current = intent;
+    void signInAndAdopt(purpose, true);
+    // Only an explicitly persisted sign-in intent may resume on return.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestReady, resumeAdoption, project, guestMode]);
+
+  async function signInAndAdopt(purpose: "plan" | "files", returning = false) {
+    if (!project || !guestMode || adoptionLock.current || busy || (guestRestoreBlocked && !guestRecoveryCanAdopt)) return;
+    adoptionLock.current = true;
+    setAdopting(true);
+    setAdoptionPurpose(purpose);
+    try {
+      await saveGuestComposerSnapshot({ ...guestSnapshot, pendingAdoption: purpose });
+      setDraftSaveState("saved");
+      try { await checkResearchSession(); }
+      catch (error) {
+        if (!isResearchSignInRequired(error)) throw error;
+        if (returning) { stick("Your plan is still on this device. Sign in to save it to your account and continue."); return; }
+        setAdoptionAwaitingSignIn(true);
+        const authenticated = await (connectedAddress ? signIn() : requestSignIn());
+        setAdoptionAwaitingSignIn(false);
+        if (!authenticated) {
+          setAdoptionPurpose(null);
+          await saveGuestComposerSnapshot({ ...guestSnapshot, pendingAdoption: null });
+          stick("Sign-in cancelled. Your plan is still on this device. You can keep reviewing it or sign in again when ready.");
+          return;
+        }
+        if (!viewMounted.current) return;
+        await checkResearchSession();
+      }
+      const adopted = await adoptGuestProject(project.id);
+      if (!viewMounted.current) return;
+      setGuestMode(false); setAdoptionPurpose(null); setGuestRestoreBlocked(false);
+      setNeedsSignIn(false); setDraftError("");
+      rememberRun(adopted.id); restoreGuestRun(adopted);
+      restoreConfiguration(adopted);
+      if (purpose === "files") setPhase("configure");
+      if (purpose === "plan" && adopted.status === "planned" && adopted.guestAdoptionValidation?.ready !== true) {
+        setAdoptionNeedsReview(adopted.guestAdoptionValidation?.reason || "The saved plan needs a fresh review before funding.");
+        applyConfigured(null); setPhase("configure");
+        stick("Saved to your account. Review the inputs and explicitly replan before funding. No research or payment was started.");
+        return;
+      }
+      setAdoptionNeedsReview("");
+      // Read-only status only. Never prepare/fund escrow or approve a run here.
+      if (purpose === "plan" && adopted.status === "planned") await loadEscrow(adopted.id);
+      stick("Saved to your account. Continue reviewing your project; funding and starting research remain separate choices.");
+    } catch (error) {
+      if (viewMounted.current) stick(error instanceof Error ? error.message : "Could not save the guest plan. Your encrypted draft has been retained; retry without starting a duplicate.");
+    } finally {
+      adoptionLock.current = false;
+      if (viewMounted.current) { setAdopting(false); setAdoptionAwaitingSignIn(false); }
+    }
+  }
+
+  useEffect(() => {
+    if (!guestReady || guestMode) return;
+    let cancelled = false;
     const explicit = new URLSearchParams(window.location.search).get("project");
     const id = explicit || (() => {
       try { return localStorage.getItem("drnib-last-run") || ""; } catch { return ""; }
@@ -182,6 +411,7 @@ export default function ResearchNewPage() {
     (async () => {
       try {
         const run: any = await drNibApi.getRun(id);
+        if (cancelled || composerEdited.current || submission.current.running) return;
         if (!["draft", "intake"].includes(run.status)) {
           if (run.status === "intake-done") {
             // Restore the inline pre-plan flow: answers, config, escrow.
@@ -230,13 +460,15 @@ export default function ResearchNewPage() {
         setPhase(loaded.length ? "questions" : "composer");
         rememberRun(run.id);
       } catch (error) {
+        if (cancelled || composerEdited.current || submission.current.running) return;
         // Authentication/startup failures must retain the resume pointer.
         // Only a definitive missing project permits forgetting it.
         if (!explicit && (error as {status?:number})?.status === 404) rememberRun(null);
       }
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectedAddress]);
+  }, [connectedAddress, guestReady, guestMode]);
 
   // Notices from fail() are errors: they persist until dismissed or the next
   // action clears them. A 3-second flash is fine for hints ("type first"),
@@ -264,9 +496,9 @@ export default function ResearchNewPage() {
   // again, forever). Show the prompt with an explicit button instead.
   const [needsSignIn, setNeedsSignIn] = useState(false);
   function fail(e: any, label: string) {
-    if (e?.code === "unauthenticated") {
+    if (isResearchSignInRequired(e)) {
       setNeedsSignIn(true);
-      stick("Sign in to Nibgate to use Dr. Nib, then retry.");
+      stick("Sign in with Google or a wallet to save your private project and continue. Your question is still here.");
       return;
     }
     if (e?.code === "rate-limited") {
@@ -279,52 +511,92 @@ export default function ResearchNewPage() {
       stick("Dr. Nib couldn't reach accounts just now — retry in a moment.");
       return;
     }
-    stick(`${label} (${e?.message || e}).`);
+    stick((guestMode || (e?.privateRunId && isGuestProject(e.privateRunId))) ? `This planning step could not finish. ${e?.message || "Try again when the service is available."} Your saved draft has not been replaced.` : `${label} (${e?.message || e}).`);
   }
 
-  async function send() {
-    if (availability !== "ready") return;
+  async function checkResearchSession() {
+    if (privateBuildEnabled()) return privateTenantId();
+    const response = await fetch('/auth/me', { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(30000) });
+    if (response.status === 401) throw Object.assign(new Error('Sign in required.'), { status: 401 });
+    if (!response.ok) throw new Error('The sign-in check is unavailable. Try again in a moment.');
+    const session = await response.json();
+    if (!session.authenticated) throw Object.assign(new Error('Sign in required.'), { status: 401 });
+  }
+
+  async function send(explicitSignIn = false) {
+    if (availability !== "ready" || !guestReady || guestRestoreBlocked || ((guestEnabled || guestMode) && draftSaveState === "error" && !(explicitSignIn && !guestMode && !project)) || submission.current.running || busy || signInBusy) return;
     const t = topic.trim();
     if (!t) return flash("Type a question first — even one line.");
-    // Instant: the thinking screen opens on click with your message shown as
-    // sent. No button-loading state ever — the screen IS the confirmation.
-    setTopicEcho(t);
-    setPhase("creating");
-    setNotice("");
-    try {
-      const retryIntake=privateBuildEnabled()&&project?.id&&['draft','intake'].includes(project.status)&&!items.length&&project.brief?.topic===t;
-      const run: any = retryIntake?await (await import('@/lib/dr-nib-private-actions')).privateAction(project.id,'intake'):await drNibApi.createProject(t);
-      setNeedsSignIn(false);
-      setProject(run);
-      rememberRun(run?.id || null);
-      const first = Array.isArray(run.questions) && run.questions.length
-        ? run.questions
-        : run.question ? [{ ...run.question, seq: 0 }] : [];
-      if (!first.length) {
-        if(privateBuildEnabled()&&run.status==='intake-done'){
-          setItems([]);
-          setPhase('configure');
+    composerEdited.current = true;
+    setSubmissionBusy(true);
+    let startGuest = guestMode && Boolean(project?.id && isGuestProject(project.id));
+    await submission.current.run({
+      checkSession: async () => {
+        if (startGuest) { await saveGuestComposerSnapshot(guestSnapshot); return; }
+        try { await checkResearchSession(); }
+        catch (error) {
+          if (guestEnabled && !explicitSignIn && isResearchSignInRequired(error)) {
+            await saveGuestComposerSnapshot(guestSnapshot);
+            startGuest = true;
+            return;
+          }
+          throw error;
+        }
+      },
+      authenticate: () => explicitSignIn && connectedAddress ? signIn() : requestSignIn(),
+      onAuthRequired: () => {
+        setNeedsSignIn(true);
+        stick("Sign in with Google or a wallet to save your private project and continue. Your question is still here.");
+      },
+      onSubmitting: () => {
+        setTopicEcho(t);
+        setPhase("creating");
+        setNotice("");
+        setNeedsSignIn(false);
+      },
+      submit: async () => {
+        const retryIntake=privateBuildEnabled()&&project?.id&&['draft','intake'].includes(project.status)&&!items.length&&project.brief?.topic===t;
+        return retryIntake?await (await import('@/lib/dr-nib-private-actions')).privateAction(project.id,'intake'):startGuest?await beginGuestPlanning(t):await drNibApi.createProject(t);
+      },
+      onSuccess: (run: any) => {
+        setGuestMode(isGuestProject(run.id));
+        setNeedsSignIn(false);
+        setProject(run);
+        if (!isGuestProject(run.id)) { rememberRun(run?.id || null); setDraftError(""); setDraftSaveState("idle"); }
+        const first = Array.isArray(run.questions) && run.questions.length
+          ? run.questions
+          : run.question ? [{ ...run.question, seq: 0 }] : [];
+        if (!first.length) {
+          if(privateBuildEnabled()&&run.status==='intake-done'){
+            setItems([]);
+            setPhase('configure');
+            return;
+          }
+          // A run with no questions is a dead questions screen (blank, no
+          // recovery). Send the user back with the reason on screen.
+          setPhase("composer");
+          stick("Dr. Nib started without questions — retry in a moment.");
           return;
         }
-        // A run with no questions is a dead questions screen (blank, no
-        // recovery). Send the user back with the reason on screen.
+        setItems(first.map((q: any, i: number) => ({ seq: typeof q.seq === "number" ? q.seq : i, question: q })));
+        setDrafts({});
+        setOtherOpen({});
+        setPhase("questions");
+      },
+      onError: (e: any) => {
+        // Back to composer on failure — the thinking screen must never strand.
+        if(privateBuildEnabled()&&typeof e?.privateRunId==='string'){
+          const guest = isGuestProject(e.privateRunId);
+          setGuestMode(guest);
+          if (!guest) rememberRun(e.privateRunId);
+          setProject({id:e.privateRunId,status:'intake',brief:{topic:t}});
+        }
         setPhase("composer");
-        stick("Dr. Nib started without questions — retry in a moment.");
-        return;
-      }
-      setItems(first.map((q: any, i: number) => ({ seq: typeof q.seq === "number" ? q.seq : i, question: q })));
-      setDrafts({});
-      setOtherOpen({});
-      setPhase("questions");
-    } catch (e: any) {
-      // Back to composer on failure — the thinking screen must never strand.
-      if(privateBuildEnabled()&&typeof e?.privateRunId==='string'){
-        rememberRun(e.privateRunId);
-        setProject({id:e.privateRunId,status:'intake',brief:{topic:t}});
-      }
-      setPhase("composer");
-      fail(e, "Could not reach Dr. Nib");
-    }
+        fail(e, "Could not reach Dr. Nib");
+      },
+    });
+    setSubmissionBusy(false);
+    topicInput.current?.focus();
   }
 
   function streamThinking(text: string, history: string[]) {
@@ -399,7 +671,7 @@ export default function ResearchNewPage() {
   // answers immediately), then the thinkings stream, then the UI waits on
   // Next. One round trip per batch instead of per question.
   async function submitBatch() {
-    if (!project || openBatch.length === 0) return;
+    if (!project || openBatch.length === 0 || guestRestoreBlocked || adopting) return;
     const answers: { seq: number; answer: IntakeAnswer }[] = [];
     for (const it of openBatch) {
       const ans = cleanAnswer(drafts[it.seq] || { optionIds: [], text: "" }, it.question, !!otherOpen[it.seq]);
@@ -414,6 +686,7 @@ export default function ResearchNewPage() {
     setStreamDone(false);
     setLoadingAnswer(true);
     try {
+      if (guestMode) await saveGuestComposerSnapshot(guestSnapshot);
       const res: any = await drNibApi.answerBatch(project.id, answers);
       setPendingBatch({ answers, res });
       setLoadingAnswer(false);
@@ -465,9 +738,10 @@ export default function ResearchNewPage() {
   // "Just plan it" — skip the rest of intake. The brief goes to planning
   // as-is; unanswered questions stay unanswered, nothing is fabricated.
   async function justPlanIt() {
-    if (!project) return;
+    if (!project || guestRestoreBlocked || adopting) return;
     setBusy(true);
     try {
+      if (guestMode) await saveGuestComposerSnapshot(guestSnapshot);
       await drNibApi.finishIntake(project.id);
       setPhase("configure");
     } catch (e: any) {
@@ -495,6 +769,7 @@ export default function ResearchNewPage() {
     return () => clearInterval(t);
   }, [phase, escrowConfigured, escrowFunded, project]);
   async function loadEscrow(runId: string) {
+    if (isGuestProject(runId)) { applyConfigured(null); return; }
     try {
       // Read-only: the job opens from the user's own Fund click (their
       // wallet must be the onchain client), never implicitly from a read.
@@ -516,9 +791,10 @@ export default function ResearchNewPage() {
   }
 
   async function savePlan(next: string[]) {
-    if (!project) return;
+    if (!project || guestRestoreBlocked || adopting) return;
     setBusy(true);
     try {
+      if (guestMode) await saveGuestComposerSnapshot(guestSnapshot);
       const res: any = await drNibApi.editPlan(project.id, next);
       setSubQuestions(Array.isArray(res?.plan?.sub_questions) ? res.plan.sub_questions.map(String) : next);
       if (Number.isFinite(Number(res?.plan?.estimate))) setEstimate(Number(res.plan.estimate));
@@ -532,7 +808,7 @@ export default function ResearchNewPage() {
   }
 
   async function plan() {
-    if (!project) return;
+    if (!project || guestRestoreBlocked || adopting) return;
     // Confidential runs never touch the ordinary plan/budget path: no server
     // planning call, no ledger deposit, no escrow. Planning and writing happen
     // inside the verified worker. Go straight to the review hand-off.
@@ -541,6 +817,7 @@ export default function ResearchNewPage() {
     setNotice("");
     try {
       if(privateBuildEnabled()&&liveWeb&&searchEnabled&&(publicSearchBrief??'').trim().length<3)throw Error('Enter the search terms you want to send to web search.');
+      if (guestMode) await saveGuestComposerSnapshot(guestSnapshot);
       await drNibApi.configureRun(project.id, {
         depth, budgetCap, formats,
         liveWeb: confidential ? false : liveWeb,
@@ -561,10 +838,11 @@ export default function ResearchNewPage() {
         const full: any = await drNibApi.getRun(project.id);
         if (full.status === "planned" || full.status === "running" || full.status === "complete") {
           setProject(full);
-          setEstimate(Number(full.plan?.estimate ?? 0.2));
+          setEstimate(Number.isFinite(Number(full.plan?.estimate)) ? Number(full.plan.estimate) : null);
           setSubQuestions(Array.isArray(full.plan?.sub_questions) ? full.plan.sub_questions.map(String) : []);
           setPlanSource(typeof full.plan?.source === "string" ? full.plan.source : null);
           setPhase("review");
+          setAdoptionNeedsReview("");
           landed = true;
           await loadEscrow(project.id);
           break;
@@ -579,7 +857,7 @@ export default function ResearchNewPage() {
   }
 
   async function approve() {
-    if (!project) return;
+    if (!project || guestMode || isGuestProject(project.id) || guestRestoreBlocked || adopting || adoptionNeedsReview) return;
     // Confidential path: never call the ordinary research endpoint with the
     // source. Hand off to the run page, which runs the verified worker and
     // decrypts the report in the tab.
@@ -610,11 +888,12 @@ export default function ResearchNewPage() {
     if (q.type === "free") {
       return (
         <textarea
+          aria-label={q.prompt}
           value={draft.text || ""}
           onChange={(e) => setD({ optionIds: [], text: e.target.value })}
           rows={3}
           placeholder="Type your answer"
-          className="mt-4 w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 text-sm outline-none"
+          className="mt-4 w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
         />
       );
     }
@@ -628,49 +907,48 @@ export default function ResearchNewPage() {
     };
 
     return (
-      <div className="mt-4">
-        <p className="mb-2 text-[11px] font-medium uppercase tracking-wider opacity-50">
+      <fieldset className="mt-4 min-w-0" aria-label={q.prompt}>
+        <legend className="mb-2 text-[11px] font-medium uppercase tracking-wider opacity-50">
           {q.type === "pick_one" ? "Select one" : "Select all that apply"}
-        </p>
+        </legend>
         <div className="space-y-2">
           {q.options.map((o) => {
-            const on = !other && (draft.optionIds || []).includes(o.id);
+            const on = (q.type !== "pick_one" || !other) && (draft.optionIds || []).includes(o.id);
             return (
-              <button key={o.id} onClick={() => pick(o)}
-                className={`flex w-full items-center gap-3 border px-4 py-3 text-left text-sm transition ${on ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center border ${on ? "border-white" : "border-dark-gray/60"} ${q.type === "pick_one" ? "rounded-full" : "rounded-sm"}`}>
-                  {on && <span className={`bg-white ${q.type === "pick_one" ? "h-2 w-2 rounded-full" : "h-2.5 w-2.5 rounded-[2px]"}`} />}
-                </span>
+              <label key={o.id}
+                className={`flex w-full cursor-pointer items-center gap-3 border px-4 py-3 text-left text-sm transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-black ${on ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
+                <input type={q.type === "pick_one" ? "radio" : "checkbox"}
+                  name={`drnib-answer-${seq}`} value={o.id} checked={on}
+                  onChange={() => pick(o)} className="h-4 w-4 shrink-0 accent-black" />
                 {o.label}
-              </button>
+              </label>
             );
           })}
           {q.allowOther && (
             <>
-              <button
-                onClick={() => {
-                  if (q.type === "pick_one") { setO(true); setD({ optionIds: [], text: draft.text || "" }); }
-                  else setO(!other);
-                }}
-                className={`flex w-full items-center gap-3 border px-4 py-3 text-left text-sm transition ${other ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
-                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${other ? "border-white" : "border-dark-gray/60"}`}>
-                  {other && <span className="h-2.5 w-2.5 rounded-[2px] bg-white" />}
-                </span>
+              <label
+                className={`flex w-full cursor-pointer items-center gap-3 border px-4 py-3 text-left text-sm transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-black ${other ? "border-black bg-black text-white" : "border-dark-gray/50 bg-white hover:border-black/50"}`}>
+                <input type={q.type === "pick_one" ? "radio" : "checkbox"}
+                  name={`drnib-answer-${seq}`} value="other" checked={other}
+                  onChange={() => {
+                    if (q.type === "pick_one") { setO(true); setD({ optionIds: [], text: draft.text || "" }); }
+                    else setO(!other);
+                  }} className="h-4 w-4 shrink-0 accent-black" />
                 Another answer…
-              </button>
+              </label>
               {other && (
                 <input
-                  autoFocus
+                  aria-label={`Another answer: ${q.prompt}`}
                   value={draft.text || ""}
                   onChange={(e) => setD({ ...draft, text: e.target.value })}
                   placeholder="Type your answer"
-                  className="w-full border border-dark-gray/50 bg-white rounded-xl px-3 py-2.5 text-sm outline-none"
+                  className="w-full border border-dark-gray/50 bg-white rounded-xl px-3 py-2.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black"
                 />
               )}
             </>
           )}
         </div>
-      </div>
+      </fieldset>
     );
   }
 
@@ -691,15 +969,35 @@ export default function ResearchNewPage() {
     </section>
   );
   return (
-    <div>
-      {notice && <div className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}{/live run/i.test(notice) && (<> — <button onClick={() => router.push("/dr-nib/projects")} className="underline">review them in Projects</button></>)}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="opacity-60 hover:opacity-100">✕</button></div>}
+    <div ref={researchView}>
+      {!guestReady && <p role="status">Checking saved drafts…</p>}
+      {(guestMode || guestEnabled && phase === "composer") && <div className="mb-4 text-sm" aria-live="polite">
+        <p>{guestMode ? "Guest planning — not yet saved to your account." : "Try text-only planning without signing in."}</p>
+        <p className="mt-1 text-xs">The same verified Phala worker prepares your questions and plan. No web retrieval, private uploads, wallet payment or research execution happens in guest mode.</p>
+        <p className="mt-1 text-xs">{draftSaveState === "error" ? "Draft not saved — keep this page open and retry below." : draftSaveState === "saved" && savedSnapshotJson === guestSnapshotJson ? "Encrypted draft saved on this device." : (topic || project) ? "Saving encrypted draft…" : "Drafts stay in this browser. Clearing browser data or changing devices can lose access."}</p>
+      </div>}
+      {guestMode && guestExpiresAt && <p className="mb-4 text-sm" role="status">{guestPlanningExpired ? "Guest planning has ended" : "Guest planning ends "}{!guestPlanningExpired && <time dateTime={guestExpiresAt}>{new Date(guestExpiresAt).toLocaleString()}</time>}{". "}{guestPlanningExpired ? "Sign in to save the retained draft and continue in your account. No new planning runs automatically." : "After that, sign in to save and continue. This is not a browser-draft deletion deadline."}</p>}
+      {guestMode && guestPlanningExpired && phase !== "review" && <button disabled={adopting || busy} onClick={() => { void signInAndAdopt("plan"); }} className="mb-4 min-h-11 border border-black px-4 py-2 text-sm focus-visible:outline-2">Sign in to save this draft</button>}
+      {adoptionNeedsReview && <p role="alert" className="mb-4 border border-dark-gray/50 p-3 text-sm">{adoptionNeedsReview} Review the configuration, then choose Plan run. No automatic replan or payment was started.</p>}
+      {draftError && <div role="alert" className="mb-4 border border-dark-gray/50 bg-white p-3 text-sm"><p>{draftError}</p><button onClick={async () => {
+        try { await saveGuestComposerSnapshot(guestSnapshot); setSavedSnapshotJson(guestSnapshotJson); setDraftSaveState("saved"); if (!guestRestoreBlockedRef.current) setDraftError(""); }
+        catch { setDraftSaveState("error"); }
+      }} className="mt-2 min-h-11 underline focus-visible:outline-2">Retry saving draft</button>{!project && !guestMode && !guestRestoreBlocked && <button disabled={signInBusy || submissionBusy || busy || !topic.trim()} onClick={() => { void send(true); }} className="ml-4 min-h-11 underline focus-visible:outline-2 disabled:opacity-50">Sign in and use account storage</button>}{guestRestoreBlocked && guestRestoreRetryable && <button onClick={() => window.location.reload()} className="ml-4 min-h-11 underline focus-visible:outline-2">Reconnect saved draft</button>}</div>}
+      {notice && <div role="alert" className="mb-4 flex items-start justify-between gap-3 border border-dark-gray/50 bg-white px-4 py-2 text-sm"><span>{notice}{guestMode && phase === "composer" && project && !needsSignIn && <button disabled={busy || submissionBusy || guestRestoreBlocked || draftSaveState === "error"} onClick={() => { void send(); }} className="mt-2 block min-h-11 underline focus-visible:outline-2 disabled:opacity-50">Retry questions</button>}{/live run/i.test(notice) && (<> — <button onClick={() => router.push("/dr-nib/projects")} className="underline">review them in Projects</button></>)}</span><button onClick={() => { setNotice(""); setNoticeSticky(false); }} aria-label="Dismiss" className="min-h-11 min-w-11 shrink-0 opacity-60 hover:opacity-100 focus-visible:outline-2">✕</button></div>}
       {needsSignIn && (
         <div className="mb-4">
-          <button disabled={signInBusy} onClick={async () => {
-            const signedIn = await (connectedAddress ? signIn() : connect());
-            if (signedIn) setNeedsSignIn(false);
-          }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-            {signInBusy ? "Signing in…" : "Sign in with wallet"}
+          <button disabled={signInBusy || submissionBusy || adopting} onClick={async () => {
+            if (guestRestoreBlocked && !guestMode) {
+              const authenticated = await (connectedAddress ? signIn() : requestSignIn());
+              if (authenticated) window.location.reload();
+              return;
+            }
+            if (guestMode) { await signInAndAdopt("plan"); return; }
+            if (phase === "composer") { await send(true); return; }
+            const authenticated = await (connectedAddress ? signIn() : requestSignIn());
+            if (authenticated) { setNeedsSignIn(false); stick("Signed in. Retry your last action to continue."); }
+          }} className="border border-black bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2">
+            {signInBusy || submissionBusy || adoptionAwaitingSignIn ? "Waiting for sign-in…" : adopting ? "Saving your draft…" : "Sign in to continue"}
           </button>
           {signInError && <p role="status" className="text-sm text-red-700">{signInError}</p>}
         </div>
@@ -715,19 +1013,20 @@ export default function ResearchNewPage() {
       {phase === "composer" && (
         <section className="mx-auto max-w-2xl py-8 text-center md:py-12">
           <h2 className="nibgate-display-title text-3xl font-medium md:text-4xl">What should Dr. Nib research?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm opacity-60">{privateBuildEnabled() ? privateFundingEnabled()?"Ask a question. Your encrypted project is saved for later. Questions and planning are sponsored; research starts after you fund and approve the plan.":"Ask a question. Your encrypted project is saved for later. Questions and planning use the owner test allowance; report writing starts after you approve the plan." : "Ask a question. A project is created straight away, so you can stop and pick it up later — nothing spends until you approve the plan."}</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm opacity-60">{guestEnabled ? `Ask a question and build a research plan before signing in. Your draft is encrypted on this device.${guestLimits?.ttlMs ? ` Guest planning lasts up to ${Math.round(guestLimits.ttlMs / 60000)} minutes.` : " Guest planning has usage and expiry limits."}${guestLimits?.maxReplans ? ` Up to ${guestLimits.maxReplans} plans per session, subject to the usage limit.` : ""}` : privateBuildEnabled() ? privateFundingEnabled()?"Ask a question. After sign-in, your encrypted project is saved for later. Questions and planning are sponsored; research starts after you fund and approve the plan.":"Ask a question. After sign-in, your encrypted project is saved for later. Questions and planning use the owner test allowance; report writing starts after you approve the plan." : "Ask a question. After sign-in, a project is created so you can stop and pick it up later — nothing spends until you approve the plan."}</p>
+          <p id="research-signin-help" className="mt-3 text-sm">{guestEnabled ? "Start with a question. Sign in only when you want to save the plan to your account or add private files. Funding and starting research are separate choices." : "Sign in with Google or a wallet to save a project. After sign-in, we’ll continue with the question you sent. Editing it cancels that pending submission."}</p>
           <div className="relative mt-6">
-            <textarea value={topic} onChange={(e) => setTopic(e.target.value)}
+            <textarea ref={topicInput} aria-label="Research question" aria-describedby="research-signin-help" value={topic} onChange={(e) => editTopic(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               rows={4} placeholder="e.g. Compare Arc vs Base for USDC micropayments, last 90 days"
-              className="w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 pb-12 text-left text-[15px] outline-none" />
-            <button onClick={send} disabled={busy || availability !== "ready"} aria-label="Send" className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center bg-black text-white disabled:opacity-50">
+              className="w-full resize-none border border-dark-gray/50 bg-white rounded-2xl px-4 py-3 pb-12 text-left text-[15px] focus-visible:outline-2 focus-visible:outline-offset-2" />
+            <button onClick={() => { void send(); }} disabled={busy || submissionBusy || signInBusy || !guestReady || guestRestoreBlocked || ((guestEnabled || guestMode) && draftSaveState === "error") || availability !== "ready"} aria-label="Send" className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center bg-black text-white disabled:opacity-50">
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} aria-hidden="true" />}
             </button>
           </div>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {SAMPLES.map((s) => (
-              <button key={s} onClick={() => setTopic(s)} className="border border-dark-gray/50 bg-white px-3 py-1.5 text-left text-xs opacity-80 hover:opacity-100">{s.length > 52 ? s.slice(0, 52) + "…" : s}</button>
+              <button key={s} onClick={() => editTopic(s)} className="border border-dark-gray/50 bg-white px-3 py-1.5 text-left text-xs opacity-80 hover:opacity-100">{s.length > 52 ? s.slice(0, 52) + "…" : s}</button>
             ))}
           </div>
         </section>
@@ -739,22 +1038,16 @@ export default function ResearchNewPage() {
             <p className="text-[11px] font-medium uppercase tracking-wider opacity-50">You asked</p>
             <p className="mt-1 text-[15px] font-medium leading-7">{topicEcho}</p>
           </div>
-          <div className="relative mt-12 flex h-40 w-40 items-center justify-center" aria-hidden="true">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-black/10" style={{ animationDuration: "2.2s" }} />
-            <span className="absolute inline-flex h-28 w-28 animate-ping rounded-full bg-black/10" style={{ animationDuration: "2.2s", animationDelay: "0.4s" }} />
-            <span className="absolute inline-flex h-16 w-16 animate-ping rounded-full bg-black/15" style={{ animationDuration: "2.2s", animationDelay: "0.8s" }} />
-            <span className="relative inline-flex h-8 w-8 rounded-full bg-black">
-              <span className="m-auto h-2 w-2 animate-pulse rounded-full bg-white" />
-            </span>
-          </div>
-          <p className="mt-8 text-xs font-medium uppercase tracking-wider opacity-50">Dreaming up questions…</p>
+          <p role="status" data-phase-heading className="mt-8 text-sm font-medium">Preparing your questions…</p>
+          <p className="mt-3 max-w-md text-sm">This can take a moment. No payment or research execution has started.</p>
         </section>
       )}
 
       {phase === "questions" && thinking && (
         <section className="mx-auto flex max-w-2xl flex-col items-center py-20 text-center">
+          <h2 data-phase-heading className="mb-4 text-lg font-medium">Review your answers</h2>
           {(!streamDone || loadingAnswer) && <Loader2 className="mb-5 animate-spin opacity-70" size={28} />}
-          {loadingAnswer && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Sending answers…</p>}
+          {loadingAnswer && <p role="status" className="mb-5 text-sm font-medium">Sending answers…</p>}
           {!loadingAnswer && streamDone && <p className="mb-5 text-xs font-medium uppercase tracking-wider opacity-50">Noted — read it, then continue</p>}
           {!loadingAnswer && (
             <div className="w-full max-w-xl space-y-4 text-left">
@@ -784,9 +1077,9 @@ export default function ResearchNewPage() {
       {phase === "questions" && !thinking && openBatch.length > 0 && (
         <section className="mx-auto max-w-2xl py-6">
           <div className="mb-1 flex items-baseline justify-between gap-2">
-            <p className="text-xs font-medium uppercase tracking-wider opacity-50">
+            <h2 data-phase-heading className="text-sm font-medium">
               Answer these · {batchProgress} of {openBatch.length} done
-            </p>
+            </h2>
             <button onClick={justPlanIt} disabled={busy} className="shrink-0 text-xs font-medium uppercase tracking-wider opacity-60 underline hover:opacity-100">
               Just plan it →
             </button>
@@ -856,10 +1149,16 @@ export default function ResearchNewPage() {
       {phase === "configure" && (
         <section className="mx-auto max-w-2xl py-6">
           <h2 className="nibgate-display-title text-2xl font-medium md:text-3xl">Configure the run</h2>
-          <p className="mt-2 text-sm opacity-60">{privateBuildEnabled()&&!privateFundingEnabled()?"Set the bounds for private research. This owner preview has no wallet payment or escrow.":"Set the bounds. Planning is free — money moves only when you approve."}</p>
-          {project?.id && (confidential
+          <p className="mt-2 text-sm opacity-60">{guestMode ? "Choose the scope and future research budget. Guest planning is sponsored within usage limits; no payment or research starts here." : privateBuildEnabled()&&!privateFundingEnabled()?"Set the bounds for private research. This owner preview has no wallet payment or escrow.":"Set the bounds. Planning is free — money moves only when you approve."}</p>
+          {guestMode && <div className="mt-5 border border-dark-gray/50 p-4 text-sm">
+            <p>Private files require an account. Your text-only guest plan can continue without uploads.</p>
+            <button disabled={adopting || busy || guestRestoreBlocked} onClick={() => { void signInAndAdopt("files"); }} className="mt-3 border border-black px-4 py-2 font-medium focus-visible:outline-2 disabled:opacity-50">{adoptionAwaitingSignIn ? "Waiting for sign-in…" : adopting ? "Saving to your account…" : "Sign in to add private files"}</button>
+          </div>}
+          {!guestMode && project?.id && (confidential
             ? <ConfidentialSourceManager runId={project.id} onBusyChange={setSourcesBusy} />
             : <SourceManager runId={project.id} onBusyChange={setSourcesBusy} />)}
+          <fieldset disabled={busy || adopting || guestRestoreBlocked || (guestMode && guestPlanningExpired)} className="min-w-0">
+          <legend className="sr-only">Research configuration</legend>
           <div className="mt-5 grid grid-cols-1 gap-4 text-left sm:grid-cols-2">
             <div>
               <label className="text-sm font-medium" htmlFor="drnib-depth">Depth</label>
@@ -874,37 +1173,44 @@ export default function ResearchNewPage() {
               <input id="drnib-cap" type="number" min={0.1} step={0.1} value={budgetCap} onChange={(e) => setBudgetCap(Number(e.target.value) || 0)} className="mt-1.5 w-full border border-dark-gray/50 bg-white px-3 py-2 text-sm" />
             </div>
           </div>
+          {guestMode && <p className="mt-4 text-xs">Guest planning does not browse or call paid tools. To fund this plan later, choose public web research below, or sign in to add private sources and replan.</p>}
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
             {confidential ? (
               <span className="opacity-60">Confidential runs research the document you supply inside the verified worker — no live web, no onchain escrow on this path.</span>
             ) : (<>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} disabled={privateBuildEnabled()&&!privateWebEnabled} onChange={(e) => setLiveWeb(e.target.checked)} /> {privateBuildEnabled()?"Allow public URL reads and tools":"Live web search"}</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={liveWeb} disabled={privateBuildEnabled()&&!privateWebEnabled} onChange={(e) => setLiveWeb(e.target.checked)} /> {guestMode ? "Use public web sources when funded research starts" : privateBuildEnabled()?"Allow public URL reads and tools":"Live web search"}</label>
             {privateBuildEnabled()&&liveWeb?<label className="flex items-center gap-2"><input type="checkbox" checked={searchEnabled} onChange={e=>setSearchEnabled(e.target.checked)} /> Also allow web and Hub search</label>:null}
             {privateBuildEnabled()&&liveWeb&&searchEnabled?<label className="block text-xs">Search terms<input type="search" autoComplete="off" value={publicSearchBrief??''} maxLength={400} onChange={event=>setPublicSearchBrief(event.target.value)} className="mt-1 block w-full rounded border border-dark-gray/40 bg-white p-2"/><span className="mt-1 block opacity-60">Public search tools receive these terms and selected public URLs. JEV receives selected research context through OpenRouter and TypeSafe, with zero retention required.</span></label>:null}
             <label className="flex items-center gap-2" title={privateBuildEnabled()?"Seek relevant creator work and propose JEV-judged tips after the report; up to 20% of the budget, with the research estimate reserved. Review the public URL and amount before payment.":"Tip the decisive sources up to $1 each after scoring — proposed by the model, judged before signing"}>
-              <input type="checkbox" checked={tipCreators} disabled={privateBuildEnabled()&&!privateWebEnabled} onChange={(e) => setTipCreators(e.target.checked)} /> Tip cited creators
+              <input type="checkbox" checked={tipCreators} disabled={guestMode || privateBuildEnabled()&&!privateWebEnabled} onChange={(e) => setTipCreators(e.target.checked)} /> Tip cited creators
             </label>
-            <span className="opacity-60">{privateBuildEnabled()?privateFundingEnabled()?"Research uses your onchain escrow deposit. Planning and writing run in verified processing; JEV receives selected context through OpenRouter/TypeSafe with zero retention required. Creator tips use escrow after your approval of the public page and amount; research keeps its reserve.":"Research uses the owner test limit. Planning and writing run in verified processing; JEV receives selected context through OpenRouter/TypeSafe with zero retention required. Creator tips use escrow after your approval of the public page and amount; research keeps its reserve.":"Runs are funded by an onchain escrow deposit — approve stays locked until it lands."}</span>
+            <span className="opacity-60">{guestMode ? "Later research requires account sign-in and separate funding approval. JEV receives selected planning context through OpenRouter/TypeSafe with zero retention required." : privateBuildEnabled()?privateFundingEnabled()?"Research uses your onchain escrow deposit. Planning and writing run in verified processing; JEV receives selected context through OpenRouter/TypeSafe with zero retention required. Creator tips use escrow after your approval of the public page and amount; research keeps its reserve.":"Research uses the owner test limit. Planning and writing run in verified processing; JEV receives selected context through OpenRouter/TypeSafe with zero retention required. Creator tips use escrow after your approval of the public page and amount; research keeps its reserve.":"Runs are funded by an onchain escrow deposit — approve stays locked until it lands."}</span>
             </>)}
             {privateBuildEnabled()&&process.env.NEXT_PUBLIC_DRNIB_HOSTED_RESEARCH_FALLBACK==='true'?<p role="note" className="w-full text-xs leading-5">Phala processes research first. If unavailable, OpenRouter and the approved Azure model may process your research context with zero retention required. This fallback is provider-visible, not hardware-attested inference. Project decryption and saved state remain in the private worker. JEV keeps its disclosed OpenRouter/TypeSafe route.</p>:null}
             <span className="opacity-60">Outputs:</span>
             {["pdf", "word", "excel", "powerpoint"].map((f) => (
-              <button key={f} onClick={() => setFormats((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]))} className={`border px-2.5 py-1 text-xs uppercase ${formats.includes(f) ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{f}</button>
+              <button key={f} aria-pressed={formats.includes(f)} onClick={() => setFormats((p) => (p.includes(f) ? p.filter((x) => x !== f) : [...p, f]))} className={`border px-2.5 py-1 text-xs uppercase ${formats.includes(f) ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{f}</button>
             ))}
           </div>
           <div className="mt-4">
-            <span className="text-sm font-medium">Report length</span>
-            <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Report length">
+            <fieldset className="min-w-0">
+              <legend className="text-sm font-medium">Report length</legend>
+              <div className="mt-1.5 flex flex-wrap gap-2">
               {[
                 { id: "brief", label: "Brief · 1,200+ words" },
                 { id: "standard", label: "Standard · 4,000+ words" },
                 { id: "comprehensive", label: "Comprehensive · 12,000+ words" },
                 { id: "custom", label: "Custom…" },
               ].map((o) => (
-                <button key={o.id} onClick={() => setLength(o.id)} aria-pressed={length === o.id}
-                  className={`border px-3 py-1.5 text-xs ${length === o.id ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>{o.label}</button>
+                <label key={o.id}
+                  className={`flex cursor-pointer items-center gap-2 border px-3 py-1.5 text-xs focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-black ${length === o.id ? "border-black bg-black text-white" : "border-dark-gray/50 opacity-70"}`}>
+                  <input type="radio" name="drnib-report-length" value={o.id} checked={length === o.id}
+                    onChange={() => setLength(o.id)} className="h-4 w-4 accent-black" />
+                  {o.label}
+                </label>
               ))}
-            </div>
+              </div>
+            </fieldset>
             {length === "custom" ? (
               <div className="mt-2 flex items-center gap-2 text-sm">
                 <label htmlFor="drnib-words" className="opacity-60">Words</label>
@@ -915,9 +1221,11 @@ export default function ResearchNewPage() {
               </div>
             ) : null}
           </div>
+          </fieldset>
+          {busy && <p role="status" className="mt-4 text-sm">Preparing your plan. Your submitted settings are locked until this request finishes.</p>}
           <div className="mt-5 flex gap-2">
             <button onClick={async () => { await reloadItems(); setPhase("questions"); }} disabled={busy} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium disabled:opacity-50">Back</button>
-            <button onClick={plan} disabled={busy || sourcesBusy} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{sourcesBusy ? "Finish adding sources…" : busy ? "Planning…" : "Plan run"}</button>
+            <button onClick={plan} disabled={busy || sourcesBusy || guestRestoreBlocked || adopting || (guestMode && guestPlanningExpired)} className="bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50">{sourcesBusy ? "Finish adding sources…" : busy ? "Planning…" : "Plan run"}</button>
           </div>
         </section>
       )}
@@ -941,9 +1249,9 @@ export default function ResearchNewPage() {
                 <p className="mt-3 text-sm">Run {project?.id?.slice(0, 8)} · nothing charged on this test path</p>
               </>
             ) : (<>
-            <p className="mt-3 text-xs opacity-60">Depth: {depth} · Cap: ${budgetCap.toFixed(2)} · {liveWeb ? (privateBuildEnabled()&&!searchEnabled?"public URL reads · search off":"live web") : "uploaded sources only"} · {formats.join(", ")}</p>
+            <p className="mt-3 text-xs opacity-60">Depth: {depth} · Cap: ${budgetCap.toFixed(2)} · {guestMode ? (liveWeb ? "public web sources after funding" : "text-only plan · add sources after sign-in") : liveWeb ? (privateBuildEnabled()&&!searchEnabled?"public URL reads · search off":"live web") : "uploaded sources only"} · {formats.join(", ")}</p>
             <p className="mt-1 text-xs opacity-60">Report: {length === "custom" ? `custom · ${Number(lengthWords || 0).toLocaleString()}+ words minimum` : `${length} · ${{ brief: "1,200", standard: "4,000", comprehensive: "12,000" }[length] || "4,000"}+ words minimum`}</p>
-            <p className="mt-3 text-sm">Estimated cost: <strong>${(estimate ?? 0.2).toFixed(2)}</strong> · Run {project?.id?.slice(0, 8)}</p>
+            <p className="mt-3 text-sm">Estimated cost: <strong>{estimate === null ? "Unavailable — replan before funding" : `$${estimate.toFixed(2)}`}</strong> · Run {project?.id?.slice(0, 8)}</p>
             </>)}
           </div>
           {subQuestions.length > 0 && (
@@ -954,17 +1262,17 @@ export default function ResearchNewPage() {
                   <li key={i} className="flex items-start gap-2 text-sm">
                     <span className="mt-0.5 opacity-50">{i + 1}.</span>
                     {editingSq === i ? (
-                      <span className="flex flex-1 items-center gap-2">
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                         <input
                           value={editText}
                           onChange={(e) => setEditText(e.target.value)}
                           aria-label={`Edit step ${i + 1}`}
-                          className="flex-1 border border-dark-gray/50 bg-white px-2 py-1 text-sm"
+                          className="min-w-0 flex-1 border border-dark-gray/50 bg-white px-2 py-2 text-sm focus-visible:outline-2"
                         />
                         <button
                           onClick={() => {
                             const t = editText.trim();
-                            if (!t || subQuestions.length <= 1) { setEditingSq(null); return; }
+                            if (!t) { stick("Enter a plan step before saving. The previous step is unchanged."); return; }
                             const next = subQuestions.map((x, j) => (j === i ? t : x));
                             void savePlan(next);
                           }}
@@ -981,8 +1289,9 @@ export default function ResearchNewPage() {
                         <span className="flex shrink-0 gap-1">
                           <button
                             onClick={() => { setEditingSq(i); setEditText(sq); }}
+                            disabled={busy || adopting}
                             aria-label={`Edit step ${i + 1}`}
-                            className="px-1.5 py-0.5 text-xs opacity-60 hover:opacity-100 hover:underline"
+                            className="min-h-11 min-w-11 px-1.5 py-0.5 text-xs opacity-60 hover:opacity-100 hover:underline focus-visible:outline-2"
                           >
                             Edit
                           </button>
@@ -1020,7 +1329,13 @@ export default function ResearchNewPage() {
           {confidential && (
             <p className="mt-4 border border-dark-gray/50 bg-white p-4 text-sm">Your plan is ready. Continuing starts confidential research on the document you added — it stays in this browser and is encrypted to the verified worker. Nothing is charged on this test path.</p>
           )}
-          {!confidential && <>
+          {guestMode && <div className="mt-5 border border-dark-gray/50 p-4 text-sm">
+            <h3 className="font-medium">Save this plan before funding</h3>
+            <p className="mt-2">Sign in with Google or a wallet to save the encrypted project to your account. We’ll verify the plan and current estimate before showing funding. Sign-in does not fund or start research.</p>
+            <button disabled={adopting || signInBusy || busy || guestRestoreBlocked} onClick={() => { void signInAndAdopt("plan"); }} className="mt-3 bg-black px-4 py-2 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50">{adoptionAwaitingSignIn || signInBusy ? "Waiting for sign-in…" : adopting ? "Saving and checking your plan…" : "Sign in to save this plan"}</button>
+            {signInError && <p role="status" className="mt-2">{signInError}</p>}
+          </div>}
+          {!guestMode && !confidential && <>
           {escrowConfigured === true && project && !escrowFunded && planSource !== "fallback" && (
             <>
               <EscrowDeposit runId={project.id} budgetCap={budgetCap} estimate={privateFundingEnabled()?Math.max(Number(estimate??0),Number(project.plan?.minimumFunding??0)):estimate} onFunded={(confirmedBudget) => { setEscrowBudget(confirmedBudget); setEscrowFunded(true); }} />
@@ -1067,7 +1382,7 @@ export default function ResearchNewPage() {
           {privateBuildEnabled()&&busy&&project?.id?<PrivateRunningActivity runId={project.id}/>:null}
           <div className="mt-4 flex gap-2">
             <button onClick={() => setPhase("configure")} className="border border-dark-gray/60 px-4 py-2 text-sm font-medium">Back</button>
-            <button onClick={approve} disabled={busy || !project || planSource === "fallback" || (!confidential && (escrowConfigured === null || (escrowConfigured === true && !escrowFunded)))} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={confidential ? undefined : planSource === "fallback" ? "Retry planning before funding" : escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? (privateBuildEnabled()?"Researching and verifying…":"Starting…") : confidential ? "Approve & continue" : "Approve & run"}</button>
+            {!guestMode && <button onClick={approve} disabled={ guestRestoreBlocked || adopting || Boolean(adoptionNeedsReview) || busy || !project || planSource === "fallback" || (!confidential && (escrowConfigured === null || (escrowConfigured === true && !escrowFunded)))} className="inline-flex items-center gap-2 bg-black px-6 py-2 text-sm font-medium text-white disabled:opacity-50" title={confidential ? undefined : planSource === "fallback" ? "Retry planning before funding" : escrowConfigured === null ? "Waiting on the escrow check" : escrowConfigured === true && !escrowFunded ? "Fund the escrow first" : undefined}>{busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{busy ? (privateBuildEnabled()?"Researching and verifying…":"Starting…") : confidential ? "Approve & continue" : "Approve & run"}</button>}
           </div>
         </section>
       )}

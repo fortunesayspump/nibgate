@@ -1,3 +1,4 @@
+import {guestPlanningPolicy} from './guest-planning-policy.js';
 import { randomUUID } from 'node:crypto';
 import {admitPrivateRunSpend} from './private-run-budget.js';
 
@@ -75,8 +76,8 @@ export function createHostedJevPort({ db, apiKey, monthlyCapMicroUsd, policy, fe
                 const current = await tx.privateInferenceCall.aggregate({ where: { monthKey }, _sum: { committedMicroUsd: true } });
                 const legacy = await tx.privateAiBudgetReservation.aggregate({ where: { monthKey }, _sum: { committedMicroUsd: true } });
                 if (BigInt(current._sum.committedMicroUsd ?? 0) + BigInt(legacy._sum.committedMicroUsd ?? 0) + reserved > BigInt(monthlyCapMicroUsd)) throw unavailable();
-                const billingKind=fundingRequired?(budgetMicroUsd===undefined?'platform':'customer'):'owner-test';
-                await admitPrivateRunSpend(tx,run.id,reserved,budgetMicroUsd,fundingRequired,billingKind);
+                const billingKind=guestPlanningPolicy(fresh)?'platform':fundingRequired?(budgetMicroUsd===undefined?'platform':'customer'):'owner-test';
+                await admitPrivateRunSpend(tx,run.id,reserved,budgetMicroUsd,fundingRequired,billingKind,fresh);
                 await tx.privateInferenceCall.create({ data: { id, runId: run.id, actionId, model: MODEL, billingKind,costBasis:'reservation', monthKey, reservedMicroUsd: reserved, committedMicroUsd: reserved, status: 'reserved' } });
             },{timeout:60000,maxWait:10000});
             const response = await fetchImpl(URL, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),

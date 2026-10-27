@@ -53,6 +53,8 @@ export function useNibgateConnect(options?: {
   verifyPath?: string;
 }): {
   connect: () => Promise<boolean>;
+  /** Open the existing Google/wallet chooser without signing an already-connected wallet. */
+  requestSignIn: () => Promise<boolean>;
   signIn: () => Promise<boolean>;
   signOut: () => Promise<void>;
   authedFetch: typeof fetch;

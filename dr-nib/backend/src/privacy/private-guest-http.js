@@ -45,13 +45,13 @@ function publicSession(opened,nonce){
  * audience-bound broker capability; this module deliberately has no permissive
  * default. Nibgate cookies are not accepted by the CVM. Production wiring and
  * egress policy remain separate release gates. */
-export function createPrivateGuestHttpServer({sessions,authenticate,getReport,getJobStatus,diagnosticEvidence,checkTools,privateReady=false,fullReady=false,workflowReady=false}){
+export function createPrivateGuestHttpServer({sessions,authenticate,getReport,getJobStatus,diagnosticEvidence,checkTools,privateReady=false,fullReady=false,workflowReady=false,guestPlanningReady=false}){
   if(typeof sessions?.open!=='function'||typeof sessions?.prove!=='function'||typeof sessions?.execute!=='function'||
      typeof authenticate!=='function'||typeof getReport!=='function')throw new Error('PRIVATE_GUEST_UNAVAILABLE');
   return createServer(async(req,res)=>{
     try{
       const url=new URL(req.url,'http://private-guest.invalid');
-      if(url.pathname==='/health'&&req.method==='GET')return send(res,200,{ok:true,privateReady:privateReady===true,fullReady:fullReady===true,...(workflowReady?{workflowReady:true}:{})});
+      if(url.pathname==='/health'&&req.method==='GET')return send(res,200,{ok:true,privateReady:privateReady===true,fullReady:fullReady===true,...(workflowReady?{workflowReady:true}:{}),...(guestPlanningReady?{guestPlanningReady:true}:{})});
       if(url.pathname==='/v1/private/attestation'&&req.method==='GET'){
         if(typeof diagnosticEvidence!=='function'||url.searchParams.size!==1||! /^[0-9a-f]{64}$/.test(url.searchParams.get('nonce')||''))return fail(res,400);
         const evidence=await diagnosticEvidence(Buffer.from(url.searchParams.get('nonce'),'hex'));

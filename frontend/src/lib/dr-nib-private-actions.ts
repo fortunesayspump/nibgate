@@ -1,4 +1,5 @@
 'use client';
+import { isGuestRun, readGuestPending, writeGuestPending, lockGuestAction } from './dr-nib-guest-planning';
 import { privateConnectionProgress } from './dr-nib-private-connection';
 import { openGuestSession, proveGuestKey } from './dr-nib-private-api';
 import { base64ToBytes, bytesToBase64, bytesToHex, equalHex, freshId, freshNonce, proofDigest, recipientId, sealSource } from './dr-nib-private-crypto';
@@ -11,7 +12,7 @@ const flights = new Map<string, Promise<any>>();
 export function privateAction(runId: string, action: string, args: Record<string, unknown> = {}): Promise<any> {
     if (flights.has(runId)&&action!=='recover')
         return Promise.reject(Error('A private action is already running.'));
-    const flight = perform(runId, action, args);
+    const flight = (async () => await isGuestRun(runId) ? lockGuestAction(runId, () => perform(runId, action, args)) : perform(runId, action, args))();
     flights.set(runId, flight);
     void flight.finally(() => {if(flights.get(runId)===flight){privateConnectionProgress(runId,null);flights.delete(runId)}}).catch(() => { });
     return flight;
@@ -25,7 +26,13 @@ async function perform(runId: string, action: string, args: Record<string, unkno
     try {
     const pendingKey = `drnib-private-pending-v1:${tenantId}:${runId}`;
     const fingerprint = bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify({ action, args })))));
-    const pending = localStorage.getItem(pendingKey);
+    const guest = await isGuestRun(runId);
+    const pendingWrite = async (value: string | null) => {
+        if (guest) await writeGuestPending(runId, value);
+        else if (value === null) localStorage.removeItem(pendingKey);
+        else localStorage.setItem(pendingKey, value);
+    };
+    const pending = guest ? await readGuestPending(runId) : localStorage.getItem(pendingKey);
     const recoveryId=action==='recover'?args.requestId:null;
     if(action==='recover'&&(typeof recoveryId!=='string'||!/^[0-9a-f-]{36}$/i.test(recoveryId)))throw Error('Invalid private recovery request.');
     let requestId = typeof recoveryId==='string'?recoveryId:freshId();
@@ -35,7 +42,13 @@ async function perform(runId: string, action: string, args: Record<string, unkno
             const bytes=await openPrivateObject(secrets.workerStateKey,{tenantId,vaultId:vault.vaultId,runId,objectId:requestId,revision:1,purpose:'event'},result.envelope);
             try {
                 const failure=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)),code=failure.error;
-                const messages:Record<string,string>={PRIVATE_EVIDENCE_REPAIR_REQUIRED:'Research did not obtain usable evidence. Saved work and escrow remain open for repair; no replacement purchase or refund was started automatically.',PRIVATE_REPORT_REPAIR_REQUIRED:'The report check needs further repair. Saved work and escrow remain open; recorded model results will not be purchased again by checking saved work.',PRIVATE_STORAGE_TRANSACTION_TIMEOUT:'Private storage timed out. Saved work needs a journal check before resuming.',PRIVATE_CHECKPOINT_UNCERTAIN:'A saved operation has no confirmed durable result.',PRIVATE_RUN_BUDGET_CLOSED:'This project budget is closed for settlement. Saved reports remain available.',PRIVATE_RUN_FUNDING_REQUIRED:'Fund this project before starting paid private research.',PRIVATE_RUN_BUDGET_INVALID:'The project budget is invalid.',PRIVATE_RUN_BUDGET_EXHAUSTED:'The remaining project budget cannot admit this call, including any uncertain usage.',PRIVATE_AGENT_REPORT_DECLINED:'JEV declined report generation from the available evidence. The action stopped without bypassing its decision.',HOSTED_JEV_UNAVAILABLE:'JEV did not complete a decision under the required privacy and budget controls.',PRIVATE_AGENT_INVALID:'The research agent proposed an invalid or disallowed action.',PRIVATE_AGENT_LIMIT:'The research agent reached its bounded decision limit.',PRIVATE_INTAKE_INVALID:'The model returned invalid intake questions.',PRIVATE_MODEL_JSON_INVALID:'The model returned invalid structured output.',PRIVATE_MODEL_OUTPUT_TRUNCATED:'The model reached its output limit.',PRIVATE_WORKFLOW_CAP:'The private test allowance cannot admit another call.',PRIVATE_ACTION_UNAVAILABLE:'The worker could not finalize the action.',
+                const messages:Record<string,string>={
+                    PRIVATE_GUEST_PLAN_POLICY_CHANGED:'The reviewed models or pricing policy changed. Review the configuration and explicitly generate a new plan.',
+                    PRIVATE_GUEST_PLAN_EXPIRED:'This guest plan expired. Review the saved question and explicitly create a new plan before funding.',
+                    PRIVATE_GUEST_PLAN_CHANGED:'The plan inputs changed. Review and explicitly replan before funding.',
+                    PRIVATE_GUEST_QUOTE_CHANGED:'The research quote changed. Review the current quote and explicitly replan before funding.',
+                    PRIVATE_GUEST_SESSION_CLOSED:'This guest session is closed or expired. Its encrypted draft remains on this device; sign in to save it.',
+                    PRIVATE_GUEST_LIMIT:'The guest planning limit has been reached. Sign in to save the existing draft. No automatic retry was started.',PRIVATE_EVIDENCE_REPAIR_REQUIRED:'Research did not obtain usable evidence. Saved work and escrow remain open for repair; no replacement purchase or refund was started automatically.',PRIVATE_REPORT_REPAIR_REQUIRED:'The report check needs further repair. Saved work and escrow remain open; recorded model results will not be purchased again by checking saved work.',PRIVATE_STORAGE_TRANSACTION_TIMEOUT:'Private storage timed out. Saved work needs a journal check before resuming.',PRIVATE_CHECKPOINT_UNCERTAIN:'A saved operation has no confirmed durable result.',PRIVATE_RUN_BUDGET_CLOSED:'This project budget is closed for settlement. Saved reports remain available.',PRIVATE_RUN_FUNDING_REQUIRED:'Fund this project before starting paid private research.',PRIVATE_RUN_BUDGET_INVALID:'The project budget is invalid.',PRIVATE_RUN_BUDGET_EXHAUSTED:'The remaining project budget cannot admit this call, including any uncertain usage.',PRIVATE_AGENT_REPORT_DECLINED:'JEV declined report generation from the available evidence. The action stopped without bypassing its decision.',HOSTED_JEV_UNAVAILABLE:'JEV did not complete a decision under the required privacy and budget controls.',PRIVATE_AGENT_INVALID:'The research agent proposed an invalid or disallowed action.',PRIVATE_AGENT_LIMIT:'The research agent reached its bounded decision limit.',PRIVATE_INTAKE_INVALID:'The model returned invalid intake questions.',PRIVATE_MODEL_JSON_INVALID:'The model returned invalid structured output.',PRIVATE_MODEL_OUTPUT_TRUNCATED:'The model reached its output limit.',PRIVATE_WORKFLOW_CAP:'The private test allowance cannot admit another call.',PRIVATE_ACTION_UNAVAILABLE:'The worker could not finalize the action.',
                     PHALA_PRIVATE_AI_UNAVAILABLE:'The confidential AI connection or its required verification failed.',
                     PHALA_PRIVATE_AI_REQUEST_FAILED:'The confidential AI request did not satisfy the approved policy.',
                     PHALA_PRIVATE_AI_ATTESTATION_FAILED:'The confidential AI gateway identity could not be verified.',
@@ -75,7 +88,7 @@ async function perform(runId: string, action: string, args: Record<string, unkno
                 }
             } finally {bytes.fill(0);}
         }
-        if(knownFailure){localStorage.removeItem(pendingKey);throw Error(`${detail} The action stopped with no unresolved model charge in this action. Review the project before submitting another action.`);}
+        if(knownFailure){await pendingWrite(null);throw Error(`${detail} The action stopped with no unresolved model charge in this action. Review the project before submitting another action.`);}
         throw Error(`${detail?detail+' ':''}The private action has an uncertain outcome. No duplicate model call was started.`);
     }
     async function decode(result: any) {
@@ -84,7 +97,7 @@ async function perform(runId: string, action: string, args: Record<string, unkno
         const bytes = await openPrivateObject(secrets.workerStateKey, { tenantId, vaultId: vault.vaultId, runId, objectId: requestId, revision: 1, purpose: 'event' }, result.envelope as PrivateObjectEnvelope);
         try {
             const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
-            localStorage.removeItem(pendingKey);
+            await pendingWrite(null);
             return value;
         }
         finally {
@@ -99,7 +112,7 @@ async function perform(runId: string, action: string, args: Record<string, unkno
             if(action!=='export')throw Error('This private run was ended. No new model call was started. Open its receipt to check settlement.');
             // Cancellation fences the old request in the worker. Only a
             // read-only export may replace this device's pending pointer.
-            localStorage.removeItem(pendingKey);
+            await pendingWrite(null);
             requestId=freshId();
         }
         else {
@@ -136,7 +149,7 @@ async function perform(runId: string, action: string, args: Record<string, unkno
     try {
         const sourceEnvelope = await sealSource(guestKey, { tenantId, runId, objectId: requestId, revision: 1, purpose: 'source', recipientId: session.recipientId }, plaintext);
         // Store intent before dispatch; a storage failure prevents the paid call.
-        localStorage.setItem(pendingKey, JSON.stringify({ requestId, fingerprint }));
+        await pendingWrite(JSON.stringify({ requestId, fingerprint }));
         let result: any;
         try {
             result = await privateRecordRequest(`/sessions/${session.sessionId}/action`, { method: 'POST', body: JSON.stringify({ runId, sourceEnvelope }), signal: AbortSignal.timeout(200000) });

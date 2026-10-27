@@ -9,7 +9,7 @@ const exact = (v, keys) => v && typeof v === 'object' && !Array.isArray(v) && Ob
 const digest = ciphertextDigest;
 function b64(v, min, max) { if (typeof v !== 'string' || v.length > Math.ceil(max * 4 / 3) + 4 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(v))
     return false; const b = Buffer.from(v, 'base64'); return b.length >= min && b.length <= max && b.toString('base64') === v; }
-function validEnvelope(e, { tenantId, vaultId, runId, objectId, kind, revision }) {
+export function validEnvelope(e, { tenantId, vaultId, runId, objectId, kind, revision }) {
     if (kind === 'vault-recovery' && exact(e, 'code,password,version') && e.version === 2)
         return e.code?.version === 1 && validEnvelope(e.code, { tenantId, vaultId, runId, kind, revision }) &&
             exact(e.password, 'algorithm,ciphertext,context,iv,kdf,version') &&

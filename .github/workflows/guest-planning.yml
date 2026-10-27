@@ -1,0 +1,92 @@
+name: Guest planning regressions
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/guest-planning.yml'
+      - 'dr-nib/**'
+      - 'frontend/**'
+      - 'packages/wallet/**'
+      - 'packages/internal/**'
+      - 'packages/nibgate/**'
+      - 'scripts/drnib-*'
+      - 'scripts/test-drnib-guest-postgres.mjs'
+      - 'scripts/fixtures/drnib-*/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'vitest.config.ts'
+  workflow_dispatch:
+
+# Untrusted PR code gets no write token, deployment environment or secrets.
+permissions:
+  contents: read
+concurrency:
+  group: guest-planning-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Builds and fixtures must never select live service origins.
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:9
+      DRNIB_API_URL: http://127.0.0.1:9
+      DRNIB_PRIVATE_API_URL: http://127.0.0.1:9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked workspace and isolated test tools
+        run: |
+          pnpm install --frozen-lockfile
+          npm ci --prefix scripts/fixtures/drnib-signin --workspaces=false --no-audit --no-fund
+      - name: Generate Dr. Nib Prisma client (no database connection)
+        env:
+          DRNIB_DATABASE_URL: postgresql://fixture:fixture@127.0.0.1:9/unused
+        run: pnpm --filter @nibgate/dr-nib-backend exec prisma generate --schema prisma/schema.prisma
+      - name: Backend privacy and worker policy tests (synthetic boundaries)
+        run: pnpm test:drnib-privacy
+      - name: Client and authentication regressions (no real account)
+        run: |
+          node --test scripts/drnib-signin-submission.test.mjs scripts/drnib-guest-adoption.test.mjs scripts/drnib-private-session-retry.test.mjs scripts/drnib-research-accessibility.test.mjs packages/wallet/test/sign-in-selection.test.js
+          pnpm exec vitest run frontend/src/lib/dr-nib-guest-planning.test.ts frontend/src/lib/dr-nib-guest-errors.test.ts packages/wallet/test/useNibgateConnect.test.ts
+      - name: Install local PostgreSQL for disposable migration and concurrency tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-16
+      - name: Actual PostgreSQL migration, rollback and adoption races
+        env:
+          NIBGATE_POSTGRES_BIN: /usr/lib/postgresql/16/bin
+        # Creates its own temporary loopback cluster; never reads a configured DB URL.
+        run: node scripts/test-drnib-guest-postgres.mjs
+      - name: Build production frontend and collect its actual styles
+        run: |
+          pnpm --filter @nibgate/frontend build
+          node --input-type=module <<'NODE'
+          import { readdir, readFile, writeFile } from 'node:fs/promises';
+          const dir = 'frontend/.next/static/chunks';
+          const files = (await readdir(dir)).filter(name => name.endsWith('.css')).sort();
+          if (!files.length) throw new Error('Production CSS is required for styled UI coverage');
+          const css = (await Promise.all(files.map(name => readFile(`${dir}/${name}`, 'utf8')))).join('\n');
+          if (!css.includes('--nib-page-bg')) throw new Error('Production site styles missing');
+          await writeFile(`${process.env.RUNNER_TEMP}/drnib-production.css`, css);
+          NODE
+      - name: Install pinned Playwright Chromium (test-only)
+        run: node scripts/fixtures/drnib-signin/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Desktop/mobile source-page UI and actual encrypted browser storage
+        env:
+          SIGNIN_TEST_CSS: ${{ runner.temp }}/drnib-production.css
+          SIGNIN_TEST_SCREENSHOTS: ${{ runner.temp }}/drnib-synthetic-ui
+        # APIs, auth, wallet and model results are test doubles. Network is loopback-only.
+        # This is not live Phala/OAuth/payment verification or visual human approval.
+        run: node --test --test-concurrency=1 scripts/drnib-guest-browser.e2e.mjs scripts/drnib-signin-browser.e2e.mjs scripts/drnib-signin-dom.e2e.mjs scripts/drnib-guest-storage.e2e.mjs

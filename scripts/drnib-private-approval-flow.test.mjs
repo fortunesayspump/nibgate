@@ -1,6 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';import {createRequire} from 'node:module';
 const require=createRequire(new URL('../frontend/package.json',import.meta.url)),ts=require('typescript');
+// These legacy funding/recovery fixtures are authenticated account runs, not guest planning.
+const accountGuestBoundary='const isGuestRun=async()=>false;\n';
 const recoveryHelpers=(await readFile(new URL('../frontend/src/lib/dr-nib-private-checkpoint-recovery.ts',import.meta.url),'utf8')).replace(/^export /gm,'');
 const updateHelpers=(await readFile(new URL('../frontend/src/lib/dr-nib-private-action-updates.ts',import.meta.url),'utf8')).replace(/^export /gm,'');
 test('approval returns before inference, preserves background work and surfaces failure without replay',async()=>{
@@ -11,7 +13,7 @@ test('approval returns before inference, preserves background work and surfaces 
  try{
   let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');
   source=source.replace(/^import .*;\r?\n/gm,'');
-  source=updateHelpers+recoveryHelpers+'\nconst {createEncryptedProject,getPrivateManifest,privateRecordRequest,privateFundingEnabled,requirePrivateInputs,configuredPrivateVerification,privateAction,privateDiscussionShape,privateFundingShape}=globalThis.__drNibApprovalTest;\n'+source;
+  source=accountGuestBoundary+updateHelpers+recoveryHelpers+'\nconst {createEncryptedProject,getPrivateManifest,privateRecordRequest,privateFundingEnabled,requirePrivateInputs,configuredPrivateVerification,privateAction,privateDiscussionShape,privateFundingShape}=globalThis.__drNibApprovalTest;\n'+source;
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText;
   const {privateClientRequest:request}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   const path='/v1/runs/'+state.id;
@@ -34,7 +36,7 @@ test('pause queues independently and expired-worker recovery cannot be overwritt
  globalThis.__drNibRecoveryFlow=mocks;
  try{
   let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');
-  source=updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibRecoveryFlow;\n'+source;
+  source=accountGuestBoundary+updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibRecoveryFlow;\n'+source;
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText;
   const {privateClientRequest:request}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64')),path='/v1/runs/'+state.id;
   assert.equal((await request(path+'/resume',{method:'POST'})).status,'running');assert.equal((await request(path)).status,'running');
@@ -54,7 +56,7 @@ test('only the exact setup-approved free public query continues without another 
  const mocks={createEncryptedProject:()=>{},getPrivateManifest:async()=>({value:state}),privateRecordRequest:async()=>({}),privateFundingEnabled:()=>true,requirePrivateInputs:async()=>{},configuredPrivateVerification:()=>({}),privateDiscussionShape:v=>v,privateFundingShape:v=>v,approvePrivateExternalTool:async(runId,q)=>{tools.push(q.externalRequest);assert.equal(runId,id);return {toolCallId:'synthetic',toolResult:{sources:[]}}},privateAction:async(_id,action,args)=>{calls.push({action,args});state=action==='execute'?{...state,status:'awaiting',pendingQuestion:question}:{...state,status:'complete'};return state}};
  globalThis.__drNibPublicContinuation=mocks;
  try{
-  let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');source=updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibPublicContinuation;\n'+source;
+  let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');source=accountGuestBoundary+updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibPublicContinuation;\n'+source;
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText;
   const {privateClientRequest:request,isPreapprovedPublicResearch:allowed}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   const waiting={...state,status:'awaiting',pendingQuestion:question};assert.equal(allowed(waiting),true);
@@ -72,7 +74,7 @@ test('opening saved uncertain work stays read-only; explicit resume admits bound
  const id='11111111-1111-4111-8111-111111111111',requestId='22222222-2222-4222-8222-222222222222',state={id,status:'paused',pauseReason:'uncertain',metadata:{privateUncertainRequestId:requestId,privateRecoveryRequestId:requestId,privateActionError:'Saved work needs checking.'}},calls=[];
  const mocks={createEncryptedProject:()=>{},getPrivateManifest:async()=>({value:state}),privateRecordRequest:async()=>({actions:true}),privateFundingEnabled:()=>true,requirePrivateInputs:async()=>{},configuredPrivateVerification:()=>({}),privateAction:async(_id,action,args)=>{calls.push({action,args});throw Error('Journal has an unresolved operation; no replay.')},privateDiscussionShape:v=>v,privateFundingShape:v=>v};globalThis.__drNibAutoRecovery=mocks;
  try{
-  let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');source=updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibAutoRecovery;\n'+source;
+  let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');source=accountGuestBoundary+updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibAutoRecovery;\n'+source;
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText,{privateClientRequest:request}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   await request('/v1/runs/'+id);await new Promise(resolve=>setImmediate(resolve));
   await request('/v1/runs/'+id);assert.deepEqual(calls,[]);assert.equal(payments,0);
@@ -91,7 +93,7 @@ test('opening a saved public question never starts tools or worker recovery',asy
  const id='11111111-1111-4111-8111-111111111111',state={id,status:'awaiting',metadata:{},brief:{liveWeb:true,tipCreators:true,publicResearch:{approved:true,brief:'approved public query'}},pendingQuestion:{id:'a'.repeat(64),externalRequest:{tool:'web_search',query:'approved public query',preferCreators:true,maxMicroUsd:0}}};
  const mocks={createEncryptedProject:()=>{},getPrivateManifest:async()=>({value:state}),privateRecordRequest:async()=>({actions:true}),privateFundingEnabled:()=>true,requirePrivateInputs:async()=>{},configuredPrivateVerification:()=>({}),privateDiscussionShape:v=>v,privateFundingShape:v=>v,approvePrivateExternalTool:async()=>{tools++;throw Error('Must not dispatch a duplicate public request')},privateAction:async()=>{actions++;throw Error('Must not start replacement research')}};globalThis.__drNibActivePublicQuestion=mocks;
  try{
-  let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');source=updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibActivePublicQuestion;\n'+source;
+  let source=await readFile(new URL('../frontend/src/lib/dr-nib-private-client.ts',import.meta.url),'utf8');source=source.replace(/^import .*;\r?\n/gm,'');source=accountGuestBoundary+updateHelpers+recoveryHelpers+'\nconst {'+Object.keys(mocks).join(',')+'}=globalThis.__drNibActivePublicQuestion;\n'+source;
   const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText,{privateClientRequest:request}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
   await request('/v1/runs/'+id);await new Promise(resolve=>setImmediate(resolve));await request('/v1/runs/'+id);assert.equal(tools,0);assert.equal(actions,0);
  }finally{globalThis.fetch=oldFetch;delete globalThis.__drNibActivePublicQuestion;}

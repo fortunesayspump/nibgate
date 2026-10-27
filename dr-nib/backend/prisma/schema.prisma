@@ -409,3 +409,28 @@ model PrivateWorkerLifecycle {
  state Json
  updatedAt DateTime @default(now()) @db.Timestamptz(6)
 }
+
+/// Anonymous planning capabilities contain only hashes, identifiers and quotas.
+/// Content and browser keys remain encrypted; a claimed session cannot infer.
+model GuestPlanningSession {
+  id String @id
+  tokenHash String @unique
+  tenantId String @unique
+  runId String @unique
+  vaultId String @unique
+  policy Json
+  status String @default("active")
+  requests Int @default(0)
+  adoption Json?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+/// Durable cross-process issuance/rate admission, never raw network addresses.
+model GuestPlanningRateWindow {
+  id String @id
+  count Int @default(0)
+  expiresAt DateTime
+  @@index([expiresAt])
+}

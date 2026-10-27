@@ -1,3 +1,4 @@
+import {guestPlanningPolicy} from './guest-planning-policy.js';
 import { randomUUID } from 'node:crypto';
 import { PRIVATE_USAGE,PRIVATE_METERED_COST,PRIVATE_CALL_CHARGE,PRIVATE_NOT_DISPATCHED,PRIVATE_REFUSAL_EVIDENCE,PRIVATE_FAILURE_EVIDENCE,PRIVATE_RETRYABLE_REJECTION } from './phala-ai-port.js';
 import {privateWorkflowProfile} from './private-workflow-profiles.js';
@@ -14,7 +15,7 @@ export function createPrivateWorkflowAi({ db, aiPort, model, monthlyCapMicroUsd,
     return async ({ run, actionId, messages, json=false, stage='intake', temperature, maxTokens, budgetMicroUsd }) => {
         if(maxTokens!==undefined&&(!Number.isSafeInteger(maxTokens)||maxTokens<1||maxTokens>16384))throw Error('PRIVATE_WORKFLOW_INPUT_LIMIT');
         const profile=privateWorkflowProfile(stage,model);let outputLimit=Math.min(profile.maxTokens,maxOutputTokens,maxTokens??profile.maxTokens);
-        const billingKind=fundingRequired?(['intake','thinking','plan','discuss'].includes(stage)?'platform':'customer'):'owner-test';
+        let billingKind=fundingRequired?(['intake','thinking','plan','discuss'].includes(stage)?'platform':'customer'):'owner-test';
         if (temperature!==undefined&&(!Number.isFinite(temperature)||temperature<0||temperature>1)||typeof json!=='boolean'||!Array.isArray(messages) || messages.length > 100 || messages.some(m => typeof m?.content !== 'string') || Buffer.byteLength(JSON.stringify(messages)) > 150000)
             throw Error('PRIVATE_WORKFLOW_INPUT_LIMIT');
         const inputCeiling = 2 * Buffer.byteLength(JSON.stringify(messages)) + 110592;
@@ -25,6 +26,11 @@ export function createPrivateWorkflowAi({ db, aiPort, model, monthlyCapMicroUsd,
             const fresh = await tx.researchRun.findUnique({ where: { id: run.id } });
             if (fresh?.userId !== run.userId || fresh.deletedAt || fresh.metadata?.privacyMode !== 'confidential')
                 throw Error('PRIVATE_WORKFLOW_OWNER_INVALID');
+            const guest = guestPlanningPolicy(fresh);
+            if (guest) billingKind = 'platform';
+            if (guest && (!['intake','thinking','plan'].includes(stage) || Buffer.byteLength(JSON.stringify(messages)) > 32768)) throw Error('PRIVATE_GUEST_INPUT_LIMIT');
+            if (guest) outputLimit = Math.min(outputLimit, 4096);
+            if (guest) reserved = (BigInt(inputCeiling) * BigInt(inputPricePerMillion) + BigInt(outputLimit) * BigInt(outputPricePerMillion) + 999999n) / 1000000n;
             // Shared across runs and worker restarts. Retain the original
             // uncertain call's hold; a cooldown never proves it was free.
             const limited=await tx.privateInferenceCall.findFirst({where:{model,status:{in:['reserved','rejected-held']},updatedAt:{gte:new Date(Date.now()-3600000)},usageEvidence:{path:['failure','httpStatus'],equals:429}},orderBy:{updatedAt:'desc'},select:{usageEvidence:true,updatedAt:true,status:true}});
@@ -33,7 +39,7 @@ export function createPrivateWorkflowAi({ db, aiPort, model, monthlyCapMicroUsd,
                 const fallback=new Date(limited.updatedAt).getTime()+60000;
                 if(Date.now()<(Number.isFinite(until)?Math.min(limited.status==='rejected-held'?Math.max(until,fallback):until,new Date(limited.updatedAt).getTime()+3600000):fallback))throw Error('PRIVATE_WORKFLOW_RATE_LIMITED');
             }
-            if (await tx.privateInferenceCall.count({ where: { runId: run.id, actionId } }) >= maxCalls)
+            if (await tx.privateInferenceCall.count({ where: { runId: run.id, actionId } }) >= (guest ? Math.min(maxCalls, 8) : maxCalls))
                 throw Error('PRIVATE_WORKFLOW_CALL_LIMIT');
             if(await tx.privateInferenceCall.count({where:{runId:run.id,actionId,status:'reserved'}}))throw Error('PRIVATE_WORKFLOW_ACTION_UNCERTAIN');
             const fitOutput=(available,code)=>{

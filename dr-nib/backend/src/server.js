@@ -18,6 +18,7 @@ import { initQueue, queueMode } from './queue.js';
 import { requeueOrphans, requeueStalledRuns, startRecoverySweep } from './worker.js';
 import { retryPendingSettlements } from './escrow/settle.js';
 import { researchAvailability } from './readiness.js';
+import {createGuestPlanningRouter} from './privacy/guest-planning.js';
 import {createPrivateRecordsRouter} from './privacy/private-record-routes.js';
 import {createPrivateRecordStorage} from './privacy/private-record-storage.js';
 import {createPrivateRunsRouter} from './privacy/private-runs.js';
@@ -81,6 +82,7 @@ export async function createApp({privateWakeController}={}) {
   };
 
   app.use('/v1/runs', runs);
+  app.use('/v1/guest-planning',createGuestPlanningRouter({store:db,storage:createPrivateRecordStorage(),broker:privateBroker,authenticate:auth.middleware,allowedOrigins:config.corsOrigins}));
   app.use('/v1/private',createPrivateRecordsRouter({store:db,storage:createPrivateRecordStorage(),authenticate:auth.middleware,
     enabled:()=>process.env.DRNIB_PRIVATE_RECORDS_ENABLED==='true',requirePasswordForNewVault:()=>process.env.DRNIB_REQUIRE_PRIVATE_PASSWORD==='true',allowedTenantId:privateBroker.allowedTenantId}));
   app.use('/v1/private', createPrivateRunsRouter({ready:privateBroker.ready,

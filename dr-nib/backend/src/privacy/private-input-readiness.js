@@ -1,9 +1,11 @@
+import {requireAdoptedGuestFunding} from './guest-planning-policy.js';
 import {createHash} from 'node:crypto';
 // Ciphertext metadata only. Shared by the guest and isolated money service.
 export function privateSourceSetDigest(rows){
  return createHash('sha256').update(JSON.stringify(rows.map(r=>({id:r.id,digest:r.digest})).sort((a,b)=>a.id.localeCompare(b.id)))).digest('hex');
 }
 export async function requirePrivateFundingInputs(tx,run){
+ requireAdoptedGuestFunding(run);
  const proof=run.metadata?.privateFundingInputs;
  if(!proof||proof.version!==1||proof.webApproved!==true&&proof.sourceCount<1)throw Error('PRIVATE_FUNDING_INPUTS_REQUIRED');
  const [manifest,sources]=await Promise.all([

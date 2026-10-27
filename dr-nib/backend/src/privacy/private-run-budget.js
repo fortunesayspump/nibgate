@@ -1,3 +1,4 @@
+import {guestPlanningPolicy} from './guest-planning-policy.js';
 import {isConfidentialRun} from './guard.js';
 // A run cap is supplied only by decrypted guest state, never broker metadata.
 // Both inference paths call this under the shared admission transaction lock.
@@ -10,6 +11,13 @@ export function privateBudgetMicroUsd(value) {
 export async function availablePrivateRunSpend(tx, runId, budgetMicroUsd, fundingRequired=false, billingKind='owner-test',ownedRun) {
     const run=ownedRun??await tx.researchRun.findUnique({where:{id:runId}});
     if(run?.metadata?.privateCancellation)throw Error('PRIVATE_RUN_BUDGET_CLOSED');
+    const guest = guestPlanningPolicy(run);
+    if (guest) {
+        // Guest sponsorship is finite, including reservations with unknown outcomes.
+        const spent = await tx.privateInferenceCall.aggregate({where:{runId},_sum:{committedMicroUsd:true}});
+        const available = BigInt(guest.maxCostMicroUsd) - BigInt(spent._sum.committedMicroUsd ?? 0);
+        return available > 0n ? available : 0n;
+    }
     if(billingKind==='platform')return null; // still subject to the shared monthly gate
     if(run?.settledAt||run?.metadata?.privateEscrow?.settlement)throw Error('PRIVATE_RUN_BUDGET_CLOSED');
     let funded;

@@ -1,3 +1,4 @@
+import {guestPlanningPolicy,admitGuestPlanningAction,nextGuestPlanAttestation} from './guest-planning-policy.js';
 import {privateSourceSetDigest} from './private-input-readiness.js';
 import { ciphertextDigest } from './ciphertext-digest.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -22,7 +23,7 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
         return fresh;
     }
     async function run(tx = db) { const r = await tx.researchRun.findUnique({ where: { id: runId } }); if (!r || r.userId !== tenantId || r.deletedAt || !isConfidentialRun(r))
-        throw fail(); return r; }
+        throw fail(); guestPlanningPolicy(r, now()); return r; }
     async function read(row, r=undefined) {
         r??=await run();
         if (!row || row.runId !== runId || row.vaultId !== vaultId || row.removed)
@@ -94,7 +95,7 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                 },{timeout:60000,maxWait:10000});
             } finally { bytes.fill(0); }
         },
-        async commit(before, value, { status, budgetCap, receiptId, reply, fundingInputs } = {}) {
+        async commit(before, value, { status, budgetCap, receiptId, reply, fundingInputs, planningAction } = {}) {
             const revision = before.row.revision + 1, envelope = sealClientObject(stateKey, { ...context(before.run, before.row), revision }, Buffer.from(JSON.stringify(value)));
             return db.$transaction(async (tx) => {
                 await tx.$queryRaw `SELECT pg_advisory_xact_lock(hashtext(${runId}))::text AS locked`;
@@ -104,11 +105,15 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                 const out = await tx.privateClientObject.updateMany({ where: { id: before.row.id, revision: before.row.revision, removed: false, vaultId }, data: { revision, envelope, digest: ciphertextDigest(envelope) } });
                 if (out.count !== 1)
                     throw fail();
+                const guest = guestPlanningPolicy(fresh, now());
                 let metadata;
-                if(fundingInputs){
+                if (guest && ['configure','edit-plan'].includes(planningAction)) {
+                    metadata = {...fresh.metadata, guestPlan: {...nextGuestPlanAttestation(value, planningAction, fresh.metadata.guestPlan, Math.min(guest.planTtlMs, Date.parse(guest.expiresAt)-now()), now()), manifestDigest:ciphertextDigest(envelope)}};
+                }
+                if(fundingInputs && !guest){
                     const sources=await tx.privateClientObject.findMany({where:{runId,kind:'source',removed:false},select:{id:true,digest:true}});
                     if(!fundingInputs.webApproved&&!sources.length)throw Error('PRIVATE_SOURCE_REQUIRED');
-                    metadata={...fresh.metadata,privateFundingInputs:{version:1,manifestDigest:ciphertextDigest(envelope),sourceCount:sources.length,sourceSetDigest:privateSourceSetDigest(sources),webApproved:fundingInputs.webApproved===true}};
+                    metadata={...fresh.metadata,...(fresh.metadata?.guestAdoption?{guestAdoption:{...fresh.metadata.guestAdoption,validationRequired:false},guestPlan:{...nextGuestPlanAttestation(value,planningAction,fresh.metadata.guestPlan,1800000,now()),manifestDigest:ciphertextDigest(envelope)}}:{}),privateFundingInputs:{version:1,manifestDigest:ciphertextDigest(envelope),sourceCount:sources.length,sourceSetDigest:privateSourceSetDigest(sources),webApproved:fundingInputs.webApproved===true}};
                 }
                 if (status)
                     await tx.researchRun.update({ where: { id: runId }, data: { status,...(metadata?{metadata}:{}),...(typeof budgetCap==='number'&&Number.isFinite(budgetCap)&&budgetCap>=0&&budgetCap<=1000?{budgetCap}:{}) } });
@@ -117,7 +122,7 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                 return { revision };
             },{timeout:20000,maxWait:5000});
         },
-        async claim({ requestId, digest, manifestId, manifestRevision, checkpoint, recover=false,checkpointRoot }) {
+        async claim({ requestId, digest, manifestId, manifestRevision, checkpoint, recover=false,checkpointRoot, action }) {
             return db.$transaction(async (tx) => {
                 if(recover||allowCancelledExport)await tx.$queryRaw`SELECT pg_advisory_xact_lock(648821,1)::text AS locked`;
                 await tx.$queryRaw `SELECT pg_advisory_xact_lock(hashtext(${runId}))::text AS locked`;
@@ -191,6 +196,7 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                     }
                     return { ...existing, existing: true };
                 }
+                const guestAdmission = admitGuestPlanningAction(fresh, action, now());
                 if (await tx.privateActionReceipt.count({ where: { runId } }) >= 256)
                     throw fail();
                 const manifest = await tx.privateClientObject.findUnique({ where: { id: manifestId } });
@@ -200,6 +206,7 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                 if (active&&!(fresh.metadata?.privateCancellation&&allowCancelledExport))
                     throw fail();
                 if(!(fresh.metadata?.privateCancellation&&allowCancelledExport)&&await tx.privateToolCall.count({where:{runId,status:'reserved'}}))throw Error('PRIVATE_TOOL_OUTCOME_UNKNOWN');
+                if (guestAdmission) await tx.researchRun.update({where:{id:runId},data:{metadata:{...fresh.metadata,guestPlanning:guestAdmission}}});
                 leaseOwner=randomUUID();leaseRequestId=requestId;
                 const created=await tx.privateActionReceipt.create({ data: { id: randomUUID(), runId, requestId, digest, status: 'processing',leaseOwner,leaseUntil:new Date(now()+leaseMs) } });
                 if(checkpoint){

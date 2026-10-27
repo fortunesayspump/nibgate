@@ -12,7 +12,7 @@ test('background failure refreshes a stable saved run and preserves manual recov
  const id='11111111-1111-4111-8111-111111111111',requestId='22222222-2222-4222-8222-222222222222';
  const state={id,status:'paused',metadata:{privateRecoveryRequestId:requestId,privateUncertainRequestId:requestId,privateActionError:'Old failure'}};
  let rejectWork,calls=0,notified=0;const requests=[];
- const mocks={...updates,privateFundingEnabled:()=>true,privateFundingShape:x=>x,privateDiscussionShape:()=>null,canCheckPrivateRecovery:()=>false,admitAutomaticPrivateRecovery:()=>false,requirePrivateInputs:async()=>{},getPrivateManifest:async()=>({value:state}),privateRecordRequest:async()=>({state:'uncertain',requestId,recoveryAvailable:true}),privateAction:()=>{calls++;return new Promise((_,reject)=>{rejectWork=reject})}};
+ const mocks={...updates,isGuestRun:async()=>false,privateFundingEnabled:()=>true,privateFundingShape:x=>x,privateDiscussionShape:()=>null,canCheckPrivateRecovery:()=>false,admitAutomaticPrivateRecovery:()=>false,requirePrivateInputs:async()=>{},getPrivateManifest:async()=>({value:state}),privateRecordRequest:async()=>({state:'uncertain',requestId,recoveryAvailable:true}),privateAction:()=>{calls++;return new Promise((_,reject)=>{rejectWork=reject})}};
  globalThis.__drNibUpdateMocks=mocks;
  globalThis.fetch=async path=>{requests.push(path);return {ok:true,json:async()=>({job:{status:'Funded'}})}};
  const unsubscribe=updates.subscribePrivateActionUpdates(runId=>{if(runId===id)notified++});

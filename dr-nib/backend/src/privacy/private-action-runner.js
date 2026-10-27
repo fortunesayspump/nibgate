@@ -1,3 +1,5 @@
+import {requirePrivateFundingInputs} from './private-input-readiness.js';
+import {assertGuestPlanningAction} from './guest-planning-policy.js';
 import {createPrivateWorkClock} from './private-work-clock.js';
 import {readPrivateTipBudget} from './private-run-budget.js';
 import { createHmac } from 'node:crypto';
@@ -11,7 +13,7 @@ import {readPrivateFinancialReceipt} from './private-financial-receipt.js';
 import {createPrivateCheckpoint,answerPrivateCheckpoint,PRIVATE_PAUSED,PRIVATE_AWAITING} from './private-checkpoint.js';
 import {readPrivateExternalResult} from './private-external-receipt.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ACTIONS = new Set(['intake', 'answers', 'answer','finish-intake', 'configure', 'edit-plan', 'guidance', 'pause', 'end', 'execute', 'resume', 'recover','revise', 'discuss', 'export']);
+const ACTIONS = new Set(['intake', 'answers', 'answer','finish-intake', 'configure', 'edit-plan', 'guidance', 'pause', 'end', 'execute', 'resume', 'recover','revise', 'discuss', 'export', 'validate-plan']);
 const publicStatusFor=status=>({intake:'draft','intake-done':'draft',draft:'draft',planned:'planned',paused:'paused',awaiting:'awaiting',ended:'ended',failed:'failed',running:'running',complete:'complete'})[status];
 const fail = () => Error('PRIVATE_ACTION_UNAVAILABLE');
 /** Only imported by the measured guest. A durable claim precedes model calls;
@@ -38,6 +40,7 @@ export function createPrivateActionRunner({ db, storage, workflow,allowHostedRes
             store = createPrivateActionStore({ db, storage, stateKey, tenantId: run.userId, runId: run.id, vaultId: input.vaultId,allowCancelledExport:input.action==='export',allowHostedResearchFallback });
             // Authenticate the supplied key before reserving the one active action.
             const before = await store.load();
+            assertGuestPlanningAction(before.run, input.action, before.value, input.args);
             if(before.value.id!==run.id||publicStatusFor(before.value.status)!==before.run.status)throw Error('PRIVATE_WORKFLOW_STATE_INVALID');
             if(input.action==='answer'&&(!before.value.privateCheckpoint||before.value.status!=='awaiting')){
                 const prior=await store.receipt(input.requestId),digest=createHmac('sha256',stateKey).update(canonicalCiphertext({action:input.action,args:input.args,vaultId:input.vaultId})).digest('hex');
@@ -76,7 +79,7 @@ export function createPrivateActionRunner({ db, storage, workflow,allowHostedRes
             }else if(research)journalValue={format:'drnib-checkpoint-v1',toolPolicyVersion:'direct-urls-first-v1',rootRequestId:input.requestId,initialAction:input.action,initialArgs:input.args,initialState:before.value,current:descriptor,entries:[],consumed:[]};
             if(journalValue&&(journalValue.format!=='drnib-checkpoint-v1'||journalValue.initialState?.id!==run.id||!UUID.test(journalValue.rootRequestId)||!Array.isArray(journalValue.entries)||Buffer.byteLength(JSON.stringify(journalValue))>1536*1024))throw Error('PRIVATE_CHECKPOINT_UNCERTAIN');
             const digest = createHmac('sha256', stateKey).update(canonicalCiphertext({ action: descriptor.action, args: descriptor.args, vaultId: input.vaultId })).digest('hex');
-            claim = await store.claim({ requestId: input.requestId, digest, manifestId: before.row.id, manifestRevision: before.row.revision,...(journalValue&&!recover?{checkpoint:journalValue}:{}),recover,checkpointRoot:journalValue?.rootRequestId });
+            claim = await store.claim({ requestId: input.requestId, digest, manifestId: before.row.id, manifestRevision: before.row.revision, action: input.action,...(journalValue&&!recover?{checkpoint:journalValue}:{}),recover,checkpointRoot:journalValue?.rootRequestId });
             if(claim.recovered)journalValue=claim.checkpoint;
             if (claim.status === 'complete')
                 return { requestId: input.requestId, state: 'complete', envelope: claim.reply };
@@ -96,12 +99,14 @@ export function createPrivateActionRunner({ db, storage, workflow,allowHostedRes
                 if(persistJournal)await persistJournal(journalValue);
                 if(lastProgress&&workClock)await store.progress(claim.id,{...lastProgress,activeWork:workClock.snapshot()});
             })().catch(()=>{}).finally(()=>{renewing=false})},30000);heartbeat.unref?.();
-            const sources = ['configure', 'execute', 'resume','answer', 'recover','revise'].includes(input.action) ? await store.sources() : [];
+            const sources = ['configure', 'execute', 'resume','answer', 'recover','revise','validate-plan'].includes(input.action) ? await store.sources() : [];
+            assertGuestPlanningAction(before.run, input.action, before.value, input.args, sources);
             const financialReceipt=input.action==='export'?await readPrivateFinancialReceipt(db,run.id,run.userId):undefined;
             const checkpoint=journalValue?createPrivateCheckpoint({key:stateKey,value:journalValue,save:value=>persistJournal(value),fence:store.fence,controls:()=>store.controls(journalValue.rootRequestId)}):undefined;
             const recoveryNotes=(journalValue?.reconciliations??[]).filter(r=>r.kind==='operator-covered-interrupted-inference').map(r=>({type:'thinking',phase:'recovery',origin:'system',at:r.at,text:'A model response was lost during worker shutdown. Its unknown cost remains reserved for the operator, not charged to your escrow. Restoring completed work before a bounded model-only retry.'}));
             let result;
-            try{result = await workflow({ state: journalValue?.initialState??before.value, action: journalValue?.initialAction??input.action, args: journalValue?.initialArgs??input.args, sources, run, actionId: input.requestId,financialReceipt,checkpoint,readBudget:async()=>({...await readPrivateTipBudget(db,run.id,run.userId),remainingApprovals:Math.max(0,12-(checkpoint?.value.entries.filter(e=>e.kind==='owner-answer'&&e.question?.externalRequest).length??0))}),externalTool:input=>readPrivateExternalResult(db,run.id,input),
+            if (['edit-plan','execute'].includes(input.action) && before.run.metadata?.guestAdoption) await requirePrivateFundingInputs(db, before.run);
+            try{result = await workflow({ state: journalValue?.initialState??before.value, action: journalValue?.initialAction??input.action, args: journalValue?.initialArgs??input.args, sources, run:before.run, actionId: input.requestId,financialReceipt,checkpoint,readBudget:async()=>({...await readPrivateTipBudget(db,run.id,run.userId),remainingApprovals:Math.max(0,12-(checkpoint?.value.entries.filter(e=>e.kind==='owner-answer'&&e.question?.externalRequest).length??0))}),externalTool:input=>readPrivateExternalResult(db,run.id,input),
                 onProgress: snapshot => {const events=[...recoveryNotes.filter(note=>!(snapshot.events??[]).some(e=>e.at===note.at&&e.text===note.text)),...(snapshot.events??[])];lastProgress={...snapshot,events,...(workClock?{activeWork:workClock.snapshot()}: {})};return store.progress(claim.id,lastProgress);} });}
             catch(error){
                 if(![PRIVATE_PAUSED,PRIVATE_AWAITING].includes(error?.message)||!journalValue)throw error;
@@ -121,7 +126,7 @@ export function createPrivateActionRunner({ db, storage, workflow,allowHostedRes
             const publicStatus = publicStatusFor(result.state.status);
             if (!publicStatus)
                 throw fail();
-            await store.commit(before, result.state, { status: publicStatus, budgetCap:result.state.budgetCap,...(['configure','edit-plan'].includes(descriptor.action)?{fundingInputs:{webApproved:result.state.brief?.liveWeb===true&&(result.state.brief?.searchEnabled===false||result.state.brief?.publicResearch?.approved===true)}}:{}), receiptId: claim.id, reply });
+            await store.commit(before, result.state, { status: publicStatus, budgetCap:result.state.budgetCap,...(['configure','edit-plan','validate-plan'].includes(descriptor.action)?{fundingInputs:{webApproved:result.state.brief?.liveWeb===true&&(result.state.brief?.searchEnabled===false||result.state.brief?.publicResearch?.approved===true)}}:{}), receiptId: claim.id, reply, planningAction: descriptor.action });
             return { requestId: input.requestId, state: 'complete', envelope: reply };
         }
         catch (error) {

@@ -4,13 +4,13 @@ const express=require('express');
 const {createPublicPagePreviewRouter}=require('./public-page-preview.route');
 const site={id:'site-fixture',name:'Jeff',subdomain:'jeff',verifyToken:'NEVER_SERIALIZE'};
 const metadata={id:'post-fixture',siteId:site.id,status:'published',slug:'sample',type:'article',title:'Public fixture',price:null,publicAccess:true,updatedAt:new Date('2026-08-01'),author:{name:'Author'}};
-async function harness(t,{meta=metadata,content={bodyMarkdown:'**Public** fixture.'},current=true,decryptBody,renderBody,tenant=site}={}) {
+async function harness(t,{meta=metadata,content={bodyMarkdown:'**Public** fixture.'},current=true,decryptBody,renderBody,renderPage,tenant=site}={}) {
  const calls=[];const prisma={blogPost:{findFirst:async query=>{
   calls.push(query);if(calls.length===1)return meta;
   if(query.select.bodyMarkdown)return content;
   return current?{id:metadata.id}:null;
  }}};
- const app=express();app.use((req,res,next)=>{req.site=tenant;next();});app.use('/blog',createPublicPagePreviewRouter({prisma,decryptBody,renderBody}));
+ const app=express();app.use((req,res,next)=>{req.site=tenant;next();});app.use('/blog',createPublicPagePreviewRouter({prisma,decryptBody,renderBody,renderPage}));
  const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});
  t.after(()=>new Promise(resolve=>server.close(resolve)));
  return {url:'http://127.0.0.1:'+server.address().port,calls};
@@ -49,4 +49,16 @@ test('current backend rendering runs only for public bodies and remains behind f
  const locked=await(await fetch(gated.url+'/blog/public-page/sample')).json();assert.ok(!('publicBodyHTML' in locked.post));
  const changed=await harness(t,{current:false,renderBody:renderPublicBody});
  const response=await fetch(changed.url+'/blog/public-page/sample');assert.equal(response.status,409);assert.ok(!(await response.text()).includes('publicBodyHTML'));
+});
+
+test('streamable HTML keeps public content, SEO and locked gates behind policy checks',async t=>{
+ const {renderPublicBody}=require('../../lib/public-body-renderer');const {renderPublicHTMLPage}=require('../../lib/public-html-page');
+ const h=await harness(t,{renderBody:renderPublicBody,renderPage:renderPublicHTMLPage});
+ const r=await fetch(h.url+'/blog/public-html/writing/sample');const html=await r.text();assert.equal(r.status,200);assert.equal(r.headers.get('x-nibgate-renderer'),'backend-html-v1');assert.match(html,/<strong>Public<\/strong>/);assert.match(html,/rel="canonical"/);assert.ok(!html.includes('NEVER_SERIALIZE'));
+ const media=await harness(t,{renderBody:renderPublicBody,renderPage:renderPublicHTMLPage,content:{bodyMarkdown:'![image](nibgate-embed://0)'}});const mediaHTML=await(await fetch(media.url+'/blog/public-html/writing/sample')).text();assert.match(mediaHTML,/https:\/\/jeff(?:\.testnet)?\.nibgate\.xyz\/api\/nibgate\/media\//);
+ const gated=await harness(t,{meta:{...metadata,price:'1'},renderBody(){throw new Error('Locked render');},renderPage:renderPublicHTMLPage});
+ const paid=await fetch(gated.url+'/blog/public-html/writing/sample');assert.equal(paid.status,200);assert.match(await paid.text(),/Continue to payment/);assert.equal(gated.calls.length,1);
+ const race=await harness(t,{current:false,renderBody:renderPublicBody,renderPage:renderPublicHTMLPage});const blocked=await fetch(race.url+'/blog/public-html/writing/sample');assert.equal(blocked.status,409);assert.ok(!(await blocked.text()).includes('<strong>'));
+ const wrong=await harness(t,{renderBody:renderPublicBody,renderPage:renderPublicHTMLPage});assert.equal((await fetch(wrong.url+'/blog/public-html/music/sample')).status,404);assert.equal(wrong.calls.length,1);
+ const auth=await harness(t,{renderPage:renderPublicHTMLPage});assert.equal((await fetch(auth.url+'/blog/public-html/writing/sample',{headers:{Cookie:'fixture'}})).status,400);assert.equal(auth.calls.length,0);
 });

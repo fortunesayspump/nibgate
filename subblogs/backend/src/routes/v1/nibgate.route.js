@@ -768,6 +768,7 @@ router.get('/media/:postId/document/render', async (req, res, next) => {
 });
 
 router.get('/manifest', async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
   try {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
@@ -783,7 +784,7 @@ router.get('/manifest', async (req, res, next) => {
       const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
       const postType = pathMatch ? pathType[pathMatch[1]] : undefined;
       const post = slug
-        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, ...(postType ? { type: postType } : {}) }, include: { author: { select: { name: true } } } })
+        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, status: 'published', ...(postType ? { type: postType } : {}) }, include: { author: { select: { name: true } } } })
         : null;
       if (!post) return res.status(404).json({ ok: false, error: 'Post not found' });
 

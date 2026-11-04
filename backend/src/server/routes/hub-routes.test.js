@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const dbMock = vi.hoisted(() => ({
-  website: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
+  website: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
   user: { findUnique: vi.fn(), create: vi.fn() },
   wallet: { findUnique: vi.fn() },
   metric: { count: vi.fn(), findMany: vi.fn() },
@@ -457,5 +457,25 @@ describe('hub routes: JEV decisions', () => {
     expect(include.ratings.select).toEqual({ status: true, proof: true, ratingValue: true });
     expect(include.unlockReceipts.select).toEqual({ status: true, paymentProvider: true, paymentId: true, txHash: true, amount: true });
     expect(include).not.toHaveProperty('publisher');
+  });
+});
+
+
+describe('blog disconnect ownership boundary', () => {
+  it('requires hub authentication and matching owner and token before deletion', async () => {
+    const registrations = {};
+    const capture = method => (path, ...handlers) => { registrations[`${method} ${path}`] = handlers; };
+    const app = {get:capture('GET'),post:capture('POST'),put:capture('PUT'),patch:capture('PATCH'),delete:capture('DELETE'),options:capture('OPTIONS'),use:()=>{}};
+    registerHubRoutes(app);
+    const handlers=registrations['POST /api/hub/blog/link/disconnect'];
+    const {requireAuth}=await import('@nibgate/internal/auth.js');
+    expect(handlers[0]).toBe(requireAuth);
+    const handler=handlers.at(-1);
+    for(const [owner,token,deleted,expected] of [['other','fixture-token',false,403],['owner','wrong',false,403],['owner','fixture-token',true,410],['owner','fixture-token',false,200]]) {
+      dbMock.website.update.mockReset();
+      dbMock.website.findUnique.mockResolvedValue({id:'fixture',ownerId:owner,verifyToken:'fixture-token',deletedAt:deleted?new Date():null});
+      const res=mockRes();await handler({user:{id:'owner'},body:{siteId:'fixture',verifyToken:token}},res);
+      expect(res.statusCode).toBe(expected);expect(dbMock.website.update).toHaveBeenCalledTimes(expected===200?1:0);
+    }
   });
 });

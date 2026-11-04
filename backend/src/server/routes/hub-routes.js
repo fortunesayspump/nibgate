@@ -2777,13 +2777,14 @@ export function registerHubRoutes(app) {
     }
   });
 
-  app.post('/api/hub/blog/link/disconnect', async (req, res) => {
+  app.post('/api/hub/blog/link/disconnect', requireAuth, async (req, res) => {
     try {
       const { siteId, verifyToken } = req.body || {};
       if (!siteId || !verifyToken) return res.status(400).json({ error: 'siteId and verifyToken are required.' });
 
       const website = await db.website.findUnique({ where: { id: siteId } });
       if (!website) return res.status(404).json({ error: 'Website not found.' });
+      if (website.ownerId !== req.user?.id) return res.status(403).json({ error: 'Not your site.' });
       if (website.verifyToken !== verifyToken) return res.status(403).json({ error: 'Invalid verify token.' });
       if (website.deletedAt) return res.status(410).json({ error: 'Site already removed.' });
 

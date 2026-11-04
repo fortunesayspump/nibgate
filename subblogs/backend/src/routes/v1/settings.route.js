@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const validate = require('../../middlewares/validate');
 const settingsValidation = require('../../validations/settings.validation');
 const prisma = require('../../lib/prisma');
-const { authenticate } = require('../../middlewares/auth');
+const { authenticate, authorize } = require('../../middlewares/auth');
 const { status } = require('http-status');
 const { invalidateSite } = require('../../lib/tenant-cache');
 const { activeCaip2 } = require('../../lib/network');
@@ -42,7 +42,7 @@ router.get('/', authenticate, async (req, res, next) => {
   }
 });
 
-router.put('/', authenticate, validate(settingsValidation.updateSettings), async (req, res, next) => {
+router.put('/', authenticate, authorize('admin', 'author'), validate(settingsValidation.updateSettings), async (req, res, next) => {
   try {
     const site = await prisma.site.findUnique({ where: { id: req.siteId } });
     if (!site) return res.status(404).json({ error: 'Site not found' });
@@ -97,7 +97,7 @@ router.put('/password', authenticate, async (req, res, next) => {
   }
 });
 
-router.post('/link-hub', authenticate, async (req, res, next) => {
+router.post('/link-hub', authenticate, authorize('admin', 'author'), async (req, res, next) => {
   try {
     const { linkToken } = req.body;
     if (!linkToken) return res.status(400).json({ error: 'linkToken is required.' });
@@ -155,7 +155,7 @@ router.post('/link-hub', authenticate, async (req, res, next) => {
   }
 });
 
-router.post('/link-hub/disconnect', authenticate, async (req, res, next) => {
+router.post('/link-hub/disconnect', authenticate, authorize('admin', 'author'), async (req, res, next) => {
   try {
     let settings = {};
     try { settings = req.site.settings ? JSON.parse(req.site.settings) : {}; } catch {}

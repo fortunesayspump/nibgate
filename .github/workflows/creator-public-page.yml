@@ -1,0 +1,27 @@
+name: Creator public-page privacy
+on:
+  pull_request:
+    paths:
+      - 'subblogs/backend/**'
+      - '.github/workflows/creator-public-page.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  endpoint-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Public DTO and concurrent access policy checks (loopback only)
+        run: node --test subblogs/backend/src/controllers/public-page-dto.test.js subblogs/backend/src/routes/v1/public-page-preview.test.js subblogs/backend/test/blog-update.test.js subblogs/backend/test/public-post.test.js

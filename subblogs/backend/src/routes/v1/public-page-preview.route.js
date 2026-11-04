@@ -4,7 +4,7 @@ const {publicPageDTO} = require('../../controllers/public-page-dto');
 // Read-only router factory, mounted after existing production tenant middleware.
 // Mount only after trusted tenant middleware has populated req.site. Storage
 // decryption must be supplied by the backend, never by caller headers/URLs.
-function createPublicPagePreviewRouter({prisma, decryptBody} = {}) {
+function createPublicPagePreviewRouter({prisma, decryptBody, renderBody} = {}) {
   if (!prisma?.blogPost?.findFirst) throw new Error('Public page repository required');
   const router = express.Router();
   router.get('/public-page/:slug', async (req,res) => {
@@ -34,11 +34,13 @@ function createPublicPagePreviewRouter({prisma, decryptBody} = {}) {
         if (Buffer.isBuffer(body)) body=body.toString('utf8');
       }
       if (typeof body!=='string' || body.length>100000) throw new Error('Public body unavailable');
+      const rendered=renderBody ? renderBody(body,metadata) : null;
       // Storage fetch/decryption can outlast an access-policy update. Recheck
       // the same revision and policy before emitting any body bytes.
       const stillCurrent=await prisma.blogPost.findFirst({where:currentPublic,select:{id:true}});
       if (!stillCurrent) return res.status(409).json({error:'Publication changed; retry'});
       dto.post.bodyMarkdown=body;
+      if(rendered){dto.post.publicBodyHTML=rendered.html;dto.post.publicBodyFormat=rendered.format;}
       return res.json(dto);
     } catch {
       return res.status(503).json({error:'Public page temporarily unavailable'});

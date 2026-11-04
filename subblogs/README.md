@@ -277,3 +277,12 @@ are relative to the creator origin. Consumers must retain their tenant/type/acce
 checks and must not use this HTML field for a locked response. This avoids
 publish-time Worker rebuilds; persisted article state remains the source of truth.
 Rendering adds work to the existing backend and is not a zero-cost guarantee.
+
+`GET /blog/public-html/:type/:slug` provides the same guarded article as a
+complete HTML page for the migration preview. Type segments are writing, photos,
+video, music and docs. Cookie/authenticated requests are rejected; public article
+access and revision are rechecked after all asynchronous rendering. Paid posts
+render only a teaser with the existing creator payment-page link. No private
+fields or tokens are serialized. Responses are private/no-store, noindex and
+marked `X-Nibgate-Renderer: backend-html-v1`. This prototype does not replace
+admin, payment, feeds or widget endpoints, and is not a production-domain cutover.

@@ -88,12 +88,12 @@ function walletFor(req) {
 // Resolve the wallet that actually signed in (SIWE `sb_auth_session` cookie),
 // if any. This is the ONLY wallet a request may claim to be when that claim
 // would unlock content or mint a discounted challenge.
-function sessionWalletFor(req) {
+async function sessionWalletFor(req) {
   const token = req.cookies?.sb_auth_session;
   if (!token) return null;
   const { getUserBySessionToken } = require('../services/siwe.service');
-  const user = getUserBySessionToken(token);
-  if (!user) return null;
+  const user = await getUserBySessionToken(token);
+  if (!user || !req.siteId || user.siteId !== req.siteId) return null;
   const address = user.wallets?.[0]?.address || user.walletAddress || null;
   return address && /^0x[0-9a-f]{40}$/i.test(address) ? address.toLowerCase() : null;
 }

@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const servicePath = path.join(__dirname, '../src/services/access.service.js');
 
-function loadService({ entitlement = null, priorReceipt = null, failEvent = false } = {}) {
+function loadService({ entitlement = null, priorReceipt = null, failEvent = false, sessionUser = null } = {}) {
   const events = [];
   const receipts = [];
   const prisma = {
@@ -61,6 +61,7 @@ function loadService({ entitlement = null, priorReceipt = null, failEvent = fals
     'http-status': { status: { FORBIDDEN: 403 } },
     '../utils/ApiError': ApiError,
     '../lib/prisma': prisma,
+    '../services/siwe.service': { getUserBySessionToken: async () => sessionUser },
     '@nibgate/sdk/server': sdk,
   };
   const context = {
@@ -142,4 +143,15 @@ test('an event-write failure rolls back the receipt instead of creating a lossy 
 
   assert.equal(receipts.length, 0);
   assert.equal(events.length, 0);
+});
+
+
+test('signed-in wallet resolves asynchronously only for its tenant', async () => {
+  const wallet='0x1111111111111111111111111111111111111111';
+  const {service}=loadService({sessionUser:{siteId:'site-1',wallets:[{address:wallet}]}});
+  assert.equal(await service.sessionWalletFor({siteId:'site-1',cookies:{sb_auth_session:'fixture'}}),wallet);
+  assert.equal(await service.sessionWalletFor({siteId:'site-2',cookies:{sb_auth_session:'fixture'}}),null);
+  assert.equal(await service.sessionWalletFor({cookies:{sb_auth_session:'fixture'}}),null);
+  assert.equal(await service.possessedWalletFor({siteId:'site-1',cookies:{sb_auth_session:'fixture'},headers:{}},wallet,{}),wallet);
+  assert.equal(await service.possessedWalletFor({siteId:'site-2',cookies:{sb_auth_session:'fixture'},headers:{}},wallet,{}),null);
 });

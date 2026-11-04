@@ -62,7 +62,7 @@ const siweLogout = catchAsync(async (req, res) => {
 const siweSession = catchAsync(async (req, res) => {
   const token = req.cookies?.[siweService.cookieName] || '';
   const user = await siweService.getUserBySessionToken(token);
-  if (!user) {
+  if (!user || !req.siteId || user.siteId !== req.siteId) {
     return res.status(status.UNAUTHORIZED).json({ authenticated: false });
   }
   res.json({ authenticated: true, user });

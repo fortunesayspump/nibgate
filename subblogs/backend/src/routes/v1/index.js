@@ -12,6 +12,10 @@ const { ensureHubLink } = require('../../lib/hub-link');
 const { activeNetworkName } = require('../../lib/network');
 
 const router = express.Router();
+// Read-only migration transport; existing tenant/rate-limit middleware applies.
+const { createPublicPagePreviewRouter } = require('./public-page-preview.route');
+const { createPublicBodyReader } = require('../../lib/public-body-reader');
+router.use('/blog', createPublicPagePreviewRouter({ prisma, decryptBody: createPublicBodyReader() }));
 
 const defaultRoutes = [
   { path: '/auth', route: authRoute },

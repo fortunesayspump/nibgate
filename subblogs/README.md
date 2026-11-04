@@ -256,3 +256,15 @@ subblogs/
 │       └── lib/         # API client + utils
 └── package.json         # Convenience commands; workspace root is ../
 ```
+
+### Read-only public-page transport (Cloudflare migration)
+
+`GET /blog/public-page/:slug` on the creator API uses the existing tenant
+resolution (`x-site-subdomain`) and rate limits. It returns an allowlisted
+`{success, site, post}` response for published posts; only explicitly public,
+zero-price articles contain `post.bodyMarkdown`. Paid/restricted posts return
+metadata with `isLocked: true`, never storage references or keys. A publication
+change during the read returns 409; unavailable public storage returns 503.
+Responses use `Cache-Control: private, no-store`. This transport does not grant
+access, publish content or replace the existing payment/manifest endpoints.
+The first deployment targets the existing mainnet creator backend only.

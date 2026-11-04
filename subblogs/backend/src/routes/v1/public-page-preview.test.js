@@ -55,6 +55,7 @@ test('streamable HTML keeps public content, SEO and locked gates behind policy c
  const {renderPublicBody}=require('../../lib/public-body-renderer');const {renderPublicHTMLPage}=require('../../lib/public-html-page');
  const h=await harness(t,{renderBody:renderPublicBody,renderPage:renderPublicHTMLPage});
  const r=await fetch(h.url+'/blog/public-html/writing/sample');const html=await r.text();assert.equal(r.status,200);assert.equal(r.headers.get('x-nibgate-renderer'),'backend-html-v1');assert.match(html,/<strong>Public<\/strong>/);assert.match(html,/rel="canonical"/);assert.ok(!html.includes('NEVER_SERIALIZE'));
+ const media=await harness(t,{renderBody:renderPublicBody,renderPage:renderPublicHTMLPage,content:{bodyMarkdown:'![image](nibgate-embed://0)'}});const mediaHTML=await(await fetch(media.url+'/blog/public-html/writing/sample')).text();assert.match(mediaHTML,/https:\/\/jeff(?:\.testnet)?\.nibgate\.xyz\/api\/nibgate\/media\//);
  const gated=await harness(t,{meta:{...metadata,price:'1'},renderBody(){throw new Error('Locked render');},renderPage:renderPublicHTMLPage});
  const paid=await fetch(gated.url+'/blog/public-html/writing/sample');assert.equal(paid.status,200);assert.match(await paid.text(),/Continue to payment/);assert.equal(gated.calls.length,1);
  const race=await harness(t,{current:false,renderBody:renderPublicBody,renderPage:renderPublicHTMLPage});const blocked=await fetch(race.url+'/blog/public-html/writing/sample');assert.equal(blocked.status,409);assert.ok(!(await blocked.text()).includes('<strong>'));

@@ -12,7 +12,8 @@ async function renderPublicHTMLPage(dto,pathType){
  const cfg={tenant:site.subdomain,network,canonical,app:canonical};
  return articleHTML(cfg,site,post,()=>{
   if(post.publicBodyFormat!=='commonmark-html-disabled-v1'||typeof post.publicBodyHTML!=='string')throw new Error('Current rendering unavailable');
-  return {html:post.publicBodyHTML,mode:'current-backend'};
+  const html=post.publicBodyHTML.replace(/(src|href)="\/api\/nibgate\/media\//g,(_match,attribute)=>`${attribute}="${cfg.app}/api/nibgate/media/`);
+  return {html,mode:'current-backend'};
  });
 }
 module.exports={renderPublicHTMLPage};

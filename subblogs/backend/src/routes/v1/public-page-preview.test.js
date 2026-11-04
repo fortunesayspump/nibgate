@@ -4,13 +4,13 @@ const express=require('express');
 const {createPublicPagePreviewRouter}=require('./public-page-preview.route');
 const site={id:'site-fixture',name:'Jeff',subdomain:'jeff',verifyToken:'NEVER_SERIALIZE'};
 const metadata={id:'post-fixture',siteId:site.id,status:'published',slug:'sample',type:'article',title:'Public fixture',price:null,publicAccess:true,updatedAt:new Date('2026-08-01'),author:{name:'Author'}};
-async function harness(t,{meta=metadata,content={bodyMarkdown:'**Public** fixture.'},current=true,decryptBody,tenant=site}={}) {
+async function harness(t,{meta=metadata,content={bodyMarkdown:'**Public** fixture.'},current=true,decryptBody,renderBody,tenant=site}={}) {
  const calls=[];const prisma={blogPost:{findFirst:async query=>{
   calls.push(query);if(calls.length===1)return meta;
   if(query.select.bodyMarkdown)return content;
   return current?{id:metadata.id}:null;
  }}};
- const app=express();app.use((req,res,next)=>{req.site=tenant;next();});app.use('/blog',createPublicPagePreviewRouter({prisma,decryptBody}));
+ const app=express();app.use((req,res,next)=>{req.site=tenant;next();});app.use('/blog',createPublicPagePreviewRouter({prisma,decryptBody,renderBody}));
  const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});
  t.after(()=>new Promise(resolve=>server.close(resolve)));
  return {url:'http://127.0.0.1:'+server.address().port,calls};
@@ -39,4 +39,14 @@ test('missing, foreign-tenant and failed storage paths expose no content or erro
  for(const [options,status] of [[{meta:null},404],[{tenant:null},404],[{meta:{...metadata,siteId:'other'}},503],[{content:{bodyStorageRef:'fixture',contentKey:'fixture'},decryptBody:async()=>{throw new Error('PRIVATE_DIAGNOSTIC');}},503]]){
   const h=await harness(t,options);const r=await fetch(h.url+'/blog/public-page/sample');assert.equal(r.status,status);const text=await r.text();assert.ok(!text.includes('PRIVATE_DIAGNOSTIC'));assert.ok(!text.includes('bodyMarkdown'));assert.equal(r.headers.get('cache-control'),'private, no-store');
  }
+});
+
+test('current backend rendering runs only for public bodies and remains behind final policy check',async t=>{
+ const {renderPublicBody}=require('../../lib/public-body-renderer');
+ const h=await harness(t,{renderBody:renderPublicBody,content:{bodyMarkdown:'**Current edit**'}});
+ const dto=await(await fetch(h.url+'/blog/public-page/sample')).json();assert.equal(dto.post.publicBodyHTML,'<p><strong>Current edit</strong></p>');
+ const gated=await harness(t,{meta:{...metadata,price:'1'},renderBody(){throw new Error('Must not render locked');}});
+ const locked=await(await fetch(gated.url+'/blog/public-page/sample')).json();assert.ok(!('publicBodyHTML' in locked.post));
+ const changed=await harness(t,{current:false,renderBody:renderPublicBody});
+ const response=await fetch(changed.url+'/blog/public-page/sample');assert.equal(response.status,409);assert.ok(!(await response.text()).includes('publicBodyHTML'));
 });

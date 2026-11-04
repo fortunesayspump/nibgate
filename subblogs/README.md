@@ -268,3 +268,12 @@ change during the read returns 409; unavailable public storage returns 503.
 Responses use `Cache-Control: private, no-store`. This transport does not grant
 access, publish content or replace the existing payment/manifest endpoints.
 The first deployment targets the existing mainnet creator backend only.
+
+The combined public response can additionally contain `publicBodyHTML` with
+`publicBodyFormat: commonmark-html-disabled-v1`. This HTML is rendered from the
+current public body with raw HTML disabled and safe link schemes; access/revision
+is checked again before either source or HTML is returned. Embedded media URLs
+are relative to the creator origin. Consumers must retain their tenant/type/access
+checks and must not use this HTML field for a locked response. This avoids
+publish-time Worker rebuilds; persisted article state remains the source of truth.
+Rendering adds work to the existing backend and is not a zero-cost guarantee.

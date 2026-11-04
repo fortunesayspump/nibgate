@@ -286,3 +286,5 @@ render only a teaser with the existing creator payment-page link. No private
 fields or tokens are serialized. Responses are private/no-store, noindex and
 marked `X-Nibgate-Renderer: backend-html-v1`. This prototype does not replace
 admin, payment, feeds or widget endpoints, and is not a production-domain cutover.
+
+Per-post manifests return 404 for unpublished or foreign-tenant posts. `/api/nibgate/manifest` responses use `Cache-Control: private, no-store` so publication metadata is read fresh. Paid manifests remain metadata-only and do not grant content access.

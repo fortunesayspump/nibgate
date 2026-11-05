@@ -6,8 +6,10 @@ import { createRequire } from 'node:module';
 const mfModule=createRequire(new URL('../cloudflare/tooling/package.json',import.meta.url))('miniflare');
 const {Miniflare,kCurrentWorker,convertV4MiniflareOptions}=mfModule;
 test('creator wallet session and payment challenges stay tenant bound',async t=>{
- const seen=[], code=await fs.readFile('.cloudflare-build/creator-outer/worker.js','utf8');
- const m=new Miniflare(convertV4MiniflareOptions({workers:[{name:'test',modules:[{type:'ESModule',path:'worker.js',contents:code}],compatibilityDate:'2026-11-04',compatibilityFlags:['nodejs_compat'],durableObjects:{RENDER:{className:'RenderObject',useSQLite:true}},serviceBindings:{ASSETS:async()=>new Response('not found',{status:404}),WORKER_SELF_REFERENCE:kCurrentWorker},outboundService:async req=>{
+ const seen=[], dir='.cloudflare-build/creator-outer', names=await fs.readdir(dir);
+ const modules=[{type:'ESModule',path:'worker.js',contents:await fs.readFile(dir+'/worker.js','utf8')}];
+ for(const n of names){if(n.endsWith('.mjs'))modules.push({type:'ESModule',path:n,contents:await fs.readFile(dir+'/'+n,'utf8')});if(n.endsWith('.wasm'))modules.push({type:'CompiledWasm',path:n,contents:await fs.readFile(dir+'/'+n)});if(n.endsWith('.bin'))modules.push({type:'Data',path:n,contents:await fs.readFile(dir+'/'+n)})}
+ const m=new Miniflare(convertV4MiniflareOptions({workers:[{name:'test',modules,compatibilityDate:'2026-11-04',compatibilityFlags:['nodejs_compat'],durableObjects:{RENDER:{className:'RenderObject',useSQLite:true}},serviceBindings:{ASSETS:async()=>new Response('not found',{status:404}),WORKER_SELF_REFERENCE:kCurrentWorker},outboundService:async req=>{
    const u=new URL(req.url);const body=Buffer.from(await req.arrayBuffer());seen.push({host:u.hostname,path:u.pathname,tenant:req.headers.get('x-site-subdomain'),cookie:req.headers.get('cookie'),proof:req.headers.get('payment-signature'),bodyLength:body.length,bodyHash:createHash('sha256').update(body).digest('hex')});
    if(u.pathname.endsWith('/nonce'))return new Response('{}',{status:200,headers:{'content-type':'application/json','set-cookie':'sb_auth_nonce=fake; HttpOnly; Secure; SameSite=Lax; Path=/'}});
    if(u.pathname.endsWith('/gateway/balance'))return Response.json({balance:'synthetic'});

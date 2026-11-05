@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { mergePrevious } from './cloudflare-merge-previous.mjs';
 
 const target=process.argv[2];
 if (!['hub-mainnet','hub-testnet','creator-mainnet','creator-lowfi','creator-testnet','docs'].includes(target)) throw Error('Choose an explicit Cloudflare build target');
@@ -48,5 +49,6 @@ if(hub){
  writeFileSync(w,s.replaceAll(original,'./open-next.mjs'));
 }
 cpSync(join(appDir,'.open-next/assets'),join(out,'assets'),{recursive:true,force:true});
+mergePrevious(target==='creator-lowfi'?'creator-mainnet':target,join(out,'assets'));
 if(!existsSync(join(out,'wrangler.jsonc')))throw Error('Missing deployment configuration');
 console.log(`Prepared ${target} in ${out}; no production deployment performed.`);

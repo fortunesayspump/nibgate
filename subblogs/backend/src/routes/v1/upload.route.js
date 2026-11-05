@@ -9,7 +9,7 @@ const { generateContentKey, encryptBytes, packCipherBlob } = require('@nibgate/s
 const { wrapContentKey } = require('../../lib/keywrap');
 const { registerR2Provider } = require('../../lib/storage');
 const config = require('../../config/config');
-const { authenticate } = require('../../middlewares/auth');
+const { authenticate, authorize } = require('../../middlewares/auth');
 
 const router = express.Router();
 
@@ -76,7 +76,7 @@ async function processImage(buffer, ext) {
   return { buffer: resized, contentType: 'image/webp', ext: '.webp' };
 }
 
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, authorize('admin', 'author'), async (req, res, next) => {
   upload.single('file')(req, res, async (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });

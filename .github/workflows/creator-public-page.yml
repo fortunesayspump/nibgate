@@ -27,3 +27,5 @@ jobs:
         run: node --test subblogs/backend/test/manifest-publication.test.js subblogs/backend/src/lib/public-body-renderer.test.js subblogs/backend/src/controllers/public-page-dto.test.js subblogs/backend/src/routes/v1/public-page-preview.test.js subblogs/backend/test/blog-update.test.js subblogs/backend/test/public-post.test.js
       - name: Creator settings authorization
         run: node --test security-tests/settings-guard.test.cjs
+      - name: Creator public articles and paid metadata
+        run: node --test subblogs/backend/src/routes/v1/public-article-v2.test.js subblogs/backend/src/routes/v1/public-paid-local.test.js

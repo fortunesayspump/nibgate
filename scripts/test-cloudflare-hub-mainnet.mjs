@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import mfModule from 'miniflare';
+import { createRequire } from 'node:module';
+const mfModule=createRequire(new URL('../cloudflare/tooling/package.json',import.meta.url))('miniflare');
 const { Miniflare, kCurrentWorker, convertV4MiniflareOptions } = mfModule;
 test('mainnet build serves mainnet host and forwards synthetic auth only to mainnet',async t=>{
  const dir=path.resolve('.cloudflare-build/mainnet-outer');

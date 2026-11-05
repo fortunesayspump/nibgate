@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import mfModule from 'miniflare';
+import { createRequire } from 'node:module';
+const mfModule=createRequire(new URL('../cloudflare/tooling/package.json',import.meta.url))('miniflare');
 const {Miniflare,kCurrentWorker,convertV4MiniflareOptions}=mfModule;
 test('creator wallet session and payment challenges stay tenant bound',async t=>{
  const seen=[], dir='.cloudflare-build/creator-testnet-outer', names=await fs.readdir(dir);

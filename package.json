@@ -41,8 +41,7 @@
     "test:regressions": "node --test scripts/*.test.mjs",
     "test:tip-postgres": "node scripts/test-tip-postgres.mjs",
     "test:drnib-postgres": "node scripts/test-drnib-postgres.mjs",
-    "test:drnib-privacy": "node --test dr-nib/backend/src/privacy/*.test.mjs dr-nib/tools/*.test.mjs scripts/drnib-private-vault.test.mjs scripts/drnib-private-objects.test.mjs scripts/drnib-private-public-tip.test.mjs",
-    "cloudflare:build": "node scripts/cloudflare-build.mjs"
+    "test:drnib-privacy": "node --test dr-nib/backend/src/privacy/*.test.mjs dr-nib/tools/*.test.mjs scripts/drnib-private-vault.test.mjs scripts/drnib-private-objects.test.mjs scripts/drnib-private-public-tip.test.mjs"
   },
   "pnpm": {
     "overrides": {
@@ -90,12 +89,9 @@
     }
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "1.20.16",
     "@playwright/test": "^1.63.0",
-    "miniflare": "5.20261103.0-beta",
     "viem": "2.54.1",
-    "vitest": "^3.2.1",
-    "wrangler": "4.157.0"
+    "vitest": "^3.2.1"
   },
   "main": "index.js",
   "directories": {

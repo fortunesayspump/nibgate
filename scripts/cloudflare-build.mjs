@@ -38,6 +38,14 @@ if(hub){
  const id=readFileSync(join(appDir,'.open-next/assets/BUILD_ID'),'utf8').trim(),w=join(out,'worker.mjs'),s=readFileSync(w,'utf8');if(!/^[A-Za-z0-9_-]+$/.test(id)||!s.includes('__BUILD_ID__'))throw Error('Invalid build identifier');writeFileSync(w,s.replace('__BUILD_ID__',id));
 } else {
  cpSync(resolve('cloudflare/creator',network),out,{recursive:true});if(network==='mainnet'){const selected=target==='creator-lowfi'?'wrangler.lowfi.jsonc':'wrangler.mainnet.jsonc';cpSync(join(out,selected),join(out,'wrangler.jsonc'));}
+ // Bundle while the network-specific policy is still in place. A later
+ // Wrangler invocation must not import the restored source-tree policy.
+ const temp=resolve('.cloudflare-build/creator-inner');rmSync(temp,{recursive:true,force:true});mkdirSync(temp,{recursive:true});
+ run('pnpm',['exec','wrangler','deploy','--dry-run','--config','wrangler.jsonc','--outdir',temp],appDir);
+ for(const f of readdirSync(temp)){if(f==='migration-wrapper.js')cpSync(join(temp,f),join(out,'open-next.mjs'));else if(/\.(?:wasm|bin)$/.test(f))cpSync(join(temp,f),join(out,f))}
+ const w=join(out,'worker.mjs'),s=readFileSync(w,'utf8'),original='../../../subblogs/frontend/migration-wrapper.mjs';
+ if(s.split(original).length!==3)throw Error('Unexpected creator wrapper imports');
+ writeFileSync(w,s.replaceAll(original,'./open-next.mjs'));
 }
 cpSync(join(appDir,'.open-next/assets'),join(out,'assets'),{recursive:true,force:true});
 if(!existsSync(join(out,'wrangler.jsonc')))throw Error('Missing deployment configuration');

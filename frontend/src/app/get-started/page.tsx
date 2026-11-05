@@ -35,7 +35,7 @@ export default function GetStartedPage() {
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <button type="button" data-wallet-connect className="nibgate-soft-cta border-none cursor-pointer">Connect wallet</button>
-              <Link href="/dashboard/sites" className="nibgate-soft-cta nibgate-soft-cta-secondary">Connect a site</Link>
+              <span className="nibgate-soft-cta nibgate-soft-cta-secondary" aria-disabled="true">Site setup temporarily unavailable</span>
               <Link href="/share" className="nibgate-soft-cta nibgate-soft-cta-secondary">Open Nibshare</Link>
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function GetStartedPage() {
           <h2 className="text-4xl font-medium sm:text-5xl lg:text-7xl">
             Start with one verified site. <br /> Grow into a full creator hub.
           </h2>
-          <Link className="nibgate-soft-cta" href="/dashboard/sites">Open site setup</Link>
+          <span className="nibgate-soft-cta" aria-disabled="true">Site setup temporarily unavailable</span>
         </section>
       </main>
       <Footer showThemeToggle={true} />

@@ -25,7 +25,7 @@ function formatRssDate(value: string): string {
 
 async function getSiteName(): Promise<string> {
   try {
-    const d = await serverFetch<{ success: boolean; site: { name: string } }>("/site", { next: { revalidate: 3600 } });
+    const d = await serverFetch<{ success: boolean; site: { name: string } }>("/site", { cache: "no-store" });
     return d.site?.name || "Nibgate Blog";
   } catch { return "Nibgate Blog"; }
 }
@@ -70,8 +70,8 @@ export async function GET(request: Request) {
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
-      "Vercel-CDN-Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "private, no-store",
+
     },
   });
 }

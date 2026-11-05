@@ -11,7 +11,7 @@ const API_BASE = _rawBase.endsWith("/api") ? _rawBase.slice(0, -"/api".length) :
 export function apiUrl(path: string) {
   // Browser calls go same-origin through the Next rewrite (mirrors production,
   // where the API lives behind the same domain) — avoids CORS entirely.
-  if (typeof window !== "undefined" && !process.env.NEXT_PUBLIC_API_URL) return `/api${path}`;
+  if (typeof window !== "undefined") return `/api${path}`;
   return `${API_BASE}${path}`;
 }
 

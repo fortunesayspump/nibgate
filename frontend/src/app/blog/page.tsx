@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 
 import Header from "@/components/Header";
@@ -25,7 +26,7 @@ function formatDate(value: string) {
 
 async function getPosts() {
   try {
-    const res = await fetch(apiUrl("/blog/posts"), { next: { revalidate: 60 } });
+    const res = await fetch(apiUrl("/blog/posts"), { cache: "no-store" });
     if (!res.ok) return [] as BlogPost[];
     const data = await res.json();
     return (data.posts || []) as BlogPost[];

@@ -20,14 +20,11 @@ export async function serverFetch<T>(path: string, options?: RequestInit): Promi
     const reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
     if (subdomain) reqHeaders["x-site-subdomain"] = subdomain;
 
-    // Public blog reads are safe to share within a tenant. Give uncategorized
-    // GETs a small data-cache lifetime so a bot crawl does not fan out into a
-    // backend request for every page. Explicit caller policies still win.
-    const hasCachePolicy = options?.cache !== undefined || "next" in (options || {});
-    const cachePolicy = hasCachePolicy ? {} : { next: { revalidate: 300 } };
+    // Candidate preview: always fetch fresh tenant data; no policy-sensitive ISR.
+    const { next: _ignoredNext, cache: _ignoredCache, ...requestOptions } = options || {};
     const res = await fetch(apiUrl(path), {
-      ...cachePolicy,
-      ...options,
+      ...requestOptions,
+      cache: "no-store",
       headers: { ...options?.headers as Record<string, string>, ...reqHeaders },
     });
     const data = await res.json();

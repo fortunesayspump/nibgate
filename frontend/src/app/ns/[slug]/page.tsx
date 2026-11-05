@@ -14,9 +14,10 @@ type Props = { params: Promise<{ slug: string }> };
 
 async function fetchMeta(slug: string): Promise<ShareMeta | null> {
   try {
-    const res = await fetch(apiUrl(`/nibshare/${slug}/meta`), { next: { revalidate: 60 } });
+    const res = await fetch(apiUrl(`/nibshare/${slug}/meta`), { cache: "no-store" });
     if (!res.ok) return null;
-    return (await res.json()) as ShareMeta;
+    const meta = (await res.json()) as ShareMeta;
+    return meta?.publicAccess === true && meta.status === "active" ? meta : null;
   } catch {
     return null;
   }

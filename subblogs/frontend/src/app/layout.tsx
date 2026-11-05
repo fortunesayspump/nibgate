@@ -9,14 +9,14 @@ import WalletProviders from "@/components/WalletProviders";
 
 const getSite = cache(async (): Promise<Record<string, any> | null> => {
   try {
-    return await serverFetch("/site", { next: { revalidate: 300 } });
+    return await serverFetch("/blog/public-site-v2", { cache: "no-store" });
   } catch { return null; }
 });
 
 async function siteOrigin() {
   try {
     const h = await headers();
-    const host = h.get("host") || "nibgate.xyz";
+    const host = h.get("x-nibgate-verified-host") || h.get("host") || "nibgate.xyz";
     return `https://${host}`;
   } catch { return "https://nibgate.xyz"; }
 }
@@ -52,7 +52,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const data = await getSite();
-  const widget = data?.widgetScript || "";
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -67,7 +66,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
         }} />
       </head>
-      <body><TestnetBanner />{widget && <div dangerouslySetInnerHTML={{ __html: widget }} />}<WalletProviders>{children}</WalletProviders><Footer /></body>
+      <body><TestnetBanner /><WalletProviders>{children}</WalletProviders><Footer /></body>
     </html>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
 
 export default function Header() {
   const [dark, setDark] = useState(false);
@@ -12,7 +11,7 @@ export default function Header() {
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
-    apiFetch<{ site: { name: string } }>("/site").then(d => {
+    fetch("/api/blog/public-site-v2", { cache: "no-store" }).then(r => r.ok ? r.json() : Promise.reject()).then((d: { site: { name: string } }) => {
       if (d.site?.name) setSiteName(d.site.name);
     }).catch(() => {});
     const p = window.location.pathname;

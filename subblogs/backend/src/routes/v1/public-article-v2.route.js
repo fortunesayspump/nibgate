@@ -8,9 +8,17 @@ function createPublicArticleV2Router({ prisma, decryptBody } = {}) {
   const router = express.Router();
   router.use((req, res, next) => { res.set('Cache-Control', 'private, no-store'); res.vary('Host'); next(); });
   const tenant = req => req.site?.id && req.siteId === req.site.id && req.site.subdomain ? req.site : null;
-  router.get('/public-site-v2', (req,res) => {
+  router.get('/public-site-v2', async (req,res) => {
     const site=tenant(req); if (!site) return res.status(404).json({error:'Not found'});
-    return res.json({success:true,site:{name:site.name || '',description:site.description || '',subdomain:site.subdomain}});
+    try {
+      // Fetch current settings for the verified tenant; never serialize settings
+      // or tokens. Do not use the cached site for a payout destination.
+      const current=await prisma.site.findUnique({where:{id:site.id},select:{subdomain:true,settings:true}});
+      if (!current || current.subdomain!==site.subdomain) return res.status(404).json({error:'Not found'});
+      let settings={}; try { settings=JSON.parse(current.settings || '{}'); } catch {}
+      const wallet=typeof settings.recipientWallet==='string' && /^0x[0-9a-fA-F]{40}$/.test(settings.recipientWallet) ? settings.recipientWallet : '';
+      return res.json({success:true,site:{name:site.name || '',description:site.description || '',subdomain:site.subdomain,recipientWallet:wallet}});
+    } catch { return res.status(503).json({error:'Temporarily unavailable'}); }
   });
   const eligibleWhere = siteId => ({siteId,type:'article',status:'published',publicAccess:true,OR:[{price:null},{price:'0'}]});
   const eligible = (post,site) => Boolean(post && post.id && post.updatedAt && post.siteId===site.id && /^[a-zA-Z0-9_-]{1,200}$/.test(post.slug) && post.type==='article' && post.status==='published' && post.publicAccess===true && (post.price===null || post.price==='0'));

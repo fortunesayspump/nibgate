@@ -2,8 +2,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { adminProxy } from './api-proxy.mjs';
 import { readerProxy } from './reader-proxy.mjs';
-import app from './open-next.mjs';
-export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from './open-next.mjs';
+import app from '../../../subblogs/frontend/migration-wrapper.mjs';
+export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from '../../../subblogs/frontend/migration-wrapper.mjs';
 
 const allowedHosts = new Set(('jeff smalltalk codekitchen trailnotes beatlab solarpunkstan deepcook pixelwave rootandstem thescoreboard analog workshop thedeepend outbound theinkwell thedailygrind catwalk framerate themixingboard ironpulse shelflife greenhouse wanderlost thedailybyte canvasandcode terminalvelocity syntaxandsalt bassdrop pixeldepth courtside pitchtalk ajayconsult lyricalmusic blank blacdany benedict jedidiah fortune').split(' ').map(label => `${label}.testnet.nibgate.xyz`));
 const readerPath = /^\/api\/auth\/(?:nonce|verify|session|logout)$|^\/api\/nibgate\/(?:access|preflight|manifest|gateway\/balance)$|^\/api\/nibgate\/posts\/[a-zA-Z0-9_-]{1,200}\/quote$|^\/api\/nibgate\/media\/[a-zA-Z0-9_-]{1,200}\/(?:audio|photo|video|document(?:\/(?:preview|render))?)$|^\/api\/(?:writing|photos|music|video|docs)\/[a-zA-Z0-9_-]{1,200}$/;

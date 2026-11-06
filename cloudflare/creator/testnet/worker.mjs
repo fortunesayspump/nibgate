@@ -1,3 +1,4 @@
+// Approved testnet creator hostname deployment.
 import { DurableObject } from 'cloudflare:workers';
 import { adminProxy } from './api-proxy.mjs';
 import { readerProxy } from './reader-proxy.mjs';

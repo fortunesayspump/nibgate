@@ -10,7 +10,7 @@ export async function dispatch(request,scope,inner,env,ctx){
  if(url.protocol!=='https:' || (scope==='hub'?host!=='nibgate.xyz':!/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.nibgate\.xyz$/.test(host)||/^(www|api|docs|testnet|drnib|private-drnib)\./.test(host))) return blocked(404);
  // Encoded route names, repeated slashes and backslashes are withheld, rather than normalized.
  if((raw.includes('%') && !/^\/_next\/static\/(?:[a-zA-Z0-9._~\/-]|%5[bBdD])+$/.test(raw)) || raw.includes('\\') || raw.includes('//') || raw.split('/').some(s=>s==='.'||s==='..')) return blocked(400);
- if(scope==='creator' && /^\/(?:photos|music|video|docs|sitemap\.xml|nibgate\.json|\.well-known\/nibgate\.json|api\/feed)(?:[/.]|$)/.test(raw)) return blocked();
+ if(scope==='creator' && /^\/(?:photos|music|video|docs|sitemap\.xml|api\/feed)(?:[/.]|$)/.test(raw)) return blocked();
  if(scope==='hub' && /^\/dashboard\/analytics(?:\/|$)/.test(raw)) return blocked();
  if(scope==='creator' && (raw==='/' || /^\/(?:writing|photos|music|video|docs)\//.test(raw)||raw==='/api/blog/public-site-v2') && !['GET','HEAD'].includes(request.method))return blocked();
  const asset=ASSET.test(raw) || (scope==='creator' && /^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$/.test(raw));const allow=scope==='hub'?HUB_PAGE.test(raw)||HUB_API.test(raw):CREATOR_PAGE.test(raw)||CREATOR_API.test(raw);

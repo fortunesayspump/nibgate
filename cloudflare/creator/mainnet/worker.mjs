@@ -19,7 +19,6 @@ export class RenderObject extends DurableObject {
 export default {
   async fetch(request, env) {
     const u = new URL(request.url), p = u.pathname, host = u.hostname;
-    if (p === '/api/nibgate/manifest') return denied();
     if (u.protocol !== 'https:' || !allowedHosts.has(host) || !(allowedPath.test(p) || readerPath.test(p)) || p.includes('\\') || p.includes('//') || (p.includes('%') && !safeAsset.test(p))) return denied();
     if (readerPath.test(p)) return readerProxy(request, {host, tenant:host.split('.')[0], canonical:'https://' + host, origin:'https://api-subblogs.nibgate.xyz'});
     if (/^\/api\/(?:auth\/(?:login|me)|site|nibgate\/gateway\/(?:balances|deposit|withdraw)|settings(?:\/.*)?|blog\/admin(?:\/.*)?|nibgate\/posts(?:\/.*)?|upload)$/.test(p)) {

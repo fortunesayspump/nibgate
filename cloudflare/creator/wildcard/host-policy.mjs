@@ -24,6 +24,6 @@ export async function publicSite(host, fetcher=fetch) {
     if (!response.ok || !/^application\/json(?:;|$)/i.test(response.headers.get('content-type')||'')) return false;
     const payload=await response.json();
     if (payload?.success!==true || payload?.site?.subdomain!==tenant) return null;
-    return {name: typeof payload.site.name==='string'?payload.site.name:'', description: typeof payload.site.description==='string'?payload.site.description:'', subdomain:tenant};
+    return {name: typeof payload.site.name==='string'?payload.site.name:'', description: typeof payload.site.description==='string'?payload.site.description:'', subdomain:tenant, recipientWallet: typeof payload.site.recipientWallet==='string' && /^0x[0-9a-fA-F]{40}$/.test(payload.site.recipientWallet) ? payload.site.recipientWallet : ''};
   } catch { return null; }
 }

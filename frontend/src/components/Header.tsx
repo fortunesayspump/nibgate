@@ -45,14 +45,16 @@ export default function Header() {
             <ul className="nibgate-primary-nav">
               {navItems.map((item) => (
                 <li key={item.href} className="nibgate-primary-nav-item">
-                  <Link
+                  {item.href === "/explore" || item.href === "/leaderboards" ? (
+                    <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
+                  ) : <Link
                     href={item.href}
                     className={`nibgate-primary-nav-link ${
                       activePath === item.href ? "is-active" : ""
                     }`}
                   >
                     {item.label}
-                  </Link>
+                  </Link>}
                 </li>
               ))}
             </ul>
@@ -82,7 +84,9 @@ export default function Header() {
         <ul className="nibgate-primary-nav">
           {navItems.map((item) => (
             <li key={item.href} className="nibgate-primary-nav-item">
-              <Link
+              {item.href === "/explore" || item.href === "/leaderboards" ? (
+                <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
+              ) : <Link
                 href={item.href}
                 className={`nibgate-primary-nav-link ${
                   activePath === item.href ? "is-active" : ""
@@ -90,7 +94,7 @@ export default function Header() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {item.label}
-              </Link>
+              </Link>}
             </li>
           ))}
         </ul>

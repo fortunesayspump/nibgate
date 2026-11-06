@@ -94,7 +94,9 @@ export default function Footer({ showThemeToggle = false, showExtension = true }
                   const isExternal = href.startsWith("http") || href.startsWith("mailto:");
                   return (
                     <li key={label} className="footer-menu__item">
-                      {isExternal ? (
+                      {href.startsWith("/explore") || href.startsWith("/leaderboards") ? (
+                        <span className="footer-menu__link" aria-disabled="true">{label} (unavailable)</span>
+                      ) : isExternal ? (
                         <a
                           className="footer-menu__link"
                           href={href}

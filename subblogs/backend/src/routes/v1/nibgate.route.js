@@ -769,6 +769,7 @@ router.get('/media/:postId/document/render', async (req, res, next) => {
 
 router.get('/manifest', async (req, res, next) => {
   res.set('Cache-Control', 'private, no-store');
+  if (!req.siteId || !req.site) return res.status(404).json({ error: 'Site not found' });
   try {
     const typePath = { article: 'writing', photo: 'photos', music: 'music', video: 'video', document: 'docs' };
 
@@ -784,7 +785,7 @@ router.get('/manifest', async (req, res, next) => {
       const pathType = { writing: 'article', photos: 'photo', music: 'music', video: 'video', docs: 'document' };
       const postType = pathMatch ? pathType[pathMatch[1]] : undefined;
       const post = slug
-        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, status: 'published', ...(postType ? { type: postType } : {}) }, include: { author: { select: { name: true } } } })
+        ? await prisma.blogPost.findFirst({ where: { siteId: req.siteId, slug, status: 'published', publicAccess: true, ...(postType ? { type: postType } : {}) }, include: { author: { select: { name: true } } } })
         : null;
       if (!post) return res.status(404).json({ ok: false, error: 'Post not found' });
 
@@ -814,7 +815,7 @@ router.get('/manifest', async (req, res, next) => {
         publishedAt: post.publishedAt,
         updatedAt: post.updatedAt || post.publishedAt,
         author: post.author?.name || null,
-        coverUrl: post.coverUrl || post.videoUrl || null,
+        coverUrl: post.coverUrl || null,
         urls: {
           page: `${origin}${path}`,
           access: `${origin}/api${path}`,
@@ -828,7 +829,7 @@ router.get('/manifest', async (req, res, next) => {
     }
 
     const posts = await prisma.blogPost.findMany({
-      where: { siteId: req.siteId, status: 'published' },
+      where: { siteId: req.siteId, status: 'published', publicAccess: true },
       orderBy: [{ publishedAt: 'desc' }],
     });
 
@@ -863,9 +864,11 @@ router.get('/manifest', async (req, res, next) => {
 });
 
 router.get('/nibgate.json', async (req, res, next) => {
+  res.set('Cache-Control', 'private, no-store');
+  if (!req.siteId || !req.site) return res.status(404).json({ error: 'Site not found' });
   try {
     const posts = await prisma.blogPost.findMany({
-      where: { siteId: req.siteId, status: 'published' },
+      where: { siteId: req.siteId, status: 'published', publicAccess: true },
       orderBy: [{ publishedAt: 'desc' }],
     });
 

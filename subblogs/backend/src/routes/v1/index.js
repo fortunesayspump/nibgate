@@ -18,6 +18,8 @@ const { renderPublicHTMLPage } = require('../../lib/public-html-page');
 const { renderPublicBody } = require('../../lib/public-body-renderer');
 const { createPublicBodyReader } = require('../../lib/public-body-reader');
 router.use('/blog', createPublicPagePreviewRouter({ prisma, decryptBody: createPublicBodyReader(), renderBody: renderPublicBody, renderPage: renderPublicHTMLPage }));
+const { createPublicArticleV2Router } = require('./public-article-v2.route');
+router.use('/blog', createPublicArticleV2Router({ prisma, decryptBody: createPublicBodyReader() }));
 
 const defaultRoutes = [
   { path: '/auth', route: authRoute },

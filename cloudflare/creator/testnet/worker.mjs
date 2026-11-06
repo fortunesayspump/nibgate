@@ -17,6 +17,11 @@ export class RenderObject extends DurableObject {
 }
 export default {
   async fetch(request, env) {
+    const preview = new URL(request.url);
+    if (preview.hostname !== 'nibgate-creators-testnet-preview.fortuneze0.workers.dev' || !['GET','HEAD'].includes(request.method) || !/^(?:\/$|\/(?:writing|about)(?:\/[a-zA-Z0-9_-]{1,200})?\/?$|\/_next\/static\/|\/(?:brand|fonts|illustrations)\/|\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$)/.test(preview.pathname)) return denied();
+    const clean = new Headers(request.headers);
+    for (const key of ['cookie','authorization','proxy-authorization','x-forwarded-host','x-site-subdomain']) clean.delete(key);
+    request = new Request(new URL(preview.pathname + preview.search, 'https://jeff.testnet.nibgate.xyz'), {method:request.method,headers:clean,redirect:'manual'});
     const u = new URL(request.url), p = u.pathname, host = u.hostname;
     if (p === '/api/nibgate/manifest') return denied();
     if (p === '/nibgate.json' || p === '/.well-known/nibgate.json') return denied();

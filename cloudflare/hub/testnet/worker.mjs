@@ -10,9 +10,6 @@ async function handle(request, env) {
   const url = new URL(request.url);
   const previewHost = 'nibgate-hub-testnet-local.fortuneze0.workers.dev';
   if (url.protocol !== 'https:' || !['testnet.nibgate.xyz', previewHost].includes(url.hostname)) return new Response('Not found', { status: 404 });
-  // Withhold the legacy analytics page, including its RSC/extension variants:
-  // its traffic and retention panels contain hardcoded values.
-  if (/^\/dashboard\/analytics(?:[/.]|$)/.test(url.pathname)) return new Response('Temporarily unavailable', {status:503,headers:{'cache-control':'private, no-store, no-transform','x-robots-tag':'noindex, nofollow'}});
   if (url.hostname === previewHost) {
     const allowedPage = ['/', '/get-started', '/signin'].includes(url.pathname);
     const allowedAsset = /^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)|^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-wordmark\.svg|chrome\.svg)$/.test(url.pathname);

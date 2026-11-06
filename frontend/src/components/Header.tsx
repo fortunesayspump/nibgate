@@ -21,10 +21,10 @@ export default function Header() {
   }, []);
 
   const navItems = [
-    { label: "Explore", href: "/explore", unavailable: true },
+    { label: "Explore", href: "/explore" },
     { label: "Blog", href: "/blog" },
-    { label: "Share", href: "/share", unavailable: false },
-    { label: "Leaderboards", href: "/leaderboards", unavailable: true },
+    { label: "Share", href: "/share" },
+    { label: "Leaderboards", href: "/leaderboards" },
     { label: "Ledger", href: "/ledger" },
     { label: "Dr. Nib", href: "/dr-nib/research" },
   ];
@@ -45,14 +45,14 @@ export default function Header() {
             <ul className="nibgate-primary-nav">
               {navItems.map((item) => (
                 <li key={item.href} className="nibgate-primary-nav-item">
-                  {item.unavailable ? <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span> : <Link
+                  <Link
                     href={item.href}
                     className={`nibgate-primary-nav-link ${
                       activePath === item.href ? "is-active" : ""
                     }`}
                   >
                     {item.label}
-                  </Link>}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -82,7 +82,7 @@ export default function Header() {
         <ul className="nibgate-primary-nav">
           {navItems.map((item) => (
             <li key={item.href} className="nibgate-primary-nav-item">
-              {item.unavailable ? <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span> : <Link
+              <Link
                 href={item.href}
                 className={`nibgate-primary-nav-link ${
                   activePath === item.href ? "is-active" : ""
@@ -90,7 +90,7 @@ export default function Header() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {item.label}
-              </Link>}
+              </Link>
             </li>
           ))}
         </ul>

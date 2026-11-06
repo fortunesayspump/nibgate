@@ -58,7 +58,9 @@ export default function Features() {
             <p className="text-xl md:text-2xl">
               One widget verifies your domain and receives page, content, unlock, and receipt events while the paid payload stays private.
             </p>
-            <span className="nibgate-soft-cta" aria-disabled="true">Explore temporarily unavailable</span>
+            <Link className="nibgate-soft-cta" href="/explore">
+              Open explore
+            </Link>
           </div>
         </div>
       </div>

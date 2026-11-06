@@ -1,7 +1,9 @@
-// LOCAL ASSESSMENT ONLY: strictly scoped traffic; not a production-ready route map.
+// Restore the existing Hub application routes. Authentication, payment and
+// content-access checks remain in the unchanged application and backend handlers.
 const ASSET = /^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)/;
-const HUB_PAGE = /^\/(?:|get-started|signin|ledger|dr-nib(?:\/.*)?|privacy|security|faq|terms|cookies|install|quick-start|examples|roadmap|extension-privacy|blog(?:\/[a-zA-Z0-9_-]{1,200})?|dashboard(?:\/.*)?|share(?:\/.*)?|ns\/[a-zA-Z0-9_-]{1,200})$/;
-const HUB_API = /^\/(?:api\/)?(?:auth|nibshare|uploads)(?:\/|$)|^\/(?:api\/)?hub\/dashboard(?:\/|$)|^\/(?:api\/)?blog\/admin(?:\/|$)/;
+const HUB_PAGE = /^\/(?:|get-started|signin|ledger|dr-nib(?:\/.*)?|privacy|security|faq|terms|cookies|install|quick-start|examples|roadmap|extension-privacy|payments|discovery|blog(?:\/[a-zA-Z0-9_-]{1,200})?|dashboard(?:\/.*)?|share(?:\/.*)?|ns\/[a-zA-Z0-9_-]{1,200}|explore(?:\/(?:hot-new|products|articles|documents|categories|wishlists|images|video|music|agent-routes|writing|best-sellers|creators))?|leaderboards|pending-tips(?:\/claim)?|llms(?:-full)?\.txt|robots\.txt|(?:all-content-)?sitemap\.xml)$/;
+const HUB_API = /^\/(?:api\/)?(?:hub|auth|nibshare|newsletter|uploads|app|nibgate)(?:\/|$)|^\/(?:api\/)?blog\/admin(?:\/|$)|^\/api\/blog\/posts(?:\/|$)|^\/(?:api\/)?rpc$|^\/openapi\.json$/;
+const HUB_ASSET = /^\/(?:favicon\.(?:ico|png)|icon\.png|apple-icon\.png|logo\.svg|nibgate-(?:wordmark|mark)\.svg|chrome\.svg|TRY\.svg|widget\.js)$/;
 const CREATOR_PAGE = /^\/$|^\/admin(?:\/|$)|^\/writing\/[a-zA-Z0-9_-]{1,200}\/?$/;
 const CREATOR_API = /^\/api\/(?:auth|upload)(?:\/|$)|^\/api\/blog\/admin(?:\/|$)|^\/api\/settings(?:\/|$)|^\/api\/blog\/public-site-v2$/;
 function blocked(code=503) {return new Response('Temporarily unavailable',{status:code,headers:{'cache-control':'private, no-store, no-transform','x-robots-tag':'noindex, nofollow'}})}
@@ -11,7 +13,7 @@ export async function dispatch(request,scope,inner,env,ctx){
  // Encoded route names, repeated slashes and backslashes are withheld, rather than normalized.
  if((raw.includes('%') && !/^\/_next\/static\/(?:[a-zA-Z0-9._~\/-]|%5[bBdD])+$/.test(raw)) || raw.includes('\\') || raw.includes('//') || raw.split('/').some(s=>s==='.'||s==='..')) return blocked(400);
  if(scope==='creator' && (raw==='/' || /^\/writing\//.test(raw)||raw==='/api/blog/public-site-v2') && !['GET','HEAD'].includes(request.method))return blocked();
- const asset=ASSET.test(raw) || (scope==='creator' && /^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$/.test(raw));const allow=scope==='hub'?HUB_PAGE.test(raw)||HUB_API.test(raw):CREATOR_PAGE.test(raw)||CREATOR_API.test(raw);
+ const asset=ASSET.test(raw) || (scope==='hub' && HUB_ASSET.test(raw)) || (scope==='creator' && /^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$/.test(raw));const allow=scope==='hub'?HUB_PAGE.test(raw)||HUB_API.test(raw):CREATOR_PAGE.test(raw)||CREATOR_API.test(raw);
  if(!asset && !allow)return blocked();
  let safeRequest=request;
  if(scope==='creator'){const h=new Headers(request.headers);h.set('x-site-subdomain',host.split('.')[0]);h.set('x-forwarded-host',host);h.set('x-nibgate-verified-host',host);if(/^\/writing\//.test(raw)){h.delete('if-none-match');h.delete('if-modified-since');h.delete('if-range');h.delete('range');}safeRequest=new Request(request,{headers:h});}

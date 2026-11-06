@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NewsletterForm from "./NewsletterForm";
 import ThemeToggle from "./ThemeToggle";
 
 const footerMenus = [
@@ -91,10 +92,9 @@ export default function Footer({ showThemeToggle = false, showExtension = true }
               <ul className="footer-menu__list" id={menu.id} data-footer-menu-list>
                 {menu.links.filter(([label]) => showExtension || label !== "Browser extension").map(([label, href]) => {
                   const isExternal = href.startsWith("http") || href.startsWith("mailto:");
-                  const unavailable = !isExternal && !["/get-started", "/api/nibgate/status", "/blog", "/security", "/faq", "/cookies", "/privacy", "/terms", "/payments", "/discovery"].includes(href);
                   return (
                     <li key={label} className="footer-menu__item">
-                      {unavailable ? (<span className="footer-menu__link" aria-disabled="true">{label} (unavailable)</span>) : isExternal ? (
+                      {isExternal ? (
                         <a
                           className="footer-menu__link"
                           href={href}
@@ -180,7 +180,7 @@ export default function Footer({ showThemeToggle = false, showExtension = true }
                 <p className="sign-up-form__sub-heading">
                   {showExtension?"Sign up for product notes, creator examples, and mainnet / Nib Tip / extension updates.":"Sign up for product notes, creator examples, and mainnet / Nib Tip updates."}
                 </p>
-                <p role="status">Newsletter signup is temporarily unavailable.</p>
+                <NewsletterForm />
               </div>
             </div>
           </div>

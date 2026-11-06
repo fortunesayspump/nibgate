@@ -6,7 +6,6 @@ import { cache } from "react";
 import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
-import NibgateTip, { NibgateTipRow } from "@/components/NibgateTip";
 import DocumentContent from "@/components/DocumentContent";
 import { serverFetch } from "@/lib/server-fetch";
 import { detectEmbed as detectMediaEmbed } from "@/lib/media";
@@ -64,7 +63,7 @@ function postHref(post: { type: string; slug: string }) {
 }
 
 const getPost = cache(async (slug: string) =>
-  serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${encodeURIComponent(slug)}`, { cache: "no-store" })
+  serverFetch<{ success: boolean; post: BlogPost }>(`/blog/public-article-v2/${encodeURIComponent(slug)}`, { cache: "no-store" })
 );
 
 export async function generateMetadata({ params }: { params: Promise<{ type: string; slug: string }> }): Promise<any> {
@@ -141,28 +140,11 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
     } catch {}
   }
 
-  const relatedData = await serverFetch<{ success: boolean; posts: BlogPost[] }>(`/blog/posts?type=${encodeURIComponent(post.type)}&limit=6`, { cache: "no-store" });
-  const related = (relatedData?.posts || []).filter((p) => p.id !== post.id).slice(0, 5);
-  // Only the public payout address reaches client tip components, never the
-  // /site response's verification token, hub credentials or widget script.
-  const siteData = await serverFetch<{ site?: { recipientWallet?: string } }>("/site", { cache: "no-store" });
-  const recipientWallet = siteData?.site?.recipientWallet || "";
+  const related: BlogPost[] = [];
   const origin = await siteOrigin();
   const resourcePath = `/${typeMap[post.type] || "posts"}/${post.slug}`;
   const manifestUrl = `${origin}/api/nibgate/manifest?path=${encodeURIComponent(resourcePath)}`;
   const accessUrl = `${origin}/api${resourcePath}`;
-  // Canonical absolute URL + cover so tips attribute to this post (and site)
-  // in the hub ledger instead of landing with an empty contentId/domain.
-  const tipResource = {
-    id: post.id,
-    title: post.title,
-    type: post.type,
-    price: post.price || "0",
-    path: resourcePath,
-    url: `${origin}${resourcePath}`,
-    imageUrl: post.coverUrl || undefined,
-  };
-
   return (
     <>
       <Header />
@@ -177,7 +159,6 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
           <div className="small muted font-ui pn1" style={{ paddingTop: "0.75em" }}>
             <time>{fd(post.publishedAt)}</time>
             {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
-            <> · <NibgateTipRow resource={tipResource} recipient={recipientWallet} /></>
           </div>
           {post.excerpt && (post.type === "document" || !isPremium) && <p className="small muted" style={{ marginTop: "1em", marginBottom: "2em" }}>{post.excerpt}</p>}
         </div>
@@ -250,10 +231,7 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
           )}
         </div>
 
-        <div className="wrap">
-          <p className="small muted">Ratings are temporarily unavailable.</p>
-          <NibgateTip resource={tipResource} recipient={recipientWallet} />
-        </div>
+        <div className="wrap"><p className="small muted">Tipping and ratings are temporarily unavailable.</p></div>
 
         {related.length > 0 && (
           <>

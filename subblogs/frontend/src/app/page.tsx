@@ -12,8 +12,9 @@ function mo(v: string) { return String(new Date(v).getMonth() + 1).padStart(2, "
 
 async function getGrouped(): Promise<Record<string, BlogPost[]>> {
   try {
-    return await serverFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { cache: "no-store" });
-  } catch { return {}; }
+    const result = await serverFetch<{ posts?: BlogPost[] }>("/blog/public-home-v2", { cache: "no-store" });
+    return { article: Array.isArray(result.posts) ? result.posts : [] };
+  } catch { return { article: [] }; }
 }
 
 function postHref(post: { type: string; slug: string }) {

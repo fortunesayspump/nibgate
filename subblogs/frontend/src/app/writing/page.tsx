@@ -5,7 +5,6 @@ import { type BlogPost } from "@/lib/api";
 import { fd } from "@/lib/utils";
 import Header from "@/components/Header";
 
-const TYPE = "article";
 const LABEL = "Writing";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -18,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function WritingPage() {
-  const data = await serverFetch<{ posts: BlogPost[]; total: number }>(`/blog/posts?type=${TYPE}&limit=50`, { cache: "no-store" });
+  const data = await serverFetch<{ posts: BlogPost[] }>("/blog/public-home-v2", { cache: "no-store" });
   const posts = data?.posts || [];
 
   return (

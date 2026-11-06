@@ -25,7 +25,7 @@ function formatRssDate(value: string): string {
 
 async function getSiteName(): Promise<string> {
   try {
-    const d = await serverFetch<{ success: boolean; site: { name: string } }>("/site", { cache: "no-store" });
+    const d = await serverFetch<{ success: boolean; site: { name: string } }>("/blog/public-site-v2", { cache: "no-store" });
     return d.site?.name || "Nibgate Blog";
   } catch { return "Nibgate Blog"; }
 }

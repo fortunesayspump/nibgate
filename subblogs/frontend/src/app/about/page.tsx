@@ -4,7 +4,7 @@ import ReactMarkdown from "react-markdown";
 
 async function getSite(): Promise<Record<string, any> | null> {
   try {
-    return await serverFetch("/site", { cache: "no-store" });
+    return await serverFetch("/blog/public-site-v2", { cache: "no-store" });
   } catch { return null; }
 }
 
@@ -35,8 +35,7 @@ export default async function AboutPage() {
         ) : (
           <div className="wrap">
             <p style={{ color: "var(--muted)", fontStyle: "italic" }}>
-              No about page written yet. Add one in{" "}
-              <a href="/admin/settings" style={{ color: "var(--accent)" }}>settings</a>.
+              About information is temporarily unavailable.
             </p>
           </div>
         )}

@@ -9,7 +9,7 @@ import WalletProviders from "@/components/WalletProviders";
 
 const getSite = cache(async (): Promise<Record<string, any> | null> => {
   try {
-    return await serverFetch("/site", { cache: "no-store" });
+    return await serverFetch("/blog/public-site-v2", { cache: "no-store" });
   } catch { return null; }
 });
 

@@ -8,7 +8,7 @@ npm ci --prefix cloudflare/tooling --ignore-scripts --legacy-peer-deps
 node scripts/cloudflare-build.mjs <target>
 ```
 
-Targets are `hub-mainnet`, `hub-testnet`, `creator-mainnet`, `creator-lowfi`, `creator-testnet`, and `docs`. Hub and creator output is staged under `.cloudflare-build/hub/<network>` or `.cloudflare-build/creator/<network>`; docs outputs to `docs/out`. Use the staged `wrangler.jsonc` for a reviewed deployment. Creator mainnet and Lowfi share an output directory, so build and deploy each target separately. Testnet creator has no production route in its configuration.
+Targets are `hub-mainnet`, `hub-testnet`, `creator-mainnet`, `creator-lowfi`, `creator-wildcard`, `creator-testnet`, and `docs`. Hub and creator output is staged under `.cloudflare-build/hub/<network>` or `.cloudflare-build/creator/<network>`; docs outputs to `docs/out`. Use the staged `wrangler.jsonc` for a reviewed deployment. Creator mainnet and Lowfi share an output directory, so build and deploy each target separately. Testnet creator has no production route in its configuration.
 
 Use `node cloudflare/tooling/node_modules/wrangler/bin/wrangler.js` with the appropriate staged config for Wrangler commands. Tool dependencies have a separate lockfile so this frontend-only change does not alter the Railway-watched root package files.
 
@@ -17,3 +17,5 @@ Set `NEXT_PUBLIC_NIBGATE_NETWORK` and `NEXT_PUBLIC_API_URL` for the target. Crea
 The archives in `cloudflare/previous-static` contain public `_next/static` files from the manual Hub and mainnet creator deployments. Builds merge those files without overwriting a different file at the same path, preserving those prior releases' chunks. This is a bounded snapshot, not automatic retention of every future build; a rollout plan is still needed for tabs from later releases.
 
 The pinned OpenNext adapter declares a different Next.js peer range from this repository, even though local builds and synthetic tests have passed. Testnet creator still requires a compatible existing backend and domain/TLS configuration. Live authentication and payment flows have not been verified by these synthetic tests.
+
+The wildcard target stages the mainnet creator Worker separately. Its production route is managed independently; validate reserved-host precedence and login behavior before deploying it.

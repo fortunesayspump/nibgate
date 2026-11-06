@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import hosts from './hosts.json';
 import { adminProxy } from './api-proxy.mjs';
+import { publicSite } from './host-policy.mjs';
 import { readerProxy } from './reader-proxy.mjs';
 import app from '../../../subblogs/frontend/migration-wrapper.mjs';
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from '../../../subblogs/frontend/migration-wrapper.mjs';
@@ -20,6 +21,12 @@ export default {
   async fetch(request, env) {
     const u = new URL(request.url), p = u.pathname, host = u.hostname;
     if (u.protocol !== 'https:' || !allowedHosts.has(host) || !(allowedPath.test(p) || readerPath.test(p)) || p.includes('\\') || p.includes('//') || (p.includes('%') && !safeAsset.test(p))) return denied();
+    if (p === '/api/site') {
+      if (!['GET','HEAD'].includes(request.method)) return new Response('Method not allowed',{status:405,headers:{allow:'GET, HEAD','cache-control':'no-store'}});
+      const site=await publicSite(host);
+      if (!site) return denied();
+      return new Response(request.method === 'HEAD' ? null : JSON.stringify({success:true,site}),{status:200,headers:{'content-type':'application/json; charset=utf-8','cache-control':'private, no-store'}});
+    }
     if (readerPath.test(p)) return readerProxy(request, {host, tenant:host.split('.')[0], canonical:'https://' + host, origin:'https://api-subblogs.nibgate.xyz'});
     if (/^\/api\/(?:auth\/(?:login|me)|site|nibgate\/gateway\/(?:balances|deposit|withdraw)|settings(?:\/.*)?|blog\/admin(?:\/.*)?|nibgate\/posts(?:\/.*)?|upload)$/.test(p)) {
       return adminProxy(request, {host, tenant:host.split('.')[0], canonical:'https://' + host, origin:'https://api-subblogs.nibgate.xyz'});

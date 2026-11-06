@@ -4,7 +4,7 @@ import { resolve, join } from 'node:path';
 import { mergePrevious } from './cloudflare-merge-previous.mjs';
 
 const target=process.argv[2];
-if (!['hub-mainnet','hub-testnet','creator-mainnet','creator-lowfi','creator-testnet','docs'].includes(target)) throw Error('Choose an explicit Cloudflare build target');
+if (!['hub-mainnet','hub-testnet','creator-mainnet','creator-lowfi','creator-wildcard','creator-testnet','docs'].includes(target)) throw Error('Choose an explicit Cloudflare build target');
 const toolsDir=resolve('cloudflare/tooling/node_modules');
 if (!existsSync(join(toolsDir,'@opennextjs/cloudflare/dist/cli/index.js'))) throw Error('Run npm ci --prefix cloudflare/tooling --ignore-scripts --legacy-peer-deps first');
 const network=target.endsWith('testnet')?'testnet':'mainnet';
@@ -21,7 +21,7 @@ if(target!=='docs') {
 mkdirSync(resolve('.cloudflare-build'),{recursive:true});
 function run(command,args,cwd=process.cwd()){const r=spawnSync(command,args,{cwd,stdio:'inherit',env:{...process.env,CLOUDFLARE_SEND_METRICS:'false',WRANGLER_LOG_PATH:resolve('.cloudflare-build/wrangler.log')}});if(r.status!==0)throw Error(`${command} failed (${r.status})`)}
 if(target==='docs'){run('npm',['--prefix','docs/sdk-reference','ci','--ignore-scripts','--no-audit','--no-fund']);run('pnpm',['--filter','@nibgate/docs','cf:build:static']);process.exit(0)}
-const hub=target.startsWith('hub-'),app=hub?'frontend':'subblogs/frontend',out=resolve('.cloudflare-build',hub?'hub':'creator',hub?network:(network==='testnet'?'testnet':'mainnet')),appDir=resolve(app);
+const hub=target.startsWith('hub-'),app=hub?'frontend':'subblogs/frontend',out=resolve('.cloudflare-build',hub?'hub':'creator',hub?network:(target==='creator-wildcard'?'wildcard':network==='testnet'?'testnet':'mainnet')),appDir=resolve(app);
 // OpenNext config is resolved from the application tree. Expose only the
 // isolated adapter package to that resolver; no root package changes needed.
 const adapterLink=resolve('node_modules/@opennextjs/cloudflare');
@@ -44,7 +44,7 @@ if(hub){
  for(const f of readdirSync(temp)){if(f==='migration-wrapper.js')cpSync(join(temp,f),join(out,'open-next.mjs'));else if(/\.(?:wasm|bin)$/.test(f))cpSync(join(temp,f),join(out,f))}
  const id=readFileSync(join(appDir,'.open-next/assets/BUILD_ID'),'utf8').trim(),w=join(out,'worker.mjs'),s=readFileSync(w,'utf8');if(!/^[A-Za-z0-9_-]+$/.test(id)||!s.includes('__BUILD_ID__'))throw Error('Invalid build identifier');writeFileSync(w,s.replace('__BUILD_ID__',id));
 } else {
- cpSync(resolve('cloudflare/creator',network),out,{recursive:true});if(network==='mainnet'){const selected=target==='creator-lowfi'?'wrangler.lowfi.jsonc':'wrangler.mainnet.jsonc';cpSync(join(out,selected),join(out,'wrangler.jsonc'));}
+ cpSync(resolve('cloudflare/creator',target==='creator-wildcard'?'wildcard':network),out,{recursive:true});if(network==='mainnet'&&target!=='creator-wildcard'){const selected=target==='creator-lowfi'?'wrangler.lowfi.jsonc':'wrangler.mainnet.jsonc';cpSync(join(out,selected),join(out,'wrangler.jsonc'));}
  // Bundle while the network-specific policy is still in place. A later
  // Wrangler invocation must not import the restored source-tree policy.
  const temp=resolve('.cloudflare-build/creator-inner');rmSync(temp,{recursive:true,force:true});mkdirSync(temp,{recursive:true});
@@ -55,6 +55,6 @@ if(hub){
  writeFileSync(w,s.replaceAll(original,'./open-next.mjs'));
 }
 cpSync(join(appDir,'.open-next/assets'),join(out,'assets'),{recursive:true,force:true});
-mergePrevious(target==='creator-lowfi'?'creator-mainnet':target,join(out,'assets'));
+mergePrevious(target==='creator-lowfi'||target==='creator-wildcard'?'creator-mainnet':target,join(out,'assets'));
 if(!existsSync(join(out,'wrangler.jsonc')))throw Error('Missing deployment configuration');
 console.log(`Prepared ${target} in ${out}; no production deployment performed.`);

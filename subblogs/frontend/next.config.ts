@@ -8,6 +8,7 @@ const _rawApi = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api")
 const apiUrl = _rawApi.endsWith("/api") ? _rawApi.slice(0, -"/api".length) : _rawApi;
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // Include workspace package sources and dependencies in the server trace.
   outputFileTracingRoot: path.join(__dirname, "../.."),
   transpilePackages: ["@nibgate/wallet"],
@@ -23,20 +24,10 @@ const nextConfig: NextConfig = {
     return config;
   },
   images: {
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "**" },
     ],
-  },
-  async headers() {
-    const publicPageCache = [
-      { key: "Vercel-CDN-Cache-Control", value: "public, s-maxage=60, stale-while-revalidate=300" },
-    ];
-    return [
-      { source: "/", headers: publicPageCache },
-      { source: "/about", headers: publicPageCache },
-      { source: "/:type(writing|photos|music|video|docs)", headers: publicPageCache },
-      { source: "/:type(writing|photos|music|video|docs)/:slug", headers: publicPageCache },
-    ];
   },
   async rewrites() {
     return [

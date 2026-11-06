@@ -104,3 +104,12 @@ CONTINUE-*.md
 
 # Owner-specific canary inputs and staged credentials; never publish
 /ops/dr-nib-canary/local/
+
+# Generated Cloudflare artifacts
+.cloudflare-build/
+
+frontend/.open-next/
+subblogs/frontend/.open-next/
+cloudflare-git-*.log
+docs/out/
+docs/sdk-reference/node_modules/

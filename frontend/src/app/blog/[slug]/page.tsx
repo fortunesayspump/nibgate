@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -26,7 +27,7 @@ function formatDate(value: string) {
 
 async function getPost(slug: string) {
   try {
-    const res = await fetch(apiUrl(`/blog/posts/${slug}`), { next: { revalidate: 60 } });
+    const res = await fetch(apiUrl(`/blog/posts/${slug}`), { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
     return data.post as BlogPost;

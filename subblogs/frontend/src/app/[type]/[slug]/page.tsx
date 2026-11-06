@@ -6,8 +6,6 @@ import { cache } from "react";
 import Header from "@/components/Header";
 import MediaEmbed from "@/components/MediaEmbed";
 import NibgateUnlock from "@/components/NibgateUnlock";
-import NibgateTip, { NibgateTipRow } from "@/components/NibgateTip";
-import ReputationRating from "@/components/ReputationRating";
 import DocumentContent from "@/components/DocumentContent";
 import { serverFetch } from "@/lib/server-fetch";
 import { detectEmbed as detectMediaEmbed } from "@/lib/media";
@@ -28,7 +26,7 @@ const TYPE_ICONS: Record<string, string> = { article: "✎", photo: "▣", music
 async function siteOrigin() {
   try {
     const h = await headers();
-    const host = h.get("host") || "nibgate.xyz";
+    const host = h.get("x-nibgate-verified-host") || h.get("host") || "nibgate.xyz";
     return `https://${host}`;
   } catch { return "https://nibgate.xyz"; }
 }
@@ -65,7 +63,7 @@ function postHref(post: { type: string; slug: string }) {
 }
 
 const getPost = cache(async (slug: string) =>
-  serverFetch<{ success: boolean; post: BlogPost }>(`/blog/posts/${slug}`, { next: { revalidate: 300 } })
+  serverFetch<{ success: boolean; post: BlogPost }>(`/blog/public-article-v2/${encodeURIComponent(slug)}`, { cache: "no-store" })
 );
 
 export async function generateMetadata({ params }: { params: Promise<{ type: string; slug: string }> }): Promise<any> {
@@ -142,24 +140,11 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
     } catch {}
   }
 
-  const relatedData = await serverFetch<{ success: boolean; posts: BlogPost[] }>(`/blog/posts?type=${post.type}&limit=6`, { next: { revalidate: 300 } });
-  const related = (relatedData?.posts || []).filter((p) => p.id !== post.id).slice(0, 5);
+  const related: BlogPost[] = [];
   const origin = await siteOrigin();
   const resourcePath = `/${typeMap[post.type] || "posts"}/${post.slug}`;
   const manifestUrl = `${origin}/api/nibgate/manifest?path=${encodeURIComponent(resourcePath)}`;
   const accessUrl = `${origin}/api${resourcePath}`;
-  // Canonical absolute URL + cover so tips attribute to this post (and site)
-  // in the hub ledger instead of landing with an empty contentId/domain.
-  const tipResource = {
-    id: post.id,
-    title: post.title,
-    type: post.type,
-    price: post.price || "0",
-    path: resourcePath,
-    url: `${origin}${resourcePath}`,
-    imageUrl: post.coverUrl || undefined,
-  };
-
   return (
     <>
       <Header />
@@ -174,7 +159,6 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
           <div className="small muted font-ui pn1" style={{ paddingTop: "0.75em" }}>
             <time>{fd(post.publishedAt)}</time>
             {post.type === "article" && <> · <span className="reading-time">{rd(postBody)}</span></>}
-            <> · <NibgateTipRow resource={tipResource} /></>
           </div>
           {post.excerpt && (post.type === "document" || !isPremium) && <p className="small muted" style={{ marginTop: "1em", marginBottom: "2em" }}>{post.excerpt}</p>}
         </div>
@@ -236,28 +220,18 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
             <NibgateUnlock resource={gateResource()} />
           ) : post.type === "article" ? (
             <div className="prose prose-neutral dark:prose-invert">
-              <ReactMarkdown>{resolveEmbeds(post.bodyMarkdown, post.id)}</ReactMarkdown>
+              <ReactMarkdown>{resolveEmbeds(postBody, post.id)}</ReactMarkdown>
             </div>
           ) : (
-            cleanBody(post.bodyMarkdown) && (
+            cleanBody(postBody) && (
               <div className="prose prose-neutral dark:prose-invert">
-                <p>{cleanBody(post.bodyMarkdown)}</p>
+                <p>{cleanBody(postBody)}</p>
               </div>
             )
           )}
         </div>
 
-        <div className="wrap">
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-start", margin: "0 calc(-1 * min(120px, 10vw))", padding: "0 16px" }}>
-            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-              <ReputationRating resource={{ id: post.id, title: post.title, type: post.type, price: post.price || "0", path: `/${TYPE_LABELS[post.type]?.toLowerCase() || "posts"}/${post.slug}` }} />
-            </div>
-            <div aria-hidden="true" style={{ width: 1, alignSelf: "stretch", background: "var(--border, #e5e5e5)", margin: "28px 0" }} />
-            <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-              <NibgateTip resource={tipResource} />
-            </div>
-          </div>
-        </div>
+        <div className="wrap"><p className="small muted">Tipping and ratings are temporarily unavailable.</p></div>
 
         {related.length > 0 && (
           <>

@@ -1,3 +1,5 @@
+export const dynamic = "force-static";
+
 const PAGES: Array<[string, string]> = [
   ["https://docs.nibgate.xyz/overview", "What Nibgate is: verification, discovery, unlock, and reputation for creator-owned paid content."],
   ["https://docs.nibgate.xyz/architecture", "System architecture across hub, creator sites, subblogs, and onchain components."],

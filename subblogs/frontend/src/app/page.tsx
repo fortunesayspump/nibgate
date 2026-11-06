@@ -2,7 +2,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
-import { fd, rd } from "@/lib/utils";
+import { fd } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = { article: "Writing", photo: "Photos", music: "Music", video: "Video", document: "Docs" };
 const TYPE_ORDER = ["article", "photo", "music", "video", "document"];
@@ -10,10 +10,11 @@ const TYPE_ORDER = ["article", "photo", "music", "video", "document"];
 function yr(v: string) { return new Date(v).getFullYear().toString(); }
 function mo(v: string) { return String(new Date(v).getMonth() + 1).padStart(2, "0"); }
 
-async function getGrouped() {
+async function getGrouped(): Promise<Record<string, BlogPost[]>> {
   try {
-    return await serverFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { next: { revalidate: 300 } });
-  } catch { return {}; }
+    const result = await serverFetch<{ posts?: BlogPost[] }>("/blog/public-home-v2", { cache: "no-store" });
+    return { article: Array.isArray(result.posts) ? result.posts : [] };
+  } catch { return { article: [] }; }
 }
 
 function postHref(post: { type: string; slug: string }) {
@@ -57,7 +58,7 @@ function extractFirstImage(md: string, coverUrl?: string | null, media?: string 
 }
 
 function ThumbnailCard({ post, icon }: { post: BlogPost; icon?: string }) {
-  const img = extractFirstImage(post.bodyMarkdown, post.coverUrl, post.media);
+  const img = extractFirstImage(post.bodyMarkdown || "", post.coverUrl, post.media);
   return (
     <Link key={post.id} href={postHref(post)} className="plain block" style={{ overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
       {img ? (
@@ -132,6 +133,7 @@ export default async function HomePage() {
       <Header />
       <main>
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", marginLeft: "auto", marginRight: "auto" }}>
+          {!latest && <p className="muted font-ui">No posts yet.</p>}
           {latest && (
             <>
               <p className="section-header"><Link href={postHref(latest)} className="muted font-ui">Latest</Link></p>
@@ -143,7 +145,7 @@ export default async function HomePage() {
                   <h2>{latest.title}</h2>
                   <div className="metadata muted small pb font-ui">
                     <time>{fd(latest.publishedAt)}</time>
-                    {latest.type === "article" && <> · <span>{rd(latest.bodyMarkdown)}</span></>}
+
                   </div>
                   <div className="small muted">
                     {latest.excerpt} Keep&nbsp;reading&nbsp;→

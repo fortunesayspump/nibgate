@@ -1,0 +1,202 @@
+{
+  "name": "nibgate-creators-mainnet-public",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-04",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./assets",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RENDER",
+        "class_name": "RenderObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "RenderObject"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "nibgate-creators-mainnet-public"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "analog.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "bassdrop.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "beatlab.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "canvasandcode.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "catwalk.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "codekitchen.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "courtside.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "deepcook.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "fieldnotes.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "framerate.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "goldenhour.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "greenhouse.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "ironpulse.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "medswarm.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "nightmarket.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "northloop.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "opentab.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "outbound.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "paperplane.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "pitchtalk.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "pixeldepth.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "pixelwave.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "rootandstem.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "shelflife.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "slowcharge.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "smalltalk.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "softsignal.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "solarpunkstan.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "syntaxandsalt.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "terminalvelocity.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "thedailybyte.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "thedailygrind.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "thedeepend.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "theinkwell.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "themixingboard.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "thescoreboard.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "trailnotes.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "wanderlost.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "wildtype.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    },
+    {
+      "pattern": "workshop.nibgate.xyz/*",
+      "zone_name": "nibgate.xyz"
+    }
+  ]
+}

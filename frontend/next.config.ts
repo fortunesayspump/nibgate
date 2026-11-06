@@ -38,9 +38,11 @@ if (process.env.NODE_ENV === "development" && process.env.DRNIB_LOCAL_AUTH_PROXY
 }
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   transpilePackages: ["@nibgate/wallet"],
   turbopack: {},
   images: {
+    unoptimized: true,
     // Plain object (not a URL): a URL instance pins `search: ""` and any
     // image URL with a query string then fails the match and 500s the page.
     remotePatterns: [{ protocol: "https", hostname: "**" }],

@@ -10,7 +10,7 @@ function subdomainFromHost(host: string): string | null {
 
 export async function GET(request: NextRequest) {
   const responseInit = {
-    headers: { "Vercel-CDN-Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" },
+    headers: { "Cache-Control": "private, no-store" },
   };
   try {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const subdomain = subdomainFromHost(host) || "";
     const res = await fetch(`${apiBase}/nibgate/manifest`, {
       headers: subdomain ? { "x-site-subdomain": subdomain, "x-forwarded-host": host } : {},
-      next: { revalidate: 300 },
+      cache: "no-store",
     });
     const data = await res.json();
     return NextResponse.json(data, responseInit);

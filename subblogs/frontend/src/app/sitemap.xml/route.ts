@@ -1,7 +1,7 @@
 import { serverFetch } from "@/lib/server-fetch";
 import { type BlogPost } from "@/lib/api";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 async function getPosts(): Promise<BlogPost[]> {
   const posts: BlogPost[] = [];
@@ -71,8 +71,8 @@ export async function GET(request: Request) {
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
-      "Vercel-CDN-Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "private, no-store",
+
     },
   });
 }

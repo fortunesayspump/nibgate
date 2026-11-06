@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 export const dynamic = "force-static";
 
@@ -21,8 +22,8 @@ const TOTAL_BANDS = BAND_W + BAND_W2 + BAND_W3;
 
 export async function GET() {
   const [wordmarkBuffer, fontBuffer] = await Promise.all([
-    readFile(new URL("../../../public/brand/nibgate-wordmark-hi.png", import.meta.url)),
-    readFile(new URL("../../../public/fonts/ABCFavorit-Regular.ttf", import.meta.url)),
+    readFile(path.join(process.cwd(), "public/brand/nibgate-wordmark-hi.png")),
+    readFile(path.join(process.cwd(), "public/fonts/ABCFavorit-Regular.ttf")),
   ]);
   const wordmark = `data:image/png;base64,${wordmarkBuffer.toString("base64")}`;
   const favorit = fontBuffer.buffer.slice(fontBuffer.byteOffset, fontBuffer.byteOffset + fontBuffer.byteLength) as ArrayBuffer;

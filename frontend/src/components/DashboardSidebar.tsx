@@ -63,6 +63,7 @@ export default function DashboardSidebar({ isMobileOpen, onMobileClose }: { isMo
         {visibleLinks.map((link, index) => {
           const isActive = pathname === link.path || pathname.startsWith(link.path + '/');
           const Icon = link.Icon;
+          if (["sites", "analytics", "blog"].includes(link.id)) return <span key={link.id} className={`dashboard-box box-${index} flex-1 no-underline w-full h-full`} aria-disabled="true"><span className="dashboard-box-slot"><Icon className="dashboard-box-icon" aria-hidden="true" strokeWidth={1.8} /></span><span className="dashboard-box-text"><span className="dashboard-box-label">{link.name}</span><span className="dashboard-box-description">Temporarily unavailable</span></span></span>;
           return (
             <Link
               key={link.id}

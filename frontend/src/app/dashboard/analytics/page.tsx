@@ -67,20 +67,7 @@ const CONTENT_TYPE_COLORS: Record<string, string> = {
   music: "#d8b04c",
 };
 
-const TRAFFIC_SOURCES = [
-  { label: "Direct", value: 38 },
-  { label: "X / Twitter", value: 24 },
-  { label: "Farcaster", value: 17 },
-  { label: "Search", value: 13 },
-  { label: "Referrals", value: 8 },
-];
-
-const RETENTION_COHORTS = [
-  { label: "New visitors", d0: 100, d1: 42, d7: 18, d30: 9 },
-  { label: "Content viewers", d0: 100, d1: 58, d7: 29, d30: 14 },
-  { label: "Unlock starters", d0: 100, d1: 71, d7: 36, d30: 22 },
-  { label: "Paid unlocks", d0: 100, d1: 82, d7: 48, d30: 31 },
-];
+const TRAFFIC_SOURCES: Array<{ label: string; value: number }> = [];
 
 async function readApiJson(res: Response) {
   const contentType = res.headers.get("content-type") || "";
@@ -299,7 +286,7 @@ export default function AnalyticsPage() {
             <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
               <ChartPanel title="Traffic sources" subtitle="Where content viewers are coming from" action={<TimeframeControl value={sourcesFrame} onChange={setSourcesFrame} />}>
                 <div className="mt-5 space-y-4">
-                  {TRAFFIC_SOURCES.map((source) => (
+                  {TRAFFIC_SOURCES.length === 0 ? <p className="text-sm opacity-70">Traffic source breakdown is unavailable.</p> : TRAFFIC_SOURCES.map((source) => (
                     <SimpleBar key={source.label} label={source.label} value={source.value} suffix="%" />
                   ))}
                 </div>
@@ -512,41 +499,8 @@ function SimpleBar({ label, value, suffix = "" }: { label: string; value: number
   );
 }
 
-function Heat({ value }: { value: number }) {
-  return (
-    <span className="inline-flex min-w-16 justify-center rounded-xl px-3 py-2 font-medium text-white" style={{ background: `rgba(17,17,17,${Math.max(0.18, value / 100)})` }}>
-      {value}%
-    </span>
-  );
-}
-
 function RetentionTable() {
-  return (
-    <div className="mt-5 max-h-[420px] overflow-auto">
-      <table className="w-full min-w-[640px] text-left text-sm">
-        <thead className="opacity-60">
-          <tr>
-            <th className="py-3 font-medium">Cohort</th>
-            <th className="py-3 font-medium">Day 0</th>
-            <th className="py-3 font-medium">Day 1</th>
-            <th className="py-3 font-medium">Day 7</th>
-            <th className="py-3 font-medium">Day 30</th>
-          </tr>
-        </thead>
-        <tbody>
-          {RETENTION_COHORTS.map((cohort) => (
-            <tr key={cohort.label} className="border-t" style={{ borderColor: "var(--nib-border-soft)" }}>
-              <td className="py-3 font-medium">{cohort.label}</td>
-              <td className="py-3"><Heat value={cohort.d0} /></td>
-              <td className="py-3"><Heat value={cohort.d1} /></td>
-              <td className="py-3"><Heat value={cohort.d7} /></td>
-              <td className="py-3"><Heat value={cohort.d30} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <p className="mt-5 text-sm opacity-70">Retention cohort data is unavailable.</p>;
 }
 
 function HistoricalAnalyticsTable({ timeline, onSelect }: { timeline: Array<{ label: string; views: number; unlocks: number; revenue: number }>; onSelect: (point: { label: string; views: number; unlocks: number; revenue: number }) => void }) {

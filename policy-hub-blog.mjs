@@ -1,7 +1,7 @@
 // Restore the existing Hub application routes. Authentication, payment and
 // content-access checks remain in the unchanged application and backend handlers.
 const ASSET = /^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)/;
-const HUB_PAGE = /^\/(?:|get-started|signin|ledger|dr-nib(?:\/.*)?|privacy|security|faq|terms|cookies|install|quick-start|examples|roadmap|extension-privacy|payments|discovery|blog(?:\/[a-zA-Z0-9_-]{1,200})?|dashboard(?:\/.*)?|share(?:\/.*)?|ns\/[a-zA-Z0-9_-]{1,200}|explore(?:\/(?:hot-new|products|articles|documents|categories|wishlists|images|video|music|agent-routes|writing|best-sellers|creators))?|leaderboards|pending-tips(?:\/claim)?|llms(?:-full)?\.txt|robots\.txt|(?:all-content-)?sitemap\.xml)$/;
+const HUB_PAGE = /^\/(?:|get-started|signin|ledger|dr-nib(?:\/.*)?|privacy|security|faq|terms|cookies|install|quick-start|examples|roadmap|extension-privacy|payments|discovery|blog(?:\/[a-zA-Z0-9_-]{1,200})?|dashboard(?:\/.*)?|share(?:\/.*)?|ns(?:\/[a-zA-Z0-9_-]{1,200})?|explore(?:\/(?:hot-new|products|articles|documents|categories|wishlists|images|video|music|agent-routes|writing|best-sellers|creators))?|leaderboards|pending-tips(?:\/claim)?|(?:\.well-known\/)?llms(?:-full)?\.txt|robots\.txt|(?:all-content-)?sitemap\.xml)$/;
 const HUB_API = /^\/(?:api\/)?(?:hub|auth|nibshare|newsletter|uploads|app|nibgate)(?:\/|$)|^\/(?:api\/)?blog\/admin(?:\/|$)|^\/api\/blog\/posts(?:\/|$)|^\/(?:api\/)?rpc$|^\/openapi\.json$/;
 const HUB_ASSET = /^\/(?:favicon\.(?:ico|png)|icon\.png|apple-icon\.png|logo\.svg|nibgate-(?:wordmark|mark)\.svg|chrome\.svg|TRY\.svg|widget\.js)$/;
 const CREATOR_PAGE = /^\/$|^\/admin(?:\/|$)|^\/writing\/[a-zA-Z0-9_-]{1,200}\/?$/;

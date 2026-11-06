@@ -19,14 +19,14 @@ function safeSetCookie(value){
 export async function readerProxy(request,cfg,fetcher=fetch){
  const u=new URL(request.url),bad=status=>new Response('Unavailable',{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  if(!cfg||u.protocol!=='https:'||u.hostname!==cfg.host||u.port||/%|\\|\/\//.test(u.pathname))return bad(404);
- const isAuth=authPaths.has(u.pathname),isBalance=u.pathname==='/api/nibgate/gateway/balance',isAccess=access.test(u.pathname)||media.test(u.pathname)||quote.test(u.pathname)||u.pathname==='/api/nibgate/access';if(!isAuth&&!isAccess&&!isBalance)return bad(404);
- if(request.method!==(isAuth?authPaths.get(u.pathname):isBalance?'POST':'GET'))return bad(405);
+ const isAuth=authPaths.has(u.pathname),isBalance=u.pathname==='/api/nibgate/gateway/balance',isPreflight=u.pathname==='/api/nibgate/preflight',isManifest=u.pathname==='/api/nibgate/manifest',isAccess=access.test(u.pathname)||media.test(u.pathname)||quote.test(u.pathname)||u.pathname==='/api/nibgate/access';if(!isAuth&&!isAccess&&!isBalance&&!isPreflight&&!isManifest)return bad(404);
+ if(request.method!==(isAuth?authPaths.get(u.pathname):(isBalance||isPreflight)?'POST':'GET'))return bad(405);
  if(request.method==='POST'&&request.headers.get('origin')!==u.origin)return bad(403);
  if(u.search.length>2048||request.headers.get('authorization'))return bad(400);
  let cookies;try{cookies=selectCookies(request.headers.get('cookie'));}catch{return bad(400);}
  const headers=new Headers({'x-site-subdomain':cfg.tenant,'x-forwarded-host':new URL(cfg.canonical).host});
  if(cookies)headers.set('cookie',cookies);
- for(const key of ['accept','content-type',...(isAccess?['payment-signature','payment-memo','x-nibgate-transfer-tx','x-nibgate-tx-owner','x-nibgate-payment-proof','x-nibgate-ownership-signature','range']:[])]){
+ for(const key of ['accept','content-type',...((isAccess||isPreflight)?['payment-signature','payment-memo','x-nibgate-transfer-tx','x-nibgate-tx-owner','x-nibgate-payment-proof','x-nibgate-ownership-signature','range']:[])]){
   const value=request.headers.get(key);if(value){if(value.length>32768)return bad(413);headers.set(key,value);}
  }
  try{

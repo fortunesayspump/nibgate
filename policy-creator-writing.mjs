@@ -2,7 +2,7 @@
 const ASSET = /^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)/;
 const HUB_PAGE = /^\/(?:|get-started|signin|dashboard(?:\/.*)?|share(?:\/.*)?)$/;
 const HUB_API = /^\/(?:api\/)?(?:auth|nibshare|uploads)(?:\/|$)|^\/(?:api\/)?hub\/dashboard(?:\/|$)/;
-const CREATOR_PAGE = /^\/$|^\/admin(?:\/|$)|^\/writing\/?$|^\/writing\/[a-zA-Z0-9_-]{1,200}\/?$/;
+const CREATOR_PAGE = /^\/$|^\/admin(?:\/|$)|^\/(?:writing|photos|music|video|docs)(?:\/[a-zA-Z0-9_-]{1,200})?\/?$|^\/(?:about|robots\.txt|sitemap\.xml|nibgate\.json|\.well-known\/nibgate\.json|api\/feed)$/;
 const CREATOR_API = /^\/api\/(?:auth|upload)(?:\/|$)|^\/api\/blog\/admin(?:\/|$)|^\/api\/settings(?:\/|$)|^\/api\/blog\/public-site-v2$/;
 function blocked(code=503) {return new Response('Temporarily unavailable',{status:code,headers:{'cache-control':'private, no-store, no-transform','x-robots-tag':'noindex, nofollow'}})}
 export async function dispatch(request,scope,inner,env,ctx){
@@ -11,11 +11,11 @@ export async function dispatch(request,scope,inner,env,ctx){
  // Encoded route names, repeated slashes and backslashes are withheld, rather than normalized.
  if((raw.includes('%') && !/^\/_next\/static\/(?:[a-zA-Z0-9._~\/-]|%5[bBdD])+$/.test(raw)) || raw.includes('\\') || raw.includes('//') || raw.split('/').some(s=>s==='.'||s==='..')) return blocked(400);
  if(scope==='hub' && /^\/dashboard\/analytics(?:\/|$)/.test(raw)) return blocked();
- if(scope==='creator' && (raw==='/' || /^\/writing\//.test(raw)||raw==='/api/blog/public-site-v2') && !['GET','HEAD'].includes(request.method))return blocked();
+ if(scope==='creator' && (raw==='/' || /^\/(?:writing|photos|music|video|docs)\//.test(raw)||raw==='/api/blog/public-site-v2') && !['GET','HEAD'].includes(request.method))return blocked();
  const asset=ASSET.test(raw) || (scope==='creator' && /^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$/.test(raw));const allow=scope==='hub'?HUB_PAGE.test(raw)||HUB_API.test(raw):CREATOR_PAGE.test(raw)||CREATOR_API.test(raw);
  if(!asset && !allow)return blocked();
  let safeRequest=request;
- if(scope==='creator'){const h=new Headers(request.headers);h.set('x-site-subdomain',host.split('.')[0]);h.set('x-forwarded-host',host);h.set('x-nibgate-verified-host',host);if(/^\/writing\//.test(raw)){h.delete('if-none-match');h.delete('if-modified-since');h.delete('if-range');h.delete('range');}safeRequest=new Request(request,{headers:h});}
+ if(scope==='creator'){const h=new Headers(request.headers);h.set('x-site-subdomain',host.split('.')[0]);h.set('x-forwarded-host',host);h.set('x-nibgate-verified-host',host);if(/^\/(?:writing|photos|music|video|docs)\//.test(raw)){h.delete('if-none-match');h.delete('if-modified-since');h.delete('if-range');h.delete('range');}safeRequest=new Request(request,{headers:h});}
  const target=scope==='creator' && CREATOR_API.test(raw) ? new URL(raw+url.search,'https://api-subblogs.nibgate.xyz') : null;
  const response=target ? await fetch(new Request(new Request(target,safeRequest),{redirect:'manual'})) : await inner.fetch(safeRequest,env,ctx);
  if(asset)return response;

@@ -5,8 +5,8 @@ import app from '../../../subblogs/frontend/migration-wrapper.mjs';
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from '../../../subblogs/frontend/migration-wrapper.mjs';
 
 const allowedHosts = new Set(['jeff.testnet.nibgate.xyz']);
-const readerPath = /^\/api\/auth\/(?:nonce|verify|session|logout)$|^\/api\/nibgate\/(?:access|gateway\/balance)$|^\/api\/nibgate\/posts\/[a-zA-Z0-9_-]{1,200}\/quote$|^\/api\/nibgate\/media\/[a-zA-Z0-9_-]{1,200}\/(?:audio|photo|video|document(?:\/(?:preview|render))?)$|^\/api\/(?:writing|photos|music|video|docs)\/[a-zA-Z0-9_-]{1,200}$/;
-const allowedPath = /^\/admin(?:\/|$)|^\/api\/(?:auth\/login|site|settings(?:\/.*)?|blog\/admin(?:\/.*)?|nibgate\/posts(?:\/.*)?|upload)$|^\/$|^\/writing\/?$|^\/writing\/[a-zA-Z0-9_-]{1,200}\/?$|^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)|^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$|^\/api\/blog\/public-site-v2$/;
+const readerPath = /^\/api\/auth\/(?:nonce|verify|session|logout)$|^\/api\/nibgate\/(?:access|preflight|manifest|gateway\/balance)$|^\/api\/nibgate\/posts\/[a-zA-Z0-9_-]{1,200}\/quote$|^\/api\/nibgate\/media\/[a-zA-Z0-9_-]{1,200}\/(?:audio|photo|video|document(?:\/(?:preview|render))?)$|^\/api\/(?:writing|photos|music|video|docs)\/[a-zA-Z0-9_-]{1,200}$/;
+const allowedPath = /^\/admin(?:\/|$)|^\/api\/(?:auth\/(?:login|me)|site|nibgate\/gateway\/(?:balances|deposit|withdraw)|settings(?:\/.*)?|blog\/admin(?:\/.*)?|nibgate\/posts(?:\/.*)?|upload)$|^\/$|^\/(?:writing|photos|music|video|docs)(?:\/[a-zA-Z0-9_-]{1,200})?\/?$|^\/(?:about|robots\.txt|sitemap\.xml|nibgate\.json|\.well-known\/nibgate\.json|api\/feed)$|^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)|^\/(?:favicon\.(?:ico|png)|logo\.svg|nibgate-(?:wordmark|mark)\.svg|combined-logo\.svg)$|^\/api\/blog\/public-site-v2$/;
 const safeAsset = /^\/_next\/static\/(?:[a-zA-Z0-9._~\/-]|%5[bBdD])+$/;
 function denied() { return new Response('Unavailable', {status:404,headers:{'cache-control':'private, no-store','x-robots-tag':'noindex, nofollow'}}); }
 export class RenderObject extends DurableObject {
@@ -21,7 +21,7 @@ export default {
     if (u.protocol !== 'https:' || !allowedHosts.has(host) || !(allowedPath.test(p) || readerPath.test(p)) || p.includes('\\') || p.includes('//') || (p.includes('%') && !safeAsset.test(p))) return denied();
     if (p === '/api/upload') return denied(); // testnet backend upload authorization is not yet guarded
     if (readerPath.test(p)) return readerProxy(request, {host, tenant:host.split('.')[0], canonical:'https://' + host, origin:'https://testnet-api-subblogs.nibgate.xyz'});
-    if (/^\/api\/(?:auth\/login|site|settings(?:\/.*)?|blog\/admin(?:\/.*)?|nibgate\/posts(?:\/.*)?|upload)$/.test(p)) {
+    if (/^\/api\/(?:auth\/(?:login|me)|site|nibgate\/gateway\/(?:balances|deposit|withdraw)|settings(?:\/.*)?|blog\/admin(?:\/.*)?|nibgate\/posts(?:\/.*)?|upload)$/.test(p)) {
       return adminProxy(request, {host, tenant:host.split('.')[0], canonical:'https://' + host, origin:'https://testnet-api-subblogs.nibgate.xyz'});
     }
     if (!['GET','HEAD'].includes(request.method)) return denied();

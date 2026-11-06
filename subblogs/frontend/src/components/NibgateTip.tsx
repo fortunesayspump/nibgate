@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { NibgateTipCard, NibgateTipInline } from "@nibgate/wallet/react";
-import { apiFetch } from "@/lib/api";
 
 type TipResource = {
   id: string;
@@ -23,16 +21,8 @@ type TipResource = {
 const HUB_API_BASE =
   (process.env.NEXT_PUBLIC_HUB_API_URL || 'https://testnet-api.nibgate.xyz').replace(/\/+$/, '');
 
-// Full tip card wired to the site's recipient wallet (from /site).
-export default function NibgateTip({ resource }: { resource: TipResource }) {
-  const [recipient, setRecipient] = useState("");
-  useEffect(() => {
-    apiFetch<{ success: boolean; site: { recipientWallet?: string } }>("/site")
-      .then((d) => {
-        if (d?.site?.recipientWallet) setRecipient(d.site.recipientWallet);
-      })
-      .catch(() => {});
-  }, []);
+// Full tip card wired to the site's recipient wallet (provided by the server).
+export default function NibgateTip({ resource, recipient = "" }: { resource: TipResource; recipient?: string }) {
   return (
     <div>
       <NibgateTipCard resource={resource} recipient={recipient || undefined} apiBase={HUB_API_BASE} />
@@ -46,15 +36,7 @@ export default function NibgateTip({ resource }: { resource: TipResource }) {
 }
 
 // Compact inline variant for lists and embeds.
-export function NibgateTipRow({ resource }: { resource: TipResource }) {
-  const [recipient, setRecipient] = useState("");
-  useEffect(() => {
-    apiFetch<{ success: boolean; site: { recipientWallet?: string } }>("/site")
-      .then((d) => {
-        if (d?.site?.recipientWallet) setRecipient(d.site.recipientWallet);
-      })
-      .catch(() => {});
-  }, []);
+export function NibgateTipRow({ resource, recipient = "" }: { resource: TipResource; recipient?: string }) {
   if (!recipient) return null;
   return <NibgateTipInline resource={resource} recipient={recipient} apiBase={HUB_API_BASE} />;
 }

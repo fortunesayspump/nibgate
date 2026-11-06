@@ -12,9 +12,8 @@ function mo(v: string) { return String(new Date(v).getMonth() + 1).padStart(2, "
 
 async function getGrouped(): Promise<Record<string, BlogPost[]>> {
   try {
-    const result = await serverFetch<{ posts?: BlogPost[] }>("/blog/public-home-v2", { cache: "no-store" });
-    return { article: Array.isArray(result.posts) ? result.posts : [] };
-  } catch { return { article: [] }; }
+    return await serverFetch<Record<string, BlogPost[]>>("/blog/posts-by-types", { cache: "no-store" });
+  } catch { return {}; }
 }
 
 function postHref(post: { type: string; slug: string }) {
@@ -58,7 +57,7 @@ function extractFirstImage(md: string, coverUrl?: string | null, media?: string 
 }
 
 function ThumbnailCard({ post, icon }: { post: BlogPost; icon?: string }) {
-  const img = extractFirstImage(post.bodyMarkdown, post.coverUrl, post.media);
+  const img = extractFirstImage(post.bodyMarkdown || "", post.coverUrl, post.media);
   return (
     <Link key={post.id} href={postHref(post)} className="plain block" style={{ overflow: "hidden", borderRadius: "6px", background: "var(--border)", position: "relative" }}>
       {img ? (
@@ -103,7 +102,11 @@ function PostSection({ type, posts }: { type: string; posts: BlogPost[] }) {
           ))}
         </ul>
       )}
-
+      <p className="muted font-ui small" style={{ marginTop: "0.5em" }}>
+        <Link href={sectionHref(type)} className="internal-link">
+          View all {label} →
+        </Link>
+      </p>
     </>
   );
 }
@@ -129,7 +132,7 @@ export default async function HomePage() {
       <Header />
       <main>
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", marginLeft: "auto", marginRight: "auto" }}>
-          {!latest && <p className="muted font-ui">No public writing is available right now.</p>}
+          {!latest && <p className="muted font-ui">No posts yet.</p>}
           {latest && (
             <>
               <p className="section-header"><Link href={postHref(latest)} className="muted font-ui">Latest</Link></p>

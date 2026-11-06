@@ -11,21 +11,20 @@ const LABEL = "Writing";
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Writing",
-    description: "Browse recent public articles and essays.",
+    description: "Browse all articles and essays.",
     alternates: { canonical: "/writing" },
-    openGraph: { title: "Writing", description: "Browse recent public articles and essays." },
+    openGraph: { title: "Writing", description: "Browse all articles and essays." },
   };
 }
 
 export default async function WritingPage() {
-  const data = await serverFetch<{ posts: BlogPost[] }>("/blog/public-home-v2", { cache: "no-store" });
+  const data = await serverFetch<{ posts: BlogPost[]; total: number }>(`/blog/posts?type=${TYPE}&limit=50`, { cache: "no-store" });
   const posts = data?.posts || [];
 
   return (
     <>
       <Header />
       <main>
-        <div className="wrap muted small">Showing the latest 20 public articles.</div>
         <div className="wrap" style={{ maxWidth: "var(--wrap-normal)", margin: "0 auto" }}>
           {posts.length === 0 ? <p className="muted">No posts yet.</p> : (
             <ul className="list-plain tabular-nums">

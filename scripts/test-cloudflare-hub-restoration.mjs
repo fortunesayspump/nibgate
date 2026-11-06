@@ -9,13 +9,13 @@ const publicPages = [
  '/explore/music', '/explore/video', '/explore/documents', '/explore/products',
  '/explore/categories', '/explore/wishlists', '/explore/creators', '/explore/agent-routes',
  '/explore/writing', '/explore/hot-new', '/explore/best-sellers', '/leaderboards',
- '/blog', '/blog/example', '/share', '/share/mine', '/share/edit/example', '/ns/example',
+ '/blog', '/blog/example', '/share', '/share/mine', '/share/edit/example', '/ns', '/ns/example',
  '/ledger', '/dr-nib/research', '/dr-nib/research/example/report', '/pending-tips',
  '/pending-tips/claim', '/dashboard', '/dashboard/analytics', '/dashboard/sites',
  '/dashboard/contents', '/dashboard/profile', '/dashboard/earnings', '/dashboard/blog',
  '/payments', '/discovery', '/privacy', '/security', '/faq', '/terms', '/cookies',
  '/install', '/quick-start', '/examples', '/roadmap', '/extension-privacy',
- '/llms.txt', '/llms-full.txt', '/robots.txt', '/sitemap.xml', '/all-content-sitemap.xml',
+ '/llms.txt', '/llms-full.txt', '/.well-known/llms.txt', '/.well-known/llms-full.txt', '/robots.txt', '/sitemap.xml', '/all-content-sitemap.xml',
 ];
 const apiPaths = [
  '/hub/explore/content?q=article', '/hub/reputation/leaderboards?type=content', '/hub/stats',
@@ -89,4 +89,20 @@ test('analytics restoration keeps honest unavailable states instead of old fabri
   assert.ok(!worker.includes('Withhold the legacy analytics page'));
   assert.match(worker,/const drnib = await drnibProxy\(request\)/);
  }
+});
+
+// Keep the restoration inventory complete as original application pages evolve.
+test('every checked-in Hub page and route is allowed by migration policy',async()=>{
+ const root=new URL('../frontend/src/app/',import.meta.url);
+ async function visit(dir,prefix=''){
+  for(const entry of await readdir(dir,{withFileTypes:true})){
+   if(entry.isDirectory())await visit(new URL(entry.name+'/',dir),prefix+'/'+entry.name);
+   else if(entry.name==='page.tsx'||entry.name==='route.ts'){
+    const path=(prefix||'/').replace(/\[[^/]+\]/g,'example');
+    const h=handler();
+    assert.equal((await dispatch(new Request('https://nibgate.xyz'+path),'hub',h.inner,{},{})).status,200,path);
+   }
+  }
+ }
+ await visit(root);
 });

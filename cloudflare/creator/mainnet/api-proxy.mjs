@@ -1,7 +1,9 @@
 // Experimental proxy: not registered on a Worker or connected to live data.
 // The caller must select cfg from an immutable hostname map, never request input.
 const routes=[
- [/^\/api\/auth\/login$/,['POST']], [/^\/api\/site$/,['GET','HEAD']],
+ [/^\/api\/auth\/login$/,['POST']], [/^\/api\/auth\/me$/,['GET','HEAD']],
+ [/^\/api\/nibgate\/gateway\/balances$/,['GET','HEAD']],
+ [/^\/api\/nibgate\/gateway\/(?:deposit|withdraw)$/,['POST']], [/^\/api\/site$/,['GET','HEAD']],
  [/^\/api\/settings$/,['GET','HEAD','PUT']], [/^\/api\/settings\/password$/,['PUT']],
  [/^\/api\/settings\/link-hub(?:\/disconnect)?$/,['POST']],
  [/^\/api\/blog\/admin\/activity$/,['GET','HEAD']],

@@ -33,7 +33,15 @@ if(!hub&&network==='testnet') {
  const path=resolve('policy-creator-writing.mjs');const original=readFileSync(path,'utf8');process.on('exit',()=>writeFileSync(path,original));const updated=original.replace("host!=='nibgate.xyz'","host!=='testnet.nibgate.xyz'").replace('\\.nibgate\\.xyz$/.test(host)','\\.testnet\\.nibgate\\.xyz$/.test(host)').replaceAll('https://api-subblogs.nibgate.xyz','https://testnet-api-subblogs.nibgate.xyz');if(updated===original)throw Error('Could not pin testnet creator policy');writeFileSync(path,updated);
 }
 run(process.execPath,[join(toolsDir,'@opennextjs/cloudflare/dist/cli/index.js'),'build'],appDir);
-if(hub) run('node',['scripts/stage-cloudflare-assets.mjs'],appDir);
+if(hub) {
+ const manifest=JSON.parse(readFileSync(join(appDir,'.next/server/middleware-manifest.json'),'utf8'));
+ const entries=Object.values(manifest.middleware||{}), matchers=entries.flatMap(entry=>entry.matchers||[]);
+ if(entries.length!==1 || matchers.length!==1 || matchers[0].originalSource!=='/ns/:path*')throw Error('Unknown Hub middleware; refusing to patch');
+ const p=join(appDir,'.open-next/server-functions/default/frontend/handler.mjs'),s=readFileSync(p,'utf8');
+ const before='getMiddlewareManifest(){return this.minimalMode?null:require(this.middlewareManifestPath)}',after='getMiddlewareManifest(){return null}';
+ if(s.includes(before)){if(s.split(before).length!==2)throw Error('Ambiguous Hub middleware patch');writeFileSync(p,s.replace(before,after));}else if(!s.includes(after))throw Error('Unknown Hub middleware runtime; refusing to patch');
+ run('node',['scripts/stage-cloudflare-assets.mjs'],appDir);
+}
 else {
  const p=join(appDir,'.open-next/server-functions/default/subblogs/frontend/handler.mjs');const s=readFileSync(p,'utf8');const before='getMiddlewareManifest(){return this.minimalMode?null:require(this.middlewareManifestPath)}';const after='getMiddlewareManifest(){return null}';if(s.includes(before)){if(s.split(before).length!==2)throw Error('Ambiguous Next middleware patch');writeFileSync(p,s.replace(before,after));}else if(!s.includes(after))throw Error('Unknown Next middleware runtime; refusing to patch');
 }

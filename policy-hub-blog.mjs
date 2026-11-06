@@ -22,5 +22,8 @@ export async function dispatch(request,scope,inner,env,ctx){
  const response=target ? await fetch(new Request(new Request(target,safeRequest),{redirect:'manual'})) : await inner.fetch(safeRequest,env,ctx);
  if(asset)return response;
  // Do not allow the Worker/CDN/browser to retain policy-sensitive responses.
- const out=new Response(response.body,response);out.headers.set('cache-control','private, no-store, no-transform');out.headers.delete('vercel-cdn-cache-control');out.headers.delete('cdn-cache-control');out.headers.delete('cloudflare-cdn-cache-control');if(scope==='creator' && request.headers.get('rsc')==='1')out.headers.set('x-robots-tag','noindex, nofollow');return out;
+ const out=new Response(response.body,response);out.headers.set('cache-control','private, no-store, no-transform');out.headers.delete('vercel-cdn-cache-control');out.headers.delete('cdn-cache-control');out.headers.delete('cloudflare-cdn-cache-control');
+ // Preserve the sole Next middleware behavior when running in the Worker.
+ if(scope==='hub'){const m=/^\/ns\/([A-Za-z0-9_-]{1,64})\/?$/.exec(raw);if(m){const api=host==='nibgate.xyz'?'https://api.nibgate.xyz':'https://testnet-api.nibgate.xyz';out.headers.set('Link',`<${api}/nibshare/${m[1]}/manifest>; rel="alternate"; type="application/json"`);}}
+ if(scope==='creator' && request.headers.get('rsc')==='1')out.headers.set('x-robots-tag','noindex, nofollow');return out;
 }

@@ -669,6 +669,11 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
       signal,
       temperature: 0.4,
       maxTokens: 400 * n,
+      validateReply: data => Array.isArray(data?.questions) && (
+        data.questions.length === 0 ? allowEmpty && answered.length > 0 : data.questions.some(q => cleanIntakeQuestion(q))
+      ),
+      repairInstruction: 'Return the requested JSON question list: {"questions":[{"key":"scope","type":"pick_one","prompt":"A specific clarification question?","options":[{"id":"a","label":"First choice"},{"id":"b","label":"Second choice"}],"allowOther":true}]}. Use pick_one or pick_any, a prompt of at least 12 characters, and 2–4 labelled options. Ask topic-specific questions; do not copy this example. If prior answers already settle every material gap, return an empty questions array.',
+
       fetchImpl,
     });
     const raw = Array.isArray(data?.questions) ? data.questions : null;
@@ -686,7 +691,7 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
     if (!questions.length) return fallback('model returned no usable questions');
     return { ok: true, source: 'llm', model, usage, questions };
   } catch (err) {
-    return fallback(err?.message || String(err));
+    return fallback(err?.message === 'reply does not match requested shape' ? 'model returned no usable questions' : err?.message || String(err));
   }
 }
 

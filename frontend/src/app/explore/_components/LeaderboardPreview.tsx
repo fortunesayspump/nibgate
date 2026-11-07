@@ -1,8 +1,47 @@
-export default function LeaderboardPreview() {
+import Link from "next/link";
+import Image from "next/image";
+import { apiUrl } from "@/lib/api";
+
+type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore?: number | null; unlocks: number; contentCount: number };
+
+function creatorAvatar(creator: Creator) {
+  return creator.avatarUrl || '/nibgate-mark.svg';
+}
+
+async function getCreators() {
+  try {
+    const res = await fetch(apiUrl("/hub/reputation/leaderboards?type=creators&limit=3"), { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.items || []) as Creator[];
+  } catch {
+    return null;
+  }
+}
+
+export default async function LeaderboardPreview() {
+  const creators = await getCreators();
   return (
     <section className="leaderboard-preview" aria-labelledby="leaderboard-preview-title">
-      <div className="market-heading"><h2 id="leaderboard-preview-title">Creator leaderboard</h2></div>
-      <p className="explore-empty-state" role="status">Historical rankings are unavailable because we cannot establish whether content was public when the activity and ratings occurred.</p>
+      <div className="market-heading">
+        <h2 id="leaderboard-preview-title">Creator leaderboard</h2>
+        <Link href="/leaderboards">View all</Link>
+      </div>
+      <div className="leaderboard-preview-grid">
+        {creators?.length ? creators.map((creator) => (
+          <article key={creator.id} className="leaderboard-preview-card">
+            <div className="leaderboard-preview-card-top">
+              <span className="leaderboard-preview-rank">#{creator.rank}</span>
+              <Image src={creatorAvatar(creator)} alt="" width={40} height={40} />
+            </div>
+            <div>
+              <h3>{creator.name}</h3>
+              <p>{creator.contentCount} content · {creator.unlocks} unlocks</p>
+            </div>
+            <strong>{typeof creator.reputationScore === "number" ? `${creator.reputationScore}/100` : "No rep"}</strong>
+          </article>
+        )) : <p className="explore-empty-state">{creators ? "No creators ranked yet." : "Creator rankings are temporarily unavailable."}</p>}
+      </div>
     </section>
   );
 }

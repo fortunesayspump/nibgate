@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { ExploreProduct } from "../_data/catalog";
 import { FeaturedCard } from "./ProductCard";
 
-export default function FeaturedSection({ products }: { products: ExploreProduct[] }) {
+export default function FeaturedSection({ products, unavailable = false }: { products: ExploreProduct[]; unavailable?: boolean }) {
   const featuredProducts = products.slice(0, 4);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -42,10 +42,10 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
     return (
       <section className="featured-section" aria-labelledby="featured-title">
         <header className="explore-section-heading">
-          <h1 id="featured-title">Public articles</h1>
+          <h1 id="featured-title">Featured content</h1>
         </header>
         <div className="rounded-[8px] border border-black/10 p-8 text-center">
-          <p>No articles were found in the current public listing sample.</p>
+          <p>{unavailable ? "Featured content is temporarily unavailable." : "No featured content has been tracked yet."}</p>
         </div>
       </section>
     );
@@ -54,7 +54,7 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
   return (
     <section className="featured-section" aria-labelledby="featured-title">
       <header className="explore-section-heading">
-        <h1 id="featured-title">Public articles</h1>
+        <h1 id="featured-title">Featured content</h1>
         <div className="explore-pager">
           <button type="button" aria-label="Previous featured product" onClick={() => scrollToIndex(activeIndex - 1)}>&lt;</button>
           <span aria-live="polite">{activeIndex + 1} / {total}</span>

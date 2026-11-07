@@ -81,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.15",
+    version: "0.2.16",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -92,7 +92,7 @@ export const openApiSpec = {
     { name: "Unlocks", description: "x402 paid unlocks: pay USDC, receive content" },
     { name: "Tips", description: "Nib Tip: pay the creator of any page. Resolved creators are settled instantly; unresolved/external creators are held in a no-key per-domain box, claimable by them and refundable by the payer until claimed" },
     { name: "JEV", description: "JEV decision-layer helpers: LLM-scored options for deterministic decide(). Server-side only; provider keys never leave the hub." },
-    { name: "Ledger", description: "Public activity feed of views, unlocks, payments, tips (including pending funded holds), and ratings" },
+    { name: "Ledger", description: "Network-wide aggregate activity totals; individual events are unavailable" },
     { name: "Reputation", description: "Onchain reputation and leaderboards" },
     { name: "Platform", description: "Platform-wide stats and site indexes" },
   ],
@@ -223,7 +223,7 @@ export const openApiSpec = {
         tags: ["Unlocks"],
         summary: "x402 payment gate for tracked creator-site content",
         description:
-          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side (receipts, metrics, public ledger) whether the payer is a browser or a machine. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
+          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side (receipts and metrics) whether the payer is a browser or a machine. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],
@@ -350,18 +350,12 @@ export const openApiSpec = {
     "/hub/ledger": {
       get: {
         tags: ["Ledger"],
-        summary: "Public activity ledger",
+        summary: "Network activity totals",
         description:
-          "Legacy activity route; event-time public visibility has not been established. Do not treat it as a privacy-verified public feed.",
-        parameters: [
-          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
-          { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["views", "unlocks", "payments", "ratings", "tips", "nibshare"] }, description: "Filter by activity type." },
-          { name: "domain", in: "query", schema: { type: "string" }, description: "Filter by site domain, e.g. example.nibgate.xyz." },
-        ],
+          "Network-wide aggregate totals include private-share activity. Individual events and per-site filters are unavailable.",
         responses: {
           "200": {
-            description: "Ledger feed",
+            description: "Aggregate totals; individual activities are unavailable.",
             content: {
               "application/json": {
                 schema: {
@@ -384,6 +378,7 @@ export const openApiSpec = {
                         total: { type: "integer" },
                       },
                     },
+                    activityStatus: { type: "string", enum: ["unavailable"] },
                     hasMore: { type: "boolean" },
                   },
                 },
@@ -436,32 +431,8 @@ export const openApiSpec = {
       get: {
         tags: ["Reputation"],
         summary: "Reputation leaderboards",
-        description: "Ranked creators, sites, or content by reputation score, unlocks, views, and revenue.",
-        parameters: [
-          { name: "type", in: "query", schema: { type: "string", enum: ["creators", "sites", "content"], default: "creators" } },
-          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
-          { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
-        ],
-        responses: {
-          "200": {
-            description: "Leaderboard items",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    type: { type: "string" },
-                    items: { type: "array", items: { type: "object" } },
-                    total: { type: "integer" },
-                    limit: { type: "integer" },
-                    skip: { type: "integer" },
-                  },
-                },
-              },
-            },
-          },
-        },
+        description: "Ranked creators and sites. Content rankings are temporarily unavailable.",
+        responses: { "200": { description: "Creator or site rankings." }, "503": { description: "Content rankings are temporarily unavailable." } },
       },
     },
     "/hub/sitemap/content": {

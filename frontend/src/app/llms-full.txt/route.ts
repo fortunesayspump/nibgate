@@ -58,7 +58,7 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 ## Key pages
 
 - ${site}/explore — Content discovery feed.
-- ${site}/ledger — Public activity ledger.
+- ${site}/ledger — Network-wide activity totals; individual events unavailable.
 - ${site}/pending-tips — Check funded, unclaimed tips for any site domain across mainnet and testnet; the checker identifies the network and links to claiming guidance.
 - ${site}/pending-tips/claim — Guide to connecting and verifying a site, then claiming its pending held tips from the creator dashboard.
 - ${site}/leaderboards — Reputation leaderboards.
@@ -77,13 +77,13 @@ The private architecture uses browser encryption, a verified Phala worker and en
 ## API endpoints
 
 - ${api}/hub/explore/content?limit=100 — Bounded mainnet sample of current public creator articles; testnet is unavailable.
-- ${api}/hub/ledger?limit=100 — Legacy activity route; event-time public visibility has not been established.
+- ${api}/hub/ledger?limit=100 — Network-wide activity totals; individual events and per-site filters are unavailable.
 - ${api}/hub/tips/held?domain={domain} — Exact-domain lookup for funded, unclaimed tips (including external sites); claimable by the site owner, refundable by the payer. Results are specific to this API deployment's network.
 - ${api}/hub/tips/refund — Payer-signed exact refund of unclaimed held tips (no fee); accepts EOA personal_sign or deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization.
 - ${api}/hub/stats — Platform totals (revenue incl. tips + nibshares, protocol fees).
 - ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
 - ${api}/nibshare/{slug}/manifest — Public manifest for a nibshare.
-- ${api}/hub/reputation/leaderboards — Ranked reputation leaderboards.
+- ${api}/hub/reputation/leaderboards — Creator and site rankings; content rankings are currently unavailable.
 - ${api}/openapi.json — OpenAPI specification (includes unlock endpoints).
 - ${api}/mcp — MCP server for AI agents.
 

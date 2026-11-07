@@ -870,9 +870,7 @@ Hub endpoints (canonical bare form): `POST /hub/tips/challenge`,
 `POST /hub/tips/claim`, `POST /hub/tips/refund`. See
 https://nibgate.xyz/discovery.md for the payer/agent view.
 
-Funded held tips appear in the public ledger with `status: "held"` while
-awaiting a claim. They do not count as completed tips; a payer refund appears as
-a negative tip entry so the refunded amount nets out.
+The public ledger shows network-wide totals; individual held and refunded tip events are unavailable. Held tips do not count as completed tips.
 
 Creators can check pending tips for any domain, including an external site that
 is not registered with Nibgate, using `GET /hub/tips/held?domain=<domain>`.

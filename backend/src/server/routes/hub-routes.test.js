@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const dbMock = vi.hoisted(() => ({
-  website: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
-  user: { findUnique: vi.fn(), create: vi.fn() },
+  website: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), update: vi.fn(), create: vi.fn() },
+  user: { findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn() },
   wallet: { findUnique: vi.fn() },
   metric: { count: vi.fn(), findMany: vi.fn() },
   unlockReceipt: { count: vi.fn(), findMany: vi.fn() },
   contentRating: { count: vi.fn(), findMany: vi.fn() },
   tip: { count: vi.fn(), findMany: vi.fn() },
+  nibShareEvent: { count: vi.fn() },
+  nibShareReceipt: { count: vi.fn(), aggregate: vi.fn() },
   content: { findMany: vi.fn(), count: vi.fn() },
   publisherIdentity: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), upsert: vi.fn() },
   blogPost: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
@@ -74,40 +76,46 @@ describe('hub routes: cross-stack identity surface', () => {
     expect(typeof handlers['POST /api/hub/site/sync-from-peer']).toBe('function');
   });
 
-  it('includes funded held tips in the ledger without counting them as completed tips', async () => {
-    dbMock.metric.count.mockResolvedValue(0);
-    dbMock.unlockReceipt.count.mockResolvedValue(0);
-    dbMock.contentRating.count.mockResolvedValue(0);
-    dbMock.tip.count.mockResolvedValue(1);
-    dbMock.tip.findMany.mockResolvedValue([
-      {
-        id: 'held-tip', status: 'held', contentUrl: 'https://creator.example/post',
-        title: 'A public post', domain: 'creator.example', amount: 2, currency: 'USDC',
-        createdAt: new Date('2026-10-10T10:00:00Z'), payerWallet: '0xpayer',
-      },
-      {
-        id: 'refund-tip', status: 'refunded', contentUrl: 'https://creator.example/post',
-        title: 'A public post', domain: 'creator.example', amount: -2, currency: 'USDC',
-        createdAt: new Date('2026-10-10T11:00:00Z'), payerWallet: '0xpayer',
-      },
-    ]);
-    dbMock.content.findMany.mockResolvedValue([]);
-
+  it('returns network-wide ledger totals without private event details', async () => {
+    dbMock.metric.count.mockResolvedValue(3);
+    dbMock.unlockReceipt.count.mockResolvedValue(2);
+    dbMock.contentRating.count.mockResolvedValue(1);
+    dbMock.tip.count.mockResolvedValue(4);
+    dbMock.nibShareEvent.count.mockResolvedValue(5);
+    dbMock.nibShareReceipt.count.mockResolvedValue(6);
+    dbMock.nibShareReceipt.aggregate.mockResolvedValue({ _sum: { amount: 7.5 } });
     const res = mockRes();
-    await handlers['GET /api/hub/ledger']({ query: { type: 'tips' } }, res);
-
+    await handlers['GET /api/hub/ledger']({ query: {} }, res);
     expect(res.statusCode).toBe(200);
-    expect(res.body.activities.map((activity) => [activity.id, activity.status, activity.amount])).toEqual([
-      ['refund-tip', 'refunded', -2],
-      ['held-tip', 'held', 2],
-    ]);
-    expect(res.body.totals.tips).toBe(1);
-    expect(dbMock.tip.count).toHaveBeenCalledWith(expect.objectContaining({
-      where: { status: { in: ['settled', 'released'] } },
-    }));
-    expect(dbMock.tip.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ status: { in: ['held', 'settled', 'released', 'refunded'] } }),
-    }));
+    expect(res.body).toMatchObject({ activities: [], activityStatus: 'unavailable', totals: { views: 3, unlocks: 2, nibshareViews: 5, nibshareUnlocks: 6, total: 21 } });
+    expect(dbMock.metric.findMany).not.toHaveBeenCalled();
+    expect(dbMock.tip.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects per-site ledger filters and does not expose unsafe rankings', async () => {
+    const ledger = mockRes();
+    await handlers['GET /api/hub/ledger']({ query: { domain: 'private.example' } }, ledger);
+    expect(ledger.statusCode).toBe(400);
+    const ranks = mockRes();
+    await handlers['GET /api/hub/reputation/leaderboards']({ query: { type: 'content' } }, ranks);
+    expect(ranks.statusCode).toBe(503);
+    expect(dbMock.content.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns creator and site rankings without private share details', async () => {
+    const site = { id: 'site-a', ownerId: 'owner-a', name: 'Public creator', domain: 'creator.example', isVerified: true, verificationStatus: 'verified', content: [], owner: { username: 'Public creator', wallets: [] } };
+    dbMock.website.findMany.mockResolvedValue([site]);
+    dbMock.website.count.mockResolvedValue(1);
+    dbMock.user.findMany.mockResolvedValue([{ id: 'owner-a', username: 'Public creator', wallets: [], websites: [site] }]);
+    dbMock.user.count.mockResolvedValue(1);
+    dbMock.tip.findMany.mockResolvedValue([]);
+    for (const type of ['sites', 'creators']) {
+      const res = mockRes();
+      await handlers['GET /api/hub/reputation/leaderboards']({ query: { type } }, res);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.items).toHaveLength(1);
+      expect(JSON.stringify(res.body)).not.toMatch(/private-title|private-url|nibshareRevenue|nibshareUnlocks|nibshareViews/);
+    }
   });
 
   it('checks pending tips by exact site host, including non-Nibgate pages', async () => {

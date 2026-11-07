@@ -41,6 +41,21 @@ export async function adminProxy(request,cfg,fetcher=fetch){
   if(isWrite&&request.body){const limit=u.pathname==='/api/upload'?UPLOAD:SMALL;const declared=request.headers.get('content-length');if(declared&&(!/^\d+$/.test(declared)||Number(declared)>limit))return fail(413);const bytes=await boundedBody(request.body,limit);if(bytes===null)return fail(413);options.body=bytes;}
   const r=await fetcher(cfg.origin+u.pathname+u.search,options);
   if(r.status>=300&&r.status<400){await r.body?.cancel();return fail(502);}
+  // Login is global on the legacy backend. Confirm the returned account belongs
+  // to this hostname before releasing its bearer token to the browser.
+  if(u.pathname==='/api/auth/login' && r.ok){
+   const loginBytes=await boundedBody(r.body,SMALL);if(loginBytes===null)return fail(502);
+   let login;try{login=JSON.parse(new TextDecoder().decode(loginBytes));}catch{return fail(502);}
+   if(login?.success!==true||typeof login.token!=='string'||!/^[A-Za-z0-9._~-]{1,8192}$/.test(login.token)||typeof login.user?.siteId!=='string')return fail(502);
+   const checkHeaders=new Headers({'authorization':'Bearer '+login.token,'x-site-subdomain':cfg.tenant,'x-forwarded-host':new URL(cfg.canonical).host,'accept':'application/json'});
+   const checked=await fetcher(cfg.origin+'/api/settings',{method:'GET',headers:checkHeaders,redirect:'manual',signal:AbortSignal.timeout(30000),cf:{cacheTtl:0,cacheEverything:false}});
+   if(!checked.ok||!/^application\/json(?:;|$)/i.test(checked.headers.get('content-type')||'')){await checked.body?.cancel();return fail(403);}
+   const checkedBytes=await boundedBody(checked.body,SMALL);if(checkedBytes===null)return fail(403);
+   let info;try{info=JSON.parse(new TextDecoder().decode(checkedBytes));}catch{return fail(403);}
+   if(info?.success!==true||info.settings?.siteId!==login.user.siteId||info.settings?.subdomain!==cfg.tenant)return fail(403);
+   const responseHeaders=new Headers({'cache-control':'private, no-store','x-content-type-options':'nosniff','content-type':'application/json; charset=utf-8'});
+   return new Response(loginBytes,{status:r.status,headers:responseHeaders});
+  }
   const h=new Headers({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});
   for(const key of responseHeaders)if(r.headers.has(key))h.set(key,r.headers.get(key));
   return new Response(request.method==='HEAD'?null:r.body,{status:r.status,headers:h});

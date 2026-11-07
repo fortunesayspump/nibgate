@@ -5,18 +5,18 @@ const state={status:'intake',brief:{topic:'Fictional irrigation study'}};
 const question={key:'follow-up_scope',type:'pick_one',prompt:'Who will use this?',options:[{id:'a',label:'Researchers'},{id:'b',label:'Growers'}]};
 test('explicit empty intake falls back to the original question bank, but malformed output fails',async()=>{
  const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:'{"questions":[]}'},finish_reason:'stop'}]}),judge:()=>assert.fail('No empty JEV batch')});
- const out=await workflow({state,action:'intake'});assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,3);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,3);
- const answering=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:'I will use those choices to shape the research.'},finish_reason:'stop'}]})});
+ const out=await workflow({state,action:'intake'});assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,4);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,4);
+ const answering=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'I will use those choices to shape the research.'},finish_reason:'stop'}]})});
  const answered=await answering({state:out.state,action:'answers',args:{answers:out.state.questions.map(q=>({seq:q.seq,answer:{optionIds:[q.options[0].id]}}))}});
- assert.equal(answered.state.status,'intake-done');assert.equal(answered.state.decisions.filter(d=>d.kind==='question'&&d.answer).length,3);
+ assert.equal(answered.state.status,'intake-done');assert.equal(answered.state.decisions.filter(d=>d.kind==='question'&&d.answer).length,4);
  for(const value of [{questions:[{bad:'shape'}]},{other:[]}]){
   await assert.rejects(createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]})})({state,action:'intake'}),{message:'PRIVATE_INTAKE_INVALID'});
  }
 });
-test('a judge skipping every candidate falls back to questions without losing the decision',async()=>{
- const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify({questions:[question]})},finish_reason:'stop'}]}),judge:async()=>({model:'fixture',costMicroUsd:0,answers:{question_0:{type:'choice',choice:'skip'}}})});
+test('the original opener proposes model questions without a premature stop judgment',async()=>{
+ const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify({questions:[question]})},finish_reason:'stop'}]}),judge:()=>assert.fail('The original opener does not judge whether to stop')});
  const out=await workflow({state,action:'intake'});
- assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,3);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,3);assert.equal(out.state.decisions.filter(d=>d.kind==='decision').length,1);
+ assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,1);assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,1);
  const skipped=await workflow({state:out.state,action:'finish-intake'});assert.equal(skipped.state.status,'intake-done');
 });
 test('durable progress precedes inference and a progress storage failure prevents spending',async()=>{
@@ -47,14 +47,49 @@ test('private structured-output failures distinguish truncation and malformed JS
 });
 test('the shared acknowledgement prompt receives the actual answered questions',async()=>{
     const workflow=createPrivateWorkflow({infer:async request=>{
+        if(request.stage==='intake')return {choices:[{message:{content:'{"questions":[]}'},finish_reason:'stop'}]};
         const prompt=request.messages.map(m=>m.content).join('\n');
         assert.ok(prompt.includes('Question asked: Who will use this?'));
         assert.ok(!prompt.includes('Question asked: (unknown)'));
         return {choices:[{message:{content:'The report will focus on greenhouse growers.'},finish_reason:'stop'}]};
-    }});
+    },judge:async()=>({model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:'proceed'}}})});
     const result=await workflow({state:{brief:state.brief,status:'intake',questions:[question],decisions:[{kind:'question',seq:1,question}]},action:'answers',args:{answers:[{seq:1,answer:{optionIds:['b']}}]}});
     assert.equal(result.state.status,'intake-done');
     assert.equal(result.state.thinking,'The report will focus on greenhouse growers.');
+});
+test('the original JEV stop decision asks another batch, then proceeds',async()=>{
+ let intakeCalls=0,judgeCalls=0;
+ const followup={key:'evidence',type:'pick_one',prompt:'Which evidence should be prioritized?',options:[{id:'studies',label:'Studies'},{id:'reports',label:'Reports'}],allowOther:true};
+ const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?JSON.stringify({questions:++intakeCalls===1?[followup]:[]}):'I will use your answers.'},finish_reason:'stop'}]}),judge:async({request})=>{
+  judgeCalls++;assert.match(request.questions['intake-stop'].instructions,/Diminishing returns are real/);
+  assert.ok(request.state.includes('Answered:'));return {model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:judgeCalls===1?'ask_more':'proceed'}}};
+ }});
+ const first=await workflow({state:{...state,questions:[{...question,seq:0}],decisions:[{kind:'question',seq:0,question:{...question,seq:0}}]},action:'answers',args:{answers:[{seq:0,answer:{optionIds:['b']}}]}});
+ assert.equal(first.state.status,'intake');assert.equal(first.state.questions.length,1);assert.equal(first.state.questions[0].seq,1);assert.equal(first.state.questions[0].key,'evidence');
+ const second=await workflow({state:first.state,action:'answers',args:{answers:[{seq:1,answer:{optionIds:['studies']}}]}});
+ assert.equal(second.state.status,'intake-done');assert.equal(second.state.questions.length,0);assert.equal(second.state.decisions.filter(d=>d.kind==='question'&&d.answer).length,2);assert.equal(judgeCalls,2);
+});
+test('the original stop decision reframes using the prior questions',async()=>{
+ let calls=0;
+ const revised={key:'reframed',type:'pick_one',prompt:'Which outcome should the work prioritize?',options:[{id:'a',label:'Clarity'},{id:'b',label:'Practical steps'}]};
+ const workflow=createPrivateWorkflow({infer:async request=>{
+  if(request.stage==='thinking')return {choices:[{message:{content:'Noted.'},finish_reason:'stop'}]};
+  calls++;if(calls===2)assert.ok(JSON.stringify(request.messages).includes('answers do not converge on anything plannable'));
+  return {choices:[{message:{content:JSON.stringify({questions:calls===2?[revised]:[]})},finish_reason:'stop'}]};
+ },judge:async()=>({model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:'reframe'}}})});
+ const out=await workflow({state:{...state,questions:[{...question,seq:0}],decisions:[{kind:'question',seq:0,question:{...question,seq:0}}]},action:'answers',args:{answers:[{seq:0,answer:{optionIds:['a']}}]}});
+ assert.equal(out.state.status,'intake');assert.equal(out.state.questions[0].key,'reframed');assert.equal(out.state.questions[0].seq,1);assert.equal(calls,2);
+});
+test('the original eight-question threshold prevents endless follow-up batches',async()=>{
+ const decisions=Array.from({length:8},(_,i)=>({kind:'question',seq:i,question:{...question,key:`q${i}`,seq:i},...(i<7?{answer:{optionIds:['a'],text:''}}:{})}));
+ const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'Noted.'},finish_reason:'stop'}]}),judge:async()=>({model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:'ask_more'}}})});
+ const out=await workflow({state:{...state,questions:[decisions[7].question],decisions},action:'answers',args:{answers:[{seq:7,answer:{optionIds:['a']}}]}});
+ assert.equal(out.state.status,'intake-done');assert.deepEqual(out.state.questions,[]);assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,8);
+});
+test('an unavailable JEV uses the original labeled question-bank fallback',async()=>{
+ const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'Noted.'},finish_reason:'stop'}]}),judge:async()=>{throw Error('HOSTED_JEV_UNAVAILABLE')}});
+ const out=await workflow({state:{...state,questions:[{...question,seq:0}],decisions:[{kind:'question',seq:0,question:{...question,seq:0}}]},action:'answers',args:{answers:[{seq:0,answer:{optionIds:['a']}}]}});
+ assert.equal(out.state.status,'intake');assert.ok(out.state.questions.length);assert.equal(out.state.decisions.find(d=>d.step==='intake-stop').output.source,'fallback');
 });
 
 test('a missing source blocks private planning before model dispatch',async()=>{

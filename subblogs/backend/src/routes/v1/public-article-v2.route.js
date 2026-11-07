@@ -84,7 +84,7 @@ function createPublicArticleV2Router({ prisma, decryptBody } = {}) {
         const fields=['id','siteId','slug','type','status','publicAccess','price','title','excerpt','coverUrl'];
         checked=candidates.filter(post=>{const latest=byId.get(post.id);return latest && fields.every(key=>latest[key]===post[key]) && String(latest.publishedAt)===String(post.publishedAt) && String(latest.updatedAt)===String(post.updatedAt)});
       }
-      const posts=checked.map(post=>({id:post.id,slug:post.slug,type:post.type,title:post.title,excerpt:post.excerpt,publishedAt:post.publishedAt,coverUrl:post.coverUrl}));
+      const posts=checked.map(post=>({id:post.id,slug:post.slug,type:post.type,title:post.title,excerpt:post.excerpt,price:post.price,publishedAt:post.publishedAt,updatedAt:post.updatedAt,coverUrl:post.coverUrl}));
       return res.json({success:true,site:{name:site.name || '',description:site.description || '',subdomain:site.subdomain},posts});
     } catch { return res.status(503).json({error:'Temporarily unavailable'}); }
   });

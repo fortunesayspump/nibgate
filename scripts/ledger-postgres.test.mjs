@@ -9,7 +9,7 @@ test('private shares contribute to totals without being returned', { skip: !uri 
   assert.equal(u.hostname, '127.0.0.1'); assert.equal(u.port, '56343');
   assert.equal(u.pathname, '/nibgate_ledger_disposable'); assert.equal(u.searchParams.get('schema'), 'hub');
   const require = createRequire(import.meta.url);
-  const { PrismaClient } = require('../../explore-manifest-clean/packages/cli/generated/client/index.js');
+  const { PrismaClient } = require('../packages/cli/generated/client/index.js');
   const db = new PrismaClient({ datasources: { db: { url: uri } } });
   t.after(() => db.$disconnect());
   await db.nibShare.createMany({ data: [

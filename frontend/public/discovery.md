@@ -5,7 +5,7 @@
 Nibgate is a verification, discovery, and unlock layer for creator-owned paid
 content. Creators keep content on their own sites and integrate the `@nibgate/sdk`
 package for gating, payments, and events. The hub verifies sources, indexes
-public metadata, and supports Explore and reputation. The site’s historical ledger is currently unavailable. Payments and
+public metadata, and supports Explore and reputation. The ledger exposes network-wide totals; individual historical events and content rankings are unavailable. Payments and
 ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Network).
 
 ## Endpoints
@@ -16,14 +16,14 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 |---|---|
 | `https://nibgate.xyz` | Landing page |
 | `https://nibgate.xyz/explore` | Content discovery feed |
-| `https://nibgate.xyz/ledger` | Historical activity page; feed currently unavailable |
+| `https://nibgate.xyz/ledger` | Network-wide activity totals; individual events unavailable |
 
 ### API
 
 | Endpoint | Description |
 |---|---|
 | `GET /hub/explore/content?limit=N` | Mainnet-only bounded sample of current public creator articles, in site order; historical metrics are unavailable. Testnet returns unavailable. |
-| `GET /hub/ledger?limit=N&domain=X` | Legacy activity route; event-time public visibility has not been established. Do not treat it as a privacy-verified public feed. |
+| `GET /hub/ledger` | Network-wide activity totals; individual events and per-site filters are unavailable. |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/preflight` | Free dry run for the direct-USDC rail — check price, recipient, and payer balance **before** sending an irreversible transfer. Never charges. |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
@@ -88,7 +88,7 @@ hub reserves the message digest before relaying and accepts EIP-191 `personal_si
 from an EOA or an ERC-1271 signature from a deployed smart-contract wallet,
 sums that payer's still-held tips for the domain, relays the on-chain refund
 via the keeper, preserves any partially refunded held-row remainder, and writes
-a negative ledger row so totals net out. Refunds
+a negative tip record so totals net out. Individual records are not listed in the public ledger. Refunds
 only ever return funds to the payer. There is **no refund** for tips that
 already settled (resolved creators) or were already claimed.
 

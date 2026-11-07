@@ -8,7 +8,6 @@ import BrandWordmark from "./BrandWordmark";
 import { WalletButton, WalletButtonMobile } from "@/components/WalletButton";
 import { HUB_SESSION_UPDATED_EVENT } from "@/lib/hubSession";
 
-const exploreAvailable = process.env.NEXT_PUBLIC_NIBGATE_NETWORK === "mainnet";
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -46,16 +45,14 @@ export default function Header() {
             <ul className="nibgate-primary-nav">
               {navItems.map((item) => (
                 <li key={item.href} className="nibgate-primary-nav-item">
-                  {(item.href === "/explore" && !exploreAvailable) || (item.href === "/leaderboards" && process.env.NEXT_PUBLIC_NIBGATE_NETWORK !== "mainnet") ? (
-                    <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
-                  ) : <Link
+                  <Link
                     href={item.href}
                     className={`nibgate-primary-nav-link ${
                       activePath === item.href ? "is-active" : ""
                     }`}
                   >
                     {item.label}
-                  </Link>}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -85,9 +82,7 @@ export default function Header() {
         <ul className="nibgate-primary-nav">
           {navItems.map((item) => (
             <li key={item.href} className="nibgate-primary-nav-item">
-              {(item.href === "/explore" && !exploreAvailable) || (item.href === "/leaderboards" && process.env.NEXT_PUBLIC_NIBGATE_NETWORK !== "mainnet") ? (
-                <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
-              ) : <Link
+              <Link
                 href={item.href}
                 className={`nibgate-primary-nav-link ${
                   activePath === item.href ? "is-active" : ""
@@ -95,7 +90,7 @@ export default function Header() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {item.label}
-              </Link>}
+              </Link>
             </li>
           ))}
         </ul>

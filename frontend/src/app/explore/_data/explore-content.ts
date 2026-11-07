@@ -106,7 +106,7 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
 
 // Reject older discovery contracts instead of accidentally exposing cached
 // listings or historical metrics whose event-time visibility is unproven.
-export function isCurrentPublicResponse(data: unknown): data is { content: ExploreContent[] } {
+export function isCurrentPublicResponse(data: unknown): data is { content: ExploreContent[]; pagination?: unknown; nextCursor?: unknown } {
   if (!data || typeof data !== "object") return false;
   const response = data as Record<string, unknown>;
   return response.success === true

@@ -46,27 +46,41 @@ export async function currentPublicArticles(site,{fetcher=fetch,now=Date.now,sig
   const latest=new Map();
   for(const entry of final){const item=project(entry,origin);if(!item)continue;if(latest.has(item.id))throw fail();latest.set(item.id,item)}
   const seen=new Set(),result=[];
-  for(const entry of initial){const item=project(entry,origin);if(!item)continue;if(seen.has(item.id))throw fail();seen.add(item.id);const fresh=latest.get(item.id);if(fresh&&JSON.stringify(item)===JSON.stringify(fresh))result.push(item);if(result.length===20)break}
+  for(const entry of initial){const item=project(entry,origin);if(!item)continue;if(seen.has(item.id))throw fail();seen.add(item.id);const fresh=latest.get(item.id);if(fresh&&JSON.stringify(item)===JSON.stringify(fresh))result.push(item)}
   if(signal.aborted || now()-receivedAt>2000)throw fail();
-  return {content:result,observedAt:receivedAt,scope:'current-public-creator-articles',perSiteLimit:20,snapshot:'two-public-manifests',historyAvailable:false};
+  return {content:result,observedAt:receivedAt,scope:'current-public-creator-articles',perSiteLimit:null,snapshot:'two-public-manifests',historyAvailable:false};
 }
 
-// This is a bounded sample, not a popularity ranking or a complete catalog.
 // Site records are selected and rechecked by the server, never supplied by a caller.
+// Failed or expired sources are reported in coverage; they are not a complete catalog.
 export async function getPublicDiscovery(db,args={},options={}) {
   const {network='testnet',fetcher=fetch,now=Date.now}=options;
   if(network!=='mainnet') throw fail();
   const q=String(args.q||'').trim().toLowerCase(),type=String(args.type||'').trim().toLowerCase(),sort=String(args.sort||'site-order').trim().toLowerCase();
   const limit=Math.min(Math.max(Number.parseInt(args.limit||'100',10)||100,1),500),skip=Math.max(Number.parseInt(args.skip||'0',10)||0,0);
+  let cursor=null;
+  if(args.cursor!==undefined) {
+    try {cursor=JSON.parse(String(args.cursor))} catch {throw Object.assign(new Error('Invalid cursor'),{status:400})}
+    if(!Array.isArray(cursor)||cursor.length!==2||typeof cursor[0]!=='string'||typeof cursor[1]!=='string'||cursor[0].length>253||!cursor[1]||cursor[1].length>200||skip)throw Object.assign(new Error('Invalid cursor'),{status:400});
+  }
   if(q.length>200||skip>10000||!['','all','article','music','video','image','document'].includes(type)||sort!=='site-order')throw Object.assign(new Error('Unsupported discovery filters'),{status:400});
   const eligible={deletedAt:null,isVerified:true,verificationStatus:'verified',domain:{endsWith:'.nibgate.xyz',mode:'insensitive'},NOT:[{domain:{endsWith:'.testnet.nibgate.xyz',mode:'insensitive'}},{domain:{startsWith:'testnet-',mode:'insensitive'}}]};
   const select={id:true,domain:true,name:true,deletedAt:true,isVerified:true,verificationStatus:true};
-  const candidates=await db.website.findMany({where:eligible,select,orderBy:{domain:'asc'},take:21});
-  const sources=candidates.slice(0,20).filter(creatorOrigin);
+  const candidates=await db.website.findMany({where:eligible,select,orderBy:{domain:'asc'}});
+  const sources=candidates.filter(creatorOrigin);
   const started=now();
   // One slow source must not make every other source stale before the response.
-  const signal=AbortSignal.timeout(1500);
-  const results=await Promise.allSettled(sources.map(async site=>({site,...await currentPublicArticles(site,{fetcher,now,signal})})));
+  const results=new Array(sources.length);
+  let next=0;
+  async function readNext() {
+    while(next<sources.length) {
+      const index=next++,site=sources[index];
+      if(now()-started>8000) {results[index]={status:'rejected'};continue}
+      try {results[index]={status:'fulfilled',value:{site,...await currentPublicArticles(site,{fetcher,now,signal:AbortSignal.timeout(1500)})}}}
+      catch {results[index]={status:'rejected'}}
+    }
+  }
+  await Promise.all(Array.from({length:Math.min(sources.length,24)},readNext));
   if(now()-started>10000)throw fail();
   let snapshots=results.filter(r=>r.status==='fulfilled').map(r=>r.value).filter(s=>now()-s.observedAt<=2000);
   if(sources.length && !snapshots.length)throw fail();
@@ -75,5 +89,9 @@ export async function getPublicDiscovery(db,args={},options={}) {
   snapshots=snapshots.filter(s=>now()-s.observedAt<=2000);
   if(sources.length && !snapshots.length)throw fail();
   const content=snapshots.flatMap(s=>{const site=current.get(s.site.id);if(!site||site.domain!==s.site.domain||!creatorOrigin(site))return [];return s.content.map(item=>({...item,identityScope:'creator-publication',websiteName:site.name||site.domain,websiteDomain:site.domain,tags:'',tagList:[],createdAt:null,views:null,unlocks:null,revenue:null,ratings:null,reputationScore:null,reputationStars:null}))}).filter(item=>(!type||type==='all'||type===item.contentType)&&(!q||[item.title,item.description,item.websiteName,item.websiteDomain].some(x=>x.toLowerCase().includes(q))));
-  return {success:true,scope:'current-public-creator-articles',sort:'site-order',historyStatus:'unavailable-no-event-visibility-proof',content:content.slice(skip,skip+limit),total:content.length,limit,skip,coverage:{siteLimit:20,perSiteLimit:20,sitesTruncated:candidates.length>20,checkedSites:snapshots.length,unavailableSites:sources.length-snapshots.length,source:'public-creator-manifest',snapshot:'bounded-distributed'}};
+  content.sort((a,b)=>a.websiteDomain<b.websiteDomain?-1:a.websiteDomain>b.websiteDomain?1:a.id<b.id?-1:a.id>b.id?1:0);
+  const after=cursor?content.filter(item=>item.websiteDomain>cursor[0]||(item.websiteDomain===cursor[0]&&item.id>cursor[1])):content;
+  const page=after.slice(skip,skip+limit),last=page.at(-1);
+  const nextCursor=last&&after.length>skip+limit?JSON.stringify([last.websiteDomain,last.id]):null;
+  return {success:true,scope:'current-public-creator-articles',sort:'site-order',historyStatus:'unavailable-no-event-visibility-proof',pagination:'keyset-v1',nextCursor,content:page,total:content.length,limit,skip,coverage:{siteLimit:null,perSiteLimit:null,sitesTruncated:false,checkedSites:snapshots.length,unavailableSites:sources.length-snapshots.length,source:'public-creator-manifest',snapshot:'bounded-distributed'}};
 }

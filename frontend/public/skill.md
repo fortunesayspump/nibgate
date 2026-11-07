@@ -464,7 +464,9 @@ Some smart contract wallets (Gnosis Safe, Argent, etc.) may not support `eth_sig
 
 AI agents can discover and purchase content on Nibgate through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed. Full payer guide: `https://nibgate.xyz/discovery.md`.
 
-All settled payments are recorded server-side at the payment layer — receipts, metrics, and the public ledger treat machine payers exactly like browser users, with no client-side event reporting required.
+All settled payments are recorded server-side at the payment layer. Machine and browser payers use the same receipt recording and public-feed eligibility rules, with no client-side event reporting required.
+
+Public discovery lists only currently published-and-public creator articles confirmed against fresh public-home-v2 and manifest sources, limited to the latest 20 articles per site and 100 candidate sites. Unsupported site sources are excluded; coverage reports checked/unsupported sites and truncation. Results are ordered by newest publication, not popularity or sales. Nibshare is excluded. Discovery id uses identityScope=creator-publication and is not a legacy Hub Content payment ID. Follow the returned current manifestUrl and its payment challenge; do not pass this id as a Hub Content payment ID. Historical ledger and leaderboards are unavailable (event-visibility-unavailable) because records lack event-time public visibility proof. Stats count current listed sites and articles only (site count is null if the fetched page cannot establish a complete count); creator count and historical engagement, payment, tip, fee and revenue values are null, not zero.
 
 ### Agent Flow
 
@@ -870,9 +872,7 @@ Hub endpoints (canonical bare form): `POST /hub/tips/challenge`,
 `POST /hub/tips/claim`, `POST /hub/tips/refund`. See
 https://nibgate.xyz/discovery.md for the payer/agent view.
 
-Funded held tips appear in the public ledger with `status: "held"` while
-awaiting a claim. They do not count as completed tips; a payer refund appears as
-a negative tip entry so the refunded amount nets out.
+Funded held tips remain pending until claimed or refunded. They are not published in the public ledger: historical events lack event-time public visibility proof.
 
 Creators can check pending tips for any domain, including an external site that
 is not registered with Nibgate, using `GET /hub/tips/held?domain=<domain>`.

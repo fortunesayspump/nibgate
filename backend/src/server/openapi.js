@@ -8,7 +8,8 @@ const networkLabel = NET.isTestnet ? 'Arc testnet (chain ID 5042002)' : 'Arc (ch
 const contentSchema = {
   type: "object",
   properties: {
-    id: { type: "string" },
+    id: { type: "string", description: "Creator publication identifier, not a legacy Hub Content payment ID." },
+    identityScope: { type: "string", const: "creator-publication" },
     websiteId: { type: "string" },
     websiteName: { type: "string" },
     websiteDomain: { type: "string" },
@@ -20,52 +21,16 @@ const contentSchema = {
     tags: { type: "string" },
     tagList: { type: "array", items: { type: "string" } },
     url: { type: "string" },
-    path: { type: "string" },
     currency: { type: "string" },
     price: { type: "number" },
-    recipientWallet: { type: "string" },
-    accessPolicy: { type: "string", enum: ["free", "paid", "blocked"] },
-    unlockPolicy: { type: "string", enum: ["one_time"] },
-    externalId: { type: "string" },
-    views: { type: "integer" },
-    unlocks: { type: "integer" },
-    revenue: { type: "number" },
-    ratings: { type: "integer" },
-    reputationScore: { type: "number", nullable: true },
-    reputationStars: { type: "number", nullable: true },
+    views: { type: "null" },
+    unlocks: { type: "null" },
+    revenue: { type: "null" },
+    ratings: { type: "null" },
+    reputationScore: { type: "null" },
+    reputationStars: { type: "null" },
+    manifestUrl: { type: "string", description: "Current creator manifest URL. Follow its payment challenge instead of treating id as a Hub Content payment ID." },
     createdAt: { type: "string", format: "date-time" },
-    lastSeenAt: { type: "string", format: "date-time", nullable: true },
-  },
-};
-
-const activitySchema = {
-  type: "object",
-  properties: {
-    type: { type: "string", enum: ["view", "unlock", "payment", "tip", "rating", "nibshare_view", "nibshare_unlock"] },
-    id: { type: "string" },
-    websiteId: { type: "string" },
-    actor: { type: "string" },
-    contentId: { type: "string" },
-    contentTitle: { type: "string" },
-    contentUrl: { type: "string" },
-    domain: { type: "string" },
-    timestamp: { type: "string", format: "date-time" },
-    revenue: { type: "number" },
-    amount: { type: "number" },
-    protocolFee: { type: "number", description: "Protocol fee (feeBps share of amount) routed to the treasury via the fee wallet", nullable: true },
-    currency: { type: "string" },
-    txHash: { type: "string", nullable: true },
-    paymentProvider: { type: "string", nullable: true },
-    status: {
-      type: "string",
-      enum: ["held", "settled", "released", "refunded"],
-      description: "Tip payment status; held means funded but pending creator claim and is excluded from completed-tip totals",
-      nullable: true,
-    },
-    receiptUrl: { type: "string", nullable: true },
-    payerWallet: { type: "string", nullable: true },
-    recipientWallet: { type: "string", nullable: true },
-    walletAddress: { type: "string", nullable: true },
   },
 };
 
@@ -74,6 +39,7 @@ const errorSchema = {
   properties: {
     error: { type: "string" },
     details: { type: "string" },
+    code: { type: "string" },
   },
 };
 
@@ -81,9 +47,9 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.14",
+    version: "0.2.16",
     description:
-      `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
+      `Public API for the Nibgate hub: current public creator article discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips and current listing counts. Historical public ledger and rankings are unavailable. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
   },
   servers: [{ url: hubApi, description: "Production hub API" }],
@@ -92,7 +58,7 @@ export const openApiSpec = {
     { name: "Unlocks", description: "x402 paid unlocks: pay USDC, receive content" },
     { name: "Tips", description: "Nib Tip: pay the creator of any page. Resolved creators are settled instantly; unresolved/external creators are held in a no-key per-domain box, claimable by them and refundable by the payer until claimed" },
     { name: "JEV", description: "JEV decision-layer helpers: LLM-scored options for deterministic decide(). Server-side only; provider keys never leave the hub." },
-    { name: "Ledger", description: "Public activity feed of views, unlocks, payments, tips (including pending funded holds), and ratings" },
+    { name: "Ledger", description: "Historical public activity unavailable without event-time visibility proof" },
     { name: "Reputation", description: "Onchain reputation and leaderboards" },
     { name: "Platform", description: "Platform-wide stats and site indexes" },
   ],
@@ -102,7 +68,7 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "x402 discovery fan-out",
         description:
-          "Machine-readable discovery document listing currently-live paid resource URLs (a recent paid nibshare and a paid post on a verified creator site) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
+          "Machine-readable discovery document listing current published-and-public paid creator article URLs from fresh public-home-v2 and manifest sources (latest 20 articles per site; Nibshare excluded) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],
@@ -223,7 +189,7 @@ export const openApiSpec = {
         tags: ["Unlocks"],
         summary: "x402 payment gate for tracked creator-site content",
         description:
-          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side (receipts, metrics, public ledger) whether the payer is a browser or a machine. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
+          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side whether the payer is a browser or a machine; public historical activity is unavailable because event-time public visibility proof is missing. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],
@@ -314,11 +280,11 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "Explore content feed",
         description:
-          "Returns verified content metadata (title, type, price, domain, reputation) filtered and sorted for discovery. This is the primary agent-facing discovery surface.",
+          "Public discovery lists only currently published-and-public creator articles confirmed against fresh public-home-v2 and manifest sources, limited to the latest 20 articles per site and 100 candidate sites. Unsupported site sources are excluded; coverage reports checked/unsupported sites and truncation. Results are ordered by newest publication, not popularity or sales. Nibshare is excluded. Historical ledger and leaderboards are unavailable (event-visibility-unavailable) because records lack event-time public visibility proof. Stats count current listed sites and articles only (site count is null if the fetched page cannot establish a complete count); creator count and historical engagement, payment, tip, fee and revenue values are null, not zero.",
         parameters: [
-          { name: "q", in: "query", schema: { type: "string" }, description: "Free-text search across title, description, tags, site name, and domain." },
+          { name: "q", in: "query", schema: { type: "string" }, description: "Free-text search across title, summary, site name, and domain." },
           { name: "type", in: "query", schema: { type: "string", enum: ["article", "music", "video", "image", "document", "all"] }, description: "Content type filter." },
-          { name: "sort", in: "query", schema: { type: "string", enum: ["trending", "best-sellers", "hot-new"] }, description: "Sort order. Defaults to trending." },
+          { name: "sort", in: "query", schema: { type: "string", enum: ["trending", "best-sellers", "hot-new", "newest-publication"] }, description: "Compatibility input echoed as requestedSort. Actual order is always newest-publication." },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 500, default: 100 }, description: "Max results." },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 }, description: "Pagination offset." },
         ],
@@ -335,6 +301,11 @@ export const openApiSpec = {
                     total: { type: "integer" },
                     limit: { type: "integer" },
                     skip: { type: "integer" },
+                    scope: { type: "string", const: "current-public-creator-articles" },
+                    sort: { type: "string", const: "newest-publication" },
+                    requestedSort: { type: "string" },
+                    historyStatus: { type: "string", const: "unavailable-no-event-visibility-proof" },
+                    coverage: { type: "object", properties: { perSiteLimit: { type: "integer", const: 20 } } },
                   },
                 },
               },
@@ -345,47 +316,10 @@ export const openApiSpec = {
     },
     "/hub/ledger": {
       get: {
-        tags: ["Ledger"],
-        summary: "Public activity ledger",
-        description:
-          "Returns a live feed of views, unlocks, payments, tips (including funded held tips marked status=held, from verified or external pages), onchain ratings, and privacy-safe nibshare views/unlocks across verified sites, sorted by timestamp. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Nibshare entries carry titles, wallets, amounts, and tx hashes but never the private share link. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
-        parameters: [
-          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
-          { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["views", "unlocks", "payments", "ratings", "tips", "nibshare"] }, description: "Filter by activity type." },
-          { name: "domain", in: "query", schema: { type: "string" }, description: "Filter by site domain, e.g. example.nibgate.xyz." },
-        ],
+        summary: "Historical activity unavailable",
+        description: "Historical records lack event-time public visibility proof. This endpoint does not query or return historical activity or rankings.",
         responses: {
-          "200": {
-            description: "Ledger feed",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    activities: { type: "array", items: activitySchema },
-                    total: { type: "integer" },
-                    totals: {
-                      type: "object",
-                      properties: {
-                        views: { type: "integer" },
-                        unlocks: { type: "integer" },
-                        payments: { type: "integer" },
-                        ratings: { type: "integer" },
-                        tips: { type: "integer" },
-                        nibshareViews: { type: "integer" },
-                        nibshareUnlocks: { type: "integer" },
-                        nibshareRevenue: { type: "number" },
-                        total: { type: "integer" },
-                      },
-                    },
-                    hasMore: { type: "boolean" },
-                  },
-                },
-              },
-            },
-          },
+          "503": { description: "event-visibility-unavailable: event-time public visibility proof is missing.", content: { "application/json": { schema: errorSchema } } },
         },
       },
     },
@@ -393,7 +327,7 @@ export const openApiSpec = {
       get: {
         tags: ["Platform"],
         summary: "Platform stats",
-        description: "Real totals for creators, verified sites, content, views, unlocks, and revenue (unlocks + tips + nibshares).",
+        description: "Public discovery lists only currently published-and-public creator articles confirmed against fresh public-home-v2 and manifest sources, limited to the latest 20 articles per site and 100 candidate sites. Unsupported site sources are excluded; coverage reports checked/unsupported sites and truncation. Results are ordered by newest publication, not popularity or sales. Nibshare is excluded. Historical ledger and leaderboards are unavailable (event-visibility-unavailable) because records lack event-time public visibility proof. Stats count current listed sites and articles only (site count is null if the fetched page cannot establish a complete count); creator count and historical engagement, payment, tip, fee and revenue values are null, not zero.",
         responses: {
           "200": {
             description: "Platform totals",
@@ -406,18 +340,15 @@ export const openApiSpec = {
                     stats: {
                       type: "object",
                       properties: {
-                        creators: { type: "integer" },
-                        sites: { type: "integer" },
+                        creators: { type: "null", description: "Unavailable without event-time public visibility proof." },
+                        sites: { type: ["integer", "null"], description: "Current listed site count; null when the fetched article page cannot establish a complete count." },
                         content: { type: "integer" },
-                        views: { type: "integer" },
-                        unlocks: { type: "integer" },
-                        revenue: { type: "number" },
-                        protocolFees: { type: "number", description: "Cumulative 1% protocol fees collected on hosted payments" },
-                        tips: { type: "integer" },
-                        tipRevenue: { type: "number" },
-                        nibshareUnlocks: { type: "integer" },
-                        nibshareViews: { type: "integer" },
-                        nibshareRevenue: { type: "number" },
+                        views: { type: "null", description: "Unavailable without event-time public visibility proof." },
+                        unlocks: { type: "null", description: "Unavailable without event-time public visibility proof." },
+                        revenue: { type: "null", description: "Unavailable without event-time public visibility proof." },
+                        protocolFees: { type: "null", description: "Unavailable without event-time public visibility proof." },
+                        tips: { type: "null", description: "Unavailable without event-time public visibility proof." },
+                        tipRevenue: { type: "null", description: "Unavailable without event-time public visibility proof." },
                       },
                     },
                   },
@@ -430,41 +361,18 @@ export const openApiSpec = {
     },
     "/hub/reputation/leaderboards": {
       get: {
-        tags: ["Reputation"],
-        summary: "Reputation leaderboards",
-        description: "Ranked creators, sites, or content by reputation score, unlocks, views, and revenue.",
-        parameters: [
-          { name: "type", in: "query", schema: { type: "string", enum: ["creators", "sites", "content"], default: "creators" } },
-          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
-          { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
-        ],
+        summary: "Historical rankings unavailable",
+        description: "Historical records lack event-time public visibility proof. This endpoint does not query or return historical activity or rankings.",
         responses: {
-          "200": {
-            description: "Leaderboard items",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    type: { type: "string" },
-                    items: { type: "array", items: { type: "object" } },
-                    total: { type: "integer" },
-                    limit: { type: "integer" },
-                    skip: { type: "integer" },
-                  },
-                },
-              },
-            },
-          },
+          "503": { description: "event-visibility-unavailable: event-time public visibility proof is missing.", content: { "application/json": { schema: errorSchema } } },
         },
       },
     },
     "/hub/sitemap/content": {
       get: {
         tags: ["Platform"],
-        summary: "All content URLs",
-        description: "URLs of all content across verified sites, up to 50k. Used for sitemap generation and agent crawling.",
+        summary: "Current public article URLs",
+        description: "Current published-and-public creator article URLs confirmed by fresh public-home-v2 and manifest sources, latest 20 per site. Used for sitemap generation and agent crawling.",
         parameters: [{ name: "limit", in: "query", schema: { type: "integer", maximum: 50000, default: 50000 } }],
         responses: {
           "200": {

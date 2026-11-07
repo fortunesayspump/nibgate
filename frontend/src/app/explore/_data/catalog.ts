@@ -7,9 +7,9 @@ export const categories = [
   ["Business", "Research", "Templates", "Reports"],
 ];
 
-export const sortTabs = ["Trending", "Best Sellers", "Hot & New"];
+export const sortTabs = ["Newest publication", "Trending", "Best Sellers"];
 
-export const contentTypes = ["All", "Article", "Music", "Image", "Video", "Document"];
+export const contentTypes = ["All", "Article"];
 
 export type ExploreProduct = {
   id?: string;
@@ -19,18 +19,18 @@ export type ExploreProduct = {
   creator?: string;
   price: string;
   meta?: string;
-  unlocks?: string;
-  unlockCount?: number;
+  unlocks?: string | null;
+  unlockCount?: number | null;
   tags?: string[];
   image?: string;
   avatar?: string;
   topCreator?: boolean;
   url?: string;
-  views?: number;
-  revenue?: number;
+  views?: number | null;
+  revenue?: number | null;
   reputationScore?: number | null;
   reputationStars?: number | null;
-  ratings?: number;
+  ratings?: number | null;
   createdAt?: string;
 };
 

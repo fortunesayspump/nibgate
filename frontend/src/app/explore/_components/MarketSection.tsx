@@ -2,26 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { contentTypes, sortTabs, type ExploreProduct } from "../_data/catalog";
-import { toExploreProduct } from "../_data/explore-content";
+import { isCurrentPublicResponse, toExploreProduct } from "../_data/explore-content";
 import { ExploreCard } from "./ProductCard";
-
-function sortKey(label: string) {
-  return label.toLowerCase().replaceAll(" ", "-").replace("&", "");
-}
-
-function sortProducts(products: ExploreProduct[], sort: string) {
-  return [...products].sort((a, b) => {
-    if (sort === "best-sellers") {
-      const aUnlocks = Number.parseInt(a.unlocks || "0", 10) || 0;
-      const bUnlocks = Number.parseInt(b.unlocks || "0", 10) || 0;
-      return (bUnlocks - aUnlocks) || ((b.revenue || 0) - (a.revenue || 0));
-    }
-    if (sort === "hot-new") {
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    }
-    return ((b.views || 0) + (b.revenue || 0) * 20) - ((a.views || 0) + (a.revenue || 0) * 20);
-  });
-}
 
 function categoryMatches(product: ExploreProduct, category: string) {
   if (category === "All") return true;
@@ -37,22 +19,19 @@ function categoryMatches(product: ExploreProduct, category: string) {
 export default function MarketSection({
   products,
   fixedType = "",
-  initialSort = "trending",
+  initialSort = "newest-publication",
 }: {
   products: ExploreProduct[];
   fixedType?: string;
   initialSort?: string;
 }) {
-  const [sort, setSort] = useState(initialSort);
+  const sort = "newest-publication";
+  const unsupportedSort = !["newest-publication", "hot-new"].includes(initialSort);
   const [activeType, setActiveType] = useState("All");
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
-  // Server-side search results: the `products` prop only holds the top-200
-  // trending cards, so a client-side filter can never find low-traction
-  // content (e.g. a brand-new subblog). When a query is active we ask the
-  // full discovery index instead. Bare `/hub/...` path uses the
-  // next.config.ts rewrite to the backend.
+  // Search the same bounded current-public listing source as the initial page.
   const [remoteResults, setRemoteResults] = useState<ExploreProduct[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -97,6 +76,9 @@ export default function MarketSection({
   useEffect(() => {
     if (!trimmedQuery) return;
     const seq = ++searchSeq.current;
+    setSearching(true);
+    setSearchError("");
+    setRemoteResults(null);
     const timer = setTimeout(async () => {
       if (searchSeq.current !== seq) return;
       try {
@@ -105,10 +87,11 @@ export default function MarketSection({
         params.set("sort", sort);
         params.set("limit", "100");
         if (effectiveType && effectiveType !== "All") params.set("type", effectiveType.toLowerCase());
-        const res = await fetch(`/hub/explore/content?${params.toString()}`);
+        const res = await fetch(`/hub/explore/content?${params.toString()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const content = Array.isArray(data.content) ? data.content : [];
+        if (!isCurrentPublicResponse(data)) throw new Error("Current public listings unavailable");
+        const content = data.content;
         if (searchSeq.current !== seq) return;
         setRemoteResults(content.map(toExploreProduct));
       } catch {
@@ -119,7 +102,7 @@ export default function MarketSection({
         if (searchSeq.current === seq) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); searchSeq.current += 1; };
   }, [trimmedQuery, sort, effectiveType]);
 
   const filteredProducts = useMemo(() => {
@@ -132,10 +115,10 @@ export default function MarketSection({
     let result = products;
     result = result.filter((p) => categoryMatches(p, activeCategory));
     if (!fixedType && activeType !== "All") result = result.filter((p) => p.type === activeType);
-    return sortProducts(result, sort);
-  }, [products, sort, trimmedQuery, remoteResults, activeType, activeCategory, fixedType]);
+    return result;
+  }, [products, trimmedQuery, remoteResults, activeType, activeCategory, fixedType]);
   const visibleProducts = filteredProducts.slice(0, visibleCount);
-  const title = activeCategory === "All" ? "Explore content" : activeCategory;
+  const title = activeCategory === "All" ? "Current public articles" : activeCategory;
 
   return (
     <section className="market-section" aria-labelledby="market-title">
@@ -144,11 +127,10 @@ export default function MarketSection({
         <div className="market-controls" aria-label="Explore content controls">
           <div className="sort-tabs" role="radiogroup" aria-label="Sort content">
             {sortTabs.map((tab: string) => {
-              const key = sortKey(tab);
-              const normalizedKey = key === "hot--new" ? "hot-new" : key;
+              const available = tab === "Newest publication";
               return (
-                <button key={tab} onClick={() => setSort(normalizedKey)} className={sort === normalizedKey ? "active" : ""} type="button" aria-pressed={sort === normalizedKey ? "true" : "false"}>
-                  {tab}
+                <button key={tab} disabled={!available} className={available ? "active" : ""} type="button" aria-pressed={available ? "true" : "false"} title={available ? "Newest publication in the current sample" : "Unavailable: historical public visibility cannot be established"}>
+                  {tab}{!available && " (unavailable)"}
                 </button>
               );
             })}
@@ -162,6 +144,8 @@ export default function MarketSection({
           </div>
         </div>
       </div>
+      <p className="market-search-status">Current public articles only, sampled from the latest 20 listings per eligible hosted site, drawn from at most 100 verified sites and ordered by newest publication. Search and filters cover this sample, not all network content. Historical views, unlocks, revenue, ratings and reputation are unavailable because public visibility when those events occurred cannot be established.</p>
+      {unsupportedSort && <p role="status" className="explore-empty-state">The requested activity-based sort is unavailable. These articles are shown by newest publication instead.</p>}
       <div className="market-layout">
         <div className="market-products">
           {trimmedQuery && (
@@ -172,12 +156,12 @@ export default function MarketSection({
             </p>
           )}
           <div className="market-grid">
-            {visibleProducts.length === 0 ? (
+            {searchError ? <p role="status" className="explore-empty-state">Search results could not be loaded.</p> : searching ? <p role="status" className="explore-empty-state">Loading search results…</p> : visibleProducts.length === 0 ? (
               <div className="explore-empty-state market-empty-state">
                 <p>
                   {trimmedQuery && !searching
-                    ? `No results for "${trimmedQuery}" in discovery.`
-                    : "No tracked content is available yet."}
+                    ? `No results for "${trimmedQuery}" in the current public listing sample.`
+                    : "No matching articles were found in the current public listing sample."}
                 </p>
               </div>
             ) : (

@@ -47,6 +47,8 @@ Mainnet and testnet: submitted tip proofs are not verified receipts. Retry the o
 
 Dr. Nib's ordinary research API/MCP is retired on both networks. Its testnet deployment stopped on 26 Oct 2026; ordinary API examples in the pages below are historical reference. Use the private Dr. Nib app on testnet.nibgate.xyz or nibgate.xyz for new research. Owners can read older plaintext testnet reports and ledgers at https://testnet.nibgate.xyz/dr-nib/legacy; this authenticated archive is read-only and separate from encrypted private projects.
 
+Public discovery lists only currently published-and-public creator articles confirmed against fresh public-home-v2 and manifest sources, limited to the latest 20 articles per site and 100 candidate sites. Unsupported site sources are excluded; coverage reports checked/unsupported sites and truncation. Results are ordered by newest publication, not popularity or sales. Nibshare is excluded. Discovery id uses identityScope=creator-publication and is not a legacy Hub Content payment ID. Follow the returned current manifestUrl and its payment challenge; do not pass this id as a Hub Content payment ID. Historical ledger and leaderboards are unavailable (event-visibility-unavailable) because records lack event-time public visibility proof. Stats count current listed sites and articles only (site count is null if the fetched page cannot establish a complete count); creator count and historical engagement, payment, tip, fee and revenue values are null, not zero.
+
 ## Pages
 
 ${PAGES.map(([url, desc]) => `- [${url}](${url}) — ${desc}`).join("\n")}

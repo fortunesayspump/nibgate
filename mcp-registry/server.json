@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.fortunesayspump/nibgate",
   "display_name": "Nibgate",
-  "description": "x402 paid content and Nib Tips with pending holds, refunds, public ledger, pricing, and reputation.",
-  "version": "0.2.14",
+  "description": "Current public creator articles, limited listing counts, x402 payment tools, and explicit share resolution.",
+  "version": "0.2.16",
   "website_url": "https://nibgate.xyz",
   "repository": {
     "source": "github",

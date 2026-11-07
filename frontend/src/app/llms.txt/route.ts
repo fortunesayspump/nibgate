@@ -1,6 +1,6 @@
 import { apiBaseUrl, apiUrl, siteOrigin } from "@/lib/api";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 type ExploreContent = {
   title?: string;
@@ -13,11 +13,11 @@ type ExploreContent = {
 };
 
 const HUB_PAGES: Array<[string, string]> = [
-  [`${siteOrigin()}/explore`, "Content discovery feed indexing verified creator content from connected sites."],
-  [`${siteOrigin()}/ledger`, "Public activity ledger of every view, unlock, payment, tip (including pending funded holds and negative refunds), onchain rating, and nibshare across sites (nibshare links stay private)."],
+  [`${siteOrigin()}/explore`, "Current published-and-public creator articles, newest publication first, latest 20 per site."],
+  [`${siteOrigin()}/ledger`, "Historical public activity unavailable: event-visibility-unavailable."],
   [`${siteOrigin()}/pending-tips`, "Check funded, unclaimed tips for any site domain across mainnet and testnet; the checker identifies the network and links to claiming guidance."],
   [`${siteOrigin()}/pending-tips/claim`, "Guide to connecting and verifying a site, then claiming its pending held tips from the creator dashboard."],
-  [`${siteOrigin()}/leaderboards`, "Reputation leaderboards for creators, sites, and content."],
+  [`${siteOrigin()}/leaderboards`, "Historical rankings are unavailable without event-time public visibility proof."],
   [`${siteOrigin()}/discovery.md`, "Plain-language agent guidance: endpoints, x402 payment flow (Circle Agent Stack one-liner or raw Gateway), nibshare links, and rating flow."],
   [`${siteOrigin()}/skill.md`, "Integration guide for @nibgate/sdk covering widget install, gating, payments, and admin."],
   [`${siteOrigin()}/.well-known/agent-skills/index.json`, "Machine-readable index of Nibgate agent skills (payer discovery + creator SDK)."],
@@ -31,15 +31,15 @@ const HUB_PAGES: Array<[string, string]> = [
 const API_ENDPOINTS: Array<[string, string]> = [
   [`${apiBaseUrl()}/hub/pay`, "x402 unlock endpoint for hub-tracked content: POST bare for a 402 challenge, then retry with the payment header."],
   [`${apiBaseUrl()}/hub/preflight`, "Optional free dry run for the direct-USDC rail: verifies price, recipient, and payer balance BEFORE an irreversible transfer. Never charges."],
-  [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Explore feed of verified content with title, type, price, domain, and reputation signals."],
-  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Public ledger of recent views, unlocks, payments, tips (including pending funded holds; refunds are negative entries), ratings, and nibshares (privacy-safe: no share links)."],
+  [`${apiBaseUrl()}/hub/explore/content?limit=100`, "Current published-and-public creator articles from fresh public-home-v2 and manifest sources; latest 20 per site; historical metrics are null. Discovery id uses identityScope=creator-publication and is not a legacy Hub Content payment ID. Follow the returned current manifestUrl and its payment challenge; do not pass this id as a Hub Content payment ID."],
+  [`${apiBaseUrl()}/hub/ledger?limit=100`, "Historical public activity unavailable: event-visibility-unavailable."],
   [`${apiBaseUrl()}/hub/tips/held?domain={domain}`, "Public exact-domain lookup for funded, unclaimed tips, including tips to external sites; claimable by the site owner and refundable by the payer. API host selects mainnet or testnet."],
   [`${apiBaseUrl()}/hub/tips/refund`, "Payer-signed exact refund of unclaimed held tips (no fee); supports EOA personal_sign and deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization."],
-  [`${apiBaseUrl()}/hub/stats`, "Platform totals for creators, sites, content, views, unlocks, revenue (unlocks + tips + nibshares), and protocol fees."],
+  [`${apiBaseUrl()}/hub/stats`, "Current public listing site/article counts only; creator count and historical metrics are null."],
   [`${apiBaseUrl()}/ns/{slug}`, "Unlock a nibshare link — free shares return the body; paid shares return a 402 x402 challenge, pay and retry to read."],
   [`${apiBaseUrl()}/nibshare/{slug}/manifest`, "Public metadata manifest for a nibshare (title, type, price, access policy)."],
-  [`${apiBaseUrl()}/hub/reputation/leaderboards`, "Ranked creators, sites, and content by reputation score; revenue includes unlocks, tips, and nibshares."],
-  [`${apiBaseUrl()}/hub/sitemap/content`, "All content URLs across verified sites."],
+  [`${apiBaseUrl()}/hub/reputation/leaderboards`, "Historical rankings unavailable: event-visibility-unavailable."],
+  [`${apiBaseUrl()}/hub/sitemap/content`, "Current public creator article URLs; latest 20 articles per site."],
   [`${apiBaseUrl()}/openapi.json`, "Machine-readable OpenAPI specification for the public hub API, including unlock endpoints."],
   [`${apiBaseUrl()}/mcp`, "Model Context Protocol server exposing Nibgate discovery tools to AI agents."],
   [`${apiBaseUrl()}/.well-known/x402`, "x402 discovery fan-out: live paid resource URLs and payment instructions."],
@@ -47,7 +47,7 @@ const API_ENDPOINTS: Array<[string, string]> = [
 
 async function topContent(): Promise<ExploreContent[]> {
   try {
-    const res = await fetch(apiUrl("/hub/explore/content?limit=20"), { next: { revalidate: 3600 } });
+    const res = await fetch(apiUrl("/hub/explore/content?limit=20"), { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data.content) ? data.content : [];
@@ -66,7 +66,7 @@ export async function GET() {
 
   const text = `# Nibgate
 
-> Verified content discovery, unlock, and reputation layer for creator-owned work. Built on Circle Gateway, Arc, and the x402 protocol.
+> Current public creator article discovery and unlocks for creator-owned work. Built on Circle Gateway, Arc, and the x402 protocol.
 
 Nibgate is an open protocol for paid content. Creators keep content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content.
 
@@ -80,9 +80,9 @@ ${HUB_PAGES.map(([url, desc]) => `- [${url}](${url}) — ${desc}`).join("\n")}
 
 ${API_ENDPOINTS.map(([url, desc]) => `- ${url} — ${desc}`).join("\n")}
 
-## Top content on Nibgate
+## Current public creator articles
 
-${content.length ? content.map(contentLine).join("\n") : "- No verified content indexed yet."}
+${content.length ? content.map(contentLine).join("\n") : "- Current public articles are unavailable or the current listing is empty."}
 
 ## Optional
 
@@ -92,7 +92,7 @@ ${content.length ? content.map(contentLine).join("\n") : "- No verified content 
   return new Response(text, {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "no-store",
       "X-Llms-Txt": "/llms.txt",
       "Link": `</llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full-txt"`,
     },

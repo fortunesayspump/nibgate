@@ -2,6 +2,7 @@ import type { ExploreProduct } from "./catalog";
 
 type ExploreContent = {
   id: string;
+  identityScope: "creator-publication";
   title: string;
   description: string;
   imageUrl: string;
@@ -11,12 +12,12 @@ type ExploreContent = {
   url: string;
   currency?: string;
   price: number;
-  views: number;
-  unlocks: number;
-  revenue: number;
+  views: number | null;
+  unlocks: number | null;
+  revenue: number | null;
   reputationScore?: number | null;
   reputationStars?: number | null;
-  ratings?: number;
+  ratings?: number | null;
   websiteName: string;
   websiteDomain: string;
   websiteFaviconUrl?: string;
@@ -47,7 +48,7 @@ function displayType(type = "") {
 function fallbackImage(content: ExploreContent) {
   if (content.imageUrl) return content.imageUrl;
   if (content.websiteOgImageUrl) return content.websiteOgImageUrl;
-  return `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(content.title || content.websiteDomain || "nibgate")}`;
+  return "";
 }
 
 function parseTags(content: ExploreContent) {
@@ -56,20 +57,22 @@ function parseTags(content: ExploreContent) {
 }
 
 export async function getExploreProducts(params: { q?: string; type?: string; sort?: string; limit?: number } = {}) {
+  if (params.sort && !["newest-publication", "hot-new"].includes(params.sort)) return null;
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.type && params.type !== "all") search.set("type", params.type);
-  if (params.sort) search.set("sort", params.sort);
+  search.set("sort", "newest-publication");
   if (params.limit) search.set("limit", String(params.limit));
 
   try {
-    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { next: { revalidate: 300 } });
-    if (!res.ok) return [];
+    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { cache: "no-store" });
+    if (!res.ok) return null;
     const data = await res.json();
-    const content = Array.isArray(data.content) ? data.content as ExploreContent[] : [];
+    if (!isCurrentPublicResponse(data)) return null;
+    const content = data.content as ExploreContent[];
     return content.map(toExploreProduct);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -81,20 +84,40 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     title: content.title,
     summary: content.description || `${type} from ${content.websiteName || content.websiteDomain}`,
     creator: content.websiteName || content.websiteDomain || "Creator",
-    price: Number(content.price || 0) > 0 ? `${Number(content.price).toFixed(3)} ${content.currency || "USDC"}` : "Free",
+    price: typeof content.price === "number" && Number.isFinite(content.price) && content.price >= 0
+      ? (content.price === 0 ? "Free" : `${content.price.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${content.currency || "USDC"}`)
+      : "Price unavailable",
     meta: content.websiteDomain,
-    unlocks: `${content.unlocks || 0} unlocks`,
-    unlockCount: content.unlocks || 0,
+    unlocks: null,
+    unlockCount: null,
     tags: parseTags(content),
     image: fallbackImage(content),
-    avatar: content.websiteFaviconUrl || '/nibgate-mark.svg',
-    topCreator: (content.unlocks || 0) > 0,
+    avatar: content.websiteFaviconUrl || "",
+    topCreator: false,
     url: content.url,
-    views: content.views || 0,
-    revenue: content.revenue || 0,
-    reputationScore: typeof content.reputationScore === "number" ? content.reputationScore : null,
-    reputationStars: typeof content.reputationStars === "number" ? content.reputationStars : null,
-    ratings: content.ratings || 0,
+    views: null,
+    revenue: null,
+    reputationScore: null,
+    reputationStars: null,
+    ratings: null,
     createdAt: content.createdAt,
   };
+}
+
+// Reject older discovery contracts instead of accidentally exposing cached
+// listings or historical metrics whose event-time visibility is unproven.
+export function isCurrentPublicResponse(data: unknown): data is { content: ExploreContent[] } {
+  if (!data || typeof data !== "object") return false;
+  const response = data as Record<string, unknown>;
+  return response.success === true
+    && response.scope === "current-public-creator-articles"
+    && response.sort === "newest-publication"
+    && response.historyStatus === "unavailable-no-event-visibility-proof"
+    && Array.isArray(response.content)
+    && response.content.every((item: unknown) => {
+      if (!item || typeof item !== "object") return false;
+      const article = item as Record<string, unknown>;
+      return article.identityScope === "creator-publication" && article.contentType === "article"
+        && typeof article.id === "string" && typeof article.title === "string" && typeof article.url === "string";
+    });
 }

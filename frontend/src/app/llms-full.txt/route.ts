@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { apiBaseUrl, apiUrl, siteOrigin } from "@/lib/api";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 type ExploreContent = {
   title?: string;
@@ -16,7 +16,7 @@ type ExploreContent = {
 
 async function topContent(): Promise<ExploreContent[]> {
   try {
-    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { next: { revalidate: 3600 } });
+    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data.content) ? data.content : [];
@@ -45,23 +45,23 @@ export async function GET() {
             `- [${item.title || "Untitled content"}](${item.url || ""}) — ${item.websiteName || item.websiteDomain || "Creator"}${Number(item.price || 0) > 0 ? ` ${Number(item.price).toFixed(3)} ${item.currency || "USDC"}` : ""}. ${item.description || ""}`
         )
         .join("\n")
-    : "- No verified content indexed yet.";
+    : "- Current public articles are unavailable or the current listing is empty.";
 
   const site = siteOrigin();
   const api = apiBaseUrl();
   const text = `# Nibgate — Full Content
 
-> Verified content discovery, unlock, and reputation layer for creator-owned work. Built on Circle Gateway, Arc, and the x402 protocol.
+> Current public creator article discovery and unlocks for creator-owned work. Built on Circle Gateway, Arc, and the x402 protocol.
 
 Nibgate is an open protocol for paid content. Creators keep content on their own domains. Nibgate verifies the source, indexes structured public metadata, records unlock/payment signals, and helps humans and AI agents discover quality content.
 
 ## Key pages
 
 - ${site}/explore — Content discovery feed.
-- ${site}/ledger — Public activity ledger.
+- ${site}/ledger — Historical activity unavailable without event-time visibility proof.
 - ${site}/pending-tips — Check funded, unclaimed tips for any site domain across mainnet and testnet; the checker identifies the network and links to claiming guidance.
 - ${site}/pending-tips/claim — Guide to connecting and verifying a site, then claiming its pending held tips from the creator dashboard.
-- ${site}/leaderboards — Reputation leaderboards.
+- ${site}/leaderboards — Historical rankings unavailable without event-time visibility proof.
 - ${site}/.well-known/agent-skills/index.json — Machine-readable index of Nibgate agent skills.
 - https://docs.nibgate.xyz/api-reference — API reference.
 - https://docs.nibgate.xyz/agent-discovery — Agent discovery docs.
@@ -76,18 +76,21 @@ The private architecture uses browser encryption, a verified Phala worker and en
 
 ## API endpoints
 
-- ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
-- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips including pending funded holds, ratings, nibshares; refunds are negative entries; no share links).
+Public discovery lists only currently published-and-public creator articles confirmed against fresh public-home-v2 and manifest sources, limited to the latest 20 articles per site and 100 candidate sites. Unsupported site sources are excluded; coverage reports checked/unsupported sites and truncation. Results are ordered by newest publication, not popularity or sales. Nibshare is excluded. Discovery id uses identityScope=creator-publication and is not a legacy Hub Content payment ID. Follow the returned current manifestUrl and its payment challenge; do not pass this id as a Hub Content payment ID. Historical ledger and leaderboards are unavailable (event-visibility-unavailable) because records lack event-time public visibility proof. Stats count current listed sites and articles only (site count is null if the fetched page cannot establish a complete count); creator count and historical engagement, payment, tip, fee and revenue values are null, not zero.
+
+- ${api}/hub/explore/content?limit=100 — Current public creator articles, latest 20 per site, newest publication first.
+
+- ${api}/hub/ledger?limit=100 — Historical public activity unavailable: event-visibility-unavailable.
 - ${api}/hub/tips/held?domain={domain} — Exact-domain lookup for funded, unclaimed tips (including external sites); claimable by the site owner, refundable by the payer. Results are specific to this API deployment's network.
 - ${api}/hub/tips/refund — Payer-signed exact refund of unclaimed held tips (no fee); accepts EOA personal_sign or deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization.
-- ${api}/hub/stats — Platform totals (revenue incl. tips + nibshares, protocol fees).
+- ${api}/hub/stats — Current public listing site/article counts only; historical metrics and creator count are null.
 - ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
 - ${api}/nibshare/{slug}/manifest — Public manifest for a nibshare.
-- ${api}/hub/reputation/leaderboards — Ranked reputation leaderboards.
+- ${api}/hub/reputation/leaderboards — Historical rankings unavailable: event-visibility-unavailable.
 - ${api}/openapi.json — OpenAPI specification (includes unlock endpoints).
 - ${api}/mcp — MCP server for AI agents.
 
-## Top content on Nibgate
+## Current public creator articles
 
 ${contentSection}
 ${discoverySection}
@@ -97,7 +100,7 @@ ${skillSection}
   return new Response(text, {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "no-store",
       "X-Llms-Txt": "/llms.txt",
       "Link": `</llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full-txt"`,
     },

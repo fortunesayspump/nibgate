@@ -73,40 +73,13 @@ describe('hub routes: cross-stack identity surface', () => {
     expect(typeof handlers['POST /api/hub/site/sync-from-peer']).toBe('function');
   });
 
-  it('includes funded held tips in the ledger without counting them as completed tips', async () => {
-    dbMock.metric.count.mockResolvedValue(0);
-    dbMock.unlockReceipt.count.mockResolvedValue(0);
-    dbMock.contentRating.count.mockResolvedValue(0);
-    dbMock.tip.count.mockResolvedValue(1);
-    dbMock.tip.findMany.mockResolvedValue([
-      {
-        id: 'held-tip', status: 'held', contentUrl: 'https://creator.example/post',
-        title: 'A public post', domain: 'creator.example', amount: 2, currency: 'USDC',
-        createdAt: new Date('2026-10-10T10:00:00Z'), payerWallet: '0xpayer',
-      },
-      {
-        id: 'refund-tip', status: 'refunded', contentUrl: 'https://creator.example/post',
-        title: 'A public post', domain: 'creator.example', amount: -2, currency: 'USDC',
-        createdAt: new Date('2026-10-10T11:00:00Z'), payerWallet: '0xpayer',
-      },
-    ]);
-    dbMock.content.findMany.mockResolvedValue([]);
-
+  it('withholds historical ledger data without event-time visibility proof', async () => {
     const res = mockRes();
     await handlers['GET /api/hub/ledger']({ query: { type: 'tips' } }, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.activities.map((activity) => [activity.id, activity.status, activity.amount])).toEqual([
-      ['refund-tip', 'refunded', -2],
-      ['held-tip', 'held', 2],
-    ]);
-    expect(res.body.totals.tips).toBe(1);
-    expect(dbMock.tip.count).toHaveBeenCalledWith(expect.objectContaining({
-      where: { status: { in: ['settled', 'released'] } },
-    }));
-    expect(dbMock.tip.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ status: { in: ['held', 'settled', 'released', 'refunded'] } }),
-    }));
+    expect(res.statusCode).toBe(503);
+    expect(res.body.code).toBe('event-visibility-unavailable');
+    expect(dbMock.tip.findMany).not.toHaveBeenCalled();
+    expect(dbMock.metric.findMany).not.toHaveBeenCalled();
   });
 
   it('checks pending tips by exact site host, including non-Nibgate pages', async () => {
@@ -435,28 +408,14 @@ describe('hub routes: JEV decisions', () => {
     }
   });
 
-  it('explore reads only public summary fields while preserving payment and reputation counts', async () => {
-    dbMock.content.findMany.mockResolvedValue([{
-      id: 'content-1', websiteId: 'site-1', title: 'A post', description: 'Summary',
-      imageUrl: null, contentType: 'article', tags: 'research', url: 'https://creator.example/post',
-      currency: 'USDC', price: 2, createdAt: new Date('2026-10-01T00:00:00Z'),
-      website: { name: 'Creator', domain: 'creator.example', isVerified: true, verificationStatus: 'verified' },
-      metrics: [{ type: 'view', durationMs: null }, { type: 'read', durationMs: 1000 }],
-      ratings: [{ status: 'accepted', proof: 'onchain:proof', ratingValue: 45 }],
-      unlockReceipts: [{ status: 'verified', paymentProvider: 'direct-transfer', paymentId: 'paid', txHash: '0x123456789abcdef', amount: 2 }],
-      _count: { metrics: 3, ratings: 2, unlockReceipts: 2 },
-    }]);
-    dbMock.content.count.mockResolvedValue(1);
+  it('explore uses the current public tenant listing and never historical content', async () => {
+    dbMock.website.findMany.mockResolvedValue([]);
     const res = mockRes();
     await handlers['GET /api/hub/explore/content']({ query: { limit: '1' } }, res);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toMatchObject({ total: 1, limit: 1, content: [{ views: 1, unlocks: 1, revenue: 2, metrics: 3, receipts: 2, ratings: 1, reputationStars: 4.5 }] });
-    const include = dbMock.content.findMany.mock.calls[0][0].include;
-    expect(include.website.select).toMatchObject({ name: true, domain: true, isVerified: true });
-    expect(include.metrics.select).toEqual({ type: true, durationMs: true });
-    expect(include.ratings.select).toEqual({ status: true, proof: true, ratingValue: true });
-    expect(include.unlockReceipts.select).toEqual({ status: true, paymentProvider: true, paymentId: true, txHash: true, amount: true });
-    expect(include).not.toHaveProperty('publisher');
+    expect(res.body).toMatchObject({ success: true, scope: 'current-public-creator-articles', content: [], total: 0 });
+    expect(dbMock.content.findMany).not.toHaveBeenCalled();
+    expect(dbMock.website.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: { id: true, domain: true } }));
   });
 });
 

@@ -65,6 +65,10 @@ body:has(.nibshare-root) {
   line-height: var(--line-height);
 }
 
+body:has(> [data-testnet-banner]):has(.nibshare-root) {
+  padding-top: 0;
+}
+
 html[data-theme="dark"] body:has(.nibshare-root) {
   --bg: #10110e;
   --fg: #cecdc3;

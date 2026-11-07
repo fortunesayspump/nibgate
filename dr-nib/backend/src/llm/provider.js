@@ -286,10 +286,15 @@ export function parseJsonReply(text) {
 /** Run a completion that must return JSON, with one repair retry. Failures
  * carry the raw replies (truncated) so callers can log WHAT the model said
  * instead of just that parsing failed — unlogged rambles can't be tuned. */
-export async function chatJson(opts) {
+export async function chatJson({ validateReply, repairInstruction, ...opts }) {
+  const read = text => {
+    const data = parseJsonReply(text);
+    if (validateReply && !validateReply(data)) throw new LlmError('reply does not match requested shape', { code: 'parse_error' });
+    return data;
+  };
   const first = await chat({ ...opts, json: true });
   try {
-    return { data: parseJsonReply(first.text), usage: first.usage, model: first.model, text: first.text };
+    return { data: read(first.text), usage: first.usage, model: first.model, text: first.text };
   } catch {
     const repair = await chat({
       ...opts,
@@ -297,11 +302,11 @@ export async function chatJson(opts) {
       messages: [
         ...opts.messages,
         { role: 'assistant', content: first.text },
-        { role: 'user', content: 'That was not valid JSON. Reply with only the JSON object, no prose or code fences.' },
+        { role: 'user', content: repairInstruction || 'That was not valid JSON. Reply with only the JSON object, no prose or code fences.' },
       ],
     });
     try {
-      return { data: parseJsonReply(repair.text), usage: repair.usage, model: repair.model, text: repair.text };
+      return { data: read(repair.text), usage: repair.usage, model: repair.model, text: repair.text };
     } catch (err) {
       err.replyPreview = [first.text, repair.text].map((t) => String(t || '').slice(0, 300)).join('\n---RETRY---\n');
       throw err;

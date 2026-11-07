@@ -8,6 +8,7 @@ import BrandWordmark from "./BrandWordmark";
 import { WalletButton, WalletButtonMobile } from "@/components/WalletButton";
 import { HUB_SESSION_UPDATED_EVENT } from "@/lib/hubSession";
 
+const exploreAvailable = process.env.NEXT_PUBLIC_NIBGATE_NETWORK === "mainnet";
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function Header() {
             <ul className="nibgate-primary-nav">
               {navItems.map((item) => (
                 <li key={item.href} className="nibgate-primary-nav-item">
-                  {item.href === "/explore" || item.href === "/leaderboards" ? (
+                  {(item.href === "/explore" && !exploreAvailable) || item.href === "/leaderboards" ? (
                     <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
                   ) : <Link
                     href={item.href}
@@ -84,7 +85,7 @@ export default function Header() {
         <ul className="nibgate-primary-nav">
           {navItems.map((item) => (
             <li key={item.href} className="nibgate-primary-nav-item">
-              {item.href === "/explore" || item.href === "/leaderboards" ? (
+              {(item.href === "/explore" && !exploreAvailable) || item.href === "/leaderboards" ? (
                 <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
               ) : <Link
                 href={item.href}

@@ -1,5 +1,3 @@
-import WishlistSection from "../_components/WishlistSection";
-
 export default function WishlistsPage() {
-  return <WishlistSection />;
+  return <section className="explore-directory"><h1>Wishlists</h1><p role="status">Wishlists are temporarily unavailable.</p></section>;
 }

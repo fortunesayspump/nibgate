@@ -42,6 +42,7 @@ Agent-facing surfaces:
 - https://nibgate.xyz/.well-known/agent-skills/index.json — Machine-readable index of both skills.
 - https://api.nibgate.xyz/openapi.json — OpenAPI specification including unlock endpoints.
 - https://api.nibgate.xyz/mcp — MCP server exposing discovery tools to agents.
+- Mainnet Explore is a bounded sample of current public hosted creator articles; testnet Explore and historical rankings are unavailable.
 
 Mainnet and testnet: submitted tip proofs are not verified receipts. Retry the original proof and exact request; completed proofs recover the existing receipt. Conflicts and ambiguous settlement require reconciliation, never another payment.
 

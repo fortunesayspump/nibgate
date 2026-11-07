@@ -1,3 +1,4 @@
+import ExploreUnavailable from "./_components/ExploreUnavailable";
 import ExploreIntro from "./_components/ExploreIntro";
 import FeaturedSection from "./_components/FeaturedSection";
 import MarketSection from "./_components/MarketSection";
@@ -6,10 +7,12 @@ import WishlistSection from "./_components/WishlistSection";
 import LeaderboardPreview from "./_components/LeaderboardPreview";
 import { getExploreProducts } from "./_data/explore-content";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function ExploreHome() {
-  const products = await getExploreProducts({ limit: 200, sort: "trending" });
+  const products = await getExploreProducts({ limit: 400, sort: "site-order" });
+
+  if (products === null) return <ExploreUnavailable />;
 
   return (
     <>

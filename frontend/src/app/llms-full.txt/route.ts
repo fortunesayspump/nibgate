@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { apiBaseUrl, apiUrl, siteOrigin } from "@/lib/api";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 type ExploreContent = {
   title?: string;
@@ -14,14 +14,14 @@ type ExploreContent = {
   currency?: string;
 };
 
-async function topContent(): Promise<ExploreContent[]> {
+async function topContent(): Promise<ExploreContent[] | null> {
   try {
-    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { next: { revalidate: 3600 } });
-    if (!res.ok) return [];
+    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { cache: "no-store" });
+    if (!res.ok) return null;
     const data = await res.json();
-    return Array.isArray(data.content) ? data.content : [];
+    return data.scope === "current-public-creator-articles" && Array.isArray(data.content) ? data.content : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -38,14 +38,14 @@ export async function GET() {
 
   const discoverySection = discovery ? `\n## Agent discovery guide\n\n${discovery}` : "";
   const skillSection = skill ? `\n## Integration skill guide\n\n${skill}` : "";
-  const contentSection = content.length
+  const contentSection = content === null ? "- Public discovery is unavailable." : content.length
     ? content
         .map(
           (item) =>
             `- [${item.title || "Untitled content"}](${item.url || ""}) — ${item.websiteName || item.websiteDomain || "Creator"}${Number(item.price || 0) > 0 ? ` ${Number(item.price).toFixed(3)} ${item.currency || "USDC"}` : ""}. ${item.description || ""}`
         )
         .join("\n")
-    : "- No verified content indexed yet.";
+    : "- No articles in this sample.";
 
   const site = siteOrigin();
   const api = apiBaseUrl();
@@ -76,8 +76,8 @@ The private architecture uses browser encryption, a verified Phala worker and en
 
 ## API endpoints
 
-- ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
-- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips including pending funded holds, ratings, nibshares; refunds are negative entries; no share links).
+- ${api}/hub/explore/content?limit=100 — Bounded mainnet sample of current public creator articles; testnet is unavailable.
+- ${api}/hub/ledger?limit=100 — Legacy activity route; event-time public visibility has not been established.
 - ${api}/hub/tips/held?domain={domain} — Exact-domain lookup for funded, unclaimed tips (including external sites); claimable by the site owner, refundable by the payer. Results are specific to this API deployment's network.
 - ${api}/hub/tips/refund — Payer-signed exact refund of unclaimed held tips (no fee); accepts EOA personal_sign or deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization.
 - ${api}/hub/stats — Platform totals (revenue incl. tips + nibshares, protocol fees).
@@ -87,7 +87,7 @@ The private architecture uses browser encryption, a verified Phala worker and en
 - ${api}/openapi.json — OpenAPI specification (includes unlock endpoints).
 - ${api}/mcp — MCP server for AI agents.
 
-## Top content on Nibgate
+## Current public article sample
 
 ${contentSection}
 ${discoverySection}
@@ -97,7 +97,7 @@ ${skillSection}
   return new Response(text, {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "private, no-store",
       "X-Llms-Txt": "/llms.txt",
       "Link": `</llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full-txt"`,
     },

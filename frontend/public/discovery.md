@@ -5,7 +5,7 @@
 Nibgate is a verification, discovery, and unlock layer for creator-owned paid
 content. Creators keep content on their own sites and integrate the `@nibgate/sdk`
 package for gating, payments, and events. The hub verifies sources, indexes
-public metadata, and serves Explore, the ledger, and reputation. Payments and
+public metadata, and supports Explore and reputation. The site’s historical ledger is currently unavailable. Payments and
 ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Network).
 
 ## Endpoints
@@ -16,14 +16,14 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 |---|---|
 | `https://nibgate.xyz` | Landing page |
 | `https://nibgate.xyz/explore` | Content discovery feed |
-| `https://nibgate.xyz/ledger` | Public activity ledger |
+| `https://nibgate.xyz/ledger` | Historical activity page; feed currently unavailable |
 
 ### API
 
 | Endpoint | Description |
 |---|---|
-| `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
-| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips (including pending funded holds with `status: held`), ratings, and nibshares (`type=nibshare`). Held tips do not count toward completed-tip totals; refunds appear as negative entries. Nibshare entries show titles, wallets, and amounts but never the private share link |
+| `GET /hub/explore/content?limit=N` | Mainnet-only bounded sample of current public creator articles, in site order; historical metrics are unavailable. Testnet returns unavailable. |
+| `GET /hub/ledger?limit=N&domain=X` | Legacy activity route; event-time public visibility has not been established. Do not treat it as a privacy-verified public feed. |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/preflight` | Free dry run for the direct-USDC rail — check price, recipient, and payer balance **before** sending an irreversible transfer. Never charges. |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
@@ -175,8 +175,8 @@ but the unlock is not lost: re-sign the message for the **same** txHash and
 retry step 5. Never broadcast a second transfer for an existing payment.
 
 **Recording:** all settled payments are recorded server-side at the payment
-layer — receipts, metrics, and the public ledger treat machine payers exactly
-like browser users. No client-side event reporting is required. Each receipt
+layer for both machine and browser payers. The site’s historical activity feed
+is currently unavailable. No client-side event reporting is required. Each receipt
 carries the 1% protocol fee.
 
 ### Rating Flow

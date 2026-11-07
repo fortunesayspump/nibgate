@@ -3,12 +3,21 @@ import assert from 'node:assert/strict';
 import {createPrivateWorkflow} from './private-workflow.js';
 const state={status:'intake',brief:{topic:'Fictional irrigation study'}};
 const question={key:'follow-up_scope',type:'pick_one',prompt:'Who will use this?',options:[{id:'a',label:'Researchers'},{id:'b',label:'Growers'}]};
-test('explicit empty intake is valid but malformed questions cannot become a silent skip',async()=>{
+test('explicit empty intake falls back to the original question bank, but malformed output fails',async()=>{
  const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:'{"questions":[]}'},finish_reason:'stop'}]}),judge:()=>assert.fail('No empty JEV batch')});
- const out=await workflow({state,action:'intake'});assert.equal(out.state.status,'intake-done');assert.deepEqual(out.state.questions,[]);assert.ok(out.state.events.some(e=>e.text.includes('ready for planning')));
+ const out=await workflow({state,action:'intake'});assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,3);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,3);
+ const answering=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:'I will use those choices to shape the research.'},finish_reason:'stop'}]})});
+ const answered=await answering({state:out.state,action:'answers',args:{answers:out.state.questions.map(q=>({seq:q.seq,answer:{optionIds:[q.options[0].id]}}))}});
+ assert.equal(answered.state.status,'intake-done');assert.equal(answered.state.decisions.filter(d=>d.kind==='question'&&d.answer).length,3);
  for(const value of [{questions:[{bad:'shape'}]},{other:[]}]){
   await assert.rejects(createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]})})({state,action:'intake'}),{message:'PRIVATE_INTAKE_INVALID'});
  }
+});
+test('a judge skipping every candidate falls back to questions without losing the decision',async()=>{
+ const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify({questions:[question]})},finish_reason:'stop'}]}),judge:async()=>({model:'fixture',costMicroUsd:0,answers:{question_0:{type:'choice',choice:'skip'}}})});
+ const out=await workflow({state,action:'intake'});
+ assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,3);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,3);assert.equal(out.state.decisions.filter(d=>d.kind==='decision').length,1);
+ const skipped=await workflow({state:out.state,action:'finish-intake'});assert.equal(skipped.state.status,'intake-done');
 });
 test('durable progress precedes inference and a progress storage failure prevents spending',async()=>{
  const order=[];

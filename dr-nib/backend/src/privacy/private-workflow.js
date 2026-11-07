@@ -7,6 +7,7 @@ import {PRIVATE_USAGE,PRIVATE_METERED_COST,PRIVATE_CALL_CHARGE} from './phala-ai
 import { randomUUID } from 'node:crypto';
 import { RESEARCH_SYSTEM } from '../llm/prompts.js';
 import {generateIntakeBatch,generatePlan,generateReport,generateReportLong,generateThinking,generateRoundReview} from '../llm/generate.js';
+import {nextQuestions} from '../intake.js';
 import {createPrivateGeneration} from './private-generation.js';
 import { resolveLength, countWords, FLOOR_RATIO } from '../length.js';
 import { parseSource } from '../sources/parse.js';
@@ -26,13 +27,13 @@ const text = v => { const s = v?.choices?.[0]?.message?.content; if (typeof s !=
     throw Error('PRIVATE_MODEL_OUTPUT_INVALID'); return s; };
 const bounded = (value, max = 8000) => { if (typeof value !== 'string' || value.length > max)
     throw Error('PRIVATE_WORKFLOW_INPUT_INVALID'); return value; };
-function questions(value) {
+function questions(value, source = 'confidential-model') {
     if (!Array.isArray(value) || value.length > 5)
         throw Error('PRIVATE_INTAKE_INVALID');
     return value.map((q, i) => {
         if (!q || typeof q.key !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(q.key) || !['pick_one', 'pick_any'].includes(q.type) || typeof q.prompt !== 'string' || q.prompt.length > 500 || !Array.isArray(q.options) || q.options.length < 2 || q.options.length > 6 || q.options.some(o => typeof o?.id !== 'string' || o.id.length > 50 || typeof o.label !== 'string' || o.label.length > 160))
             throw Error('PRIVATE_INTAKE_INVALID');
-        return { ...q, seq: i, allowOther: q.allowOther === true, source: 'confidential-model' };
+        return { ...q, seq: i, allowOther: q.allowOther === true, source };
     });
 }
 /** Protected orchestration uses the existing research prompts, parser, length
@@ -89,8 +90,15 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                 s.questions=kept;
                 s.decisions=s.decisions.filter(d=>d.kind!=='question'||kept.some(q=>q.key===d.question.key));
             }
-            s.status = s.questions.length?'intake':'intake-done';
-            if(!qs.length)await progress('intake','No clarification questions were proposed. Your brief is ready for planning.');
+            if (!s.questions.length) {
+                // Preserve the original opening interview when the model has
+                // no questions or the judge skips every candidate. The bank is
+                // local to the private worker and never sends the brief out.
+                s.questions = questions(nextQuestions([], 3), 'question-bank');
+                s.decisions.push(...s.questions.map(q => ({ id: randomUUID(), kind: 'question', seq: q.seq, question: q, createdAt: now() })));
+                await progress('intake','Preparing general clarification questions.');
+            }
+            s.status = 'intake';
         }
         else if (action === 'answers') {
             if (s.status !== 'intake' || !Array.isArray(args.answers) || args.answers.length < 1 || args.answers.length > 10)

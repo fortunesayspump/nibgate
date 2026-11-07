@@ -81,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.14",
+    version: "0.2.15",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -102,7 +102,7 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "x402 discovery fan-out",
         description:
-          "Machine-readable discovery document listing currently-live paid resource URLs (a recent paid nibshare and a paid post on a verified creator site) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
+          "Machine-readable bounded sample of current public paid creator-article URLs on mainnet. Private shares are not automatically listed; runtime payment challenges remain authoritative. Testnet is unavailable.",
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],
@@ -314,11 +314,11 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "Explore content feed",
         description:
-          "Returns verified content metadata (title, type, price, domain, reputation) filtered and sorted for discovery. This is the primary agent-facing discovery surface.",
+          "Returns a bounded mainnet sample of current public creator articles, from at most 20 verified sites and 20 articles per site, in site order. Historical metrics and rankings are unavailable. Testnet is unavailable.",
         parameters: [
-          { name: "q", in: "query", schema: { type: "string" }, description: "Free-text search across title, description, tags, site name, and domain." },
+          { name: "q", in: "query", schema: { type: "string" }, description: "Search the current sample by title, description, site name, or domain." },
           { name: "type", in: "query", schema: { type: "string", enum: ["article", "music", "video", "image", "document", "all"] }, description: "Content type filter." },
-          { name: "sort", in: "query", schema: { type: "string", enum: ["trending", "best-sellers", "hot-new"] }, description: "Sort order. Defaults to trending." },
+          { name: "sort", in: "query", schema: { type: "string", enum: ["site-order"], default: "site-order" }, description: "Site order; activity and date rankings are unavailable." },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 500, default: 100 }, description: "Max results." },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 }, description: "Pagination offset." },
         ],
@@ -331,7 +331,11 @@ export const openApiSpec = {
                   type: "object",
                   properties: {
                     success: { type: "boolean" },
-                    content: { type: "array", items: contentSchema },
+                    scope: { type: "string", enum: ["current-public-creator-articles"] },
+                    sort: { type: "string", enum: ["site-order"] },
+                    historyStatus: { type: "string" },
+                    coverage: { type: "object", description: "Sample size, truncation and source information." },
+                    content: { type: "array", items: { type: "object", properties: { id: { type: "string" }, identityScope: { type: "string", enum: ["creator-publication"] }, title: { type: "string" }, description: { type: "string" }, url: { type: "string", format: "uri" }, websiteDomain: { type: "string" }, currency: { type: "string" }, price: { type: "number" }, views: { type: "integer", nullable: true }, unlocks: { type: "integer", nullable: true }, revenue: { type: "number", nullable: true } } } },
                     total: { type: "integer" },
                     limit: { type: "integer" },
                     skip: { type: "integer" },
@@ -348,7 +352,7 @@ export const openApiSpec = {
         tags: ["Ledger"],
         summary: "Public activity ledger",
         description:
-          "Returns a live feed of views, unlocks, payments, tips (including funded held tips marked status=held, from verified or external pages), onchain ratings, and privacy-safe nibshare views/unlocks across verified sites, sorted by timestamp. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Nibshare entries carry titles, wallets, amounts, and tx hashes but never the private share link. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
+          "Legacy activity route; event-time public visibility has not been established. Do not treat it as a privacy-verified public feed.",
         parameters: [
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },

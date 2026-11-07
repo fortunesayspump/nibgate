@@ -1,6 +1,7 @@
 import { db } from '@nibgate/internal/db.js';
+import { creatorOrigin, getPublicDiscovery } from './hub/manifest-discovery.js';
 import {
-  normalizeContentType, serializeContent,
+  serializeContent,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   tipRevenueByContentId, attributeTips, nibshareStatsByWallet, platformMoneyTotals,
 } from './hub/helpers.js';
@@ -9,7 +10,7 @@ import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.14';
+const SERVER_VERSION = '0.2.15';
 
 // Per-stack settlement facts for tool instructions (Circle CLI chain flag,
 // API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
@@ -29,40 +30,7 @@ const CONTENT_INCLUDE = { website: true, metrics: true, ratings: true, unlockRec
 // ── Tool implementations (mirror the public hub query shapes) ────────────
 
 async function exploreContent(args = {}) {
-  const q = String(args.q || '').trim();
-  const requestedType = String(args.type || '').trim().toLowerCase();
-  const type = normalizeContentType(requestedType);
-  const sort = String(args.sort || 'trending').trim().toLowerCase();
-  const limit = Math.min(Math.max(Number.parseInt(args.limit || '20', 10) || 20, 1), 100);
-  const skip = Math.max(Number.parseInt(args.skip || '0', 10) || 0, 0);
-
-  const where = {
-    deletedAt: null,
-    website: VERIFIED_SITE_WHERE,
-    ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
-    ...(q ? {
-      OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } },
-        { tags: { contains: q, mode: 'insensitive' } },
-        { website: { name: { contains: q, mode: 'insensitive' } } },
-        { website: { domain: { contains: q, mode: 'insensitive' } } },
-      ],
-    } : {}),
-  };
-
-  const [content, total] = await Promise.all([
-    db.content.findMany({ where, include: CONTENT_INCLUDE, orderBy: { createdAt: 'desc' }, skip, take: limit }),
-    db.content.count({ where }),
-  ]);
-
-  const serialized = content.map(serializeContent).sort((a, b) => {
-    if (sort === 'best-sellers') return (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
-    if (sort === 'hot-new') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    return (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
-  });
-
-  return { success: true, content: serialized, total, limit, skip };
+  return getPublicDiscovery(db,{limit:20,...args},{network:activeNetwork().name});
 }
 
 async function getLedger(args = {}) {
@@ -349,13 +317,13 @@ async function resolveShare(args = {}) {
 const TOOLS = [
   {
     name: 'explore_content',
-    description: 'Search verified creator content on Nibgate. Returns content metadata (title, type, price, domain, reputation, unlock path). Use to discover what paid/free content exists.',
+    description: 'Search a bounded mainnet sample of current public articles from verified creator-host manifests. Historical metrics and rankings are unavailable; results are ordered by site, not popularity or recency. Testnet is unavailable.',
     inputSchema: {
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Search term across title, description, tags, site name, and domain.' },
         type: { type: 'string', enum: ['article', 'music', 'video', 'image', 'document', 'all'], description: 'Content type filter.' },
-        sort: { type: 'string', enum: ['trending', 'best-sellers', 'hot-new'], description: 'Sort order. Defaults to trending.' },
+        sort: { type: 'string', enum: ['site-order'], description: 'Site order; historical rankings are unavailable.' },
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default 20).' },
         skip: { type: 'integer', minimum: 0, description: 'Pagination offset.' },
       },
@@ -364,7 +332,7 @@ const TOOLS = [
   },
   {
     name: 'get_ledger',
-    description: 'Get the public Nibgate activity ledger: recent views, unlocks, payments, tips (including funded pending holds marked status=held), onchain ratings, and privacy-safe nibshare views/unlocks (titles, wallets, amounts, tx — never the private share link) across verified sites. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Use GET /hub/tips/held?domain={domain} to check pending tips for any exact domain, including external sites. Includes wallet addresses, tx hashes, and receipts where available.',
+    description: 'Legacy activity tool. Event-time public visibility has not been established; do not treat historical activity as a privacy-verified public feed. For pending tips by exact domain, use GET /hub/tips/held?domain={domain}.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -415,7 +383,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      `Nibgate MCP server: verified content discovery, unlock/payment/tip/nibshare ledger (funded held tips appear as pending entries; refunds appear as negative entries; nibshare entries are privacy-safe: no share links), platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge, pay the returned requirement, then POST the proof to /hub/tips/verify (a successful response confirms the resolved tip) or /hub/tips/hold (unresolved/external creator is held in a per-domain contract with no EOA key; the factory owner/keeper relays release/refund after Hub authorization checks, and the contract trusts recipient arguments. It is claimable by the verified creator and refundable by the payer until claimed; payer control accepts EOA personal_sign or deployed ERC-1271 wallets with a fresh domain/payer-bound message). Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged. Full guide: https://nibgate.xyz/discovery.md`,
+      `Nibgate MCP server: bounded mainnet current public article discovery (site order; testnet unavailable), legacy activity tools whose event-time public visibility is unverified, platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. Tools are read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge, pay the returned requirement, then POST the proof to /hub/tips/verify (a successful response confirms the resolved tip) or /hub/tips/hold (unresolved/external creator is held in a per-domain contract with no EOA key; the factory owner/keeper relays release/refund after Hub authorization checks, and the contract trusts recipient arguments. It is claimable by the verified creator and refundable by the payer until claimed; payer control accepts EOA personal_sign or deployed ERC-1271 wallets with a fresh domain/payer-bound message). Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged. Full guide: https://nibgate.xyz/discovery.md`,
   };
 }
 
@@ -434,6 +402,7 @@ export function registerMcpRoute(app) {
   });
 
   app.post('/mcp', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
     const message = req.body || {};
     const { id, method, params } = message;
 
@@ -467,7 +436,7 @@ export function registerMcpRoute(app) {
         }));
       } catch (error) {
         return res.type('application/json').json(jsonRpcResponse(id ?? null, {
-          content: [{ type: 'text', text: `Error: ${error.message}` }],
+          content: [{ type: 'text', text: name === 'explore_content' ? 'Public discovery temporarily unavailable' : `Error: ${error.message}` }],
           isError: true,
         }));
       }
@@ -500,50 +469,21 @@ export function registerMcpRoute(app) {
     });
   });
 
-  // x402 discovery fan-out (x402scan compatibility). Resources are resolved at
-  // request time so the listed URLs are always live paid surfaces.
+  // The x402 directory uses the same bounded current-public manifest sample.
+  // A caller-supplied share slug is still resolved separately; no private share
+  // is automatically published through discovery.
   app.get('/.well-known/x402', async (_req, res) => {
-    const apiOrigin = (process.env.PUBLIC_API_URL || hostsFor().apiBase).replace(/\/+$/, '');
+    res.set('Cache-Control', 'private, no-store');
     try {
-      const now = new Date();
-      const [share, post] = await Promise.all([
-        db.nibShare.findFirst({
-          where: { status: 'active', price: { gt: 0 }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
-          orderBy: { createdAt: 'desc' },
-          select: { slug: true },
-        }),
-        db.content.findFirst({
-          where: { deletedAt: null, price: { gt: 0 }, website: VERIFIED_SITE_WHERE },
-          // Content carries createdAt only (no updatedAt on the model) —
-          // newest synced surface first.
-          orderBy: { createdAt: 'desc' },
-          select: { path: true, url: true, website: { select: { domain: true } } },
-        }),
-      ]);
-      const resources = [];
-      if (share) resources.push(`${apiOrigin}/ns/${share.slug}`);
-      if (post) {
-        let origin = '';
-        try { origin = post.url ? new URL(post.url).origin : ''; } catch { origin = ''; }
-        if (!origin && post.website?.domain) origin = `https://${post.website.domain}`;
-        let p = post.path || '';
-        if (!p && post.url) {
-          try { p = new URL(post.url).pathname; } catch { p = ''; }
-        }
-        if (origin && p) resources.push(`${origin.replace(/\/+$/, '')}${p.startsWith('/') ? p : `/${p}`}`);
-      }
-      return res.type('application/json').json({
-        version: 1,
-        resources,
-        instructions:
-          'Every Nibgate surface speaks x402. GET a resource without payment to receive its 402 challenge, settle via Circle Gateway micropayments or a direct USDC transfer on ' + settlementFacts().networkBlurb + ', then retry with the payment proof. Discover all paid content via MCP tools at /mcp or GET /hub/explore/content.',
-      });
-    } catch (err) {
-      console.error('[x402-wellknown] discovery query failed:', err?.message || err);
-      // Discovery metadata must never hard-fail.
-      return res.type('application/json').json({ version: 1, resources: [], instructions: `Discover paid content via MCP tools at ${apiOrigin}/mcp.` });
+      const listing = await getPublicDiscovery(db, {limit:400,sort:'site-order'}, {network:activeNetwork().name});
+      const resources = listing.content.flatMap(item => {try {const u=new URL(item.url);return item.price>0 && creatorOrigin({domain:u.hostname,deletedAt:null,isVerified:true,verificationStatus:'verified'})===u.origin && /^\/writing\/[A-Za-z0-9_-]{1,200}$/.test(u.pathname) && !u.search && !u.hash && !u.username && !u.password ? [`${u.origin}/api${u.pathname}`] : [];}catch{return []}});
+      return res.type('application/json').json({version:1,resources,scope:listing.scope,coverage:listing.coverage,
+        instructions:'This is a bounded sample of current public creator articles. Request a resource for its payment challenge; discovery excludes private shares.'});
+    } catch {
+      return res.status(503).type('application/json').json({error:'Public discovery temporarily unavailable'});
     }
   });
+
 }
 
 // registry discovery surfaces live at the bottom of this file

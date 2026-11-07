@@ -7,6 +7,7 @@ import {PRIVATE_USAGE,PRIVATE_METERED_COST,PRIVATE_CALL_CHARGE} from './phala-ai
 import { randomUUID } from 'node:crypto';
 import { RESEARCH_SYSTEM } from '../llm/prompts.js';
 import {generateIntakeBatch,generatePlan,generateReport,generateReportLong,generateThinking,generateRoundReview} from '../llm/generate.js';
+import {applyAnswer,describeAnswer,nextQuestions,remainingKeys} from '../intake.js';
 import {createPrivateGeneration} from './private-generation.js';
 import { resolveLength, countWords, FLOOR_RATIO } from '../length.js';
 import { parseSource } from '../sources/parse.js';
@@ -26,13 +27,18 @@ const text = v => { const s = v?.choices?.[0]?.message?.content; if (typeof s !=
     throw Error('PRIVATE_MODEL_OUTPUT_INVALID'); return s; };
 const bounded = (value, max = 8000) => { if (typeof value !== 'string' || value.length > max)
     throw Error('PRIVATE_WORKFLOW_INPUT_INVALID'); return value; };
-function questions(value) {
+// The same cap and stop question used by the original answer-flow.js.
+const MAX_INTAKE_QUESTIONS = 8;
+const INTAKE_STOP_INSTRUCTIONS = 'Decide whether the brief is whole enough to leave intake and plan the research, or whether another question is still worth asking. Leaving early with a thin brief wastes the run; asking on when nothing is missing wastes the user. '
+    + 'Diminishing returns are real: bank items left open do NOT by themselves justify another round — if 5+ questions are already answered and topic, intent, and scope are covered, proceed. '
+    + 'Methodology detail (sample sizes, timestamps, sources, metrics) is never a reason to keep asking; that is the researcher’s job.';
+function questions(value, source = 'confidential-model') {
     if (!Array.isArray(value) || value.length > 5)
         throw Error('PRIVATE_INTAKE_INVALID');
     return value.map((q, i) => {
         if (!q || typeof q.key !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(q.key) || !['pick_one', 'pick_any'].includes(q.type) || typeof q.prompt !== 'string' || q.prompt.length > 500 || !Array.isArray(q.options) || q.options.length < 2 || q.options.length > 6 || q.options.some(o => typeof o?.id !== 'string' || o.id.length > 50 || typeof o.label !== 'string' || o.label.length > 160))
             throw Error('PRIVATE_INTAKE_INVALID');
-        return { ...q, seq: i, allowOther: q.allowOther === true, source: 'confidential-model' };
+        return { ...q, seq: i, allowOther: q.allowOther === true, source };
     });
 }
 /** Protected orchestration uses the existing research prompts, parser, length
@@ -79,18 +85,17 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
         if (action === 'intake') {
             if(!['intake','draft'].includes(s.status))throw Error('PRIVATE_WORKFLOW_STATE_INVALID');
             const generated=await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:[],count:3,allowEmpty:true}));
-            if(generated.source!=='llm')throw Error('PRIVATE_INTAKE_INVALID');
+            if(generated.source!=='llm'&&!['model returned no usable questions','model returned no question list'].includes(generated.llmError))throw Error('PRIVATE_INTAKE_INVALID');
             const qs = questions(generated.questions);
             s.questions = qs;
             s.decisions = qs.map(q => ({ id: randomUUID(), kind: 'question', seq: q.seq, question: q, createdAt: now() }));
-            if(decide&&qs.length){
-                const answers=await decide({state:{question:s.brief.topic.slice(0,1500),candidates:qs.map(q=>({key:q.key,prompt:q.prompt.slice(0,300),options:q.options.map(o=>({id:o.id,label:o.label.slice(0,120)}))}))},questions:Object.fromEntries(qs.map((q,i)=>['question_'+i,{type:'choice',instructions:`Does candidate intake question ${i} materially clarify the user's research goal or available evidence? Skip redundant, already answered or irrelevant questions.`,criteria:{ask:'Ask this useful clarification.',skip:'Skip this question.'}}]))},'intake-gate');
-                const kept=qs.filter((_q,i)=>answers['question_'+i].choice==='ask');
-                s.questions=kept;
-                s.decisions=s.decisions.filter(d=>d.kind!=='question'||kept.some(q=>q.key===d.question.key));
+            if (!s.questions.length) {
+                // The original opener falls back to the local bank of up to five.
+                s.questions = questions(nextQuestions([], 5), 'question-bank');
+                s.decisions.push(...s.questions.map(q => ({ id: randomUUID(), kind: 'question', seq: q.seq, question: q, createdAt: now() })));
+                await progress('intake','Preparing general clarification questions.');
             }
-            s.status = s.questions.length?'intake':'intake-done';
-            if(!qs.length)await progress('intake','No clarification questions were proposed. Your brief is ready for planning.');
+            s.status = 'intake';
         }
         else if (action === 'answers') {
             if (s.status !== 'intake' || !Array.isArray(args.answers) || args.answers.length < 1 || args.answers.length > 10)
@@ -104,10 +109,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                     throw Error('PRIVATE_ANSWER_INVALID');
                 d.answer = answer;
                 d.answeredAt = now();
-            }
-            if (s.decisions.filter(d => d.kind === 'question').every(d => d.answer)) {
-                s.status = 'intake-done';
-                s.questions = [];
+                Object.assign(s,applyAnswer({run:s,question:d.question,answer}));
             }
             const answered=s.decisions.filter(d=>d.kind==='question'&&d.answer);
             const thinking=await generate('thinking',()=>generateThinking({brief:briefForModel(),
@@ -115,6 +117,53 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                 answer:answered.map(d=>[...(d.answer.optionIds??[]).map(id=>d.question.options.find(o=>o.id===id)?.label??id),d.answer.text??''].filter(Boolean).join('; ')).join('\n')})).catch(()=>null);
             s.thinking=thinking?.source==='llm'?thinking.text:null;
             if(s.thinking)await progress('thinking',s.thinking,{origin:'model-summary'});
+            const pending=s.decisions.filter(d=>d.kind==='question'&&!d.answer);
+            s.questions=pending.map(d=>d.question);
+            if(!pending.length){
+                const keys=answered.map(d=>d.question.key).filter(Boolean);
+                let next=questions(nextQuestions(keys,5),'question-bank');
+                const prior=answered.map(d=>({prompt:d.question.prompt||d.question.key,answer:describeAnswer(d.question,d.answer)}));
+                const live=await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:prior,allowEmpty:true}));
+                if(live.source!=='llm'&&!['model returned no usable questions','model returned no question list'].includes(live.llmError))throw Error('PRIVATE_INTAKE_INVALID');
+                if(live.questions.length){
+                    const fresh=questions(live.questions).filter(q=>!keys.includes(q.key));
+                    if(fresh.length)next=fresh;
+                }
+                const lastAnswer=`${args.answers.length} answer${args.answers.length===1?'':'s'} this batch`;
+                const stateText=[`Topic: ${s.brief.topic||'(unspecified)'}`,`Answered: ${keys.length?keys.join(', '):'nothing yet'}`,`Still open: ${remainingKeys(keys).length?remainingKeys(keys).join(', '):'nothing'}`,`Latest answer: ${lastAnswer}`].join('\n');
+                let choice=null;
+                const decisionStart=s.decisions.length;
+                if(decide){
+                    try{
+                        const result=await decide({state:stateText,questions:{'intake-stop':{type:'choice',instructions:INTAKE_STOP_INSTRUCTIONS,criteria:{proceed:'The brief is whole: the topic, intent, scope, and constraints needed to plan are all present. Plan now.',ask_more:'Something material is still missing — an answer that would change the plan, the sources, or the report shape. Ask the next most valuable question.',reframe:'The questions so far chase the wrong angle: the answers do not converge on anything plannable. Drop this line entirely and open a different angle — continuing it wastes the user.'}}}},'intake-stop');
+                        choice=result['intake-stop']?.choice;
+                        if(!['proceed','ask_more','reframe'].includes(choice))throw Error('PRIVATE_INTAKE_INVALID');
+                    }catch(error){if(error?.message!=='HOSTED_JEV_UNAVAILABLE')throw error;}
+                }
+                if(choice==='reframe'){
+                    const rejected=answered.map(d=>d.question.prompt||d.question.key).filter(Boolean).slice(-6);
+                    const retry=await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:[],count:3,reframe:{rejected,reason:'answers do not converge on anything plannable'},allowEmpty:true}));
+                    if(retry.source!=='llm'&&!['model returned no usable questions','model returned no question list'].includes(retry.llmError))throw Error('PRIVATE_INTAKE_INVALID');
+                    if(retry.questions.length)next=questions(retry.questions);
+                }
+                let done=choice==='proceed';
+                if(choice===null)done=!next.length;
+                if(!next.length||answered.length>=MAX_INTAKE_QUESTIONS)done=true;
+                if(done){s.status='intake-done';s.questions=[];}
+                else{
+                    const top=Math.max(-1,...s.decisions.filter(d=>d.kind==='question').map(d=>d.seq));
+                    s.questions=next.map((q,i)=>({...q,seq:top+i+1}));
+                    s.decisions.push(...s.questions.map(q=>({id:randomUUID(),kind:'question',seq:q.seq,question:q,createdAt:now()})));
+                    s.status='intake';
+                }
+                const capped=answered.length>=MAX_INTAKE_QUESTIONS;
+                const decision=s.decisions.slice(decisionStart).find(d=>d.kind==='decision'&&d.step==='intake-stop');
+                if(decision){
+                    decision.seq=args.answers.at(-1).seq;
+                    decision.prompt='Leave intake?';
+                    decision.output={...decision.output,modelChoice:choice,decision:done?'proceed':choice,batchSize:args.answers.length,...(capped?{capped:true,cap:MAX_INTAKE_QUESTIONS}:{})};
+                }else s.decisions.push({id:randomUUID(),kind:'decision',seq:args.answers.at(-1).seq,step:'intake-stop',prompt:'Leave intake?',createdAt:now(),output:{decision:done?'proceed':'ask_more',source:'fallback',batchSize:args.answers.length,...(capped?{capped:true,cap:MAX_INTAKE_QUESTIONS}:{})}});
+            }
         }
         else if (action === 'finish-intake') {
             if (!['intake', 'intake-done'].includes(s.status))

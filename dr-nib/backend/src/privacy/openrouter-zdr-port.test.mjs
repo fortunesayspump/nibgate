@@ -16,3 +16,11 @@ test('expired reviews, wrong model/provider and unpriced usage cannot become a s
  }
  const p=createOpenRouterZdrPort({apiKey:'synthetic',reviewExpiresAtMs:0,fetchImpl:()=>assert.fail('No dispatch')});await assert.rejects(p.infer({model}));
 });
+test('an explicitly non-expiring review retains Azure and ZDR enforcement',async()=>{
+ const p=createOpenRouterZdrPort({apiKey:'synthetic',reviewExpiresAtMs:null,fetchImpl:async(_url,options)=>{
+  assert.deepEqual(JSON.parse(options.body).provider,{only:['Azure'],allow_fallbacks:false,require_parameters:true,zdr:true,data_collection:'deny'});
+  return Response.json(data());
+ }});
+ await p.infer({model,messages:[],maxTokens:20});
+ assert.throws(()=>createOpenRouterZdrPort({apiKey:'synthetic'}),/POLICY_INVALID/);
+});

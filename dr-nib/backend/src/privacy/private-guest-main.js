@@ -21,6 +21,7 @@ import {createGuestCapabilityAuthenticator,createInMemoryJtiConsumer} from './pr
 import {createPrivateExecuteJournal} from './private-execute-journal.js';
 import {createPrivateSourceOnlySessionJob} from './private-plan-session.js';
 import {createPrivateAiBudgetGate} from './private-ai-budget.js';
+import {hostedJevReviewPolicy} from './hosted-review-policy.js';
 
 function required(env,key){const value=env[key];if(typeof value!=='string'||!value.trim())throw new Error(`Private guest configuration missing ${key}`);return value}
 export function brokerPublicKeyPem(env){
@@ -81,10 +82,7 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const hostedJevRequested=env.DRNIB_PRIVATE_HOSTED_JEV_ENABLED==='true';
   let hostedJevPolicy=null;
   if(hostedJevRequested){
-    const reviewedAt=Date.parse(required(env,'PRIVATE_HOSTED_JEV_LOGGING_REVIEWED_AT'));
-    if(env.PRIVATE_HOSTED_JEV_CONTEXT_DISCLOSURE!=='openrouter-and-typesafe'||env.PRIVATE_HOSTED_JEV_ZDR_VERIFIED!=='true'||
-      !Number.isFinite(reviewedAt)||reviewedAt>Date.now()||Date.now()-reviewedAt>24*3600000)throw new Error('Hosted JEV privacy review unavailable');
-    hostedJevPolicy={contextDisclosure:'openrouter-and-typesafe',decisionsZdrRoutingVerified:true,loggingReviewExpiresAtMs:reviewedAt+24*3600000};
+    hostedJevPolicy=hostedJevReviewPolicy(env);
   }
   const fullRequested=env.DRNIB_PRIVATE_FULL_ENABLED==='true';
   const accessMode=privateAccessMode(env);

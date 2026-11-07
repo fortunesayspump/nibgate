@@ -55,7 +55,7 @@ export function createHostedJevPort({ db, apiKey, monthlyCapMicroUsd, policy, fe
         policy?.contextDisclosure !== 'openrouter-and-typesafe' || (policy?.decisionsZdrRoutingVerified !== true && diagnosticOnly !== true)) throw unavailable();
     return async ({ run, actionId, request, budgetMicroUsd }) => {
         try {
-            if(policy.loggingReviewExpiresAtMs!==undefined&&(!Number.isSafeInteger(policy.loggingReviewExpiresAtMs)||Date.now()>=policy.loggingReviewExpiresAtMs))throw unavailable();
+            if(policy.loggingReviewExpiresAtMs!=null&&(!Number.isSafeInteger(policy.loggingReviewExpiresAtMs)||Date.now()>=policy.loggingReviewExpiresAtMs))throw unavailable();
             validate(request);
             if (diagnosticOnly && JSON.stringify(request) !== JSON.stringify(HOSTED_JEV_PROBE_REQUEST)) throw unavailable();
             // Snapshot before awaits; callers cannot mutate the approved request.

@@ -11,6 +11,8 @@ COPY dr-nib/backend/package.json ./dr-nib/backend/package.json
 COPY packages/internal/package.json ./packages/internal/package.json
 COPY packages/wallet/package.json ./packages/wallet/package.json
 RUN pnpm --filter @nibgate/dr-nib-backend... install --frozen-lockfile
+COPY dr-nib/private-guest/apply-aci-os-release.cjs /tmp/apply-aci-os-release.cjs
+RUN node /tmp/apply-aci-os-release.cjs && rm /tmp/apply-aci-os-release.cjs
 RUN rm -rf /app/dr-nib/backend/src /app/dr-nib/backend/prisma /app/packages/internal/src /app/packages/wallet/src
 COPY packages/internal ./packages/internal
 COPY packages/wallet ./packages/wallet

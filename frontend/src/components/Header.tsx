@@ -46,7 +46,7 @@ export default function Header() {
             <ul className="nibgate-primary-nav">
               {navItems.map((item) => (
                 <li key={item.href} className="nibgate-primary-nav-item">
-                  {(item.href === "/explore" && !exploreAvailable) || item.href === "/leaderboards" ? (
+                  {(item.href === "/explore" && !exploreAvailable) || (item.href === "/leaderboards" && process.env.NEXT_PUBLIC_NIBGATE_NETWORK !== "mainnet") ? (
                     <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
                   ) : <Link
                     href={item.href}
@@ -85,7 +85,7 @@ export default function Header() {
         <ul className="nibgate-primary-nav">
           {navItems.map((item) => (
             <li key={item.href} className="nibgate-primary-nav-item">
-              {(item.href === "/explore" && !exploreAvailable) || item.href === "/leaderboards" ? (
+              {(item.href === "/explore" && !exploreAvailable) || (item.href === "/leaderboards" && process.env.NEXT_PUBLIC_NIBGATE_NETWORK !== "mainnet") ? (
                 <span className="nibgate-primary-nav-link" aria-disabled="true">{item.label} (unavailable)</span>
               ) : <Link
                 href={item.href}

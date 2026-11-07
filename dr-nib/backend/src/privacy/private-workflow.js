@@ -132,6 +132,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                 const lastAnswer=`${args.answers.length} answer${args.answers.length===1?'':'s'} this batch`;
                 const stateText=[`Topic: ${s.brief.topic||'(unspecified)'}`,`Answered: ${keys.length?keys.join(', '):'nothing yet'}`,`Still open: ${remainingKeys(keys).length?remainingKeys(keys).join(', '):'nothing'}`,`Latest answer: ${lastAnswer}`].join('\n');
                 let choice=null;
+                const decisionStart=s.decisions.length;
                 if(decide){
                     try{
                         const result=await decide({state:stateText,questions:{'intake-stop':{type:'choice',instructions:INTAKE_STOP_INSTRUCTIONS,criteria:{proceed:'The brief is whole: the topic, intent, scope, and constraints needed to plan are all present. Plan now.',ask_more:'Something material is still missing — an answer that would change the plan, the sources, or the report shape. Ask the next most valuable question.',reframe:'The questions so far chase the wrong angle: the answers do not converge on anything plannable. Drop this line entirely and open a different angle — continuing it wastes the user.'}}}},'intake-stop');
@@ -155,7 +156,13 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                     s.decisions.push(...s.questions.map(q=>({id:randomUUID(),kind:'question',seq:q.seq,question:q,createdAt:now()})));
                     s.status='intake';
                 }
-                if(choice===null)s.decisions.push({id:randomUUID(),kind:'decision',step:'intake-stop',createdAt:now(),output:{decision:done?'proceed':'ask_more',source:'fallback'}});
+                const capped=answered.length>=MAX_INTAKE_QUESTIONS;
+                const decision=s.decisions.slice(decisionStart).find(d=>d.kind==='decision'&&d.step==='intake-stop');
+                if(decision){
+                    decision.seq=args.answers.at(-1).seq;
+                    decision.prompt='Leave intake?';
+                    decision.output={...decision.output,modelChoice:choice,decision:done?'proceed':choice,batchSize:args.answers.length,...(capped?{capped:true,cap:MAX_INTAKE_QUESTIONS}:{})};
+                }else s.decisions.push({id:randomUUID(),kind:'decision',seq:args.answers.at(-1).seq,step:'intake-stop',prompt:'Leave intake?',createdAt:now(),output:{decision:done?'proceed':'ask_more',source:'fallback',batchSize:args.answers.length,...(capped?{capped:true,cap:MAX_INTAKE_QUESTIONS}:{})}});
             }
         }
         else if (action === 'finish-intake') {

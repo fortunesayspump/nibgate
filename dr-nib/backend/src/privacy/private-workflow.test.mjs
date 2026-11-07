@@ -85,6 +85,7 @@ test('the original eight-question threshold prevents endless follow-up batches',
  const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'Noted.'},finish_reason:'stop'}]}),judge:async()=>({model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:'ask_more'}}})});
  const out=await workflow({state:{...state,questions:[decisions[7].question],decisions},action:'answers',args:{answers:[{seq:7,answer:{optionIds:['a']}}]}});
  assert.equal(out.state.status,'intake-done');assert.deepEqual(out.state.questions,[]);assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,8);
+ const decision=out.state.decisions.find(d=>d.step==='intake-stop');assert.equal(decision.output.modelChoice,'ask_more');assert.equal(decision.output.decision,'proceed');assert.equal(decision.output.capped,true);assert.equal(decision.output.cap,8);
 });
 test('an unavailable JEV uses the original labeled question-bank fallback',async()=>{
  const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'Noted.'},finish_reason:'stop'}]}),judge:async()=>{throw Error('HOSTED_JEV_UNAVAILABLE')}});

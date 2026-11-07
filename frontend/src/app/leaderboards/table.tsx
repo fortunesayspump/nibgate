@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { apiUrl } from "@/lib/api";
 
 type BoardType = "creators" | "sites" | "content";
 type Item = Record<string, any> & { rank: number; reputationScore?: number | null; reputationStars?: number | null; ratings?: number };
 
 type Props = {
+  unavailable: Record<BoardType, boolean>;
+  boardTotals: Record<BoardType, number | undefined>;
+  scopes: Record<BoardType, string | undefined>;
   creators: Item[];
   sites: Item[];
   content: Item[];
@@ -60,9 +62,9 @@ function secondaryLabel(item: Item, active: BoardType) {
 }
 
 function imageFor(item: Item, active: BoardType) {
-  if (active === "creators") return item.avatarUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(item.name || item.walletAddress || "Creator")}`;
-  if (active === "sites") return item.faviconUrl || item.ogImageUrl || `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(item.name || item.domain || "Site")}`;
-  return item.imageUrl || item.websiteOgImageUrl || `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(item.title || "Content")}`;
+  if (active === "creators") return item.avatarUrl || "";
+  if (active === "sites") return item.faviconUrl || item.ogImageUrl || "";
+  return item.imageUrl || item.websiteOgImageUrl || "";
 }
 
 function itemHref(item: Item, active: BoardType) {
@@ -76,12 +78,16 @@ function openItem(item: Item, active: BoardType) {
   if (href) window.open(href, "_blank", "noopener,noreferrer");
 }
 
-export default function LeaderboardTable({ creators, sites, content, totals, stats }: Props) {
+export default function LeaderboardTable({ creators, sites, content, totals, stats, unavailable, boardTotals, scopes }: Props) {
   const [active, setActive] = useState<BoardType>("creators");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [loaded, setLoaded] = useState({ creators, sites, content });
+  const [loadingBoard, setLoadingBoard] = useState<BoardType | null>(null);
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<BoardType, string>>>({});
+  const [ended, setEnded] = useState<Partial<Record<BoardType, boolean>>>({});
+  const [rankingScopes, setRankingScopes] = useState(scopes);
   const data = active === "creators" ? loaded.creators : active === "sites" ? loaded.sites : loaded.content;
   const activeTab = tabs.find((tab) => tab.id === active)!;
   const filteredData = useMemo(() => {
@@ -136,7 +142,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
 
   const sortMark = (key: SortKey) => sortKey === key ? (sortDirection === "asc" ? "↑" : "↓") : "↕";
 
-  const aggregates = stats || { views: 0, unlocks: 0, revenue: 0 };
+  const aggregates = stats;
 
   return (
     <section className="mt-12 overflow-hidden border border-dark-gray/50 bg-white">
@@ -144,7 +150,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             {tabs.map((tab) => {
-              const count = tab.id === "creators" ? (totals?.creators ?? loaded.creators.length) : tab.id === "sites" ? (totals?.sites ?? loaded.sites.length) : (totals?.content ?? loaded.content.length);
+              const count = totals?.[tab.id];
               const isActive = active === tab.id;
               return (
                 <button
@@ -155,16 +161,16 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
                   className={`flex flex-col items-center gap-0.5 rounded-full border px-2 py-2.5 text-sm font-medium transition sm:flex-row sm:gap-1.5 sm:px-5 sm:py-3 ${isActive ? "bg-black text-white" : "bg-white text-black hover:bg-gray"}`}
                 >
                   <span>{tab.label}</span>
-                  <span className={`opacity-60 ${isActive ? "text-white/70" : ""}`}>({count})</span>
+                  {count !== undefined && <span className={`opacity-60 ${isActive ? "text-white/70" : ""}`}>({count})</span>}
                 </button>
               );
             })}
           </div>
           <div className="grid w-full grid-cols-3 gap-2 text-sm lg:w-auto lg:min-w-[420px]">
             {[
-              { label: "Views", value: aggregates.views.toLocaleString() },
-              { label: "Unlocks", value: aggregates.unlocks.toLocaleString() },
-              { label: "Revenue", value: aggregates.revenue.toFixed(2), title: "Unlocks + tips + nibshares (USDC)" },
+              { label: "Views", value: aggregates?.views.toLocaleString() ?? "Unavailable" },
+              { label: "Unlocks", value: aggregates?.unlocks.toLocaleString() ?? "Unavailable" },
+              { label: "Revenue", value: aggregates?.revenue.toFixed(2) ?? "Unavailable", title: "Verified payments + public tips (USDC)" },
             ].map((stat) => (
               <div key={stat.label} title={stat.title} className="flex flex-col items-start rounded-2xl bg-gray px-3 py-2.5 sm:px-4 sm:py-3">
                 <span className="text-xs tracking-wide opacity-60">{stat.label}</span>
@@ -184,6 +190,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
         </div>
       </div>
 
+      {rankingScopes[active] === "first-500-candidates" && <p className="px-5 py-4 text-sm" role="status">Rankings cover the first 500 eligible candidates, not the full network.</p>}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] border-collapse text-left">
           <thead>
@@ -205,14 +212,14 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
                 <button type="button" onClick={() => changeSort("unlocks")} className="inline-flex items-center gap-1 font-medium">Unlocks <span className={sortKey === "unlocks" ? "" : "opacity-35"}>{sortMark("unlocks")}</span></button>
               </th>
               <th className="px-5 py-4 font-medium">
-                <button type="button" onClick={() => changeSort("revenue")} title="Unlocks + tips + nibshares" className="inline-flex items-center gap-1 font-medium">Revenue <span className={sortKey === "revenue" ? "" : "opacity-35"}>{sortMark("revenue")}</span></button>
+                <button type="button" onClick={() => changeSort("revenue")} title="Verified payments + public tips" className="inline-flex items-center gap-1 font-medium">Revenue <span className={sortKey === "revenue" ? "" : "opacity-35"}>{sortMark("revenue")}</span></button>
               </th>
             </tr>
           </thead>
           <tbody>
             {sortedData.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-5 py-12 text-center opacity-65">{query ? "No matching ranked entries." : "No ranked entries yet."}</td>
+                <td colSpan={7} className="px-5 py-12 text-center opacity-65">{unavailable[active] ? "Rankings are unavailable. Reload this page to try again." : query ? "No matching ranked entries." : "No ranked entries yet."}</td>
               </tr>
             ) : sortedData.map((item) => {
               const href = itemHref(item, active);
@@ -233,7 +240,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
                   <td className="px-5 py-5 text-2xl font-medium">#{item.rank}</td>
                   <td className="px-5 py-5">
                     <div className="flex items-center gap-4">
-                      <img
+                      {imageFor(item, active) && <img
                         src={imageFor(item, active)}
                         alt=""
                         width={56}
@@ -241,7 +248,7 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
                         loading="lazy"
                         decoding="async"
                         className={`${active === "creators" ? "rounded-full" : "rounded-2xl"} h-14 w-14 shrink-0 border border-dark-gray/40 object-cover bg-gray`}
-                      />
+                      />}
                       <div className="min-w-0">
                         <div className="truncate font-medium">{primaryLabel(item, active)}</div>
                         <div className="mt-1 truncate text-sm opacity-60">{secondaryLabel(item, active)}</div>
@@ -268,18 +275,36 @@ export default function LeaderboardTable({ creators, sites, content, totals, sta
         </table>
       </div>
       <div className="border-t border-dark-gray/40 p-4 text-center">
-        <button
+        {loadErrors[active] && <p role="status" className="mb-3">{loadErrors[active]}</p>}
+        {!unavailable[active] && !ended[active] && data.length < (boardTotals[active] ?? 0) && <button
           type="button"
+          disabled={loadingBoard !== null}
           onClick={async () => {
-            const next = await fetch(apiUrl(`/hub/reputation/leaderboards?type=${active}&limit=50&skip=${data.length}`));
-            const json = await next.json();
-            const more = json.items || [];
-            setLoaded((prev) => ({ ...prev, [active]: [...prev[active], ...more] }));
+            const board = active;
+            setLoadingBoard(board);
+            setLoadErrors(prev => ({ ...prev, [board]: undefined }));
+            try {
+              const next = await fetch(`/hub/reputation/leaderboards?type=${board}&limit=50&skip=${data.length}`, { cache: "no-store" });
+              if (!next.ok) throw new Error("Rankings unavailable");
+              const json = await next.json();
+              if (json.success === false || !Array.isArray(json.items)) throw new Error("Invalid rankings response");
+              const more = json.items as Item[];
+              setLoaded(prev => {
+                const ids = new Set(prev[board].map(item => item.id));
+                return { ...prev, [board]: [...prev[board], ...more.filter(item => !ids.has(item.id))] };
+              });
+              setRankingScopes(prev => ({ ...prev, [board]: json.rankingScope ?? prev[board] }));
+              if (!more.length) setEnded(prev => ({ ...prev, [board]: true }));
+            } catch {
+              setLoadErrors(prev => ({ ...prev, [board]: "More rankings could not be loaded. Please try again." }));
+            } finally {
+              setLoadingBoard(null);
+            }
           }}
-          className="inline-flex items-center gap-2 rounded-full border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
+          className="inline-flex items-center gap-2 rounded-full border px-6 py-3 text-sm font-medium disabled:opacity-50"
         >
-          Load more
-        </button>
+          {loadingBoard === active ? "Loading…" : "Load more"}
+        </button>}
       </div>
     </section>
   );

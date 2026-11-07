@@ -20,13 +20,8 @@ const contentSchema = {
     tags: { type: "string" },
     tagList: { type: "array", items: { type: "string" } },
     url: { type: "string" },
-    path: { type: "string" },
     currency: { type: "string" },
     price: { type: "number" },
-    recipientWallet: { type: "string" },
-    accessPolicy: { type: "string", enum: ["free", "paid", "blocked"] },
-    unlockPolicy: { type: "string", enum: ["one_time"] },
-    externalId: { type: "string" },
     views: { type: "integer" },
     unlocks: { type: "integer" },
     revenue: { type: "number" },
@@ -41,7 +36,7 @@ const contentSchema = {
 const activitySchema = {
   type: "object",
   properties: {
-    type: { type: "string", enum: ["view", "unlock", "payment", "tip", "rating", "nibshare_view", "nibshare_unlock"] },
+    type: { type: "string", enum: ["view", "unlock", "payment", "tip", "rating"] },
     id: { type: "string" },
     websiteId: { type: "string" },
     actor: { type: "string" },
@@ -81,7 +76,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.14",
+    version: "0.2.15",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -102,7 +97,7 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "x402 discovery fan-out",
         description:
-          "Machine-readable discovery document listing currently-live paid resource URLs (a recent paid nibshare and a paid post on a verified creator site) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
+          "Machine-readable discovery document listing currently-live indexed paid resource URLs on verified creator sites (Nibshare is excluded) plus payment instructions. Used by x402 ecosystem indexers; runtime 402 challenges remain authoritative.",
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],
@@ -223,7 +218,7 @@ export const openApiSpec = {
         tags: ["Unlocks"],
         summary: "x402 payment gate for tracked creator-site content",
         description:
-          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side (receipts, metrics, public ledger) whether the payer is a browser or a machine. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
+          "POST without payment credentials returns 402 with an x402 challenge bound to the content's server-side price and fee-wallet recipient. Submit the request again with the x402 payment header to verify settlement; the response contains the receipt used by creator sites to release content. Settled payments are recorded server-side whether the payer is a browser or a machine; public ledger inclusion additionally requires eligible indexed content on a verified site. Accepts optional siteId/siteToken for attribution when contentId is not a tracked hub id.",
         security: [{ x402: [] }],
         "x-payment-info": {
           protocols: ["x402"],
@@ -314,7 +309,7 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "Explore content feed",
         description:
-          "Returns verified content metadata (title, type, price, domain, reputation) filtered and sorted for discovery. This is the primary agent-facing discovery surface.",
+          "Returns verified content metadata (title, type, price, domain, reputation) filtered and sorted for discovery. This is the primary agent-facing discovery surface. Public metadata assumes verified indexed content, not an opt-in visibility guarantee for historical URLs; opaque access/unlock policies and private routing identifiers are withheld.",
         parameters: [
           { name: "q", in: "query", schema: { type: "string" }, description: "Free-text search across title, description, tags, site name, and domain." },
           { name: "type", in: "query", schema: { type: "string", enum: ["article", "music", "video", "image", "document", "all"] }, description: "Content type filter." },
@@ -348,11 +343,11 @@ export const openApiSpec = {
         tags: ["Ledger"],
         summary: "Public activity ledger",
         description:
-          "Returns a live feed of views, unlocks, payments, tips (including funded held tips marked status=held, from verified or external pages), onchain ratings, and privacy-safe nibshare views/unlocks across verified sites, sorted by timestamp. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Nibshare entries carry titles, wallets, amounts, and tx hashes but never the private share link. Each entry includes verifiable fields where applicable (tx hashes, wallet addresses, receipts).",
+          "Returns views, verified-receipt unlocks/payments, onchain ratings, and tips matched by contentId to nondeleted indexed content on verified nondeleted sites. Nibshare is excluded, including its titles, wallets and aggregate contributions. Browsing identifiers and referrers are withheld. Funded held tips are pending and excluded from completed-tip totals; refunds appear as negative entries. Domain filters preserve the same eligibility rules.",
         parameters: [
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100, default: 50 } },
-          { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["views", "unlocks", "payments", "ratings", "tips", "nibshare"] }, description: "Filter by activity type." },
+          { name: "skip", in: "query", schema: { type: "integer", minimum: 0, maximum: 10000, default: 0 } },
+          { name: "type", in: "query", schema: { type: "string", enum: ["views", "unlocks", "payments", "ratings", "tips"] }, description: "Filter by activity type." },
           { name: "domain", in: "query", schema: { type: "string" }, description: "Filter by site domain, e.g. example.nibgate.xyz." },
         ],
         responses: {
@@ -374,13 +369,11 @@ export const openApiSpec = {
                         payments: { type: "integer" },
                         ratings: { type: "integer" },
                         tips: { type: "integer" },
-                        nibshareViews: { type: "integer" },
-                        nibshareUnlocks: { type: "integer" },
-                        nibshareRevenue: { type: "number" },
                         total: { type: "integer" },
                       },
                     },
                     hasMore: { type: "boolean" },
+                    paginationLimitReached: { type: "boolean", description: "Older activity exists beyond the supported offset window; do not request another page." },
                   },
                 },
               },
@@ -393,7 +386,7 @@ export const openApiSpec = {
       get: {
         tags: ["Platform"],
         summary: "Platform stats",
-        description: "Real totals for creators, verified sites, content, views, unlocks, and revenue (unlocks + tips + nibshares).",
+        description: "Public totals for verified nondeleted sites and indexed content: creators, views, verified unlocks, matching content-linked tips, revenue and fees. Nibshare and unmatched external-page tips are excluded.",
         responses: {
           "200": {
             description: "Platform totals",
@@ -415,9 +408,6 @@ export const openApiSpec = {
                         protocolFees: { type: "number", description: "Cumulative 1% protocol fees collected on hosted payments" },
                         tips: { type: "integer" },
                         tipRevenue: { type: "number" },
-                        nibshareUnlocks: { type: "integer" },
-                        nibshareViews: { type: "integer" },
-                        nibshareRevenue: { type: "number" },
                       },
                     },
                   },
@@ -432,7 +422,7 @@ export const openApiSpec = {
       get: {
         tags: ["Reputation"],
         summary: "Reputation leaderboards",
-        description: "Ranked creators, sites, or content by reputation score, unlocks, views, and revenue.",
+        description: "Ranked creators, verified sites, or indexed content by reputation score, verified unlocks and views. Revenue includes matching content-linked tips and excludes Nibshare. rankingScope=first-500-candidates indicates a bounded candidate ranking.",
         parameters: [
           { name: "type", in: "query", schema: { type: "string", enum: ["creators", "sites", "content"], default: "creators" } },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
@@ -452,6 +442,7 @@ export const openApiSpec = {
                     total: { type: "integer" },
                     limit: { type: "integer" },
                     skip: { type: "integer" },
+                    rankingScope: { type: "string", enum: ["first-500-candidates"], description: "Present when rankings are limited to the first 500 eligible candidates." },
                   },
                 },
               },

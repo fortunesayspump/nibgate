@@ -1,3 +1,4 @@
+import { publicTipWhere } from './public-feeds.js';
 import { db } from '@nibgate/internal/db.js';
 import { hostsFor, activeNetworkName, networkByChainId } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
@@ -1607,14 +1608,14 @@ function domainFromUrl(url = '') {
 }
 
 // Sum of money tips per content id (negative refund rows net out).
-export async function tipRevenueByContentId(contentIds = []) {
+export async function tipRevenueByContentId(contentIds = [], { publicOnly = false } = {}) {
   const ids = [...new Set((contentIds || []).filter(Boolean))];
   const map = new Map();
   if (!ids.length) return map;
   const tips = await db.tip.findMany({
-    where: { status: { in: TIP_MONEY_STATUSES }, contentId: { in: ids } },
+    where: { status: { in: TIP_MONEY_STATUSES }, ...(publicOnly ? publicTipWhere(ids) : { contentId: { in: ids } }) },
     select: { contentId: true, amount: true },
-  }).catch(() => []);
+  }).catch((error) => { if (publicOnly) throw error; return []; });
   for (const t of tips) {
     if (!t.contentId) continue;
     map.set(t.contentId, (map.get(t.contentId) || 0) + moneyAmount(t));
@@ -1625,13 +1626,13 @@ export async function tipRevenueByContentId(contentIds = []) {
 // Attribute every money tip to at most one owner: contentId first, then
 // websiteId, then domain. Returns per-content, per-site, and per-owner sums
 // (each tip counted exactly once per level).
-export async function attributeTips({ contentToSite = new Map(), siteToOwner = new Map(), domainToSite = new Map() } = {}) {
+export async function attributeTips({ contentToSite = new Map(), siteToOwner = new Map(), domainToSite = new Map(), publicOnly = false } = {}) {
   const tips = await db.tip.findMany({
-    where: { status: { in: TIP_MONEY_STATUSES } },
+    where: { status: { in: TIP_MONEY_STATUSES }, ...(publicOnly ? publicTipWhere([...contentToSite.keys()]) : {}) },
     select: { contentId: true, websiteId: true, domain: true, contentUrl: true, amount: true },
     orderBy: { createdAt: 'desc' },
-    take: 5000,
-  }).catch(() => []);
+    ...(publicOnly ? {} : { take: 5000 }),
+  }).catch((error) => { if (publicOnly) throw error; return []; });
   const byContent = new Map();
   const bySite = new Map();
   const byOwner = new Map();
@@ -1643,6 +1644,7 @@ export async function attributeTips({ contentToSite = new Map(), siteToOwner = n
       add(byContent, t.contentId, amt);
       siteId = contentToSite.get(t.contentId) || null;
     }
+    if (publicOnly && !siteId) continue;
     if (!siteId && t.websiteId) siteId = t.websiteId;
     if (!siteId) {
       const d = String(t.domain || '').trim().toLowerCase() || domainFromUrl(t.contentUrl);

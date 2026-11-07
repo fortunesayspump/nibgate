@@ -73,24 +73,24 @@ describe('hub routes: cross-stack identity surface', () => {
     expect(typeof handlers['POST /api/hub/site/sync-from-peer']).toBe('function');
   });
 
-  it('includes funded held tips in the ledger without counting them as completed tips', async () => {
+  it('includes indexed public held tips without counting them as completed tips', async () => {
     dbMock.metric.count.mockResolvedValue(0);
     dbMock.unlockReceipt.count.mockResolvedValue(0);
     dbMock.contentRating.count.mockResolvedValue(0);
     dbMock.tip.count.mockResolvedValue(1);
     dbMock.tip.findMany.mockResolvedValue([
       {
-        id: 'held-tip', status: 'held', contentUrl: 'https://creator.example/post',
+        id: 'held-tip', contentId: 'public-content', status: 'held', contentUrl: 'https://creator.example/post',
         title: 'A public post', domain: 'creator.example', amount: 2, currency: 'USDC',
         createdAt: new Date('2026-10-10T10:00:00Z'), payerWallet: '0xpayer',
       },
       {
-        id: 'refund-tip', status: 'refunded', contentUrl: 'https://creator.example/post',
+        id: 'refund-tip', contentId: 'public-content', status: 'refunded', contentUrl: 'https://creator.example/post',
         title: 'A public post', domain: 'creator.example', amount: -2, currency: 'USDC',
         createdAt: new Date('2026-10-10T11:00:00Z'), payerWallet: '0xpayer',
       },
     ]);
-    dbMock.content.findMany.mockResolvedValue([]);
+    dbMock.content.findMany.mockResolvedValue([{ id: 'public-content', websiteId: 'public-site', title: 'A public post', url: 'https://creator.example/post', website: { domain: 'creator.example' } }]);
 
     const res = mockRes();
     await handlers['GET /api/hub/ledger']({ query: { type: 'tips' } }, res);
@@ -102,7 +102,7 @@ describe('hub routes: cross-stack identity surface', () => {
     ]);
     expect(res.body.totals.tips).toBe(1);
     expect(dbMock.tip.count).toHaveBeenCalledWith(expect.objectContaining({
-      where: { status: { in: ['settled', 'released'] } },
+      where: expect.objectContaining({ status: { in: ['settled', 'released'] }, contentId: { in: ['public-content'] } }),
     }));
     expect(dbMock.tip.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ status: { in: ['held', 'settled', 'released', 'refunded'] } }),

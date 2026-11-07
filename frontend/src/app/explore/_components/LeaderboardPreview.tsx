@@ -4,35 +4,34 @@ import { apiUrl } from "@/lib/api";
 
 type Creator = { id: string; rank: number; name: string; walletAddress?: string; avatarUrl?: string; reputationScore?: number | null; unlocks: number; contentCount: number };
 
-function creatorAvatar(creator: Creator) {
-  return creator.avatarUrl || '/nibgate-mark.svg';
-}
-
 async function getCreators() {
   try {
-    const res = await fetch(apiUrl("/hub/reputation/leaderboards?type=creators&limit=3"), { next: { revalidate: 300 } });
-    if (!res.ok) return [] as Creator[];
+    const res = await fetch(apiUrl("/hub/reputation/leaderboards?type=creators&limit=3"), { cache: "no-store" });
+    if (!res.ok) return null;
     const data = await res.json();
-    return (data.items || []) as Creator[];
+    if (data.success === false || !Array.isArray(data.items)) return null;
+    return { items: data.items as Creator[], rankingScope: data.rankingScope };
   } catch {
-    return [] as Creator[];
+    return null;
   }
 }
 
 export default async function LeaderboardPreview() {
-  const creators = await getCreators();
+  const result = await getCreators();
+  const creators = result?.items;
   return (
     <section className="leaderboard-preview" aria-labelledby="leaderboard-preview-title">
       <div className="market-heading">
         <h2 id="leaderboard-preview-title">Creator leaderboard</h2>
         <Link href="/leaderboards">View all</Link>
       </div>
+      {result?.rankingScope === "first-500-candidates" && <p>Rankings cover the first 500 eligible candidates, not the full network.</p>}
       <div className="leaderboard-preview-grid">
-        {creators.length ? creators.map((creator) => (
+        {creators === undefined ? <p className="explore-empty-state" role="status">Creator rankings are unavailable. Please try again later.</p> : creators.length ? creators.map((creator) => (
           <article key={creator.id} className="leaderboard-preview-card">
             <div className="leaderboard-preview-card-top">
               <span className="leaderboard-preview-rank">#{creator.rank}</span>
-              <Image src={creatorAvatar(creator)} alt="" width={40} height={40} />
+              {creator.avatarUrl && <Image src={creator.avatarUrl} alt="" width={40} height={40} />}
             </div>
             <div>
               <h3>{creator.name}</h3>

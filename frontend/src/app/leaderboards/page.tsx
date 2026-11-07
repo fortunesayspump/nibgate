@@ -3,28 +3,32 @@ import Footer from "@/components/Footer";
 import LeaderboardTable from "./table";
 import { apiUrl } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 type LeaderboardItem = Record<string, any> & { rank: number; reputationScore?: number | null };
 type PlatformStats = { creators: number; sites: number; content: number; views: number; unlocks: number; revenue: number };
 
 async function getBoard(type: string) {
   try {
-    const res = await fetch(apiUrl(`/hub/reputation/leaderboards?type=${type}&limit=50`), { next: { revalidate: 300 } });
-    if (!res.ok) return { items: [] as LeaderboardItem[], total: 0 };
+    const res = await fetch(apiUrl(`/hub/reputation/leaderboards?type=${type}&limit=50`), { cache: "no-store" });
+    if (!res.ok) return null;
     const data = await res.json();
-    return { items: (data.items || []) as LeaderboardItem[], total: data.total || 0 };
+    if (data.success === false || !Array.isArray(data.items) || !Number.isFinite(data.total)) return null;
+    return { items: data.items as LeaderboardItem[], total: data.total as number, rankingScope: data.rankingScope as string | undefined };
   } catch {
-    return { items: [] as LeaderboardItem[], total: 0 };
+    return null;
   }
 }
 
 async function getStats() {
   try {
-    const res = await fetch(apiUrl("/hub/stats"), { next: { revalidate: 300 } });
-    if (!res.ok) return { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
+    const res = await fetch(apiUrl("/hub/stats"), { cache: "no-store" });
+    if (!res.ok) return null;
     const data = await res.json();
-    return data.stats || { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
+    if (data.success === false || !data.stats || !["creators", "sites", "content", "views", "unlocks", "revenue"].every(key => Number.isFinite(data.stats[key]))) return null;
+    return data.stats as PlatformStats;
   } catch {
-    return { creators: 0, sites: 0, content: 0, views: 0, unlocks: 0, revenue: 0 };
+    return null;
   }
 }
 
@@ -45,7 +49,12 @@ export default async function LeaderboardsPage() {
           </div>
 
           <div className="mt-10">
-            <LeaderboardTable creators={creators.items} sites={sites.items} content={content.items} totals={{ creators: stats.creators, sites: stats.sites, content: stats.content }} stats={{ views: stats.views, unlocks: stats.unlocks, revenue: stats.revenue }} />
+            <LeaderboardTable creators={creators?.items ?? []} sites={sites?.items ?? []} content={content?.items ?? []}
+              unavailable={{ creators: creators === null, sites: sites === null, content: content === null }}
+              boardTotals={{ creators: creators?.total, sites: sites?.total, content: content?.total }}
+              scopes={{ creators: creators?.rankingScope, sites: sites?.rankingScope, content: content?.rankingScope }}
+              totals={stats ? { creators: stats.creators, sites: stats.sites, content: stats.content } : undefined}
+              stats={stats ? { views: stats.views, unlocks: stats.unlocks, revenue: stats.revenue } : undefined} />
           </div>
         </section>
       </main>

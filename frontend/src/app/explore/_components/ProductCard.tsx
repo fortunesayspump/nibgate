@@ -69,10 +69,6 @@ function productHref(product: ExploreProduct) {
   return product.url || "/explore/products";
 }
 
-function productImage(product: ExploreProduct) {
-  return product.image || `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(product.title || "nibgate")}`;
-}
-
 function TagPills({ tags = [] }: { tags?: string[] }) {
   if (!tags.length) return null;
   return (
@@ -133,7 +129,7 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
   return (
     <article className={`explore-feature-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <figure className="explore-art">
-        <Image src={productImage(product)} alt="" width={800} height={600} priority={priority} sizes="(max-width: 900px) 100vw, 560px" />
+        {product.image && <Image src={product.image} alt="" width={800} height={600} priority={priority} sizes="(max-width: 900px) 100vw, 560px" />}
         {product.type === 'Video' && playIcon}
         {product.type === 'Music' && waveform}
         {product.type === 'Document' && docIcon}
@@ -164,20 +160,20 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
 }
 
 export function ArticleCard({ product }: { product: ExploreProduct }) {
-  const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
+  const avatar = product.avatar;
   const reputationLabel = product.ratings && typeof product.reputationScore === "number" ? `Verified rep ${product.reputationScore}/100` : "No rep";
   
   return (
     <article className="article-card" role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="article-header">
-        <Image className="article-avatar" src={avatar} alt={product.creator || "Creator"} width={36} height={36} />
+        {avatar && <Image className="article-avatar" src={avatar} alt={product.creator || "Creator"} width={36} height={36} />}
         <div className="article-author-info">
           <span className="article-author-name">{product.creator || 'Creator'}</span>
           <span className="article-meta-time">{reputationLabel}</span>
         </div>
       </div>
       <div className="article-body">
-        <Image className="article-media" src={productImage(product)} alt="Article cover" width={800} height={450} sizes="(max-width: 900px) 100vw, 720px" />
+        {product.image && <Image className="article-media" src={product.image} alt="Article cover" width={800} height={450} sizes="(max-width: 900px) 100vw, 720px" />}
         <div className="article-content">
           <h3 className="article-title">{product.title}</h3>
           <p className="article-summary">{product.summary || 'No description available for this content.'}</p>
@@ -196,7 +192,7 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
 
 export function MarketCard({ product }: { product: ExploreProduct }) {
   const contentType = typeClass(product.type);
-  const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
+  const avatar = product.avatar;
 
   // Just using a static aspect ratio instead of a dynamic one on the server to avoid hydration mismatch
   const randomRatio = "4/3"; 
@@ -204,7 +200,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
   return (
     <article className={`market-card content-card-${contentType}`} role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
       <div className="market-media" style={{ aspectRatio: randomRatio }}>
-        <Image className="market-thumbnail" src={productImage(product)} alt={product.title} width={800} height={600} sizes="(max-width: 900px) 100vw, 400px" />
+        {product.image && <Image className="market-thumbnail" src={product.image} alt={product.title} width={800} height={600} sizes="(max-width: 900px) 100vw, 400px" />}
         
         {product.type === 'Video' && (
           <div className="market-play-icon">
@@ -249,7 +245,7 @@ export function MarketCard({ product }: { product: ExploreProduct }) {
         
         <div className="market-info-footer">
           <Link className="market-creator" href="/leaderboards?type=creators">
-            <Image className="market-avatar" src={avatar} alt="Creator" width={24} height={24} />
+            {avatar && <Image className="market-avatar" src={avatar} alt="Creator" width={24} height={24} />}
             <span className="market-creator-name">{product.creator || 'Creator'}</span>
           </Link>
           <ReputationStars stars={product.reputationStars} ratings={product.ratings} />

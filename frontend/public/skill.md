@@ -464,7 +464,9 @@ Some smart contract wallets (Gnosis Safe, Argent, etc.) may not support `eth_sig
 
 AI agents can discover and purchase content on Nibgate through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed. Full payer guide: `https://nibgate.xyz/discovery.md`.
 
-All settled payments are recorded server-side at the payment layer — receipts, metrics, and the public ledger treat machine payers exactly like browser users, with no client-side event reporting required.
+All settled payments are recorded server-side at the payment layer. Machine and browser payers use the same receipt recording and public-feed eligibility rules, with no client-side event reporting required.
+
+Public feeds and stats exclude Nibshare entirely. Tips appear only when matched by contentId to nondeleted indexed content on verified nondeleted sites. Browsing identifiers and referrers are withheld, and unlock/payment counts use verified receipts. Public metadata assumes indexed content on verified sites; no opt-in visibility flag exists for historical URLs.
 
 ### Agent Flow
 
@@ -870,7 +872,7 @@ Hub endpoints (canonical bare form): `POST /hub/tips/challenge`,
 `POST /hub/tips/claim`, `POST /hub/tips/refund`. See
 https://nibgate.xyz/discovery.md for the payer/agent view.
 
-Funded held tips appear in the public ledger with `status: "held"` while
+Funded held tips matched by contentId to indexed content on verified sites appear in the public ledger with `status: "held"` while
 awaiting a claim. They do not count as completed tips; a payer refund appears as
 a negative tip entry so the refunded amount nets out.
 

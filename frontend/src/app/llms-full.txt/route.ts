@@ -76,11 +76,14 @@ The private architecture uses browser encryption, a verified Phala worker and en
 
 ## API endpoints
 
+Public feeds and stats exclude Nibshare entirely. Tips appear only when matched by contentId to nondeleted indexed content on verified nondeleted sites. Browsing identifiers and referrers are withheld, and unlock/payment counts use verified receipts. Public metadata assumes indexed content on verified sites; no opt-in visibility flag exists for historical URLs.
+
 - ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
-- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips including pending funded holds, ratings, nibshares; refunds are negative entries; no share links).
+
+- ${api}/hub/ledger?limit=100 — Public ledger on verified indexed content (views, verified unlocks/payments, matching content-linked tips and ratings; held tips pending; refunds negative). Nibshare, browsing identifiers and referrers are excluded.
 - ${api}/hub/tips/held?domain={domain} — Exact-domain lookup for funded, unclaimed tips (including external sites); claimable by the site owner, refundable by the payer. Results are specific to this API deployment's network.
 - ${api}/hub/tips/refund — Payer-signed exact refund of unclaimed held tips (no fee); accepts EOA personal_sign or deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization.
-- ${api}/hub/stats — Platform totals (revenue incl. tips + nibshares, protocol fees).
+- ${api}/hub/stats — Public totals (verified unlocks, matching content-linked tips, protocol fees; Nibshare excluded).
 - ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
 - ${api}/nibshare/{slug}/manifest — Public manifest for a nibshare.
 - ${api}/hub/reputation/leaderboards — Ranked reputation leaderboards.

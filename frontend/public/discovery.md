@@ -23,12 +23,16 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 | Endpoint | Description |
 |---|---|
 | `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
-| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips (including pending funded holds with `status: held`), ratings, and nibshares (`type=nibshare`). Held tips do not count toward completed-tip totals; refunds appear as negative entries. Nibshare entries show titles, wallets, and amounts but never the private share link |
+| `GET /hub/ledger?limit=N&domain=X` | Public ledger: views, verified unlocks/payments, content-linked tips and onchain ratings on verified sites. Nibshare is excluded. Funded held tips have `status: held` and do not count toward completed-tip totals; refunds appear as negative entries |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/preflight` | Free dry run for the direct-USDC rail — check price, recipient, and payer balance **before** sending an irreversible transfer. Never charges. |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
 | `GET /hub/reputation/ratings/stats?contentId=` | Read a content's on-chain rating stats (average 1-5, count) |
 | `POST /hub/site/info` | Get site info by siteId + token |
+
+Public feeds and stats exclude Nibshare entirely. Tips appear only when matched by contentId to nondeleted indexed content on verified nondeleted sites. Browsing identifiers and referrers are withheld, and unlock/payment counts use verified receipts. Public metadata assumes indexed content on verified sites; no opt-in visibility flag exists for historical URLs.
+
+`GET /hub/stats` uses the same public boundary. Leaderboards exclude private-share contributions; `rankingScope: "first-500-candidates"` identifies bounded rankings.
 
 ### Creator sites
 
@@ -88,7 +92,7 @@ hub reserves the message digest before relaying and accepts EIP-191 `personal_si
 from an EOA or an ERC-1271 signature from a deployed smart-contract wallet,
 sums that payer's still-held tips for the domain, relays the on-chain refund
 via the keeper, preserves any partially refunded held-row remainder, and writes
-a negative ledger row so totals net out. Refunds
+a negative tip record so totals net out (public ledger inclusion still requires eligible indexed content). Refunds
 only ever return funds to the payer. There is **no refund** for tips that
 already settled (resolved creators) or were already claimed.
 
@@ -176,7 +180,7 @@ retry step 5. Never broadcast a second transfer for an existing payment.
 
 **Recording:** all settled payments are recorded server-side at the payment
 layer — receipts, metrics, and the public ledger treat machine payers exactly
-like browser users. No client-side event reporting is required. Each receipt
+like browser users, subject to the public-feed eligibility rules above. No client-side event reporting is required. Each receipt
 carries the 1% protocol fee.
 
 ### Rating Flow

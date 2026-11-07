@@ -1,6 +1,6 @@
 import ExploreCollectionPage from "../_components/ExploreCollectionPage";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default function AgentRoutesExplorePage() {
   return <ExploreCollectionPage q="agent" />;

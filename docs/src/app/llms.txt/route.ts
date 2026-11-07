@@ -47,6 +47,8 @@ Mainnet and testnet: submitted tip proofs are not verified receipts. Retry the o
 
 Dr. Nib's ordinary research API/MCP is retired on both networks. Its testnet deployment stopped on 26 Oct 2026; ordinary API examples in the pages below are historical reference. Use the private Dr. Nib app on testnet.nibgate.xyz or nibgate.xyz for new research. Owners can read older plaintext testnet reports and ledgers at https://testnet.nibgate.xyz/dr-nib/legacy; this authenticated archive is read-only and separate from encrypted private projects.
 
+Public feeds and stats exclude Nibshare entirely. Tips appear only when matched by contentId to nondeleted indexed content on verified nondeleted sites. Browsing identifiers and referrers are withheld, and unlock/payment counts use verified receipts. Public metadata assumes indexed content on verified sites; no opt-in visibility flag exists for historical URLs.
+
 ## Pages
 
 ${PAGES.map(([url, desc]) => `- [${url}](${url}) — ${desc}`).join("\n")}

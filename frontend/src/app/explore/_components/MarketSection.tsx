@@ -97,6 +97,9 @@ export default function MarketSection({
   useEffect(() => {
     if (!trimmedQuery) return;
     const seq = ++searchSeq.current;
+    setSearching(true);
+    setSearchError("");
+    setRemoteResults(null);
     const timer = setTimeout(async () => {
       if (searchSeq.current !== seq) return;
       try {
@@ -105,10 +108,11 @@ export default function MarketSection({
         params.set("sort", sort);
         params.set("limit", "100");
         if (effectiveType && effectiveType !== "All") params.set("type", effectiveType.toLowerCase());
-        const res = await fetch(`/hub/explore/content?${params.toString()}`);
+        const res = await fetch(`/hub/explore/content?${params.toString()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const content = Array.isArray(data.content) ? data.content : [];
+        if (data.success === false || !Array.isArray(data.content)) throw new Error("Invalid discovery response");
+        const content = data.content;
         if (searchSeq.current !== seq) return;
         setRemoteResults(content.map(toExploreProduct));
       } catch {
@@ -119,7 +123,7 @@ export default function MarketSection({
         if (searchSeq.current === seq) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); searchSeq.current += 1; };
   }, [trimmedQuery, sort, effectiveType]);
 
   const filteredProducts = useMemo(() => {
@@ -172,7 +176,7 @@ export default function MarketSection({
             </p>
           )}
           <div className="market-grid">
-            {visibleProducts.length === 0 ? (
+            {searchError ? <p role="status" className="explore-empty-state">Search results could not be loaded.</p> : searching ? <p role="status" className="explore-empty-state">Loading search results…</p> : visibleProducts.length === 0 ? (
               <div className="explore-empty-state market-empty-state">
                 <p>
                   {trimmedQuery && !searching

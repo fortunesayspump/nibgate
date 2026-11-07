@@ -47,7 +47,7 @@ function displayType(type = "") {
 function fallbackImage(content: ExploreContent) {
   if (content.imageUrl) return content.imageUrl;
   if (content.websiteOgImageUrl) return content.websiteOgImageUrl;
-  return `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(content.title || content.websiteDomain || "nibgate")}`;
+  return "";
 }
 
 function parseTags(content: ExploreContent) {
@@ -63,13 +63,14 @@ export async function getExploreProducts(params: { q?: string; type?: string; so
   if (params.limit) search.set("limit", String(params.limit));
 
   try {
-    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { next: { revalidate: 300 } });
-    if (!res.ok) return [];
+    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { cache: "no-store" });
+    if (!res.ok) return null;
     const data = await res.json();
-    const content = Array.isArray(data.content) ? data.content as ExploreContent[] : [];
+    if (data.success === false || !Array.isArray(data.content)) return null;
+    const content = data.content as ExploreContent[];
     return content.map(toExploreProduct);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -87,7 +88,7 @@ export function toExploreProduct(content: ExploreContent): ExploreProduct {
     unlockCount: content.unlocks || 0,
     tags: parseTags(content),
     image: fallbackImage(content),
-    avatar: content.websiteFaviconUrl || '/nibgate-mark.svg',
+    avatar: content.websiteFaviconUrl || "",
     topCreator: (content.unlocks || 0) > 0,
     url: content.url,
     views: content.views || 0,

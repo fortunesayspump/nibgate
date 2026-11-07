@@ -1,3 +1,4 @@
+import ExploreUnavailable from "../_components/ExploreUnavailable";
 import MarketSection from "../_components/MarketSection";
 import { getExploreProducts } from "../_data/explore-content";
 
@@ -9,5 +10,7 @@ export default async function ProductsPage({ searchParams }: { searchParams?: Pr
   const type = typeof params?.type === "string" ? params.type : "";
   const sort = typeof params?.sort === "string" ? params.sort : "trending";
   const products = await getExploreProducts({ q, type, sort, limit: 100 });
+  if (products === null) return <ExploreUnavailable />;
+
   return <MarketSection products={products} />;
 }

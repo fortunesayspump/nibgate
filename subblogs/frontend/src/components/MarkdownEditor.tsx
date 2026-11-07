@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { uploadJson } from "@/lib/upload";
 
-const API = "/api";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 const iconClass = "w-4 h-4";
 const btn = "inline-flex items-center justify-center w-7 h-7 text-xs border rounded cursor-pointer font-medium leading-none transition-all hover:brightness-90";

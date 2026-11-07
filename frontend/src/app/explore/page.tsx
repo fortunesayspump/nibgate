@@ -9,14 +9,14 @@ import { getExploreProducts } from "./_data/explore-content";
 export const revalidate = 300;
 
 export default async function ExploreHome() {
-  const products = await getExploreProducts({ limit: 200, sort: "site-order" });
+  const products = await getExploreProducts({ limit: 200, sort: "trending" });
 
   return (
     <>
       <ExploreIntro />
-      <FeaturedSection products={products ?? []} unavailable={!products} />
+      <FeaturedSection products={products} />
       <ExploreControls />
-      <MarketSection products={products ?? []} unavailable={!products} />
+      <MarketSection products={products} />
       <LeaderboardPreview />
       <WishlistSection />
     </>

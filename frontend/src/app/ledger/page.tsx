@@ -76,7 +76,6 @@ export default function LedgerPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState(false);
-  const [totalsAvailable, setTotalsAvailable] = useState(false);
   const [serverTotals, setServerTotals] = useState({ views: 0, unlocks: 0, payments: 0, ratings: 0, tips: 0, nibshareViews: 0, nibshareUnlocks: 0, nibshareRevenue: 0, total: 0 });
 
   const [newItemIds, setNewItemIds] = useState<Set<string>>(new Set());
@@ -90,10 +89,8 @@ export default function LedgerPage() {
       const currentSkip = append ? activitiesRef.current.length : 0;
       const url = `/hub/ledger?limit=50&skip=${currentSkip}${filter ? `&type=${filter}` : ""}`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Ledger unavailable");
       const data = await res.json();
       if (data.success) {
-        setTotalsAvailable(true);
         const items = data.activities || [];
         if (append) {
           setActivities((prev) => [...prev, ...items]);
@@ -104,7 +101,7 @@ export default function LedgerPage() {
         setHasMore(data.hasMore || false);
         if (data.totals) setServerTotals(data.totals);
       }
-    } catch { setTotalsAvailable(false); } finally { setLoading(false); setLoadingMore(false); }
+    } catch {} finally { setLoading(false); setLoadingMore(false); }
   }, [filter]);
 
   const pollNew = useCallback(async () => {
@@ -162,13 +159,13 @@ export default function LedgerPage() {
             <div>
               <p className="text-xl font-medium">Ledger</p>
               <h1 className="nibgate-display-title mt-4 max-w-4xl text-5xl font-medium md:text-7xl">Network activity.</h1>
-              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Network activity totals include private shares. Individual historical events are temporarily unavailable.</p>
+              <p className="mt-6 max-w-3xl text-xl leading-8 opacity-75">Live feed of views, unlocks, payments, ratings, tips, and nibshares across all sites — every entry is verifiable with on-chain proofs or signed receipts. Nibshare links stay private: titles and payments show, links never do.</p>
             </div>
           </div>
 
           {/* Totals — barometer animation. Flex (not grid) so tiles size to their
               content: one line each, no overflow, no stretched boxes. */}
-          {totalsAvailable && <div className="flex flex-wrap justify-center gap-3 mt-8">
+          <div className="flex flex-wrap justify-center gap-3 mt-8">
             {(filter === "nibshare"
               ? [
                   { label: "Nibshare total", value: serverTotals.nibshareViews + serverTotals.nibshareUnlocks },
@@ -191,7 +188,7 @@ export default function LedgerPage() {
                 <strong className="ml-2 whitespace-nowrap tabular-nums">{"amount" in s && s.amount != null ? (<>{s.amount.toFixed(2)} <span className="text-xs font-normal opacity-60">USDC</span></>) : <CountUp value={s.value || 0} />}</strong>
               </div>
             ))}
-          </div>}
+          </div>
 
           {/* Search + Filter */}
           <div className="mt-6 flex flex-col gap-3 lg:flex-row">
@@ -214,7 +211,7 @@ export default function LedgerPage() {
           {loading ? (
             <p className="mt-8 text-sm opacity-65">Loading...</p>
           ) : filtered.length === 0 ? (
-            <p className="mt-8 text-sm opacity-65">{totalsAvailable ? "Individual historical events are temporarily unavailable." : "Ledger totals are temporarily unavailable."}</p>
+            <p className="mt-8 text-sm opacity-65">No activity found.</p>
           ) : (
             <section className="mt-8 overflow-hidden border bg-white" style={{ borderColor: 'var(--nib-border-soft)' }}>
               <div className="overflow-x-auto">

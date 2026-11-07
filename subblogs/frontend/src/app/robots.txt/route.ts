@@ -10,7 +10,7 @@ Sitemap: ${siteUrl}/sitemap.xml`;
 
   return new Response(text, { headers: {
     "Content-Type": "text/plain",
-    "Cache-Control": "private, no-store",
-
+    "Cache-Control": "public, max-age=300",
+    "Vercel-CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=86400",
   } });
 }

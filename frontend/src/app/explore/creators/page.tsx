@@ -4,7 +4,6 @@ import { getExploreProducts } from "../_data/explore-content";
 export const revalidate = 300;
 
 export default async function CreatorsPage() {
-  const products = await getExploreProducts({ limit: 100, sort: "site-order" });
-  if (!products) return <p className="explore-empty-state" role="status">Explore is temporarily unavailable.</p>;
+  const products = await getExploreProducts({ limit: 100, sort: "trending" });
   return <CreatorSection products={products} />;
 }

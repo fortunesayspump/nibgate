@@ -81,7 +81,7 @@ export default function CookieConsent() {
       <p className="mt-1.5 text-[13px] leading-6 opacity-70">
         Essential cookies keep you signed in and remember theme and wallet state. Optional analytics help us
         understand whether setup, Explore, and dashboard flows work.{" "}
-        <span>Cookie policy temporarily unavailable</span>
+        <a href="/cookies" className="underline underline-offset-2">Cookie policy</a>
       </p>
       {customizing && (
         <div className="mt-3 space-y-2 rounded-xl p-3 text-[13px]" style={{ background: "var(--nib-surface-soft)", accentColor: "var(--nib-focus)" }}>

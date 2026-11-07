@@ -111,7 +111,7 @@ The rest fills in automatically from your page's HTML:
 
 Allowed types: `article`, `image`, `music`, `video`, `document` (aliases like `audio→music`, `photo→image` are normalized). Use stable IDs — changing IDs breaks continuity for Explore, receipts, and reputation.
 
-**Important:** The `image`, `description`, and `title` fields may be used as public metadata by integrations. Use a teaser preview, not the actual paid file. Explore currently shows only a bounded sample of public hosted creator articles.
+**Important:** The `image`, `description`, and `title` fields become the public thumbnail and card copy on the Explore page. Use a teaser preview, not the actual paid file.
 
 ---
 
@@ -464,7 +464,7 @@ Some smart contract wallets (Gnosis Safe, Argent, etc.) may not support `eth_sig
 
 AI agents can discover and purchase content on Nibgate through the same x402 protocol used by browser wallets — no browser, HTML, or widget needed. Full payer guide: `https://nibgate.xyz/discovery.md`.
 
-Settled payments are recorded server-side at the payment layer for machine and browser payers, with no client-side event reporting required. The site’s historical activity feed is currently unavailable.
+All settled payments are recorded server-side at the payment layer — receipts, metrics, and the public ledger treat machine payers exactly like browser users, with no client-side event reporting required.
 
 ### Agent Flow
 
@@ -475,7 +475,7 @@ Settled payments are recorded server-side at the payment layer for machine and b
    Accept: application/json
    ```
 
-   The mainnet response is a bounded sample of currently public hosted creator articles with price, currency, site domain, page URL and per-article manifest URL. It is not a complete index; historical rankings are unavailable. Testnet discovery is unavailable. Use the article manifest and its payment challenge for payment details rather than treating a discovery ID as a Hub content ID.
+   Response includes content with `price`, `currency`, `access` policy, `websiteDomain`, and the creator's `recipientWallet`.
 
    Standalone share links work without any manifest: `GET https://api.nibgate.xyz/ns/{slug}` — free shares return the body directly; paid shares return a 402 challenge.
 
@@ -588,7 +588,7 @@ After a verified unlock, users can rate content onchain through the reputation c
 2. rating UI calls `rateContentOnchain(resource, { rating, paymentId })`
 3. User signs an onchain transaction with their rating
 4. Rating is submitted to the hub with its on-chain proof and indexed
-5. Rating may contribute to reputation indexing; historical scores are unavailable in the current Explore sample.
+5. Rating contributes to content/creator reputation scores on Explore and leaderboards
 
 Read ratings back via `GET /hub/reputation/ratings/stats?contentId=` (hub-authoritative average 1–5 + count). Never recompute the content hash locally — stored url/domain forms drift across stacks and renames, which silently orphans the lookup.
 
@@ -644,7 +644,7 @@ NIBGATE_PAYMENT_NETWORK=eip155:5042002
 NIBGATE_SELLER_ADDRESS=0xCreatorReceiver
 ```
 
-**Without `NIBGATE_SITE_ID` and `NIBGATE_SITE_TOKEN`**, `accessResponse()` still processes x402 payments and returns unlock proofs, but `payment_completed` and `unlock_completed` events are NOT sent to the Hub. Explore currently does not display historical unlock or revenue metrics. Set these to enable automatic event reporting after every successful gateway purchase.
+**Without `NIBGATE_SITE_ID` and `NIBGATE_SITE_TOKEN`**, `accessResponse()` still processes x402 payments and returns unlock proofs, but `payment_completed` and `unlock_completed` events are NOT sent to the Hub. Unlock counts, revenue, and volume on Explore and leaderboards will not update. Set these to enable automatic event reporting after every successful gateway purchase.
 
 Only expose values with `NEXT_PUBLIC_` or client-side env names when they are intentionally public (site id, public token, API base, reputation contract address). Never ship `NIBGATE_SECRET`, private keys, R2 credentials, Resend keys, database URLs, or privileged payment credentials to browser code.
 
@@ -657,7 +657,7 @@ Only expose values with `NEXT_PUBLIC_` or client-side env names when they are in
 - **Custom backends must handle `payment-signature` header.** If you build your own access route without `accessResponse()`, your route must detect `payment-signature` header and return 200 on valid proof, not 402.
 - **Cookie `[object Object]` bug.** The unlock proof must be a string (the token from `createUnlockToken`), not an object. `storePaymentProof` now handles both, but ensure your server returns `unlockProof` as a string.
 - **Secrets must match.** `NIBGATE_SECRET` must be the same in `createNibgateServer()`, the access route, and the pay route. Mismatch causes unlock tokens to fail verification silently.
-- **Unlock events need three env vars.** `accessResponse()` emits `payment_completed` and `unlock_completed` to the Hub after gateway payment, but only if `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE` are set. Without them, the x402 payment still works and the unlock proof is returned. Explore currently does not display historical unlock or revenue metrics.
+- **Unlock events need three env vars.** `accessResponse()` emits `payment_completed` and `unlock_completed` to the Hub after gateway payment, but only if `NIBGATE_SITE_ID`, `NIBGATE_SITE_TOKEN`, and `NIBGATE_API_BASE` are set. Without them, the x402 payment still works and the unlock proof is returned, but unlock counts and volume on Explore will not update.
 - **Smart contract wallets** may not support `eth_signTypedData_v4`. Use an EOA or the server-side pay route.
 - **Wallet extension conflicts** can cause signature corruption if multiple wallets are installed. Advise users to disable other wallet extensions when testing.
 - **Deposit before testing locally.** Run `pnpm --filter @nibgate/cli exec node bin/nibgate.js deposit 10` to fund the Gateway facilitator balance.
@@ -870,7 +870,9 @@ Hub endpoints (canonical bare form): `POST /hub/tips/challenge`,
 `POST /hub/tips/claim`, `POST /hub/tips/refund`. See
 https://nibgate.xyz/discovery.md for the payer/agent view.
 
-The public ledger shows network-wide totals; individual held and refunded tip events are unavailable. Held tips do not count as completed tips.
+Funded held tips appear in the public ledger with `status: "held"` while
+awaiting a claim. They do not count as completed tips; a payer refund appears as
+a negative tip entry so the refunded amount nets out.
 
 Creators can check pending tips for any domain, including an external site that
 is not registered with Nibgate, using `GET /hub/tips/held?domain=<domain>`.

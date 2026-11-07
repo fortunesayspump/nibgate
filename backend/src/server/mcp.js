@@ -1,8 +1,6 @@
 import { db } from '@nibgate/internal/db.js';
-import { creatorOrigin, getPublicDiscovery } from './hub/manifest-discovery.js';
-import { ledgerTotals } from './hub/ledger-totals.js';
 import {
-  serializeContent,
+  normalizeContentType, serializeContent,
   siteReputationScore, creatorReputationScore, primaryWalletAddress,
   tipRevenueByContentId, attributeTips, nibshareStatsByWallet, platformMoneyTotals,
 } from './hub/helpers.js';
@@ -11,7 +9,7 @@ import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.16';
+const SERVER_VERSION = '0.2.14';
 
 // Per-stack settlement facts for tool instructions (Circle CLI chain flag,
 // API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
@@ -31,12 +29,165 @@ const CONTENT_INCLUDE = { website: true, metrics: true, ratings: true, unlockRec
 // ── Tool implementations (mirror the public hub query shapes) ────────────
 
 async function exploreContent(args = {}) {
-  return getPublicDiscovery(db,{limit:20,...args},{network:activeNetwork().name});
+  const q = String(args.q || '').trim();
+  const requestedType = String(args.type || '').trim().toLowerCase();
+  const type = normalizeContentType(requestedType);
+  const sort = String(args.sort || 'trending').trim().toLowerCase();
+  const limit = Math.min(Math.max(Number.parseInt(args.limit || '20', 10) || 20, 1), 100);
+  const skip = Math.max(Number.parseInt(args.skip || '0', 10) || 0, 0);
+
+  const where = {
+    deletedAt: null,
+    website: VERIFIED_SITE_WHERE,
+    ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
+    ...(q ? {
+      OR: [
+        { title: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { tags: { contains: q, mode: 'insensitive' } },
+        { website: { name: { contains: q, mode: 'insensitive' } } },
+        { website: { domain: { contains: q, mode: 'insensitive' } } },
+      ],
+    } : {}),
+  };
+
+  const [content, total] = await Promise.all([
+    db.content.findMany({ where, include: CONTENT_INCLUDE, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+    db.content.count({ where }),
+  ]);
+
+  const serialized = content.map(serializeContent).sort((a, b) => {
+    if (sort === 'best-sellers') return (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
+    if (sort === 'hot-new') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    return (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
+  });
+
+  return { success: true, content: serialized, total, limit, skip };
 }
 
 async function getLedger(args = {}) {
-  if (args.domain) throw new Error('Per-site activity is unavailable');
-  return { success: true, activities: [], totals: await ledgerTotals(db), activityStatus: 'unavailable' };
+  const limit = Math.min(Math.max(Number.parseInt(args.limit || '20', 10) || 20, 1), 100);
+  const skip = Math.max(Number.parseInt(args.skip || '0', 10) || 0, 0);
+  const type = String(args.type || '').trim().toLowerCase();
+  const domain = String(args.domain || '').trim().toLowerCase() || undefined;
+  const siteWhere = domain ? { website: { domain } } : { website: VERIFIED_SITE_WHERE };
+
+  const activities = [];
+
+  if (!type || type === 'views') {
+    const views = await db.metric.findMany({
+      where: { type: 'view', contentId: { not: null }, ...siteWhere },
+      include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
+      orderBy: { createdAt: 'desc' }, take: limit, skip,
+    });
+    for (const v of views) activities.push({
+      type: 'view', id: v.id, websiteId: v.websiteId, actor: v.visitorId || 'anonymous',
+      contentId: v.contentId, contentTitle: v.content?.title || '', contentUrl: v.content?.url || v.url || '',
+      domain: v.website?.domain || '', referrer: v.referrer || null, durationMs: v.durationMs || null,
+      timestamp: v.createdAt,
+    });
+  }
+
+  if (!type || type === 'unlocks') {
+    const unlocks = await db.metric.findMany({
+      where: { eventName: 'unlock_completed', contentId: { not: null }, ...siteWhere },
+      include: { content: { select: { id: true, title: true, url: true, price: true, currency: true } }, website: { select: { domain: true } } },
+      orderBy: { createdAt: 'desc' }, take: limit, skip,
+    });
+    for (const u of unlocks) activities.push({
+      type: 'unlock', id: u.id, websiteId: u.websiteId, actor: u.visitorId || u.sessionId || 'user',
+      contentId: u.contentId, contentTitle: u.content?.title || '', contentUrl: u.content?.url || u.url || '',
+      domain: u.website?.domain || '', revenue: u.revenue || 0, currency: u.currency || 'USDC',
+      timestamp: u.createdAt,
+    });
+  }
+
+  if (!type || type === 'payments') {
+    const payments = await db.unlockReceipt.findMany({
+      where: { ...siteWhere, status: 'verified', paymentProvider: { in: ['circle-gateway', 'direct-transfer'] } },
+      include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
+      orderBy: { createdAt: 'desc' }, take: limit, skip,
+    });
+    for (const p of payments) activities.push({
+      type: 'payment', id: p.id, websiteId: p.websiteId, actor: p.payerWallet || p.actor || 'wallet',
+      contentId: p.contentId, contentTitle: p.content?.title || '', contentUrl: p.content?.url || '',
+      domain: p.website?.domain || '', amount: p.amount || 0, protocolFee: p.protocolFee, currency: p.currency || 'USDC',
+      paymentId: p.paymentId, txHash: p.txHash || null, chainId: p.chainId || null,
+      network: p.network || null, paymentProvider: p.paymentProvider || null, receiptUrl: p.receiptUrl || null,
+      payerWallet: p.payerWallet || null, recipientWallet: p.recipientWallet || null,
+      timestamp: p.createdAt,
+    });
+  }
+
+  if (!type || type === 'ratings') {
+    const ratings = await db.contentRating.findMany({
+      where: { status: 'accepted', proof: { startsWith: 'onchain:' }, ...siteWhere },
+      include: { content: { select: { id: true, title: true, url: true } }, website: { select: { domain: true } } },
+      orderBy: { createdAt: 'desc' }, take: limit, skip,
+    });
+    for (const r of ratings) activities.push({
+      type: 'rating', id: r.id, websiteId: r.websiteId, actor: r.walletAddress || r.actor || 'user',
+      contentId: r.contentId, contentTitle: r.content?.title || '', contentUrl: r.content?.url || '',
+      domain: r.website?.domain || '', score: Math.round((r.ratingValue || 0) / 10),
+      walletAddress: r.walletAddress || null, txHash: r.txHash || null, proofType: r.proofType || null,
+      timestamp: r.createdAt,
+    });
+  }
+
+  if (!type || type === 'tips') {
+    const tips = await db.tip.findMany({
+      where: {
+        status: { in: ['held', 'settled', 'released', 'refunded'] },
+        ...(domain ? { contentUrl: { contains: domain } } : {}),
+      },
+      orderBy: { createdAt: 'desc' }, take: limit, skip,
+    }).catch(() => []);
+    for (const t of tips) {
+      let tipDomain = '';
+      try { tipDomain = new URL(t.contentUrl).hostname; } catch {}
+      activities.push({
+        type: 'tip', id: t.id, websiteId: t.websiteId || null, actor: t.payerWallet || 'wallet',
+        contentId: t.contentId || null, contentTitle: t.title || t.contentUrl, contentUrl: t.contentUrl,
+        domain: tipDomain, imageUrl: t.imageUrl || null, amount: t.amount || 0,
+        protocolFee: t.protocolFee ?? null, feeBps: t.feeBps ?? null, currency: t.currency || 'USDC',
+        timestamp: t.createdAt, paymentId: t.paymentId || null, txHash: t.txHash || null,
+        network: t.network || null, paymentProvider: t.paymentProvider || null,
+        payerWallet: t.payerWallet || null, recipientWallet: t.recipientWallet || null,
+        payeeWallet: t.payeeWallet || null, status: t.status || 'settled',
+      });
+    }
+  }
+
+  if ((!type || type === 'nibshare') && !domain) {
+    const [nibViewRows, nibReceiptRows] = await Promise.all([
+      db.nibShareEvent.findMany({
+        where: { type: 'view', share: { status: { not: 'draft' } } },
+        include: { share: { select: { title: true, ownerWallet: true } } },
+        orderBy: { createdAt: 'desc' }, take: limit, skip,
+      }).catch(() => []),
+      db.nibShareReceipt.findMany({
+        where: { amount: { gt: 0 }, share: { status: { not: 'draft' } } },
+        include: { share: { select: { title: true, ownerWallet: true, currency: true } } },
+        orderBy: { unlockedAt: 'desc' }, take: limit, skip,
+      }).catch(() => []),
+    ]);
+    // Privacy-safe: title, wallets, amounts, tx — NEVER the share link.
+    for (const v of nibViewRows) activities.push({
+      type: 'nibshare_view', id: v.id, source: 'nibshare', actor: v.wallet || 'anonymous',
+      contentTitle: v.share?.title || 'Private share', domain: 'nibshare',
+      ownerWallet: v.share?.ownerWallet || null, timestamp: v.createdAt,
+    });
+    for (const r of nibReceiptRows) activities.push({
+      type: 'nibshare_unlock', id: r.id, source: 'nibshare', actor: r.payerWallet || 'wallet',
+      contentTitle: r.share?.title || 'Private share', domain: 'nibshare',
+      ownerWallet: r.share?.ownerWallet || null, amount: r.amount || 0,
+      protocolFee: r.protocolFee ?? null, currency: r.share?.currency || 'USDC',
+      txHash: r.txHash || null, payerWallet: r.payerWallet || null, timestamp: r.unlockedAt,
+    });
+  }
+
+  activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return { success: true, activities: activities.slice(0, limit), total: activities.length, limit, skip };
 }
 
 async function getPlatformStats() {
@@ -74,7 +225,22 @@ async function getLeaderboards(args = {}) {
   const limit = Math.min(Math.max(Number.parseInt(args.limit || '10', 10) || 10, 1), 50);
   const skip = Math.max(Number.parseInt(args.skip || '0', 10) || 0, 0);
 
-  if (type === 'content') throw new Error('Content rankings are temporarily unavailable');
+  if (type === 'content') {
+    const content = await db.content.findMany({
+      where: { deletedAt: null, website: VERIFIED_SITE_WHERE },
+      include: CONTENT_INCLUDE, take: 500,
+    });
+    const tipByContent = await tipRevenueByContentId(content.map((c) => c.id));
+    const items = content.map(serializeContent).map((c) => ({
+      ...c,
+      tipRevenue: tipByContent.get(c.id) || 0,
+      revenue: c.revenue + (tipByContent.get(c.id) || 0),
+    }))
+      .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
+      .slice(skip, skip + limit)
+      .map((c, i) => ({ rank: skip + i + 1, ...c }));
+    return { success: true, type: 'content', items, limit, skip };
+  }
 
   if (type === 'sites') {
     const websites = await db.website.findMany({
@@ -130,19 +296,27 @@ async function getLeaderboards(args = {}) {
       if (wl.address) allWallets.push(wl.address);
     }
   }
-  const creatorTips = await attributeTips({ contentToSite: contentToOwner, siteToOwner, domainToSite });
+  const [creatorTips, creatorNib] = await Promise.all([
+    attributeTips({ contentToSite: contentToOwner, siteToOwner, domainToSite }),
+    nibshareStatsByWallet(allWallets),
+  ]);
   const items = users.map((user) => {
     const websites = user.websites || [];
     const content = websites.flatMap((w) => w.content.map(serializeContent));
     const tipRevenue = creatorTips.byOwner.get(user.id) || 0;
+    const nib = { revenue: 0, unlocks: 0, views: 0 };
+    for (const wl of user.wallets || []) {
+      const s = creatorNib.get(String(wl.address || '').toLowerCase());
+      if (s) { nib.revenue += s.revenue; nib.unlocks += s.unlocks; nib.views += s.views; }
+    }
     return {
       id: user.id, name: user.username || 'Unnamed creator', walletAddress: primaryWalletAddress(user),
       reputationScore: creatorReputationScore(content, websites),
       verifiedSites: websites.length, contentCount: content.length,
       views: content.reduce((s, c) => s + c.views, 0),
       unlocks: content.reduce((s, c) => s + c.unlocks, 0),
-      revenue: content.reduce((s, c) => s + c.revenue, 0) + tipRevenue,
-      tipRevenue,
+      revenue: content.reduce((s, c) => s + c.revenue, 0) + tipRevenue + nib.revenue,
+      tipRevenue, nibshareRevenue: nib.revenue, nibshareUnlocks: nib.unlocks, nibshareViews: nib.views,
     };
   }).filter((c) => c.contentCount > 0 || c.verifiedSites > 0)
     .sort((a, b) => ((b.reputationScore || 0) - (a.reputationScore || 0)) || (b.unlocks - a.unlocks) || (b.views - a.views))
@@ -175,13 +349,13 @@ async function resolveShare(args = {}) {
 const TOOLS = [
   {
     name: 'explore_content',
-    description: 'Search a bounded mainnet sample of current public articles from verified creator-host manifests. Historical metrics and rankings are unavailable; results are ordered by site, not popularity or recency. Testnet is unavailable.',
+    description: 'Search verified creator content on Nibgate. Returns content metadata (title, type, price, domain, reputation, unlock path). Use to discover what paid/free content exists.',
     inputSchema: {
       type: 'object',
       properties: {
         q: { type: 'string', description: 'Search term across title, description, tags, site name, and domain.' },
         type: { type: 'string', enum: ['article', 'music', 'video', 'image', 'document', 'all'], description: 'Content type filter.' },
-        sort: { type: 'string', enum: ['site-order'], description: 'Site order; historical rankings are unavailable.' },
+        sort: { type: 'string', enum: ['trending', 'best-sellers', 'hot-new'], description: 'Sort order. Defaults to trending.' },
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default 20).' },
         skip: { type: 'integer', minimum: 0, description: 'Pagination offset.' },
       },
@@ -190,8 +364,16 @@ const TOOLS = [
   },
   {
     name: 'get_ledger',
-    description: 'Network-wide activity totals including private-share activity. Individual events and per-site filters are unavailable.',
-    inputSchema: { type: 'object', properties: {} },
+    description: 'Get the public Nibgate activity ledger: recent views, unlocks, payments, tips (including funded pending holds marked status=held), onchain ratings, and privacy-safe nibshare views/unlocks (titles, wallets, amounts, tx — never the private share link) across verified sites. Held tips are pending and do not count toward completed-tip totals; refunds appear as negative tip entries. Use GET /hub/tips/held?domain={domain} to check pending tips for any exact domain, including external sites. Includes wallet addresses, tx hashes, and receipts where available.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default 20).' },
+        skip: { type: 'integer', minimum: 0, description: 'Pagination offset.' },
+        type: { type: 'string', enum: ['views', 'unlocks', 'payments', 'ratings', 'tips', 'nibshare'], description: 'Filter by activity type.' },
+        domain: { type: 'string', description: 'Filter by site domain, e.g. example.nibgate.xyz.' },
+      },
+    },
     handler: getLedger,
   },
   {
@@ -214,7 +396,7 @@ const TOOLS = [
   },
   {
     name: 'get_leaderboards',
-    description: 'Creator and site rankings; content rankings are temporarily unavailable.',
+    description: 'Get ranked creators, sites, or content by reputation score, unlocks, views, and revenue (unlocks + tips + nibshares).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -233,7 +415,7 @@ function serverInfo() {
     capabilities: { tools: { listChanged: false } },
     serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
     instructions:
-      `Nibgate MCP server: bounded mainnet current public article discovery (site order; testnet unavailable), network-wide activity totals, platform stats, creator and site rankings; content rankings are unavailable, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. Tools are read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge, pay the returned requirement, then POST the proof to /hub/tips/verify (a successful response confirms the resolved tip) or /hub/tips/hold (unresolved/external creator is held in a per-domain contract with no EOA key; the factory owner/keeper relays release/refund after Hub authorization checks, and the contract trusts recipient arguments. It is claimable by the verified creator and refundable by the payer until claimed; payer control accepts EOA personal_sign or deployed ERC-1271 wallets with a fresh domain/payer-bound message). Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged. Full guide: https://nibgate.xyz/discovery.md`,
+      `Nibgate MCP server: verified content discovery, unlock/payment/tip/nibshare ledger (funded held tips appear as pending entries; refunds appear as negative entries; nibshare entries are privacy-safe: no share links), platform stats, reputation leaderboards, and Nibshare link resolution (resolve_share). Tools return JSON matching the public API. All data is public and read-only. Settlements on this server are ${settlementFacts().networkBlurb}. To check pending tips for any domain, including external sites, GET ${settlementFacts().apiBase}/hub/tips/held?domain={domain}; this API host checks only its own network. To unlock paid content after discovery, pay over x402: GET ${settlementFacts().apiBase}/ns/{slug} (or the content access URL) returns 402 with a PAYMENT-REQUIRED header; pay with the Circle Agent Stack CLI (\`circle services pay <url> --address <wallet> --chain ${settlementFacts().circleChain}\`) or any x402 client, then retry the same request to receive the content. To tip a page, POST ${settlementFacts().apiBase}/hub/tips/challenge, pay the returned requirement, then POST the proof to /hub/tips/verify (a successful response confirms the resolved tip) or /hub/tips/hold (unresolved/external creator is held in a per-domain contract with no EOA key; the factory owner/keeper relays release/refund after Hub authorization checks, and the contract trusts recipient arguments. It is claimable by the verified creator and refundable by the payer until claimed; payer control accepts EOA personal_sign or deployed ERC-1271 wallets with a fresh domain/payer-bound message). Completed matching proofs return their original receipt without a second Tip row or Gateway settlement. Preserve the exact proof and request fields when retrying. HTTP 409 payment-proof-already-used rejects a conflicting or unverifiable binding; payment-verification-pending requires reconciliation of an incomplete durable reservation. Never send a fresh payment to recover an ambiguous settlement. Applies to mainnet and testnet; held-tip claim/refund behavior is unchanged. Full guide: https://nibgate.xyz/discovery.md`,
   };
 }
 
@@ -252,7 +434,6 @@ export function registerMcpRoute(app) {
   });
 
   app.post('/mcp', async (req, res) => {
-    res.set('Cache-Control', 'private, no-store');
     const message = req.body || {};
     const { id, method, params } = message;
 
@@ -286,7 +467,7 @@ export function registerMcpRoute(app) {
         }));
       } catch (error) {
         return res.type('application/json').json(jsonRpcResponse(id ?? null, {
-          content: [{ type: 'text', text: name === 'explore_content' ? 'Public discovery temporarily unavailable' : name === 'get_ledger' ? 'Ledger totals temporarily unavailable' : name === 'get_leaderboards' ? 'Rankings are temporarily unavailable' : `Error: ${error.message}` }],
+          content: [{ type: 'text', text: `Error: ${error.message}` }],
           isError: true,
         }));
       }
@@ -308,7 +489,7 @@ export function registerMcpRoute(app) {
         version: SERVER_VERSION,
       },
       description:
-        'Verified content discovery, aggregate activity totals, platform stats, creator and site rankings; content rankings are unavailable, and Nibshare link resolution for the Nibgate open protocol for paid content.',
+        'Verified content discovery, unlock/payment ledger, platform stats, reputation leaderboards, and Nibshare link resolution for the Nibgate open protocol for paid content.',
       documentationUrl: 'https://docs.nibgate.xyz/agent-discovery',
       transport: {
         type: 'streamable-http',
@@ -319,21 +500,50 @@ export function registerMcpRoute(app) {
     });
   });
 
-  // The x402 directory uses the same bounded current-public manifest sample.
-  // A caller-supplied share slug is still resolved separately; no private share
-  // is automatically published through discovery.
+  // x402 discovery fan-out (x402scan compatibility). Resources are resolved at
+  // request time so the listed URLs are always live paid surfaces.
   app.get('/.well-known/x402', async (_req, res) => {
-    res.set('Cache-Control', 'private, no-store');
+    const apiOrigin = (process.env.PUBLIC_API_URL || hostsFor().apiBase).replace(/\/+$/, '');
     try {
-      const listing = await getPublicDiscovery(db, {limit:400,sort:'site-order'}, {network:activeNetwork().name});
-      const resources = listing.content.flatMap(item => {try {const u=new URL(item.url);return item.price>0 && creatorOrigin({domain:u.hostname,deletedAt:null,isVerified:true,verificationStatus:'verified'})===u.origin && /^\/writing\/[A-Za-z0-9_-]{1,200}$/.test(u.pathname) && !u.search && !u.hash && !u.username && !u.password ? [`${u.origin}/api${u.pathname}`] : [];}catch{return []}});
-      return res.type('application/json').json({version:1,resources,scope:listing.scope,coverage:listing.coverage,
-        instructions:'This is a bounded sample of current public creator articles. Request a resource for its payment challenge; discovery excludes private shares.'});
-    } catch {
-      return res.status(503).type('application/json').json({error:'Public discovery temporarily unavailable'});
+      const now = new Date();
+      const [share, post] = await Promise.all([
+        db.nibShare.findFirst({
+          where: { status: 'active', price: { gt: 0 }, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          orderBy: { createdAt: 'desc' },
+          select: { slug: true },
+        }),
+        db.content.findFirst({
+          where: { deletedAt: null, price: { gt: 0 }, website: VERIFIED_SITE_WHERE },
+          // Content carries createdAt only (no updatedAt on the model) —
+          // newest synced surface first.
+          orderBy: { createdAt: 'desc' },
+          select: { path: true, url: true, website: { select: { domain: true } } },
+        }),
+      ]);
+      const resources = [];
+      if (share) resources.push(`${apiOrigin}/ns/${share.slug}`);
+      if (post) {
+        let origin = '';
+        try { origin = post.url ? new URL(post.url).origin : ''; } catch { origin = ''; }
+        if (!origin && post.website?.domain) origin = `https://${post.website.domain}`;
+        let p = post.path || '';
+        if (!p && post.url) {
+          try { p = new URL(post.url).pathname; } catch { p = ''; }
+        }
+        if (origin && p) resources.push(`${origin.replace(/\/+$/, '')}${p.startsWith('/') ? p : `/${p}`}`);
+      }
+      return res.type('application/json').json({
+        version: 1,
+        resources,
+        instructions:
+          'Every Nibgate surface speaks x402. GET a resource without payment to receive its 402 challenge, settle via Circle Gateway micropayments or a direct USDC transfer on ' + settlementFacts().networkBlurb + ', then retry with the payment proof. Discover all paid content via MCP tools at /mcp or GET /hub/explore/content.',
+      });
+    } catch (err) {
+      console.error('[x402-wellknown] discovery query failed:', err?.message || err);
+      // Discovery metadata must never hard-fail.
+      return res.type('application/json').json({ version: 1, resources: [], instructions: `Discover paid content via MCP tools at ${apiOrigin}/mcp.` });
     }
   });
-
 }
 
 // registry discovery surfaces live at the bottom of this file

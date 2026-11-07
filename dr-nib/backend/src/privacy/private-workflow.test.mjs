@@ -3,14 +3,15 @@ import assert from 'node:assert/strict';
 import {createPrivateWorkflow} from './private-workflow.js';
 const state={status:'intake',brief:{topic:'Fictional irrigation study'}};
 const question={key:'follow-up_scope',type:'pick_one',prompt:'Who will use this?',options:[{id:'a',label:'Researchers'},{id:'b',label:'Growers'}]};
-test('explicit empty intake falls back to the original question bank, but malformed output fails',async()=>{
+test('empty or unusable intake questions fall back to the original question bank',async()=>{
  const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:'{"questions":[]}'},finish_reason:'stop'}]}),judge:()=>assert.fail('No empty JEV batch')});
  const out=await workflow({state,action:'intake'});assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,4);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,4);
  const answering=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'I will use those choices to shape the research.'},finish_reason:'stop'}]})});
  const answered=await answering({state:out.state,action:'answers',args:{answers:out.state.questions.map(q=>({seq:q.seq,answer:{optionIds:[q.options[0].id]}}))}});
  assert.equal(answered.state.status,'intake-done');assert.equal(answered.state.decisions.filter(d=>d.kind==='question'&&d.answer).length,4);
  for(const value of [{questions:[{bad:'shape'}]},{other:[]}]){
-  await assert.rejects(createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]})})({state,action:'intake'}),{message:'PRIVATE_INTAKE_INVALID'});
+  const fallback=await createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]})})({state,action:'intake'});
+  assert.equal(fallback.state.questions.length,4);assert.ok(fallback.state.questions.every(q=>q.source==='question-bank'));
  }
 });
 test('the original opener proposes model questions without a premature stop judgment',async()=>{

@@ -85,7 +85,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
         if (action === 'intake') {
             if(!['intake','draft'].includes(s.status))throw Error('PRIVATE_WORKFLOW_STATE_INVALID');
             const generated=await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:[],count:3,allowEmpty:true}));
-            if(generated.source!=='llm')throw Error('PRIVATE_INTAKE_INVALID');
+            if(generated.source!=='llm'&&!['model returned no usable questions','model returned no question list'].includes(generated.llmError))throw Error('PRIVATE_INTAKE_INVALID');
             const qs = questions(generated.questions);
             s.questions = qs;
             s.decisions = qs.map(q => ({ id: randomUUID(), kind: 'question', seq: q.seq, question: q, createdAt: now() }));

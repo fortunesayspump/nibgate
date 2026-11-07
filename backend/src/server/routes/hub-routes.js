@@ -1,4 +1,5 @@
 import { gatewayTipIdentity, transferTipIdentity, tipRequestBinding, recordTipOnce, isTipClaimMetadata } from '../hub/tip-idempotency.js';
+import { getPublicDiscovery } from '../hub/manifest-discovery.js';
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
 import { activeNetwork } from '@nibgate/internal/networks.js';
@@ -11,7 +12,7 @@ import {
   hostnameMatchesSite, eventTypeFor, cleanEventName, clientIpFor, hashValue, cleanTags,
   trackingVisitorHash, checkTrackingRateLimit,
   metricIdentity, claimMetricDedupeKey, dedupeBucketStart, dateRangeWhere,
-  normalizeContentType, upsertTrackedContent, resourcesFromManifest,
+  upsertTrackedContent, resourcesFromManifest,
   paymentPayload, walletFromPayload, paymentIdFromPayload, upsertUnlockReceipt, paymentLikeId,
   upsertContentRating, contentHashFor, verifySignedRating,
   upsertOnchainRatingForContent, createMetric,
@@ -59,7 +60,6 @@ export const LEADERBOARD_CONTENT_INCLUDE = {
 // Explore serializes the same public counters as leaderboards, but does not
 // need a publisher relation. Loading full child rows here pulls payment and
 // tracking metadata into memory for every matching item before pagination.
-const { publisher: _leaderboardPublisher, ...EXPLORE_CONTENT_INCLUDE } = LEADERBOARD_CONTENT_INCLUDE;
 
 export function tipMatchesCanonicalDomain(tip, canonicalDomain) {
   const expected = cleanDomain(canonicalDomain);
@@ -2670,51 +2670,11 @@ export function registerHubRoutes(app) {
   // ── Explore: Content Discovery ──────────────────────────────────────────
 
   app.get('/api/hub/explore/content', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
     try {
-      const q = String(req.query.q || '').trim();
-      const type = normalizeContentType(req.query.type || '');
-      const requestedType = String(req.query.type || '').trim().toLowerCase();
-      const sort = String(req.query.sort || 'trending').trim().toLowerCase();
-      const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '100', 10) || 100, 1), 500);
-      const skip = Math.max(Number.parseInt(req.query.skip || '0', 10) || 0, 0);
-
-      const where = {
-        deletedAt: null,
-        website: { deletedAt: null, isVerified: true, verificationStatus: 'verified' },
-        ...(requestedType && requestedType !== 'all' ? { contentType: type } : {}),
-        ...(q ? { OR: [
-          { title: { contains: q, mode: 'insensitive' } },
-          { description: { contains: q, mode: 'insensitive' } },
-          { tags: { contains: q, mode: 'insensitive' } },
-          { website: { name: { contains: q, mode: 'insensitive' } } },
-          { website: { domain: { contains: q, mode: 'insensitive' } } }
-        ] } : {})
-      };
-
-      const [allContent, total] = await Promise.all([
-        db.content.findMany({
-          where,
-          include: EXPLORE_CONTENT_INCLUDE,
-          orderBy: { createdAt: 'desc' },
-        }),
-        db.content.count({ where })
-      ]);
-
-      const serialized = allContent.map(serializeContent);
-      const sorted = serialized.sort((a, b) => {
-        const va = a.websiteVerified ? 1 : 0;
-        const vb = b.websiteVerified ? 1 : 0;
-        const imgA = a.imageUrl ? 1 : 0;
-        const imgB = b.imageUrl ? 1 : 0;
-        if (sort === 'best-sellers') return (vb - va) || (imgB - imgA) || (b.unlocks - a.unlocks) || (b.revenue - a.revenue) || (b.views - a.views);
-        if (sort === 'hot-new') return (vb - va) || (imgB - imgA) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        return (vb - va) || (imgB - imgA) || (b.views + b.unlocks * 4 + b.revenue * 20) - (a.views + a.unlocks * 4 + a.revenue * 20);
-      });
-
-      const content = sorted.slice(skip, skip + limit);
-      res.json({ success: true, content, total, limit, skip });
+      res.json(await getPublicDiscovery(db, req.query, {network:activeNetwork().name}));
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch explore content' });
+      res.status(error?.status===400?400:503).json({ error: error?.status===400?'Unsupported discovery filters':'Public discovery temporarily unavailable' });
     }
   });
 

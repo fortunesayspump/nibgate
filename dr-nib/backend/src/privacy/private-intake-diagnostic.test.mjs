@@ -24,3 +24,16 @@ test('both completed attempts are diagnosed without copying response text or iss
  const r=await generate('intake',()=>generateIntakeBatch({topic:secret,count:3,allowEmpty:true}));
  assert.equal(r.source,'fallback');assert.equal(calls,2);assert.equal(seen.length,2);assert.ok(seen.every(d=>d.questions===0));assert.ok(!JSON.stringify(seen).includes(secret));
 });
+
+test('intake prompt gives valid JSON and distinguishes opening from finished follow-up',async()=>{
+ const {intakeBatchMessages}=await import('../llm/prompts.js');
+ const opening=intakeBatchMessages({topic:'Synthetic bakery',answered:[],count:3})[1].content;
+ assert.match(opening,/Return at least one concrete choice question/);
+ assert.match(opening,/Never use null, omit questions/);
+ assert.ok(!opening.includes('"pick_one" | "pick_any"'));
+ const sample=opening.split('Return JSON with exactly this shape:')[1].split('\nThe example')[0].trim();
+ const q=JSON.parse(sample).questions[0];assert.ok(q.prompt.length>=12);assert.equal(q.options.length,2);
+ const followup=intakeBatchMessages({topic:'Synthetic bakery',answered:[{prompt:'Purpose?',answer:'Reduce bills'}]})[1].content;
+ assert.match(followup,/return exactly \{"questions":\[\]\}/);
+ assert.match(followup,/JEV separately decides/);
+});

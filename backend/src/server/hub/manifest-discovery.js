@@ -35,9 +35,8 @@ function project(entry, origin) {
   return {id:entry.id,title:entry.title,description:entry.summary,url:entry.url,manifestUrl:`${origin}/api/nibgate/manifest?path=${encodeURIComponent(entry.path)}`,currency:'USDC',price,contentType:'article'};
 }
 
-export async function currentPublicArticles(site,{fetcher=fetch,now=Date.now}={}) {
+export async function currentPublicArticles(site,{fetcher=fetch,now=Date.now,signal=AbortSignal.timeout(10000)}={}) {
   const origin=creatorOrigin(site);if(!origin)throw fail();
-  const signal=AbortSignal.timeout(10000);
   const initial=await readManifest(origin,fetcher,signal);
   const final=await readManifest(origin,fetcher,signal);const receivedAt=now();
   const latest=new Map();
@@ -61,11 +60,16 @@ export async function getPublicDiscovery(db,args={},options={}) {
   const candidates=await db.website.findMany({where:eligible,select,orderBy:{domain:'asc'},take:21});
   const sources=candidates.slice(0,20).filter(creatorOrigin);
   const started=now();
-  const snapshots=await Promise.all(sources.map(async site=>({site,...await currentPublicArticles(site,{fetcher,now})})));
-  if(now()-started>10000 || snapshots.some(s=>now()-s.observedAt>2000))throw fail();
+  // One slow source must not make every other source stale before the response.
+  const signal=AbortSignal.timeout(1500);
+  const results=await Promise.allSettled(sources.map(async site=>({site,...await currentPublicArticles(site,{fetcher,now,signal})})));
+  if(now()-started>10000)throw fail();
+  let snapshots=results.filter(r=>r.status==='fulfilled').map(r=>r.value).filter(s=>now()-s.observedAt<=2000);
+  if(sources.length && !snapshots.length)throw fail();
   const fresh=await db.website.findMany({where:{...eligible,id:{in:sources.map(s=>s.id)}},select});
   const current=new Map(fresh.map(s=>[s.id,s]));
-  if(snapshots.some(s=>now()-s.observedAt>2000))throw fail();
+  snapshots=snapshots.filter(s=>now()-s.observedAt<=2000);
+  if(sources.length && !snapshots.length)throw fail();
   const content=snapshots.flatMap(s=>{const site=current.get(s.site.id);if(!site||site.domain!==s.site.domain||!creatorOrigin(site))return [];return s.content.map(item=>({...item,identityScope:'creator-publication',websiteName:site.name||site.domain,websiteDomain:site.domain,imageUrl:'',tags:'',tagList:[],createdAt:null,views:null,unlocks:null,revenue:null,ratings:null,reputationScore:null,reputationStars:null}))}).filter(item=>(!type||type==='all'||type===item.contentType)&&(!q||[item.title,item.description,item.websiteName,item.websiteDomain].some(x=>x.toLowerCase().includes(q))));
-  return {success:true,scope:'current-public-creator-articles',sort:'site-order',historyStatus:'unavailable-no-event-visibility-proof',content:content.slice(skip,skip+limit),total:content.length,limit,skip,coverage:{siteLimit:20,perSiteLimit:20,sitesTruncated:candidates.length>20,checkedSites:sources.length,source:'public-creator-manifest',snapshot:'bounded-distributed'}};
+  return {success:true,scope:'current-public-creator-articles',sort:'site-order',historyStatus:'unavailable-no-event-visibility-proof',content:content.slice(skip,skip+limit),total:content.length,limit,skip,coverage:{siteLimit:20,perSiteLimit:20,sitesTruncated:candidates.length>20,checkedSites:snapshots.length,unavailableSites:sources.length-snapshots.length,source:'public-creator-manifest',snapshot:'bounded-distributed'}};
 }

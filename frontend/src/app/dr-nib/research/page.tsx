@@ -970,6 +970,7 @@ export default function ResearchNewPage() {
   );
   return (
     <div ref={researchView}>
+      <div className="mx-auto w-full max-w-2xl">
       {!guestReady && <p role="status">Checking saved drafts…</p>}
       {(guestMode || guestEnabled && phase === "composer") && <div className="mb-4 text-sm" aria-live="polite">
         <p>{guestMode ? "Guest planning — not yet saved to your account." : "Try text-only planning without signing in."}</p>
@@ -1003,6 +1004,7 @@ export default function ResearchNewPage() {
         </div>
       )}
 
+      </div>
       {project && phase !== "composer" && (
         <div className="mx-auto mb-4 max-w-2xl border-b border-dark-gray/30 pb-3 text-left">
           <p className="text-sm font-medium">{project.title}</p>

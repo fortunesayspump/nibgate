@@ -314,13 +314,14 @@ export const openApiSpec = {
         tags: ["Discovery"],
         summary: "Explore content feed",
         description:
-          "Returns a bounded mainnet sample of current public creator articles, from at most 20 verified sites and 20 articles per site, in site order. Historical metrics and rankings are unavailable. Testnet is unavailable.",
+          "Returns current public creator articles from available verified mainnet sites, in site and publication ID order. Unavailable or expired site snapshots are omitted and reported in coverage. Historical metrics and rankings are unavailable. Testnet is unavailable.",
         parameters: [
-          { name: "q", in: "query", schema: { type: "string" }, description: "Search the current sample by title, description, site name, or domain." },
+          { name: "q", in: "query", schema: { type: "string" }, description: "Search current available public articles by title, description, site name, or domain." },
           { name: "type", in: "query", schema: { type: "string", enum: ["article", "music", "video", "image", "document", "all"] }, description: "Content type filter." },
           { name: "sort", in: "query", schema: { type: "string", enum: ["site-order"], default: "site-order" }, description: "Site order; activity and date rankings are unavailable." },
           { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 500, default: 100 }, description: "Max results." },
           { name: "skip", in: "query", schema: { type: "integer", minimum: 0, default: 0 }, description: "Pagination offset." },
+          { name: "cursor", in: "query", schema: { type: "string" }, description: "Use nextCursor from the previous response; do not combine with skip. Each page rechecks current visibility and source availability." },
         ],
         responses: {
           "200": {
@@ -334,6 +335,8 @@ export const openApiSpec = {
                     scope: { type: "string", enum: ["current-public-creator-articles"] },
                     sort: { type: "string", enum: ["site-order"] },
                     historyStatus: { type: "string" },
+                    pagination: { type: "string", enum: ["keyset-v1"] },
+                    nextCursor: { type: "string", nullable: true },
                     coverage: { type: "object", description: "Sample size, truncation and source information, including the number of sources unavailable or too stale to include." },
                     content: { type: "array", items: { type: "object", properties: { id: { type: "string" }, identityScope: { type: "string", enum: ["creator-publication"] }, title: { type: "string" }, description: { type: "string" }, url: { type: "string", format: "uri" }, websiteDomain: { type: "string" }, currency: { type: "string" }, price: { type: "number" }, views: { type: "integer", nullable: true }, unlocks: { type: "integer", nullable: true }, revenue: { type: "number", nullable: true } } } },
                     total: { type: "integer" },

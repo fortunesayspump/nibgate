@@ -32,7 +32,11 @@ function project(entry, origin) {
   const raw=entry.price;
   const price=raw === null || raw === '0' ? 0 : typeof raw === 'string' && /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(raw) && Number(raw)>0 ? Number(raw) : NaN;
   if (!Number.isFinite(price) || price<0) return null;
-  return {id:entry.id,title:entry.title,description:entry.summary,url:entry.url,manifestUrl:`${origin}/api/nibgate/manifest?path=${encodeURIComponent(entry.path)}`,currency:'USDC',price,contentType:'article'};
+  let imageUrl='';
+  if (typeof entry.imageUrl === 'string' && entry.imageUrl.length <= 2048) {
+    try { const image=new URL(entry.imageUrl, origin); if(image.protocol==='https:' && !image.username && !image.password) imageUrl=image.href; } catch {}
+  }
+  return {id:entry.id,title:entry.title,description:entry.summary,url:entry.url,manifestUrl:`${origin}/api/nibgate/manifest?path=${encodeURIComponent(entry.path)}`,currency:'USDC',price,contentType:'article',imageUrl};
 }
 
 export async function currentPublicArticles(site,{fetcher=fetch,now=Date.now,signal=AbortSignal.timeout(10000)}={}) {
@@ -70,6 +74,6 @@ export async function getPublicDiscovery(db,args={},options={}) {
   const current=new Map(fresh.map(s=>[s.id,s]));
   snapshots=snapshots.filter(s=>now()-s.observedAt<=2000);
   if(sources.length && !snapshots.length)throw fail();
-  const content=snapshots.flatMap(s=>{const site=current.get(s.site.id);if(!site||site.domain!==s.site.domain||!creatorOrigin(site))return [];return s.content.map(item=>({...item,identityScope:'creator-publication',websiteName:site.name||site.domain,websiteDomain:site.domain,imageUrl:'',tags:'',tagList:[],createdAt:null,views:null,unlocks:null,revenue:null,ratings:null,reputationScore:null,reputationStars:null}))}).filter(item=>(!type||type==='all'||type===item.contentType)&&(!q||[item.title,item.description,item.websiteName,item.websiteDomain].some(x=>x.toLowerCase().includes(q))));
+  const content=snapshots.flatMap(s=>{const site=current.get(s.site.id);if(!site||site.domain!==s.site.domain||!creatorOrigin(site))return [];return s.content.map(item=>({...item,identityScope:'creator-publication',websiteName:site.name||site.domain,websiteDomain:site.domain,tags:'',tagList:[],createdAt:null,views:null,unlocks:null,revenue:null,ratings:null,reputationScore:null,reputationStars:null}))}).filter(item=>(!type||type==='all'||type===item.contentType)&&(!q||[item.title,item.description,item.websiteName,item.websiteDomain].some(x=>x.toLowerCase().includes(q))));
   return {success:true,scope:'current-public-creator-articles',sort:'site-order',historyStatus:'unavailable-no-event-visibility-proof',content:content.slice(skip,skip+limit),total:content.length,limit,skip,coverage:{siteLimit:20,perSiteLimit:20,sitesTruncated:candidates.length>20,checkedSites:snapshots.length,unavailableSites:sources.length-snapshots.length,source:'public-creator-manifest',snapshot:'bounded-distributed'}};
 }

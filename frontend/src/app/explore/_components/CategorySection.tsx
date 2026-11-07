@@ -10,7 +10,10 @@ export default function CategorySection() {
           .map((categoryGroup) => categoryGroup[0])
           .filter((c: string) => c !== "All")
           .map((category: string) => (
-            category === "Writing" ? <Link key={category} href="/explore/articles"><span>{category}</span><strong>Explore</strong></Link> : <span key={category} aria-disabled="true"><span>{category}</span><strong>Unavailable</strong></span>
+            <Link key={category} href="/explore/products">
+              <span>{category}</span>
+              <strong>Explore</strong>
+            </Link>
           ))}
       </div>
     </section>

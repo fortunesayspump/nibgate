@@ -1,5 +1,3 @@
-import HistoricalSortUnavailable from "./HistoricalSortUnavailable";
-import ExploreUnavailable from "./ExploreUnavailable";
 import MarketSection from "./MarketSection";
 import { getExploreProducts } from "../_data/explore-content";
 
@@ -10,9 +8,7 @@ type ExploreCollectionPageProps = {
 };
 
 export default async function ExploreCollectionPage({ q = "", type = "", sort = "site-order" }: ExploreCollectionPageProps) {
-  if (!["site-order"].includes(sort)) return <HistoricalSortUnavailable />;
-  const products = await getExploreProducts({ q, type, sort, limit: 400 });
-  if (products === null) return <ExploreUnavailable />;
-
+  const products = await getExploreProducts({ q, type, sort, limit: 200 });
+  if (!products) return <p className="explore-empty-state" role="status">Explore is temporarily unavailable.</p>;
   return <MarketSection products={products} fixedType={type} initialSort={sort} />;
 }

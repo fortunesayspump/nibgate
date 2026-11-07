@@ -1034,6 +1034,12 @@ export default function ResearchNewPage() {
         </section>
       )}
 
+      {privateBuildEnabled() && Array.isArray(project?.intakeDiagnostics) && project.intakeDiagnostics.length > 0 && (
+        <details className="mx-auto mb-4 max-w-2xl text-xs opacity-70">
+          <summary>Intake diagnostics</summary>
+          <pre className="mt-2 overflow-auto whitespace-pre-wrap">{JSON.stringify(project.intakeDiagnostics.map((d:any)=>({model:d.model,route:d.route,finish:d.finish,characters:d.characters,json:d.json,questions:d.questions,choiceQuestions:d.choiceQuestions,usablePrompts:d.usablePrompts,usableOptions:d.usableOptions})),null,2)}</pre>
+        </details>
+      )}
       {phase === "creating" && (
         <section className="mx-auto flex max-w-2xl flex-col items-center py-10 text-center">
           <div className="w-full rounded-2xl border border-dark-gray/50 bg-white px-4 py-3 text-left">

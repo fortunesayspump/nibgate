@@ -61,6 +61,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Next's default 404 follows the device color scheme, but docs stays light. */
+.next-error-h1,
+.next-error-h1 + div h2 {
+  color: var(--nib-page-fg) !important;
+}
+
+.next-error-h1 {
+  border-right-color: var(--nib-border-soft) !important;
+}
+
 /* NProgress bar */
 #nprogress {
   pointer-events: none;

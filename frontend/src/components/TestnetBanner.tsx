@@ -48,6 +48,8 @@ export default function TestnetBanner() {
         fontWeight: 700,
         letterSpacing: "0.08em",
         textTransform: "uppercase",
+        width: "100vw",
+        marginLeft: "calc(50% - 50vw)",
         padding: "6px 12px",
         lineHeight: 1.5,
       }}

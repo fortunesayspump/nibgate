@@ -334,7 +334,7 @@ export const openApiSpec = {
                     scope: { type: "string", enum: ["current-public-creator-articles"] },
                     sort: { type: "string", enum: ["site-order"] },
                     historyStatus: { type: "string" },
-                    coverage: { type: "object", description: "Sample size, truncation and source information." },
+                    coverage: { type: "object", description: "Sample size, truncation and source information, including the number of sources unavailable or too stale to include." },
                     content: { type: "array", items: { type: "object", properties: { id: { type: "string" }, identityScope: { type: "string", enum: ["creator-publication"] }, title: { type: "string" }, description: { type: "string" }, url: { type: "string", format: "uri" }, websiteDomain: { type: "string" }, currency: { type: "string" }, price: { type: "number" }, views: { type: "integer", nullable: true }, unlocks: { type: "integer", nullable: true }, revenue: { type: "number", nullable: true } } } },
                     total: { type: "integer" },
                     limit: { type: "integer" },

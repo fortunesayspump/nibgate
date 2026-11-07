@@ -86,7 +86,7 @@ export default function MarketSection({
           </div>
         </div>
       </div>
-      <p className="market-search-status">Current mainnet public articles only, sampled from up to 20 listings per eligible hosted site among the first 20 verified hosted sites, in site order. Search and filters cover this sample, not all network content. Historical views, unlocks, revenue, ratings and reputation are unavailable because public visibility when those events occurred cannot be established.</p>
+      <p className="market-search-status">Current mainnet public articles only, sampled from up to 20 listings per eligible hosted site among the first 20 verified hosted sites, in site order. Some sites may be temporarily unavailable and omitted. Search and filters cover this sample, not all network content. Historical views, unlocks, revenue, ratings and reputation are unavailable because public visibility when those events occurred cannot be established.</p>
       {unsupportedSort && <p role="status" className="explore-empty-state">The requested activity-based sort is unavailable. These articles are shown by site order instead.</p>}
       <div className="market-layout">
         <div className="market-products">

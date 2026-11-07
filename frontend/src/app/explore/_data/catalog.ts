@@ -7,9 +7,9 @@ export const categories = [
   ["Business", "Research", "Templates", "Reports"],
 ];
 
-export const sortTabs = ["Site order", "Trending", "Best Sellers"];
+export const sortTabs = ["Trending", "Best Sellers", "Hot & New"];
 
-export const contentTypes = ["All", "Article"];
+export const contentTypes = ["All", "Article", "Music", "Image", "Video", "Document"];
 
 export type ExploreProduct = {
   id?: string;

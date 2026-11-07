@@ -57,7 +57,7 @@ function parseTags(content: ExploreContent) {
 }
 
 export async function getExploreProducts(params: { q?: string; type?: string; sort?: string; limit?: number } = {}) {
-  if (params.sort && !["site-order"].includes(params.sort)) return null;
+  if (params.sort && params.sort !== "site-order") return null;
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.type && params.type !== "all") search.set("type", params.type);

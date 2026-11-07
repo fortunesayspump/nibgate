@@ -15,6 +15,14 @@ describe('intake batch prompts', () => {
     expect(user.content).toMatch(/5 next questions/);
     expect(user.content).toMatch(/easiest-first/);
     expect(user.content).toMatch(/NEVER restate/);
+    expect(user.content).toMatch(/No intake answers have been given yet/);
+  });
+
+  it('uses the actual answers as covered ground in follow-up batches', () => {
+    const [, user] = intakeBatchMessages({ topic: 't', answered: [{ prompt: 'Who is this for?', answer: 'A bakery' }] });
+    expect(user.content).toMatch(/Who is this for\?: A bakery/);
+    expect(user.content).toMatch(/Do not ask again about ground covered by the answers above/);
+    expect(user.content).not.toMatch(/No intake answers have been given yet/);
   });
 
   it('carries the rejected angle on reframe', () => {

@@ -301,7 +301,7 @@ export function intakeBatchMessages({ topic, answered = [], count = 5, reframe =
 Already established:
 ${known}
 ${reframeBlock}
-Already-covered ground (do NOT ask about these again): intent/purpose, time range, angles, exclusions — unless the topic makes one of them genuinely ambiguous.
+${answered.length ? 'Do not ask again about ground covered by the answers above. Ask only about material gaps that remain.' : 'No intake answers have been given yet. Ask about the purpose, scope or constraints when they are not clear from the topic.'}
 
 Propose the ${n} next questions that most reduce uncertainty about this specific topic, ordered easiest-first: pick_one (2-4 short options) before pick_any (several can apply). Only choice questions — NEVER free-text: open fields confuse and stall. Every question carries 2-4 concrete options plus the Other exit.
 

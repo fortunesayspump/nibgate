@@ -11,11 +11,11 @@ function creatorAvatar(creator: Creator) {
 async function getCreators() {
   try {
     const res = await fetch(apiUrl("/hub/reputation/leaderboards?type=creators&limit=3"), { next: { revalidate: 300 } });
-    if (!res.ok) return null;
+    if (!res.ok) return [] as Creator[];
     const data = await res.json();
     return (data.items || []) as Creator[];
   } catch {
-    return null;
+    return [] as Creator[];
   }
 }
 
@@ -28,7 +28,7 @@ export default async function LeaderboardPreview() {
         <Link href="/leaderboards">View all</Link>
       </div>
       <div className="leaderboard-preview-grid">
-        {creators?.length ? creators.map((creator) => (
+        {creators.length ? creators.map((creator) => (
           <article key={creator.id} className="leaderboard-preview-card">
             <div className="leaderboard-preview-card-top">
               <span className="leaderboard-preview-rank">#{creator.rank}</span>
@@ -40,7 +40,7 @@ export default async function LeaderboardPreview() {
             </div>
             <strong>{typeof creator.reputationScore === "number" ? `${creator.reputationScore}/100` : "No rep"}</strong>
           </article>
-        )) : <p className="explore-empty-state">{creators ? "No creators ranked yet." : "Creator rankings are temporarily unavailable."}</p>}
+        )) : <p className="explore-empty-state">No creators ranked yet.</p>}
       </div>
     </section>
   );

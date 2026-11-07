@@ -6,7 +6,7 @@ import SheetViewer from "@/components/SheetViewer";
 import TextViewer from "@/components/TextViewer";
 import { KIND_LABELS, SHEET_KINDS, SHEET_VIEWER_KINDS, TEXT_VIEWER_KINDS, kindFromName } from "@/lib/documentKind";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+const API = "/api";
 const API_ORIGIN = API.replace(/\/+$/, "").replace(/\/api$/, "");
 
 type UnlockResource = {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { contentTypes, sortTabs, type ExploreProduct } from "../_data/catalog";
-import { isCurrentPublicResponse, toExploreProduct } from "../_data/explore-content";
+import { toExploreProduct } from "../_data/explore-content";
 import { ExploreCard } from "./ProductCard";
 
 function sortKey(label: string) {
@@ -34,52 +34,32 @@ function categoryMatches(product: ExploreProduct, category: string) {
   return haystack.includes(clean);
 }
 
-function cursorFor(product: ExploreProduct | undefined) {
-  if (!product?.id) return null;
-  const separator = product.id.indexOf(":");
-  return separator > 0 ? JSON.stringify([product.id.slice(0, separator), product.id.slice(separator + 1)]) : null;
-}
-
 export default function MarketSection({
   products,
   fixedType = "",
-  initialSort = "site-order",
-  unavailable = false,
-  initialLimit = 200,
-  initialQuery = "",
+  initialSort = "trending",
 }: {
   products: ExploreProduct[];
   fixedType?: string;
   initialSort?: string;
-  unavailable?: boolean;
-  initialLimit?: number;
-  initialQuery?: string;
 }) {
   const [sort, setSort] = useState(initialSort);
   const [activeType, setActiveType] = useState("All");
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
-  const [additionalProducts, setAdditionalProducts] = useState<ExploreProduct[]>([]);
-  const [nextCursor, setNextCursor] = useState(() => cursorFor(products.at(-1)));
-  const [hasMore, setHasMore] = useState(products.length >= initialLimit);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState("");
   // Server-side search results: the `products` prop only holds the top-200
   // trending cards, so a client-side filter can never find low-traction
   // content (e.g. a brand-new subblog). When a query is active we ask the
   // full discovery index instead. Bare `/hub/...` path uses the
   // next.config.ts rewrite to the backend.
   const [remoteResults, setRemoteResults] = useState<ExploreProduct[] | null>(null);
-  const [searchHasMore, setSearchHasMore] = useState(false);
-  const [searchCursor, setSearchCursor] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const searchSeq = useRef(0);
 
   useEffect(() => {
     const onCategory = (event: Event) => {
-      searchSeq.current += 1;
       const category = (event as CustomEvent<{ category?: string }>).detail?.category || "All";
       setActiveCategory(category);
       setSearchQuery("");
@@ -89,11 +69,11 @@ export default function MarketSection({
       setVisibleCount(12);
     };
     const onSearch = (event: Event) => {
-      searchSeq.current += 1;
       const q = (event as CustomEvent<{ q?: string }>).detail?.q || "";
       setSearchQuery(q);
       setActiveCategory("All");
       if (!q.trim()) {
+        searchSeq.current += 1;
         setRemoteResults(null);
         setSearching(false);
         setSearchError("");
@@ -113,28 +93,24 @@ export default function MarketSection({
 
   const trimmedQuery = searchQuery.trim();
   const effectiveType = fixedType || activeType;
-  const unsupportedType = !["", "all", "article"].includes(effectiveType.toLowerCase());
 
   useEffect(() => {
-    if (!trimmedQuery || unsupportedType) return;
+    if (!trimmedQuery) return;
     const seq = ++searchSeq.current;
     const timer = setTimeout(async () => {
       if (searchSeq.current !== seq) return;
       try {
         const params = new URLSearchParams();
         params.set("q", trimmedQuery);
-        params.set("sort", "site-order");
+        params.set("sort", sort);
         params.set("limit", "100");
         if (effectiveType && effectiveType !== "All") params.set("type", effectiveType.toLowerCase());
         const res = await fetch(`/hub/explore/content?${params.toString()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (!isCurrentPublicResponse(data)) throw new Error("Discovery unavailable");
-        const content = data.content;
+        const content = Array.isArray(data.content) ? data.content : [];
         if (searchSeq.current !== seq) return;
         setRemoteResults(content.map(toExploreProduct));
-        setSearchHasMore(content.length === 100 && typeof data.nextCursor === "string" && data.pagination === "keyset-v1");
-        setSearchCursor(typeof data.nextCursor === "string" ? data.nextCursor : null);
       } catch {
         if (searchSeq.current !== seq) return;
         setRemoteResults([]);
@@ -144,53 +120,22 @@ export default function MarketSection({
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [trimmedQuery, sort, effectiveType, unsupportedType]);
+  }, [trimmedQuery, sort, effectiveType]);
 
   const filteredProducts = useMemo(() => {
-    if (unsupportedType) return [];
     // Active query → server results arrive pre-sorted; keep backend order and
     // only apply the client-side category filter on top.
     if (trimmedQuery) {
       const base = remoteResults ?? [];
       return base.filter((p) => categoryMatches(p, activeCategory));
     }
-    let result = [...products, ...additionalProducts];
+    let result = products;
     result = result.filter((p) => categoryMatches(p, activeCategory));
     if (!fixedType && activeType !== "All") result = result.filter((p) => p.type === activeType);
-    return result;
-  }, [products, additionalProducts, sort, trimmedQuery, remoteResults, activeType, activeCategory, fixedType, unsupportedType]);
+    return sortProducts(result, sort);
+  }, [products, sort, trimmedQuery, remoteResults, activeType, activeCategory, fixedType]);
   const visibleProducts = filteredProducts.slice(0, visibleCount);
   const title = activeCategory === "All" ? "Explore content" : activeCategory;
-
-  async function loadMore() {
-    if (visibleCount < filteredProducts.length) { setVisibleCount((count) => count + 12); return; }
-    if (loadingMore || unsupportedType) return;
-    const isSearch = Boolean(trimmedQuery);
-    if (isSearch ? !searchHasMore : !hasMore) return;
-    setLoadingMore(true);
-    setLoadError("");
-    const searchAtStart = searchSeq.current;
-    try {
-      const cursor = isSearch ? searchCursor : nextCursor;
-      if (!cursor) throw new Error("Discovery pagination unavailable");
-      const params = new URLSearchParams({ sort: "site-order", limit: "100", cursor });
-      if (isSearch) params.set("q", trimmedQuery);
-      else if (initialQuery) params.set("q", initialQuery);
-      if (fixedType && fixedType !== "All") params.set("type", fixedType.toLowerCase());
-      if (isSearch && effectiveType && effectiveType !== "All") params.set("type", effectiveType.toLowerCase());
-      const res = await fetch(`/hub/explore/content?${params}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Discovery unavailable");
-      const data = await res.json();
-      if (!isCurrentPublicResponse(data) || data.pagination !== "keyset-v1" || (data.nextCursor !== null && typeof data.nextCursor !== "string")) throw new Error("Discovery unavailable");
-      if (isSearch && searchSeq.current !== searchAtStart) return;
-      const next = data.content.map(toExploreProduct);
-      const appendUnique = (current: ExploreProduct[], existing: ExploreProduct[] = []) => { const ids = new Set([...existing, ...current].map((item) => item.id)); return [...current, ...next.filter((item: ExploreProduct) => { if (ids.has(item.id)) return false; ids.add(item.id); return true; })]; };
-      if (isSearch) { setRemoteResults((current) => appendUnique(current || [])); setSearchCursor(data.nextCursor); setSearchHasMore(Boolean(data.nextCursor)); }
-      else { setAdditionalProducts((current) => appendUnique(current, products)); setNextCursor(data.nextCursor); setHasMore(Boolean(data.nextCursor)); }
-      setVisibleCount((count) => count + 12);
-    } catch { setLoadError("Could not load more content. Please try again."); }
-    finally { setLoadingMore(false); }
-  }
 
   return (
     <section className="market-section" aria-labelledby="market-title">
@@ -202,7 +147,7 @@ export default function MarketSection({
               const key = sortKey(tab);
               const normalizedKey = key === "hot--new" ? "hot-new" : key;
               return (
-                <button key={tab} disabled title="Activity-based sorting is temporarily unavailable" onClick={() => setSort(normalizedKey)} className={sort === normalizedKey ? "active" : ""} type="button" aria-pressed={sort === normalizedKey ? "true" : "false"}>
+                <button key={tab} onClick={() => setSort(normalizedKey)} className={sort === normalizedKey ? "active" : ""} type="button" aria-pressed={sort === normalizedKey ? "true" : "false"}>
                   {tab}
                 </button>
               );
@@ -217,12 +162,11 @@ export default function MarketSection({
           </div>
         </div>
       </div>
-      <p className="market-search-status">Showing available public creator articles; some sites, content types and activity-based sorting may be unavailable.</p>
       <div className="market-layout">
         <div className="market-products">
           {trimmedQuery && (
             <p className="market-search-status" aria-live="polite">
-              {unsupportedType ? "This content type is temporarily unavailable." : searching
+              {searching
                 ? `Searching discovery for "${trimmedQuery}"…`
                 : searchError || `${filteredProducts.length} result${filteredProducts.length === 1 ? "" : "s"} for "${trimmedQuery}"`}
             </p>
@@ -231,7 +175,7 @@ export default function MarketSection({
             {visibleProducts.length === 0 ? (
               <div className="explore-empty-state market-empty-state">
                 <p>
-                  {unavailable || searchError || unsupportedType ? "Content is temporarily unavailable." : trimmedQuery && !searching
+                  {trimmedQuery && !searching
                     ? `No results for "${trimmedQuery}" in discovery.`
                     : "No tracked content is available yet."}
                 </p>
@@ -242,10 +186,9 @@ export default function MarketSection({
               ))
             )}
           </div>
-          {loadError && <p className="market-search-status" role="status">{loadError}</p>}
-          {(visibleCount < filteredProducts.length || (trimmedQuery ? searchHasMore : hasMore)) && !unsupportedType ? (
+          {visibleCount < filteredProducts.length ? (
             <div className="market-load-more">
-              <button type="button" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Loading…" : "Load more"}</button>
+              <button type="button" onClick={() => setVisibleCount((count) => count + 12)}>Load more</button>
             </div>
           ) : null}
         </div>

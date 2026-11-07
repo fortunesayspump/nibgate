@@ -5,7 +5,7 @@
 Nibgate is a verification, discovery, and unlock layer for creator-owned paid
 content. Creators keep content on their own sites and integrate the `@nibgate/sdk`
 package for gating, payments, and events. The hub verifies sources, indexes
-public metadata, and supports Explore and reputation. The ledger exposes network-wide totals; individual historical events and content rankings are unavailable. Payments and
+public metadata, and serves Explore, the ledger, and reputation. Payments and
 ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Network).
 
 ## Endpoints
@@ -16,14 +16,14 @@ ratings settle on-chain via x402 on Arc (mainnet; testnet mirrors it — see Net
 |---|---|
 | `https://nibgate.xyz` | Landing page |
 | `https://nibgate.xyz/explore` | Content discovery feed |
-| `https://nibgate.xyz/ledger` | Network-wide activity totals; individual events unavailable |
+| `https://nibgate.xyz/ledger` | Public activity ledger |
 
 ### API
 
 | Endpoint | Description |
 |---|---|
-| `GET /hub/explore/content?limit=N` | Mainnet-only bounded sample of current public creator articles, in site order; historical metrics are unavailable. Testnet returns unavailable. |
-| `GET /hub/ledger` | Network-wide activity totals; individual events and per-site filters are unavailable. |
+| `GET /hub/explore/content?limit=N` | Explore feed — returns content with title, price, domain, image |
+| `GET /hub/ledger?limit=N&domain=X` | Public ledger — recent views, unlocks, payments, tips (including pending funded holds with `status: held`), ratings, and nibshares (`type=nibshare`). Held tips do not count toward completed-tip totals; refunds appear as negative entries. Nibshare entries show titles, wallets, and amounts but never the private share link |
 | `POST /hub/evt` | Track an event (view, unlock, rating, etc.) |
 | `POST /hub/preflight` | Free dry run for the direct-USDC rail — check price, recipient, and payer balance **before** sending an irreversible transfer. Never charges. |
 | `POST /hub/reputation/ratings/prepare` | Prepare an on-chain rating, returns content hash + contract address |
@@ -88,7 +88,7 @@ hub reserves the message digest before relaying and accepts EIP-191 `personal_si
 from an EOA or an ERC-1271 signature from a deployed smart-contract wallet,
 sums that payer's still-held tips for the domain, relays the on-chain refund
 via the keeper, preserves any partially refunded held-row remainder, and writes
-a negative tip record so totals net out. Individual records are not listed in the public ledger. Refunds
+a negative ledger row so totals net out. Refunds
 only ever return funds to the payer. There is **no refund** for tips that
 already settled (resolved creators) or were already claimed.
 
@@ -175,8 +175,8 @@ but the unlock is not lost: re-sign the message for the **same** txHash and
 retry step 5. Never broadcast a second transfer for an existing payment.
 
 **Recording:** all settled payments are recorded server-side at the payment
-layer for both machine and browser payers. The site’s historical activity feed
-is currently unavailable. No client-side event reporting is required. Each receipt
+layer — receipts, metrics, and the public ledger treat machine payers exactly
+like browser users. No client-side event reporting is required. Each receipt
 carries the 1% protocol fee.
 
 ### Rating Flow

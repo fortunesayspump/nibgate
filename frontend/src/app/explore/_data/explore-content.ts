@@ -2,7 +2,6 @@ import type { ExploreProduct } from "./catalog";
 
 type ExploreContent = {
   id: string;
-  identityScope: "creator-publication";
   title: string;
   description: string;
   imageUrl: string;
@@ -12,17 +11,17 @@ type ExploreContent = {
   url: string;
   currency?: string;
   price: number;
-  views: number | null;
-  unlocks: number | null;
-  revenue: number | null;
+  views: number;
+  unlocks: number;
+  revenue: number;
   reputationScore?: number | null;
   reputationStars?: number | null;
-  ratings?: number | null;
+  ratings?: number;
   websiteName: string;
   websiteDomain: string;
   websiteFaviconUrl?: string;
   websiteOgImageUrl?: string;
-  createdAt: string | null;
+  createdAt: string;
 };
 
 function apiOrigin() {
@@ -48,7 +47,7 @@ function displayType(type = "") {
 function fallbackImage(content: ExploreContent) {
   if (content.imageUrl) return content.imageUrl;
   if (content.websiteOgImageUrl) return content.websiteOgImageUrl;
-  return "";
+  return `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(content.title || content.websiteDomain || "nibgate")}`;
 }
 
 function parseTags(content: ExploreContent) {
@@ -57,70 +56,45 @@ function parseTags(content: ExploreContent) {
 }
 
 export async function getExploreProducts(params: { q?: string; type?: string; sort?: string; limit?: number } = {}) {
-  if (params.sort && params.sort !== "site-order") return null;
   const search = new URLSearchParams();
   if (params.q) search.set("q", params.q);
   if (params.type && params.type !== "all") search.set("type", params.type);
-  search.set("sort", "site-order");
+  if (params.sort) search.set("sort", params.sort);
   if (params.limit) search.set("limit", String(params.limit));
 
   try {
-    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { cache: "no-store" });
-    if (!res.ok) return null;
+    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { next: { revalidate: 300 } });
+    if (!res.ok) return [];
     const data = await res.json();
-    if (!isCurrentPublicResponse(data)) return null;
-    const content = data.content as ExploreContent[];
+    const content = Array.isArray(data.content) ? data.content as ExploreContent[] : [];
     return content.map(toExploreProduct);
   } catch {
-    return null;
+    return [];
   }
 }
 
 export function toExploreProduct(content: ExploreContent): ExploreProduct {
   const type = displayType(content.contentType);
   return {
-    id: `${content.websiteDomain}:${content.id}`,
+    id: content.id,
     type,
     title: content.title,
     summary: content.description || `${type} from ${content.websiteName || content.websiteDomain}`,
     creator: content.websiteName || content.websiteDomain || "Creator",
-    price: typeof content.price === "number" && Number.isFinite(content.price) && content.price >= 0
-      ? (content.price === 0 ? "Free" : `${content.price.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${content.currency || "USDC"}`)
-      : "Price unavailable",
+    price: Number(content.price || 0) > 0 ? `${Number(content.price).toFixed(3)} ${content.currency || "USDC"}` : "Free",
     meta: content.websiteDomain,
-    unlocks: null,
-    unlockCount: null,
+    unlocks: `${content.unlocks || 0} unlocks`,
+    unlockCount: content.unlocks || 0,
     tags: parseTags(content),
     image: fallbackImage(content),
-    avatar: content.websiteFaviconUrl || "",
-    topCreator: false,
+    avatar: content.websiteFaviconUrl || '/nibgate-mark.svg',
+    topCreator: (content.unlocks || 0) > 0,
     url: content.url,
-    views: null,
-    revenue: null,
-    reputationScore: null,
-    reputationStars: null,
-    ratings: null,
+    views: content.views || 0,
+    revenue: content.revenue || 0,
+    reputationScore: typeof content.reputationScore === "number" ? content.reputationScore : null,
+    reputationStars: typeof content.reputationStars === "number" ? content.reputationStars : null,
+    ratings: content.ratings || 0,
     createdAt: content.createdAt,
   };
-}
-
-// Reject older discovery contracts instead of accidentally exposing cached
-// listings or historical metrics whose event-time visibility is unproven.
-export function isCurrentPublicResponse(data: unknown): data is { content: ExploreContent[]; pagination?: unknown; nextCursor?: unknown } {
-  if (!data || typeof data !== "object") return false;
-  const response = data as Record<string, unknown>;
-  return response.success === true
-    && response.scope === "current-public-creator-articles"
-    && response.sort === "site-order"
-    && response.historyStatus === "unavailable-no-event-visibility-proof"
-    && Array.isArray(response.content)
-    && response.content.every((item: unknown) => {
-      if (!item || typeof item !== "object") return false;
-      const article = item as Record<string, unknown>;
-      if (article.identityScope !== "creator-publication" || article.contentType !== "article"
-        || typeof article.id !== "string" || typeof article.title !== "string" || typeof article.url !== "string"
-        || typeof article.websiteDomain !== "string" || typeof article.price !== "number" || !Number.isFinite(article.price) || article.price < 0
-        || article.views !== null || article.unlocks !== null || article.revenue !== null) return false;
-      try { const u=new URL(article.url); return u.protocol === "https:" && u.hostname === article.websiteDomain && !u.port && !u.username && !u.password && !u.search && !u.hash && /^\/writing\/[A-Za-z0-9_-]{1,200}$/.test(u.pathname); } catch { return false; }
-    });
 }

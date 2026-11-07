@@ -5,7 +5,6 @@ import { Check, Clipboard, ExternalLink, Globe2, Loader2, RefreshCw, Trash2 } fr
 import { apiBaseUrl } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { uploadJson } from "@/lib/upload";
-import { verificationFailure } from "./verification-result";
 
 type DashboardSite = {
   id: string;
@@ -291,11 +290,7 @@ export default function SitesPage() {
         headers: { "Content-Type": "application/json" },
       });
       const data = await readApiJson(res);
-      const failure = verificationFailure(res.ok, data);
-      if (failure) {
-        await loadSites({ showLoading: false });
-        throw new Error(failure);
-      }
+      if (!data.success) throw new Error(data.error || "Verification failed");
       setMessage("Website verified. Nibgate can now receive page, content, and unlock events from your widget.");
       await loadSites({ showLoading: false });
     } catch (err) {
@@ -331,8 +326,7 @@ export default function SitesPage() {
         headers: { "Content-Type": "application/json" },
       });
       const data = await readApiJson(res);
-      const failure = verificationFailure(res.ok, data);
-      if (failure) throw new Error(failure);
+      if (!data.success) throw new Error(data.error || "Verification check failed");
       setMessage("Widget rechecked. Your site is verified.");
       await loadSites({ showLoading: false });
     } catch (err) {

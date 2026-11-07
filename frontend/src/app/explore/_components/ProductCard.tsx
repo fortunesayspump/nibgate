@@ -103,14 +103,14 @@ function onCardClick(event: MouseEvent<HTMLElement>, product: ExploreProduct) {
   openProduct(product);
 }
 
-function ReputationStars({ stars, ratings = 0 }: { stars?: number | null; ratings?: number | null }) {
-  const rating = typeof stars === "number" && (ratings ?? 0) > 0 ? stars : null;
+function ReputationStars({ stars, ratings = 0 }: { stars?: number | null; ratings?: number }) {
+  const rating = typeof stars === "number" && ratings > 0 ? stars : null;
   if (rating === null) {
     return (
-      <span className="content-rating content-rating-empty-state" title="Ratings unavailable">
+      <span className="content-rating content-rating-empty-state" title="No verified ratings yet">
         <span className="content-rating-stars" aria-hidden="true">☆☆☆☆☆</span>
-        <span className="content-rating-value">Unavailable</span>
-        <span className="sr-only">Ratings unavailable</span>
+        <span className="content-rating-value">Unrated</span>
+        <span className="sr-only">No verified ratings yet</span>
       </span>
     );
   }
@@ -121,7 +121,7 @@ function ReputationStars({ stars, ratings = 0 }: { stars?: number | null; rating
         <span className="content-rating-empty">☆☆☆☆☆</span>
         <span className="content-rating-fill" style={{ width: `${percent}%` }}>★★★★★</span>
       </span>
-      <span className="content-rating-value">{rating.toFixed(1)} {(ratings ?? 0) > 0 && <>({ratings})</>}</span>
+      <span className="content-rating-value">{rating.toFixed(1)} {ratings > 0 && <>({ratings})</>}</span>
       <span className="sr-only">{rating.toFixed(1)} out of 5 stars from {ratings} verified ratings</span>
     </span>
   );
@@ -165,7 +165,7 @@ export function FeaturedCard({ product, priority }: { product: ExploreProduct; p
 
 export function ArticleCard({ product }: { product: ExploreProduct }) {
   const avatar = product.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(product.title)}`;
-  const reputationLabel = product.ratings && typeof product.reputationScore === "number" ? `Verified rep ${product.reputationScore}/100` : "Reputation unavailable";
+  const reputationLabel = product.ratings && typeof product.reputationScore === "number" ? `Verified rep ${product.reputationScore}/100` : "No rep";
   
   return (
     <article className="article-card" role="link" tabIndex={0} onClick={(event) => onCardClick(event, product)} onKeyDown={(event) => onCardKeyDown(event, product)}>
@@ -186,7 +186,7 @@ export function ArticleCard({ product }: { product: ExploreProduct }) {
       </div>
       <div className="article-footer">
         <div className="article-socials">
-          <span className="article-action">{product.unlocks || "Unlock count unavailable"}</span>
+          <span className="article-action">{product.unlocks || "0 unlocks"}</span>
         </div>
         <Link className="article-action" href={productHref(product)} target="_blank" rel="noopener noreferrer">Open</Link>
       </div>

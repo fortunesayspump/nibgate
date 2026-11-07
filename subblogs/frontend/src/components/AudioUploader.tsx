@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { uploadJson } from "@/lib/upload";
 
-const API = "/api";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 interface AudioUploaderProps {
   onUpload: (result: { url?: string; storageRef?: string; encryptedKey?: string; contentType?: string }) => void;

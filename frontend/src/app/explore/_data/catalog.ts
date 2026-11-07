@@ -19,19 +19,19 @@ export type ExploreProduct = {
   creator?: string;
   price: string;
   meta?: string;
-  unlocks?: string | null;
-  unlockCount?: number | null;
+  unlocks?: string;
+  unlockCount?: number;
   tags?: string[];
   image?: string;
   avatar?: string;
   topCreator?: boolean;
   url?: string;
-  views?: number | null;
-  revenue?: number | null;
+  views?: number;
+  revenue?: number;
   reputationScore?: number | null;
   reputationStars?: number | null;
-  ratings?: number | null;
-  createdAt?: string | null;
+  ratings?: number;
+  createdAt?: string;
 };
 
 export type Wishlist = {

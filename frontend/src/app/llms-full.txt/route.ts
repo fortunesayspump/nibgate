@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { apiBaseUrl, apiUrl, siteOrigin } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 type ExploreContent = {
   title?: string;
@@ -14,14 +14,14 @@ type ExploreContent = {
   currency?: string;
 };
 
-async function topContent(): Promise<ExploreContent[] | null> {
+async function topContent(): Promise<ExploreContent[]> {
   try {
-    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { cache: "no-store" });
-    if (!res.ok) return null;
+    const res = await fetch(apiUrl("/hub/explore/content?limit=50"), { next: { revalidate: 3600 } });
+    if (!res.ok) return [];
     const data = await res.json();
-    return data.scope === "current-public-creator-articles" && Array.isArray(data.content) ? data.content : null;
+    return Array.isArray(data.content) ? data.content : [];
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -38,14 +38,14 @@ export async function GET() {
 
   const discoverySection = discovery ? `\n## Agent discovery guide\n\n${discovery}` : "";
   const skillSection = skill ? `\n## Integration skill guide\n\n${skill}` : "";
-  const contentSection = content === null ? "- Public discovery is unavailable." : content.length
+  const contentSection = content.length
     ? content
         .map(
           (item) =>
             `- [${item.title || "Untitled content"}](${item.url || ""}) — ${item.websiteName || item.websiteDomain || "Creator"}${Number(item.price || 0) > 0 ? ` ${Number(item.price).toFixed(3)} ${item.currency || "USDC"}` : ""}. ${item.description || ""}`
         )
         .join("\n")
-    : "- No articles in this sample.";
+    : "- No verified content indexed yet.";
 
   const site = siteOrigin();
   const api = apiBaseUrl();
@@ -58,7 +58,7 @@ Nibgate is an open protocol for paid content. Creators keep content on their own
 ## Key pages
 
 - ${site}/explore — Content discovery feed.
-- ${site}/ledger — Network-wide activity totals; individual events unavailable.
+- ${site}/ledger — Public activity ledger.
 - ${site}/pending-tips — Check funded, unclaimed tips for any site domain across mainnet and testnet; the checker identifies the network and links to claiming guidance.
 - ${site}/pending-tips/claim — Guide to connecting and verifying a site, then claiming its pending held tips from the creator dashboard.
 - ${site}/leaderboards — Reputation leaderboards.
@@ -76,18 +76,18 @@ The private architecture uses browser encryption, a verified Phala worker and en
 
 ## API endpoints
 
-- ${api}/hub/explore/content?limit=100 — Bounded mainnet sample of current public creator articles; testnet is unavailable.
-- ${api}/hub/ledger?limit=100 — Network-wide activity totals; individual events and per-site filters are unavailable.
+- ${api}/hub/explore/content?limit=100 — Explore feed of verified content.
+- ${api}/hub/ledger?limit=100 — Public ledger (views, unlocks, payments, tips including pending funded holds, ratings, nibshares; refunds are negative entries; no share links).
 - ${api}/hub/tips/held?domain={domain} — Exact-domain lookup for funded, unclaimed tips (including external sites); claimable by the site owner, refundable by the payer. Results are specific to this API deployment's network.
 - ${api}/hub/tips/refund — Payer-signed exact refund of unclaimed held tips (no fee); accepts EOA personal_sign or deployed ERC-1271 wallets with a one-shot network/domain/payer/amount/expiry/nonce authorization.
 - ${api}/hub/stats — Platform totals (revenue incl. tips + nibshares, protocol fees).
 - ${api}/ns/{slug} — Unlock a nibshare: free → body; paid → 402 x402 challenge, pay and retry to read.
 - ${api}/nibshare/{slug}/manifest — Public manifest for a nibshare.
-- ${api}/hub/reputation/leaderboards — Creator and site rankings; content rankings are currently unavailable.
+- ${api}/hub/reputation/leaderboards — Ranked reputation leaderboards.
 - ${api}/openapi.json — OpenAPI specification (includes unlock endpoints).
 - ${api}/mcp — MCP server for AI agents.
 
-## Current public article sample
+## Top content on Nibgate
 
 ${contentSection}
 ${discoverySection}
@@ -97,7 +97,7 @@ ${skillSection}
   return new Response(text, {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "public, max-age=3600",
       "X-Llms-Txt": "/llms.txt",
       "Link": `</llms.txt>; rel="llms-txt", </llms-full.txt>; rel="llms-full-txt"`,
     },

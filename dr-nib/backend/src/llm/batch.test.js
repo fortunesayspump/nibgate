@@ -14,7 +14,8 @@ describe('intake batch prompts', () => {
     const [, user] = intakeBatchMessages({ topic: 'newsletter paywalls that convert', answered: [], count: 5 });
     expect(user.content).toMatch(/5 next questions/);
     expect(user.content).toMatch(/easiest-first/);
-    expect(user.content).toMatch(/NEVER restate/);
+    expect(user.content).toMatch(/Do not repeat the full research topic/);
+    expect(user.content).toMatch(/ground each question in its actual subject/);
     expect(user.content).toMatch(/No intake answers have been given yet/);
   });
 

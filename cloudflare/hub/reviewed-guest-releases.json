@@ -1,0 +1,12 @@
+{
+  "testnet": {
+    "appId": "c6f58feeabbaba0570e18e75ad5c71bc18fce2af",
+    "composeHash": "72fdd3a8533af0d3b66c6eb575888952370d3d06d93b0f9994d9a5c991e205c3",
+    "image": "docker.io/fortunesayspump/nibgate-private-guest@sha256:7fb33ec1ebc00b63d9ff2d549ed843ce5bab650b8daaa2651b112c45e2bd25a7"
+  },
+  "mainnet": {
+    "appId": "a5e2fc27ad1f9e09653ef840d97a49290115c908",
+    "composeHash": "c8df625859f42b339574bb7a79b6f0a3d5fbd89de4060e2553e7b56d5854e485",
+    "image": "docker.io/fortunesayspump/nibgate-private-guest@sha256:7fb33ec1ebc00b63d9ff2d549ed843ce5bab650b8daaa2651b112c45e2bd25a7"
+  }
+}

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { mergePrevious } from './cloudflare-merge-previous.mjs';
+import { applyReviewedGuestRelease } from './cloudflare-reviewed-guest-release.mjs';
 
 const target=process.argv[2];
 if (!['hub-mainnet','hub-testnet','creator-mainnet','creator-lowfi','creator-wildcard','creator-testnet','docs'].includes(target)) throw Error('Choose an explicit Cloudflare build target');
@@ -13,6 +14,7 @@ if(target!=='docs') {
  const expected=target.startsWith('hub-')?(network==='mainnet'?'https://api.nibgate.xyz':'https://testnet-api.nibgate.xyz'):(network==='mainnet'?'https://api-subblogs.nibgate.xyz':'https://testnet-api-subblogs.nibgate.xyz');
  if((process.env.NEXT_PUBLIC_API_URL||'').replace(/\/+$/,'')!==expected) throw Error('NEXT_PUBLIC_API_URL does not match target network');
  if(target.startsWith('hub-')) {
+  applyReviewedGuestRelease(network,process.env);
   for(const key of ['NEXT_PUBLIC_DRNIB_ENABLED','NEXT_PUBLIC_DRNIB_PRIVATE_CONFIDENTIAL','NEXT_PUBLIC_DRNIB_PRIVATE_FULL_ENABLED','NEXT_PUBLIC_DRNIB_PRIVATE_FUNDED','NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_URL','NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_TRUST_MODE','NEXT_PUBLIC_DRNIB_PRIVATE_APP_ID','NEXT_PUBLIC_DRNIB_PRIVATE_INSTANCE_ID','NEXT_PUBLIC_DRNIB_PRIVATE_COMPOSE_HASH','NEXT_PUBLIC_DRNIB_PRIVATE_OS_HASH','NEXT_PUBLIC_DRNIB_PRIVATE_KMS_ID','NEXT_PUBLIC_DRNIB_PRIVATE_RELEASE_CONTROLS','DRNIB_PRIVATE_API_URL','DRNIB_PRIVATE_FUNDING_API_URL']) if(!process.env[key]) throw Error(`Missing required frontend build setting ${key}`);
   const origins=network==='mainnet'?{DRNIB_PRIVATE_API_URL:'https://drnib.nibgate.xyz',DRNIB_PRIVATE_FUNDING_API_URL:'https://nibgate-drnib-funding-mainnet-production.up.railway.app'}:{DRNIB_PRIVATE_API_URL:'https://nibgate-drnib-private-synthetic-production.up.railway.app',DRNIB_PRIVATE_FUNDING_API_URL:'https://drnib-private-funding-canary-production.up.railway.app',DRNIB_API_URL:'https://drnib.testnet.nibgate.xyz'};
   for(const [key,value] of Object.entries(origins))if((process.env[key]||'').replace(/\/+$/,'')!==value)throw Error(`${key} does not match target network`);

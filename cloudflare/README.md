@@ -19,3 +19,6 @@ The archives in `cloudflare/previous-static` contain public `_next/static` files
 The pinned OpenNext adapter declares a different Next.js peer range from this repository, even though local builds and synthetic tests have passed. Testnet creator still requires a compatible existing backend and domain/TLS configuration. Live authentication and payment flows have not been verified by these synthetic tests.
 
 The wildcard target stages the mainnet creator Worker separately. Its production route is managed independently; validate reserved-host precedence and login behavior before deploying it.
+# Reviewed Dr. Nib guest releases
+
+`hub/reviewed-guest-releases.json` pins each network's reviewed guest image and compose identity in source. Hub builds require the configured network and app ID to match and use that source-pinned compose hash; stale CI environment values cannot silently roll the client back to an earlier guest image. Other verifier, OS, instance, KMS and release-control settings stay in the existing build environment. Update this file only with a reviewed deployment; rolling back a guest image also requires rolling back its corresponding source pin and broker/watchdog release policy.

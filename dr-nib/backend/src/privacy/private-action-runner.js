@@ -62,8 +62,8 @@ export function createPrivateActionRunner({ db, storage, workflow,allowHostedRes
                 const unfinished=journalValue.entries?.find(e=>e.state!=='complete');
                 // Only the store can prove a failed first inference admission
                 // was never dispatched, under the admission and run locks.
-                const initialAdmission=journalValue.entries?.length===1&&unfinished?.kind==='infer'&&unfinished.state==='started';
-                const rejectedCandidate=allowHostedResearchFallback&&unfinished?.kind==='infer'&&unfinished.state==='started'&&unfinished===journalValue.entries.at(-1);
+                const initialAdmission=journalValue.entries?.length===1&&unfinished?.kind==='infer'&&unfinished.state==='started'&&!unfinished.ack;
+                const rejectedCandidate=allowHostedResearchFallback&&unfinished?.kind==='infer'&&unfinished.state==='started'&&!unfinished.ack&&unfinished===journalValue.entries.at(-1);
                 if(unfinished&&!initialAdmission&&!rejectedCandidate){
                     const operation=['infer','judge','parse','code','terminal','owner-answer','public-retrieval'].includes(unfinished.kind)?unfinished.kind:'unknown';
                     const envelope=sealClientObject(stateKey,{tenantId:run.userId,runId:run.id,vaultId:input.vaultId,objectId:input.requestId,revision:1,purpose:'event'},Buffer.from(JSON.stringify({error:'PRIVATE_CHECKPOINT_UNCERTAIN',operation})));

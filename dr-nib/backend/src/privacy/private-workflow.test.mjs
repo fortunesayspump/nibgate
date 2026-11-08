@@ -1,8 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createPrivateWorkflow} from './private-workflow.js';
+import {createPrivateCheckpoint} from './private-checkpoint.js';
+import {randomBytes} from 'node:crypto';
 const state={status:'intake',brief:{topic:'Fictional irrigation study'}};
 const question={key:'follow-up_scope',type:'pick_one',prompt:'Who will use this?',options:[{id:'a',label:'Researchers'},{id:'b',label:'Growers'}]};
+test('a real model steering reply is journaled and shown before the next call without replay charges',async()=>{
+ const journal={format:'drnib-checkpoint-v1',entries:[],consumed:[]},key=randomBytes(32);let acknowledgments=0,intakes=0;
+ const cp=()=>createPrivateCheckpoint({key,value:journal,save:async()=>{},fence:async()=>{},controls:async()=>[{id:'scope-control',command:'guidance',text:'Keep this fictional and do not purchase sources.'}]});
+ const workflow=createPrivateWorkflow({infer:async request=>{
+  if(request.stage==='guidance'){acknowledgments++;assert.equal(request.maxTokens,384);assert.match(request.messages[1].content,/Keep this fictional/);return {choices:[{message:{content:'I will keep the scenario fictional and use only the existing sources.'},finish_reason:'stop'}]};}
+  intakes++;assert.match(request.messages.at(-1).content,/Keep this fictional/);return {choices:[{message:{content:JSON.stringify({questions:[question]})},finish_reason:'stop'}]};
+ }});
+ for(let i=0;i<2;i++){
+  const out=await workflow({state,action:'intake',checkpoint:cp()});
+  const ack=out.state.events.find(e=>e.id==='guidance-ack:scope-control');
+  assert.equal(ack.origin,'model-summary');assert.match(ack.text,/I will keep/);assert.deepEqual(ack.controlIds,['scope-control']);
+ }
+ assert.equal(acknowledgments,1);assert.equal(intakes,1);
+});
+test('invalid model acknowledgment is an honest system state, never a canned model reply',async()=>{
+ const checkpoint=createPrivateCheckpoint({key:randomBytes(32),value:{format:'drnib-checkpoint-v1',entries:[],consumed:[]},save:async()=>{},fence:async()=>{},controls:async()=>[{id:'bad-ack',command:'guidance',text:'Only current sources.'}]});
+ const out=await createPrivateWorkflow({infer:async request=>request.stage==='guidance'?{choices:[{message:{content:''},finish_reason:'length'}]}:{choices:[{message:{content:JSON.stringify({questions:[question]})},finish_reason:'stop'}]}})({state,action:'intake',checkpoint});
+ const ack=out.state.events.find(e=>e.id==='guidance-ack:bad-ack');assert.equal(ack.origin,'system');assert.match(ack.text,/did not return a usable acknowledgment/);
+});
 test('empty or unusable opening questions never silently become a generic question bank',async()=>{
  for(const value of [{questions:[]},{questions:[{bad:'shape'}]},{other:[]}]){
   const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]}),judge:()=>assert.fail('No invented judgment')});

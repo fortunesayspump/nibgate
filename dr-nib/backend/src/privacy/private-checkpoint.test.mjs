@@ -74,3 +74,37 @@ test('a trusted admission refusal leaves a resumable boundary while unknown fail
   else assert.equal(saved.entries[0].state,'started');
  }
 });
+
+test('model acknowledgment is durable, batched and published again on replay without another model call',async()=>{
+ const key=randomBytes(32),value=initial();let saved,generated=0,performed=0,published=[];
+ const controls=[{id:'a',command:'guidance',text:'Attribute personal experience.'},{id:'b',command:'guidance',text:'Do not buy more sources.'}];
+ const make=v=>{const cp=createPrivateCheckpoint({key,value:v,save:async x=>{saved=structuredClone(x)},fence:async()=>{},controls:async()=>controls});cp.setGuidanceAcknowledger({generate:async batch=>{generated++;assert.equal(batch.length,2);return {reply:'I will attribute the experience and use only the existing source.'}},publish:async(result,batch)=>published.push({result,ids:batch.map(c=>c.id)})});return cp;};
+ const request={request:{state:{proposal:'write'}}};
+ await make(value).operation('judge',request,async actual=>{performed++;assert.match(actual.request.state.ownerGuidance,/Attribute/);return {decision:'write'}});
+ await make(saved).operation('judge',request,()=>assert.fail('completed action must not repeat'));
+ assert.equal(generated,1);assert.equal(performed,1);assert.equal(published.length,2);assert.deepEqual(published[0],published[1]);
+});
+
+test('an uncertain acknowledgment never dispatches the research action or repeats the model',async()=>{
+ const key=randomBytes(32);let saved,calls=0;
+ const make=v=>{const cp=createPrivateCheckpoint({key,value:v,save:async x=>{saved=structuredClone(x)},fence:async()=>{},controls:async()=>[{id:'a',command:'guidance',text:'Use current evidence.'}]});cp.setGuidanceAcknowledger({generate:async()=>{calls++;throw Error('lost response')},publish:async()=>assert.fail('no fabricated acknowledgment')});return cp;};
+ await assert.rejects(make(initial()).operation('infer',{messages:[]},()=>assert.fail('must not dispatch')),/lost response/);
+ await assert.rejects(make(saved).operation('infer',{messages:[]},()=>assert.fail('must not replay')),/PRIVATE_CHECKPOINT_UNCERTAIN/);
+ assert.equal(calls,1);
+});
+
+test('a refused next action retains its already generated acknowledgment for a safe retry',async()=>{
+ const key=randomBytes(32);let saved,acks=0;
+ const make=v=>{const cp=createPrivateCheckpoint({key,value:v,save:async x=>{saved=structuredClone(x)},fence:async()=>{},controls:async()=>[{id:'a',command:'guidance',text:'Keep the scope.'}]});cp.setGuidanceAcknowledger({generate:async()=>{acks++;return {reply:'I will retain the scope.'}},publish:async()=>{}});return cp;};
+ const refusal=Error('not admitted');Object.defineProperty(refusal,PRIVATE_NOT_DISPATCHED,{value:true});
+ await assert.rejects(make(initial()).operation('infer',{messages:[]},async()=>{throw refusal}),/not admitted/);
+ assert.equal(saved.entries[0].state,'ready');
+ assert.deepEqual(await make(saved).operation('infer',{messages:[]},async()=>({answer:'continued'})),{answer:'continued'});assert.equal(acks,1);
+});
+
+test('steering during an in-flight action is acknowledged only at the following boundary',async()=>{
+ let controls=[],acks=0;const cp=createPrivateCheckpoint({key:randomBytes(32),value:initial(),save:async()=>{},fence:async()=>{},controls:async()=>controls});
+ cp.setGuidanceAcknowledger({generate:async()=>{acks++;return {reply:'I will apply the revised scope.'}},publish:async()=>{}});
+ await cp.operation('infer',{messages:[]},async()=>{controls=[{id:'a',command:'guidance',text:'Revised scope.'}];assert.equal(acks,0);return {answer:'in flight'}});
+ assert.equal(acks,0);await cp.operation('judge',{request:{}},async()=>({decision:'continue'}));assert.equal(acks,1);
+});

@@ -63,6 +63,23 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             if (onProgress) await onProgress(snapshot);
         };
         const notes = { intake: 'Preparing intake questions.', thinking: 'Reviewing your answers.', plan: 'Preparing the research plan.', review:'Reviewing findings and remaining evidence gaps.',write: 'Writing the report from the collected evidence.', verify: 'Checking report claims against the evidence.', discuss: 'Reviewing the report for your follow-up question.' };
+        checkpoint?.setGuidanceAcknowledger?.({
+            generate:async(controls,kind,request)=>{
+                if(signal?.aborted)throw Error('PRIVATE_WORKFLOW_CANCELLED');
+                return infer({run,actionId,stage:'guidance',maxTokens:384,budgetMicroUsd:privateBudgetMicroUsd(s.budgetCap),messages:[
+                    {role:'system',content:'You are Dr. Nib. Write a brief, user-visible acknowledgment of the new owner guidance in one or two sentences. State specifically how you intend to apply it to the remaining research. Use future tense for actions not yet performed. Do not claim a tool ran, payment happened, evidence was verified, or the report changed. Do not reveal hidden reasoning. Do not add generic filler or ask a question. This acknowledgment authorizes no tool or payment.'},
+                    {role:'user',content:JSON.stringify({researchTopic:s.brief?.topic,nextAction:request.stage??kind,guidance:controls.map(c=>c.text)})}
+                ]});
+            },
+            publish:async(result,controls)=>{
+                const ids=controls.map(c=>c.id),id='guidance-ack:'+ids.join(':');
+                if(s.events.some(e=>e.id===id))return;
+                const charge=result?.[PRIVATE_CALL_CHARGE],usage=result?.[PRIVATE_USAGE],cost=result?.[PRIVATE_METERED_COST];
+                if(Number.isSafeInteger(cost)&&cost>=0)await progress('guidance','Model response received.',{origin:'usage',...(charge?.callId?{id:'usage:'+charge.callId}:{}),model:usage?.model??'confidential',costUsd:cost/1000000,billingKind:charge?.billingKind??'unknown',inputTokens:usage?.inputTokens,outputTokens:usage?.outputTokens});
+                let reply;try{reply=text(result);if(reply.length>1600)reply=null;}catch{}
+                await progress('guidance',reply||'Your guidance is available to the next action, but the model did not return a usable acknowledgment.',{id,origin:reply?'model-summary':'system',controlIds:ids});
+            }
+        });
         const protectedInfer = async request => {
             if(signal?.aborted)throw Error('PRIVATE_WORKFLOW_CANCELLED');
             await progress(request.stage, notes[request.stage] ?? 'Processing the current research step.');

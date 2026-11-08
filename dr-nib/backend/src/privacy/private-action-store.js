@@ -180,7 +180,7 @@ export function createPrivateActionStore({ db, storage, stateKey, tenantId, runI
                             // both inference adapters commit a reservation before
                             // contacting a provider. Do not infer this from lease
                             // expiry, a missing response, or zero billed dollars.
-                            if(existing.status!=='uncertain'||live.entries.length!==1||live.entries[0].kind!=='infer'||live.entries[0].state!=='started'||!existing.reply)return {...existing,status:'uncertain',existing:true};
+                            if(existing.status!=='uncertain'||live.entries.length!==1||live.entries[0].ack||live.entries[0].kind!=='infer'||live.entries[0].state!=='started'||!existing.reply)return {...existing,status:'uncertain',existing:true};
                             const bytes=openClientObject(stateKey,{tenantId,runId,vaultId,objectId:requestId,revision:1,purpose:'event'},existing.reply);
                             let failure;try{failure=JSON.parse(bytes.toString('utf8'));}finally{bytes.fill(0);}
                             if(failure.error!=='PRIVATE_STORAGE_TRANSACTION_TIMEOUT'||await tx.privateInferenceCall.count({where:{runId,actionId:requestId}})||await tx.privateToolCall.count({where:{runId}}))return {...existing,status:'uncertain',existing:true};

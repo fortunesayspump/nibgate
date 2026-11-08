@@ -21,14 +21,19 @@ function unpack(record){const value=structuredClone(record.value);if(record.usag
  * entire unknown charge under the operator cap; tools stay non-replayable. */
 export function createPrivateCheckpoint({key,value,save,fence,controls=async()=>[]}){
  if(!(key instanceof Uint8Array)||key.length!==32||typeof save!=='function'||typeof fence!=='function'||value?.format!=='drnib-checkpoint-v1'||!Array.isArray(value.entries))throw fail();
- let cursor=0,tail=Promise.resolve();
+ let cursor=0,tail=Promise.resolve(),acknowledger;
  const persist=async()=>{if(Buffer.byteLength(JSON.stringify(value))>limit)throw Error('PRIVATE_CHECKPOINT_LIMIT');await save(value);};
  const execute=async(kind,request,perform)=>{
   await fence();
   const {run,actionId,...input}=request??{};
   const digest=createHmac('sha256',key).update(JSON.stringify(canonical({kind,input}))).digest('hex');
   const prior=value.entries[cursor++];
-  if(prior){if(prior.digest!==digest||prior.kind!==kind||prior.state!=='complete')throw fail();return unpack(prior.result);}
+  if(prior){
+   if(prior.digest!==digest||prior.kind!==kind)throw fail();
+   if(prior.state==='complete'){if(prior.ack?.state==='complete'&&acknowledger)await acknowledger.publish(unpack(prior.ack.result),prior.ack.controls);return unpack(prior.result);}
+   if(prior.state!=='ready'||prior.ack?.state!=='complete')throw fail();
+  }
+  if(!prior){
   value.consumed??=[];
   for(const control of await controls()){
    if(value.consumed.includes(control.id))continue;
@@ -37,17 +42,33 @@ export function createPrivateCheckpoint({key,value,save,fence,controls=async()=>
     const guidance=[value.guidance,control.text].filter(Boolean).join('\n\n');
     if(guidance.length>8000)throw Error('PRIVATE_CHECKPOINT_LIMIT');
     value.guidance=guidance;
+    (value.pendingGuidanceAcknowledgments??=[]).push({id:control.id,text:control.text});
    }
    if(control.command==='pause'){await persist();throw Error(PRIVATE_PAUSED);}
   }
   if(value.entries.length>=128||Buffer.byteLength(JSON.stringify(value))>limit-512*1024)throw Error('PRIVATE_CHECKPOINT_LIMIT');
-  const entry={kind,digest,state:'started'};value.entries.push(entry);await persist();
+  }
+  const entry=prior??{kind,digest,state:'started',guidance:value.guidance};
+  if(!prior){
+   if(acknowledger&&value.pendingGuidanceAcknowledgments?.length){entry.ack={state:'started',controls:value.pendingGuidanceAcknowledgments};value.pendingGuidanceAcknowledgments=[];entry.state='acknowledging';}
+   value.entries.push(entry);await persist();
+   if(entry.ack){
+    let result;
+    try{result=await acknowledger.generate(entry.ack.controls,kind,request);}catch(error){
+     if(error?.[PRIVATE_NOT_DISPATCHED]===true){value.pendingGuidanceAcknowledgments=entry.ack.controls;value.entries.pop();cursor--;await persist();}
+     throw error;
+    }
+    entry.ack.result=pack(result);entry.ack.state='complete';entry.state='ready';await persist();
+   }
+  }
+  if(entry.ack&&acknowledger)await acknowledger.publish(unpack(entry.ack.result),entry.ack.controls);
+  if(entry.ack){await fence();entry.state='started';await persist();}
   let actual=request;
-  if(value.guidance&&kind==='infer')actual={...request,messages:[...request.messages,{role:'user',content:'Owner guidance for remaining work: '+value.guidance}]};
-  if(value.guidance&&kind==='judge')actual={...request,request:{...request.request,state:{context:request.request.state,ownerGuidance:value.guidance}}};
+  if(entry.guidance&&kind==='infer')actual={...request,messages:[...request.messages,{role:'user',content:'Owner guidance for remaining work: '+entry.guidance}]};
+  if(entry.guidance&&kind==='judge')actual={...request,request:{...request.request,state:{context:request.request.state,ownerGuidance:entry.guidance}}};
   let result;
   try{result=await perform(actual);}catch(error){
-   if(error?.[PRIVATE_NOT_DISPATCHED]===true){value.entries.pop();cursor--;await persist();}
+   if(error?.[PRIVATE_NOT_DISPATCHED]===true){if(entry.ack)entry.state='ready';else value.entries.pop();cursor--;await persist();}
    throw error;
   }
   entry.result=pack(result);entry.state='complete';await persist();return result;
@@ -67,7 +88,7 @@ export function createPrivateCheckpoint({key,value,save,fence,controls=async()=>
   const error=Error(PRIVATE_AWAITING);error.question=structuredClone(entry.question);throw error;
  };
  const queued=operation=>{const next=tail.then(operation);tail=next.catch(()=>{});return next;};
- return {value,operation:(kind,request,perform)=>queued(()=>execute(kind,request,perform)),ownerQuestion:request=>queued(()=>ownerQuestion(request)),flush:persist};
+ return {value,setGuidanceAcknowledger:handler=>{if(typeof handler?.generate!=='function'||typeof handler?.publish!=='function')throw fail();acknowledger=handler;},operation:(kind,request,perform)=>queued(()=>execute(kind,request,perform)),ownerQuestion:request=>queued(()=>ownerQuestion(request)),flush:persist};
 }
 
 export function answerPrivateCheckpoint(value,args){

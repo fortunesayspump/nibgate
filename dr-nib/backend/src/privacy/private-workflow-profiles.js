@@ -11,6 +11,7 @@ const profiles=Object.freeze({
     thinking:Object.freeze({effort:'none',temperature:0.5,maxTokens:1024}),
     agent:Object.freeze({effort:'low',temperature:0.2,maxTokens:2048}),
     review:Object.freeze({effort:'low',temperature:0.3,maxTokens:4096}),
+    guidance:Object.freeze({effort:'none',temperature:0.2,maxTokens:384}),
 });
 export function privateWorkflowProfile(stage,model){
     if(!Object.hasOwn(profiles,stage))throw Error('PRIVATE_WORKFLOW_INPUT_LIMIT');

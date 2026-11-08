@@ -3,15 +3,10 @@ import assert from 'node:assert/strict';
 import {createPrivateWorkflow} from './private-workflow.js';
 const state={status:'intake',brief:{topic:'Fictional irrigation study'}};
 const question={key:'follow-up_scope',type:'pick_one',prompt:'Who will use this?',options:[{id:'a',label:'Researchers'},{id:'b',label:'Growers'}]};
-test('empty or unusable intake questions fall back to the original question bank',async()=>{
- const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:'{"questions":[]}'},finish_reason:'stop'}]}),judge:()=>assert.fail('No empty JEV batch')});
- const out=await workflow({state,action:'intake'});assert.equal(out.state.status,'intake');assert.equal(out.state.questions.length,4);assert.ok(out.state.questions.every(q=>q.source==='question-bank'));assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,4);
- const answering=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'I will use those choices to shape the research.'},finish_reason:'stop'}]})});
- const answered=await answering({state:out.state,action:'answers',args:{answers:out.state.questions.map(q=>({seq:q.seq,answer:{optionIds:[q.options[0].id]}}))}});
- assert.equal(answered.state.status,'intake-done');assert.equal(answered.state.decisions.filter(d=>d.kind==='question'&&d.answer).length,4);
- for(const value of [{questions:[{bad:'shape'}]},{other:[]}]){
-  const fallback=await createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]})})({state,action:'intake'});
-  assert.equal(fallback.state.questions.length,4);assert.ok(fallback.state.questions.every(q=>q.source==='question-bank'));
+test('empty or unusable opening questions never silently become a generic question bank',async()=>{
+ for(const value of [{questions:[]},{questions:[{bad:'shape'}]},{other:[]}]){
+  const workflow=createPrivateWorkflow({infer:async()=>({choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}]}),judge:()=>assert.fail('No invented judgment')});
+  await assert.rejects(workflow({state,action:'intake'}),{message:'PRIVATE_INTAKE_INVALID'});
  }
 });
 test('the original opener proposes model questions without a premature stop judgment',async()=>{
@@ -88,10 +83,9 @@ test('the original eight-question threshold prevents endless follow-up batches',
  assert.equal(out.state.status,'intake-done');assert.deepEqual(out.state.questions,[]);assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,8);
  const decision=out.state.decisions.find(d=>d.step==='intake-stop');assert.equal(decision.output.modelChoice,'ask_more');assert.equal(decision.output.decision,'proceed');assert.equal(decision.output.capped,true);assert.equal(decision.output.cap,8);
 });
-test('an unavailable JEV uses the original labeled question-bank fallback',async()=>{
+test('an unavailable JEV is not replaced by a generic question bank or invented decision',async()=>{
  const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'Noted.'},finish_reason:'stop'}]}),judge:async()=>{throw Error('HOSTED_JEV_UNAVAILABLE')}});
- const out=await workflow({state:{...state,questions:[{...question,seq:0}],decisions:[{kind:'question',seq:0,question:{...question,seq:0}}]},action:'answers',args:{answers:[{seq:0,answer:{optionIds:['a']}}]}});
- assert.equal(out.state.status,'intake');assert.ok(out.state.questions.length);assert.equal(out.state.decisions.find(d=>d.step==='intake-stop').output.source,'fallback');
+ await assert.rejects(workflow({state:{...state,questions:[{...question,seq:0}],decisions:[{kind:'question',seq:0,question:{...question,seq:0}}]},action:'answers',args:{answers:[{seq:0,answer:{optionIds:['a']}}]}}),{message:'HOSTED_JEV_UNAVAILABLE'});
 });
 
 test('a missing source blocks private planning before model dispatch',async()=>{
@@ -110,4 +104,16 @@ test('chat cost notes use metered per-call metadata, including zero cost and spo
   const out=await createPrivateWorkflow({infer:async()=>result})({state,action:'intake'});
   const notes=out.state.events.filter(e=>e.origin==='usage');assert.equal(notes.length,1);assert.equal(notes[0].costUsd,cost/1000000);assert.equal(notes[0].billingKind,'platform');assert.equal(notes[0].model,'qwen/reviewed');assert.equal(notes[0].id,'usage:fixture-call-'+cost);
  }
+});
+
+test('JEV receives actual question and answer context, not just opaque keys or a batch count',async()=>{
+ const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?'{"questions":[]}':'The research will serve greenhouse growers.'},finish_reason:'stop'}]}),judge:async({request})=>{assert.match(request.state,/Who will use this\?/);assert.match(request.state,/Growers/);assert.match(request.state,/Actual answered context/);assert.doesNotMatch(request.state,/Still open: purpose/);return {model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:'proceed'}}}}});
+ const out=await workflow({state:{...state,questions:[{...question,seq:0}],decisions:[{kind:'question',seq:0,question:{...question,seq:0}}]},action:'answers',args:{answers:[{seq:0,answer:{optionIds:['b']}}]}});
+ assert.equal(out.state.status,'intake-done');assert.deepEqual(out.state.questions,[]);
+});
+test('a generated follow-up batch cannot exceed the remaining eight-question allowance',async()=>{
+ const decisions=Array.from({length:7},(_,i)=>({kind:'question',seq:i,question:{...question,key:'scope-'+i,seq:i},...(i<6?{answer:{optionIds:['a'],text:''}}:{})}));
+ const workflow=createPrivateWorkflow({infer:async request=>({choices:[{message:{content:request.stage==='intake'?JSON.stringify({questions:Array.from({length:5},(_,i)=>({key:'new-'+i,type:'pick_one',prompt:'Which greenhouse constraint remains essential '+i+'?',options:[{id:'a',label:'Winter heating'},{id:'b',label:'Water use'}]}))}):'The scope is clear.'},finish_reason:'stop'}]}),judge:async()=>({model:'fixture',costMicroUsd:0,answers:{'intake-stop':{type:'choice',choice:'ask_more'}}})});
+ const out=await workflow({state:{...state,decisions,questions:[decisions[6].question]},action:'answers',args:{answers:[{seq:6,answer:{optionIds:['a']}}]}});
+ assert.equal(out.state.questions.length,1);assert.equal(out.state.decisions.filter(d=>d.kind==='question').length,8);assert.ok(out.state.questions.every(q=>q.source==='confidential-model'));
 });

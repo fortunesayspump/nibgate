@@ -13,9 +13,10 @@ import { EscrowDeposit } from "@/components/dr-nib/EscrowDeposit";
 import { SourceManager } from "@/components/dr-nib/SourceManager";
 import {RunWorkDuration} from '@/components/dr-nib/RunWorkDuration';
 import {PrivateExpenseReceipt} from '@/components/dr-nib/PrivateExpenseReceipt';
-import { ReportArticle, ReportEvidence, ReportQA, DiscussThread } from "@/components/dr-nib/ReportMarkdown";
+import { ReportArticle, ReportEvidence, ReportQA, DiscussThread, DiscussionMarkdown } from "@/components/dr-nib/ReportMarkdown";
 import {privateBuildEnabled,privateFundingEnabled} from '@/lib/dr-nib-private-records';
 import {drNibFeedKey,privateResearchActivity,drNibToolFailed,deduplicateDrNibRows,drNibHasPendingQuestion,drNibQuestionMarker} from '@/lib/dr-nib-feed';
+import {reportWrapUp,reportAtCompletion} from '@/lib/dr-nib-wrap-up.js';
 import {formatDrNibAnswer as formatAnswer} from '@/lib/dr-nib-question-history';
 const PrivateSourceTip=dynamic(()=>import('@/components/dr-nib/PrivateSourceTip').then(module=>module.PrivateSourceTip),{ssr:false});
 
@@ -1283,6 +1284,13 @@ function ServerRunDetailPage({ id }: { id: string }) {
                   }
                   if(item.t==='verification-summary')return <div key={itemKey} className={`rounded-xl border border-dark-gray/40 bg-white p-3 text-xs${enter}`}><p className="font-medium">Evidence check: {item.supported}/{item.total} sampled claims supported</p><p className="mt-1 leading-5">These checks compare sampled claims with their cited source passages. They do not verify every sentence or establish real-world causation.</p></div>;
                   if (item.t === "marker") {
+                    const finishedReport=reportAtCompletion(run.reports,item.at);
+                    const wrapUp=item.e.type==='complete'?reportWrapUp(finishedReport?.markdown):null;
+                    if(wrapUp)return <section key={itemKey} aria-label="Research wrap-up" className={`rounded-xl border border-dark-gray/40 bg-white p-3${enter}`}>
+                      <p className="text-xs font-medium">Dr. Nib · Research complete</p>
+                      <p className="mt-1 text-[11px] opacity-60">From the report’s model-written {wrapUp.kind} · report v{finishedReport.version}</p>
+                      <DiscussionMarkdown markdown={wrapUp.markdown} sources={finishedReport.citations?.length?finishedReport.citations:run.sources||[]} />
+                    </section>;
                     return <p key={itemKey} className={`text-center text-[11px] uppercase tracking-wider opacity-50${enter}`}>— {item.e.type} —</p>;
                   }
                   return <div key={item.step.id} className={enter ? "drnib-feed-enter" : undefined}><StepDetail step={item.step} open={last && item.step.status !== "done"} /></div>;

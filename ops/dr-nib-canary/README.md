@@ -1,5 +1,7 @@
 # Dr. Nib owner canary — local preparation
 
+Current deployed testnet configuration, drift findings and recovery preflight: [Live testnet runbook](LIVE-TESTNET-RUNBOOK.md). This operational record supplements the preparation instructions below.
+
 Verifier implementation and hosting decision: see [Official Phala verifier selection](VERIFIER.md). The engine is the official digest-pinned dstack-verifier, not a Nibgate implementation.
 
 The current owner canary reuses the existing testnet project, broker, verifier pair, database host, private bucket, Phala CVM and frontend project. Extra services are allowed only for required funding/supervision boundaries. The owner plan uses `deploymentMode: "reuse"`; generated project-creation entrypoints refuse to execute in that mode. Generic fresh-project IaC remains an optional reference, not the selected rollout.

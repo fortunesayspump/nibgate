@@ -50,6 +50,13 @@ export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,te
   const guest=guestURL(guestBaseURL);
   const idleMs=positiveInt(env.DRNIB_PRIVATE_WAKE_IDLE_MS,15_000,300_000);
   const maxRuntimeMs=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS,30_000,7_200_000);
+  let monthlyComputePolicy=null;
+  if(env.DRNIB_PRIVATE_COMPUTE_MONTHLY_CAP_MICRO_USD!==undefined){
+    monthlyComputePolicy={
+      capMicroUsd:positiveInt(env.DRNIB_PRIVATE_COMPUTE_MONTHLY_CAP_MICRO_USD,1,2_000_000),
+      hourlyMicroUsd:positiveInt(env.DRNIB_PRIVATE_COMPUTE_HOURLY_MICRO_USD,1,10_000_000),
+      stopReserveMs:300_000};
+  }
   const maxActive=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_ACTIVE??'4',1,8);
   const maxPending=positiveInt(env.DRNIB_PRIVATE_WAKE_MAX_PENDING??'64',1,256);
   const policy=releasePolicy(env.DRNIB_PRIVATE_RELEASE_POLICY_JSON);
@@ -81,7 +88,7 @@ export async function createConfiguredPhalaWake({env=process.env,guestBaseURL,te
       return run&&!run.deletedAt&&run.metadata?.privacyMode==='confidential'?run.userId:null;
     })):undefined});
   const store=lifecycleStore??createPrivateLifecycleStore({db:(await import('../db.js')).db,cvmId:env.DRNIB_PRIVATE_CVM_ID,tenantId,accessMode});
-  const controller=createDurablePhalaWake({store,api,guestReady,verifyAttestation,idleMs,maxRuntimeMs,maxActive,maxPending});
+  const controller=createDurablePhalaWake({store,api,guestReady,verifyAttestation,idleMs,maxRuntimeMs,monthlyComputePolicy,maxActive,maxPending});
   await controller.status(); // Require migration/grants before advertising availability.
   return controller.start();
 }

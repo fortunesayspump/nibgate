@@ -55,3 +55,11 @@ test('failed graceful shutdown force-stops only after draining and confirms stop
 test('insufficient remaining startup-operation allowance rejects before any paid VM start',async()=>{
  const f=fixture(),c=f.make({maxRuntimeMs:150});await assert.rejects(c.run('too-small',async()=>assert.fail('dispatch')),/BUDGET_EXHAUSTED/);assert.deepEqual(f.calls,[]);
 });
+test('monthly mode replaces exhausted lifetime window without resetting it and stops at monthly cap',async()=>{
+ const f=fixture();await f.make().status();f.get().usedMs=10000;
+ const p={capMicroUsd:100,hourlyMicroUsd:1000,stopReserveMs:240000},c=f.make({monthlyComputePolicy:p});
+ await c.run('renewed',async()=>true);assert.equal(f.get().usedMs,10000);assert.equal(f.get().monthlyCompute.months['1970-01'],70000);
+ f.advance(50001);await c.tick();assert.deepEqual(f.calls,['start','force']);await assert.rejects(c.run('exhausted',async()=>assert.fail()),/BUDGET_EXHAUSTED/);
+ await assert.rejects(f.make().status(),/MONTHLY_POLICY_REQUIRED/);
+ f.advance(Date.UTC(1970,1,1));await c.run('next-month',async()=>true);assert.deepEqual(f.calls,['start','force','start']);
+});

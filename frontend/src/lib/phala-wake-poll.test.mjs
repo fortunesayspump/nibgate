@@ -1,0 +1,8 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{pollPrivateWake}from'./phala-wake-poll.js';
+function fixture(starts,states){let t=0,calls=0;return{args:{start:async()=>{calls++;return{phase:starts.shift()}},status:async()=>({phase:states.shift()}),wait:async n=>{t+=n},now:()=>t},calls:()=>calls};}
+test('ordinary cold start polls without duplicate wake calls',async()=>{const f=fixture(['starting'],['starting','ready']);await pollPrivateWake(f.args);assert.equal(f.calls(),1)});
+test('request during shutdown waits for confirmed stop then wakes exactly once',async()=>{const f=fixture(['draining','starting'],['draining','stopped','ready']);await pollPrivateWake(f.args);assert.equal(f.calls(),2)});
+test('quarantined start remains blocked without a retry or inference',async()=>{const f=fixture(['starting'],['quarantined']);await assert.rejects(pollPrivateWake(f.args),/needs recovery/);assert.equal(f.calls(),1)});
+test('unexpected stop during startup is not treated as an idle-shutdown race',async()=>{const f=fixture(['starting'],['stopped']);await assert.rejects(pollPrivateWake(f.args),/needs recovery/);assert.equal(f.calls(),1)});
+test('a second stopped wake fails closed without a third request',async()=>{const f=fixture(['draining','stopped'],['stopped']);await assert.rejects(pollPrivateWake(f.args),/needs recovery/);assert.equal(f.calls(),2)});
+test('polling retains its bounded deadline',async()=>{const f=fixture(['draining'],['draining','draining']);await assert.rejects(pollPrivateWake({...f.args,timeoutMs:2000}),/needs recovery/);assert.equal(f.calls(),1)});

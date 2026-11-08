@@ -31,3 +31,29 @@ Before charging customers for infrastructure, implement a versioned disclosed ra
 ## Operator controls
 
 Use independent provider-bill reconciliation, durable lifecycle runtime accounting, supervised stop/watchdog processes and alerts. A workstation timer is best effort, not a provider-enforced spending guarantee. Budget renewal must be explicit; never reset durable usage on process restart or clear an unknown hold merely to admit another call. See [PRODUCTION.md](PRODUCTION.md).
+
+## Renewable monthly compute guard (owner approved 2026-11-08)
+
+Broker and independently supervised watchdog use the same two public policy settings:
+`DRNIB_PRIVATE_COMPUTE_MONTHLY_CAP_MICRO_USD=2000000` and
+`DRNIB_PRIVATE_COMPUTE_HOURLY_MICRO_USD=58000` on each network.
+These replace the cumulative canary admission limit with a UTC calendar-month
+compute allowance; the legacy cumulative usage and manual grant audit are retained.
+Migration conservatively charges prior cumulative use plus previously credited
+runtime to the first month. Restarting a service does not renew the budget.
+At a month boundary only the new month's allowance renews; earlier buckets remain.
+
+The controller charges elapsed starting/running/stopping time, conservatively
+reserves one extra billed minute per start, and stops five minutes before the
+calculated limit to allow provider shutdown. New starts need a further bounded
+startup reserve. The existing five-minute idle shutdown, ownership, attestation,
+AI expenditure and per-run escrow limits remain unchanged. Availability polling
+never starts a CVM. At the approved compute rate, $2 buys approximately 34.48 hours
+before conservative reserves and prior usage. Billing is minute-based per
+<https://docs.phala.com/phala-cloud/faqs> (checked 2026-11-08).
+
+This is an application-enforced guard, not a provider billing hard cap. A provider
+outage, stopped watchdog, out-of-band VM start or price change can invalidate its
+cost estimate. Disk and model/search charges are separate. Do not promise $2 is a
+maximum combined invoice. Reconcile the pinned compute rate against the provider
+before resizing or changing it. No balance top-up or payment setting is changed.

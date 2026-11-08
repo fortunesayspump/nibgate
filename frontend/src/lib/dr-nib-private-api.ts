@@ -1,3 +1,4 @@
+import { pollPrivateWake } from './phala-wake-poll.js';
 import { guestPlanningResponseError, guestTransport } from './dr-nib-guest-planning';
 import { privateConnectionProgress } from './dr-nib-private-connection';
 import type { PrivateEnvelope } from "./dr-nib-private-crypto";
@@ -77,15 +78,11 @@ export async function createPrivateRun(): Promise<{ id: string; tenantId: string
 async function wakePrivateWorker(runId: string): Promise<void> {
   const path = `/runs/${runId}/wake`;
   privateConnectionProgress(runId, 'connecting');
-  let value = await request(path, { method: "POST", body: "{}" }) as { phase?: string };
-  const deadline = Date.now() + 300_000;
-  while (value.phase !== "ready") {
-    if (!["starting", "draining"].includes(value.phase ?? "") || Date.now() >= deadline)
-      throw Error("Private worker startup needs recovery. Your saved work and escrow are preserved.");
-    privateConnectionProgress(runId, value.phase as 'starting' | 'draining');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    value = await request(path) as { phase?: string };
-  }
+  await pollPrivateWake({
+    start: () => request(path, { method: "POST", body: "{}" }) as Promise<{ phase?: string }>,
+    status: () => request(path) as Promise<{ phase?: string }>,
+    onPhase: (phase: 'starting' | 'draining') => privateConnectionProgress(runId, phase),
+  });
 }
 
 export async function openGuestSession(runId: string, clientNonce: string): Promise<GuestSession> {

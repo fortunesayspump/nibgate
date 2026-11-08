@@ -193,3 +193,17 @@ test('new exact URL reads preserve bounded decision slots for a corrected termin
  },judge:async input=>{const out=await base(input);if(input.request.state.proposal?.tool==='run_code')out.answers.gate={type:'choice',choice:'skip',probabilities:{execute:0,skip:1}};return out;},ownerQuestion:async()=>({optionId:'approve'}),externalTool:async({request})=>({ok:true,costMicroUsd:0,callId:request.url,output:{text:'Official Python context management protocol.'}}),runCode:async()=>assert.fail('skipped code cannot run'),runTerminal:async()=>{terminals++;return{stdout:'28\n',stderr:'',exitCode:0,seconds:0.01,artifacts:{}}},progress:async()=>{}});
  assert.equal(proposals,3);assert.equal(terminals,1);assert.equal(state.events.filter(e=>e.type==='tool.call'&&e.tool==='web_fetch').length,2);assert.ok(state.events.some(e=>e.type==='tool.call'&&e.tool==='run_terminal'&&e.result.stdout==='28\n'));
 });
+
+test('new policy considers the exact approved public query before spending local research decisions',async()=>{
+ const state=initial(),order=[];state.brief.liveWeb=true;state.brief.tipCreators=true;state.brief.publicResearch={approved:true,brief:'public solar battery reliability'};
+ const out=await runPrivateResearchAgent({state,docs:[{...doc}],publicResearchFirst:true,infer:async()=>{order.push('infer');assert.ok(order.includes('retrieve'));return proposal('write_report')},judge:judgeFor(order),publicRetrieval:async input=>{order.push('retrieve');assert.deepEqual(input,{brief:'public solar battery reliability',preferCreators:true});return [{...doc,id:'public',url:'https://example.com/evidence',provider:'public-web'}]},progress:async()=>{}});
+ assert.deepEqual(order.slice(0,2),['judge','retrieve']);assert.equal(order.filter(x=>x==='retrieve').length,1);assert.ok(out.some(d=>d.id==='public'));
+});
+test('new public-first policy still honors JEV rejection and disabled search',async()=>{
+ for(const disabled of [false,true]){
+  const state=initial();state.brief.liveWeb=true;state.brief.searchEnabled=!disabled;state.brief.publicResearch={approved:true,brief:'public query'};let publicJudgments=0;
+  const base=judgeFor([]);
+  await runPrivateResearchAgent({state,docs:[{...doc}],publicResearchFirst:true,infer:async()=>proposal('write_report'),judge:async input=>{const out=await base(input);if(input.request.state.proposal?.tool==='public_research'){publicJudgments++;out.answers.gate={type:'choice',choice:'skip',probabilities:{skip:1,execute:0,answer:0}};}return out},publicRetrieval:()=>assert.fail('No retrieval after JEV rejection or when disabled'),progress:async()=>{}});
+  assert.equal(publicJudgments,disabled?0:1);
+ }
+});

@@ -314,7 +314,7 @@ are the researcher's job; the user cannot meaningfully answer them, and
 each such question spawns another instead of converging.
 
 Hard rules for every prompt:
-- NEVER restate the research topic — use a two-word handle at most, never the full topic sentence.
+- Do not repeat the full research topic, but ground each question in its actual subject using a brief concrete handle. Concise must not mean generic: name the real trade-off, actor, place, or constraint rather than asking a portable questionnaire such as "What is the main objective?" or "Which setup should be prioritized?".
 - No two questions may share their first six words. Vary openings.
 - Name the concrete trade-off, window, or scope each answer would settle.
 - Each question must CLOSE a gap toward planning, not open a new field of inquiry. When in doubt between a scoping question and a methodology question, ask neither — fewer, sharper questions beat more.

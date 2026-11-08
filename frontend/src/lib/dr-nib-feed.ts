@@ -5,6 +5,9 @@ export function drNibFeedKey(item:any){
 }
 export function privateResearchActivity(run:any){
  if(!run||run.status!=='running')return null;
+ // A recovery can expose old intake events while the worker wakes. Do not
+ // present the last historical JEV decision as a new judgment in progress.
+ if(run.metadata?.privateActionPending&&run.metadata?.privateRecoveryRequestId)return {label:'Checking saved work',phase:'recovery'};
  const event=[...(run.events??[])].reverse().find((e:any)=>['thinking','thinking.fallback'].includes(e.type)&&e.origin!=='usage');
  const labels:Record<string,string>={sources:'Reading your sources',agent:'Choosing the next research action',judge:'JEV is reviewing the action',search:'Searching approved public sources',write:'Writing the report',verify:'Checking the evidence',review:'Reviewing the research',tool:'Processing tool results'};
  return {label:labels[event?.phase]??'Preparing the next research step',phase:event?.phase??'research'};

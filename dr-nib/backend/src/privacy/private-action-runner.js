@@ -76,7 +76,7 @@ export function createPrivateActionRunner({ db, storage, workflow,allowHostedRes
                     if(before.value.pendingQuestion.externalRequest&&input.args.optionId==='approve')await readPrivateExternalResult(db,run.id,{request:before.value.pendingQuestion.externalRequest,answer:input.args});
                     answerPrivateCheckpoint(journalValue,input.args);
                 }
-            }else if(research)journalValue={format:'drnib-checkpoint-v1',toolPolicyVersion:'direct-urls-first-v1',rootRequestId:input.requestId,initialAction:input.action,initialArgs:input.args,initialState:before.value,current:descriptor,entries:[],consumed:[]};
+            }else if(research)journalValue={format:'drnib-checkpoint-v1',toolPolicyVersion:'approved-public-research-first-v2',rootRequestId:input.requestId,initialAction:input.action,initialArgs:input.args,initialState:before.value,current:descriptor,entries:[],consumed:[]};
             if(journalValue&&(journalValue.format!=='drnib-checkpoint-v1'||journalValue.initialState?.id!==run.id||!UUID.test(journalValue.rootRequestId)||!Array.isArray(journalValue.entries)||Buffer.byteLength(JSON.stringify(journalValue))>1536*1024))throw Error('PRIVATE_CHECKPOINT_UNCERTAIN');
             const digest = createHmac('sha256', stateKey).update(canonicalCiphertext({ action: descriptor.action, args: descriptor.args, vaultId: input.vaultId })).digest('hex');
             claim = await store.claim({ requestId: input.requestId, digest, manifestId: before.row.id, manifestRevision: before.row.revision, action: input.action,...(journalValue&&!recover?{checkpoint:journalValue}:{}),recover,checkpointRoot:journalValue?.rootRequestId });

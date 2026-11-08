@@ -209,3 +209,18 @@ describe('concise private deliverables',()=>{
   expect(JSON.parse(fetchImpl.mock.calls[0][1].body).messages[1].content).toContain('about 300 words');
  });
 });
+
+describe('short report deficit repair',()=>{
+ it('asks the existing single deepening pass to cover a large actual deficit',async()=>{
+  vi.stubEnv(KEY,'test-key');
+  const fetchImpl=vi.fn(async(_url,options)=>{
+   if(fetchImpl.mock.calls.length===1)return jsonResponse('# Findings\n\n'+'Supported observation [1]. '.repeat(100));
+   const body=JSON.parse(options.body),request=body.messages.map(m=>m.content).join('\n');
+   const match=request.match(/Write about (\d+) words of genuinely new/);expect(match).not.toBeNull();
+   const required=Number(match[1]);expect(required).toBeGreaterThan(400);expect(required).toBeLessThanOrEqual(1320);
+   return jsonResponse('Supported expansion [1]. '.repeat(Math.ceil(required/3))+'.');
+  });
+  const out=await generateReport({brief:{topic:'fixture',qualityPolicyVersion:2},sources:[{title:'Synthetic evidence',url:'https://example.org/fixture',excerpt:'Synthetic source only.'}],targetWords:1200,includeAbstract:false,fetchImpl});
+  const {countWords}=await import('../length.js');expect(out.source).toBe('llm');expect(fetchImpl).toHaveBeenCalledTimes(2);expect(countWords(out.markdown)).toBeGreaterThanOrEqual(1080);
+ });
+});

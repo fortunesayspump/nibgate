@@ -17,6 +17,7 @@ import { ReportArticle, ReportEvidence, ReportQA, DiscussThread, DiscussionMarkd
 import {privateBuildEnabled,privateFundingEnabled} from '@/lib/dr-nib-private-records';
 import {drNibFeedKey,privateResearchActivity,drNibToolFailed,deduplicateDrNibRows,drNibHasPendingQuestion,drNibQuestionMarker} from '@/lib/dr-nib-feed';
 import {reportWrapUp,reportAtCompletion} from '@/lib/dr-nib-wrap-up.js';
+import {privateGuidanceEvent,mergeGuidanceEvents} from '@/lib/dr-nib-guidance-history';
 import {formatDrNibAnswer as formatAnswer} from '@/lib/dr-nib-question-history';
 const PrivateSourceTip=dynamic(()=>import('@/components/dr-nib/PrivateSourceTip').then(module=>module.PrivateSourceTip),{ssr:false});
 
@@ -42,7 +43,7 @@ function buildFeed(run: any): any[] {
     else if (e.type === "agent.decision") items.push({t:"agent-decision",at:e.at,e});
     else if ((e.type === "thinking" || e.type === "thinking.fallback") && e.text) items.push({ t: "progress-note", at: e.at, e });
     else if (e.type === "awaiting" && !(run.decisions??[]).some((d:any)=>d.kind==='question'&&d.answer!=null&&(d.questionId??d.question?.id)===e.question?.id)) items.push({ t: "parked", at: e.at, e });
-    else if (e.type === "guidance.applied") items.push({ t: "note", at: e.at, e });
+    else if (e.type === "guidance.applied" || e.type === 'guidance.queued') items.push({ t: "note", at: e.at, e });
     else if (e.type === "failed" || e.type === "complete") items.push({ t: "marker", at: e.at, e });
   }
   if(privateBuildEnabled()&&run.status==='complete'&&run.claims?.length){
@@ -225,6 +226,8 @@ function chatTranscript(run: any): string {
     }
   }
   const events: any[] = run.events || [];
+  const steering=events.filter((e:any)=>['guidance.queued','guidance.applied'].includes(e.type)&&typeof (e.guidance?.text??e.guidance)==='string');
+  if(steering.length){L.push('\n## Your steering');for(const e of steering)L.push(`\n${e.at??'Original time not recorded'} · ${e.delivery==='queued'?'Saved; waiting for next action':'Received by worker'}\n${e.guidance?.text??e.guidance}`);}
   const usageNotes=events.filter((e:any)=>e.origin==='usage'&&typeof e.costUsd==='number');
   if(usageNotes.length){L.push('\n## Model response expenses');for(const e of usageNotes)L.push(`- ${e.phase}: ${e.model}${money(e.costUsd)}${e.billingKind==='platform'?' · sponsored — $0 charged to you':''}`);}
   const tools = events.filter((e: any) => e.type === "tool.call");
@@ -467,6 +470,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
   },[privateMode,id]);
   const privateProcessingPaused=privateMode&&!privateActionsReady;
   const [run, setRun] = useState<any>(null);
+  const submittedGuidance = useRef<{runId:string,event:any}[]>([]);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState("");
   const [streamLive, setStreamLive] = useState(true);
@@ -602,7 +606,10 @@ function ServerRunDetailPage({ id }: { id: string }) {
   async function load(privateSnapshot?:any) {
     try {
       const r = privateBuildEnabled()&&privateSnapshot?.id===id?await (await import('@/lib/dr-nib-private-client')).privateSnapshotRun(privateSnapshot):await drNibApi.getRun(id);
-      setRun(r);
+      setRun((current:any)=>({...r,events:mergeGuidanceEvents(r.events??[],[
+        ...(current?.id===id?(current.events??[]).filter((event:any)=>event.type==='guidance.queued'):[]),
+        ...submittedGuidance.current.filter(item=>item.runId===id).map(item=>item.event),
+      ])}));
       loadedOnce.current = true;
       // A successful read clears both the first-load error and any
       // background stale banner — the page is fresh again.
@@ -718,8 +725,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
   // stream itself fails does the page degrade to slow polling — silence is
   // never an option while a run is moving.
   // Guidance typed while the run is moving. The server holds it until the
-  // current stage ends, then the worker picks it up — the box always
-  // accepts it, the run applies it when safe.
+  // next new operation begins. An in-flight provider call cannot be rewritten.
   const [guidance, setGuidance] = useState("");
   const [guidanceBusy, setGuidanceBusy] = useState(false);
   const [guidanceNote, setGuidanceNote] = useState("");
@@ -729,10 +735,17 @@ function ServerRunDetailPage({ id }: { id: string }) {
     setGuidanceBusy(true);
     setGuidanceNote("");
     try {
-      await drNibApi.sendGuidance(id, text);
+      const result:any=await drNibApi.sendGuidance(id, text);
+      if(result?.queued&&result.controlId){
+        const event=privateGuidanceEvent(result.controlId,{format:'drnib-control-v1',command:'guidance',text,targetRequestId:result.targetRequestId,submittedAt:result.submittedAt});
+        if(event){
+          submittedGuidance.current=[...submittedGuidance.current,{runId:id,event}].slice(-128);
+          setRun((current:any)=>current?.id===id?{...current,events:mergeGuidanceEvents(current.events??[],[event])}:current);
+        }
+      }
       setGuidance("");
       collapseComposer("drnib-guidance-box");
-      setGuidanceNote("Noted — applies at the next stage boundary.");
+      setGuidanceNote(result?.queued?'Saved — available to the worker before its next new action. A response already in progress finishes first.':'Steering saved for the next action.');
       await load();
     } catch (e: any) {
       setGuidanceNote(e?.message || "That didn't go through — retry.");
@@ -1273,9 +1286,10 @@ function ServerRunDetailPage({ id }: { id: string }) {
                   if (item.t === "note") {
                     const text = item.e.guidance?.text || item.e.guidance || "";
                     return (
-                      <div key={itemKey} className={`rounded-xl border border-dark-gray/40 bg-gray p-2.5${enter}`}>
-                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">You steered<FeedTime at={item.at} /></p>
-                        {text ? <p className="mt-1 text-[13px] leading-6">“{String(text).slice(0, 500)}”</p> : null}
+                      <div key={itemKey} aria-label="Your steering message" className={`ml-auto max-w-[90%] rounded-2xl border border-dark-gray/40 bg-gray p-3${enter}`}>
+                        <p className="text-[10px] font-medium uppercase tracking-wider opacity-50">You<FeedTime at={item.at} /></p>
+                        {text ? <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-6">{String(text)}</p> : null}
+                        {item.e.type==='guidance.queued'&&<p className="mt-1 text-[11px] opacity-60">{item.e.delivery==='received'?'Received by worker':'Saved · receipt not yet confirmed'}{item.e.historyNoTimestamp?' · original time not recorded':''}</p>}
                       </div>
                     );
                   }
@@ -1406,7 +1420,7 @@ function ServerRunDetailPage({ id }: { id: string }) {
                         el.style.height = "auto";
                         el.style.height = `${Math.min(el.scrollHeight, 130)}px`;
                       }}
-                      rows={1} placeholder="Steer the run — applies at the next stage boundary…"
+                      rows={1} placeholder="Steer the next action…"
                       className="w-full resize-none rounded-xl border border-dark-gray/50 bg-white px-3 py-2 pb-9 text-sm outline-none" />
                     <button onClick={sendGuidance} disabled={guidanceBusy || !guidance.trim()} aria-label="Send guidance"
                       className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center bg-black text-white disabled:opacity-50">

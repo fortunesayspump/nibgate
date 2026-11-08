@@ -5,6 +5,7 @@ import {privateRecoveryRoot} from './dr-nib-private-checkpoint-recovery';
 import {requirePrivateResearchInputs} from './dr-nib-private-funding';
 import {mergePrivateProgressRows} from './dr-nib-private-progress';
 import {privateJournalQuestions,mergePrivateQuestionHistory} from './dr-nib-question-history';
+import {privateGuidanceEvent,privateGuidanceConsumption,mergeGuidanceEvents} from './dr-nib-guidance-history';
 import {samePrivateVaultEnvelope, rewrapPrivateProjectKeys, privateVaultEnrollmentAction} from './dr-nib-private-vault';
 import { createPrivateVault, recoverPrivateVault, recoverPrivateVaultWithPassword, recoverPrivateVaultWithPasskey, createPrivatePasskeyRecord, createPrivateProjectKeys, openPrivateProjectKeys, type PrivateVault, type PrivateProjectSecrets } from './dr-nib-private-vault';
 import { createPrivatePasskey, readPrivatePasskey } from './dr-nib-private-passkey';
@@ -17,9 +18,10 @@ type ProjectAccess = {
     secrets: PrivateProjectSecrets;
 };
 const vaultFlights = new Map<string, Promise<PrivateVault>>(), projectFlights = new Map<string, Promise<ProjectAccess>>();
-// Cache only the display questions, keyed by authenticated object revision.
-// Full decrypted journals are discarded after selecting question/answer fields.
-const questionHistoryFlights=new Map<string,Promise<any[]>>();
+// Cache only display questions and consumed control IDs by authenticated
+// revision. Discard full decrypted journals after selecting these fields.
+const questionHistoryFlights=new Map<string,Promise<{questions:any[],consumed:string[]}>>();
+const controlHistoryFlights=new Map<string,Promise<any>>();
 export { setPrivateVaultPrompt, type VaultPrompt } from './dr-nib-private-vault-prompt';
 import { askPrivateVaultPrompt as ask } from './dr-nib-private-vault-prompt';
 export const privateFundingEnabled = () => process.env.NEXT_PUBLIC_DRNIB_PRIVATE_FUNDED === 'true';
@@ -370,20 +372,32 @@ export async function getPrivateManifest(runId: string, includeProgress = false)
         }
     }
     if(includeProgress){
-      const history:any[]=[];
+      const history:any[]=[],consumed=new Set<string>();
       for(const object of objects.filter(o=>o.kind==='checkpoint')){
         const key=`${runId}:${object.objectId}:${object.revision}`;
         let flight=questionHistoryFlights.get(key);
         if(!flight){
           for(const old of questionHistoryFlights.keys())if(old.startsWith(`${runId}:${object.objectId}:`))questionHistoryFlights.delete(old);
           while(questionHistoryFlights.size>=64)questionHistoryFlights.delete(questionHistoryFlights.keys().next().value!);
-          flight=readPrivateObject(runId,object.objectId,'checkpoint').then(({value})=>privateJournalQuestions(value));
+          flight=readPrivateObject(runId,object.objectId,'checkpoint').then(({value})=>({questions:privateJournalQuestions(value),consumed:privateGuidanceConsumption(value)}));
           questionHistoryFlights.set(key,flight);
           void flight.catch(()=>questionHistoryFlights.delete(key));
         }
-        try{history.push(...await flight);}catch{out.value.metadata={...out.value.metadata,privateQuestionHistoryUnavailable:true};}
+        try{const display=await flight;history.push(...display.questions);display.consumed.forEach(id=>consumed.add(id));}catch{out.value.metadata={...out.value.metadata,privateQuestionHistoryUnavailable:true};}
       }
       out.value.decisions=mergePrivateQuestionHistory(out.value.decisions??[],history,out.value.events??[]);
+      const guidance:any[]=[];
+      for(const object of objects.filter(o=>o.kind==='intent')){
+        const key=`${runId}:${object.objectId}:${object.revision}`;
+        let flight=controlHistoryFlights.get(key);
+        if(!flight){
+          while(controlHistoryFlights.size>=128)controlHistoryFlights.delete(controlHistoryFlights.keys().next().value!);
+          flight=readPrivateObject(runId,object.objectId,'intent').then(({value})=>privateGuidanceEvent(object.objectId,value));
+          controlHistoryFlights.set(key,flight);void flight.catch(()=>controlHistoryFlights.delete(key));
+        }
+        try{const event=await flight;if(event)guidance.push({...event,delivery:consumed.has(object.objectId)?'received':'queued'});}catch{out.value.metadata={...out.value.metadata,privateGuidanceHistoryUnavailable:true};}
+      }
+      out.value.events=mergeGuidanceEvents(out.value.events??[],guidance);
     }
     return { ...out, objectId: manifest.objectId };
 }
@@ -398,8 +412,9 @@ export async function queuePrivateControl(runId:string,command:'pause'|'guidance
     const targetRequestId=activity.state==='processing'?activity.requestId:command==='guidance'&&['paused','awaiting'].includes(value.status)?value.privateCheckpoint?.rootRequestId:null;
     if(!targetRequestId)return null;
     if(!/^[0-9a-f-]{36}$/i.test(targetRequestId)||!['planned','running','paused','awaiting'].includes(value.status))throw Error('This action cannot accept a research command. Refresh before continuing.');
-    await savePrivateObject(runId,crypto.randomUUID(),'intent',{format:'drnib-control-v1',targetRequestId,command,...(command==='guidance'?{text:text!.trim()}:{})});
-    return {id:runId,queued:true,command};
+    const controlId=crypto.randomUUID(),submittedAt=new Date().toISOString();
+    await savePrivateObject(runId,controlId,'intent',{format:'drnib-control-v1',targetRequestId,command,submittedAt,...(command==='guidance'?{text:text!.trim()}:{})});
+    return {id:runId,queued:true,command,controlId,submittedAt,targetRequestId};
 }
 
 export async function requirePrivateInputs(runId:string,brief?:unknown){

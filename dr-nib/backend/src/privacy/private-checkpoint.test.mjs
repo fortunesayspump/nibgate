@@ -34,6 +34,23 @@ test('guidance affects only newly admitted calls and old workers are fenced even
  await make(value).operation('infer',request,async actual=>{assert.equal(actual.messages.at(-1).content,'Owner guidance for remaining work: Explain uncertainty');return {answer:'observed'}});
  allow=false;await assert.rejects(make(stored).operation('infer',request,()=>assert.fail('fenced replay')),/PRIVATE_CHECKPOINT_FENCED/);
 });
+test('steering arriving during a model call reaches the next JEV and model calls without rewriting or replaying the in-flight result',async()=>{
+ const value=initial(),key=randomBytes(32);let controls=[],models=0;
+ const journal=createPrivateCheckpoint({key,value,save:async()=>{},fence:async()=>{},controls:async()=>controls});
+ const original={messages:[{role:'user',content:'Initial research context'}]};
+ await journal.operation('infer',original,async actual=>{
+  models++;assert.deepEqual(actual.messages,original.messages);
+  controls=[{id:'new-steering',command:'guidance',text:'Use only the corrected public URL and retain the budget.'}];
+  return {answer:'Already in-flight response'};
+ });
+ assert.equal(value.consumed.includes('new-steering'),false);
+ await journal.operation('judge',{request:{state:{proposal:'A proposed action'}}},async actual=>{
+  assert.equal(actual.request.state.ownerGuidance,controls[0].text);return {decision:'observed'};
+ });
+ assert.equal(value.consumed.includes('new-steering'),true);
+ await journal.operation('infer',original,async actual=>{models++;assert.equal(actual.messages.at(-1).content,'Owner guidance for remaining work: '+controls[0].text);return {answer:'New-context response'};});
+ assert.equal(models,2);assert.equal(original.messages.length,1);
+});
 test('owner questions park durably, accept only the matching answer and restore without paid replay',async()=>{
  const key=randomBytes(32);let stored;
  const make=value=>createPrivateCheckpoint({key,value,fence:async()=>{},save:async v=>{stored=JSON.parse(JSON.stringify(v))}});

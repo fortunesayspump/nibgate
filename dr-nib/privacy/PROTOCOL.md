@@ -72,6 +72,15 @@ does not rewrite a cached request. Pause acknowledgment means queued, not that
 an in-flight remote operation has stopped. The paused manifest identifies its
 checkpoint root, and resume replays completed results before new work.
 
+The owner chat reconstructs steering bubbles from these encrypted intents and
+the checkpoint's consumed control IDs. A successful save is displayed immediately;
+"received by worker" requires a matching consumed ID, not merely an upload
+acknowledgment. The next new model/JEV operation receives the accumulated guidance;
+an already in-flight response is not rewritten or replayed. New controls include
+an encrypted submission timestamp. Legacy controls remain readable without an
+invented timestamp. These are owner-only browser display fields; raw journals,
+model output, payment proofs and project keys are not copied into the bubbles.
+
 Action status may include `recoveryAvailable: true` when the 90-second worker
 lease has expired. This advertises eligibility to attempt recovery, not proof
 that every operation can be retried. The client verifies a fresh guest session

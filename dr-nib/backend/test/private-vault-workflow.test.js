@@ -90,12 +90,13 @@ it('the actual restricted guest state grant permits new encrypted checkpoints wh
   }finally{await db.$executeRawUnsafe(`DROP OWNED BY ${role}`);await db.$executeRawUnsafe(`DROP ROLE ${role}`);}
  });
 });
-it('intake journals completed model and JEV results before finalization and recovers without repurchasing either',async()=>{
+it('opening intake journals its model before finalization without judging an unanswered brief',async()=>{
  await fixture(async f=>{
   const failed=await f.action('intake');expect(failed.response.status).toBe(503);
   const row=await db.privateClientObject.findFirst({where:{runId:f.runId,kind:'checkpoint'}});expect(row).not.toBeNull();
   const journal=JSON.parse(openClientObject(f.stateKey,f.context(row.objectId,'checkpoint',row.revision),row.envelope).toString());
-  expect(journal.entries.map(e=>[e.kind,e.state])).toEqual([['infer','complete'],['judge','complete']]);
+  expect(journal.entries.map(e=>[e.kind,e.state])).toEqual([['infer','complete']]);
+  expect(f.generationRequests.filter(r=>r.stage==='judge')).toHaveLength(0);
   const calls=f.getCalls(),judges=f.generationRequests.filter(r=>r.stage==='judge').length;
   await db.privateActionReceipt.updateMany({where:{runId:f.runId,requestId:failed.requestId},data:{leaseUntil:new Date(Date.now()-1000)}});
   const recovered=await f.action('recover',{},failed.requestId);expect(recovered.response.status).toBe(200);expect(recovered.value.questions.length).toBeGreaterThan(0);
@@ -161,6 +162,8 @@ async function fixture(body,{modelFailure=false,withJudge=false,publicRetrieval,
   if(modelFailure==='unknown-fixed'){await db.privateInferenceCall.create({data:{id:randomUUID(),runId,actionId:input.actionId,monthKey:new Date().toISOString().slice(0,7),model:'fixture/model',status:'reserved',reservedMicroUsd:10n,committedMicroUsd:10n}});throw Error('PRIVATE_PLAN_INVALID');}
   if(modelFailure)throw Error(CANARY+' provider exception');
   if(input.stage==='review')return json({learnings:['The synthetic observations support only descriptive comparisons.'],followUps:[]});
+  if(input.stage==='thinking')return {choices:[{message:{content:'The synthetic answer narrows the fixture to its stated descriptive comparison.'},finish_reason:'stop'}]};
+  if(input.stage==='intake'&&messages.some(m=>m.content.includes('Do not ask again about ground covered by the answers above')))return json({questions:[]});
   const instruction=messages[0].content;
   if(input.stage==='agent')return json(proposals++===0?firstProposal:{tool:'write_report',input:{},why:'Write from the supplied observations.'});
   if(instruction.includes('interviewing')||instruction.includes('question')){
@@ -172,7 +175,7 @@ async function fixture(body,{modelFailure=false,withJudge=false,publicRetrieval,
   if(instruction.includes('Verify the report'))return json(verificationOutput?verificationOutput(input):{claims:[{text:CANARY,verdict:'supported',sourceIds:[1],quote:CANARY}]});
   return {choices:[{message:{content:`## Synthetic analysis\n\n${CANARY} ${'Synthetic evidence supports the observation [1]. '.repeat(34)}`},finish_reason:'stop'}]};
  };
- const judge=withJudge?async({request,budgetMicroUsd})=>{generationRequests.push({stage:'judge',budgetMicroUsd});return {model:'typesafe/jev-1.13-20260917',privacy:'hosted-provider-visible',costMicroUsd:1,answers:Object.fromEntries(Object.entries(request.questions).map(([id,q])=>[id,q.type==='noul'?{type:'noul',noul:0.9}:{type:'choice',choice:id.startsWith('question_')?'ask':id==='gate'?'execute':'3',probabilities:{}}]))}}:undefined;
+ const judge=withJudge?async({request,budgetMicroUsd})=>{generationRequests.push({stage:'judge',budgetMicroUsd});return {model:'typesafe/jev-1.13-20260917',privacy:'hosted-provider-visible',costMicroUsd:1,answers:Object.fromEntries(Object.entries(request.questions).map(([id,q])=>[id,q.type==='noul'?{type:'noul',noul:0.9}:{type:'choice',choice:id==='intake-stop'?'proceed':id.startsWith('question_')?'ask':id==='gate'?'execute':'3',probabilities:{}}]))}}:undefined;
  const workflow=createPrivateWorkflow({infer,judge,publicRetrieval,estimate:()=>0.01});
  const runner={execute:async()=>{throw Error('legacy fixture unavailable')},action:createPrivateActionRunner({db,storage,workflow:async input=>{const result=await workflow(input);if(failAfterWorkflowOnce===true||failAfterWorkflowOnce===input.action){failAfterWorkflowOnce=false;throw Error('synthetic lost finalization');}return result;}})};
  const sessions=createGuestSessionManager({getRun:id=>db.researchRun.findUnique({where:{id}}),runner,model:'fixture/model',quoteProvider:async()=>({attestation:'aa'})});
@@ -195,7 +198,15 @@ async function fixture(body,{modelFailure=false,withJudge=false,publicRetrieval,
    const proof=await api.post(`/v1/private/sessions/${session.sessionId}/prove`).send({runId,challengeEnvelope:await sealHpkeSource({recipientPublicKey:pub,context:hpkeContext(randomUUID()),plaintext:challenge})});expect(proof.status).toBe(200);
    expect(proof.body.challengeDigest).toBe(createHash('sha256').update('drnib-proof-v1\0').update(Buffer.from(session.sessionId.replaceAll('-',''),'hex')).update(challenge).digest('hex'));
    const envelope=await sealHpkeSource({recipientPublicKey:pub,context:hpkeContext(requestId),plaintext:Buffer.from(JSON.stringify({action:name,args,requestId,sessionId:session.sessionId,vaultId:vault.vaultId,stateKeyBase64:Buffer.from(stateKey).toString('base64')}))});
-   const response=await api.post(`/v1/private/sessions/${session.sessionId}/action`).send({runId,sourceEnvelope:envelope});
+   let response=await api.post(`/v1/private/sessions/${session.sessionId}/action`).send({runId,sourceEnvelope:envelope});
+   // The HTTP boundary may acknowledge processing before its durable reply.
+   // Match the browser's read-only receipt polling; never redispatch or recover
+   // an uncertain action from this fixture.
+   const receiptDeadline=Date.now()+10000;
+   while(response.status===200&&response.body.state==='processing'&&Date.now()<receiptDeadline){
+    await new Promise(resolve=>setTimeout(resolve,10));
+    response=await api.get(`/v1/private/runs/${runId}/actions/${requestId}`);
+   }
    const value=response.body.state==='complete'?JSON.parse(openClientObject(stateKey,context(requestId,'event'),response.body.envelope).toString()):null;
    return {response,value,requestId};
   };
@@ -268,7 +279,7 @@ it('owner-approved paid tools use encrypted delivery, authoritative costs and on
   await f.action('intake');await f.action('answers',{answers:[{seq:0,answer:{optionIds:['a']}}]});
   const sourceId=randomUUID(),payload={name:'observations.txt',bytes:CANARY.length,contentBase64:Buffer.from(CANARY).toString('base64')};
   await f.api.put(`/v1/private/runs/${f.runId}/objects/${sourceId}`).send({vaultId:f.vault.vaultId,kind:'source',expectedRevision:0,envelope:sealClientObject(f.stateKey,f.context(sourceId,'source'),Buffer.from(JSON.stringify(payload)))});
-  await f.action('configure',{depth:'quick',budgetCap:0.25,lengthWords:300,formats:['md'],liveWeb:true,publicResearch:{approved:true,brief:'Public synthetic research'}});
+  await f.action('configure',{depth:'quick',budgetCap:0.25,lengthWords:300,formats:['md'],liveWeb:true,searchEnabled:false});
   const saved=await db.researchRun.findUnique({where:{id:f.runId}}),wallet='0x'+'1'.repeat(40),settings={core:'0x'+'2'.repeat(40),splitter:'0x'+'3'.repeat(40),evaluator:'0x'+'4'.repeat(40),token:'0x'+'5'.repeat(40),operator:'0x'+'6'.repeat(40)};
   await db.researchRun.update({where:{id:f.runId},data:{walletAddress:wallet,metadata:{...saved.metadata,privateEscrow:{jobId:'91'}}}});
   await db.budgetLedger.create({data:{runId:f.runId,kind:'deposit',amount:0.25,txRef:'synthetic-funded'}});
@@ -469,8 +480,8 @@ it('migration enforces positive revisions and exactly one ciphertext location',a
 
 it('actual guest orchestration carries native intake/tool judgments, calculations and the run cap to protected generation',async()=>{
  await fixture(async f=>{
-  let out=await f.action('intake');expect(out.response.status).toBe(200);expect(out.value.decisions.some(d=>d.step==='intake-gate')).toBe(true);
-  await f.action('answers',{answers:[{seq:0,answer:{optionIds:['a']}}]});
+  let out=await f.action('intake');expect(out.response.status).toBe(200);expect(out.value.decisions.some(d=>d.step==='intake-gate')).toBe(false);
+  const answered=await f.action('answers',{answers:[{seq:0,answer:{optionIds:['a']}}]});expect(answered.response.status).toBe(200);expect(answered.value.decisions.some(d=>d.step==='intake-stop')).toBe(true);
   const id=randomUUID(),payload={name:'synthetic.txt',bytes:Buffer.byteLength(CANARY),contentBase64:Buffer.from(CANARY).toString('base64')};
   expect((await f.api.put(`/v1/private/runs/${f.runId}/objects/${id}`).send({vaultId:f.vault.vaultId,kind:'source',expectedRevision:0,envelope:sealClientObject(f.stateKey,f.context(id,'source'),Buffer.from(JSON.stringify(payload)))})).status).toBe(201);
   out=await f.action('configure',{depth:'quick',budgetCap:0.25,lengthWords:300,formats:['md']});expect(out.response.status).toBe(200);
@@ -597,7 +608,9 @@ it('private funding validates chain ownership, admits funded work, freezes settl
   const fundingRole='private_funding_'+randomUUID().replaceAll('-',''),guestRole='private_guest_'+randomUUID().replaceAll('-','');
   await db.$executeRawUnsafe(`CREATE ROLE ${guestRole} NOLOGIN`);
   await db.$executeRawUnsafe(`CREATE ROLE ${fundingRole} LOGIN PASSWORD 'synthetic-local-only' NOSUPERUSER NOCREATEDB NOCREATEROLE`);
-  const grants=readFileSync(new URL('../prisma/private-funding-grants.sql',import.meta.url),'utf8').replace(/^--.*$/gm,'').replaceAll('drnib_private_synthetic','drnib_fixture').replaceAll('drnib_private_funding_testnet',fundingRole).replaceAll('drnib_private_guest_testnet',guestRole).replaceAll('drnib.','drnib_test.').replace('SCHEMA drnib ','SCHEMA drnib_test ');
+  const [{databaseName}]=await db.$queryRawUnsafe('SELECT current_database() AS \"databaseName\"');
+  const quotedDatabase='\"'+databaseName.replaceAll('\"','\"\"')+'\"';
+  const grants=readFileSync(new URL('../prisma/private-funding-grants.sql',import.meta.url),'utf8').replace(/^--.*$/gm,'').replaceAll('drnib_private_synthetic',quotedDatabase).replaceAll('drnib_private_funding_testnet',fundingRole).replaceAll('drnib_private_guest_testnet',guestRole).replaceAll('drnib.','drnib_test.').replace('SCHEMA drnib ','SCHEMA drnib_test ');
   for(const sql of grants.split(';').map(x=>x.trim()).filter(Boolean))await db.$executeRawUnsafe(sql);
   const scopedUrl=new URL(process.env.DRNIB_DATABASE_URL);scopedUrl.username=fundingRole;scopedUrl.password='synthetic-local-only';
   const {PrismaClient}=await import('@prisma/client'),scoped=new PrismaClient({datasourceUrl:scopedUrl.href});
@@ -763,7 +776,8 @@ it('setup-approved public discovery uses the shared normal tool process without 
   await f.api.put(`/v1/private/runs/${f.runId}/objects/${sourceId}`).send({vaultId:f.vault.vaultId,kind:'source',expectedRevision:0,envelope:sealClientObject(f.stateKey,f.context(sourceId,'source'),Buffer.from(JSON.stringify(payload)))});
   const query='Public creator tutorial';await f.action('configure',{depth:'quick',budgetCap:.25,lengthWords:300,formats:['md'],liveWeb:true,tipCreators:true,publicResearch:{approved:true,brief:query}});
   await db.budgetLedger.create({data:{runId:f.runId,kind:'deposit',amount:.25,txRef:'synthetic-funded'}});
-  f.setFirstProposal({tool:'public_research',input:{},why:'Use the query already approved during setup.'});
+  // The approved-public-research policy performs the initial public call;
+  // the synthetic model then performs its ordinary compute proposal.
   const parked=await f.action('execute');expect(parked.value.status).toBe('awaiting');const q=parked.value.pendingQuestion;
   expect(q.externalRequest).toEqual({tool:'web_search',query,preferCreators:true,maxMicroUsd:0});expect(JSON.stringify(q)).not.toContain(CANARY);
   let dispatches=0;const output={sources:[{id:randomUUID(),url:'https://creator.example.com/tutorial',title:'Public creator article',text:'A public tutorial provides context and transparent limitations.',provider:'public-web',evidenceKind:'page-text',trust:null,creatorAssessment:{source:'extension-page-model',eligible:true,kind:'content',author:'Public creator'}}]};

@@ -146,16 +146,19 @@ export async function generateReport({ brief, sources = [], guidance, runId, ver
         // report gets one deepening call, not an unbounded loop.
         const floor = Math.round(Math.max(150, Number(targetWords) - (includeAbstract?175:0)) * FLOOR_RATIO);
         if (countWords(markdown) < floor && (sources || []).length > 0) {
+          // Fill the actual deficit in the existing single bounded deepening
+          // pass; a fixed one-third target cannot repair a very short draft.
+          const deepenWords=Math.max(200,Math.ceil(floor-countWords(markdown)+Number(targetWords)*0.1));
           try {
             const deep = await reportChat({
               effort: 'high',
               messages: deepenMessages({
                 brief, section: brief?.topic || 'the brief', existing: markdown,
-                targetWords: Math.max(200, Math.round(Number(targetWords) / 3)), sources,
+                targetWords: deepenWords, sources,
               }),
               fetchImpl,
               temperature: 0.4,
-              maxTokens: maxTokensForWords(Math.max(200, Math.round(Number(targetWords) / 3))),
+              maxTokens: maxTokensForWords(deepenWords),
               ...(typeof onToken === 'function' ? { onToken } : {}),
             });
             outUsage = addUsage(outUsage, deep.usage);
@@ -672,7 +675,7 @@ export async function generateIntakeBatch({ topic, answered = [], count = 5, ref
       validateReply: data => Array.isArray(data?.questions) && (
         data.questions.length === 0 ? allowEmpty && answered.length > 0 : data.questions.some(q => cleanIntakeQuestion(q))
       ),
-      repairInstruction: 'Return the requested JSON question list: {"questions":[{"key":"scope","type":"pick_one","prompt":"A specific clarification question?","options":[{"id":"a","label":"First choice"},{"id":"b","label":"Second choice"}],"allowOther":true}]}. Use pick_one or pick_any, a prompt of at least 12 characters, and 2–4 labelled options. Ask topic-specific questions; do not copy this example. If prior answers already settle every material gap, return an empty questions array.',
+      repairInstruction: 'Return the requested JSON question list: {"questions":[{"key":"scope","type":"pick_one","prompt":"A specific clarification question?","options":[{"id":"a","label":"First choice"},{"id":"b","label":"Second choice"}],"allowOther":true}]}. Use pick_one or pick_any, a prompt of at least 12 characters, and 2–4 labelled options. Keep the original topic and prior answers from the conversation. Name the actual subject or concrete trade-off in every question, not a generic objective or setup. Do not copy this example. If prior answers already settle every material gap, return an empty questions array.',
 
       fetchImpl,
     });

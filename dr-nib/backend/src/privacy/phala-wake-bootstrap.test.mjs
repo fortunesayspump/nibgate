@@ -62,3 +62,10 @@ test('reviewed two-hour ceiling remains bounded and does not start compute',asyn
  }
  let calls=0;await assert.rejects(createConfiguredPhalaWake({...common,env:{...env(),DRNIB_PRIVATE_WAKE_MAX_RUNTIME_MS:'7200001'},clientFactory:async()=>{calls++;return fakeClient().client}}));assert.equal(calls,0);
 });
+test('approved monthly compute policy persists at bootstrap without waking or changing legacy audit',async()=>{
+ let state;const f=fakeClient();const controller=await createConfiguredPhalaWake({...common,env:{...env(),DRNIB_PRIVATE_COMPUTE_MONTHLY_CAP_MICRO_USD:'2000000',DRNIB_PRIVATE_COMPUTE_HOURLY_MICRO_USD:'58000'},lifecycleStore:{mutate:async(initial,fn)=>{state??=structuredClone(initial);return fn(state,Date.now(),false)}},clientFactory:async()=>f.client,verifierFactory:()=>({verifyEvidence:async()=>({is_valid:false})})});
+ assert.deepEqual(state.monthlyCompute.policy,{capMicroUsd:2000000,hourlyMicroUsd:58000,stopReserveMs:300000});assert.deepEqual(f.calls,[]);await controller.close();
+ for(const change of [{DRNIB_PRIVATE_COMPUTE_MONTHLY_CAP_MICRO_USD:'2500000',DRNIB_PRIVATE_COMPUTE_HOURLY_MICRO_USD:'58000'},{DRNIB_PRIVATE_COMPUTE_MONTHLY_CAP_MICRO_USD:'2000000'}]){
+ let calls=0;await assert.rejects(createConfiguredPhalaWake({...common,env:{...env(),...change},clientFactory:async()=>{calls++;return f.client}}));assert.equal(calls,0);
+ }
+});

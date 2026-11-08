@@ -1,25 +1,30 @@
 import{randomUUID}from'node:crypto';
+import{reconcileMonthlyBudget,monthlyRemaining,reserveMonthlyStart,validateMonthlyPolicy}from'./phala-monthly-budget.js';
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 /** Shared durable intents fence assignment across broker replicas. A timed-out
  * provider operation stays quarantined until its bounded call window has elapsed
  * and stop has been independently confirmed. No content or keys enter this store. */
 export function createDurablePhalaWake({store,api,guestReady,verifyAttestation,idleMs=300000,maxRuntimeMs,
-  startupMs=240000,operationMs=240000,leaseMs=30000,maxPending=64,maxActive=4,pollMs=250,tickMs=5000,
+  monthlyComputePolicy=null,startupMs=240000,operationMs=240000,leaseMs=30000,maxPending=64,maxActive=4,pollMs=250,tickMs=5000,
   wait=sleep,now=()=>Date.now(),onEvent=()=>{}}={}){
   if(!store?.mutate||!api||!['state','ensureRunning','gracefulShutdown','forceStop'].every(k=>typeof api[k]==='function')||
     typeof guestReady!=='function'||typeof verifyAttestation!=='function'||
     ![idleMs,maxRuntimeMs,startupMs,operationMs,leaseMs,maxPending,maxActive,pollMs,tickMs].every(Number.isSafeInteger)||
     idleMs<0||maxRuntimeMs<1||startupMs<1||operationMs<startupMs||leaseMs<100||maxPending<1||maxPending>256||maxActive<1||maxActive>32||pollMs<1||tickMs<1)throw Error('PHALA_DURABLE_WAKE_CONFIG_INVALID');
+  const monthlyPolicy=validateMonthlyPolicy(monthlyComputePolicy);
   const initial={version:1,phase:'stopped',tenant:null,policy:{idleMs,maxRuntimeMs,startupMs,operationMs,leaseMs,maxPending,maxActive},generation:0,usedMs:0,startedAt:null,lastActivity:0,operation:null,holds:{}};
   let timer,closed=false,ticking=false;
   const active=new Map();let wakeFlight=null;
   function event(type,details={}){try{onEvent({type,at:now(),...details})}catch{}}
   const mutate=fn=>store.mutate(initial,(s,t,busy)=>{
     if(s.version!==1||!s.policy||Object.keys(s.policy).sort().join(',')!==Object.keys(initial.policy).sort().join(',')||Object.entries(initial.policy).some(([k,v])=>s.policy[k]!==v))throw Error('PHALA_LIFECYCLE_POLICY_MISMATCH');
+    if(s.monthlyCompute&&!monthlyPolicy)throw Error('PHALA_MONTHLY_POLICY_REQUIRED');
+    reconcileMonthlyBudget(s,t,monthlyPolicy);
     for(const [id,h]of Object.entries(s.holds))if(h.until<=t)delete s.holds[id];
     return fn(s,t,busy);
   });
   const spent=(s,t)=>s.usedMs+(s.startedAt===null?0:Math.max(0,t-s.startedAt));
+  const remaining=(s,t)=>monthlyPolicy?monthlyRemaining(s,t):Math.max(0,maxRuntimeMs-spent(s,t));
   function stopped(s,t){s.usedMs=spent(s,t);s.startedAt=null;s.phase='stopped';s.operation=null;s.lastActivity=t;}
   async function finish(token,phase,error){return mutate((s,t)=>{
     if(s.operation?.token!==token)return false;
@@ -41,11 +46,11 @@ export function createDurablePhalaWake({store,api,guestReady,verifyAttestation,i
     const deadline=now()+startupMs+operationMs;
     while(!closed){
       const choice=await mutate((s,t)=>{
-        if(spent(s,t)>=maxRuntimeMs)throw Error('PHALA_RUNTIME_BUDGET_EXHAUSTED');
+        if(remaining(s,t)<=0)throw Error('PHALA_RUNTIME_BUDGET_EXHAUSTED');
         if(s.phase==='ready')return {ready:true,generation:s.generation};
         if(s.phase==='stopped'){
-          if(maxRuntimeMs-spent(s,t)<operationMs)throw Error('PHALA_RUNTIME_BUDGET_EXHAUSTED');
-          const token=randomUUID();s.phase='starting';s.startedAt=t;s.generation++;s.operation={token,until:t+operationMs};return {token};
+          if(remaining(s,t)<operationMs+(monthlyPolicy?60000:0))throw Error('PHALA_RUNTIME_BUDGET_EXHAUSTED');
+          reserveMonthlyStart(s,t);const token=randomUUID();s.phase='starting';s.startedAt=t;s.generation++;s.operation={token,until:t+operationMs};return {token};
         }
         if(s.operation&&s.operation.until<=t){s.phase='quarantined';}
         return {waiting:s.phase};
@@ -74,7 +79,7 @@ export function createDurablePhalaWake({store,api,guestReady,verifyAttestation,i
     try{
       const generation=await ensure();const slotDeadline=now()+maxRuntimeMs;
       while(!await mutate((s,t,busy)=>{
-        if(s.phase!=='ready'||s.generation!==generation||!s.holds[id]||spent(s,t)>=maxRuntimeMs)throw Error('PHALA_LIFECYCLE_FENCED');
+        if(s.phase!=='ready'||s.generation!==generation||!s.holds[id]||remaining(s,t)<=0)throw Error('PHALA_LIFECYCLE_FENCED');
         if(Object.values(s.holds).filter(h=>h.active).length+Number(busy)>=maxActive)return false;
         s.holds[id].active=true;return true;
       })){
@@ -85,7 +90,7 @@ export function createDurablePhalaWake({store,api,guestReady,verifyAttestation,i
         if(await api.state()!=='running'||await guestReady()!==true)throw Error('PHALA_GUEST_NOT_READY');
         if(await verifyAttestation({jobId,generation})!==true)throw Error('PHALA_ATTESTATION_UNAVAILABLE');
       }catch(error){await mutate((s,t)=>{if(s.phase==='ready'){s.phase='quarantined';s.operation={token:randomUUID(),until:t};}});throw error;}
-      await mutate((s,t)=>{if(s.phase!=='ready'||s.generation!==generation||!s.holds[id]||spent(s,t)>=maxRuntimeMs)throw Error('PHALA_LIFECYCLE_FENCED');});
+      await mutate((s,t)=>{if(s.phase!=='ready'||s.generation!==generation||!s.holds[id]||remaining(s,t)<=0)throw Error('PHALA_LIFECYCLE_FENCED');});
       if(abort.signal.aborted)throw Error('PHALA_LIFECYCLE_FENCED');
       event('attestation-ready');const out=await fn(jobId,abort.signal);
       if(abort.signal.aborted)throw Error('PHALA_LIFECYCLE_FENCED');return out;
@@ -99,7 +104,7 @@ export function createDurablePhalaWake({store,api,guestReady,verifyAttestation,i
     try{
       let claim=await mutate((s,t,busy)=>{
         if(s.phase==='stopped')return {probeStopped:true};
-        const hard=spent(s,t)>=maxRuntimeMs;
+        const hard=remaining(s,t)<=0;
         if(s.operation&&s.operation.until>t)return null;
         const uncertain=['quarantined','starting','draining'].includes(s.phase);
         if(!hard&&!uncertain&&(Object.keys(s.holds).length||busy)){s.lastActivity=t;return null;}
@@ -111,7 +116,7 @@ export function createDurablePhalaWake({store,api,guestReady,verifyAttestation,i
         if(actual==='stopped')return false;
         claim=await mutate((s,t)=>{
           if(s.phase!=='stopped'||Object.keys(s.holds).length)return null;
-          const token=randomUUID();s.phase='draining';s.startedAt=t;s.operation={token,until:t+operationMs};return {token,force:true};
+          const token=randomUUID();s.phase='draining';reserveMonthlyStart(s,t);s.startedAt=t;s.operation={token,until:t+operationMs};return {token,force:true};
         });
       }
       if(!claim)return false;

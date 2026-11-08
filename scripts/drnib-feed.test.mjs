@@ -37,3 +37,11 @@ test('historical question pauses never direct users to a missing or already subm
  }
  assert.doesNotMatch(drNibQuestionMarker(run,{question:{...question,id:'old'}}),/answer below/);
 });
+
+
+test('saved-work recovery does not animate a historical intake judgment as current work',()=>{
+ const events=[{type:'thinking',phase:'judge',origin:'system'}];
+ assert.deepEqual(privateResearchActivity({status:'running',events,metadata:{privateActionPending:true,privateRecoveryRequestId:'saved-action'}}),{label:'Checking saved work',phase:'recovery'});
+ assert.equal(privateResearchActivity({status:'running',events}).label,'JEV is reviewing the action');
+ assert.equal(privateResearchActivity({status:'planned',events,metadata:{privateActionPending:false}}),null);
+});

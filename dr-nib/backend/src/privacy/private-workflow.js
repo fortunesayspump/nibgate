@@ -1,5 +1,5 @@
 import {assertGuestPlanningAction,assertAdoptedGuestPlan} from './guest-planning-policy.js';
-import {cleanPrivateReportCitations} from '@nibgate/internal/private-report-citations.js';
+import {cleanPrivateReportCitations,cleanPrivateModelOutput} from '@nibgate/internal/private-report-citations.js';
 import {privateNarrationMessages} from './private-narration.js';
 import {runPrivateTerminal} from './private-terminal.js';
 import {runPrivateCreatorTips} from './private-creator-tips.js';
@@ -7,7 +7,7 @@ import {PRIVATE_USAGE,PRIVATE_METERED_COST,PRIVATE_CALL_CHARGE} from './phala-ai
 import { randomUUID } from 'node:crypto';
 import { RESEARCH_SYSTEM } from '../llm/prompts.js';
 import {generateIntakeBatch,generatePlan,generateReport,generateReportLong,generateThinking,generateRoundReview} from '../llm/generate.js';
-import {applyAnswer,describeAnswer,nextQuestions,remainingKeys} from '../intake.js';
+import {applyAnswer,describeAnswer} from '../intake.js';
 import {createPrivateGeneration} from './private-generation.js';
 import { resolveLength, countWords, FLOOR_RATIO } from '../length.js';
 import { parseSource } from '../sources/parse.js';
@@ -18,13 +18,13 @@ import {runPrivateResearchAgent} from './private-research-agent.js';
 import {createPrivateJudge} from './private-judge.js';
 import {privateBudgetMicroUsd} from './private-run-budget.js';
 import {runPrivateCode} from './private-code.js';
-const json = v => { const text = v?.choices?.[0]?.message?.content;
+const json = v => { const text = cleanPrivateModelOutput(v?.choices?.[0]?.message?.content);
     if (v?.choices?.[0]?.finish_reason === 'length') throw Error('PRIVATE_MODEL_OUTPUT_TRUNCATED');
     if (typeof text !== 'string' || text.length > 100000) throw Error('PRIVATE_MODEL_OUTPUT_INVALID');
     try { return JSON.parse(text.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')); }
     catch { throw Error('PRIVATE_MODEL_JSON_INVALID'); } };
 const text = v => { const s = v?.choices?.[0]?.message?.content; if (typeof s !== 'string' || !s.trim() || s.length > 100000 || v.choices[0].finish_reason === 'length')
-    throw Error('PRIVATE_MODEL_OUTPUT_INVALID'); return s; };
+    throw Error('PRIVATE_MODEL_OUTPUT_INVALID'); return cleanPrivateModelOutput(s); };
 const bounded = (value, max = 8000) => { if (typeof value !== 'string' || value.length > max)
     throw Error('PRIVATE_WORKFLOW_INPUT_INVALID'); return value; };
 // The same cap and stop question used by the original answer-flow.js.
@@ -91,12 +91,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             const qs = questions(generated.questions);
             s.questions = qs;
             s.decisions = qs.map(q => ({ id: randomUUID(), kind: 'question', seq: q.seq, question: q, createdAt: now() }));
-            if (!s.questions.length) {
-                // The original opener falls back to the local bank of up to five.
-                s.questions = questions(nextQuestions([], 5), 'question-bank');
-                s.decisions.push(...s.questions.map(q => ({ id: randomUUID(), kind: 'question', seq: q.seq, question: q, createdAt: now() })));
-                await progress('intake','Preparing general clarification questions.');
-            }
+            if (!s.questions.length) throw Error('PRIVATE_INTAKE_INVALID');
             s.status = 'intake';
         }
         else if (action === 'answers') {
@@ -123,16 +118,20 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             s.questions=pending.map(d=>d.question);
             if(!pending.length){
                 const keys=answered.map(d=>d.question.key).filter(Boolean);
-                let next=questions(nextQuestions(keys,5),'question-bank');
+                let next=[];
+                const slots=Math.max(0,MAX_INTAKE_QUESTIONS-answered.length);
                 const prior=answered.map(d=>({prompt:d.question.prompt||d.question.key,answer:describeAnswer(d.question,d.answer)}));
-                const live=await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:prior,allowEmpty:true}));
-                if(live.source!=='llm'&&!['model returned no usable questions','model returned no question list'].includes(live.llmError))throw Error('PRIVATE_INTAKE_INVALID');
+                const live=slots?await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:prior,count:Math.min(5,slots),allowEmpty:true})):{source:'llm',questions:[]};
+                if(live.source!=='llm')throw Error('PRIVATE_INTAKE_INVALID');
                 if(live.questions.length){
                     const fresh=questions(live.questions).filter(q=>!keys.includes(q.key));
-                    if(fresh.length)next=fresh;
+                    if(fresh.length)next=fresh.slice(0,slots);
                 }
-                const lastAnswer=`${args.answers.length} answer${args.answers.length===1?'':'s'} this batch`;
-                const stateText=[`Topic: ${s.brief.topic||'(unspecified)'}`,`Answered: ${keys.length?keys.join(', '):'nothing yet'}`,`Still open: ${remainingKeys(keys).length?remainingKeys(keys).join(', '):'nothing'}`,`Latest answer: ${lastAnswer}`].join('\n');
+                const lastAnswer=answered.filter(d=>args.answers.some(a=>a.seq===d.seq)).map(d=>describeAnswer(d.question,d.answer)).join('; ').slice(0,1200);
+                const stateText=[`Topic: ${s.brief.topic||'(unspecified)'}`,`Answered: ${answered.length} questions (${keys.join(', ')})`,
+                    'Actual answered context:',...prior.slice(-MAX_INTAKE_QUESTIONS).map(a=>`- ${a.prompt.slice(0,280)}: ${a.answer.slice(0,800)}`),
+                    `Proposed material follow-ups: ${next.length?next.map(q=>q.prompt).join('; '):'none generated; do not treat unasked bank labels as missing answers'}`,
+                    `Latest answer: ${lastAnswer}`].join('\n');
                 let choice=null;
                 const decisionStart=s.decisions.length;
                 if(decide){
@@ -140,13 +139,13 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                         const result=await decide({state:stateText,questions:{'intake-stop':{type:'choice',instructions:INTAKE_STOP_INSTRUCTIONS,criteria:{proceed:'The brief is whole: the topic, intent, scope, and constraints needed to plan are all present. Plan now.',ask_more:'Something material is still missing — an answer that would change the plan, the sources, or the report shape. Ask the next most valuable question.',reframe:'The questions so far chase the wrong angle: the answers do not converge on anything plannable. Drop this line entirely and open a different angle — continuing it wastes the user.'}}}},'intake-stop');
                         choice=result['intake-stop']?.choice;
                         if(!['proceed','ask_more','reframe'].includes(choice))throw Error('PRIVATE_INTAKE_INVALID');
-                    }catch(error){if(error?.message!=='HOSTED_JEV_UNAVAILABLE')throw error;}
+                    }catch(error){throw error;}
                 }
                 if(choice==='reframe'){
                     const rejected=answered.map(d=>d.question.prompt||d.question.key).filter(Boolean).slice(-6);
                     const retry=await generate('intake',()=>generateIntakeBatch({topic:s.brief.topic,answered:[],count:3,reframe:{rejected,reason:'answers do not converge on anything plannable'},allowEmpty:true}));
-                    if(retry.source!=='llm'&&!['model returned no usable questions','model returned no question list'].includes(retry.llmError))throw Error('PRIVATE_INTAKE_INVALID');
-                    if(retry.questions.length)next=questions(retry.questions);
+                    if(retry.source!=='llm')throw Error('PRIVATE_INTAKE_INVALID');
+                    if(retry.questions.length)next=questions(retry.questions).slice(0,slots);
                 }
                 let done=choice==='proceed';
                 if(choice===null)done=!next.length;
@@ -290,7 +289,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
                 const review=await generate('review',()=>generateRoundReview({brief:briefForModel(),round,sources:docs.map(d=>({...(s.brief.qualityPolicyVersion>=2?{availableCharacters:d.text.length,evidenceKind:d.evidenceKind??'retrieved-text'}:{}),title:d.title+(d.evidenceKind==='search-excerpt'?' [search excerpt only; full text not retrieved]':''),url:d.url,excerpt:d.text.slice(0,3000),text:s.brief.qualityPolicyVersion>=2?d.text:d.text.slice(0,3000)}))}));
                 if(review.source!=='llm')throw Error('PRIVATE_REVIEW_INVALID');return review;
             };
-            if (protectedJudge) docs=await runPrivateResearchAgent({state:s,docs,directReadsFirst:checkpoint?.value?.toolPolicyVersion==='direct-urls-first-v1',infer:protectedInfer,judge:protectedJudge,run,actionId,publicRetrieval:checkpoint?input=>checkpoint.operation('public-retrieval',input,publicRetrieval):publicRetrieval,runCode:checkpoint?input=>checkpoint.operation('code',input,codePort):codePort,runTerminal:checkpoint?input=>checkpoint.operation('terminal',input,runTerminal):runTerminal,ownerQuestion:checkpoint?.ownerQuestion,externalTool,reviewRound,progress});
+            if (protectedJudge) docs=await runPrivateResearchAgent({state:s,docs,directReadsFirst:['direct-urls-first-v1','approved-public-research-first-v2'].includes(checkpoint?.value?.toolPolicyVersion),publicResearchFirst:checkpoint?.value?.toolPolicyVersion==='approved-public-research-first-v2',infer:protectedInfer,judge:protectedJudge,run,actionId,publicRetrieval:checkpoint?input=>checkpoint.operation('public-retrieval',input,publicRetrieval):publicRetrieval,runCode:checkpoint?input=>checkpoint.operation('code',input,codePort):codePort,runTerminal:checkpoint?input=>checkpoint.operation('terminal',input,runTerminal):runTerminal,ownerQuestion:checkpoint?.ownerQuestion,externalTool,reviewRound,progress});
             if (!docs.length)
                 throw Error('PRIVATE_EVIDENCE_REPAIR_REQUIRED');
             const excerpts = docs.flatMap((d, n) => (d.text.match(/[\s\S]{1,1700}/g) ?? []).map((excerpt, i) => ({ title: `${d.title}${d.evidenceKind==='search-excerpt'?' [search excerpt only; full page not retrieved]':''} (part ${i + 1})`, excerpt, citationIndex: n + 1, url: d.url })));
@@ -345,7 +344,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             if (!latest)
                 throw Error('PRIVATE_REPORT_REQUIRED');
             const question = bounded(args.question, 4000);
-            const response=await call([{ role: 'system', content: RESEARCH_SYSTEM + ' Answer only from this report; identify unsupported conclusions.' }, { role: 'user', content: JSON.stringify({ report: latest.markdown, question }) }],'discuss');
+            const response=await call([{ role: 'system', content: RESEARCH_SYSTEM + ' Answer only from this report; identify unsupported conclusions.' }, { role: 'user', content: JSON.stringify({ report: cleanPrivateModelOutput(latest.markdown), question }) }],'discuss');
             const answer=text(response),cost=response[PRIVATE_METERED_COST],model=response[PRIVATE_USAGE]?.model??'confidential';
             const usage=Number.isSafeInteger(cost)&&cost>=0?{costUsd:cost/1000000,billingKind:response[PRIVATE_CALL_CHARGE]?.billingKind??'unknown'}:undefined;
             s.metadata ??= {};

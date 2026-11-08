@@ -161,7 +161,7 @@ export default function HelpPage() {
           Below the report, <strong>Ask about this report</strong> answers fixed questions (weakest claim,
           strongest support, what&apos;s unsupported, which source carried most) straight from the verify
           pass — no model, no budget. Under it, <strong>Discuss this report</strong> takes free-form
-          follow-ups: each finished run gets a small free allowance (shown as &ldquo;N of 10 left&rdquo;),
+          follow-ups: each finished run gets a small free allowance (shown as &ldquo;N of 50 left&rdquo;),
           answered from the report and its sources only, with no ledger draw and no deposit needed. When
           the allowance runs out, start a fresh funded run for a deeper pass.
         </P>

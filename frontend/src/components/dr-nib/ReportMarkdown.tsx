@@ -6,7 +6,7 @@
 // superscript chips. The writer sometimes misuses single `*` as bullets
 // (which swallows the rest of the paragraph as emphasis), so those lines are
 // normalized to `-` before parsing.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
@@ -351,7 +351,15 @@ export function DiscussThread({ runId, initial, sources = [], disabled=false }: 
   );
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [waitSeconds, setWaitSeconds] = useState(0);
   const [error, setError] = useState("");
+  useEffect(() => {
+    setWaitSeconds(0);
+    if (!busy) return;
+    const started = Date.now();
+    const timer = setInterval(() => setWaitSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
   async function ask() {
     const question = draft.trim();
     if (disabled || !question || busy || remaining <= 0) return;
@@ -401,12 +409,16 @@ export function DiscussThread({ runId, initial, sources = [], disabled=false }: 
             disabled={disabled || busy || !draft.trim()}
             className="shrink-0 bg-black px-4 py-2 text-xs font-medium text-white disabled:opacity-40"
           >
-            {busy ? "…" : "Ask"}
+            {busy ? "Answering…" : "Ask"}
           </button>
         </div>
       ) : (
         <p className="mt-2 text-xs opacity-60">{privateBuildEnabled()&&!privateFundingEnabled()?"Private discussion limit reached":"Free follow-ups used up"} ({used} of {max}) — reprompt the run for a deeper pass.</p>
       )}
+      {busy && <p role="status" className="mt-1.5 flex items-center justify-between gap-3 text-[11px] opacity-60">
+        <span>{waitSeconds < 45 ? "Preparing your answer…" : "Your answer is still being prepared…"}</span>
+        <span role="timer" aria-label="Elapsed answer time" aria-live="off" className="shrink-0 tabular-nums">{waitSeconds < 60 ? `${waitSeconds}s` : `${Math.floor(waitSeconds / 60)}m ${String(waitSeconds % 60).padStart(2, "0")}s`}</span>
+      </p>}
       {error ? <p className="mt-1.5 text-xs text-red-700">{error}</p> : null}
       <p className="mt-1.5 text-[11px] opacity-50">{privateBuildEnabled()&&!privateFundingEnabled()?"Follow-ups use the shared owner test allowance. Answers come from this report only.":"Free — no budget drawn, no deposit needed. Answers come from this report and its sources only."}</p>
     </div>

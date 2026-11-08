@@ -14,6 +14,16 @@ const ctx = {
 const decode = (r) => Buffer.from(r.content, 'base64');
 
 describe('export renderers', () => {
+  it('preserves chemical subscripts and naira amounts in the built-in PDF font', async () => {
+    const pdf = await renderExport('pdf', {...ctx, report:{version:1,markdown:'# Scientific notation\n\nLiFePO₄, CO₂ and H₂O. Cost: ₦100.'}});
+    const {extractText} = await import('unpdf');
+    const {text} = await extractText(new Uint8Array(decode(pdf)));
+    const body=text.join('\n');
+    expect(body).toContain('LiFePO4');
+    expect(body).toContain('CO2');
+    expect(body).toContain('H2O');
+    expect(body).toContain('NGN100');
+  });
   it('exports multiple PDF pages without flushing the page-number buffer', async () => {
     const pdf = await renderExport('pdf', {...ctx, report: {version:1, markdown:'# Long report\n\n' + ('A paragraph about documented payment fees and wallet integration. '.repeat(15)+'\n\n').repeat(25)}});
     const { extractText } = await import('unpdf');

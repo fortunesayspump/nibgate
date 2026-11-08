@@ -1,3 +1,5 @@
+import {privateDatabaseRoute} from './private-database-route.js';
+import {createStartupHealth} from './private-startup-health.js';
 import {guestPlanningCapabilityAllowed} from './guest-planning-policy.js';
 import {privateAccessMode,privateTenantAllowed} from './private-tenant-access.js';
 import {createPrivateTerminalCheck} from './private-terminal-check.js';
@@ -60,14 +62,15 @@ function diagnosticFactory(quoteProvider=getPhalaSessionEvidence){
 /** Build a separate measured CVM service, not the ordinary worker/server.
  * Diagnostic-only mode permits hardware verification without DB/AI secrets.
  * It cannot open an authenticated private job. */
-export async function createPrivateGuestRuntime({env=process.env,quoteProvider=getPhalaSessionEvidence,connectAci}={}){
+export async function createPrivateGuestRuntime({env=process.env,quoteProvider=getPhalaSessionEvidence,connectAci,onBootStage=()=>{}}={}){
   if(env.DSTACK_SIMULATOR_ENDPOINT)throw new Error('Simulator is forbidden');
   const diagnosticEvidence=diagnosticFactory(quoteProvider);
   if(env.DRNIB_PRIVATE_DIAGNOSTIC_ONLY==='true'){
     const unavailable=async()=>{throw new Error('PRIVATE_DIAGNOSTIC_ONLY')};
     return createPrivateGuestHttpServer({sessions:{open:unavailable,prove:unavailable,execute:unavailable},authenticate:async()=>null,getReport:unavailable,diagnosticEvidence});
   }
-  const databaseUrl=required(env,'DRNIB_DATABASE_URL');
+  onBootStage('CONFIGURATION');
+  const databaseUrl=privateDatabaseRoute(required(env,'DRNIB_DATABASE_URL'),env.DRNIB_DATABASE_PUBLIC_ROUTE);
   const publicKeyPem=brokerPublicKeyPem(env);
   const model=required(env,'PRIVATE_AI_APPROVED_MODEL');
   const baseURL=required(env,'PRIVATE_ACI_GATEWAY_BASE_URL');
@@ -104,7 +107,11 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
   const connectVerified=createAciChannelFactory({baseURL,apiKey,expectedComposeHash:composeHash,approvedModels:[model],selectSession,
     ...(pinnedSessionId?{acceptedSessionId:pinnedSessionId}:{}),connect:connectAci});
   try{
+    let databaseStage='DATABASE_URL_INVALID';
+    try{const target=new URL(databaseUrl);databaseStage=target.hostname.endsWith('.railway.internal')?'DATABASE_PRIVATE_NETWORK':target.hostname==='hayabusa.proxy.rlwy.net'&&target.port==='23580'?'DATABASE_CURRENT_PROXY':'DATABASE_OTHER_TARGET';}catch{}
+    onBootStage(databaseStage);
     await db.$connect();
+    onBootStage('SCHEMA');
     await import('../sources/parse.js'); // reject a missing measured parser dependency at boot
     if(typeof db.privateAiBudgetReservation?.create!=='function')throw new Error('Private budget schema unavailable');
     const budgetRows=await db.$queryRaw`SELECT to_regclass(format('%I.%I',current_schema(),'PrivateAiBudgetReservation'))::text AS name`;
@@ -125,14 +132,17 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
       if(!tools[0]?.name||leases.length!==2)throw Error('Private checkpoint/tool migration unavailable');
     }
     if(hostedJevRequested){
+      onBootStage('JEV');
       const response=await fetch('https://openrouter.ai/api/v1/key',{headers:{authorization:`Bearer ${required(env,'PRIVATE_HOSTED_JEV_API_KEY')}`},redirect:'error',signal:AbortSignal.timeout(15000)});
       if(!response.ok)throw new Error('Hosted JEV credential unavailable');
       const data=await response.json();
       if(data.data?.workspace_id!==required(env,'PRIVATE_HOSTED_JEV_WORKSPACE_ID'))throw new Error('Hosted JEV workspace changed');
     }
+    onBootStage('PHALA_ATTESTATION');
     const channel=await connectVerified();
     await channel.close(); // no inference request or paid tokens at readiness
-  }catch{await db.$disconnect();throw new Error('Private guest dependencies unavailable')}
+  }catch(error){await db.$disconnect();throw new Error('Private guest dependencies unavailable',{cause:error})}
+  onBootStage('WORKFLOW');
   // Keep the first synthetic source-only rehearsal small. The optional full
   // path is disabled by default and needs a separate limit review.
   const maxPromptBytesPerCall=8192;
@@ -238,6 +248,8 @@ export async function createPrivateGuestRuntime({env=process.env,quoteProvider=g
 if(process.argv[1]&&import.meta.url===new URL(`file://${process.argv[1]}`).href){
   const port=Number(process.env.PORT||3102);
   if(!Number.isSafeInteger(port)||port<1||port>65535)throw new Error('Invalid guest port');
-  createPrivateGuestRuntime().then(server=>server.listen(port,'0.0.0.0',()=>console.log('[dr-nib-private] guest ready')))
-    .catch(()=>{console.error('[dr-nib-private] configuration or startup unavailable');process.exitCode=1});
+  const startup=createStartupHealth();
+  startup.listen(port).then(()=>createPrivateGuestRuntime({onBootStage:value=>startup.stage(value)}))
+    .then(async server=>{await startup.close();server.listen(port,'0.0.0.0',()=>console.log('[dr-nib-private] guest ready'));})
+    .catch(error=>{startup.fail(error?.cause?.errorCode??error?.cause?.code);});
 }

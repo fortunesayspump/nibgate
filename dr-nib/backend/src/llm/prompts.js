@@ -319,13 +319,18 @@ Hard rules for every prompt:
 - Name the concrete trade-off, window, or scope each answer would settle.
 - Each question must CLOSE a gap toward planning, not open a new field of inquiry. When in doubt between a scoping question and a methodology question, ask neither — fewer, sharper questions beat more.
 
+Output contract (required even when no further question is needed):
+- The root must be an object with a questions array. Never use null, omit questions, or return a decision/status object.
+- ${answered.length ? 'If every material gap is already settled, return exactly {"questions":[]}. JEV separately decides whether to leave intake; do not return a stop decision.' : 'This is the opening batch. Return at least one concrete choice question about the user intent, scope, or constraints that remain unclear.'}
+- type must be the exact string "pick_one" or "pick_any"; the example below is valid JSON, not a union expression.
+
 Return JSON with exactly this shape:
 {
   "questions": [
-   {"key": "short-snake-key", "type": "pick_one" | "pick_any", "prompt": "...", "options": [{"id": "a", "label": "..."}], "allowOther": true}
+   {"key": "purpose", "type": "pick_one", "prompt": "Which outcome matters most?", "options": [{"id": "decision", "label": "Making a decision"}, {"id": "overview", "label": "Understanding the topic"}], "allowOther": true}
    ]
  }
-options: 2-4 items, ids short, labels under 40 chars. No prose outside the JSON.`;
+The example illustrates structure only. Write your own topic-specific questions and choices; do not copy its wording. options: 2-4 items, ids short, labels under 40 chars. No prose outside the JSON.`;
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

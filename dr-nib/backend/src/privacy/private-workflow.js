@@ -78,7 +78,9 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             return checkpoint?checkpoint.operation('judge',input,judge):judge(input);
         }:undefined;
         const decide=protectedJudge?createPrivateJudge({state:s,judge:protectedJudge,run,actionId,progress}):null;
-        const generate=createPrivateGeneration({infer:protectedInfer,run,actionId});
+        const generate=createPrivateGeneration({infer:protectedInfer,run,actionId,onIntakeDiagnostic:diagnostic=>{
+            s.intakeDiagnostics=[...(s.intakeDiagnostics??[]),diagnostic].slice(-4);
+        }});
         const call = async (messages,stage,json=false) => { if (signal?.aborted)
             throw Error('PRIVATE_WORKFLOW_CANCELLED'); return protectedInfer({ run, actionId, messages,json,stage }); };
         const briefForModel=()=>({...s.brief,guidance:[s.brief?.guidance,(s.brief?.intake??[]).map(i=>i.question+': '+i.answer).join('\n')].filter(Boolean).join('\n')});

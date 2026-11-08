@@ -972,12 +972,19 @@ export default function ResearchNewPage() {
     <div ref={researchView}>
       <div className="mx-auto w-full max-w-2xl">
       {!guestReady && <p role="status">Checking saved drafts…</p>}
-      {(guestMode || guestEnabled && phase === "composer") && <div className="mb-4 text-sm" aria-live="polite">
-        <p>{guestMode ? "Guest planning — not yet saved to your account." : "Try text-only planning without signing in."}</p>
-        <p className="mt-1 text-xs">The same verified Phala worker prepares your questions and plan. No web retrieval, private uploads, wallet payment or research execution happens in guest mode.</p>
-        <p className="mt-1 text-xs">{draftSaveState === "error" ? "Draft not saved — keep this page open and retry below." : draftSaveState === "saved" && savedSnapshotJson === guestSnapshotJson ? "Encrypted draft saved on this device." : (topic || project) ? "Saving encrypted draft…" : "Drafts stay in this browser. Clearing browser data or changing devices can lose access."}</p>
+      {(guestMode || guestEnabled && phase === "composer") && <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-dark-gray/20 pb-3 text-xs">
+        <p role="status" className="opacity-70">{guestMode ? "Guest plan" : "Plan without signing in"}{" · "}{draftSaveState === "error" ? "Draft not saved" : draftSaveState === "saved" && savedSnapshotJson === guestSnapshotJson ? "Saved on this device" : (topic || project) ? "Saving draft…" : "No payment required"}</p>
+        <details className="group relative">
+          <summary className="min-h-6 cursor-pointer py-1 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2">Planning details</summary>
+          <div className="mt-2 max-w-md space-y-2 leading-5">
+            <p>The verified Phala worker prepares your questions and plan. Guest mode does not browse, upload private files, pay, or run research.</p>
+            <p>Your encrypted draft stays in this browser until you sign in to save it. Clearing browser data or changing devices can lose access.</p>
+            {guestLimits?.ttlMs && <p>Planning sessions last up to {Math.round(guestLimits.ttlMs / 60000)} minutes{guestLimits.maxReplans ? `, with up to ${guestLimits.maxReplans} plans` : ""}, subject to usage limits.</p>}
+            {guestMode && guestExpiresAt && !guestPlanningExpired && <p>Planning ends <time dateTime={guestExpiresAt}>{new Date(guestExpiresAt).toLocaleString()}</time>. Your saved draft is retained; sign in to continue afterward.</p>}
+          </div>
+        </details>
       </div>}
-      {guestMode && guestExpiresAt && <p className="mb-4 text-sm" role="status">{guestPlanningExpired ? "Guest planning has ended" : "Guest planning ends "}{!guestPlanningExpired && <time dateTime={guestExpiresAt}>{new Date(guestExpiresAt).toLocaleString()}</time>}{". "}{guestPlanningExpired ? "Sign in to save the retained draft and continue in your account. No new planning runs automatically." : "After that, sign in to save and continue. This is not a browser-draft deletion deadline."}</p>}
+      {guestMode && guestPlanningExpired && <p className="mb-3 text-sm" role="status">Guest planning has ended. Your draft is retained; sign in to continue.</p>}
       {guestMode && guestPlanningExpired && phase !== "review" && <button disabled={adopting || busy} onClick={() => { void signInAndAdopt("plan"); }} className="mb-4 min-h-11 border border-black px-4 py-2 text-sm focus-visible:outline-2">Sign in to save this draft</button>}
       {adoptionNeedsReview && <p role="alert" className="mb-4 border border-dark-gray/50 p-3 text-sm">{adoptionNeedsReview} Review the configuration, then choose Plan run. No automatic replan or payment was started.</p>}
       {draftError && <div role="alert" className="mb-4 border border-dark-gray/50 bg-white p-3 text-sm"><p>{draftError}</p><button onClick={async () => {
@@ -1015,8 +1022,8 @@ export default function ResearchNewPage() {
       {phase === "composer" && (
         <section className="mx-auto max-w-2xl py-8 text-center md:py-12">
           <h2 className="nibgate-display-title text-3xl font-medium md:text-4xl">What should Dr. Nib research?</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm opacity-60">{guestEnabled ? `Ask a question and build a research plan before signing in. Your draft is encrypted on this device.${guestLimits?.ttlMs ? ` Guest planning lasts up to ${Math.round(guestLimits.ttlMs / 60000)} minutes.` : " Guest planning has usage and expiry limits."}${guestLimits?.maxReplans ? ` Up to ${guestLimits.maxReplans} plans per session, subject to the usage limit.` : ""}` : privateBuildEnabled() ? privateFundingEnabled()?"Ask a question. After sign-in, your encrypted project is saved for later. Questions and planning are sponsored; research starts after you fund and approve the plan.":"Ask a question. After sign-in, your encrypted project is saved for later. Questions and planning use the owner test allowance; report writing starts after you approve the plan." : "Ask a question. After sign-in, a project is created so you can stop and pick it up later — nothing spends until you approve the plan."}</p>
-          <p id="research-signin-help" className="mt-3 text-sm">{guestEnabled ? "Start with a question. Sign in only when you want to save the plan to your account or add private files. Funding and starting research are separate choices." : "Sign in with Google or a wallet to save a project. After sign-in, we’ll continue with the question you sent. Editing it cancels that pending submission."}</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm opacity-70">Turn a question into a research plan, then a sourced report.</p>
+          <p id="research-signin-help" className="mx-auto mt-2 max-w-xl text-xs opacity-60">{guestEnabled ? "Try planning free. Sign in to save it or add private files." : "Sign in with Google or a wallet to save your research."}{" "}{privateFundingEnabled() ? "You approve funding before research starts." : "You approve the plan before research starts."}</p>
           <div className="relative mt-6">
             <textarea ref={topicInput} aria-label="Research question" aria-describedby="research-signin-help" value={topic} onChange={(e) => editTopic(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -1047,7 +1054,7 @@ export default function ResearchNewPage() {
             <p className="mt-1 text-[15px] font-medium leading-7">{topicEcho}</p>
           </div>
           <p role="status" data-phase-heading className="mt-8 text-sm font-medium">Preparing your questions…</p>
-          <p className="mt-3 max-w-md text-sm">This can take a moment. No payment or research execution has started.</p>
+          <p className="mt-2 text-xs opacity-60">No payment or research has started.</p>
         </section>
       )}
 

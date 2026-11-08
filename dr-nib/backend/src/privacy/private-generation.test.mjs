@@ -2,6 +2,13 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {chat,isLlmConfigured,withPrivateLlmPort} from '../llm/provider.js';
 import {generatePlan,generateReportLong} from '../llm/generate.js';
 import {createPrivateGeneration} from './private-generation.js';
+test('verified generation exposes only final content while leaving the metered provider response intact',async()=>{
+ const raw={choices:[{message:{content:'Draft notes.</think>\n# Final report\nEvidence [1].'},finish_reason:'stop'}]};
+ const generate=createPrivateGeneration({infer:async()=>raw,run:{},actionId:'synthetic'});
+ const result=await generate('write',()=>chat({messages:[]}));
+ assert.equal(result.text,'# Final report\nEvidence [1].');
+ assert.equal(raw.choices[0].message.content,'Draft notes.</think>\n# Final report\nEvidence [1].');
+});
 test('private generation intercepts the ordinary provider even with an ordinary fetch override',async()=>{
     let privateCalls=0,ordinaryCalls=0;
     const result=await withPrivateLlmPort({privateVerifiedTransport:'phala-aci-v1',chat:async()=>{privateCalls++;return {text:'protected'}}},async()=>{

@@ -1,5 +1,5 @@
 import {assertGuestPlanningAction,assertAdoptedGuestPlan} from './guest-planning-policy.js';
-import {cleanPrivateReportCitations} from '@nibgate/internal/private-report-citations.js';
+import {cleanPrivateReportCitations,cleanPrivateModelOutput} from '@nibgate/internal/private-report-citations.js';
 import {privateNarrationMessages} from './private-narration.js';
 import {runPrivateTerminal} from './private-terminal.js';
 import {runPrivateCreatorTips} from './private-creator-tips.js';
@@ -18,13 +18,13 @@ import {runPrivateResearchAgent} from './private-research-agent.js';
 import {createPrivateJudge} from './private-judge.js';
 import {privateBudgetMicroUsd} from './private-run-budget.js';
 import {runPrivateCode} from './private-code.js';
-const json = v => { const text = v?.choices?.[0]?.message?.content;
+const json = v => { const text = cleanPrivateModelOutput(v?.choices?.[0]?.message?.content);
     if (v?.choices?.[0]?.finish_reason === 'length') throw Error('PRIVATE_MODEL_OUTPUT_TRUNCATED');
     if (typeof text !== 'string' || text.length > 100000) throw Error('PRIVATE_MODEL_OUTPUT_INVALID');
     try { return JSON.parse(text.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')); }
     catch { throw Error('PRIVATE_MODEL_JSON_INVALID'); } };
 const text = v => { const s = v?.choices?.[0]?.message?.content; if (typeof s !== 'string' || !s.trim() || s.length > 100000 || v.choices[0].finish_reason === 'length')
-    throw Error('PRIVATE_MODEL_OUTPUT_INVALID'); return s; };
+    throw Error('PRIVATE_MODEL_OUTPUT_INVALID'); return cleanPrivateModelOutput(s); };
 const bounded = (value, max = 8000) => { if (typeof value !== 'string' || value.length > max)
     throw Error('PRIVATE_WORKFLOW_INPUT_INVALID'); return value; };
 // The same cap and stop question used by the original answer-flow.js.
@@ -344,7 +344,7 @@ export function createPrivateWorkflow({ infer, judge, publicRetrieval, runCode=r
             if (!latest)
                 throw Error('PRIVATE_REPORT_REQUIRED');
             const question = bounded(args.question, 4000);
-            const response=await call([{ role: 'system', content: RESEARCH_SYSTEM + ' Answer only from this report; identify unsupported conclusions.' }, { role: 'user', content: JSON.stringify({ report: latest.markdown, question }) }],'discuss');
+            const response=await call([{ role: 'system', content: RESEARCH_SYSTEM + ' Answer only from this report; identify unsupported conclusions.' }, { role: 'user', content: JSON.stringify({ report: cleanPrivateModelOutput(latest.markdown), question }) }],'discuss');
             const answer=text(response),cost=response[PRIVATE_METERED_COST],model=response[PRIVATE_USAGE]?.model??'confidential';
             const usage=Number.isSafeInteger(cost)&&cost>=0?{costUsd:cost/1000000,billingKind:response[PRIVATE_CALL_CHARGE]?.billingKind??'unknown'}:undefined;
             s.metadata ??= {};

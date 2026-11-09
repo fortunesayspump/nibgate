@@ -700,3 +700,134 @@ body {
 /* Reference controls retain text labels; no generic icon decoration. */
 #navbar svg, .sourcey-header-search svg { display: none !important; }
 a:focus-visible, button:focus-visible { outline: 2px solid #334d28 !important; outline-offset: 3px; }
+
+/* Text links and flexible columns must fit alongside the reference content. */
+#navbar .sourcey-header-actions,
+#navbar .sourcey-header-actions a {
+  width: auto !important;
+  height: auto !important;
+}
+
+#navbar .sourcey-header-actions a {
+  min-height: 44px;
+  padding: 8px !important;
+}
+
+#navbar :is(a, button):focus-visible {
+  outline-color: #ffffff !important;
+}
+
+#content-area,
+.prose,
+.prose-code-block,
+.prose-code-content {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.prose {
+  overflow-wrap: anywhere;
+}
+
+.prose pre {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}
+
+@media (min-width: 1024px) {
+  #docs > div {
+    grid-template-columns: minmax(0, 1fr) 272px !important;
+  }
+
+  #content-area {
+    width: 100% !important;
+  }
+
+  #navbar .sourcey-header-search {
+    position: static !important;
+    flex: 0 1 340px !important;
+    width: auto !important;
+    min-width: 180px !important;
+  }
+
+  #navbar .sourcey-header-actions {
+    position: static !important;
+    flex: 0 0 auto !important;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  #docs > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #toc {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --header-height: 122px;
+  }
+
+  #navbar,
+  #navbar .sourcey-header-frame {
+    height: 122px !important;
+  }
+
+  #navbar .sourcey-header-top-inner {
+    align-items: flex-start !important;
+  }
+
+  #navbar .sourcey-header-brand {
+    height: 78px;
+    align-items: center;
+  }
+
+  #navbar .sourcey-header-actions {
+    position: absolute !important;
+    top: 78px !important;
+    right: 0 !important;
+    left: 0 !important;
+    justify-content: flex-start !important;
+  }
+
+  #navbar #search-open-mobile,
+  #navbar button[data-drawer-slide="right"] {
+    display: flex !important;
+    width: auto !important;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    font: 600 14px var(--font-sans);
+  }
+
+  #navbar #search-open-mobile {
+    right: 76px !important;
+  }
+
+  #navbar #search-open-mobile::after {
+    content: "Search";
+  }
+
+  #navbar button[data-drawer-slide="right"]::after {
+    content: "Menu";
+  }
+
+  #navbar #search-open-mobile svg,
+  #navbar button[data-drawer-slide="right"] svg {
+    display: none !important;
+  }
+
+  #content-area {
+    padding-top: 24px !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .sourcey-logo::before {
+    width: 130px;
+    background-size: 32px 32px, 92px auto;
+  }
+}

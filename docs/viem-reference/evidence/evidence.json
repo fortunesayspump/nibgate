@@ -1,7 +1,7 @@
 {
   "summary": "Sourcey-generated independent Viem 2.54.1 integration reference for Nibgate developers, documenting 24 public APIs from the maintained third-party wevm/viem repository at a pinned public MIT-licensed commit. Includes source equality checks, reproducible generation, focused tests, a verified two-receipt runx tree and an additive build for the existing product documentation home.",
   "public_url": "https://docs.nibgate.xyz/viem-reference",
-  "receipt_ref": "runx:receipt:sha256:dab1bbfb5139b304f5dc6e3baf4a1df0bea646ae628e6dcaeaf0f8fb8e1e1034",
+  "receipt_ref": "runx:receipt:sha256:05d63b7e37677f997e5691fa4719a03aff2ad23e5636802e1ca05f579f362f6f",
   "observations": [
     {
       "kind": "target",
@@ -173,10 +173,10 @@
     },
     {
       "kind": "governed_validation",
-      "receipt_ref": "runx:receipt:sha256:dab1bbfb5139b304f5dc6e3baf4a1df0bea646ae628e6dcaeaf0f8fb8e1e1034",
+      "receipt_ref": "runx:receipt:sha256:05d63b7e37677f997e5691fa4719a03aff2ad23e5636802e1ca05f579f362f6f",
       "outcome": "completed",
       "result": {
-        "buildHashesSha256": "9993a30e036e6f5f7bfb13a04f97be163f1461bc91b2acba6ecc769eba9b5b90",
+        "buildHashesSha256": "34f4f81896e56ee6c5d53a694d34f4a976817b44a94aaf5b423b07b320d43f4f",
         "checkedFragments": 246,
         "checkedLocalLinks": 1287,
         "commit": "e6e0c1bef949fbdc837662fbd41ebe739ccae030",
@@ -228,7 +228,29 @@
       "live_payments_executed": false,
       "upstream_full_suite_executed": false,
       "fixture_note": "Illustrative upstream code and deterministic test vectors are labelled as examples, not live account activity."
+    },
+    {
+      "kind": "responsive_ui",
+      "css_sha256": "ce986b6d86b8fddd6bb64b1a5141cc4fd3a984bb596d340b5d6d232b103fbf20",
+      "local_viewports_checked": [
+        320,
+        390,
+        768,
+        1024,
+        1157,
+        1280,
+        1472,
+        1920
+      ],
+      "header_links_do_not_overlap_search": true,
+      "page_width_overflow_absent": true,
+      "mobile_text_menu_and_search_visible": true,
+      "search_query_escape_reopen_and_menu_escape": "passed",
+      "scope": "Focused CSS layout correction; existing Nibgate branding retained.",
+      "code_block_overflow_contained": true,
+      "tested_flows": "Menu/Escape; search/query/Escape/reopen/result selection/Back",
+      "transient_search_observation": "One local desktop search showed a load error after Back and recovered on Try again; final live search must be rechecked."
     }
   ],
-  "publication_status": "Not yet verified live. Delivery is prohibited until the public route and immutable evidence URLs pass stranger checks."
+  "publication_status": "Initial reference at this public URL was verified live from commit cac29ba449b5584c895cbe344d8ec22c8836b119. This receipt covers the subsequent responsive CSS correction; its deployment must be verified before a future bounty submission."
 }

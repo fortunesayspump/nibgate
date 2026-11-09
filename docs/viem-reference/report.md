@@ -74,7 +74,7 @@ The custom AST extractor feeds real upstream API data to Sourcey's Markdown
 adapter. Run `npm ci --ignore-scripts`, `npm run build` and `npm test` from this
 directory. The committed configuration and scripts retain the exact versions.
 `inventory.json` contains 24 exports and 51 pinned inputs; validation records
-29 generated HTML files and 1,041 checked local references in the initial build.
+29 generated HTML files and 1,287 checked local references.
 The final evidence packet and governed receipt are authoritative for final
 counts and hashes.
 

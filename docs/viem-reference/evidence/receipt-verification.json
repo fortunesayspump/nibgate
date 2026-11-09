@@ -1,0 +1,13 @@
+{
+  "receipt_dir": "/workspace/shared/nibgate-frantic-revision-20261109/docs/viem-reference/evidence/runx-receipts",
+  "trees": [
+    {
+      "root_receipt_id": "sha256:dab1bbfb5139b304f5dc6e3baf4a1df0bea646ae628e6dcaeaf0f8fb8e1e1034",
+      "receipt_count": 2,
+      "valid": true,
+      "findings": []
+    }
+  ],
+  "unreadable_files": [],
+  "valid": true
+}

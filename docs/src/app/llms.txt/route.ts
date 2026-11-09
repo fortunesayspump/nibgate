@@ -1,6 +1,7 @@
 export const dynamic = "force-static";
 
 const PAGES: Array<[string, string]> = [
+  ["https://docs.nibgate.xyz/viem-reference", "Independent Viem 2.54.1 integration reference: 24 source-linked client, ABI, address, encoding, signature and unit APIs."],
   ["https://docs.nibgate.xyz/overview", "What Nibgate is: verification, discovery, unlock, and reputation for creator-owned paid content."],
   ["https://docs.nibgate.xyz/architecture", "System architecture across hub, creator sites, subblogs, and onchain components."],
   ["https://docs.nibgate.xyz/agent-discovery", "Agent discovery: machine-readable content cards, x402 purchasing, and the discovery.md guide."],

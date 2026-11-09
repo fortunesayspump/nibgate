@@ -52,6 +52,10 @@ export default {
     title: "SDK reference",
     href: "/sdk-reference",
   },
+  "viem-reference": {
+    title: "Viem integration reference",
+    href: "/viem-reference",
+  },
   examples: "Examples",
   roadmap: "Roadmap",
 };

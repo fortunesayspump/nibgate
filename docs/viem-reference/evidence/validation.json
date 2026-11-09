@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "commit": "e6e0c1bef949fbdc837662fbd41ebe739ccae030",
+  "version": "2.54.1",
+  "documentedApis": 24,
+  "htmlFiles": 29,
+  "checkedLocalLinks": 1287,
+  "checkedFragments": 246,
+  "pinnedInputFiles": 51,
+  "npmSourceMatches": 24,
+  "exampleTypecheck": "passed; skipLibCheck excludes dependency declaration internals",
+  "pureHelperAssertions": 16,
+  "liveRpcRequestsExecuted": false,
+  "livePaymentsExecuted": false,
+  "upstreamFullTestSuiteExecuted": false
+}

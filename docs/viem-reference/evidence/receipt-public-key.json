@@ -1,0 +1,7 @@
+{
+  "type": "local",
+  "kid": "local-eb9ad5bbc4c5d118bae2bfe498ab51756aeeb83916da27775cf6bfde602322a0",
+  "public_key_sha256": "sha256:eb9ad5bbc4c5d118bae2bfe498ab51756aeeb83916da27775cf6bfde602322a0",
+  "public_key_base64": "DFb8677mGYT+nssZY6nO0Iax8c17Ndr2KsdoqmVUh4I=",
+  "trust_note": "Local validation signer. This public key verifies receipt integrity, not upstream endorsement."
+}

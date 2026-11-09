@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3002",
-    "prebuild": "npm --prefix sdk-reference run build && node scripts/stage-sdk-reference.mjs",
+    "prebuild": "npm --prefix sdk-reference run build && node scripts/stage-sdk-reference.mjs && npm ci --prefix viem-reference --ignore-scripts --no-audit --no-fund && npm --prefix viem-reference run build && npm --prefix viem-reference test && node scripts/stage-viem-reference.mjs",
     "build": "next build && pagefind --site .next/server/app --output-path public/_pagefind --force-language en",
     "start": "next start -p 3002",
     "cf:build:static": "pnpm prebuild && NIBGATE_DOCS_STATIC=1 next build && pagefind --site .next/server/app --output-path out/_pagefind --force-language en && node scripts/stage-cloudflare-static.mjs"

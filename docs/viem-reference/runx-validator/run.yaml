@@ -1,0 +1,68 @@
+skill: validate-viem-sourcey-reference
+version: "1.0.0"
+catalog:
+  kind: skill
+  audience: public
+  visibility: public
+  role: canonical
+harness:
+  cases:
+    - name: pinned-source-validation
+      runner: default
+      operator_journeys:
+        - mode: standalone
+          confusors: [api-extractor, documentation-link-checker]
+          request: Rebuild and validate the pinned Viem Sourcey integration reference from committed upstream source files.
+          expected_outcome: Return source identity, exact tool versions, measured coverage, local checks and build hashes in a sealed receipt.
+        - mode: composed
+          request: Validate the prepared reference using the already selected public Viem commit and source snapshot.
+          expected_outcome: Reuse the exact selected source commit and prepared reference without choosing a different library.
+          prior_evidence:
+            - The upstream Viem commit and selected source-file hashes.
+            - The prepared reference configuration and source snapshot.
+          must_not_repeat:
+            - Do not select another library or commit.
+            - Do not claim, publish or submit anything externally.
+      inputs:
+        commit: e6e0c1bef949fbdc837662fbd41ebe739ccae030
+      expect:
+        status: sealed
+        receipt:
+          schema: runx.receipt.v1
+          state: sealed
+          disposition: closed
+runners:
+  default:
+    default: true
+    inputs:
+      commit:
+        type: string
+        required: true
+        description: Exact public upstream Viem source commit.
+    steps:
+      - id: validate
+        tool: { command: node, args: [run.mjs] }
+        inputs:
+          commit: $input.commit
+        outputs:
+          status: string
+          commit: string
+          runxVersion: string
+          sourceyVersion: string
+          documentedApis: number
+          checkedLocalLinks: number
+          checkedFragments: number
+          htmlFiles: number
+          pinnedInputFiles: number
+          npmSourceMatches: number
+          exampleTypecheck: string
+          version: string
+          pureHelperAssertions: number
+          inventorySha256: string
+          buildHashesSha256: string
+          generatorSha256: string
+          sourceyConfigSha256: string
+          upstreamLicenseSha256: string
+          liveRpcRequestsExecuted: boolean
+          upstreamFullTestSuiteExecuted: boolean
+          livePaymentsExecuted: boolean

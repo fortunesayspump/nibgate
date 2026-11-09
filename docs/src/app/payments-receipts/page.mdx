@@ -157,3 +157,8 @@ Unlock completion events should include:
 The dashboard should group earnings by site, receiver, content, currency, and time range. Clicking a receipt should open the source transaction or gateway receipt when available.
 
 Google wallet compatibility: wallet 0.4.31 checks already-authorized accounts before SIWE, closes the AppKit sheet before the embedded signature prompt, and configures Reown's Arc RPC routes on both networks. This avoids overlapping dialogs and Magic iframe restrictions on direct Arc RPC hosts. Nibgate's application RPC proxies remain read-only; wallet signing still requires user approval.
+
+
+## Viem integration reference
+
+For source-linked client, ABI, address and amount helpers used around these flows, see the [Viem integration reference](/viem-reference). It documents the pinned Viem 2.54.1 dependency and clearly separates local encoding or signature checks from payment settlement.

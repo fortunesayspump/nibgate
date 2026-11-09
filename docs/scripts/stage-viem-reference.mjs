@@ -1,0 +1,10 @@
+import { cpSync, existsSync, rmSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const docsRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const source=resolve(docsRoot,'viem-reference/dist');
+const target=resolve(docsRoot,'public/viem-reference');
+if(!existsSync(resolve(source,'index.html'))) throw Error('Validated Sourcey Viem output is missing');
+rmSync(target,{recursive:true,force:true});
+cpSync(source,target,{recursive:true});
+console.log('Staged the source-generated Viem integration reference.');

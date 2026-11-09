@@ -1,0 +1,234 @@
+{
+  "summary": "Sourcey-generated independent Viem 2.54.1 integration reference for Nibgate developers, documenting 24 public APIs from the maintained third-party wevm/viem repository at a pinned public MIT-licensed commit. Includes source equality checks, reproducible generation, focused tests, a verified two-receipt runx tree and an additive build for the existing product documentation home.",
+  "public_url": "https://docs.nibgate.xyz/viem-reference",
+  "receipt_ref": "runx:receipt:sha256:dab1bbfb5139b304f5dc6e3baf4a1df0bea646ae628e6dcaeaf0f8fb8e1e1034",
+  "observations": [
+    {
+      "kind": "target",
+      "repository": "https://github.com/wevm/viem",
+      "commit": "e6e0c1bef949fbdc837662fbd41ebe739ccae030",
+      "version": "2.54.1",
+      "third_party": true,
+      "source_url": "https://github.com/wevm/viem/tree/e6e0c1bef949fbdc837662fbd41ebe739ccae030"
+    },
+    {
+      "kind": "license",
+      "license": "MIT",
+      "license_url": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/LICENSE",
+      "license_sha256": "091d17ae5f625ffeb381e7109daaf6c492dd32502d612d8ecd24e2ddf6d16b74",
+      "actual_license_file_checked": true
+    },
+    {
+      "kind": "maintenance",
+      "checked_at": "2026-11-09",
+      "latest_observed_commit": "17c2c520e8ffb4fa09473422fdf84a1b8ff1469d",
+      "upstream_activity_date": "2026-11-08T20:32:26Z",
+      "version_reason": "2.54.1 matches the Nibgate workspace dependency; maintained upstream was checked separately."
+    },
+    {
+      "kind": "adapter",
+      "sourcey_version": "3.9.0",
+      "typescript_version": "5.9.3",
+      "adapter": "Sourcey Markdown adapter fed by TypeScript AST extraction from pinned source and examples from the same commit",
+      "command": "npm run build",
+      "config": "sourcey.config.ts",
+      "extractor": "scripts/generate.mjs",
+      "vendor_input_files": 51,
+      "npm_source_files_matching_pinned_git": 24
+    },
+    {
+      "kind": "coverage",
+      "documented_public_apis": 24,
+      "generated_html_files": 29,
+      "exported_local_type_declarations": 75,
+      "page_list": [
+        {
+          "name": "createPublicClient",
+          "page": "pages/api/createpublicclient.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/createPublicClient.ts#L80-L109"
+        },
+        {
+          "name": "createWalletClient",
+          "page": "pages/api/createwalletclient.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/createWalletClient.ts#L124-L136"
+        },
+        {
+          "name": "custom",
+          "page": "pages/api/custom.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/transports/custom.ts#L35-L55"
+        },
+        {
+          "name": "fallback",
+          "page": "pages/api/fallback.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/transports/fallback.ts#L107-L208"
+        },
+        {
+          "name": "http",
+          "page": "pages/api/http.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/transports/http.ts#L100-L195"
+        },
+        {
+          "name": "decodeAbiParameters",
+          "page": "pages/api/decodeabiparameters.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/decodeAbiParameters.ts#L56-L86"
+        },
+        {
+          "name": "decodeEventLog",
+          "page": "pages/api/decodeeventlog.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/decodeEventLog.ts#L98-L220"
+        },
+        {
+          "name": "decodeFunctionData",
+          "page": "pages/api/decodefunctiondata.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/decodeFunctionData.ts#L56-L78"
+        },
+        {
+          "name": "encodeAbiParameters",
+          "page": "pages/api/encodeabiparameters.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/encodeAbiParameters.ts#L86-L107"
+        },
+        {
+          "name": "encodeFunctionData",
+          "page": "pages/api/encodefunctiondata.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/encodeFunctionData.ts#L70-L95"
+        },
+        {
+          "name": "getAddress",
+          "page": "pages/api/getaddress.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/getAddress.ts#L64-L81"
+        },
+        {
+          "name": "getContractAddress",
+          "page": "pages/api/getcontractaddress.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/getContractAddress.ts#L36-L39"
+        },
+        {
+          "name": "isAddress",
+          "page": "pages/api/isaddress.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/isAddress.ts#L22-L39"
+        },
+        {
+          "name": "isAddressEqual",
+          "page": "pages/api/isaddressequal.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/isAddressEqual.ts#L13-L19"
+        },
+        {
+          "name": "stringToBytes",
+          "page": "pages/api/stringtobytes.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/encoding/toBytes.ts#L238-L248"
+        },
+        {
+          "name": "toHex",
+          "page": "pages/api/tohex.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/encoding/toHex.ts#L52-L63"
+        },
+        {
+          "name": "keccak256",
+          "page": "pages/api/keccak256.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/hash/keccak256.ts#L21-L31"
+        },
+        {
+          "name": "hashMessage",
+          "page": "pages/api/hashmessage.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/signature/hashMessage.ts#L14-L19"
+        },
+        {
+          "name": "hashTypedData",
+          "page": "pages/api/hashtypeddata.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/signature/hashTypedData.ts#L46-L90"
+        },
+        {
+          "name": "recoverMessageAddress",
+          "page": "pages/api/recovermessageaddress.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/signature/recoverMessageAddress.ts#L27-L32"
+        },
+        {
+          "name": "formatEther",
+          "page": "pages/api/formatether.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/formatEther.ts#L18-L20"
+        },
+        {
+          "name": "formatUnits",
+          "page": "pages/api/formatunits.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/formatUnits.ts#L16-L32"
+        },
+        {
+          "name": "parseEther",
+          "page": "pages/api/parseether.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/parseEther.ts#L19-L21"
+        },
+        {
+          "name": "parseUnits",
+          "page": "pages/api/parseunits.html",
+          "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/parseUnits.ts#L17-L57"
+        }
+      ],
+      "coverage_notes": "Focused integration slice; not the entire Viem API or imported type graph. Client methods and live blockchain behavior are outside scope."
+    },
+    {
+      "kind": "runx_cli",
+      "command": "runx --version",
+      "output": "runx-cli 0.10.2",
+      "runx_version": "runx-cli 0.10.2"
+    },
+    {
+      "kind": "governed_validation",
+      "receipt_ref": "runx:receipt:sha256:dab1bbfb5139b304f5dc6e3baf4a1df0bea646ae628e6dcaeaf0f8fb8e1e1034",
+      "outcome": "completed",
+      "result": {
+        "buildHashesSha256": "9993a30e036e6f5f7bfb13a04f97be163f1461bc91b2acba6ecc769eba9b5b90",
+        "checkedFragments": 246,
+        "checkedLocalLinks": 1287,
+        "commit": "e6e0c1bef949fbdc837662fbd41ebe739ccae030",
+        "documentedApis": 24,
+        "exampleTypecheck": "passed; skipLibCheck excludes dependency declaration internals",
+        "generatorSha256": "1abbfb144b9f873dbcc86975b5cdc45d4f82da45d1ae5344b7284a5f73c646be",
+        "htmlFiles": 29,
+        "inventorySha256": "2b2b2068a9f0d1e50a1bd654dcfada334d7bee34b64043a848077dcc8076db8b",
+        "livePaymentsExecuted": false,
+        "liveRpcRequestsExecuted": false,
+        "npmSourceMatches": 24,
+        "pinnedInputFiles": 51,
+        "pureHelperAssertions": 16,
+        "runxVersion": "runx-cli 0.10.2",
+        "sourceyConfigSha256": "84812ae0f5f1b343ad46eead9c217200b046ec35339d0c457d66559a0bbafb62",
+        "sourceyVersion": "3.9.0",
+        "status": "passed",
+        "upstreamFullTestSuiteExecuted": false,
+        "upstreamLicenseSha256": "091d17ae5f625ffeb381e7109daaf6c492dd32502d612d8ecd24e2ddf6d16b74",
+        "version": "2.54.1"
+      },
+      "receipt_tree_verification": "valid, two receipts",
+      "verifier_command": "node scripts/verify-receipts.mjs",
+      "signer": "Local Ed25519 validation signer; published public key, no upstream endorsement claimed."
+    },
+    {
+      "kind": "host_build",
+      "command": "pnpm --filter @nibgate/docs cf:build:static",
+      "status": "passed",
+      "hosting_target": "existing Cloudflare docs static build",
+      "node_version": "v22.23.4",
+      "pnpm_version": "10.28.0",
+      "existing_sdk_reference_preserved": true,
+      "home_payments_guide_and_llms_index_link_reference": true
+    },
+    {
+      "kind": "audience",
+      "product": "Nibgate",
+      "host": "docs.nibgate.xyz",
+      "context_source": "https://github.com/fortunesayspump/nibgate/blob/c822221af30c07ca93864b89fdc693c6b2c98c37/packages/nibgate/src/server/fee-wallet.js",
+      "existing_guide": "https://docs.nibgate.xyz/payments-receipts",
+      "independent_reference": true,
+      "upstream_adoption_claimed": false,
+      "hosting_acceptance": "Subject to reviewer interpretation of the published product/documentation-domain criterion."
+    },
+    {
+      "kind": "limits",
+      "live_rpc_requests_executed": false,
+      "live_payments_executed": false,
+      "upstream_full_suite_executed": false,
+      "fixture_note": "Illustrative upstream code and deterministic test vectors are labelled as examples, not live account activity."
+    }
+  ],
+  "publication_status": "Not yet verified live. Delivery is prohibited until the public route and immutable evidence URLs pass stranger checks."
+}

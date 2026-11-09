@@ -113,3 +113,5 @@ subblogs/frontend/.open-next/
 cloudflare-git-*.log
 docs/out/
 docs/sdk-reference/node_modules/
+
+/docs/public/viem-reference/

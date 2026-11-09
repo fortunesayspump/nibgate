@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
       return {
         beforeFiles: [
           { source: "/sdk-reference", destination: "/sdk-reference/index.html" },
+          { source: "/viem-reference", destination: "/viem-reference/index.html" },
         ],
       };
     },

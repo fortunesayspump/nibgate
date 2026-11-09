@@ -1,0 +1,785 @@
+{
+  "repository": "https://github.com/wevm/viem",
+  "commit": "e6e0c1bef949fbdc837662fbd41ebe739ccae030",
+  "version": "2.54.1",
+  "license": "MIT",
+  "total": 24,
+  "sourceHashes": {
+    "site/pages/docs/abi/decodeAbiParameters.md": "26c4858b05e8dfa2ef3721542f3fd3295d1a3af6cbe43f91353857dc6c325708",
+    "site/pages/docs/abi/encodeAbiParameters.md": "9bb0f22db0d32d37e504f33b75958c059b824f44ce14f0253aac0ebcd06885bc",
+    "site/pages/docs/clients/public.md": "4544614805b38b132ab53cc50bc581fde8bcb27d89d54e67d8988da233b9e45d",
+    "site/pages/docs/clients/transports/custom.md": "6c06cfe7090c7ef282097c4ba12fe8ffc85682ffe8a8d72e45760bdef1b74188",
+    "site/pages/docs/clients/transports/fallback.md": "e29dd02e3f7c528bf23c688fd83d9ea58edffb230cad0f20ba3d4f97f76f46cb",
+    "site/pages/docs/clients/transports/http.md": "9afdabfa76ce187a2e67a83aa44c9549437d647280855ec8fe572ba6dcd5c58e",
+    "site/pages/docs/clients/wallet.md": "a359b7480eac43cc6120b2f2d6d3237a3c854f8fe20d77e17d15059079f96279",
+    "site/pages/docs/contract/decodeEventLog.md": "aa6dfa3671c4e4218c06cd202741cf293c0c4f7a89b88af2264017310f7a6c05",
+    "site/pages/docs/contract/decodeFunctionData.md": "1fea7bde9cf354315d233dfd9656ff8f655214dbd1b8a6233897f8b1dd320f39",
+    "site/pages/docs/contract/encodeFunctionData.md": "a09e06866beec2c622fc705643ea6f59e6efa5671970c2010e52b8126512da6d",
+    "site/pages/docs/utilities/formatEther.md": "26fda190c71c50323a1188ff5fa7849f772d1da8a8fce3750b01135f9ca8731e",
+    "site/pages/docs/utilities/formatUnits.md": "489182785f312f9218f5a4d4b1ebbb094b8a15a641d1c6429d59401341eee6a0",
+    "site/pages/docs/utilities/getAddress.md": "8ecf122fad74011a606888e7c0c342fb04d43e5861fa7b29f0f27fff8b5003a2",
+    "site/pages/docs/utilities/getContractAddress.md": "881fdcbd9dc19de3e7750be3e97d11d1c6ad2ba9315a26246717348ebf8b02fc",
+    "site/pages/docs/utilities/hashMessage.md": "63d1675a264c3b09c2d21d7d41bf693b71647407d749473871da6f69b5b65ec7",
+    "site/pages/docs/utilities/hashTypedData.md": "5c512603746d7ae83d0f249e62ecc7036bbc5b493f0e4a42fabdf8ad0be66388",
+    "site/pages/docs/utilities/isAddress.md": "19479dd8cf497cd78854d7c9be63ddb197bf6ef08a4ce1295090eac04ef2892b",
+    "site/pages/docs/utilities/isAddressEqual.md": "a14455975c46a11ef9301f078aa953893f655890969dccc00b6afe3e89ef375a",
+    "site/pages/docs/utilities/keccak256.md": "ae3d3f75238e4a8611da01a89b566d2b6a77be48e466d9f4ce29bb16e374071a",
+    "site/pages/docs/utilities/parseEther.md": "c877f86f6806d61159d3662f8b74492551bffd9b65a2cf396a66dcba375c3f00",
+    "site/pages/docs/utilities/parseUnits.md": "06f8a01d1b90f58395db177fb6ed6ffec7991e024a88d0534cbbd8bdcfb06e63",
+    "site/pages/docs/utilities/recoverMessageAddress.md": "c5fd1fb75e92632ad421c4916b2f094b2492c04c0362de46125720b7240f5ac6",
+    "site/pages/docs/utilities/toBytes.md": "403b069112c707926b5e8343aeafd93f1b0924546cdcaf44e7b5c3d6210e1aaa",
+    "site/pages/docs/utilities/toHex.md": "f8a9716f97073319dc5d7f5fda7608ac72ed8caec7b5b5dbf5944ad150bd067c",
+    "src/LICENSE": "091d17ae5f625ffeb381e7109daaf6c492dd32502d612d8ecd24e2ddf6d16b74",
+    "src/clients/createPublicClient.ts": "4be4faf5ddda798dc2152a44f6328f0ba0e3eb3706b9f32e80e34d86822c9163",
+    "src/clients/createWalletClient.ts": "536f1d7ee461666dbcc0e3c2509de62adfaf78122764245f7a0de02183458393",
+    "src/clients/transports/custom.ts": "e7fb8beff4610383e8edb4903e0d496e86e62171be63612a9ac9e198d09d00dc",
+    "src/clients/transports/fallback.ts": "4d9599264edb77765ddcd5fdc47a7c83ca4d0dd5d6e437efeeb63fa1fefe68cb",
+    "src/clients/transports/http.ts": "e05dc9c97acff6eb200061ba8c5b45103f1c5363c41b569a3428264fd0d8d0e4",
+    "src/index.ts": "eeb0cf213cf8e21aa641b56247579eaf7ad5f825a6f7f7a4522b43b334c68690",
+    "src/package.json": "88b29fba891e969dd0c0ccf54ff37519fc63566c147332a562c8aa10fbe566e2",
+    "src/utils/abi/decodeAbiParameters.ts": "2f5ebdd9c1e40d135c9687294eaaf88ab846cc70b49ec35557ea20e00dcece89",
+    "src/utils/abi/decodeEventLog.ts": "9506d7913eed3862cd3416c11238f61db048767937a8671809c874f4343ed4a4",
+    "src/utils/abi/decodeFunctionData.ts": "4cb66c0b32a4819d7c7ed65785dc47f77e9a18f3e505ad8368afd7b3e1f286cd",
+    "src/utils/abi/encodeAbiParameters.ts": "b4e625bc8b80530f0860cd14f66452a31a97681336ce7be6b6e66b4fa6d1354c",
+    "src/utils/abi/encodeFunctionData.ts": "ebf47bb18a0c43e565627f89b3d31fdd769be3ab3fb0ac47648d8e4bd788b087",
+    "src/utils/address/getAddress.ts": "cbddce3fd1c640872800e0231d066fe3b21ddcf2c8b9a938a0ab9b9d1851f5d9",
+    "src/utils/address/getContractAddress.ts": "976648d9eac65785d5e2abced767646ecf1e32b8149293d3b7c228d03cab659c",
+    "src/utils/address/isAddress.ts": "d18d4bd32b6c7bdb13e1e351f524888327a7c1b5d6c07ebd9e00c349939aeadc",
+    "src/utils/address/isAddressEqual.ts": "f758d8a5af52c4f832769baab993ce66010843aa2562c29a0eef2670d31b2a17",
+    "src/utils/encoding/toBytes.ts": "e298b70dad574abe010d9abc0b77b83c2791850fc2621e620617a15904c7ff43",
+    "src/utils/encoding/toHex.ts": "a979d3e50d31fe829e8ed8d70f82296e1d689a19d2927ebe557279f9709cc79b",
+    "src/utils/hash/keccak256.ts": "1e44b1fb73b4937a3869c477852ef690c0cc1fc66b1d15d99fe2f3c3f24800d5",
+    "src/utils/signature/hashMessage.ts": "92af3327d70c8591fad8198995b53b5a73f2e6f7d28bd93cdcacc4bf2b89d630",
+    "src/utils/signature/hashTypedData.ts": "b4cfcc78f5bbefac2610cbef03ec1dcbbd31df205aba941b4da0aeb7b5e941d8",
+    "src/utils/signature/recoverMessageAddress.ts": "9f264e71ba3ea01a91c87f748cb6e8a22f8c0e0c9cdb12cb613e2f10cadad091",
+    "src/utils/unit/formatEther.ts": "b8e617089b94e767fff60448406510fcdd917a1e738e0c8adc512bbee5f856d2",
+    "src/utils/unit/formatUnits.ts": "a97605a61c62c68f6fd8305b97f8b9976ad5c8283348f3c0115002513912f4f4",
+    "src/utils/unit/parseEther.ts": "5374c2531704d85c0effd87d9e83fad2ef7428f9e4d0064901c9d13c4983094f",
+    "src/utils/unit/parseUnits.ts": "8f122d80f63071417058dc963a70575618ef7080e687f6a1c0aa91d87183f516"
+  },
+  "pages": [
+    {
+      "name": "createPublicClient",
+      "group": "Clients and Transports",
+      "path": "src/clients/createPublicClient.ts",
+      "docFile": "site/pages/docs/clients/public.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/createPublicClient.ts#L80-L109",
+      "sourceStart": 80,
+      "sourceEnd": 109,
+      "page": "pages/api/createpublicclient.html",
+      "parameters": [
+        {
+          "name": "parameters",
+          "type": "PublicClientConfig<\n    transport,\n    chain,\n    accountOrAddress,\n    rpcSchema,\n    tokens\n  >",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "PublicClientConfig",
+        "PublicClient",
+        "CreatePublicClientErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "createWalletClient",
+      "group": "Clients and Transports",
+      "path": "src/clients/createWalletClient.ts",
+      "docFile": "site/pages/docs/clients/wallet.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/createWalletClient.ts#L124-L136",
+      "sourceStart": 124,
+      "sourceEnd": 136,
+      "page": "pages/api/createwalletclient.html",
+      "parameters": [
+        {
+          "name": "parameters",
+          "type": "WalletClientConfig",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 2,
+      "exportedTypes": [
+        "WalletClientConfig",
+        "WalletClient",
+        "CreateWalletClientErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "custom",
+      "group": "Clients and Transports",
+      "path": "src/clients/transports/custom.ts",
+      "docFile": "site/pages/docs/clients/transports/custom.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/transports/custom.ts#L35-L55",
+      "sourceStart": 35,
+      "sourceEnd": 55,
+      "page": "pages/api/custom.html",
+      "parameters": [
+        {
+          "name": "provider",
+          "type": "provider",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "config",
+          "type": "CustomTransportConfig",
+          "optional": true,
+          "default": "{}"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "CustomTransportConfig",
+        "CustomTransport",
+        "CustomTransportErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": false
+    },
+    {
+      "name": "fallback",
+      "group": "Clients and Transports",
+      "path": "src/clients/transports/fallback.ts",
+      "docFile": "site/pages/docs/clients/transports/fallback.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/transports/fallback.ts#L107-L208",
+      "sourceStart": 107,
+      "sourceEnd": 208,
+      "page": "pages/api/fallback.html",
+      "parameters": [
+        {
+          "name": "transports_",
+          "type": "transports",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "config",
+          "type": "FallbackTransportConfig",
+          "optional": true,
+          "default": "{}"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "OnResponseFn",
+        "FallbackTransportConfig",
+        "FallbackTransport",
+        "FallbackTransportErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "http",
+      "group": "Clients and Transports",
+      "path": "src/clients/transports/http.ts",
+      "docFile": "site/pages/docs/clients/transports/http.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/clients/transports/http.ts#L100-L195",
+      "sourceStart": 100,
+      "sourceEnd": 195,
+      "page": "pages/api/http.html",
+      "parameters": [
+        {
+          "name": "url",
+          "type": "string | undefined",
+          "optional": true,
+          "default": null
+        },
+        {
+          "name": "config",
+          "type": "HttpTransportConfig<rpcSchema, raw>",
+          "optional": true,
+          "default": "{}"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "HttpTransportConfig",
+        "HttpTransport",
+        "HttpTransportErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": false
+    },
+    {
+      "name": "decodeAbiParameters",
+      "group": "ABI Encoding",
+      "path": "src/utils/abi/decodeAbiParameters.ts",
+      "docFile": "site/pages/docs/abi/decodeAbiParameters.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/decodeAbiParameters.ts#L56-L86",
+      "sourceStart": 56,
+      "sourceEnd": 86,
+      "page": "pages/api/decodeabiparameters.html",
+      "parameters": [
+        {
+          "name": "params",
+          "type": "params",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "data",
+          "type": "ByteArray | Hex",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "DecodeAbiParametersReturnType",
+        "DecodeAbiParametersErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "decodeEventLog",
+      "group": "ABI Encoding",
+      "path": "src/utils/abi/decodeEventLog.ts",
+      "docFile": "site/pages/docs/contract/decodeEventLog.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/decodeEventLog.ts#L98-L220",
+      "sourceStart": 98,
+      "sourceEnd": 220,
+      "page": "pages/api/decodeeventlog.html",
+      "parameters": [
+        {
+          "name": "parameters",
+          "type": "DecodeEventLogParameters<abi, eventName, topics, data, strict>",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "DecodeEventLogParameters",
+        "DecodeEventLogReturnType",
+        "DecodeEventLogErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "decodeFunctionData",
+      "group": "ABI Encoding",
+      "path": "src/utils/abi/decodeFunctionData.ts",
+      "docFile": "site/pages/docs/contract/decodeFunctionData.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/decodeFunctionData.ts#L56-L78",
+      "sourceStart": 56,
+      "sourceEnd": 78,
+      "page": "pages/api/decodefunctiondata.html",
+      "parameters": [
+        {
+          "name": "parameters",
+          "type": "DecodeFunctionDataParameters<abi>",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "DecodeFunctionDataParameters",
+        "DecodeFunctionDataReturnType",
+        "DecodeFunctionDataErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "encodeAbiParameters",
+      "group": "ABI Encoding",
+      "path": "src/utils/abi/encodeAbiParameters.ts",
+      "docFile": "site/pages/docs/abi/encodeAbiParameters.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/encodeAbiParameters.ts#L86-L107",
+      "sourceStart": 86,
+      "sourceEnd": 107,
+      "page": "pages/api/encodeabiparameters.html",
+      "parameters": [
+        {
+          "name": "params",
+          "type": "params",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "values",
+          "type": "params extends readonly AbiParameter[]\n    ? AbiParametersToPrimitiveTypes<params, AbiParameterKind, true>\n    : never",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "EncodeAbiParametersReturnType",
+        "EncodeAbiParametersErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "encodeFunctionData",
+      "group": "ABI Encoding",
+      "path": "src/utils/abi/encodeFunctionData.ts",
+      "docFile": "site/pages/docs/contract/encodeFunctionData.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/abi/encodeFunctionData.ts#L70-L95",
+      "sourceStart": 70,
+      "sourceEnd": 95,
+      "page": "pages/api/encodefunctiondata.html",
+      "parameters": [
+        {
+          "name": "parameters",
+          "type": "EncodeFunctionDataParameters<abi, functionName>",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "EncodeFunctionDataParameters",
+        "EncodeFunctionDataReturnType",
+        "EncodeFunctionDataErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "getAddress",
+      "group": "Addresses",
+      "path": "src/utils/address/getAddress.ts",
+      "docFile": "site/pages/docs/utilities/getAddress.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/getAddress.ts#L64-L81",
+      "sourceStart": 64,
+      "sourceEnd": 81,
+      "page": "pages/api/getaddress.html",
+      "parameters": [
+        {
+          "name": "address",
+          "type": "string",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "chainId",
+          "type": "number",
+          "optional": true,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "ChecksumAddressErrorType",
+        "GetAddressErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "getContractAddress",
+      "group": "Addresses",
+      "path": "src/utils/address/getContractAddress.ts",
+      "docFile": "site/pages/docs/utilities/getContractAddress.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/getContractAddress.ts#L36-L39",
+      "sourceStart": 36,
+      "sourceEnd": 39,
+      "page": "pages/api/getcontractaddress.html",
+      "parameters": [
+        {
+          "name": "opts",
+          "type": "GetContractAddressOptions",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "GetCreateAddressOptions",
+        "GetCreate2AddressOptions",
+        "GetContractAddressOptions",
+        "GetCreateAddressErrorType",
+        "GetCreate2AddressErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "isAddress",
+      "group": "Addresses",
+      "path": "src/utils/address/isAddress.ts",
+      "docFile": "site/pages/docs/utilities/isAddress.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/isAddress.ts#L22-L39",
+      "sourceStart": 22,
+      "sourceEnd": 39,
+      "page": "pages/api/isaddress.html",
+      "parameters": [
+        {
+          "name": "address",
+          "type": "string",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "options",
+          "type": "IsAddressOptions | undefined",
+          "optional": true,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "IsAddressOptions",
+        "IsAddressErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "isAddressEqual",
+      "group": "Addresses",
+      "path": "src/utils/address/isAddressEqual.ts",
+      "docFile": "site/pages/docs/utilities/isAddressEqual.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/address/isAddressEqual.ts#L13-L19",
+      "sourceStart": 13,
+      "sourceEnd": 19,
+      "page": "pages/api/isaddressequal.html",
+      "parameters": [
+        {
+          "name": "a",
+          "type": "Address",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "b",
+          "type": "Address",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "IsAddressEqualReturnType",
+        "IsAddressEqualErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "stringToBytes",
+      "group": "Encoding and Hashing",
+      "path": "src/utils/encoding/toBytes.ts",
+      "docFile": "site/pages/docs/utilities/toBytes.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/encoding/toBytes.ts#L238-L248",
+      "sourceStart": 238,
+      "sourceEnd": 248,
+      "page": "pages/api/stringtobytes.html",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "string",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "opts",
+          "type": "StringToBytesOpts",
+          "optional": true,
+          "default": "{}"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "ToBytesParameters",
+        "ToBytesErrorType",
+        "BoolToBytesOpts",
+        "BoolToBytesErrorType",
+        "HexToBytesOpts",
+        "HexToBytesErrorType",
+        "NumberToBytesErrorType",
+        "StringToBytesOpts",
+        "StringToBytesErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "toHex",
+      "group": "Encoding and Hashing",
+      "path": "src/utils/encoding/toHex.ts",
+      "docFile": "site/pages/docs/utilities/toHex.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/encoding/toHex.ts#L52-L63",
+      "sourceStart": 52,
+      "sourceEnd": 63,
+      "page": "pages/api/tohex.html",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "string | number | bigint | boolean | ByteArray",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "opts",
+          "type": "ToHexParameters",
+          "optional": true,
+          "default": "{}"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "ToHexParameters",
+        "ToHexErrorType",
+        "BoolToHexOpts",
+        "BoolToHexErrorType",
+        "BytesToHexOpts",
+        "BytesToHexErrorType",
+        "NumberToHexOpts",
+        "NumberToHexErrorType",
+        "StringToHexOpts",
+        "StringToHexErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "keccak256",
+      "group": "Encoding and Hashing",
+      "path": "src/utils/hash/keccak256.ts",
+      "docFile": "site/pages/docs/utilities/keccak256.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/hash/keccak256.ts#L21-L31",
+      "sourceStart": 21,
+      "sourceEnd": 31,
+      "page": "pages/api/keccak256.html",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "Hex | ByteArray",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "to_",
+          "type": "to | undefined",
+          "optional": true,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "Keccak256Hash",
+        "Keccak256ErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "hashMessage",
+      "group": "Signatures",
+      "path": "src/utils/signature/hashMessage.ts",
+      "docFile": "site/pages/docs/utilities/hashMessage.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/signature/hashMessage.ts#L14-L19",
+      "sourceStart": 14,
+      "sourceEnd": 19,
+      "page": "pages/api/hashmessage.html",
+      "parameters": [
+        {
+          "name": "message",
+          "type": "SignableMessage",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "to_",
+          "type": "to | undefined",
+          "optional": true,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "HashMessageReturnType",
+        "HashMessageErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "hashTypedData",
+      "group": "Signatures",
+      "path": "src/utils/signature/hashTypedData.ts",
+      "docFile": "site/pages/docs/utilities/hashTypedData.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/signature/hashTypedData.ts#L46-L90",
+      "sourceStart": 46,
+      "sourceEnd": 90,
+      "page": "pages/api/hashtypeddata.html",
+      "parameters": [
+        {
+          "name": "parameters",
+          "type": "HashTypedDataParameters<typedData, primaryType>",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "HashTypedDataParameters",
+        "HashTypedDataReturnType",
+        "HashTypedDataErrorType",
+        "HashDomainErrorType",
+        "HashStructErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "recoverMessageAddress",
+      "group": "Signatures",
+      "path": "src/utils/signature/recoverMessageAddress.ts",
+      "docFile": "site/pages/docs/utilities/recoverMessageAddress.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/signature/recoverMessageAddress.ts#L27-L32",
+      "sourceStart": 27,
+      "sourceEnd": 32,
+      "page": "pages/api/recovermessageaddress.html",
+      "parameters": [
+        {
+          "name": "{\n  message,\n  signature,\n}",
+          "type": "RecoverMessageAddressParameters",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "RecoverMessageAddressParameters",
+        "RecoverMessageAddressReturnType",
+        "RecoverMessageAddressErrorType"
+      ],
+      "hasFunctionJsdoc": false,
+      "hasSourceExample": false
+    },
+    {
+      "name": "formatEther",
+      "group": "Units",
+      "path": "src/utils/unit/formatEther.ts",
+      "docFile": "site/pages/docs/utilities/formatEther.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/formatEther.ts#L18-L20",
+      "sourceStart": 18,
+      "sourceEnd": 20,
+      "page": "pages/api/formatether.html",
+      "parameters": [
+        {
+          "name": "wei",
+          "type": "bigint",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "unit",
+          "type": "'wei' | 'gwei'",
+          "optional": true,
+          "default": "'wei'"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "FormatEtherErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "formatUnits",
+      "group": "Units",
+      "path": "src/utils/unit/formatUnits.ts",
+      "docFile": "site/pages/docs/utilities/formatUnits.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/formatUnits.ts#L16-L32",
+      "sourceStart": 16,
+      "sourceEnd": 32,
+      "page": "pages/api/formatunits.html",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "bigint",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "decimals",
+          "type": "number",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "FormatUnitsErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "parseEther",
+      "group": "Units",
+      "path": "src/utils/unit/parseEther.ts",
+      "docFile": "site/pages/docs/utilities/parseEther.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/parseEther.ts#L19-L21",
+      "sourceStart": 19,
+      "sourceEnd": 21,
+      "page": "pages/api/parseether.html",
+      "parameters": [
+        {
+          "name": "ether",
+          "type": "string",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "unit",
+          "type": "'wei' | 'gwei'",
+          "optional": true,
+          "default": "'wei'"
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "ParseEtherErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    },
+    {
+      "name": "parseUnits",
+      "group": "Units",
+      "path": "src/utils/unit/parseUnits.ts",
+      "docFile": "site/pages/docs/utilities/parseUnits.md",
+      "sourceURL": "https://github.com/wevm/viem/blob/e6e0c1bef949fbdc837662fbd41ebe739ccae030/src/utils/unit/parseUnits.ts#L17-L57",
+      "sourceStart": 17,
+      "sourceEnd": 57,
+      "page": "pages/api/parseunits.html",
+      "parameters": [
+        {
+          "name": "value",
+          "type": "string",
+          "optional": false,
+          "default": null
+        },
+        {
+          "name": "decimals",
+          "type": "number",
+          "optional": false,
+          "default": null
+        }
+      ],
+      "overloads": 1,
+      "exportedTypes": [
+        "ParseUnitsErrorType"
+      ],
+      "hasFunctionJsdoc": true,
+      "hasSourceExample": true
+    }
+  ]
+}

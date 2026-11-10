@@ -8,6 +8,6 @@ export default async function ProductsPage({ searchParams }: { searchParams?: Pr
   const q = typeof params?.q === "string" ? params.q : "";
   const type = typeof params?.type === "string" ? params.type : "";
   const sort = typeof params?.sort === "string" ? params.sort : "trending";
-  const products = await getExploreProducts({ q, type, sort, limit: 100 });
-  return <MarketSection products={products} />;
+  const { products, error } = await getExploreProducts({ q, type, sort, limit: 100 });
+  return <MarketSection products={products} error={error} />;
 }

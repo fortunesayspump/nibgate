@@ -62,7 +62,7 @@ export default function DocumentUploader({ onUpload, existingName, authenticated
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div
+      <button type="button"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
@@ -75,8 +75,9 @@ export default function DocumentUploader({ onUpload, existingName, authenticated
         }}
       >
         {uploading ? "Uploading document..." : authenticated ? "Drag & drop a document here, or click to select" : "Connect wallet to add document"}
-      </div>
+      </button>
       <input
+        aria-label="Upload document"
         ref={inputRef} type="file" accept=".pdf,.xlsx,.xls,.csv,.ods,.docx,.doc,.txt,.md"
         style={{ display: "none" }}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); if (e.target) e.target.value = ""; }}

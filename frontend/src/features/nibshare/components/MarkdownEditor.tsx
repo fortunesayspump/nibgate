@@ -42,6 +42,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
   const [uploadError, setUploadError] = useState("");
 
   const editor = useEditor({
+    editorProps: { attributes: { role: "textbox", "aria-label": label, "aria-multiline": "true", "aria-required": String(required) } },
     extensions: [
       StarterKit.configure({ undoRedo: { depth: 100 }, link: { openOnClick: false }, heading: { levels: [1, 2, 3] } }),
       ImageExt,
@@ -177,7 +178,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
       {groups.map((group, gi) => (
         <span key={gi} style={{ display: "flex", gap: "1px" }}>
           {group.map((b) => (
-            <button key={b.label} type="button" onClick={b.action} title={b.label} className={btn} style={as(b.active)}>
+            <button key={b.label} type="button" onClick={b.action} title={b.label} aria-label={b.label} className={btn} style={as(b.active)}>
               <b.icon className={iconClass} />
             </button>
           ))}
@@ -189,11 +190,11 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
 
   const bubble = (
     <BubbleMenu editor={editor} className="bubble-menu">
-      <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn} style={as(editor.isActive("bold"))}><Bold className={iconClass} /></button>
-      <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn} style={as(editor.isActive("italic"))}><Italic className={iconClass} /></button>
-      <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btn} style={as(editor.isActive("strike"))}><Strikethrough className={iconClass} /></button>
-      <button type="button" onClick={() => editor.chain().focus().toggleCode().run()} className={btn} style={as(editor.isActive("code"))}><Code className={iconClass} /></button>
-      <button type="button" onClick={() => { const url = prompt("URL:"); if (url) editor.chain().focus().setLink({ href: url }).run(); }} className={btn} style={as(editor.isActive("link"))}><Link2 className={iconClass} /></button>
+      <button type="button" aria-label="Bold" onClick={() => editor.chain().focus().toggleBold().run()} className={btn} style={as(editor.isActive("bold"))}><Bold className={iconClass} /></button>
+      <button type="button" aria-label="Italic" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn} style={as(editor.isActive("italic"))}><Italic className={iconClass} /></button>
+      <button type="button" aria-label="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()} className={btn} style={as(editor.isActive("strike"))}><Strikethrough className={iconClass} /></button>
+      <button type="button" aria-label="Inline code" onClick={() => editor.chain().focus().toggleCode().run()} className={btn} style={as(editor.isActive("code"))}><Code className={iconClass} /></button>
+      <button type="button" aria-label="Insert link" onClick={() => { const url = prompt("URL:"); if (url) editor.chain().focus().setLink({ href: url }).run(); }} className={btn} style={as(editor.isActive("link"))}><Link2 className={iconClass} /></button>
     </BubbleMenu>
   );
 
@@ -206,7 +207,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
             {groups.slice(0, -1).map((group, gi) => (
               <span key={gi} style={{ display: "flex", gap: "1px" }}>
                 {group.map((b) => (
-                  <button key={b.label} type="button" onClick={b.action} title={b.label} className={btn} style={as(b.active)}>
+                  <button key={b.label} type="button" onClick={b.action} title={b.label} aria-label={b.label} className={btn} style={as(b.active)}>
                     <b.icon className={iconClass} />
                   </button>
                 ))}
@@ -225,7 +226,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
             <EditorContent editor={editor} className="editor-content editor-content--fullscreen" />
           </div>
         </div>
-        <input ref={fileRef} type="file" accept="image/*,.mp4,.webm,.mp3,.pdf" style={{ display: "none" }} onChange={(e) => {
+        <input aria-label="Insert media into body" ref={fileRef} type="file" accept="image/*,.mp4,.webm,.mp3,.pdf" style={{ display: "none" }} onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) handleUpload(f);
           if (e.target) e.target.value = "";
@@ -245,7 +246,7 @@ export default function MarkdownEditor({ value, onChange, label = "Body", requir
         <EditorContent editor={editor} className="editor-content" />
         {uploadError && <div style={{ padding: "6px 12px", fontSize: "13px", color: "#dc2626", background: "var(--surface)", borderTop: "1px solid var(--border)" }}>{uploadError}</div>}
       </div>
-      <input ref={fileRef} type="file" accept="image/*,.mp4,.webm,.mp3,.pdf" style={{ display: "none" }} onChange={(e) => {
+      <input aria-label="Insert media into body" ref={fileRef} type="file" accept="image/*,.mp4,.webm,.mp3,.pdf" style={{ display: "none" }} onChange={(e) => {
         const f = e.target.files?.[0];
         if (f) handleUpload(f);
         if (e.target) e.target.value = "";

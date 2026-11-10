@@ -38,8 +38,10 @@ export default function MarketSection({
   products,
   fixedType = "",
   initialSort = "trending",
+  error = "",
 }: {
   products: ExploreProduct[];
+  error?: string;
   fixedType?: string;
   initialSort?: string;
 }) {
@@ -60,6 +62,7 @@ export default function MarketSection({
 
   useEffect(() => {
     const onCategory = (event: Event) => {
+      searchSeq.current += 1;
       const category = (event as CustomEvent<{ category?: string }>).detail?.category || "All";
       setActiveCategory(category);
       setSearchQuery("");
@@ -97,6 +100,7 @@ export default function MarketSection({
   useEffect(() => {
     if (!trimmedQuery) return;
     const seq = ++searchSeq.current;
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       if (searchSeq.current !== seq) return;
       try {
@@ -105,10 +109,11 @@ export default function MarketSection({
         params.set("sort", sort);
         params.set("limit", "100");
         if (effectiveType && effectiveType !== "All") params.set("type", effectiveType.toLowerCase());
-        const res = await fetch(`/hub/explore/content?${params.toString()}`);
+        const res = await fetch(`/hub/explore/content?${params.toString()}`, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const content = Array.isArray(data.content) ? data.content : [];
+        if (!Array.isArray(data.content)) throw new Error("Invalid discovery response");
+        const content = data.content;
         if (searchSeq.current !== seq) return;
         setRemoteResults(content.map(toExploreProduct));
       } catch {
@@ -119,7 +124,7 @@ export default function MarketSection({
         if (searchSeq.current === seq) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); if (searchSeq.current === seq) searchSeq.current += 1; };
   }, [trimmedQuery, sort, effectiveType]);
 
   const filteredProducts = useMemo(() => {
@@ -175,9 +180,9 @@ export default function MarketSection({
             {visibleProducts.length === 0 ? (
               <div className="explore-empty-state market-empty-state">
                 <p>
-                  {trimmedQuery && !searching
+                  {(trimmedQuery ? searchError : error) || (trimmedQuery && !searching
                     ? `No results for "${trimmedQuery}" in discovery.`
-                    : "No tracked content is available yet."}
+                    : "No tracked content is available yet.")}
                 </p>
               </div>
             ) : (

@@ -63,13 +63,13 @@ export async function getExploreProducts(params: { q?: string; type?: string; so
   if (params.limit) search.set("limit", String(params.limit));
 
   try {
-    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { next: { revalidate: 300 } });
-    if (!res.ok) return [];
+    const res = await fetch(`${apiOrigin()}/hub/explore/content?${search.toString()}`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return { products: [], error: res.status === 429 ? "Too many requests. Please wait a moment and try again." : "Content is temporarily unavailable. Please try again." };
     const data = await res.json();
-    const content = Array.isArray(data.content) ? data.content as ExploreContent[] : [];
-    return content.map(toExploreProduct);
+    if (!Array.isArray(data.content)) throw new Error("Invalid discovery response");
+    return { products: (data.content as ExploreContent[]).map(toExploreProduct), error: "" };
   } catch {
-    return [];
+    return { products: [], error: "Content is temporarily unavailable. Please try again." };
   }
 }
 

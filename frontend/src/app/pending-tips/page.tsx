@@ -6,29 +6,7 @@ import Footer from "@/components/Footer";
 import Image from "next/image";
 import Link from "next/link";
 import { activeNetworkName, apiBaseUrl } from "@/lib/api";
-
-type HeldTip = {
-  id: string;
-  title?: string | null;
-  contentUrl: string;
-  domain?: string | null;
-  imageUrl?: string | null;
-  amount: number;
-  currency?: string | null;
-  createdAt: string;
-  payerWallet?: string | null;
-  paymentProvider?: string | null;
-  network?: string | null;
-  paymentId?: string | null;
-  txHash?: string | null;
-};
-
-type HeldTipsResult = {
-  domain: string;
-  tips: HeldTip[];
-  count: number;
-  total: number;
-};
+import { fetchHeldTips, normalizeTipDomain, type HeldTipsResult } from "@/lib/tip-lookup";
 
 const NETWORK = activeNetworkName();
 const OTHER_NETWORK = NETWORK === "mainnet" ? "testnet" : "mainnet";
@@ -36,22 +14,6 @@ const NETWORK_API: Record<"mainnet" | "testnet", string> = {
   mainnet: "https://api.nibgate.xyz",
   testnet: "https://testnet-api.nibgate.xyz",
 };
-
-async function fetchHeldTips(apiBase: string, domain: string): Promise<HeldTipsResult> {
-  const query = new URLSearchParams({ domain, limit: "100" });
-  const response = await fetch(`${apiBase}/hub/tips/held?${query.toString()}`, { cache: "no-store" });
-  const data = await response.json();
-  if (!response.ok || !data.success) {
-    throw new Error(data.error || `Tip lookup failed (${response.status}).`);
-  }
-  const tips: HeldTip[] = Array.isArray(data.tips) ? data.tips : [];
-  return {
-    domain: data.domain || domain,
-    tips,
-    count: Number.isFinite(data.count) ? data.count : tips.length,
-    total: Number.isFinite(data.total) ? data.total : tips.reduce((sum, tip) => sum + (Number(tip.amount) || 0), 0),
-  };
-}
 
 export default function PendingTipsPage() {
   const [domain, setDomain] = useState("");
@@ -70,12 +32,10 @@ export default function PendingTipsPage() {
     setOtherNetworkError("");
 
     try {
-      const normalizedInput = domain.trim();
-      const fallbackDomain = new URL(normalizedInput.includes("://") ? normalizedInput : `https://${normalizedInput}`)
-        .hostname.toLowerCase().replace(/^www\./, "");
+      const fallbackDomain = normalizeTipDomain(domain);
       const [currentLookup, otherLookup] = await Promise.allSettled([
-        fetchHeldTips(apiBaseUrl(), normalizedInput),
-        fetchHeldTips(NETWORK_API[OTHER_NETWORK], normalizedInput),
+        fetchHeldTips(apiBaseUrl(), fallbackDomain),
+        fetchHeldTips(NETWORK_API[OTHER_NETWORK], fallbackDomain),
       ]);
       if (currentLookup.status === "rejected") throw currentLookup.reason;
       setResult({ ...currentLookup.value, domain: currentLookup.value.domain || fallbackDomain });

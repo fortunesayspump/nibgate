@@ -61,7 +61,7 @@ export default function VideoUploader({ onUpload, existingName, authenticated = 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div
+      <button type="button"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; const f = e.dataTransfer.files?.[0]; if (f) handleFile(f); }}
@@ -74,8 +74,9 @@ export default function VideoUploader({ onUpload, existingName, authenticated = 
         }}
       >
         {uploading ? "Uploading video..." : authenticated ? "Drag & drop a video here (max 30MB), or click to select" : "Connect wallet to add video"}
-      </div>
+      </button>
       <input
+        aria-label="Upload video"
         ref={inputRef} type="file" accept="video/*,.mp4,.webm,.mov,.mkv"
         style={{ display: "none" }}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); if (e.target) e.target.value = ""; }}

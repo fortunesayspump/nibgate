@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { FiX, FiPlus, FiUsers, FiDownload, FiUpload, FiTrash2, FiFileText, FiSearch, FiCheck } from "react-icons/fi";
-import * as XLSX from "xlsx";
+// Load the spreadsheet parser only when an Excel file is selected.
 import { shortAddress } from "../lib/shares";
 
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -112,7 +112,8 @@ function parseCsv(text: string): ParsedImport {
 // path: finds the `address`/`wallet` column by header name and pulls addresses
 // only from that column — no blind whole-sheet scan that could grab a price
 // cell or a hex-ish string from an unrelated column.
-function parseExcel(data: Uint8Array): ParsedImport {
+async function parseExcel(data: Uint8Array): Promise<ParsedImport> {
+  const XLSX = await import("xlsx");
   const invalid: string[] = [];
   const seen = new Set<string>();
   const wallets: string[] = [];
@@ -221,10 +222,10 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
     setPending(null);
     const isExcel = /\.(xlsx|xls)$/i.test(file.name);
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = isExcel
-          ? parseExcel(new Uint8Array(reader.result as ArrayBuffer))
+          ? await parseExcel(new Uint8Array(reader.result as ArrayBuffer))
           : parseCsv(String(reader.result || ""));
         if (parsed.wallets.length === 0 && parsed.invalid.length === 0) {
           setError("No wallet addresses found in that file.");
@@ -348,6 +349,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
             <div className="relative">
               <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2" size={11} style={{ color: "var(--muted)" }} />
               <input
+                aria-label="Search whitelist wallets"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={`Search ${value.length} wallet${value.length !== 1 ? "s" : ""}…`}
@@ -429,6 +431,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
         <div className="relative flex-1 min-w-0">
           <FiUsers className="absolute left-2.5 top-1/2 -translate-y-1/2" size={12} style={{ color: "var(--muted)" }} />
           <input
+            aria-label="Wallet addresses to whitelist"
             ref={inputRef}
             value={input}
             onChange={(e) => { setInput(e.target.value); setError(""); }}
@@ -501,6 +504,7 @@ export function WalletListEditor({ value, onChange, disabled = false, compact = 
           </button>
         )}
         <input
+          aria-label="Import whitelist file"
           ref={fileRef}
           type="file"
           accept=".csv,.txt,.xlsx,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"

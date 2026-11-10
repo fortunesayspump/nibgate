@@ -94,7 +94,7 @@ export default function Footer({ showThemeToggle = false, showExtension = true }
                   const isExternal = href.startsWith("http") || href.startsWith("mailto:");
                   return (
                     <li key={label} className="footer-menu__item">
-                      {isExternal ? (
+                      {isExternal || href === "/widget.js" ? (
                         <a
                           className="footer-menu__link"
                           href={href}

@@ -111,7 +111,7 @@ export default function ImageUploader({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      <div
+      <button type="button"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); if (!requireAuth()) return; addFiles(e.dataTransfer.files); }}
@@ -124,8 +124,9 @@ export default function ImageUploader({
         }}
       >
         {dragOver ? "Drop images here" : authenticated ? "Click or drag to add photos" : "Connect wallet to add photos"}
-      </div>
+      </button>
       <input
+        aria-label="Upload images"
         ref={inputRef} type="file" accept="image/*" multiple={multiple}
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files) addFiles(e.target.files); if (e.target) e.target.value = ""; }}
@@ -165,7 +166,7 @@ export default function ImageUploader({
                 {allowCover && (
                   <button
                     type="button"
-                    title="Set as cover"
+                    title="Set as cover" aria-label={`Set image ${i + 1} as cover`}
                     onClick={() => handleCoverSelect(i)}
                     style={{
                       position: "absolute", bottom: "4px", left: "4px",
@@ -182,7 +183,7 @@ export default function ImageUploader({
                 )}
                 <button
                   type="button"
-                  onClick={() => removeItem(i)}
+                  aria-label={`Remove image ${i + 1}`} onClick={() => removeItem(i)}
                   style={{
                     position: "absolute", top: "4px", right: "4px",
                     width: "24px", height: "24px", borderRadius: "50%",
@@ -198,7 +199,7 @@ export default function ImageUploader({
                 type="text"
                 value={item.caption}
                 onChange={(e) => updateCaption(i, e.target.value)}
-                placeholder="Caption..."
+                aria-label="Image caption" placeholder="Caption..."
                 style={{
                   width: "100%", padding: "4px 8px", fontSize: "12px",
                   border: "1px solid var(--border)", borderRadius: "4px",

@@ -38,7 +38,7 @@ run(process.execPath,[join(toolsDir,'@opennextjs/cloudflare/dist/cli/index.js'),
 if(hub) {
  const manifest=JSON.parse(readFileSync(join(appDir,'.next/server/middleware-manifest.json'),'utf8'));
  const entries=Object.values(manifest.middleware||{}), matchers=entries.flatMap(entry=>entry.matchers||[]);
- if(entries.length!==1 || matchers.length!==1 || matchers[0].originalSource!=='/ns/:path*')throw Error('Unknown Hub middleware; refusing to patch');
+ if(entries.length!==1 || matchers.length!==1 || matchers[0].originalSource!=="/((?!api/|hub/|auth/|nibshare/|newsletter/|uploads/|app/|rpc$|drnib[^/]*-api/|_next/|.*\\.[^/]+$).*)")throw Error('Unknown Hub middleware; refusing to patch');
  const p=join(appDir,'.open-next/server-functions/default/frontend/handler.mjs'),s=readFileSync(p,'utf8');
  const before='getMiddlewareManifest(){return this.minimalMode?null:require(this.middlewareManifestPath)}',after='getMiddlewareManifest(){return null}';
  if(s.includes(before)){if(s.split(before).length!==2)throw Error('Ambiguous Hub middleware patch');writeFileSync(p,s.replace(before,after));}else if(!s.includes(after))throw Error('Unknown Hub middleware runtime; refusing to patch');
@@ -49,10 +49,9 @@ else {
 }
 rmSync(out,{recursive:true,force:true});mkdirSync(out,{recursive:true});
 if(hub){
- const temp=resolve('.cloudflare-build/hub-inner');mkdirSync(temp,{recursive:true});run(process.execPath,[join(toolsDir,'wrangler/bin/wrangler.js'),'deploy','--dry-run','--config','wrangler.jsonc','--outdir',temp],appDir);
+ const temp=resolve('.cloudflare-build/hub-inner');mkdirSync(temp,{recursive:true});run(process.execPath,[join(toolsDir,'wrangler/bin/wrangler.js'),'deploy','--dry-run','--config','wrangler.jsonc','--outdir',temp,'--define',`process.env.NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_URL:${JSON.stringify(process.env.NEXT_PUBLIC_DRNIB_PRIVATE_VERIFIER_URL)}`],appDir);
  cpSync(resolve('cloudflare/hub',network),out,{recursive:true});
  for(const f of readdirSync(temp)){if(f==='migration-wrapper.js')cpSync(join(temp,f),join(out,'open-next.mjs'));else if(/\.(?:wasm|bin)$/.test(f))cpSync(join(temp,f),join(out,f))}
- const id=readFileSync(join(appDir,'.open-next/assets/BUILD_ID'),'utf8').trim(),w=join(out,'worker.mjs'),s=readFileSync(w,'utf8');if(!/^[A-Za-z0-9_-]+$/.test(id)||!s.includes('__BUILD_ID__'))throw Error('Invalid build identifier');writeFileSync(w,s.replace('__BUILD_ID__',id));
 } else {
  cpSync(resolve('cloudflare/creator',target==='creator-wildcard'?'wildcard':network),out,{recursive:true});if(network==='mainnet'&&target!=='creator-wildcard'){const selected=target==='creator-lowfi'?'wrangler.lowfi.jsonc':'wrangler.mainnet.jsonc';cpSync(join(out,selected),join(out,'wrangler.jsonc'));}
  // Bundle while the network-specific policy is still in place. A later

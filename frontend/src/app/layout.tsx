@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import SvgSprite from "@/components/SvgSprite";
@@ -11,7 +12,7 @@ import "../styles/styles.css";
 
 const origin = siteOrigin();
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   title: "Nibgate - verified content discovery",
   description:
     "Nibgate helps creators publish wallet-unlocked content from their own websites, get tipped on any page, and make quality content discoverable to humans and AI agents — paid in USDC on Arc mainnet.",
@@ -44,6 +45,16 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
   },
 };
+
+// Reading request headers makes nonce-bearing HTML dynamic, including legal
+// pages. Never attach per-request nonces to cached/prerendered HTML.
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-nibgate-pathname") || "/";
+  const canonical = new URL(origin);
+  canonical.pathname = pathname;
+  return { ...baseMetadata, alternates: { canonical: canonical.href } };
+}
 
 export default function RootLayout({
   children,

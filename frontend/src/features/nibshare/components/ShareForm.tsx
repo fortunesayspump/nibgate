@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Children, cloneElement, isValidElement, useId, useState, type ReactElement, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiDollarSign, FiUsers, FiEye } from 'react-icons/fi';
 import MarkdownEditor from './MarkdownEditor';
@@ -641,7 +641,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Pays to</span>
               <input
-                type="text" value={recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
+                aria-label="Payout wallet address" type="text" value={recipientWallet} onChange={(e) => update("recipientWallet", e.target.value)}
                 className="input-field font-mono flex-1 min-w-0" placeholder="0x… your wallet"
                 spellCheck={false}
               />
@@ -675,6 +675,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
               <div className="flex items-center gap-2">
                 <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Whitelisted pay</span>
                 <select
+                  aria-label="Whitelisted wallet price policy"
                   value={form.whitelistPrice === "" ? "__public" : "0" === form.whitelistPrice ? "__free" : "__custom"}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -693,7 +694,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] shrink-0" style={{ color: "var(--muted)" }}>Custom tier</span>
                   <input
-                    type="text" inputMode="decimal" value={form.whitelistPrice}
+                    aria-label="Custom whitelist price in USDC" type="text" inputMode="decimal" value={form.whitelistPrice}
                     onChange={(e) => update("whitelistPrice", e.target.value)}
                     className="input-field flex-1" placeholder="e.g. 0.50"
                   />
@@ -739,7 +740,7 @@ export default function ShareForm({ defaultRecipientWallet, authenticated = fals
           ))}
           <span style={{ fontSize: "13px", color: "var(--muted)" }}>or</span>
           <input
-            type="datetime-local"
+            aria-label="Custom expiration date and time" type="datetime-local"
             value={customExpiry}
             min={expiryMin}
             max={expiryMax}
@@ -868,11 +869,20 @@ function GatePreview({ isPaid, inviteOnly, publicPrice, hasWhitelist, whitelistP
   );
 }
 
-function Field({ label, children, required = false }: { label: string; children: React.ReactNode; required?: boolean }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</label>
-      {children}
-    </div>
-  );
+function Field({ label, children, required = false }: { label: string; children: ReactNode; required?: boolean }) {
+  const id = useId();
+  const items = Children.toArray(children);
+  const control = items.length === 1 && isValidElement(items[0]) ? items[0] as ReactElement<{ id?: string; "aria-required"?: boolean }> : null;
+  const isControl = control && typeof control.type === "string" && ["input", "select", "textarea"].includes(control.type);
+  if (isControl) {
+    const controlId = control.props.id || id;
+    return <div className="space-y-1.5">
+      <label htmlFor={controlId} className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</label>
+      {cloneElement(control, { id: controlId, "aria-required": required || undefined })}
+    </div>;
+  }
+  return <fieldset className="space-y-1.5 min-w-0">
+    <legend className="text-xs font-medium" style={{ color: "var(--muted)" }}>{label}{required && <span style={{ color: "#c44" }}> *</span>}</legend>
+    {children}
+  </fieldset>;
 }

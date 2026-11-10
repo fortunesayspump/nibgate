@@ -1,3 +1,4 @@
+import { pageSecurityHeaders, protectResponse } from './frontend/src/lib/hub-security.mjs';
 // Restore the existing Hub application routes. Authentication, payment and
 // content-access checks remain in the unchanged application and backend handlers.
 const ASSET = /^\/(?:_next\/static|brand|fonts|illustrations)(?:\/|$)/;
@@ -18,11 +19,13 @@ export async function dispatch(request,scope,inner,env,ctx){
  let safeRequest=request;
  if(scope==='creator'){const h=new Headers(request.headers);h.set('x-site-subdomain',host.split('.')[0]);h.set('x-forwarded-host',host);h.set('x-nibgate-verified-host',host);if(/^\/writing\//.test(raw)){h.delete('if-none-match');h.delete('if-modified-since');h.delete('if-range');h.delete('range');}safeRequest=new Request(request,{headers:h});}
  const target=scope==='creator' && CREATOR_API.test(raw) ? new URL(raw+url.search,'https://api-subblogs.nibgate.xyz') : null;
+ let security;
+ if(scope==='hub' && HUB_PAGE.test(raw) && !asset){security=pageSecurityHeaders(safeRequest);safeRequest=new Request(safeRequest,{headers:security.headers});}
  const response=target ? await fetch(new Request(new Request(target,safeRequest),{redirect:'manual'})) : await inner.fetch(safeRequest,env,ctx);
  if(asset)return response;
  // Do not allow the Worker/CDN/browser to retain policy-sensitive responses.
  const out=new Response(response.body,response);out.headers.set('cache-control','private, no-store, no-transform');out.headers.delete('vercel-cdn-cache-control');out.headers.delete('cdn-cache-control');out.headers.delete('cloudflare-cdn-cache-control');
  // Preserve the sole Next middleware behavior when running in the Worker.
  if(scope==='hub'){const m=/^\/ns\/([A-Za-z0-9_-]{1,64})\/?$/.exec(raw);if(m){const api=host==='nibgate.xyz'?'https://api.nibgate.xyz':'https://testnet-api.nibgate.xyz';out.headers.set('Link',`<${api}/nibshare/${m[1]}/manifest>; rel="alternate"; type="application/json"`);}}
- if(scope==='creator' && request.headers.get('rsc')==='1')out.headers.set('x-robots-tag','noindex, nofollow');return out;
+ if(scope==='creator' && request.headers.get('rsc')==='1')out.headers.set('x-robots-tag','noindex, nofollow');return scope==='hub'?protectResponse(out,security?.csp):out;
 }

@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { ExploreProduct } from "../_data/catalog";
 import { FeaturedCard } from "./ProductCard";
 
-export default function FeaturedSection({ products }: { products: ExploreProduct[] }) {
+export default function FeaturedSection({ products, error = "" }: { products: ExploreProduct[]; error?: string }) {
   const featuredProducts = products.slice(0, 4);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -45,7 +45,7 @@ export default function FeaturedSection({ products }: { products: ExploreProduct
           <h1 id="featured-title">Featured content</h1>
         </header>
         <div className="rounded-[8px] border border-black/10 p-8 text-center">
-          <p>No featured content has been tracked yet.</p>
+          <p>{error || "No featured content has been tracked yet."}</p>
         </div>
       </section>
     );

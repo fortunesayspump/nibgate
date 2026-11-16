@@ -11,6 +11,8 @@ function blocked(code=503) {return new Response('Temporarily unavailable',{statu
 export async function dispatch(request,scope,inner,env,ctx){
  const url=new URL(request.url); const host=url.hostname.toLowerCase(); const raw=url.pathname;
  if(url.protocol!=='https:' || (scope==='hub'?host!=='nibgate.xyz':!/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.nibgate\.xyz$/.test(host)||/^(www|api|docs|testnet|drnib|private-drnib)\./.test(host))) return blocked(404);
+ // Canonicalize only legacy sitemap URLs after host validation, before route guards.
+ if(scope==='hub' && /^\/(?:all-content-)?sitemap\.xml\/$/.test(raw) && ['GET','HEAD'].includes(request.method)){url.pathname=raw.slice(0,-1);return new Response(null,{status:308,headers:{location:url.href,'cache-control':'public, max-age=300'}});}
  // Encoded route names, repeated slashes and backslashes are withheld, rather than normalized.
  if((raw.includes('%') && !/^\/_next\/static\/(?:[a-zA-Z0-9._~\/-]|%5[bBdD])+$/.test(raw)) || raw.includes('\\') || raw.includes('//') || raw.split('/').some(s=>s==='.'||s==='..')) return blocked(400);
  if(scope==='creator' && (raw==='/' || /^\/writing\//.test(raw)||raw==='/api/blog/public-site-v2') && !['GET','HEAD'].includes(request.method))return blocked();
@@ -29,3 +31,4 @@ export async function dispatch(request,scope,inner,env,ctx){
  if(scope==='hub'){const m=/^\/ns\/([A-Za-z0-9_-]{1,64})\/?$/.exec(raw);if(m){const api=host==='nibgate.xyz'?'https://api.nibgate.xyz':'https://testnet-api.nibgate.xyz';out.headers.set('Link',`<${api}/nibshare/${m[1]}/manifest>; rel="alternate"; type="application/json"`);}}
  if(scope==='creator' && request.headers.get('rsc')==='1')out.headers.set('x-robots-tag','noindex, nofollow');return scope==='hub'?protectResponse(out,security?.csp):out;
 }
+

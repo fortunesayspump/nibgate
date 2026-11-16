@@ -9,7 +9,7 @@ if (process.argv.includes('--list-sites')) {
   const { fetchSiteList } = await import(path.join(rootDir, 'backend/src/server/hub/gsc-sitemap.js'));
   const domains = await fetchSiteList();
   console.log(`Sites from hub: ${domains.length}`);
-  for (const d of domains) console.log(`  https://${d}/sitemap.xml/`);
+  for (const d of domains) console.log(`  https://${d}/sitemap.xml`);
   process.exit(0);
 }
 
@@ -27,3 +27,4 @@ if (summary.failed.length) {
   for (const f of summary.failed) console.log('  ✗', f);
   process.exit(1);
 }
+

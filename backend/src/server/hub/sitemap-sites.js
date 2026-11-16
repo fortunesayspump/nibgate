@@ -23,7 +23,11 @@ export function createSitemapSiteResolver({ fetcher = (...args) => fetch(...args
   async function exists(candidate, network, deadline) {
     const key = `${network}:${candidate.host}`;
     const previous = cache.get(key);
-    if (previous && now() - previous.at < (previous.exists ? 300_000 : 60_000)) return previous.exists;
+    if (previous?.retryAfter > now()) {
+      if (previous.exists === true && now() - previous.at < 1_800_000) return true;
+      throw new Error('Creator sitemap availability could not be verified');
+    }
+    if (previous && typeof previous.exists === 'boolean' && now() - previous.at < 300_000) return previous.exists;
     if (inFlight.has(key)) return inFlight.get(key);
     const work = (async () => {
       try {
@@ -31,6 +35,13 @@ export function createSitemapSiteResolver({ fetcher = (...args) => fetch(...args
         const response = await fetcher(url, { headers: { accept: 'application/json', 'x-site-subdomain': candidate.tenant, 'x-forwarded-host': candidate.host }, redirect: 'manual', signal: AbortSignal.any([AbortSignal.timeout(3000), deadline]) });
         let found;
         try {
+          if (response.status === 429) {
+            const raw = response.headers.get('retry-after') || '';
+            const delay = /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - now();
+            const error = new Error('Tenant lookup rate limited');
+            error.retryDelay = Number.isFinite(delay) ? Math.max(300_000, Math.min(delay, 86_400_000)) : 300_000;
+            throw error;
+          }
           if (!/^application\/json(?:;|$)/i.test(response.headers.get('content-type') || '')) throw new Error('Unexpected tenant response');
           const body = await response.json();
           if (response.status === 404 && ['Site not found', 'Not found'].includes(body?.error) && (!body.subdomain || body.subdomain === candidate.tenant)) found = false;
@@ -41,7 +52,11 @@ export function createSitemapSiteResolver({ fetcher = (...args) => fetch(...args
         // Bound process-local memory independently of requests and old domains.
         if (cache.size > 2000) cache.delete(cache.keys().next().value);
         return found;
-      } catch {
+      } catch (error) {
+        // Cache failures too: public feed polling must not hammer the shared
+        // backend's 200/15-minute limiter. Honor a longer Retry-After on429.
+        cache.set(key, { ...previous, retryAfter: now() + (error.retryDelay || 300_000) });
+        if (cache.size > 2000) cache.delete(cache.keys().next().value);
         // A brief outage must not remove a recently confirmed real creator.
         // Never use stale negative results or mistake an outage for absence.
         if (previous?.exists && now() - previous.at < 1_800_000) return true;

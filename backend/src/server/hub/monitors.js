@@ -437,6 +437,8 @@ export function startDataIntegrityMonitor() {
 let gscSitemapMonitorStarted = false;
 
 async function runGscSitemapSweep() {
+  // Testnet is deliberately noindex; shared credentials must not publish it.
+  if (activeNetwork().name !== 'mainnet') return;
   const summary = await submitAllSiteSitemaps();
   if (summary.disabled) return;
   console.log(`GSC sitemap sweep: ${summary.added} added, ${summary.skipped} already submitted, ${summary.failed.length} failed (${summary.domains} sites)`);
@@ -444,6 +446,7 @@ async function runGscSitemapSweep() {
 }
 
 export function startGscSitemapMonitor() {
+  if (activeNetwork().name !== 'mainnet') return;
   if (gscSitemapMonitorStarted || process.env.GSC_SITEMAP_MONITOR_DISABLED === 'true') return;
   if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return;
   gscSitemapMonitorStarted = true;
@@ -464,6 +467,7 @@ export function startGscSitemapMonitor() {
 let gscIndexMonitorStarted = false;
 
 async function runGscIndexSweep() {
+  if (activeNetwork().name !== 'mainnet') return;
   const summary = await runIndexSweep();
   if (summary.disabled) return;
   console.log(`GSC index sweep: ${summary.inspected} inspected, ${summary.indexed} indexed, ${summary.notIndexed} not indexed, ${summary.newSites} new sites, ${summary.resubmitted} sitemap re-submits, ${summary.indexNow} URLs via IndexNow (${summary.domains} sites)`);
@@ -472,6 +476,7 @@ async function runGscIndexSweep() {
 }
 
 export function startGscIndexMonitor() {
+  if (activeNetwork().name !== 'mainnet') return;
   if (gscIndexMonitorStarted || process.env.GSC_INDEX_MONITOR_DISABLED === 'true') return;
   if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return;
   gscIndexMonitorStarted = true;
@@ -486,3 +491,4 @@ export function startGscIndexMonitor() {
     }, intervalMs).unref?.();
   }, initialDelayMs).unref?.();
 }
+

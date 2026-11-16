@@ -43,7 +43,7 @@ test('unknown404, redirects, HTML, mismatch, malformed,503 and network failure f
   }
 });
 
-test('positive cache tolerates short outage but not confirmed removal; negative cache expires sooner', async () => {
+test('positive cache tolerates short outage but not confirmed removal; both cache outcomes protect rate budget', async () => {
   let time = 0, mode = 'found', calls = 0;
   const resolve = createSitemapSiteResolver({ now: () => time, fetcher: async () => {
     calls++;
@@ -55,8 +55,8 @@ test('positive cache tolerates short outage but not confirmed removal; negative 
   await resolve(domains, 'mainnet'); assert.equal(calls, 1);
   time = 300001; mode = 'error'; assert.deepEqual(await resolve(domains, 'mainnet'), domains);
   time = 1800001; await assert.rejects(resolve(domains, 'mainnet'));
-  mode = 'absent'; assert.deepEqual(await resolve(domains, 'mainnet'), []);
-  mode = 'found'; time += 60001; assert.deepEqual(await resolve(domains, 'mainnet'), domains);
+  mode = 'absent'; time += 300001; assert.deepEqual(await resolve(domains, 'mainnet'), []);
+  mode = 'found'; time += 300001; assert.deepEqual(await resolve(domains, 'mainnet'), domains);
   mode = 'absent'; time += 300001; assert.deepEqual(await resolve(domains, 'mainnet'), []);
 });
 
@@ -96,4 +96,61 @@ test('GSC default is network-aware and refuses failed/malformed lists', async ()
   const list = factory({ env: {} }, () => ({ apiBase: 'https://testnet-api.nibgate.xyz' }), async u => { url = u; return { success: true, sites: ['fortune.testnet.nibgate.xyz'] }; });
   assert.deepEqual(await list(), ['fortune.testnet.nibgate.xyz']); assert.equal(url, 'https://testnet-api.nibgate.xyz/hub/sitemap-sites');
   await assert.rejects(factory({ env: {} }, () => ({ apiBase: 'https://api.nibgate.xyz' }), async () => ({ success: false }))(), /unavailable/);
+});
+
+test('automatic GSC submission and index/IndexNow timers never start on noindex testnet', async () => {
+  const source = await fs.readFile(new URL('../backend/src/server/hub/monitors.js', import.meta.url), 'utf8');
+  const body = source.slice(source.indexOf('// ── GSC Sitemap Monitor')).replaceAll('export function ', 'function ');
+  let timers = 0, submits = 0, indexes = 0;
+  const factory = new Function('activeNetwork', 'process', 'setTimeout', 'setInterval', 'submitAllSiteSitemaps', 'runIndexSweep', `${body}; return {startGscSitemapMonitor,startGscIndexMonitor,runGscSitemapSweep,runGscIndexSweep};`);
+  let network = 'testnet';
+  const monitor = factory(() => ({ name: network }), { env: { GSC_SERVICE_ACCOUNT_JSON: 'configured-test-placeholder' } }, () => { timers++; return {}; }, () => { timers++; return {}; }, async () => { submits++; return { disabled: true }; }, async () => { indexes++; return { disabled: true }; });
+  monitor.startGscSitemapMonitor(); monitor.startGscIndexMonitor();
+  await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
+  assert.deepEqual([timers,submits,indexes], [0,0,0]);
+  network = 'mainnet'; monitor.startGscSitemapMonitor(); monitor.startGscIndexMonitor();
+  assert.equal(timers, 2);
+  await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
+  assert.deepEqual([submits,indexes], [1,1]);
+  network = 'testnet'; await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
+  assert.deepEqual([submits,indexes], [1,1]);
+});
+
+test('direct submission entrypoints refuse testnet before credential, fetch or database access', async () => {
+  let network = 'testnet';
+  const source = (await fs.readFile(new URL('../backend/src/server/hub/gsc-sitemap.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+  const gsc = new Function('activeNetworkName', 'sitemapCandidate', 'process', `${source}; return {automaticIndexingEnabled,assertProductionIndexingDomain,submitSitemapForDomain,submitAllSiteSitemaps};`)(() => network, sitemapCandidate, { env: { GSC_SERVICE_ACCOUNT_JSON: 'not-parsed-on-testnet' } });
+  assert.equal((await gsc.submitAllSiteSitemaps({ force: true })).disabled, true);
+  await assert.rejects(gsc.submitSitemapForDomain('fortune.testnet.nibgate.xyz'), /disabled/);
+  await assert.rejects(gsc.submitSitemapForDomain('fortune.nibgate.xyz'), /disabled/);
+  const indexSource = (await fs.readFile(new URL('../backend/src/server/hub/gsc-index.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+  const index = new Function('automaticIndexingEnabled', 'assertProductionIndexingDomain', 'process', `${indexSource}; return {runIndexSweep,submitIndexNow};`)(gsc.automaticIndexingEnabled, gsc.assertProductionIndexingDomain, { env: { GSC_SERVICE_ACCOUNT_JSON: 'configured-placeholder' } });
+  assert.equal((await index.runIndexSweep()).disabled, true);
+  await assert.rejects(index.submitIndexNow('fortune.testnet.nibgate.xyz', ['anything']), /disabled/);
+  network = 'mainnet';
+  for (const domain of ['fortune.testnet.nibgate.xyz', 'testnet-fortune.nibgate.xyz', 'testnet.nibgate.xyz', 'api-subblogs.nibgate.xyz', 'evil.example']) assert.throws(() => gsc.assertProductionIndexingDomain(domain), /disabled/);
+  for (const domain of ['canvasandcode.nibgate.xyz', 'docs.nibgate.xyz', 'www.nibgate.xyz']) assert.doesNotThrow(() => gsc.assertProductionIndexingDomain(domain));
+});
+
+test('frequent52-domain feed polling stays below200 reads/15minutes, including absent tenants', async () => {
+  let time = 0, calls = 0;
+  const resolve = createSitemapSiteResolver({ now: () => time, fetcher: async url => {
+    calls++;
+    const tenant = new URL(url).searchParams.get('subdomain');
+    return Number(tenant.slice(4)) < 8 ? json({ error: 'Site not found', subdomain: tenant }, 404) : found(tenant);
+  } });
+  const domains = Array.from({ length: 52 }, (_, i) => `site${i}.nibgate.xyz`);
+  for (time = 0; time < 900000; time += 10000) assert.equal((await resolve(domains, 'mainnet')).length, 44);
+  assert.equal(calls, 156);
+});
+
+test('cold failures are backed off;429 honors longer Retry-After without false absence', async () => {
+  let time = 0, calls = 0;
+  const resolve = createSitemapSiteResolver({ now: () => time, fetcher: async () => {
+    calls++;
+    return new Response('rate limited', { status: 429, headers: { 'retry-after': '900' } });
+  } });
+  for (time = 0; time < 900000; time += 10000) await assert.rejects(resolve(['fortune.nibgate.xyz'], 'mainnet'));
+  assert.equal(calls, 1);
+  time = 900001; await assert.rejects(resolve(['fortune.nibgate.xyz'], 'mainnet')); assert.equal(calls, 2);
 });

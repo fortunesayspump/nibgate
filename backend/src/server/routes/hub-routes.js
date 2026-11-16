@@ -2,6 +2,7 @@ import { gatewayTipIdentity, transferTipIdentity, tipRequestBinding, recordTipOn
 import { db } from '@nibgate/internal/db.js';
 import { requireAuth } from '@nibgate/internal/auth.js';
 import { activeNetwork } from '@nibgate/internal/networks.js';
+import { resolveSitemapSites } from '../hub/sitemap-sites.js';
 import { randomBytes } from 'node:crypto';
 import { runHostedPayRequirement, preflightTransfer } from '@nibgate/sdk/server';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -2470,9 +2471,10 @@ export function registerHubRoutes(app) {
         select: { domain: true },
         orderBy: { createdAt: 'desc' }
       });
-      res.json({ success: true, sites: sites.filter((s) => s.domain?.endsWith('.nibgate.xyz')).map((s) => s.domain) });
+      const domains = await resolveSitemapSites(sites.map((s) => s.domain), activeNetwork().name);
+      res.json({ success: true, sites: domains });
     } catch (error) {
-      res.json({ success: true, sites: [] });
+      res.status(503).json({ success: false, error: 'Sitemap sites temporarily unavailable' });
     }
   });
 
@@ -2795,3 +2797,4 @@ export function registerHubRoutes(app) {
     }
   });
 }
+

@@ -9,7 +9,7 @@ import { activeNetwork, hostsFor } from '@nibgate/internal/networks.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
 const SERVER_NAME = 'nibgate';
-const SERVER_VERSION = '0.2.14';
+const SERVER_VERSION = '0.2.15';
 
 // Per-stack settlement facts for tool instructions (Circle CLI chain flag,
 // API host). Mainnet settles real USDC on Arc (5042); testnet mirrors it.
@@ -547,3 +547,4 @@ export function registerMcpRoute(app) {
 }
 
 // registry discovery surfaces live at the bottom of this file
+

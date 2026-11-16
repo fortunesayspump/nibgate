@@ -1,6 +1,14 @@
 import https from 'node:https';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { hostsFor, activeNetworkName } from '@nibgate/internal/networks.js';
+import { sitemapCandidate } from './sitemap-sites.js';
+
+export function assertIndexingDomain(domain) {
+  if (!sitemapCandidate(domain, activeNetworkName())) {
+    throw new Error('Search submission domain does not match the active network');
+  }
+}
 
 const WEBMASTERS_SCOPE = 'https://www.googleapis.com/auth/webmasters';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -93,8 +101,9 @@ function enc(path) {
 }
 
 export async function fetchSiteList() {
-  const hubBase = (process.env.GSC_HUB_BASE || 'https://api.nibgate.xyz').replace(/\/+$/, '');
+  const hubBase = (process.env.GSC_HUB_BASE || hostsFor().apiBase).replace(/\/+$/, '');
   const res = await request(`${hubBase}/hub/sitemap-sites`);
+  if (res.success !== true || !Array.isArray(res.sites)) throw new Error('Sitemap site list unavailable');
   const domains = (res.sites || []).filter((d) => typeof d === 'string' && d);
   return [...new Set(domains.map((d) => d.toLowerCase()))];
 }
@@ -117,6 +126,7 @@ export async function deleteSitemap(sitemapPath) {
 }
 
 export async function submitSitemapForDomain(domain) {
+  assertIndexingDomain(domain);
   const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';
   const token = await getAccessToken();
   const sitemapUrl = `https://${domain}/sitemap.xml`;

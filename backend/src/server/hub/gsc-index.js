@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { discardResponse } from '../lib/http-response.js';
 import { db } from '@nibgate/internal/db.js';
-import { getAccessToken, request, fetchSiteList, submitSitemapForDomain } from './gsc-sitemap.js';
+import { getAccessToken, request, fetchSiteList, submitSitemapForDomain, assertIndexingDomain } from './gsc-sitemap.js';
 
 const INSPECT_BASE = 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect';
 const INDEXNOW_ENDPOINT = 'https://api.indexnow.org/indexnow';
@@ -53,6 +53,7 @@ export function extractSitemapUrls(xml) {
 }
 
 export async function submitIndexNow(domain, urls) {
+  assertIndexingDomain(domain);
   const key = process.env.INDEXNOW_KEY || '';
   if (!key) return { skipped: 'INDEXNOW_KEY not set' };
   if (!urls.length) return { skipped: 'no urls to submit' };
@@ -167,4 +168,5 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
   }
   return summary;
 }
+
 

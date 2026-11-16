@@ -486,3 +486,4 @@ export function startGscIndexMonitor() {
     }, intervalMs).unref?.();
   }, initialDelayMs).unref?.();
 }
+

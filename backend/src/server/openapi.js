@@ -81,7 +81,7 @@ export const openApiSpec = {
   openapi: "3.1.0",
   info: {
     title: "Nibgate Hub API",
-    version: "0.2.14",
+    version: "0.2.15",
     description:
       `Public API for the Nibgate hub: verified content discovery, paid unlocks over x402 (Circle Gateway on ${networkLabel}), Nib Tips, public ledger, reputation, and platform stats. Nibgate is an open protocol for paid content on creator-owned domains. Agent guide: https://nibgate.xyz/discovery.md`,
     contact: { name: "Nibgate", url: "https://nibgate.xyz" },
@@ -497,8 +497,9 @@ export const openApiSpec = {
       get: {
         tags: ["Platform"],
         summary: "Active subblog domains",
-        description: "Domains of active *.nibgate.xyz sites.",
+        description: "Canonical sitemap domains for this hub's network. Hosted creators are checked against the matching creator backend; mirrored Hub identities without a local creator site are omitted. Real empty creator sites remain included. Reserved/API hosts and other-network aliases are excluded; known platform sitemap hosts remain supported. Availability is cached briefly. Transient lookup failures without a recent positive result return 503 rather than a successful empty list.",
         responses: {
+          "503": { description: "Creator availability or website list temporarily unavailable; retry later. No authoritative empty list is implied." },
           "200": {
             description: "Domain list",
             content: {
@@ -1020,3 +1021,4 @@ export const openApiSpec = {
     },
   },
 };
+

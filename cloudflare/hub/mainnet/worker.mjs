@@ -20,6 +20,11 @@ async function handle(request, env) {
     request = new Request(new URL(url.pathname + url.search, 'https://nibgate.xyz'), {method:request.method,headers,redirect:'manual'});
     const response = await handle(request,env); const out = new Response(response.body,response);out.headers.set('cache-control','private, no-store');out.headers.set('x-robots-tag','noindex, nofollow');return out;
   }
+  // Temporary, fixed destination; never forward incoming query parameters.
+  if (url.pathname === '/game' || url.pathname === '/game/') {
+    if (!['GET','HEAD'].includes(request.method)) return new Response('Method not allowed', {status:405,headers:{allow:'GET, HEAD','cache-control':'no-store'}});
+    return new Response(null, {status:302,headers:{location:'https://youtube.com/shorts/s2LnG-RJ2fs?feature=share','cache-control':'no-store'}});
+  }
   if (guides.has(url.pathname) || contracts.has(url.pathname)) {
     if (!['GET','HEAD'].includes(request.method)) return new Response('Method not allowed', {status:405,headers:{allow:'GET, HEAD','cache-control':'no-store'}});
     if (guides.has(url.pathname)) {

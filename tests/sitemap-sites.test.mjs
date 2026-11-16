@@ -89,6 +89,7 @@ test('actual sitemap route uses local network resolver and surfaces lookup/datab
 
 test('GSC default is network-aware and refuses failed/malformed lists', async () => {
   const source = await fs.readFile(new URL('../backend/src/server/hub/gsc-sitemap.js', import.meta.url), 'utf8');
+  assert.equal(source.includes('/sitemap.xml/`'), false, 'keep canonical URL repair from PR41');
   const body = source.slice(source.indexOf('export async function fetchSiteList()'), source.indexOf('export async function listSubmittedSitemaps()')).replace('export ', '');
   let url;
   const factory = new Function('process', 'hostsFor', 'request', `${body}; return fetchSiteList;`);

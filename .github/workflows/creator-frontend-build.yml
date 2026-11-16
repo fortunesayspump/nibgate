@@ -1,0 +1,44 @@
+name: Creator frontend build
+
+on:
+  pull_request:
+    paths:
+      - 'subblogs/frontend/**'
+      - 'cloudflare/creator/**'
+      - 'tests/public-indexing.test.mjs'
+      - 'tests/seo-routing.test.mjs'
+      - '.github/workflows/creator-frontend-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mainnet-build-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_NIBGATE_NETWORK: mainnet
+      NEXT_PUBLIC_API_URL: https://api-subblogs.nibgate.xyz
+      NEXT_PUBLIC_HUB_API_URL: https://api.nibgate.xyz
+      NEXT_TELEMETRY_DISABLED: '1'
+      CLOUDFLARE_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npm ci --prefix cloudflare/tooling --ignore-scripts --legacy-peer-deps
+      - name: Search policy and protected-content regressions
+        run: node --experimental-strip-types --test tests/public-indexing.test.mjs tests/seo-routing.test.mjs
+      - name: Build Next and stage the wildcard Worker (no deployment)
+        run: node scripts/cloudflare-build.mjs creator-wildcard
+      - name: Validate staged outer Worker bundle (dry run only)
+        run: node cloudflare/tooling/node_modules/wrangler/bin/wrangler.js deploy --dry-run --config .cloudflare-build/creator/wildcard/wrangler.jsonc --outdir .cloudflare-build/creator-validation

@@ -44,7 +44,7 @@ function PostListItem({ post }: { post: BlogPost }) {
   );
 }
 
-function extractFirstImage(md: string, coverUrl?: string | null, media?: string | null): string | null {
+function extractFirstImage(md: string | undefined, coverUrl?: string | null, media?: string | null): string | null {
   if (coverUrl) return coverUrl;
   if (media) {
     try {
@@ -52,7 +52,9 @@ function extractFirstImage(md: string, coverUrl?: string | null, media?: string 
       if (Array.isArray(items) && items.length > 0 && items[0].url) return items[0].url;
     } catch {}
   }
-  const m = md.match(/!\[.*?\]\((.*?)\)/);
+  // Paid/invite-only public DTOs intentionally omit the protected body/media.
+  // Use the existing title card instead of attempting to recover that content.
+  const m = typeof md === 'string' ? md.match(/!\[.*?\]\((.*?)\)/) : null;
   return m ? m[1] : null;
 }
 
@@ -165,3 +167,4 @@ export default async function HomePage() {
     </>
   );
 }
+

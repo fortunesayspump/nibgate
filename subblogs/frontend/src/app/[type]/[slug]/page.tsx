@@ -13,6 +13,7 @@ import { serverFetch } from "@/lib/server-fetch";
 import { detectEmbed as detectMediaEmbed } from "@/lib/media";
 import { type BlogPost } from "@/lib/api";
 import { fd, rd } from "@/lib/utils";
+import { creatorPostRobots } from "@/lib/post-robots";
 
 interface GateResource {
   id: string;
@@ -73,13 +74,14 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
   try {
     const data = await getPost(slug);
     const post = data?.post;
-    if (!post) return {};
+    if (!post) return { robots: creatorPostRobots(undefined, type) };
     const origin = await siteOrigin();
     const typePath: Record<string, string> = { article: "writing", photo: "photos", music: "music", video: "video", document: "docs" };
     const path = `/${type}/${slug}`;
     const resourcePath = `/${typePath[post.type] || "posts"}/${post.slug}`;
     return {
       title: post.title,
+      robots: creatorPostRobots(post, type, process.env.NEXT_PUBLIC_NIBGATE_NETWORK || 'testnet'),
       description: post.excerpt || '',
       metadataBase: new URL(origin),
       alternates: { canonical: path },
@@ -108,7 +110,7 @@ export async function generateMetadata({ params }: { params: Promise<{ type: str
         'nibgate:manifest': `${origin}/api/nibgate/manifest?path=${encodeURIComponent(resourcePath)}`,
       },
     };
-  } catch { return {}; }
+  } catch { return { robots: creatorPostRobots(undefined, type) }; }
 }
 
 export default async function PostPage({ params }: { params: Promise<{ type: string; slug: string }> }) {
@@ -281,3 +283,4 @@ export default async function PostPage({ params }: { params: Promise<{ type: str
     </>
   );
 }
+

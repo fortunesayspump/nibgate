@@ -4,13 +4,9 @@ import crypto from 'node:crypto';
 import { hostsFor, activeNetworkName } from '@nibgate/internal/networks.js';
 import { sitemapCandidate } from './sitemap-sites.js';
 
-export function automaticIndexingEnabled() {
-  return activeNetworkName() === 'mainnet';
-}
-
-export function assertProductionIndexingDomain(domain) {
-  if (!automaticIndexingEnabled() || !sitemapCandidate(domain, 'mainnet')) {
-    throw new Error('Search submission is disabled for noindex testnet');
+export function assertIndexingDomain(domain) {
+  if (!sitemapCandidate(domain, activeNetworkName())) {
+    throw new Error('Search submission domain does not match the active network');
   }
 }
 
@@ -130,7 +126,7 @@ export async function deleteSitemap(sitemapPath) {
 }
 
 export async function submitSitemapForDomain(domain) {
-  assertProductionIndexingDomain(domain);
+  assertIndexingDomain(domain);
   const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';
   const token = await getAccessToken();
   const sitemapUrl = `https://${domain}/sitemap.xml`;
@@ -139,7 +135,6 @@ export async function submitSitemapForDomain(domain) {
 }
 
 export async function submitAllSiteSitemaps({ force = false } = {}) {
-  if (!automaticIndexingEnabled()) return { disabled: true, reason: 'Search submission is disabled for noindex testnet' };
   creds = creds || readCredentials();
   if (!creds) return { disabled: true, reason: 'GSC_SERVICE_ACCOUNT_JSON is not set' };
   const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';

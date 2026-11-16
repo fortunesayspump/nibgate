@@ -98,38 +98,34 @@ test('GSC default is network-aware and refuses failed/malformed lists', async ()
   await assert.rejects(factory({ env: {} }, () => ({ apiBase: 'https://api.nibgate.xyz' }), async () => ({ success: false }))(), /unavailable/);
 });
 
-test('automatic GSC submission and index/IndexNow timers never start on noindex testnet', async () => {
+test('configured automatic GSC monitors schedule both authorized networks', async () => {
   const source = await fs.readFile(new URL('../backend/src/server/hub/monitors.js', import.meta.url), 'utf8');
   const body = source.slice(source.indexOf('// ── GSC Sitemap Monitor')).replaceAll('export function ', 'function ');
-  let timers = 0, submits = 0, indexes = 0;
-  const factory = new Function('activeNetwork', 'process', 'setTimeout', 'setInterval', 'submitAllSiteSitemaps', 'runIndexSweep', `${body}; return {startGscSitemapMonitor,startGscIndexMonitor,runGscSitemapSweep,runGscIndexSweep};`);
-  let network = 'testnet';
-  const monitor = factory(() => ({ name: network }), { env: { GSC_SERVICE_ACCOUNT_JSON: 'configured-test-placeholder' } }, () => { timers++; return {}; }, () => { timers++; return {}; }, async () => { submits++; return { disabled: true }; }, async () => { indexes++; return { disabled: true }; });
-  monitor.startGscSitemapMonitor(); monitor.startGscIndexMonitor();
-  await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
-  assert.deepEqual([timers,submits,indexes], [0,0,0]);
-  network = 'mainnet'; monitor.startGscSitemapMonitor(); monitor.startGscIndexMonitor();
-  assert.equal(timers, 2);
-  await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
-  assert.deepEqual([submits,indexes], [1,1]);
-  network = 'testnet'; await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
-  assert.deepEqual([submits,indexes], [1,1]);
+  for (const network of ['mainnet', 'testnet']) {
+    let timers = 0, submits = 0, indexes = 0;
+    const factory = new Function('activeNetwork', 'process', 'setTimeout', 'setInterval', 'submitAllSiteSitemaps', 'runIndexSweep', `${body}; return {startGscSitemapMonitor,startGscIndexMonitor,runGscSitemapSweep,runGscIndexSweep};`);
+    const monitor = factory(() => ({ name: network }), { env: { GSC_SERVICE_ACCOUNT_JSON: 'configured-placeholder' } }, () => { timers++; return {}; }, () => ({}), async () => { submits++; return { disabled: true }; }, async () => { indexes++; return { disabled: true }; });
+    monitor.startGscSitemapMonitor(); monitor.startGscIndexMonitor();
+    await monitor.runGscSitemapSweep(); await monitor.runGscIndexSweep();
+    assert.deepEqual([timers,submits,indexes], [2,1,1]);
+  }
 });
 
-test('direct submission entrypoints refuse testnet before credential, fetch or database access', async () => {
-  let network = 'testnet';
+test('direct and batch submissions support testnet with canonical network URLs and shared domain property', async () => {
   const source = (await fs.readFile(new URL('../backend/src/server/hub/gsc-sitemap.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
-  const gsc = new Function('activeNetworkName', 'sitemapCandidate', 'process', `${source}; return {automaticIndexingEnabled,assertProductionIndexingDomain,submitSitemapForDomain,submitAllSiteSitemaps};`)(() => network, sitemapCandidate, { env: { GSC_SERVICE_ACCOUNT_JSON: 'not-parsed-on-testnet' } });
-  assert.equal((await gsc.submitAllSiteSitemaps({ force: true })).disabled, true);
-  await assert.rejects(gsc.submitSitemapForDomain('fortune.testnet.nibgate.xyz'), /disabled/);
-  await assert.rejects(gsc.submitSitemapForDomain('fortune.nibgate.xyz'), /disabled/);
-  const indexSource = (await fs.readFile(new URL('../backend/src/server/hub/gsc-index.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
-  const index = new Function('automaticIndexingEnabled', 'assertProductionIndexingDomain', 'process', `${indexSource}; return {runIndexSweep,submitIndexNow};`)(gsc.automaticIndexingEnabled, gsc.assertProductionIndexingDomain, { env: { GSC_SERVICE_ACCOUNT_JSON: 'configured-placeholder' } });
-  assert.equal((await index.runIndexSweep()).disabled, true);
-  await assert.rejects(index.submitIndexNow('fortune.testnet.nibgate.xyz', ['anything']), /disabled/);
-  network = 'mainnet';
-  for (const domain of ['fortune.testnet.nibgate.xyz', 'testnet-fortune.nibgate.xyz', 'testnet.nibgate.xyz', 'api-subblogs.nibgate.xyz', 'evil.example']) assert.throws(() => gsc.assertProductionIndexingDomain(domain), /disabled/);
-  for (const domain of ['canvasandcode.nibgate.xyz', 'docs.nibgate.xyz', 'www.nibgate.xyz']) assert.doesNotThrow(() => gsc.assertProductionIndexingDomain(domain));
+  for (const network of ['mainnet', 'testnet']) {
+    const domain = network === 'mainnet' ? 'canvasandcode.nibgate.xyz' : 'fortune.testnet.nibgate.xyz';
+    const calls = [];
+    const gsc = new Function('activeNetworkName', 'sitemapCandidate', 'process', 'transport', 'domains', `${source}; request=transport; getAccessToken=async()=> 'test-token'; fetchSiteList=async()=>domains; return {assertIndexingDomain,submitSitemapForDomain,submitAllSiteSitemaps};`)(() => network, sitemapCandidate, { env: { GSC_SERVICE_ACCOUNT_JSON: '{}' } }, async (url, options) => { calls.push([url,options]); return {}; }, [domain]);
+    assert.equal(await gsc.submitSitemapForDomain(domain), `https://${domain}/sitemap.xml`);
+    const batch = await gsc.submitAllSiteSitemaps({ force: true });
+    assert.equal(batch.added, 1); assert.equal(batch.failed.length, 0);
+    assert.ok(calls.every(([url,options]) => url.includes('/sites/sc-domain%3Anibgate.xyz/sitemaps/') && decodeURIComponent(url).endsWith(`https://${domain}/sitemap.xml`) && options.method === 'PUT'));
+    const other = network === 'mainnet' ? 'fortune.testnet.nibgate.xyz' : 'fortune.nibgate.xyz';
+    await assert.rejects(gsc.submitSitemapForDomain(other), /active network/);
+    assert.throws(() => gsc.assertIndexingDomain(network === 'mainnet' ? 'api-subblogs.nibgate.xyz' : 'api-subblogs.testnet.nibgate.xyz'), /active network/);
+    assert.equal(calls.length, 2);
+  }
 });
 
 test('frequent52-domain feed polling stays below200 reads/15minutes, including absent tenants', async () => {

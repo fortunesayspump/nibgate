@@ -18,16 +18,16 @@ traffic and additional Hub replicas share infrastructure capacity, so this is no
 a guarantee of total backend rate headroom;429 remains a retryable availability
 failure, never evidence that sites disappeared.
 
-Automatic GSC sitemap and index/IndexNow monitors are mainnet-only. Direct sweep
-and submission entrypoints also refuse testnet; shared GSC credentials do not
-override that policy. Testnet intentionally uses noindex. Read-only inspection
-remains possible. GSC_HUB_BASE can override the source Hub for explicit tooling;
-the default follows the active network, and submission guards still apply.
+GSC sitemap and index monitors run on both networks when configured. Submission
+helpers accept only canonical domains matching the active network. The owner
+explicitly requested testnet sitemap submission; noindex headers remain unchanged,
+and submission does not guarantee indexing. GSC_HUB_BASE can override the source
+Hub; the default follows the active network. GSC_SITE selects the verified Search
+Console property; its default sc-domain:nibgate.xyz covers both networks.
 No existing Google submissions are removed by filtering the feed.
 
 Release checks: confirm mainnet feed omits identity-only Fortune/Jeff while real
 mainnet tenants remain, and testnet feed uses canonical testnet creator hosts
-without reserved API entries. Confirm testnet monitor guards before scheduling
-search writes. Check mainnet request logs for429 and preserve noindex until its
+without reserved API entries. Confirm the configured Search Console property covers each submitted host. Check mainnet request logs for429 and preserve noindex until its
 separate release policy is reviewed. OpenAPI/MCP/registry versions are aligned;
 publishing the MCP registry record is a separate authenticated release step.

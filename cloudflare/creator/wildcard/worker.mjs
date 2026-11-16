@@ -42,9 +42,18 @@ export default {
     const safe = new Request(new URL(p + u.search, 'https://' + host), {method:request.method,headers:h,redirect:'manual'});
     const response = p.startsWith('/_next/static/') ? await env.ASSETS.fetch(safe) : await env.RENDER.get(env.RENDER.idFromName(host)).fetch(safe);
     const out = new Response(response.body,response);
-    out.headers.set('x-robots-tag','noindex, nofollow');
+    // The migration blanket must not override mainnet public-page metadata.
+    // Keep upstream noindex, RSC/admin/API/error restrictions and all cache gates.
+    const publicPath = /^\/$|^\/(?:writing|photos|music|video|docs)(?:\/[a-zA-Z0-9_-]{1,200})?\/?$|^\/about$/.test(p);
+    const contentType = out.headers.get('content-type') || '';
+    const publicResponse = (publicPath && /^text\/html(?:;|$)/i.test(contentType))
+      || (p === '/sitemap.xml' && /^(?:application|text)\/xml(?:;|$)/i.test(contentType));
+    if (out.status !== 200 || !publicResponse || request.headers.has('rsc') || request.headers.has('next-router-prefetch') || u.searchParams.has('_rsc') || out.headers.has('set-cookie')) {
+      out.headers.set('x-robots-tag','noindex, nofollow');
+    }
     out.headers.set('cache-control','private, no-store');
     return out;
   }
 };
+
 

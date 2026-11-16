@@ -13,9 +13,16 @@ for(const kind of ['mainnet','wildcard']) {
   for(const method of ['GET','HEAD']) {const r=await creator(kind)('/sitemap.xml/?x=1',{method});assert.equal(r.status,308);assert.equal(r.headers.get('location'),'https://shelflife.nibgate.xyz/sitemap.xml?x=1');}
   assert.equal((await creator(kind)('/sitemap.xml/',{method:'POST'})).status,404);
  });
- test(`${kind}: existing production indexing restrictions are unchanged`,async()=>{
-  for(const p of ['/','/writing','/writing/post','/photos/photo','/music','/video','/docs/doc','/about','/sitemap.xml','/robots.txt']) assert.equal((await creator(kind)(p)).headers.get('x-robots-tag'),'noindex, nofollow',p);
-  assert.equal((await creator(kind,()=>new Response('RSC',{headers:{'x-robots-tag':'noindex, nofollow'}}))('/writing/post')).headers.get('x-robots-tag'),'noindex, nofollow');
+ test(`${kind}: public mainnet HTML and sitemap stop receiving blanket noindex`,async()=>{
+  for(const p of ['/','/writing','/writing/post','/photos/photo','/music','/video','/docs/doc','/about']) {
+   const r=await creator(kind,()=>new Response('public',{headers:{'content-type':'text/html; charset=utf-8'}}))(p);
+   assert.equal(r.headers.get('x-robots-tag'),null,p);assert.equal(r.headers.get('cache-control'),'private, no-store');
+  }
+  const xml=await creator(kind,()=>new Response('<urlset/>',{headers:{'content-type':'application/xml'}}))('/sitemap.xml');assert.equal(xml.headers.get('x-robots-tag'),null);
+  assert.equal((await creator(kind,()=>new Response('private',{headers:{'content-type':'text/html','x-robots-tag':'noindex, nofollow'}}))('/writing/post')).headers.get('x-robots-tag'),'noindex, nofollow');
+  for(const options of [{headers:{rsc:'1'}},{headers:{'next-router-prefetch':'1'}}]) assert.equal((await creator(kind,()=>new Response('component',{headers:{'content-type':'text/html'}}))('/writing/post',options)).headers.get('x-robots-tag'),'noindex, nofollow');
+  assert.equal((await creator(kind,()=>new Response('component',{headers:{'content-type':'text/html'}}))('/writing/post?_rsc=1')).headers.get('x-robots-tag'),'noindex, nofollow');
+  assert.equal((await creator(kind,()=>new Response('session',{headers:{'content-type':'text/html','set-cookie':'session=placeholder'}}))('/writing/post')).headers.get('x-robots-tag'),'noindex, nofollow');
  });
  test(`${kind}: private, error and disallowed pages remain excluded`,async()=>{
   assert.equal((await creator(kind)('/admin')).headers.get('x-robots-tag'),'noindex, nofollow');
@@ -53,3 +60,4 @@ test('actual docs staging emits legacy sitemap redirect and keeps XML header',as
  const temp=await mkdtemp(join(tmpdir(),'nibgate-seo-docs-'));
  try {await mkdir(join(temp,'out'));execFileSync(process.execPath,[new URL('../docs/scripts/stage-cloudflare-static.mjs',import.meta.url).pathname],{cwd:temp});assert.equal(await readFile(join(temp,'out/_redirects'),'utf8'),'/sitemap.xml/ /sitemap.xml 308\n');assert.match(await readFile(join(temp,'out/_headers'),'utf8'),/Content-Type: application\/xml/);}finally{await rm(temp,{recursive:true,force:true});}
 });
+

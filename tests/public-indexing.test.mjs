@@ -33,3 +33,16 @@ test('post metadata is wired fail-closed and testnet worker remains blanket noin
   assert.match(worker,/out.headers.set\('x-robots-tag','noindex, nofollow'\)/);
   assert.equal(worker.includes('const publicResponse'),false);
 });
+
+test('actual homepage thumbnail helper handles redacted paid media without accessing protected content', () => {
+  const page=readFileSync(new URL('../subblogs/frontend/src/app/page.tsx',import.meta.url),'utf8');
+  const start=page.indexOf('function extractFirstImage(');
+  const end=page.indexOf('\nfunction ThumbnailCard',start);
+  const helper=page.slice(start,end).replace(/^function extractFirstImage[^\n]+/, 'function extractFirstImage(md, coverUrl, media) {');
+  const extract=new Function(`${helper}; return extractFirstImage;`)();
+  const teaser=publicPost({status:'published',publicAccess:true,price:'1.00',type:'video',slug:'how-a-pencil-sketch-becomes-a-shader',coverUrl:null,bodyMarkdown:'protected fixture',media:'protected fixture'});
+  assert.equal(extract(teaser.bodyMarkdown,teaser.coverUrl,teaser.media),null);
+  assert.equal(extract(undefined,'https://example.com/public-cover.png'), 'https://example.com/public-cover.png');
+  assert.equal(extract('![public](https://example.com/image.png)',null,null),'https://example.com/image.png');
+  assert.equal(extract(null,null,'not json'),null);
+});

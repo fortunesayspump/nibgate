@@ -19,7 +19,12 @@ export class RenderObject extends DurableObject {
 export default {
   async fetch(request, env) {
     const u = new URL(request.url), p = u.pathname, host = u.hostname;
-    if (u.protocol !== 'https:' || !tenantFromHost(host) || !(allowedPath.test(p) || readerPath.test(p)) || p.includes('\\') || p.includes('//') || (p.includes('%') && !safeAsset.test(p))) return denied();
+    if (u.protocol !== 'https:' || !tenantFromHost(host)) return denied();
+    if (p === '/sitemap.xml/' && ['GET','HEAD'].includes(request.method)) {
+      u.pathname = '/sitemap.xml';
+      return new Response(null, {status:308,headers:{location:u.href,'cache-control':'public, max-age=300'}});
+    }
+    if (!(allowedPath.test(p) || readerPath.test(p)) || p.includes('\\') || p.includes('//') || (p.includes('%') && !safeAsset.test(p))) return denied();
     let site;
     if (!p.startsWith('/_next/static/')) { site = await publicSite(host); if (!site) return denied(); }
     if (p === '/api/site') {
@@ -42,3 +47,4 @@ export default {
     return out;
   }
 };
+

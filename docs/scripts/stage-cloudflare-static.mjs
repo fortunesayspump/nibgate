@@ -8,3 +8,7 @@ await writeFile("out/_headers", `/og-image
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
 `);
+
+
+// Keep previously submitted sitemap URLs usable after the static migration.
+await writeFile("out/_redirects", "/sitemap.xml/ /sitemap.xml 308\n");

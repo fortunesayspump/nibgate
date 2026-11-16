@@ -119,7 +119,7 @@ export async function deleteSitemap(sitemapPath) {
 export async function submitSitemapForDomain(domain) {
   const site = process.env.GSC_SITE || 'sc-domain:nibgate.xyz';
   const token = await getAccessToken();
-  const sitemapUrl = `https://${domain}/sitemap.xml/`;
+  const sitemapUrl = `https://${domain}/sitemap.xml`;
   await request(`${WEBMASTERS_BASE}/sites/${enc(site)}/sitemaps/${enc(sitemapUrl)}`, { method: 'PUT', token, body: '' });
   return sitemapUrl;
 }
@@ -141,7 +141,7 @@ export async function submitAllSiteSitemaps({ force = false } = {}) {
 
   const summary = { site, dryRun, force, domains: domains.length, added: 0, skipped: 0, failed: [] };
   for (const domain of domains) {
-    const sitemapUrl = `https://${domain}/sitemap.xml/`;
+    const sitemapUrl = `https://${domain}/sitemap.xml`;
     try {
       if (!force && existing.has(sitemapUrl)) {
         summary.skipped += 1;
@@ -157,3 +157,4 @@ export async function submitAllSiteSitemaps({ force = false } = {}) {
   }
   return summary;
 }
+

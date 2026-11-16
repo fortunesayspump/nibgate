@@ -28,7 +28,7 @@ export function isIndexed(result) {
 }
 
 export async function fetchSitemap(domain) {
-  const url = `https://${domain}/sitemap.xml/`;
+  const url = `https://${domain}/sitemap.xml`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
@@ -167,3 +167,4 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
   }
   return summary;
 }
+

@@ -57,17 +57,18 @@ export async function submitIndexNow(domain, urls) {
   const key = process.env.INDEXNOW_KEY || '';
   if (!key) return { skipped: 'INDEXNOW_KEY not set' };
   if (!urls.length) return { skipped: 'no urls to submit' };
-  const host = `https://${domain}`;
-  const body = JSON.stringify({ host, key, keyLocation: `${host}/${key}.txt`, urlList: urls.slice(0, 10000) });
+  const origin = `https://${domain}`;
+  const submittedUrls = urls.slice(0, 10000);
+  const body = JSON.stringify({ host: domain, key, keyLocation: `${origin}/${key}.txt`, urlList: submittedUrls });
   const res = await fetch(INDEXNOW_ENDPOINT, {
     signal: AbortSignal.timeout(15_000),
     method: 'POST',
     headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${key}` },
     body,
   });
-  if (res.status === 200) {
+  if (res.status === 200 || res.status === 202) {
     await discardResponse(res);
-    return { ok: true, urls: urls.length };
+    return { ok: true, pending: res.status === 202, urls: submittedUrls.length };
   }
   const text = await res.text().catch(() => '');
   return { ok: false, status: res.status, message: text.slice(0, 200) };
@@ -89,6 +90,7 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
     resubmitted: 0,
     indexNow: 0,
     indexNowErrors: 0,
+    indexNowPending: 0,
     notIndexedList: [],
     errors: [],
   };
@@ -98,7 +100,7 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
     try {
       let existing = null;
       if (persist) {
-        existing = await db.indexState.findUnique({ where: { url } }).catch(() => null);
+        existing = await db.indexState.findUnique({ where: { url } });
       }
       const isNew = !existing;
       if (isNew) summary.newSites += 1;
@@ -107,6 +109,7 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
       let sitemap = { body: null, hash: null };
       if (!dryRun) {
         sitemap = await fetchSitemap(domain);
+        if (!sitemap.hash) throw new Error('Sitemap unavailable; retry next cadence');
         hashChanged = Boolean(sitemap.hash) && sitemap.hash !== existing?.sitemapHash;
       } else {
         hashChanged = isNew;
@@ -127,7 +130,7 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
               lastCrawlTime: result.lastCrawlTime ? new Date(result.lastCrawlTime) : null,
               isIndexed: indexed,
               lastInspectedAt: new Date(),
-              sitemapHash: sitemap.hash ?? existing?.sitemapHash ?? null,
+              // Inspection is not proof of delivery. Preserve the last accepted hash.
             },
             create: {
               url,
@@ -136,7 +139,7 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
               indexingState: result.indexingState,
               lastCrawlTime: result.lastCrawlTime ? new Date(result.lastCrawlTime) : null,
               isIndexed: indexed,
-              sitemapHash: sitemap.hash ?? null,
+              sitemapHash: null,
             },
           });
         }
@@ -153,8 +156,10 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
       if (isNew || hashChanged) {
         summary.changed += 1;
         if (!dryRun && persist) {
+          let sitemapSubmitted = false;
           try {
             await submitSitemapForDomain(domain);
+            sitemapSubmitted = true;
             summary.resubmitted += 1;
           } catch (error) {
             summary.errors.push(`${domain}: sitemap submission failed: ${error.message.slice(0, 100)}`);
@@ -162,8 +167,18 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
 
           const urls = sitemap.body ? extractSitemapUrls(sitemap.body) : [url];
           const ix = await submitIndexNow(domain, urls).catch((e) => ({ ok: false, message: e.message }));
-          if (ix.ok) summary.indexNow += ix.urls;
+          if (ix.ok) {
+            summary.indexNow += ix.urls;
+            if (ix.pending) summary.indexNowPending += ix.urls;
+          }
           else if (!ix.skipped) summary.indexNowErrors += 1;
+          // At-least-once delivery: a partial provider failure must remain
+          // retryable even when the sitemap is unchanged. Repeating Google
+          // sitemap PUT after IndexNow failure is safe; never mark it delivered
+          // before all enabled submissions have been accepted.
+          if (sitemapSubmitted && (ix.ok || ix.skipped)) {
+            await db.indexState.update({ where: { url }, data: { sitemapHash: sitemap.hash } });
+          }
           await new Promise((r) => setTimeout(r, 400));
         }
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 const mocks = vi.hoisted(() => ({ submit: vi.fn() }));
-vi.mock('@nibgate/internal/db.js', () => ({ db: { indexState: { findUnique: async () => null, upsert: async () => ({}) } } }));
+vi.mock('@nibgate/internal/db.js', () => ({ db: { indexState: { findUnique: async () => null, upsert: async () => ({}), update: async () => ({}) } } }));
 vi.mock('./gsc-sitemap.js', () => ({ getAccessToken: async () => 'fixture', request: async () => ({}), fetchSiteList: async () => [], submitSitemapForDomain: mocks.submit, assertIndexingDomain: () => {} }));
 import { runIndexSweep } from './gsc-index.js';
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });

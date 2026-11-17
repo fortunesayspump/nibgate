@@ -5,6 +5,7 @@ const safeHeaders = new Set(['accept', 'accept-encoding', 'accept-language', 'co
 // authenticate a request; eligible stateless replies need no origin trace span.
 // Dynamic/auth/session requests still forward the original header unchanged.
 safeHeaders.add('traceparent');
+safeHeaders.add('mcp-method');
 const MAX_CLASSIFY_BYTES = 65536;
 async function smallJson(request) {
   if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get('content-type') || '')) return null;
@@ -49,6 +50,8 @@ export async function handle(request, forward = fetch) {
   if (!data || url.protocol !== 'https:' || url.search || [...request.headers.keys()].some(h => !safeHeaders.has(h))) return origin();
   const protocol = request.headers.get('mcp-protocol-version');
   if (protocol && protocol !== data.info.protocolVersion) return origin();
+  const methodHint = request.headers.get('mcp-method');
+  if (methodHint !== null && request.method !== 'POST') return origin();
   if (request.method === 'GET' || request.method === 'HEAD') {
     const value = { '/mcp': data.info, '/.well-known/mcp.json': data.card, '/openapi.json': data.openapi, '/api/openapi.json': data.openapi }[url.pathname];
     return value ? response(value, request) : origin();
@@ -56,6 +59,8 @@ export async function handle(request, forward = fetch) {
   if (request.method !== 'POST' || url.pathname !== '/mcp') return origin();
   const message = await smallJson(request);
   if (!message || Array.isArray(message) || typeof message !== 'object' || message.jsonrpc !== '2.0' || Object.keys(message).some(k => !['jsonrpc', 'id', 'method', 'params'].includes(k))) return origin();
+  // This optional transport hint never selects a handler: the JSON body does.
+  if (methodHint !== null && methodHint !== message.method) return origin();
   if (message.id !== undefined && message.id !== null && !['string', 'number'].includes(typeof message.id)) return origin();
   if (message.params !== undefined && (!message.params || Array.isArray(message.params) || typeof message.params !== 'object' || '_meta' in message.params)) return origin();
   const id = message.id ?? null;

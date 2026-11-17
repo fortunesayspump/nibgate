@@ -56,6 +56,17 @@ test('auth, origin, session and unknown headers always reach origin unchanged', 
   for (const header of ['authorization', 'cookie', 'origin', 'mcp-session-id', 'cf-access-jwt-assertion', 'x-api-key', 'x-custom', 'if-none-match']) await forwarded(post({ jsonrpc: '2.0', id: 1, method: 'ping' }, { [header]: 'fixture' }));
   await forwarded(post({ jsonrpc: '2.0', id: 1, method: 'initialize' }, { 'mcp-protocol-version': '2099-01-01' }));
 });
+test('MCP method hints must agree with the body and never turn tools into probes', async () => {
+  for (const method of ['initialize', 'ping', 'tools/list', 'notifications/initialized']) {
+    const res = await handle(post({ jsonrpc: '2.0', method }, { 'mcp-method': method }), noOrigin);
+    assert.equal(res.status, method.startsWith('notifications/') ? 202 : 200);
+  }
+  await forwarded(post({ jsonrpc: '2.0', method: 'ping' }, { 'mcp-method': 'initialize' }));
+  await forwarded(post({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'explore_content' } }, { 'mcp-method': 'ping' }));
+  await forwarded(post({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'explore_content' } }, { 'mcp-method': 'tools/call' }));
+  await forwarded(post({ jsonrpc: '2.0', method: 'ping' }, { 'mcp-method': 'ping', authorization: 'fixture' }));
+  await forwarded(new Request(base + '/mcp', { headers: { 'mcp-method': 'ping' } }));
+});
 test('tools/call, unknown methods and metadata-bearing params forward once, preserving errors', async () => {
   for (const message of [{ jsonrpc: '2.0', id: 'real', method: 'tools/call', params: { name: 'get_platform_stats', arguments: {} } }, { jsonrpc: '2.0', id: 2, method: 'future/method' }, { jsonrpc: '2.0', method: 'ping', params: { _meta: { authorization: 'fixture' } } }]) await forwarded(post(message));
 });

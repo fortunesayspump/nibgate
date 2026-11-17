@@ -1,3 +1,4 @@
+import { scheduledMonitorEnabled } from './scheduled-policy.js';
 import { db } from '@nibgate/internal/db.js';
 import { activeNetwork } from '@nibgate/internal/networks.js';
 import { createPublicClient, decodeEventLog, http, fallback } from 'viem';
@@ -118,7 +119,8 @@ export function startVerificationMonitor() {
 
 // ── Manifest Sync Monitor ─────────────────────────────────────────────────
 
-async function runManifestSyncSweep() {
+export async function runManifestSyncSweep() {
+  const failures = [];
   if (manifestSweepInFlight) return;
   manifestSweepInFlight = true;
   try {
@@ -162,17 +164,21 @@ async function runManifestSyncSweep() {
   for (const website of websites) {
     try {
       const result = await syncWebsiteManifest(website);
+      if (!result.ok) failures.push(website.id);
       if (!result.ok && process.env.MANIFEST_SYNC_LOG_FAILURES !== 'false') {
         console.log(`Manifest sync failed for ${website.domain}: ${result.error}`);
       }
     } catch (error) {
+      failures.push(website.id);
       console.log(`Manifest sync threw for ${website.domain}:`, error.stack || error);
     }
   }
   } finally { manifestSweepInFlight = false; }
+  if (failures.length) throw new Error(`Manifest sweep failed for ${failures.length} sites`);
 }
 
 export function startManifestSyncMonitor() {
+  if (scheduledMonitorEnabled('manifest')) return;
   if (manifestSyncMonitorStarted || process.env.MANIFEST_SYNC_DISABLED === 'true') return;
   manifestSyncMonitorStarted = true;
 
@@ -236,7 +242,7 @@ async function indexReputationLog(log, contractAddress) {
   return upsertOnchainRatingForContent(content, decoded.args, log.transactionHash);
 }
 
-async function runReputationIndexSweep() {
+export async function runReputationIndexSweep({ cursor, maxBlocks } = {}) {
   if (reputationIndexerSweepInFlight) return { ok: false, reason: 'already-in-flight' };
   reputationIndexerSweepInFlight = true;
   try {
@@ -248,10 +254,12 @@ async function runReputationIndexSweep() {
 
   const latestBlock = await client.getBlockNumber();
   const backfillBlocks = BigInt(Number.parseInt(process.env.NIBGATE_REPUTATION_BACKFILL_BLOCKS || '5000', 10));
-  const fromBlock = reputationIndexerLastBlock === null
+  const lastBlock = cursor === undefined ? reputationIndexerLastBlock : cursor === null ? null : BigInt(cursor);
+  const fromBlock = lastBlock === null
     ? latestBlock > backfillBlocks ? latestBlock - backfillBlocks : 0n
-    : reputationIndexerLastBlock + 1n;
-  const toBlock = latestBlock;
+    : lastBlock + 1n;
+  const toBlock = maxBlocks && fromBlock + BigInt(maxBlocks) - 1n < latestBlock
+    ? fromBlock + BigInt(maxBlocks) - 1n : latestBlock;
   if (fromBlock > toBlock) return { ok: true, indexed: 0, fromBlock: String(fromBlock), toBlock: String(toBlock) };
 
   const logs = await client.getLogs({
@@ -275,6 +283,7 @@ async function runReputationIndexSweep() {
 }
 
 export function startReputationIndexer() {
+  if (scheduledMonitorEnabled('reputation')) return;
   if (reputationIndexerStarted || process.env.NIBGATE_REPUTATION_INDEXER_DISABLED === 'true') return;
   reputationIndexerStarted = true;
 
@@ -436,14 +445,16 @@ export function startDataIntegrityMonitor() {
 
 let gscSitemapMonitorStarted = false;
 
-async function runGscSitemapSweep() {
+export async function runGscSitemapSweep() {
   const summary = await submitAllSiteSitemaps();
   if (summary.disabled) return;
   console.log(`GSC sitemap sweep: ${summary.added} added, ${summary.skipped} already submitted, ${summary.failed.length} failed (${summary.domains} sites)`);
   for (const f of summary.failed) console.log(`GSC sitemap sweep failed: ${f}`);
+  if (summary.failed.length) throw new Error(`GSC sitemap failures: ${summary.failed.length}`);
 }
 
 export function startGscSitemapMonitor() {
+  if (scheduledMonitorEnabled('gsc-sitemap')) return;
   if (gscSitemapMonitorStarted || process.env.GSC_SITEMAP_MONITOR_DISABLED === 'true') return;
   if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return;
   gscSitemapMonitorStarted = true;
@@ -463,15 +474,17 @@ export function startGscSitemapMonitor() {
 
 let gscIndexMonitorStarted = false;
 
-async function runGscIndexSweep() {
+export async function runGscIndexSweep() {
   const summary = await runIndexSweep();
   if (summary.disabled) return;
   console.log(`GSC index sweep: ${summary.inspected} inspected, ${summary.indexed} indexed, ${summary.notIndexed} not indexed, ${summary.newSites} new sites, ${summary.resubmitted} sitemap re-submits, ${summary.indexNow} URLs via IndexNow (${summary.domains} sites)`);
   for (const n of summary.notIndexedList) console.log(`GSC index not-indexed: ${n.domain} (${n.coverageState || n.indexingState || 'unknown'})`);
   for (const e of summary.errors) console.log(`GSC index error: ${e}`);
+  if (summary.errors.length || summary.indexNowErrors) throw new Error('GSC index sweep had failures');
 }
 
 export function startGscIndexMonitor() {
+  if (scheduledMonitorEnabled('gsc-index')) return;
   if (gscIndexMonitorStarted || process.env.GSC_INDEX_MONITOR_DISABLED === 'true') return;
   if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return;
   gscIndexMonitorStarted = true;

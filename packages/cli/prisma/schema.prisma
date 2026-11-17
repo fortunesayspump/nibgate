@@ -536,3 +536,12 @@ model TipRefundAuthorization {
 
   @@index([network, domain, wallet])
 }
+
+// Nonfinancial scheduled monitor leases and reputation checkpoints.
+model BackgroundJobState {
+  key         String    @id
+  owner       String?
+  leaseUntil  DateTime?
+  completedAt DateTime?
+  cursor      String?
+}

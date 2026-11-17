@@ -40,6 +40,18 @@ test('known stateless notifications return the existing empty 202 response', asy
     assert.equal(result.status, 202); assert.equal(await result.text(), '');
   }
 });
+test('trace context does not wake origin for static probes or bypass dynamic/auth handling', async () => {
+  const trace = { traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' };
+  for (const method of ['initialize', 'ping', 'tools/list', 'notifications/initialized']) {
+    const response = await handle(post({ jsonrpc: '2.0', method }, trace), noOrigin);
+    assert.equal(response.status, method.startsWith('notifications/') ? 202 : 200);
+    assert.equal(response.headers.get('x-nibgate-edge-metadata'), metadata.sourceSha256);
+  }
+  await forwarded(post({ jsonrpc: '2.0', id: 'real', method: 'tools/call', params: { name: 'explore_content' } }, trace));
+  for (const header of ['authorization', 'cookie', 'origin', 'mcp-session-id', 'x-custom']) {
+    await forwarded(post({ jsonrpc: '2.0', method: 'ping' }, { ...trace, [header]: 'fixture' }));
+  }
+});
 test('auth, origin, session and unknown headers always reach origin unchanged', async () => {
   for (const header of ['authorization', 'cookie', 'origin', 'mcp-session-id', 'cf-access-jwt-assertion', 'x-api-key', 'x-custom', 'if-none-match']) await forwarded(post({ jsonrpc: '2.0', id: 1, method: 'ping' }, { [header]: 'fixture' }));
   await forwarded(post({ jsonrpc: '2.0', id: 1, method: 'initialize' }, { 'mcp-protocol-version': '2099-01-01' }));

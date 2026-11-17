@@ -1,6 +1,10 @@
 import metadata from './metadata.json' with { type: 'json' };
 
 const safeHeaders = new Set(['accept', 'accept-encoding', 'accept-language', 'content-type', 'content-length', 'user-agent', 'host', 'connection', 'cf-ray', 'cf-connecting-ip', 'cf-ipcountry', 'cf-visitor', 'cdn-loop', 'x-forwarded-proto', 'x-forwarded-for', 'x-real-ip', 'mcp-protocol-version']);
+// Observed monitoring clients send W3C trace context. It does not select data or
+// authenticate a request; eligible stateless replies need no origin trace span.
+// Dynamic/auth/session requests still forward the original header unchanged.
+safeHeaders.add('traceparent');
 const MAX_CLASSIFY_BYTES = 65536;
 async function smallJson(request) {
   if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get('content-type') || '')) return null;

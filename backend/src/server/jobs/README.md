@@ -69,6 +69,10 @@ reputation writes use the existing content/wallet upsert. Manifest uses existing
 upserts/scan timestamps. At-least-once sweeps can leave partial writes on timeout.
 Verification/integrity retain their existing per-record error handling and RPC
 uncertainty semantics. Metadata remains bounded by its configured batch size.
+Google indexing checkpoints each site and yields pending work after about 150 seconds,
+releasing the lease without marking its daily cycle complete. A later four-hour
+run resumes; the four-minute supervisor remains a hard fallback deadline.
+Sitemap resubmission counts include only successful requests.
 Google requests can repeat/consume quota; existing SEO delivery is not an
 exactly-once queue. Four-hour scheduling intentionally permits several-hour
 reputation/content freshness delays. Large manifest/Google/verification datasets

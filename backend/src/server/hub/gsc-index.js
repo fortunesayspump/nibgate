@@ -153,8 +153,12 @@ export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', 
       if (isNew || hashChanged) {
         summary.changed += 1;
         if (!dryRun && persist) {
-          await submitSitemapForDomain(domain).catch(() => {});
-          summary.resubmitted += 1;
+          try {
+            await submitSitemapForDomain(domain);
+            summary.resubmitted += 1;
+          } catch (error) {
+            summary.errors.push(`${domain}: sitemap submission failed: ${error.message.slice(0, 100)}`);
+          }
 
           const urls = sitemap.body ? extractSitemapUrls(sitemap.body) : [url];
           const ix = await submitIndexNow(domain, urls).catch((e) => ({ ok: false, message: e.message }));

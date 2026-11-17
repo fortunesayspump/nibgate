@@ -18,4 +18,13 @@ describe('resumable index inspection', () => {
     expect(inspectSite).toHaveBeenCalledTimes(2); expect(values.at(-1)).toBeNull();
     expect(JSON.parse(values[1]).failures).toEqual(['a', 'b', 'c']);
   });
+  it('yields a checkpointed partial batch without declaring the daily cycle complete', async () => {
+    let elapsed = 0; const checkpoints = [];
+    const inspectSite = vi.fn(async () => { elapsed += 160; return { errors: [] }; });
+    const result = await runIndexBatches({ cursor: null, checkpoint: async v => checkpoints.push(v), fetchSites: async () => ['a', 'b'], inspectSite, now: () => elapsed, budgetMs: 150 });
+    expect(result).toEqual({ pending: true });
+    expect(inspectSite).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(checkpoints.at(-1))).toEqual({ after: 'a', failures: [] });
+  });
+
 });

@@ -1,11 +1,13 @@
 // Persist progress between sites so the process deadline cannot starve the tail
 // of a large site list. Preserve failures across restarts, then retry the next
 // cadence without declaring a partially failed daily cycle complete.
-export async function runIndexBatches({ cursor, checkpoint, fetchSites, inspectSite }) {
+export async function runIndexBatches({ cursor, checkpoint, fetchSites, inspectSite, now = Date.now, budgetMs = 150_000 }) {
+  const started = now();
   const saved = cursor ? JSON.parse(cursor) : { after: '', failures: [] };
   const failures = new Set(saved.failures || []);
   const domains = [...new Set(await fetchSites())].sort();
   for (const domain of domains.filter(domain => domain > (saved.after || ''))) {
+    if (now() - started >= budgetMs) return { pending: true };
     try {
       const result = await inspectSite(domain);
       if (result.disabled || result.errors?.length || result.indexNowErrors) throw Error('Incomplete index inspection');

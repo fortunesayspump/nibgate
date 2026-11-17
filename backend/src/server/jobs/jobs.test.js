@@ -75,6 +75,13 @@ describe('scheduled monitors', () => {
     db.$queryRaw.mockResolvedValue([{ cursor: null }]); db.$executeRaw.mockResolvedValue(0);
     await expect(runLeasedJob({ db, key: 'x', intervalMs: 1, timeoutMs: 1000, run })).rejects.toThrow('lease lost');
   });
+  it('releases a pending batch without overwriting its checkpoint or successful slot', async () => {
+    const db = database('a');
+    const result = await runLeasedJob({ db, key: 'index', intervalMs: 86400000, timeoutMs: 240000, run: async (_cursor, checkpoint) => { await checkpoint('b'); return { pending: true }; } });
+    expect(result).toEqual({ skipped: false, pending: true });
+    expect(db.$executeRaw.mock.calls[0]).toContain('b');
+    expect(db.$executeRaw.mock.calls[1][0].join('')).not.toMatch(/completedAt|cursor/);
+  });
   it('rejects invalid config before loading resources', async () => {
     const load = vi.fn();
     await expect(runWorker({ name: 'reputation', env: {}, timeoutMs: 1000, load })).rejects.toThrow();

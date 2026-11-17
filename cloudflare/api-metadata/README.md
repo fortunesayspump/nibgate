@@ -2,7 +2,9 @@
 
 Worker and routes deployed; both API hostnames are proxied as of 17 November
 2026, after testnet passed the live matrix before mainnet cutover.
-Worker version: 06b85178-c0a5-4ae2-87a3-b96cdeb9d43e. Existing signed-in Chrome
+Worker version: 296f1e81-f77a-44d8-abd7-a6d75884ce39 (source
+d3e4a2a01dd8faffa1abe9521b53153dbae36039).
+Initial cutover version: 06b85178-c0a5-4ae2-87a3-b96cdeb9d43e. Existing signed-in Chrome
 allowed DNS management without expanding CLI credentials. API-only Strict TLS
 rule 7071ad7b4ad34311ae622331b1ec70c0 is active; zone-wide Full mode is unchanged.
 
@@ -54,7 +56,7 @@ already run at Cloudflare and are not changed by this API-only package.
 
 ## Verification
 
-Node 22: eight edge test groups pass, including both-network metadata, IDs,
+Node 22: ten edge test groups pass, including both-network metadata, IDs,
 notifications, Origin/auth/session bypass, malformed/oversized input, true-call
 forwarding, paths/queries, HEAD, preserved response/errors, and no retry.
 Generation/check passes. Five metadata surfaces per network matched the live
@@ -75,6 +77,19 @@ no Railway request ID. These auth checks use invalid sentinels, not real session
 they verify passthrough/rejection, not a complete authenticated user journey.
 The existing origin returns 500 for denied CORS; the Worker preserves it.
 
+Real Fixter monitoring initially still reached the origin because it sends
+traceparent. A sanitized Worker tail (header names only, no bodies/secret values)
+identified that additional header. The backend does not branch on it. The final
+Worker allows traceparent for eligible stateless requests and forwards it
+unchanged on dynamic/auth/session requests. A new regression test covers both
+behaviors. Six live traced initialize/tools-list/notification checks passed
+across the two networks with edge markers and no Railway request IDs.
+Sentinel additionally sends mcp-method. It is accepted only on POST when it
+exactly matches the parsed JSON method. It never selects a handler independently
+of the body. Mismatches, tool calls and auth-bearing requests remain forwarded.
+Eight live static method-hint checks passed across both networks; six live
+mismatch/tool/auth checks verified forwarding on the final version.
+
 Reproduce deliberately (these checks wake the origin):
 `python3 cloudflare/api-metadata/check-edge-live.py HOST ORIGIN_IP REPORT_PATH`
 Resolve the current Railway origin IP first. Curl preserves the hostname/SNI and
@@ -83,10 +98,21 @@ is exercised, and neither curl nor the Worker automatically retries requests.
 
 Railway testnet HTTP logs contain zero requests during the 17:37:30–17:39:00 UTC
 metadata-only window, followed by the expected 29 origin requests during the
-forwarding matrix. Mainnet still receives real /hub/explore/content traffic
-roughly every 16 seconds; it remains live and can prevent sleep. Edge headers
-alone do not prove all external probes are offloaded. Post-cutover sleep, cold
-wake through the edge, and billing savings require separate observation.
+forwarding matrix. Mainnet received real /hub/explore/content traffic
+roughly every 16 seconds through 17:42:37; this live traffic can prevent sleep. Actual Fixter
+requests observed at Cloudflare at 17:49:14/15 returned 200/202 and were absent
+from Railway logs after the tracing fix. Sentinel's next real cycle after its
+method-hint fix has not been observed; representative requests pass.
+
+Testnet was SLEEPING at 17:48:53 UTC. A public edge GET /mcp returned 200 and a
+subsequent control-plane read still showed SLEEPING with the same timestamp.
+An unrelated dynamic /hub/explore/content request then woke it at 17:49:42,
+returning 200 in 2640ms (Railway logged internal connection-refused retries;
+the final client status was 200). Those dynamic requests continued every ~16s.
+Thus sleep and successful dynamic wake were observed, but an isolated cold MCP
+tool-call/initial-502 scenario and sustained mainnet sleep remain unproven.
+No billing savings have been measured. Do not freeze dynamic content to force
+sleep; identify its callers and preserve freshness/auth before changing them.
 
 Cloudflare account: 5168d18094624a42a2e019a74f50324b.
 Zone nibgate.xyz: cd027bdd5438bc1a43aea893925616bc.

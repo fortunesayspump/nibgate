@@ -1,17 +1,18 @@
 # API metadata at the edge
 
-Worker and routes deployed; DNS cutover paused after a testnet compatibility
-regression. Both APIs currently remain DNS-only. Mainnet DNS was never changed.
+Worker and routes deployed; both API hostnames are proxied as of 17 November
+2026, after testnet passed the live matrix before mainnet cutover.
 Worker version: 06b85178-c0a5-4ae2-87a3-b96cdeb9d43e. Existing signed-in Chrome
 allowed DNS management without expanding CLI credentials. API-only Strict TLS
 rule 7071ad7b4ad34311ae622331b1ec70c0 is active; zone-wide Full mode is unchanged.
 
-Testnet briefly served real edge metadata (HTTP 200 for curl, Python HTTPX,
-FixterMonitoring and SentinelOracle). Cloudflare Browser Integrity Check rejected
-Python-urllib/3.14 with 403/error 1010. Testnet was restored to DNS-only and TTL
-5 minutes; target unchanged. Disabling BIC solely on the two API hosts requires
-browser-policy action-time confirmation, requested but not yet received.
-Do not proxy either hostname until that compatibility issue is resolved.
+The initial testnet attempt exposed BIC rejecting Python-urllib/3.14 (403/1010,
+Security Events ray a5c04cf69b22e568, service Browser integrity check). DNS was
+rolled back. After explicit user confirmation, configuration rule
+0b5e761e56b944d4b8053670f3e79eaa (API machine client compatibility) disables only
+BIC for `(http.host in {"api.nibgate.xyz" "testnet-api.nibgate.xyz"})`.
+The separate Strict TLS rule remains active. No other security settings,
+credentials, permissions, subscriptions or hostnames were changed.
 
 The eight Worker routes in wrangler.jsonc are installed. Exact host/* script:null
 exclusions are separate safeguards in routes-plan.json; preserve them. The older
@@ -51,7 +52,7 @@ protocol liveness as before; it does not claim DB/payment readiness. No new
 health endpoint is introduced. Public docs on existing frontend/docs Workers
 already run at Cloudflare and are not changed by this API-only package.
 
-## Verified and blocked
+## Verification
 
 Node 22: eight edge test groups pass, including both-network metadata, IDs,
 notifications, Origin/auth/session bypass, malformed/oversized input, true-call
@@ -62,21 +63,43 @@ A local invocation of the prepared Worker forwarded one real explore_content
 call to the live mainnet API exactly once and returned HTTP 200 with the original
 JSON-RPC ID, success:true and one actual content record. This is not a deployed
 Cloudflare-path test.
-Full live edge routing, probe bypass, and edge-to-origin cold-wake tests cannot be
-claimed until the DNS permission blocker is resolved.
+The deployed Cloudflare path subsequently passed 28 live checks per network:
+default urllib, HTTPX, descriptive monitoring and absent User-Agent; metadata
+JSON parity; initialize/ping/tools/list/notifications; auth/session/cookie and
+Origin passthrough; preflight; unknown protocol/method/tool; query/path suffix;
+malformed JSON; 66KB classification fallback; protected endpoint rejection; and
+one genuine read-only explore_content execution with its JSON-RPC ID preserved.
+Forwarded cases matched direct-origin status, body and relevant auth/CORS headers
+and contained Railway request IDs. Static cases contained the source hash and
+no Railway request ID. These auth checks use invalid sentinels, not real sessions;
+they verify passthrough/rejection, not a complete authenticated user journey.
+The existing origin returns 500 for denied CORS; the Worker preserves it.
+
+Reproduce deliberately (these checks wake the origin):
+`python3 cloudflare/api-metadata/check-edge-live.py HOST ORIGIN_IP REPORT_PATH`
+Resolve the current Railway origin IP first. Curl preserves the hostname/SNI and
+validates its certificate for direct-origin comparisons. No paid tool or mutation
+is exercised, and neither curl nor the Worker automatically retries requests.
+
+Railway testnet HTTP logs contain zero requests during the 17:37:30–17:39:00 UTC
+metadata-only window, followed by the expected 29 origin requests during the
+forwarding matrix. Mainnet still receives real /hub/explore/content traffic
+roughly every 16 seconds; it remains live and can prevent sleep. Edge headers
+alone do not prove all external probes are offloaded. Post-cutover sleep, cold
+wake through the edge, and billing savings require separate observation.
 
 Cloudflare account: 5168d18094624a42a2e019a74f50324b.
 Zone nibgate.xyz: cd027bdd5438bc1a43aea893925616bc.
 Current public DNS (17 November 2026):
-- api.nibgate.xyz CNAME k2zpzu1m.up.railway.app (DNS-only).
-- testnet-api.nibgate.xyz CNAME tcid69rk.up.railway.app (DNS-only).
-The exact authenticated DNS IDs/settings are not readable under the current
-OAuth scopes. Existing login permits workers_scripts/write, workers_routes/write
-and zone/read, but DNS lookup returns 403. Do not refresh with indiscriminate
-new scopes or expose tokens in logs/chat. Obtain scoped DNS read/edit access or
-have an authorized operator perform the exact reviewed DNS step below.
+- api.nibgate.xyz CNAME k2zpzu1m.up.railway.app (Proxied, TTL Auto),
+  record 0d0025e584165dfd08fdf39e92cfcca3.
+- testnet-api.nibgate.xyz CNAME tcid69rk.up.railway.app (Proxied, TTL Auto),
+  record 7311060cec65e9cde624f7c36ce3ef42.
+Existing OAuth lacks DNS access; the authorized signed-in browser performed
+DNS changes without expanding credentials. The original records were DNS-only,
+TTL 300. Do not expand OAuth scopes to work around that limitation.
 
-## Ordered rollout after DNS access is available
+## Ordered rollout procedure
 
 1. Re-read both DNS records, zone SSL/security settings and Worker routes; retain
    exact prior values. Confirm strict origin TLS remains valid and no new paid

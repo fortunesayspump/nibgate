@@ -1,0 +1,12 @@
+{
+  "name": "nibgate-api-metadata",
+  "account_id": "5168d18094624a42a2e019a74f50324b",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-17",
+  "workers_dev": false,
+  "preview_urls": false,
+  "build": {
+    "command": "node cloudflare/api-metadata/generate.mjs --check"
+  },
+  "routes": []
+}

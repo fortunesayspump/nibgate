@@ -1,0 +1,48 @@
+{
+  "status": "not applied; DNS access required",
+  "zone_id": "cd027bdd5438bc1a43aea893925616bc",
+  "exclusions_before_proxy": [
+    {
+      "pattern": "testnet-api.nibgate.xyz/*",
+      "script": null
+    },
+    {
+      "pattern": "api.nibgate.xyz/*",
+      "script": null
+    }
+  ],
+  "metadata_routes": [
+    {
+      "pattern": "testnet-api.nibgate.xyz/mcp*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "testnet-api.nibgate.xyz/.well-known/mcp.json*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "testnet-api.nibgate.xyz/openapi.json*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "testnet-api.nibgate.xyz/api/openapi.json*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "api.nibgate.xyz/mcp*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "api.nibgate.xyz/.well-known/mcp.json*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "api.nibgate.xyz/openapi.json*",
+      "script": "nibgate-api-metadata"
+    },
+    {
+      "pattern": "api.nibgate.xyz/api/openapi.json*",
+      "script": "nibgate-api-metadata"
+    }
+  ]
+}

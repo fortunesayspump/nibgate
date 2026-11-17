@@ -258,6 +258,7 @@ async function runHoldingBoxSweep() {
 // ── Schedule ────────────────────────────────────────────────────────────────
 
 export function startFeeKeeper() {
+  if (process.env.NIBGATE_FEE_KEEPER_EXTERNAL === 'true') return;
   if (feeKeeperStarted || !keeperEnabled()) return;
   feeKeeperStarted = true;
 

@@ -1,3 +1,4 @@
+import { installIdleDatabaseDisconnect } from './idle-database.js';
 import pkg from '../../cli/generated/client/index.js';
 const { PrismaClient } = pkg;
 
@@ -10,3 +11,8 @@ const globalForPrisma = globalThis;
 export const db = globalForPrisma.prisma || new PrismaClient({});
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+
+if (process.env.NIBGATE_DB_IDLE_DISCONNECT_MS && !globalForPrisma.nibgateIdleDisconnectInstalled) {
+  installIdleDatabaseDisconnect(db, Number(process.env.NIBGATE_DB_IDLE_DISCONNECT_MS));
+  globalForPrisma.nibgateIdleDisconnectInstalled = true;
+}

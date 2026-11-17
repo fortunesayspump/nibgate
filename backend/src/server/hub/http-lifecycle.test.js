@@ -43,9 +43,10 @@ describe('outbound HTTP response lifecycle', () => {
 
   it('releases successful IndexNow responses and preserves the result', async () => {
     vi.stubEnv('INDEXNOW_KEY', 'synthetic-test-key');
+    vi.stubEnv('NIBGATE_NETWORK', 'mainnet');
     const cancelled = vi.fn();
     vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({ cancel: cancelled }))));
-    expect(await submitIndexNow('example.com', ['https://example.com/post'])).toEqual({ ok: true, urls: 1 });
+    expect(await submitIndexNow('fixture.nibgate.xyz', ['https://fixture.nibgate.xyz/post'])).toEqual({ ok: true, urls: 1 });
     expect(cancelled).toHaveBeenCalledOnce();
   });
 

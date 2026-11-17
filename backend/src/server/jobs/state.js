@@ -16,7 +16,12 @@ export async function runLeasedJob({ db, key, intervalMs, timeoutMs, run }) {
     RETURNING "cursor"`;
   if (!rows.length) return { skipped: true };
   try {
-    const cursor = await run(rows[0].cursor);
+    const checkpoint = async (cursor) => {
+      const changed = await db.$executeRaw`UPDATE "BackgroundJobState" SET "cursor" = ${cursor}
+        WHERE "key" = ${key} AND "owner" = ${owner} AND "leaseUntil" > CURRENT_TIMESTAMP`;
+      if (changed !== 1) throw new Error('Background job lease lost');
+    };
+    const cursor = await run(rows[0].cursor, checkpoint);
     const changed = await db.$executeRaw`
       UPDATE "BackgroundJobState" SET "cursor" = ${cursor ?? rows[0].cursor},
         "completedAt" = "leaseUntil" - ${leaseMs} * INTERVAL '1 millisecond', "owner" = NULL, "leaseUntil" = NULL

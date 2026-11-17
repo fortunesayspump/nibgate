@@ -43,3 +43,16 @@ credential-bearing actions, private broker/funding/Phala actions, production
 migration or cost measurements. Source parity with the supplied private Docker
 image digest remains unverified. Read README.md for precise rollout, rollback,
 scheduler limitations, retry semantics and remaining API sleep blockers.
+
+## Authorized rollout follow-up
+
+Reapplied on current main `8cd556c3` in branch `codex/api-scheduled-rollout`.
+Node 22.23.5 full backend suite: **118 passed, 21 skipped** (14 files passed,
+2 opt-in integration files skipped). Updated one stale IndexNow test fixture to
+use an eligible mainnet domain required by the newer production domain guard.
+Added four lifecycle tests: no disconnect during queries/whole transactions,
+query waits for ongoing disconnect, fee-worker graceful drain, preserved cadence.
+Exact migration runner passed first apply and repeated apply on a fresh localhost
+fixture. Real Prisma interactive transaction/idle disconnect/reconnect checked
+separately. The original phase-one notes above describe the earlier checkpoint,
+not final deployed state; consult the rollout record for live outcomes.

@@ -24,15 +24,15 @@ function database(cursor = null) {
 describe('scheduled monitors', () => {
   it('disables embedded timers including repeat/admin starts, defaults unchanged', async () => {
     vi.resetModules(); vi.useFakeTimers();
-    vi.stubEnv('NIBGATE_SCHEDULED_MONITORS', 'manifest,reputation,gsc-sitemap,gsc-index');
+    vi.stubEnv('NIBGATE_SCHEDULED_MONITORS', 'manifest,reputation,gsc-sitemap,gsc-index,verification,integrity');
     vi.stubEnv('GSC_SERVICE_ACCOUNT_JSON', '{}');
     const m = await import('../hub/monitors.js');
-    const starts = [m.startManifestSyncMonitor, m.startReputationIndexer, m.startGscSitemapMonitor, m.startGscIndexMonitor];
+    const starts = [m.startManifestSyncMonitor, m.startReputationIndexer, m.startGscSitemapMonitor, m.startGscIndexMonitor, m.startVerificationMonitor, m.startDataIntegrityMonitor];
     starts.forEach(f => { f(); f(); });
     expect(vi.getTimerCount()).toBe(0);
     vi.stubEnv('NIBGATE_SCHEDULED_MONITORS', '');
     starts.forEach(f => f());
-    expect(vi.getTimerCount()).toBe(4);
+    expect(vi.getTimerCount()).toBe(6);
     vi.clearAllTimers();
   });
   it('fails closed on typo', () => expect(() => scheduledMonitorEnabled('manifest', { NIBGATE_SCHEDULED_MONITORS: 'settlement' })).toThrow());
@@ -55,7 +55,7 @@ describe('scheduled monitors', () => {
     await expect(m.runGscIndexSweep()).rejects.toThrow('GSC index');
   });
   it('checkpoints success and disconnects; resumes from persisted cursor', async () => {
-    const db = database('500'); const run = vi.fn().mockResolvedValue({ ok: true, toBlock: '5500' });
+    const db = database('500'); const run = vi.fn().mockResolvedValueOnce({ ok: true, fromBlock: '501', toBlock: '5500' }).mockResolvedValue({ ok: true, fromBlock: '5501', toBlock: '5500' });
     await runWorker({ name: 'reputation', timeoutMs: 1000, env, load: async () => ({ db, monitors: { runReputationIndexSweep: run } }) });
     expect(run).toHaveBeenCalledWith({ cursor: '500', maxBlocks: 5000 });
     expect(db.$executeRaw.mock.calls[0]).toContain('5500');

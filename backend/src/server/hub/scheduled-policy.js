@@ -1,6 +1,10 @@
 export const scheduledJobs = Object.freeze({
-  manifest: 15 * 60_000,
-  reputation: 5 * 60_000,
+  manifest: 4 * 60 * 60_000,
+  reputation: 4 * 60 * 60_000,
+  verification: 4 * 60 * 60_000,
+  integrity: 4 * 60 * 60_000,
+  metadata: 4 * 60 * 60_000,
+  'metric-cleanup': 4 * 60 * 60_000,
   'gsc-sitemap': 24 * 60 * 60_000,
   'gsc-index': 24 * 60 * 60_000,
 });

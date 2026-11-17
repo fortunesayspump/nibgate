@@ -26,7 +26,7 @@ const VERIFICATION_FAILURE_THRESHOLD = Number.parseInt(process.env.VERIFICATION_
 
 // ── Verification Monitor ───────────────────────────────────────────────────
 
-async function runVerificationSweep() {
+export async function runVerificationSweep() {
   const websites = await db.website.findMany({
     where: {
       deletedAt: null,
@@ -103,6 +103,7 @@ async function runVerificationSweep() {
 }
 
 export function startVerificationMonitor() {
+  if (scheduledMonitorEnabled('verification')) return;
   if (verificationMonitorStarted || process.env.VERIFICATION_CHECKS_DISABLED === 'true') return;
   verificationMonitorStarted = true;
 
@@ -308,7 +309,7 @@ function looksLikeValidPaymentId(value) {
   return typeof value === 'string' && value.length >= 10 && !value.startsWith('0x');
 }
 
-async function runDataIntegritySweep() {
+export async function runDataIntegritySweep() {
   // 1. Ratings: reject those without a valid on-chain proof hash
   try {
     const badRatings = await db.contentRating.findMany({
@@ -427,6 +428,7 @@ async function runDataIntegritySweep() {
 }
 
 export function startDataIntegrityMonitor() {
+  if (scheduledMonitorEnabled('integrity')) return;
   if (dataIntegrityMonitorStarted || process.env.DATA_INTEGRITY_MONITOR_DISABLED === 'true') return;
   dataIntegrityMonitorStarted = true;
 

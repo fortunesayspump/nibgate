@@ -29,7 +29,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const name = process.argv[2];
   const timeoutMs = Number(process.env.NIBGATE_JOB_TIMEOUT_MS || 240_000);
   if (!Object.hasOwn(scheduledJobs, name) || !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 240_000) {
-    console.error('Usage: jobs:run <manifest|reputation|gsc-sitemap|gsc-index>; timeout must be 1000..240000ms');
+    console.error(`Usage: jobs:run <${Object.keys(scheduledJobs).join('|')}>; timeout must be 1000..240000ms`);
     process.exitCode = 1;
   } else {
     process.exitCode = await supervise({ name, timeoutMs }).catch(() => 1);

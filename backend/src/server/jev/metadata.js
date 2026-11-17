@@ -1,3 +1,4 @@
+import { scheduledMonitorEnabled } from '../hub/scheduled-policy.js';
 import { db } from '@nibgate/internal/db.js';
 
 // JEV metadata enrichment: thin content often has no tags, so discovery
@@ -139,6 +140,7 @@ export async function enrichMissingMetadata(options = {}) {
 
 // Periodic pass, gated by NIBGATE_METADATA_ENRICH (like the fee keeper).
 export function startMetadataEnricher() {
+  if (scheduledMonitorEnabled('metadata')) return;
   if (enricherStarted || !process.env.NIBGATE_METADATA_ENRICH) return;
   enricherStarted = true;
   const intervalMs = Number.parseInt(process.env.NIBGATE_METADATA_ENRICH_INTERVAL_MS || '3600000', 10);

@@ -1,3 +1,4 @@
+import { scheduledMonitorEnabled } from './scheduled-policy.js';
 import { db } from '@nibgate/internal/db.js';
 import { hostsFor, activeNetworkName, networkByChainId } from '@nibgate/internal/networks.js';
 import { protocolFeeFor, createTransferVerifier } from '@nibgate/sdk/server';
@@ -256,9 +257,12 @@ export const trackingRateBuckets = registerRateBuckets(new Map(), 60_000);
 
 // Expired metric-dedupe rows are pruned hourly. (The in-memory buckets are
 // swept centrally by lib/rate-buckets.js.)
-setInterval(() => {
-  db.metricDedupe.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } }).catch(() => {});
-}, 60 * 60 * 1000).unref?.();
+export async function runMetricCleanup() {
+  return db.metricDedupe.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } });
+}
+if (!scheduledMonitorEnabled('metric-cleanup')) {
+  setInterval(() => { runMetricCleanup().catch(() => {}); }, 60 * 60 * 1000).unref?.();
+}
 
 export function rateLimitKey(siteId, req, visitorHash = '') {
   return `${siteId}:${clientIpFor(req) || 'unknown'}:${visitorHash.slice(0, 16)}`;

@@ -9,7 +9,9 @@ export async function runWorker({ name, timeoutMs, env = process.env, load = asy
   const { db } = await import('@nibgate/internal/db.js');
   try {
     const monitors = await import('../hub/monitors.js');
-    return { db, monitors };
+    const { runMetricCleanup } = await import('../hub/helpers.js');
+    const { enrichMissingMetadata } = await import('../jev/metadata.js');
+    return { db, monitors: { ...monitors, runMetricCleanup, runMetadataSweep: () => enrichMissingMetadata({ limit: Number(env.NIBGATE_METADATA_ENRICH_BATCH || 8) }) } };
   } catch (error) {
     await db.$disconnect();
     throw error;
@@ -29,14 +31,22 @@ export async function runWorker({ name, timeoutMs, env = process.env, load = asy
   const { db, monitors } = await load();
   try {
     return await runLeasedJob({ db, key: `${env.NIBGATE_JOB_SCOPE}:${name}`, intervalMs: scheduledJobs[name], timeoutMs,
-      run: async (cursor) => {
+      run: async (cursor, checkpoint) => {
         if (name === 'reputation') {
-          const previous = cursor ?? String(BigInt(env.NIBGATE_REPUTATION_START_BLOCK) - 1n);
-          const result = await monitors.runReputationIndexSweep({ cursor: previous, maxBlocks: 5000 });
-          if (!result.ok) throw new Error(`Reputation sweep failed: ${result.reason}`);
-          return BigInt(result.toBlock) > BigInt(previous) ? result.toBlock : previous;
+          let previous = cursor ?? String(BigInt(env.NIBGATE_REPUTATION_START_BLOCK) - 1n);
+          // Four-hour cadence needs multiple RPC-sized chunks. Persist each
+          // completed chunk so a deadline never discards successful backfill.
+          for (let chunk = 0; chunk < 100; chunk += 1) {
+            const result = await monitors.runReputationIndexSweep({ cursor: previous, maxBlocks: 5000 });
+            if (!result.ok) throw new Error(`Reputation sweep failed: ${result.reason}`);
+            if (BigInt(result.toBlock) <= BigInt(previous)) return previous;
+            previous = result.toBlock;
+            await checkpoint(previous);
+            if (BigInt(result.toBlock) - BigInt(result.fromBlock) + 1n < 5000n) return previous;
+          }
+          throw new Error('Reputation catch-up remains; checkpoint saved');
         }
-        const methods = { manifest: 'runManifestSyncSweep', 'gsc-sitemap': 'runGscSitemapSweep', 'gsc-index': 'runGscIndexSweep' };
+        const methods = { verification: 'runVerificationSweep', integrity: 'runDataIntegritySweep', metadata: 'runMetadataSweep', 'metric-cleanup': 'runMetricCleanup', manifest: 'runManifestSyncSweep', 'gsc-sitemap': 'runGscSitemapSweep', 'gsc-index': 'runGscIndexSweep' };
         if (name.startsWith('gsc-') && !env.GSC_SERVICE_ACCOUNT_JSON) throw new Error('GSC credentials are required');
         await monitors[methods[name]]();
         return cursor;

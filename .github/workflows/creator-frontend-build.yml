@@ -6,6 +6,9 @@ on:
       - 'subblogs/frontend/**'
       - 'cloudflare/creator/**'
       - 'tests/public-indexing.test.mjs'
+      - 'tests/central-sitemap.test.mjs'
+      - 'frontend/src/lib/central-sitemap.ts'
+      - 'frontend/src/app/all-content-sitemap.xml/**'
       - 'tests/seo-routing.test.mjs'
       - '.github/workflows/creator-frontend-build.yml'
   workflow_dispatch:
@@ -37,7 +40,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npm ci --prefix cloudflare/tooling --ignore-scripts --legacy-peer-deps
       - name: Search policy and protected-content regressions
-        run: node --experimental-strip-types --test tests/public-indexing.test.mjs tests/seo-routing.test.mjs
+        run: node --experimental-strip-types --test tests/public-indexing.test.mjs tests/seo-routing.test.mjs tests/central-sitemap.test.mjs
       - name: Build Next and stage the wildcard Worker (no deployment)
         run: node scripts/cloudflare-build.mjs creator-wildcard
       - name: Validate staged outer Worker bundle (dry run only)

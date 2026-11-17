@@ -32,3 +32,21 @@ test('repeated identities and over-budget leaf feeds fail before unbounded work'
  await assert.rejects(()=>sitemapPosts(async page=>({success:true,total:50,page,posts:Array(50).fill(post)})),/Duplicate/);
  await assert.rejects(()=>sitemapPosts(async page=>({success:true,total:2001,page,posts:[]})),/sharding/);
 });
+
+test('actual central route fails closed and testnet never reads mainnet feed', async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../frontend/src/app/all-content-sitemap.xml/route.ts',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export const revalidate','const revalidate').replace('export async function GET','async function GET');
+ const make=(network,fetcher)=>new Function('activeNetworkName','centralSitemapIndex','fetch',`${source};return GET`)(()=>network,centralSitemapIndex,fetcher);
+ let calls=0;
+ const testnet=await make('testnet',async()=>{calls++;throw Error('must not fetch')})();assert.equal(testnet.status,404);assert.equal(calls,0);
+ const good=await make('mainnet',async()=>Response.json({success:true,sites:['writer.nibgate.xyz']}))();assert.equal(good.status,200);assert.match(await good.text(),/<sitemapindex/);
+ for(const response of [new Response('offline',{status:503}),Response.json({success:false}),new Response('<html>oops</html>')]) {const result=await make('mainnet',async()=>response)();assert.equal(result.status,503);assert.equal(result.headers.get('cache-control'),'no-store');}
+});
+test('actual creator route rejects unavailable sources instead of emitting navigation-only XML',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../subblogs/frontend/src/app/sitemap.xml/route.ts',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export const revalidate','const revalidate').replace('export async function GET(request: Request)','async function GET(request)');
+ const make=reader=>new Function('serverFetch','sitemapPosts','creatorSitemap',`${source};return GET`)(reader,sitemapPosts,creatorSitemap);
+ const request=new Request('https://writer.nibgate.xyz/sitemap.xml',{headers:{host:'writer.nibgate.xyz'}});
+ assert.equal((await make(async()=>({}))(request)).status,503);
+ const result=await make(async()=>({success:true,total:1,page:1,posts:[post]}))(request);assert.equal(result.status,200);assert.match(await result.text(),/<urlset/);
+});

@@ -2,7 +2,7 @@
 
 Worker and routes deployed; both API hostnames are proxied as of 17 November
 2026, after testnet passed the live matrix before mainnet cutover.
-Worker version: 296f1e81-f77a-44d8-abd7-a6d75884ce39 (source
+Worker version: cb2c587d-73a7-4e52-bef4-81ea74a10b0c (source
 d3e4a2a01dd8faffa1abe9521b53153dbae36039).
 Initial cutover version: 06b85178-c0a5-4ae2-87a3-b96cdeb9d43e. Existing signed-in Chrome
 allowed DNS management without expanding CLI credentials. API-only Strict TLS
@@ -102,7 +102,20 @@ forwarding matrix. Mainnet received real /hub/explore/content traffic
 roughly every 16 seconds through 17:42:37; this live traffic can prevent sleep. Actual Fixter
 requests observed at Cloudflare at 17:49:14/15 returned 200/202 and were absent
 from Railway logs after the tracing fix. Sentinel's next real cycle after its
-method-hint fix has not been observed; representative requests pass.
+method-hint fix still forwarded. Temporary reason-only diagnostics subsequently
+identified all three real Sentinel requests at 19:07:39–40 UTC as
+`params_meta_other`: metadata beyond an empty object or sole progressToken.
+Railway independently recorded the same 200/202/200 cycle. The exact metadata
+keys/values were not logged, so this does not establish a harmless subset.
+No compatibility exception was added. Unknown metadata still forwards.
+
+The temporary diagnostic version was 4a38d975-8e6d-47e9-886b-ce0238de5a8d;
+the current version restores the exact original runtime source and removes all
+diagnostic code. Ten tests and the generation check pass. The observation also
+captured eight actual Fixter arrivals returning 200/202. The diagnostic stream
+and all temporary tail processes were stopped. Further narrowing needs a
+redacted example or a defined metadata contract; do not ignore arbitrary _meta
+or bypass auth/session/Origin guards merely to make monitoring sleep-friendly.
 
 Testnet was SLEEPING at 17:48:53 UTC. A public edge GET /mcp returned 200 and a
 subsequent control-plane read still showed SLEEPING with the same timestamp.

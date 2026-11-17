@@ -1,8 +1,21 @@
 # API metadata at the edge
 
-Prepared, not deployed. Existing API CNAMEs are DNS-only; the authenticated
-Cloudflare DNS API returned 403 on both records. No DNS/security permission was
-expanded and no Cloudflare resource or route was changed.
+Worker and routes deployed; DNS cutover paused after a testnet compatibility
+regression. Both APIs currently remain DNS-only. Mainnet DNS was never changed.
+Worker version: 06b85178-c0a5-4ae2-87a3-b96cdeb9d43e. Existing signed-in Chrome
+allowed DNS management without expanding CLI credentials. API-only Strict TLS
+rule 7071ad7b4ad34311ae622331b1ec70c0 is active; zone-wide Full mode is unchanged.
+
+Testnet briefly served real edge metadata (HTTP 200 for curl, Python HTTPX,
+FixterMonitoring and SentinelOracle). Cloudflare Browser Integrity Check rejected
+Python-urllib/3.14 with 403/error 1010. Testnet was restored to DNS-only and TTL
+5 minutes; target unchanged. Disabling BIC solely on the two API hosts requires
+browser-policy action-time confirmation, requested but not yet received.
+Do not proxy either hostname until that compatibility issue is resolved.
+
+The eight Worker routes in wrangler.jsonc are installed. Exact host/* script:null
+exclusions are separate safeguards in routes-plan.json; preserve them. The older
+preparation notes below retain the original audit and staged validation plan.
 
 ## Semantics
 

@@ -1,5 +1,5 @@
 {
-  "status": "not applied; DNS access required",
+  "status": "Routes installed; both APIs DNS-only after testnet compatibility rollback. BIC exception awaits action-time approval.",
   "zone_id": "cd027bdd5438bc1a43aea893925616bc",
   "exclusions_before_proxy": [
     {

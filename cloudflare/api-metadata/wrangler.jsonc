@@ -8,5 +8,38 @@
   "build": {
     "command": "node cloudflare/api-metadata/generate.mjs --check"
   },
-  "routes": []
+  "routes": [
+    {
+      "pattern": "testnet-api.nibgate.xyz/mcp*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "testnet-api.nibgate.xyz/.well-known/mcp.json*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "testnet-api.nibgate.xyz/openapi.json*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "testnet-api.nibgate.xyz/api/openapi.json*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "api.nibgate.xyz/mcp*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "api.nibgate.xyz/.well-known/mcp.json*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "api.nibgate.xyz/openapi.json*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    },
+    {
+      "pattern": "api.nibgate.xyz/api/openapi.json*",
+      "zone_id": "cd027bdd5438bc1a43aea893925616bc"
+    }
+  ]
 }

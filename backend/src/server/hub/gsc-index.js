@@ -60,6 +60,7 @@ export async function submitIndexNow(domain, urls) {
   const host = `https://${domain}`;
   const body = JSON.stringify({ host, key, keyLocation: `${host}/${key}.txt`, urlList: urls.slice(0, 10000) });
   const res = await fetch(INDEXNOW_ENDPOINT, {
+    signal: AbortSignal.timeout(15_000),
     method: 'POST',
     headers: { 'content-type': 'application/json; charset=utf-8', authorization: `Bearer ${key}` },
     body,
@@ -72,9 +73,9 @@ export async function submitIndexNow(domain, urls) {
   return { ok: false, status: res.status, message: text.slice(0, 200) };
 }
 
-export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', persist = true } = {}) {
+export async function runIndexSweep({ dryRun = process.env.GSC_DRY_RUN === '1', persist = true, domains: selectedDomains } = {}) {
   if (!process.env.GSC_SERVICE_ACCOUNT_JSON) return { disabled: true, reason: 'GSC_SERVICE_ACCOUNT_JSON is not set' };
-  const domains = await fetchSiteList();
+  const domains = selectedDomains ?? await fetchSiteList();
   const summary = {
     site: process.env.GSC_SITE || 'sc-domain:nibgate.xyz',
     dryRun,

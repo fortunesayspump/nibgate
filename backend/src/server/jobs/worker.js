@@ -1,3 +1,4 @@
+import { runIndexBatches } from './index-batches.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scheduledJobs, scheduledMonitorEnabled } from '../hub/scheduled-policy.js';
@@ -9,9 +10,11 @@ export async function runWorker({ name, timeoutMs, env = process.env, load = asy
   const { db } = await import('@nibgate/internal/db.js');
   try {
     const monitors = await import('../hub/monitors.js');
+    const { fetchSiteList } = await import('../hub/gsc-sitemap.js');
+    const { runIndexSweep } = await import('../hub/gsc-index.js');
     const { runMetricCleanup } = await import('../hub/helpers.js');
     const { enrichMissingMetadata } = await import('../jev/metadata.js');
-    return { db, monitors: { ...monitors, runMetricCleanup, runMetadataSweep: () => enrichMissingMetadata({ limit: Number(env.NIBGATE_METADATA_ENRICH_BATCH || 8) }) } };
+    return { db, monitors: { ...monitors, fetchGscSites: fetchSiteList, runGscIndexSite: domain => runIndexSweep({ domains: [domain] }), runMetricCleanup, runMetadataSweep: () => enrichMissingMetadata({ limit: Number(env.NIBGATE_METADATA_ENRICH_BATCH || 8) }) } };
   } catch (error) {
     await db.$disconnect();
     throw error;
@@ -45,6 +48,10 @@ export async function runWorker({ name, timeoutMs, env = process.env, load = asy
             if (BigInt(result.toBlock) - BigInt(result.fromBlock) + 1n < 5000n) return previous;
           }
           throw new Error('Reputation catch-up remains; checkpoint saved');
+        }
+        if (name === 'gsc-index') {
+          if (!env.GSC_SERVICE_ACCOUNT_JSON) throw new Error('GSC credentials are required');
+          return runIndexBatches({ cursor, checkpoint, fetchSites: monitors.fetchGscSites, inspectSite: monitors.runGscIndexSite });
         }
         const methods = { verification: 'runVerificationSweep', integrity: 'runDataIntegritySweep', metadata: 'runMetadataSweep', 'metric-cleanup': 'runMetricCleanup', manifest: 'runManifestSyncSweep', 'gsc-sitemap': 'runGscSitemapSweep', 'gsc-index': 'runGscIndexSweep' };
         if (name.startsWith('gsc-') && !env.GSC_SERVICE_ACCOUNT_JSON) throw new Error('GSC credentials are required');

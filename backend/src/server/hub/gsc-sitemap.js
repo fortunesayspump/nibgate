@@ -90,6 +90,8 @@ export function request(url, { method = 'GET', body, headers = {}, token } = {})
         reject(err);
       });
     });
+    const deadline = setTimeout(() => req.destroy(new Error('Google request timed out')), 15_000);
+    req.once('close', () => clearTimeout(deadline));
     req.on('error', reject);
     if (body !== undefined) req.write(body);
     req.end();

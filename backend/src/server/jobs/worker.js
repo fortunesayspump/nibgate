@@ -1,3 +1,4 @@
+import { takeIndexDiagnostics } from './index-diagnostics.js';
 import { runIndexBatches } from './index-batches.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,7 +61,9 @@ export async function runWorker({ name, timeoutMs, env = process.env, load = asy
       },
     });
   } finally {
-    await db.$disconnect();
+    try { await db.$disconnect(); } finally {
+      if (name.startsWith('gsc-')) console.log('[gsc-diagnostics]', JSON.stringify(takeIndexDiagnostics()));
+    }
   }
 }
 

@@ -6,11 +6,13 @@ vi.mock('@nibgate/internal/db.js', () => ({ db: { indexState: {
   update: (...args) => m.update(...args),
 } } }));
 vi.mock('./gsc-sitemap.js', () => ({ getAccessToken: async () => 'fixture', request: async () => ({}), fetchSiteList: async () => [], submitSitemapForDomain: (...args) => m.submit(...args), assertIndexingDomain: () => {} }));
+import { takeIndexDiagnostics } from '../jobs/index-diagnostics.js';
 import { runIndexSweep, submitIndexNow } from './gsc-index.js';
 const domain = 'fixture.nibgate.xyz';
 const xml = `<urlset><url><loc>https://${domain}/</loc></url></urlset>`;
 const run = () => runIndexSweep({ domains: [domain] });
 beforeEach(() => {
+  takeIndexDiagnostics();
   vi.resetAllMocks(); m.row = null;
   m.read.mockImplementation(async () => m.row);
   m.update.mockImplementation(async ({ data }) => (m.row = { ...m.row, ...data }));
@@ -41,6 +43,7 @@ it('retries after IndexNow failure and records 202 as accepted but pending', asy
 it('does not submit or checkpoint on sitemap fetch failure', async () => {
   fetch.mockResolvedValue(new Response('', { status: 503 }));
   expect((await run()).errors).toHaveLength(1); expect(m.submit).not.toHaveBeenCalled(); expect(m.update).not.toHaveBeenCalled();
+  expect(takeIndexDiagnostics()).toContainEqual({stage:'sitemap_fetch',outcome:'http_failure',status:503,count:1});
 });
 it('retries delivery after checkpoint write fails', async () => {
   m.update.mockRejectedValueOnce(Error('database unavailable'));
@@ -61,6 +64,7 @@ it.each([200, 202])('uses a hostname and HTTPS key location for IndexNow %s', as
   const result = await submitIndexNow(domain, [`https://${domain}/`]);
   expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ host: domain, key: 'fixture-key', keyLocation: `https://${domain}/fixture-key.txt`, urlList: [`https://${domain}/`] });
   expect(result).toEqual({ ok: true, pending: status === 202, urls: 1 });
+  expect(takeIndexDiagnostics()).toEqual([{stage:'indexnow_submit',outcome:status === 202 ? 'accepted_pending' : 'accepted',status,count:1}]);
 });
 it('reports only the number of URLs actually submitted', async () => {
   vi.stubEnv('INDEXNOW_KEY', 'fixture-key'); fetch.mockResolvedValue(new Response('', { status: 200 }));

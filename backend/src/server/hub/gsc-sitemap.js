@@ -1,3 +1,4 @@
+import { observeIndexStage } from '../jobs/index-diagnostics.js';
 import https from 'node:https';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -58,7 +59,13 @@ export async function getAccessToken() {
   return cachedToken;
 }
 
-export function request(url, { method = 'GET', body, headers = {}, token } = {}) {
+export function request(url, options = {}) {
+  const stage = url === TOKEN_URL ? 'oauth' : url.startsWith('https://searchconsole.googleapis.com/') ? 'inspection'
+    : url.startsWith(WEBMASTERS_BASE) ? (options.method === 'PUT' ? 'google_submit' : 'google_list') : 'site_list';
+  return observeIndexStage(stage, () => requestRaw(url, options));
+}
+
+function requestRaw(url, { method = 'GET', body, headers = {}, token } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const options = {
@@ -90,7 +97,7 @@ export function request(url, { method = 'GET', body, headers = {}, token } = {})
         reject(err);
       });
     });
-    const deadline = setTimeout(() => req.destroy(new Error('Google request timed out')), 15_000);
+    const deadline = setTimeout(() => req.destroy(Object.assign(new Error('Google request timed out'), { code: 'ETIMEDOUT' })), 15_000);
     req.once('close', () => clearTimeout(deadline));
     req.on('error', reject);
     if (body !== undefined) req.write(body);

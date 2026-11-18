@@ -1,3 +1,4 @@
+import { recordIndexDiagnostic, indexFailure } from '../jobs/index-diagnostics.js';
 import crypto from 'node:crypto';
 import { discardResponse } from '../lib/http-response.js';
 import { db } from '@nibgate/internal/db.js';
@@ -28,6 +29,14 @@ export function isIndexed(result) {
 }
 
 export async function fetchSitemap(domain) {
+  try {
+    const result = await fetchSitemapRaw(domain);
+    if (result.hash) recordIndexDiagnostic('sitemap_fetch', 'accepted');
+    return result;
+  } catch (error) { indexFailure('sitemap_fetch', error); throw error; }
+}
+
+async function fetchSitemapRaw(domain) {
   const url = `https://${domain}/sitemap.xml`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
@@ -35,6 +44,7 @@ export async function fetchSitemap(domain) {
     const res = await fetch(url, { headers: { 'user-agent': 'NibgateIndexBot/1.0' }, signal: controller.signal });
     if (!res.ok) {
       await discardResponse(res);
+      indexFailure('sitemap_fetch', { status: res.status });
       return { body: null, hash: null };
     }
     const body = await res.text();
@@ -53,6 +63,15 @@ export function extractSitemapUrls(xml) {
 }
 
 export async function submitIndexNow(domain, urls) {
+  try {
+    const result = await submitIndexNowRaw(domain, urls);
+    if (result.ok) recordIndexDiagnostic('indexnow_submit', result.pending ? 'accepted_pending' : 'accepted', result.pending ? 202 : 200);
+    else if (!result.skipped) indexFailure('indexnow_submit', result);
+    return result;
+  } catch (error) { indexFailure('indexnow_submit', error); throw error; }
+}
+
+async function submitIndexNowRaw(domain, urls) {
   assertIndexingDomain(domain);
   const key = process.env.INDEXNOW_KEY || '';
   if (!key) return { skipped: 'INDEXNOW_KEY not set' };
